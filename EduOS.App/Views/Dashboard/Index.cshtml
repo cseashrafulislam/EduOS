@@ -1,0 +1,248 @@
+﻿@model EduOS.Core.DTOs.Dashboard.DashboardVm
+@{
+    ViewData["Title"] = "Dashboard";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+
+}
+
+<style>
+    .dashboard-bg {
+        background: #f5f7fb;
+        min-height: calc(100vh - 56px);
+    }
+
+    .premium-card {
+        border: 0;
+        border-radius: 22px;
+        box-shadow: 0 10px 28px rgba(15, 23, 42, .06);
+    }
+
+    .hero-card {
+        background: linear-gradient(135deg, #1d4ed8, #0f172a);
+        color: #fff;
+        border-radius: 24px;
+    }
+
+    .stat-value {
+        font-size: 30px;
+        font-weight: 700;
+    }
+
+    .stat-label {
+        color: #6b7280;
+        font-size: 14px;
+    }
+
+    .quick-btn {
+        border-radius: 14px;
+        padding: 12px 16px;
+        font-weight: 600;
+    }
+
+    .soft-box {
+        background: #f8fafc;
+        border-radius: 16px;
+        padding: 16px;
+    }
+
+    .section-title {
+        font-weight: 700;
+        font-size: 18px;
+    }
+</style>
+
+<div class="dashboard-bg py-4">
+    <div class="container-fluid px-4">
+
+        <div class="card premium-card hero-card mb-4">
+            <div class="card-body p-4 p-lg-5">
+                <div class="row align-items-center">
+                    <div class="col-lg-8">
+                        <div class="mb-2 text-white-50">EduOS SaaS Control Center</div>
+                        <h2 class="fw-bold mb-2">@Model.InstitutionName</h2>
+                        <div class="mb-3">
+                            @Model.InstitutionType • Owner: @Model.OwnerName
+                        </div>
+
+                        <div class="d-flex flex-wrap gap-2">
+                            <span class="badge bg-light text-dark px-3 py-2">Plan: @Model.PlanName</span>
+
+                            @if (Model.EmailVerified)
+                            {
+                                <span class="badge bg-success px-3 py-2">Email Verified</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-warning text-dark px-3 py-2">Email Pending</span>
+                            }
+
+                            @if (Model.SetupCompleted)
+                            {
+                                <span class="badge bg-success px-3 py-2">Setup Complete</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-info text-dark px-3 py-2">Onboarding Running</span>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="col-lg-4 mt-4 mt-lg-0">
+                        <div class="soft-box bg-white text-dark">
+                            <div class="small text-muted mb-2">Onboarding Progress</div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <strong>@Model.OnboardingPercent%</strong>
+                                <span class="text-muted">Step @Model.CurrentStep</span>
+                            </div>
+
+                            <div class="progress" style="height: 12px; border-radius: 999px;">
+                                <div class="progress-bar" role="progressbar" style="width:@Model.OnboardingPercent%"></div>
+                            </div>
+
+                            <div class="mt-3 small text-muted">
+                                Trial ends:
+                                @(Model.TrialEndDate.HasValue? Model.TrialEndDate.Value.ToString("dd MMM yyyy") : "N/A")
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4 mb-4">
+            <div class="col-md-3">
+                <div class="card premium-card h-100">
+                    <div class="card-body p-4">
+                        <div class="stat-label">Total Students</div>
+                        <div class="stat-value">@Model.TotalStudents</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="card premium-card h-100">
+                    <div class="card-body p-4">
+                        <div class="stat-label">Total Teachers</div>
+                        <div class="stat-value">@Model.TotalTeachers</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="card premium-card h-100">
+                    <div class="card-body p-4">
+                        <div class="stat-label">Total Staff</div>
+                        <div class="stat-value">@Model.TotalStaff</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="card premium-card h-100">
+                    <div class="card-body p-4">
+                        <div class="stat-label">Monthly Collection</div>
+                        <div class="stat-value">৳ @Model.MonthlyCollection.ToString("N0")</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-xl-8">
+                <div class="card premium-card mb-4">
+                    <div class="card-body p-4">
+                        <div class="section-title mb-3">Institution Overview</div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="soft-box">
+                                    <div class="text-muted small">Institution</div>
+                                    <div class="fw-semibold">@Model.InstitutionName</div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="soft-box">
+                                    <div class="text-muted small">Institution Type</div>
+                                    <div class="fw-semibold">@Model.InstitutionType</div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="soft-box">
+                                    <div class="text-muted small">Owner</div>
+                                    <div class="fw-semibold">@Model.OwnerName</div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="soft-box">
+                                    <div class="text-muted small">Active Features</div>
+                                    <div class="fw-semibold">@Model.ActiveFeatures</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card premium-card">
+                    <div class="card-body p-4">
+                        <div class="section-title mb-3">Recent Activity</div>
+
+                        <div class="list-group list-group-flush">
+                            <div class="list-group-item border-0 px-0">Institution account created</div>
+                            <div class="list-group-item border-0 px-0">Email verified and tenant activated</div>
+                            <div class="list-group-item border-0 px-0">Trial subscription provisioned</div>
+                            <div class="list-group-item border-0 px-0">Onboarding in progress</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-4">
+                <div class="card premium-card mb-4">
+                    <div class="card-body p-4">
+                        <div class="section-title mb-3">Quick Actions</div>
+
+                        <div class="d-grid gap-2">
+                            <a href="/Account/InstitutionProfile" class="btn btn-primary quick-btn">Complete Institution Profile</a>
+                            <a href="/Campus/Index" class="btn btn-outline-primary quick-btn">Setup Campus</a>
+                            <a href="/AcademicYear/Index" class="btn btn-outline-primary quick-btn">Setup Academic Year</a>
+                            <a href="/UserManagement/Index" class="btn btn-outline-primary quick-btn">Create Admin / Staff</a>
+                            <a href="/RolePermission/Index" class="btn btn-outline-primary quick-btn">Set Role Permissions</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card premium-card">
+                    <div class="card-body p-4">
+                        <div class="section-title mb-3">System Status</div>
+
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <span>Email Verification</span>
+                            @if (Model.EmailVerified)
+                            {
+                                <span class="badge bg-success">Completed</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-warning text-dark">Pending</span>
+                            }
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <span>Subscription</span>
+                            <span class="badge bg-primary">@Model.PlanName</span>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>Setup Progress</span>
+                            <span class="badge bg-info text-dark">@Model.OnboardingPercent%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>

@@ -1,0 +1,437 @@
+﻿@using EduOS.Core.Helpers
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - EduOS</title>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+
+    <style>
+        :root {
+            --edu-primary: #1d4ed8;
+            --edu-secondary: #0f172a;
+            --edu-accent: #06b6d4;
+            --edu-soft: #f8fafc;
+            --edu-border: #e2e8f0;
+            --edu-text: #0f172a;
+            --edu-muted: #64748b;
+            --edu-success: #16a34a;
+            --edu-warning: #f59e0b;
+            --edu-danger: #dc2626;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f7fb;
+            color: var(--edu-text);
+        }
+
+        .app-shell {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            width: 270px;
+            background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+            color: #fff;
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            padding: 22px 18px;
+            overflow-y: auto;
+            z-index: 1040;
+        }
+
+        .brand-box {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 28px;
+            padding: 10px 8px;
+        }
+
+        .brand-logo {
+            width: 46px;
+            height: 46px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, var(--edu-primary), var(--edu-accent));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            box-shadow: 0 10px 24px rgba(29, 78, 216, .35);
+        }
+
+        .brand-title {
+            font-size: 24px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .brand-subtitle {
+            font-size: 12px;
+            color: rgba(255,255,255,.7);
+            margin-top: 4px;
+        }
+
+        .menu-title {
+            font-size: 11px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: rgba(255,255,255,.45);
+            margin: 18px 10px 10px;
+        }
+
+        .sidebar .nav-link {
+            color: rgba(255,255,255,.86);
+            border-radius: 14px;
+            padding: 12px 14px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: .25s ease;
+            font-weight: 500;
+        }
+
+            .sidebar .nav-link:hover,
+            .sidebar .nav-link.active {
+                background: rgba(255,255,255,.10);
+                color: #fff;
+                transform: translateX(3px);
+            }
+
+            .sidebar .nav-link i {
+                width: 18px;
+                text-align: center;
+            }
+
+        .main-area {
+            margin-left: 270px;
+            width: calc(100% - 270px);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .topbar {
+            height: 50px;
+            background: rgba(255,255,255,.92);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--edu-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 26px;
+            position: sticky;
+            top: 0;
+            z-index: 1030;
+        }
+
+        .topbar-left h4 {
+            margin: 0;
+            font-size: 22px;
+            font-weight: 700;
+        }
+
+        .topbar-left p {
+            margin: 2px 0 0;
+            color: var(--edu-muted);
+            font-size: 13px;
+        }
+
+        .topbar-right {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .top-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            background: #fff;
+            border: 1px solid var(--edu-border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--edu-secondary);
+            cursor: pointer;
+            transition: .2s ease;
+        }
+
+            .top-icon:hover {
+                background: var(--edu-soft);
+            }
+
+        .user-box {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: #fff;
+            border: 1px solid var(--edu-border);
+            border-radius: 16px;
+            padding: 0px 12px;
+        }
+
+        .user-avatar {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--edu-primary), var(--edu-accent));
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+        }
+
+        .user-info {
+            line-height: 1.1;
+        }
+
+            .user-info .name {
+                font-size: 14px;
+                font-weight: 700;
+            }
+
+            .user-info .role {
+                font-size: 12px;
+                color: var(--edu-muted);
+            }
+
+        .page-body {
+            padding: 28px;
+            flex: 1;
+        }
+
+        .edu-card {
+            background: #fff;
+            border: 1px solid #eef2f7;
+            border-radius: 22px;
+            box-shadow: 0 12px 30px rgba(15, 23, 42, .05);
+        }
+
+        .footer-bar {
+            padding: 14px 28px;
+            border-top: 1px solid var(--edu-border);
+            background: #fff;
+            color: var(--edu-muted);
+            font-size: 13px;
+        }
+
+        .sidebar-divider {
+            border: 0;
+            border-top: 1px solid rgba(255,255,255,.08);
+            margin: 18px 8px;
+        }
+
+        .mobile-toggle {
+            display: none;
+        }
+
+        @@media (max-width: 991.98px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: .25s ease;
+            }
+
+                .sidebar.show {
+                    transform: translateX(0);
+                }
+
+            .main-area {
+                margin-left: 0;
+                width: 100%;
+            }
+
+            .mobile-toggle {
+                display: inline-flex;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar" id="sidebarMenu">
+            <div class="brand-box">
+                <div class="brand-logo">
+                    <i class="fa-solid fa-graduation-cap"></i>
+                </div>
+                <div>
+                    <div class="brand-title">EduOS</div>
+                    <div class="brand-subtitle">Education ERP</div>
+                </div>
+            </div>
+
+            <div class="menu-title">Main</div>
+            <nav class="nav flex-column">
+                <a class="nav-link active" href="/Dashboard/Index">
+                    <i class="fa-solid fa-house"></i>
+                    <span>Dashboard</span>
+                </a>
+
+                <a class="nav-link" href="/Account/InstitutionProfile">
+                    <i class="fa-solid fa-school"></i>
+                    <span>Institution Setup</span>
+                </a>
+
+                <a class="nav-link" href="/Campus/Index">
+                    <i class="fa-solid fa-building"></i>
+                    <span>Campus</span>
+                </a>
+
+                <a class="nav-link" href="/AcademicYear/Index">
+                    <i class="fa-solid fa-calendar-days"></i>
+                    <span>Academic Year</span>
+                </a>
+            </nav>
+
+            <hr class="sidebar-divider" />
+
+            <div class="menu-title">Academics</div>
+            <nav class="nav flex-column">
+                <a class="nav-link" href="/Student/Index">
+                    <i class="fa-solid fa-user-graduate"></i>
+                    <span>Students</span>
+                </a>
+
+                <a class="nav-link" href="/Teacher/Index">
+                    <i class="fa-solid fa-chalkboard-user"></i>
+                    <span>Teachers</span>
+                </a>
+
+                <a class="nav-link" href="/Class/Index">
+                    <i class="fa-solid fa-book-open-reader"></i>
+                    <span>Classes</span>
+                </a>
+
+                <a class="nav-link" href="/Attendance/Index">
+                    <i class="fa-solid fa-clipboard-check"></i>
+                    <span>Attendance</span>
+                </a>
+
+                <a class="nav-link" href="/Exam/Index">
+                    <i class="fa-solid fa-file-lines"></i>
+                    <span>Exams & Results</span>
+                </a>
+            </nav>
+
+            <hr class="sidebar-divider" />
+
+            <div class="menu-title">Management</div>
+            <nav class="nav flex-column">
+                <a class="nav-link" href="/Finance/Index">
+                    <i class="fa-solid fa-money-bill-wave"></i>
+                    <span>Finance</span>
+                </a>
+
+                <a class="nav-link" href="/UserManagement/Index">
+                    <i class="fa-solid fa-users-gear"></i>
+                    <span>User Management</span>
+                </a>
+
+                <a class="nav-link" href="/RolePermission/Index">
+                    <i class="fa-solid fa-shield-halved"></i>
+                    <span>Role Permissions</span>
+                </a>
+
+                <a class="nav-link" href="/Reports/Index">
+                    <i class="fa-solid fa-chart-line"></i>
+                    <span>Reports</span>
+                </a>
+            </nav>
+        </aside>
+
+        <div class="main-area">
+            <header class="topbar">
+                <div class="topbar-left d-flex align-items-center gap-3">
+                    <button class="btn btn-light mobile-toggle" id="btnSidebarToggle" type="button">
+                        <i class="fa-solid fa-bars"></i>
+                    </button>
+
+                    <div>
+                        <h4>@(ViewData["Title"] ?? "Dashboard")</h4>
+                        <p>Manage your institution with a premium education platform</p>
+                    </div>
+                </div>
+
+                <div class="topbar-right">
+                    <div class="top-icon">
+                        <i class="fa-regular fa-bell"></i>
+                    </div>
+
+                    <div class="top-icon">
+                        <i class="fa-solid fa-gear"></i>
+                    </div>
+
+                    <div class="dropdown">
+                        <div class="user-box" data-bs-toggle="dropdown" style="cursor:pointer;">
+                            <div class="user-avatar">
+                                @(string.IsNullOrWhiteSpace(User?.Identity?.Name) ? "U" : User.Identity.Name.Substring(0, 1).ToUpper())
+                            </div>
+                            <div class="user-info">
+                                <div class="name">@User?.Identity?.Name</div>
+                                <div class="role">Tenant Admin</div>
+                            </div>
+                            <i class="fa-solid fa-angle-down text-muted"></i>
+                        </div>
+
+                        <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-4 p-2">
+                            <li>
+                                <a class="dropdown-item rounded-3" href="/Account/Profile">
+                                    <i class="fa-regular fa-user me-2"></i> Profile
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item rounded-3" href="/Account/ChangePassword">
+                                    <i class="fa-solid fa-lock me-2"></i> Change Password
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider" /></li>
+                            <li>
+                                <form method="post" action="/api/auth/logout" class="m-0">
+                                    <button type="submit" class="dropdown-item rounded-3 text-danger">
+                                        <i class="fa-solid fa-right-from-bracket me-2"></i> Logout
+                                    </button>
+                                </form>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </header>
+
+            <main class="page-body">
+                @RenderBody()
+            </main>
+
+            <footer class="footer-bar">
+                © @DateTime.Now.Year EduOS • Education ERP & SaaS Platform
+            </footer>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        $(function() {
+            $("#btnSidebarToggle").on("click", function() {
+                $("#sidebarMenu").toggleClass("show");
+            });
+        });
+    </script>
+
+    @RenderSection("Scripts", required: false)
+</body>
+</html>

@@ -1,0 +1,187 @@
+﻿@{
+    ViewData["Title"] = "Academic Setup";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="container py-4">
+    <div id="msgBox" class="alert d-none"></div>
+
+    <div class="row">
+        <div class="col-lg-5">
+            <div class="card shadow-sm border-0 rounded-4 mb-4">
+                <div class="card-body p-4">
+                    <h4 class="fw-bold mb-3">Academic Year Setup</h4>
+
+                    <input type="hidden" id="AcademicYearId" />
+
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label">Year Name</label>
+                            <input type="text" id="YearName" class="form-control" placeholder="2026 or 2026-2027" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Start Date</label>
+                            <input type="date" id="YearStartDate" class="form-control" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">End Date</label>
+                            <input type="date" id="YearEndDate" class="form-control" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Display Order</label>
+                            <input type="number" id="YearDisplayOrder" class="form-control" value="1" min="1" />
+                        </div>
+
+                        <div class="col-md-3">
+                            <div class="form-check mt-4">
+                                <input class="form-check-input" type="checkbox" id="YearIsCurrent" />
+                                <label class="form-check-label" for="YearIsCurrent">Current</label>
+                            </div>
+                        </div>
+
+                        <div class="col-md-3">
+                            <div class="form-check mt-4">
+                                <input class="form-check-input" type="checkbox" id="YearIsActive" checked />
+                                <label class="form-check-label" for="YearIsActive">Active</label>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <button type="button" id="btnSaveYear" class="btn btn-primary">Save Year</button>
+                            <button type="button" id="btnResetYear" class="btn btn-outline-secondary ms-2">Reset</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm border-0 rounded-4">
+                <div class="card-body p-4">
+                    <h4 class="fw-bold mb-3">Academic Term Setup</h4>
+
+                    <input type="hidden" id="AcademicTermId" />
+
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label">Academic Year</label>
+                            <select id="TermAcademicYearId" class="form-select">
+                                <option value="">Select Year</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Term Name</label>
+                            <input type="text" id="TermName" class="form-control" placeholder="Term 1 / Semester 1" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Term Type</label>
+                            <select id="TermType" class="form-select">
+                                <option value="">Select</option>
+                                <option value="Term">Term</option>
+                                <option value="Semester">Semester</option>
+                                <option value="Quarter">Quarter</option>
+                                <option value="Session">Session</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Start Date</label>
+                            <input type="date" id="TermStartDate" class="form-control" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">End Date</label>
+                            <input type="date" id="TermEndDate" class="form-control" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Display Order</label>
+                            <input type="number" id="TermDisplayOrder" class="form-control" value="1" min="1" />
+                        </div>
+
+                        <div class="col-md-3">
+                            <div class="form-check mt-4">
+                                <input class="form-check-input" type="checkbox" id="TermIsCurrent" />
+                                <label class="form-check-label" for="TermIsCurrent">Current</label>
+                            </div>
+                        </div>
+
+                        <div class="col-md-3">
+                            <div class="form-check mt-4">
+                                <input class="form-check-input" type="checkbox" id="TermIsActive" checked />
+                                <label class="form-check-label" for="TermIsActive">Active</label>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <button type="button" id="btnSaveTerm" class="btn btn-primary">Save Term</button>
+                            <button type="button" id="btnResetTerm" class="btn btn-outline-secondary ms-2">Reset</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-7">
+            <div class="card shadow-sm border-0 rounded-4 mb-4">
+                <div class="card-body p-4">
+                    <h4 class="fw-bold mb-3">Academic Year List</h4>
+
+                    <div class="table-responsive">
+                        <table class="table table-bordered align-middle" id="yearTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Start</th>
+                                    <th>End</th>
+                                    <th>Current</th>
+                                    <th>Active</th>
+                                    <th style="width:140px;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td colspan="6" class="text-center text-muted">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm border-0 rounded-4">
+                <div class="card-body p-4">
+                    <h4 class="fw-bold mb-3">Academic Term List</h4>
+
+                    <div class="table-responsive">
+                        <table class="table table-bordered align-middle" id="termTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Year</th>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th>Start</th>
+                                    <th>End</th>
+                                    <th>Current</th>
+                                    <th style="width:140px;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td colspan="7" class="text-center text-muted">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="mt-3">
+                        <a href="/Dashboard/Index" class="btn btn-success">Finish Setup</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/institutionsetup/academicSetup.js"></script>
+}

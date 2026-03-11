@@ -1,0 +1,23 @@
+<Solution>
+  <Folder Name="/01 App/">
+    <Project Path="EduOS.App/EduOS.App.csproj" />
+  </Folder>
+
+  <Folder Name="/02 Service/">
+    <Project Path="EduOS.Service/EduOS.Service.csproj" Id="4ecf503b-4200-43c1-ba00-7a9ee8867af9" />
+    <Project Path="EduOS.AI/EduOS.AI.csproj" Id="7c5d8d2a-8f8e-4f55-9c8e-1a4e7b5c9f11" />
+  </Folder>
+
+  <Folder Name="/03 Persistence/">
+    <Project Path="EduOS.Persistence/EduOS.Persistence.csproj" Id="57119350-f9b0-4ee9-b470-99f2e20c768f" />
+    <Project Path="EduOS.BackgroundJobs/EduOS.BackgroundJobs.csproj" Id="e63f4be6-45a1-464c-ba92-6caa8e9c83f7" />
+  </Folder>
+
+  <Folder Name="/04 Core/">
+    <Project Path="EduOS.Core/EduOS.Core.csproj" Id="2ea2e725-c734-489a-a514-1e5b45deadec" />
+  </Folder>
+
+  <Folder Name="/05 Tests/">
+    <Project Path="EduOS.Tests/EduOS.Tests.csproj" Id="e421722a-fb91-4ba3-92d2-30be0d11bc8c" />
+  </Folder>
+</Solution>

@@ -1,0 +1,36 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="DTOs\Auth\RoleSetupDto.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.3.9" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="DTOs\Academic\" />
+    <Folder Include="DTOs\Admission\" />
+    <Folder Include="DTOs\AI\" />
+    <Folder Include="DTOs\Common\" />
+    <Folder Include="DTOs\Exam\" />
+    <Folder Include="DTOs\Finance\" />
+    <Folder Include="DTOs\Hostel\" />
+    <Folder Include="DTOs\HR\" />
+    <Folder Include="DTOs\Inventory\" />
+    <Folder Include="DTOs\Library\" />
+    <Folder Include="DTOs\Transport\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="DTOs\Auth\RoleSetupDto.cs" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,15 @@
+﻿namespace EduOS.Core.DTOs.SaaS
+{
+    public class AcademicYearListItemDto
+    {
+        public long Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+
+        public DateTime StartDate { get; set; }
+        public DateTime EndDate { get; set; }
+
+        public bool IsCurrent { get; set; }
+        public bool IsActive { get; set; }
+        public int DisplayOrder { get; set; }
+    }
+}
