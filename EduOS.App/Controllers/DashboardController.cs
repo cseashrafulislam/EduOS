@@ -1,4 +1,4 @@
-﻿using EduOS.Core.Interfaces.SaaS;
+﻿using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 

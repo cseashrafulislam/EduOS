@@ -16,7 +16,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="DTOs\Academic\" />
     <Folder Include="DTOs\Admission\" />
     <Folder Include="DTOs\AI\" />
     <Folder Include="DTOs\Common\" />

@@ -7,6 +7,12 @@ namespace EduOS.Core.Constants
             public const string View = "tenant.view";
             public const string Manage = "tenant.manage";
         }
+        public static class AuditLog
+        {
+            public const string View = "auditlog.view";
+            public const string Export = "auditlog.export";
+            public const string Delete = "auditlog.delete"; // Only SuperAdmin
+        }
 
         public static class User
         {

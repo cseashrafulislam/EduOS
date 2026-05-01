@@ -1,5 +1,5 @@
 ﻿using EduOS.Core.DTOs.SaaS;
-using EduOS.Core.Interfaces.SaaS;
+using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EduOS.App.Controllers.Api

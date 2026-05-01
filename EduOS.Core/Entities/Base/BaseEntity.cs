@@ -8,5 +8,7 @@ namespace EduOS.Core.Entities.Base
         public int? CreatedBy { get; set; }
         public int? UpdatedBy { get; set; }
         public bool IsDeleted { get; set; } = false;
+
+        public byte[] RowVersion { get; set; }
     }
 }

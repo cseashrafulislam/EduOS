@@ -19,15 +19,25 @@ namespace EduOS.Core.Common
             };
         }
 
-        public static ApiResponse<T> ErrorResponse(string message, int statusCode = 400, List<string>? errors = null)
+        public static ApiResponse<T> ErrorResponse(string message, int statusCode = 400)
         {
             return new ApiResponse<T>
             {
                 Success = false,
                 Message = message,
-                StatusCode = statusCode,
-                Errors = errors
+                StatusCode = statusCode
             };
         }
+    }
+
+    public class PagedResult<T>
+    {
+        public List<T> Items { get; set; } = new();
+        public int TotalCount { get; set; }
+        public int Page { get; set; }
+        public int PageSize { get; set; }
+        public int TotalPages => (int)Math.Ceiling(TotalCount / (double)PageSize);
+        public bool HasPreviousPage => Page > 1;
+        public bool HasNextPage => Page < TotalPages;
     }
 }

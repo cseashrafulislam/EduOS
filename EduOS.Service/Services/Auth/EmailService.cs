@@ -1,5 +1,5 @@
 ﻿using EduOS.Core.Configurations;
-using EduOS.Core.Enums.Interfaces.Auth;
+using EduOS.Core.Interfaces.IServices;
 using Microsoft.Extensions.Options;
 using System.Net;
 using System.Net.Mail;

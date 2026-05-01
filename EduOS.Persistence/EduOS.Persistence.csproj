@@ -7,6 +7,18 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Configurations\Auth\**" />
+    <Compile Remove="Configurations\Common\**" />
+    <Compile Remove="Migrations\**" />
+    <EmbeddedResource Remove="Configurations\Auth\**" />
+    <EmbeddedResource Remove="Configurations\Common\**" />
+    <EmbeddedResource Remove="Migrations\**" />
+    <None Remove="Configurations\Auth\**" />
+    <None Remove="Configurations\Common\**" />
+    <None Remove="Migrations\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.7" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.7">
       <PrivateAssets>all</PrivateAssets>
@@ -21,12 +33,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\EduOS.Core\EduOS.Core.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Configurations\Auth\" />
-    <Folder Include="Configurations\Common\" />
-    <Folder Include="Migrations\" />
   </ItemGroup>
 
 </Project>

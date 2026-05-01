@@ -1,7 +1,6 @@
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Persistence.Context;
 using EduOS.Persistence.Repositories;
-using EduOS.Persistence.UnitOfWork;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -32,10 +31,6 @@ namespace EduOS.Persistence.Extensions
 
             // Specific Repositories
             RegisterRepositories(services);
-
-            // Unit of Work
-            services.AddScoped<IUnitOfWork, UnitOfWork.UnitOfWork>();
-
             return services;
         }
 

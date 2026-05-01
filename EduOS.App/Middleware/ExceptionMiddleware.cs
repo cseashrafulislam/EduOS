@@ -3,20 +3,24 @@ using System.Text.Json;
 
 namespace EduOS.App.Middleware
 {
+    /// <summary>
+    /// Global exception handler middleware.
+    /// Catches all unhandled exceptions and returns proper JSON response.
+    /// </summary>
     public class ExceptionMiddleware
     {
         private readonly RequestDelegate _next;
         private readonly ILogger<ExceptionMiddleware> _logger;
-        private readonly IWebHostEnvironment _environment;
+        private readonly IWebHostEnvironment _env;
 
         public ExceptionMiddleware(
             RequestDelegate next,
             ILogger<ExceptionMiddleware> logger,
-            IWebHostEnvironment environment)
+            IWebHostEnvironment env)
         {
             _next = next;
             _logger = logger;
-            _environment = environment;
+            _env = env;
         }
 
         public async Task InvokeAsync(HttpContext context)
@@ -25,83 +29,50 @@ namespace EduOS.App.Middleware
             {
                 await _next(context);
             }
-            catch (UnauthorizedAccessException ex)
-            {
-                _logger.LogWarning(ex, "Unauthorized access. Path: {Path}", context.Request.Path);
-                await HandleExceptionAsync(context, HttpStatusCode.Unauthorized, ex.Message);
-            }
-            catch (KeyNotFoundException ex)
-            {
-                _logger.LogWarning(ex, "Resource not found. Path: {Path}", context.Request.Path);
-                await HandleExceptionAsync(context, HttpStatusCode.NotFound, ex.Message);
-            }
-            catch (ArgumentException ex)
-            {
-                _logger.LogWarning(ex, "Bad request. Path: {Path}", context.Request.Path);
-                await HandleExceptionAsync(context, HttpStatusCode.BadRequest, ex.Message);
-            }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Unhandled exception. Path: {Path}", context.Request.Path);
+                _logger.LogError(ex,
+                    "Unhandled exception. Path: {Path}, User: {UserId}, TraceId: {TraceId}",
+                    context.Request.Path,
+                    context.User?.Identity?.Name ?? "Anonymous",
+                    context.TraceIdentifier);
 
-                var message = _environment.IsDevelopment()
-                    ? ex.Message
-                    : "An unexpected error occurred.";
-
-                await HandleExceptionAsync(context, HttpStatusCode.InternalServerError, message);
+                await HandleExceptionAsync(context, ex);
             }
         }
 
-        private static async Task HandleExceptionAsync(
-            HttpContext context,
-            HttpStatusCode statusCode,
-            string message)
+        private async Task HandleExceptionAsync(HttpContext context, Exception ex)
         {
-            if (context.Response.HasStarted)
-                return;
+            context.Response.ContentType = "application/json";
 
-            context.Response.Clear();
+            var (statusCode, message) = ex switch
+            {
+                UnauthorizedAccessException => (HttpStatusCode.Unauthorized, "Unauthorized access"),
+                KeyNotFoundException => (HttpStatusCode.NotFound, ex.Message),
+                ArgumentException => (HttpStatusCode.BadRequest, ex.Message),
+                InvalidOperationException => (HttpStatusCode.BadRequest, ex.Message),
+                NotImplementedException => (HttpStatusCode.NotImplemented, "Feature not implemented"),
+                _ => (HttpStatusCode.InternalServerError, "An error occurred while processing your request")
+            };
+
             context.Response.StatusCode = (int)statusCode;
 
-            var isApiRequest =
-                context.Request.Path.StartsWithSegments("/api") ||
-                context.Request.Headers["Accept"].Any(x => x.Contains("application/json", StringComparison.OrdinalIgnoreCase));
-
-            if (isApiRequest)
+            var response = new
             {
-                context.Response.ContentType = "application/json";
+                success = false,
+                message,
+                statusCode = (int)statusCode,
+                traceId = context.TraceIdentifier,
+                // Include stack trace only in development
+                detail = _env.IsDevelopment() ? ex.ToString() : null
+            };
 
-                var response = new
-                {
-                    success = false,
-                    statusCode = (int)statusCode,
-                    message
-                };
-
-                var json = JsonSerializer.Serialize(response);
-                await context.Response.WriteAsync(json);
-                return;
-            }
-
-            if (statusCode == HttpStatusCode.Forbidden)
+            var json = JsonSerializer.Serialize(response, new JsonSerializerOptions
             {
-                context.Response.Redirect("/Error/403");
-                return;
-            }
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            });
 
-            if (statusCode == HttpStatusCode.NotFound)
-            {
-                context.Response.Redirect("/Error/404");
-                return;
-            }
-
-            if (statusCode == HttpStatusCode.Unauthorized)
-            {
-                context.Response.Redirect("/Account/Login");
-                return;
-            }
-
-            context.Response.Redirect("/Error/500");
+            await context.Response.WriteAsync(json);
         }
     }
 }

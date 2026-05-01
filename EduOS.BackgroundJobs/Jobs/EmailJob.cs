@@ -1,5 +1,5 @@
-﻿using EduOS.Core.Enums.Interfaces.Auth;
-using EduOS.Core.Interfaces;
+﻿using EduOS.Core.Interfaces;
+using EduOS.Core.Interfaces.IServices;
 using EduOS.Core.Interfaces.Jobs;
 
 namespace EduOS.BackgroundJobs.Jobs
