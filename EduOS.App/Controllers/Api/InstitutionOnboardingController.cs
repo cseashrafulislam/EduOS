@@ -285,5 +285,27 @@ namespace EduOS.App.Controllers.Api
             return Ok(new { success = true, message = "Academic term deleted successfully." });
         }
 
+
+
+        [HttpPost("final-complete")]
+        public async Task<IActionResult> FinalComplete()
+        {
+            var ok = await _service.FinalCompleteAsync();
+
+            if (!ok)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Final onboarding completion failed. Please complete previous steps first."
+                });
+            }
+
+            return Ok(new
+            {
+                success = true,
+                message = "Onboarding completed successfully."
+            });
+        }
     }
 }

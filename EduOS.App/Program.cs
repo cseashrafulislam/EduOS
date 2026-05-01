@@ -1,17 +1,7 @@
-using EduOS.App.Middlewares;
-using EduOS.BackgroundJobs.Jobs;
+using EduOS.App.Middleware;
 using EduOS.Core.Configurations;
 using EduOS.Core.Entities.Auth;
-using EduOS.Core.Enums.Interfaces.Auth;
-using EduOS.Core.Helpers;
-using EduOS.Core.Interfaces;
-using EduOS.Core.Interfaces.Jobs;
-using EduOS.Core.Interfaces.SaaS;
-using EduOS.Persistence.Contexts;
-using EduOS.Persistence.Repositories;
-using EduOS.Persistence.Seed;
-using EduOS.Service.Services.Auth;
-using EduOS.Service.Services.SaaS;
+using EduOS.Persistence.Context;
 using Hangfire;
 using Hangfire.SqlServer;
 using Microsoft.AspNetCore.Identity;
@@ -27,7 +17,7 @@ builder.Services.AddControllersWithViews();
 builder.Services.Configure<EmailSettings>(
     builder.Configuration.GetSection("EmailSettings"));
 
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
+builder.Services.AddDbContext<EduOSDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 builder.Services.AddIdentity<ApplicationUser, ApplicationRole>(options =>
@@ -39,7 +29,7 @@ builder.Services.AddIdentity<ApplicationUser, ApplicationRole>(options =>
 
     options.SignIn.RequireConfirmedEmail = true;
 })
-.AddEntityFrameworkStores<ApplicationDbContext>()
+.AddEntityFrameworkStores<EduOSDbContext>()
 .AddDefaultTokenProviders();
 
 builder.Services.AddHangfire(config =>
@@ -63,14 +53,14 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddMemoryCache(options =>
 {
     options.SizeLimit = 100000;
-}); 
+});
 
-builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
-builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
-builder.Services.AddScoped<IEmailJob, EmailJob>();
-builder.Services.AddScoped<IEmailService, EmailService>();
-builder.Services.AddScoped<IInstitutionOnboardingService, InstitutionOnboardingService>();
-builder.Services.AddScoped<IDashboardService, DashboardService>();
+//builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+//builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
+//builder.Services.AddScoped<IEmailJob, EmailJob>();
+//builder.Services.AddScoped<IEmailService, EmailService>();
+//builder.Services.AddScoped<IInstitutionOnboardingService, InstitutionOnboardingService>();
+//builder.Services.AddScoped<IDashboardService, DashboardService>();
 
 
 builder.Services.ConfigureApplicationCookie(options =>
@@ -96,20 +86,20 @@ var app = builder.Build();
 var accessor = app.Services.GetRequiredService<IHttpContextAccessor>();
 var memoryCache = app.Services.GetRequiredService<IMemoryCache>();
 
-UserContext.Configure(
-    accessor,
-    memoryCache,
-    async userId =>
-    {
-        using var scope = app.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+//UserContext.Configure(
+//    accessor,
+//    memoryCache,
+//    async userId =>
+//    {
+//        using var scope = app.Services.CreateScope();
+//        var db = scope.ServiceProvider.GetRequiredService<EduOSDbContext>();
 
-        var tenantUser = await db.TenantUsers
-            .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.UserId == userId && x.IsActive);
+//        var tenantUser = await db.TenantUsers
+//            .AsNoTracking()
+//            .FirstOrDefaultAsync(x => x.UserId == userId && x.IsActive);
 
-        return tenantUser?.TenantId;
-    });
+//        return tenantUser?.TenantId;
+//    });
 
 
 
@@ -117,18 +107,18 @@ using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
 
-    var context = services.GetRequiredService<ApplicationDbContext>();
+    var context = services.GetRequiredService<EduOSDbContext>();
     var roleManager = services.GetRequiredService<RoleManager<ApplicationRole>>();
     var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
 
-    await context.Database.MigrateAsync();
+    //await context.Database.MigrateAsync();
 
-    await RoleSeeder.SeedAsync(roleManager);
-    await SuperAdminSeeder.SeedAsync(userManager, roleManager);
+   // await RoleSeeder.SeedAsync(roleManager);
+   // await SuperAdminSeeder.SeedAsync(userManager, roleManager);
 
-    await FeatureSeeder.SeedAsync(context);
-    await SubscriptionPlanSeeder.SeedAsync(context);
-    await PlanFeatureSeeder.SeedAsync(context);
+  //  await FeatureSeeder.SeedAsync(context);
+   // await SubscriptionPlanSeeder.SeedAsync(context);
+   // await PlanFeatureSeeder.SeedAsync(context);
 }
 
 

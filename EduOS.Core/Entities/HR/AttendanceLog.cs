@@ -1,8 +1,8 @@
-﻿using EduOS.Core.Entities.Common;
+﻿using EduOS.Core.Entities.Base;
 
 namespace EduOS.Core.Entities.HR
 {
-    public class AttendanceLog : TenantEntity
+    public class AttendanceLog : BaseTenantEntity
     {
         public int EmployeeId { get; set; }
         public DateTime AttendanceDate { get; set; }

@@ -1,12 +1,12 @@
 ﻿using EduOS.Core.Entities.SaaS;
-using EduOS.Persistence.Contexts;
+using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 
 namespace EduOS.Persistence.Seed
 {
     public static class FeatureSeeder
     {
-        public static async Task SeedAsync(ApplicationDbContext context)
+        public static async Task SeedAsync(EduOSDbContext context)
         {
             if (await context.Features.AnyAsync())
                 return;

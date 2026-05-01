@@ -1,8 +1,8 @@
-﻿using EduOS.Core.Entities.Common;
+﻿using EduOS.Core.Entities.Base;
 
 namespace EduOS.Core.Entities.HR
 {
-    public class Shift : TenantEntity
+    public class Shift : BaseTenantEntity
     {
         public string Name { get; set; }
         public TimeSpan InTime { get; set; }

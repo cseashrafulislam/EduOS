@@ -1,12 +1,19 @@
-﻿using EduOS.Core.Entities.Common;
+using EduOS.Core.Entities.Base;
 
 namespace EduOS.Core.Entities.Finance
 {
-    public class Expense : TenantEntity
+    public class Expense : BaseTenantEntity
     {
-        public string Title { get; set; }
+        public int CategoryId { get; set; }
+        public int BankAccountId { get; set; }
         public decimal Amount { get; set; }
-        public DateTime ExpenseDate { get; set; }
-        public string Note { get; set; }
+        public DateTime Date { get; set; }
+        public string? Description { get; set; }
+        public string? VoucherNo { get; set; }
+        public string? PaidTo { get; set; }
+        public int AddedBy { get; set; }
+
+        public virtual ExpenseCategory? Category { get; set; }
+        public virtual BankAccount? BankAccount { get; set; }
     }
 }

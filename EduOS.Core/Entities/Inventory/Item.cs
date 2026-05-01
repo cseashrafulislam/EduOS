@@ -1,8 +1,8 @@
-﻿using EduOS.Core.Entities.Common;
+﻿using EduOS.Core.Entities.Base;
 
 namespace EduOS.Core.Entities.Inventory
 {
-    public class Item : TenantEntity
+    public class Item : BaseTenantEntity
     {
         public string Name { get; set; }
         public string Code { get; set; }

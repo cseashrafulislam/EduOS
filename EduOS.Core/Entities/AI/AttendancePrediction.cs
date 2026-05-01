@@ -1,9 +1,9 @@
 ﻿using System;
-using EduOS.Core.Entities.Common;
+using EduOS.Core.Entities.Base;
 
 namespace EduOS.Core.Entities.AI
 {
-    public class AttendancePrediction : TenantEntity
+    public class AttendancePrediction : BaseTenantEntity
     {
         public int StudentId { get; set; }
         public DateTime PredictionDate { get; set; }

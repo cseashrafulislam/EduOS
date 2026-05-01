@@ -25,5 +25,8 @@ namespace EduOS.Core.Interfaces.SaaS
         Task<AcademicTermSetupDto?> GetAcademicTermByIdAsync(long id);
         Task<bool> SaveAcademicTermAsync(AcademicTermSetupDto dto);
         Task<bool> DeleteAcademicTermAsync(long id);
+
+        
+        Task<bool> FinalCompleteAsync();
     }
 }

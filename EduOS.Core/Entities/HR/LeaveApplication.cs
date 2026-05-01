@@ -1,8 +1,8 @@
-﻿using EduOS.Core.Entities.Common;
+﻿using EduOS.Core.Entities.Base;
 
 namespace EduOS.Core.Entities.HR
 {
-    public class LeaveApplication : TenantEntity
+    public class LeaveApplication : BaseTenantEntity
     {
         public int EmployeeId { get; set; }
         public int LeaveTypeId { get; set; }

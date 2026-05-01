@@ -1,8 +1,8 @@
-﻿using EduOS.Core.Entities.Common;
+﻿using EduOS.Core.Entities.Base;
 
 namespace EduOS.Core.Entities.LMS
 {
-    public class CourseEnrollment : TenantEntity
+    public class CourseEnrollment : BaseTenantEntity
     {
         public int CourseId { get; set; }
         public int StudentId { get; set; }

@@ -1,10 +1,13 @@
-using EduOS.Core.Entities.Common;
+using EduOS.Core.Entities.Base;
 
-namespace EduOS.Core.Entities.Auth;
-
-public class Permission : BaseAuditableEntity
+namespace EduOS.Core.Entities.Auth
 {
-    public string Name { get; set; } = string.Empty;   // View / Create / Edit / Delete
-    public string Code { get; set; } = string.Empty;   // VIEW / CREATE / EDIT / DELETE
-    public bool IsActive { get; set; } = true;
+    public class Permission : BaseEntity
+    {
+        public string Name { get; set; } = string.Empty; // student.view/student.create
+        public string Module { get; set; } = string.Empty;
+        public string? Description { get; set; }
+
+        public virtual ICollection<RolePermission> RolePermissions { get; set; } = new List<RolePermission>();
+    }
 }

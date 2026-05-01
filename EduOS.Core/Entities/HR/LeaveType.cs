@@ -1,8 +1,8 @@
-﻿using EduOS.Core.Entities.Common;
+﻿using EduOS.Core.Entities.Base;
 
 namespace EduOS.Core.Entities.HR
 {
-    public class LeaveType : TenantEntity
+    public class LeaveType : BaseTenantEntity
     {
         public string Name { get; set; }
         public int MaxDays { get; set; }

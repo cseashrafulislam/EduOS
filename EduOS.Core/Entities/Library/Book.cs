@@ -1,13 +1,19 @@
-﻿using EduOS.Core.Entities.Common;
+using EduOS.Core.Entities.Base;
 
 namespace EduOS.Core.Entities.Library
 {
-    public class Book : TenantEntity
+    public class Book : BaseTenantEntity
     {
-        public string Title { get; set; }
-        public string ISBN { get; set; }
-        public int? CategoryId { get; set; }
-        public string Author { get; set; }
-        public int Quantity { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string? Author { get; set; }
+        public string? Publisher { get; set; }
+        public string? ISBN { get; set; }
+        public string? Category { get; set; }
+        public string? Edition { get; set; }
+        public int TotalCopies { get; set; }
+        public int AvailableCopies { get; set; }
+        public string? ShelfNo { get; set; }
+        public decimal? Price { get; set; }
+        public string? CoverImageUrl { get; set; }
     }
 }

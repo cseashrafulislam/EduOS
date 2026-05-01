@@ -1,8 +1,8 @@
-﻿using EduOS.Core.Entities.Common;
+﻿using EduOS.Core.Entities.Base;
 
 namespace EduOS.Core.Entities.LMS
 {
-    public class QuizResult : TenantEntity
+    public class QuizResult : BaseTenantEntity
     {
         public int QuizId { get; set; }
         public int StudentId { get; set; }

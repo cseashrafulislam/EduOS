@@ -3,6 +3,7 @@ using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Helpers;
 using EduOS.Core.Interfaces;
+using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.Jobs;
 using Hangfire;
 using Microsoft.AspNetCore.Identity;
@@ -53,24 +54,26 @@ namespace EduOS.App.Controllers.Api
 
             if (!result.Succeeded)
                 return BadRequest(new { success = false, message = "Invalid email or password." });
+            
+            var isSuperAdmin = await _userManager.IsInRoleAsync(user, "SuperAdmin");
 
-            var tenantUser = await _unitOfWork.TenantUsers
-                .FirstOrDefaultAsync(x => x.UserId == user.Id && x.IsActive);
+           // var tenantUser = await _unitOfWork.TenantUsers
+               // .FirstOrDefaultAsync(x => x.UserId == user.Id && x.IsActive);
 
-            if (tenantUser == null)
-            {
-                await _signInManager.SignOutAsync();
+            //if (!isSuperAdmin && tenantUser == null)
+            //{
+            //    await _signInManager.SignOutAsync();
 
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "No active tenant assigned to this user.",
-                    userId = user.Id,
-                    tenantId = tenantUser.TenantId
-                });
-            }
+            //    return BadRequest(new
+            //    {
+            //        success = false,
+            //        message = "No active tenant assigned to this user.",
+            //        userId = user.Id,
+            //        tenantId = tenantUser.TenantId
+            //    });
+            //}
 
-            UserContext.SetTenantCache(user.Id, tenantUser.TenantId);
+            // UserContext.SetTenantCache(user.Id, (int)tenantUser.TenantId);
 
             return Ok(new
             {

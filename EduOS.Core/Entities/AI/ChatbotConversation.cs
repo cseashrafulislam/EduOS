@@ -1,9 +1,9 @@
 ﻿using System;
-using EduOS.Core.Entities.Common;
+using EduOS.Core.Entities.Base;
 
 namespace EduOS.Core.Entities.AI
 {
-    public class ChatbotConversation : TenantEntity
+    public class ChatbotConversation : BaseTenantEntity
     {
         public int? StudentId { get; set; }
         public string UserMessage { get; set; }

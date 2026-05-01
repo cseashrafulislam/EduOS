@@ -1,0 +1,41 @@
+using EduOS.Core.Entities.Academic;
+using EduOS.Core.Interfaces.IRepositories;
+using EduOS.Persistence.Context;
+using Microsoft.EntityFrameworkCore;
+
+namespace EduOS.Persistence.Repositories
+{
+    public class SubjectTeacherRepository : GenericRepository<SubjectTeacher>, ISubjectTeacherRepository
+    {
+        public SubjectTeacherRepository(EduOSDbContext context) : base(context) { }
+
+        public async Task<List<SubjectTeacher>> GetByTeacherAsync(int teacherId, int academicYearId)
+        {
+            return await _dbSet
+                .Include(st => st.Class)
+                .Include(st => st.Section)
+                .Include(st => st.Subject)
+                .Where(st => st.TeacherId == teacherId && st.AcademicYearId == academicYearId)
+                .ToListAsync();
+        }
+
+        public async Task<List<SubjectTeacher>> GetByClassSectionAsync(int classId, int sectionId)
+        {
+            return await _dbSet
+                .Include(st => st.Subject)
+                .Include(st => st.Teacher)
+                .Where(st => st.ClassId == classId && st.SectionId == sectionId)
+                .ToListAsync();
+        }
+
+        public async Task<SubjectTeacher?> GetClassTeacherAsync(int classId, int sectionId, int academicYearId)
+        {
+            return await _dbSet
+                .Include(st => st.Teacher)
+                .FirstOrDefaultAsync(st => st.ClassId == classId 
+                    && st.SectionId == sectionId 
+                    && st.AcademicYearId == academicYearId 
+                    && st.IsClassTeacher);
+        }
+    }
+}

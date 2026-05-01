@@ -1,8 +1,8 @@
-﻿using EduOS.Core.Entities.Common;
+﻿using EduOS.Core.Entities.Base;
 
 namespace EduOS.Core.Entities.Inventory
 {
-    public class Stock : TenantEntity
+    public class Stock : BaseTenantEntity
     {
         public int ItemId { get; set; }
         public decimal InQty { get; set; }

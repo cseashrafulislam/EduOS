@@ -1,8 +1,8 @@
-﻿using EduOS.Core.Entities.Common;
+﻿using EduOS.Core.Entities.Base;
 
 namespace EduOS.Core.Entities.Auth;
 
-public class AppPage : BaseAuditableEntity
+public class AppPage : BaseTenantEntity
 {
     public string Name { get; set; } = string.Empty;       // Students
     public string Code { get; set; } = string.Empty;       // STUDENTS

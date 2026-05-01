@@ -27,6 +27,7 @@
     <Folder Include="DTOs\Inventory\" />
     <Folder Include="DTOs\Library\" />
     <Folder Include="DTOs\Transport\" />
+    <Folder Include="Entities\Common\" />
   </ItemGroup>
 
   <ItemGroup>

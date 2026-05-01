@@ -1,11 +1,14 @@
-﻿using EduOS.Core.Entities.Common;
+using EduOS.Core.Entities.Base;
 
 namespace EduOS.Core.Entities.Academic
 {
-    public class Class : TenantEntity
+    public class Class : BaseTenantEntity
     {
-        public string Name { get; set; }
-        public string Code { get; set; }
+        public string Name { get; set; } = string.Empty; // Class One/Two
+        public int NumericValue { get; set; }
         public bool IsActive { get; set; } = true;
+
+        public virtual ICollection<Section> Sections { get; set; } = new List<Section>();
+        public virtual ICollection<Subject> Subjects { get; set; } = new List<Subject>();
     }
 }

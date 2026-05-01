@@ -1,19 +1,19 @@
-﻿using EduOS.Core.Entities.Common;
+using EduOS.Core.Entities.Base;
+using EduOS.Core.Entities.Tenants;
 
 namespace EduOS.Core.Entities.SaaS
 {
-    public class TenantSubscription : TenantEntity
+    public class TenantSubscription : BaseEntity
     {
-        public int SubscriptionPlanId { get; set; }
-        public SubscriptionPlan SubscriptionPlan { get; set; } = null!;
-
-        public decimal FixedAmount { get; set; }
-        public decimal PerActiveStudentAmount { get; set; }
-
+        public int TenantId { get; set; }
+        public int PlanId { get; set; }
         public DateTime StartDate { get; set; }
-        public DateTime? EndDate { get; set; }
+        public DateTime EndDate { get; set; }
+        public string Status { get; set; } = "Active"; // Active/Expired/Trial/Cancelled/Suspended
+        public bool AutoRenew { get; set; } = true;
+        public decimal Amount { get; set; }
 
-        public bool IsTrial { get; set; }
-        public bool IsActive { get; set; } = true;
+        public virtual Tenant? Tenant { get; set; }
+        public virtual SubscriptionPlan? Plan { get; set; }
     }
 }

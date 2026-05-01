@@ -1,8 +1,9 @@
-﻿using EduOS.Core.Entities.Common;
+﻿using EduOS.Core.Entities.Base;
+using EduOS.Core.Entities.Base;
 
 namespace EduOS.Core.Entities.Hostel
 {
-    public class HostelStudent : TenantEntity
+    public class HostelStudent : BaseTenantEntity
     {
         public int StudentId { get; set; }
         public int HostelRoomId { get; set; }

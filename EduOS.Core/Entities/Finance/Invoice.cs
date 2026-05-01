@@ -1,8 +1,8 @@
-﻿using EduOS.Core.Entities.Common;
+﻿using EduOS.Core.Entities.Base;
 
 namespace EduOS.Core.Entities.Finance
 {
-    public class Invoice : TenantEntity
+    public class Invoice : BaseTenantEntity
     {
         public string InvoiceNo { get; set; }
         public int StudentId { get; set; }

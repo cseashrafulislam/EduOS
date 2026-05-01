@@ -1,8 +1,8 @@
-﻿using EduOS.Core.Entities.Common;
+﻿using EduOS.Core.Entities.Base;
 
 namespace EduOS.Core.Entities.Auth;
 
-public class RolePagePermission : BaseAuditableEntity
+public class RolePagePermission : BaseTenantEntity
 {
     public long? TenantId { get; set; }
     public int RoleId { get; set; }

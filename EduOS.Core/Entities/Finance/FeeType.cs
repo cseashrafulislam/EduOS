@@ -1,8 +1,8 @@
-﻿using EduOS.Core.Entities.Common;
+﻿using EduOS.Core.Entities.Base;
 
 namespace EduOS.Core.Entities.Finance
 {
-    public class FeeType : TenantEntity
+    public class FeeType : BaseTenantEntity
     {
         public string Name { get; set; }
         public decimal DefaultAmount { get; set; }

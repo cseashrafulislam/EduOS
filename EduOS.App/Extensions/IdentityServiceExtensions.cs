@@ -1,5 +1,5 @@
 ﻿using EduOS.Core.Entities.Auth;
-using EduOS.Persistence.Contexts;
+using EduOS.Persistence.Context;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -17,7 +17,7 @@ namespace EduOS.App.Extensions
                 options.Password.RequireNonAlphanumeric = false;
                 options.Password.RequiredLength = 6;
             })
-            .AddEntityFrameworkStores<ApplicationDbContext>()
+            .AddEntityFrameworkStores<EduOSDbContext>()
             .AddDefaultTokenProviders();
 
             return services;

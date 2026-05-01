@@ -1,8 +1,8 @@
-﻿using EduOS.Core.Entities.Common;
+﻿using EduOS.Core.Entities.Base;
 
 namespace EduOS.Core.Entities.Inventory
 {
-    public class PurchaseDetail : TenantEntity
+    public class PurchaseDetail : BaseTenantEntity
     {
         public int PurchaseId { get; set; }
         public int ItemId { get; set; }

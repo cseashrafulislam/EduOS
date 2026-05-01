@@ -1,8 +1,8 @@
-﻿using EduOS.Core.Entities.Common;
+﻿using EduOS.Core.Entities.Base;
 
 namespace EduOS.Core.Entities.Admission
 {
-    public class AdmissionResult : TenantEntity
+    public class AdmissionResult : BaseTenantEntity
     {
         public int AdmissionTestId { get; set; }
         public int ApplicantId { get; set; }

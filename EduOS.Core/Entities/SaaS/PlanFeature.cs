@@ -1,15 +1,15 @@
-﻿using EduOS.Core.Entities.Common;
+using EduOS.Core.Entities.Base;
 
 namespace EduOS.Core.Entities.SaaS
 {
-    public class PlanFeature : BaseAuditableEntity
+    public class PlanFeature : BaseEntity
     {
-        public int SubscriptionPlanId { get; set; }
-        public SubscriptionPlan SubscriptionPlan { get; set; } = null!;
-
+        public int PlanId { get; set; }
         public int FeatureId { get; set; }
-        public Feature Feature { get; set; } = null!;
-
         public bool IsEnabled { get; set; } = true;
+        public int? LimitValue { get; set; } // null = unlimited
+
+        public virtual SubscriptionPlan? Plan { get; set; }
+        public virtual Feature? Feature { get; set; }
     }
 }

@@ -1,8 +1,8 @@
-﻿using EduOS.Core.Entities.Common;
+﻿using EduOS.Core.Entities.Base;
 
 namespace EduOS.Core.Entities.Transport
 {
-    public class Stopage : TenantEntity
+    public class Stopage : BaseTenantEntity
     {
         public int RouteId { get; set; }
         public string Name { get; set; }

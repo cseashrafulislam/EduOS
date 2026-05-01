@@ -1,8 +1,8 @@
-﻿using EduOS.Core.Entities.Common;
+﻿using EduOS.Core.Entities.Base;
 
 namespace EduOS.Core.Entities.HR
 {
-    public class Employee : TenantEntity
+    public class Employee : BaseTenantEntity
     {
         public string EmployeeCode { get; set; }
         public string FullName { get; set; }

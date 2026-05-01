@@ -1,9 +1,9 @@
 ﻿using System;
-using EduOS.Core.Entities.Common;
+using EduOS.Core.Entities.Base;
 
 namespace EduOS.Core.Entities.AI
 {
-    public class ResultAnalytics : TenantEntity
+    public class ResultAnalytics : BaseTenantEntity
     {
         public int StudentId { get; set; }
         public int ExamId { get; set; }

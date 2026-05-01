@@ -1,8 +1,8 @@
-﻿using EduOS.Core.Entities.Common;
+﻿using EduOS.Core.Entities.Base;
 
 namespace EduOS.Core.Entities.HR
 {
-    public class Designation : TenantEntity
+    public class Designation : BaseTenantEntity
     {
         public string Name { get; set; }
         public string Code { get; set; }

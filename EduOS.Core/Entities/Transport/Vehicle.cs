@@ -1,12 +1,17 @@
-﻿using EduOS.Core.Entities.Common;
+using EduOS.Core.Entities.Base;
 
 namespace EduOS.Core.Entities.Transport
 {
-    public class Vehicle : TenantEntity
+    public class Vehicle : BaseTenantEntity
     {
-        public string VehicleNo { get; set; }
-        public string VehicleType { get; set; }
-        public int SeatCapacity { get; set; }
+        public string VehicleNo { get; set; } = string.Empty;
+        public string Type { get; set; } = "Bus"; // Bus/Van/Car
+        public int Capacity { get; set; }
+        public string? DriverName { get; set; }
+        public string? DriverPhone { get; set; }
+        public int? RouteId { get; set; }
         public bool IsActive { get; set; } = true;
+
+        public virtual Route? Route { get; set; }
     }
 }
