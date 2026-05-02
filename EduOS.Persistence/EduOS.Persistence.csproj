@@ -7,15 +7,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="Configurations\Auth\**" />
     <Compile Remove="Configurations\Common\**" />
-    <Compile Remove="Migrations\**" />
-    <EmbeddedResource Remove="Configurations\Auth\**" />
     <EmbeddedResource Remove="Configurations\Common\**" />
-    <EmbeddedResource Remove="Migrations\**" />
-    <None Remove="Configurations\Auth\**" />
     <None Remove="Configurations\Common\**" />
-    <None Remove="Migrations\**" />
   </ItemGroup>
 
   <ItemGroup>
@@ -29,6 +23,9 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.7" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.FileExtensions" Version="10.0.7" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.7" />
   </ItemGroup>
 
   <ItemGroup>

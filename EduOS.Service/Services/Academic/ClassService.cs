@@ -3,10 +3,10 @@ using EduOS.Core.Common;
 using EduOS.Core.DTOs.Academic;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Interfaces;
-using EduOS.Core.Interfaces.IServices;
 using EduOS.Core.Interfaces.IRepositories;
+using EduOS.Core.Interfaces.IServices;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
 namespace EduOS.Service.Services.Academic
@@ -19,9 +19,9 @@ namespace EduOS.Service.Services.Academic
         public ClassService(
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUser,
-            ILogger<BaseService> logger,
+            ILogger<ClassService> logger,         // Specific logger type for clarity
             IMapper mapper,
-            IDistributedCache cache,
+            IMemoryCache cache,                    // IMemoryCache instead of IDistributedCache
             IClassRepository classRepository)
             : base(unitOfWork, currentUser, logger, mapper, cache)
         {
@@ -32,22 +32,17 @@ namespace EduOS.Service.Services.Academic
         {
             try
             {
-                // Build cache key
-                var cacheKey = $"{CACHE_PREFIX}:list:{_currentUser.TenantId}:{filter.Page}:{filter.PageSize}";
+                // Tenant-scoped cache key
+                var cacheKey = BuildCacheKey(CACHE_PREFIX, "list", filter.Page, filter.PageSize,
+                    filter.SearchTerm ?? "", filter.IsActive?.ToString() ?? "");
 
-                // Try cache first
-                var cachedResult = await GetFromCacheAsync<PagedResult<ClassDto>>(cacheKey);
-                if (cachedResult != null)
-                {
-                    _logger.LogDebug("Cache hit for classes list");
-                    return ApiResponse<PagedResult<ClassDto>>.SuccessResponse(cachedResult);
-                }
+                var cached = await GetFromCacheAsync<PagedResult<ClassDto>>(cacheKey);
+                if (cached != null)
+                    return ApiResponse<PagedResult<ClassDto>>.SuccessResponse(cached);
 
-                // Build query with tenant filter
                 var query = _classRepository.GetQueryable()
                     .Where(c => c.TenantId == _currentUser.TenantId);
 
-                // Apply filters
                 if (!string.IsNullOrEmpty(filter.SearchTerm))
                     query = query.Where(c => c.Name.Contains(filter.SearchTerm));
 
@@ -70,9 +65,7 @@ namespace EduOS.Service.Services.Academic
                     PageSize = filter.PageSize
                 };
 
-                // Cache for 5 minutes
                 await SetCacheAsync(cacheKey, result, TimeSpan.FromMinutes(5));
-
                 return ApiResponse<PagedResult<ClassDto>>.SuccessResponse(result);
             }
             catch (Exception ex)
@@ -82,30 +75,30 @@ namespace EduOS.Service.Services.Academic
             }
         }
 
-        public async Task<ApiResponse<ClassDto>> GetByIdAsync(int id)
+        public async Task<ApiResponse<ClassDto>> GetByIdAsync(long id)
         {
             try
             {
-                var cacheKey = $"{CACHE_PREFIX}:id:{_currentUser.TenantId}:{id}";
-
-                // Try cache first
+                var cacheKey = BuildCacheKey(CACHE_PREFIX, "id", id);
                 var cached = await GetFromCacheAsync<ClassDto>(cacheKey);
                 if (cached != null)
-                {
                     return ApiResponse<ClassDto>.SuccessResponse(cached);
-                }
 
                 var entity = await _classRepository.GetByIdAsync(id);
-
-                if (entity == null || entity.TenantId != _currentUser.TenantId)
+                if (entity == null)
                     return ApiResponse<ClassDto>.ErrorResponse("Class not found", 404);
 
-                var dto = _mapper.Map<ClassDto>(entity);
+                // Security: validate tenant access
+                ValidateTenantAccess(entity);
 
-                // Cache for 10 minutes
+                var dto = _mapper.Map<ClassDto>(entity);
                 await SetCacheAsync(cacheKey, dto, TimeSpan.FromMinutes(10));
 
                 return ApiResponse<ClassDto>.SuccessResponse(dto);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return ApiResponse<ClassDto>.ErrorResponse(ex.Message, 403);
             }
             catch (Exception ex)
             {
@@ -118,120 +111,113 @@ namespace EduOS.Service.Services.Academic
         {
             try
             {
-                await BeginTransactionAsync();
-
-                // Check duplicate
-                var exists = await _classRepository.AnyAsync(
-                    c => c.Name == dto.Name && c.TenantId == _currentUser.TenantId);
-
-                if (exists)
+                return await ExecuteInTransactionAsync(async () =>
                 {
-                    await RollbackTransactionAsync();
-                    return ApiResponse<ClassDto>.ErrorResponse("Class name already exists", 400);
-                }
+                    var exists = await _classRepository.AnyAsync(
+                        c => c.Name == dto.Name && c.TenantId == _currentUser.TenantId);
 
-                var entity = _mapper.Map<Class>(dto);
-                SetAuditFieldsCreate(entity);
+                    if (exists)
+                        return ApiResponse<ClassDto>.ErrorResponse("Class name already exists", 400);
 
-                await _classRepository.AddAsync(entity);
-                await _unitOfWork.SaveChangesAsync();
-                await CommitTransactionAsync();
+                    var entity = _mapper.Map<Class>(dto);
+                    SetAuditFieldsCreate(entity);  // Sets TenantId, CreatedAt, CreatedBy
 
-                // Invalidate cache
-                await RemovePatternCacheAsync($"{CACHE_PREFIX}:list:{_currentUser.TenantId}:*");
+                    await _classRepository.AddAsync(entity);
+                    await _unitOfWork.SaveChangesAsync();
 
-                LogEntityCreated(entity, entity.Id);
+                    // Invalidate list cache
+                    await RemovePatternCacheAsync(BuildCacheKey(CACHE_PREFIX, "list", "*"));
 
-                var resultDto = _mapper.Map<ClassDto>(entity);
-                return ApiResponse<ClassDto>.SuccessResponse(resultDto, "Class created successfully");
+                    LogEntityCreated(entity, entity.Id);
+
+                    var resultDto = _mapper.Map<ClassDto>(entity);
+                    return ApiResponse<ClassDto>.SuccessResponse(resultDto, "Class created successfully");
+                });
             }
             catch (Exception ex)
             {
-                await RollbackTransactionAsync();
                 LogError("Error creating class", ex);
                 return ApiResponse<ClassDto>.ErrorResponse("Failed to create class", 500);
             }
         }
 
-        public async Task<ApiResponse<ClassDto>> UpdateAsync(int id, ClassUpdateDto dto)
+        public async Task<ApiResponse<ClassDto>> UpdateAsync(long id, ClassUpdateDto dto)
         {
             try
             {
-                await BeginTransactionAsync();
-
-                var entity = await _classRepository.GetByIdAsync(id);
-
-                if (entity == null || entity.TenantId != _currentUser.TenantId)
+                return await ExecuteInTransactionAsync(async () =>
                 {
-                    await RollbackTransactionAsync();
-                    return ApiResponse<ClassDto>.ErrorResponse("Class not found", 404);
-                }
+                    var entity = await _classRepository.GetByIdAsync(id);
+                    if (entity == null)
+                        return ApiResponse<ClassDto>.ErrorResponse("Class not found", 404);
 
-                var exists = await _classRepository.AnyAsync(
-                    c => c.Name == dto.Name && c.TenantId == _currentUser.TenantId && c.Id != id);
+                    // Security: validate tenant access
+                    ValidateTenantAccess(entity);
 
-                if (exists)
-                {
-                    await RollbackTransactionAsync();
-                    return ApiResponse<ClassDto>.ErrorResponse("Class name already exists", 400);
-                }
+                    var exists = await _classRepository.AnyAsync(
+                        c => c.Name == dto.Name && c.TenantId == _currentUser.TenantId && c.Id != id);
 
-                _mapper.Map(dto, entity);
-                SetAuditFieldsUpdate(entity);
+                    if (exists)
+                        return ApiResponse<ClassDto>.ErrorResponse("Class name already exists", 400);
 
-                _classRepository.Update(entity);
-                await _unitOfWork.SaveChangesAsync();
-                await CommitTransactionAsync();
+                    _mapper.Map(dto, entity);
+                    SetAuditFieldsUpdate(entity);
 
-                // Invalidate cache
-                await RemoveCacheAsync($"{CACHE_PREFIX}:id:{_currentUser.TenantId}:{id}");
-                await RemovePatternCacheAsync($"{CACHE_PREFIX}:list:{_currentUser.TenantId}:*");
+                    _classRepository.Update(entity);
+                    await _unitOfWork.SaveChangesAsync();
 
-                LogEntityUpdated(entity, entity.Id);
+                    // Invalidate caches
+                    await RemoveCacheAsync(BuildCacheKey(CACHE_PREFIX, "id", id));
+                    await RemovePatternCacheAsync(BuildCacheKey(CACHE_PREFIX, "list", "*"));
 
-                var resultDto = _mapper.Map<ClassDto>(entity);
-                return ApiResponse<ClassDto>.SuccessResponse(resultDto, "Class updated successfully");
+                    LogEntityUpdated(entity, entity.Id);
+
+                    var resultDto = _mapper.Map<ClassDto>(entity);
+                    return ApiResponse<ClassDto>.SuccessResponse(resultDto, "Class updated successfully");
+                });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return ApiResponse<ClassDto>.ErrorResponse(ex.Message, 403);
             }
             catch (Exception ex)
             {
-                await RollbackTransactionAsync();
                 LogError("Error updating class {Id}", ex, id);
                 return ApiResponse<ClassDto>.ErrorResponse("Failed to update class", 500);
             }
         }
 
-        public async Task<ApiResponse<bool>> DeleteAsync(int id)
+        public async Task<ApiResponse<bool>> DeleteAsync(long id)
         {
             try
             {
-                await BeginTransactionAsync();
-
-                var entity = await _classRepository.GetByIdAsync(id);
-
-                if (entity == null || entity.TenantId != _currentUser.TenantId)
+                return await ExecuteInTransactionAsync(async () =>
                 {
-                    await RollbackTransactionAsync();
-                    return ApiResponse<bool>.ErrorResponse("Class not found", 404);
-                }
+                    var entity = await _classRepository.GetByIdAsync(id);
+                    if (entity == null)
+                        return ApiResponse<bool>.ErrorResponse("Class not found", 404);
 
-                entity.IsDeleted = true;
-                SetAuditFieldsUpdate(entity);
+                    ValidateTenantAccess(entity);
 
-                _classRepository.Update(entity);
-                await _unitOfWork.SaveChangesAsync();
-                await CommitTransactionAsync();
+                    SetAuditFieldsDelete(entity);  // Soft delete
 
-                // Invalidate cache
-                await RemoveCacheAsync($"{CACHE_PREFIX}:id:{_currentUser.TenantId}:{id}");
-                await RemovePatternCacheAsync($"{CACHE_PREFIX}:list:{_currentUser.TenantId}:*");
+                    _classRepository.Update(entity);
+                    await _unitOfWork.SaveChangesAsync();
 
-                LogEntityDeleted(entity, entity.Id);
+                    await RemoveCacheAsync(BuildCacheKey(CACHE_PREFIX, "id", id));
+                    await RemovePatternCacheAsync(BuildCacheKey(CACHE_PREFIX, "list", "*"));
 
-                return ApiResponse<bool>.SuccessResponse(true, "Class deleted successfully");
+                    LogEntityDeleted(entity, entity.Id);
+
+                    return ApiResponse<bool>.SuccessResponse(true, "Class deleted successfully");
+                });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return ApiResponse<bool>.ErrorResponse(ex.Message, 403);
             }
             catch (Exception ex)
             {
-                await RollbackTransactionAsync();
                 LogError("Error deleting class {Id}", ex, id);
                 return ApiResponse<bool>.ErrorResponse("Failed to delete class", 500);
             }
@@ -241,25 +227,21 @@ namespace EduOS.Service.Services.Academic
         {
             try
             {
-                var cacheKey = $"{CACHE_PREFIX}:active:{_currentUser.TenantId}";
+                var cacheKey = BuildCacheKey(CACHE_PREFIX, "active");
 
-                var cached = await GetFromCacheAsync<List<ClassDto>>(cacheKey);
-                if (cached != null)
-                {
-                    return ApiResponse<List<ClassDto>>.SuccessResponse(cached);
-                }
+                var dtos = await GetOrSetCacheAsync(
+                    cacheKey,
+                    async () =>
+                    {
+                        var entities = await _classRepository.FindAsync(
+                            c => c.TenantId == _currentUser.TenantId && c.IsActive,
+                            c => c.NumericValue);
 
-                var entities = await _classRepository.FindAsync(
-                    c => c.TenantId == _currentUser.TenantId && c.IsActive,
-                    c => c.NumericValue
-                );
+                        return _mapper.Map<List<ClassDto>>(entities);
+                    },
+                    TimeSpan.FromMinutes(15));
 
-                var dtos = _mapper.Map<List<ClassDto>>(entities);
-
-                // Cache for 15 minutes (active classes change less frequently)
-                await SetCacheAsync(cacheKey, dtos, TimeSpan.FromMinutes(15));
-
-                return ApiResponse<List<ClassDto>>.SuccessResponse(dtos);
+                return ApiResponse<List<ClassDto>>.SuccessResponse(dtos ?? new List<ClassDto>());
             }
             catch (Exception ex)
             {

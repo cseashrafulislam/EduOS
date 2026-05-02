@@ -1,0 +1,42 @@
+@{
+    ViewData["Title"] = "Payment cancelled";
+    Layout = "_Layout";
+}
+
+<style>
+    .status-wrapper {
+        min-height: calc(100vh - 60px);
+        display: flex; align-items: center; justify-content: center;
+        background: #f8fafc; padding: 2rem;
+    }
+    .status-card {
+        background: #fff; border-radius: 16px; padding: 3rem 2.5rem;
+        max-width: 480px; width: 100%; text-align: center;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.06);
+    }
+    .status-icon-warn {
+        width: 80px; height: 80px; border-radius: 50%;
+        background: #fef3c7; color: #d97706; font-size: 40px;
+        display: flex; align-items: center; justify-content: center;
+        margin: 0 auto 1.5rem;
+    }
+</style>
+
+<div class="status-wrapper">
+    <div class="status-card">
+        <div class="status-icon-warn">
+            <i class="bi bi-exclamation-triangle"></i>
+        </div>
+        <h3 class="mb-2">Payment cancelled</h3>
+        <p class="text-muted mb-3">
+            You cancelled the payment. You can try again anytime.
+        </p>
+
+        <div class="d-grid gap-2 mt-4">
+            <a href="/Account/PlanSelection" class="btn btn-primary">
+                Choose a plan
+            </a>
+            <a href="/Dashboard" class="btn btn-link text-muted">Back to dashboard</a>
+        </div>
+    </div>
+</div>

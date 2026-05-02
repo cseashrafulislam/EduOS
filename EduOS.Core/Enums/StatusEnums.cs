@@ -9,7 +9,7 @@ namespace EduOS.Core.Enums
         public const string Holiday = "Holiday";
     }
 
-    public static class PaymentStatus
+    public static class STPaymentStatus
     {
         public const string Paid = "Paid";
         public const string Partial = "Partial";
@@ -17,7 +17,7 @@ namespace EduOS.Core.Enums
         public const string Refunded = "Refunded";
     }
 
-    public static class PaymentMethod
+    public static class STPaymentMethod
     {
         public const string Cash = "Cash";
         public const string Bkash = "Bkash";
@@ -41,15 +41,6 @@ namespace EduOS.Core.Enums
         public const string TC = "TC";
         public const string Passed = "Passed";
         public const string Dropout = "Dropout";
-    }
-
-    public static class SubscriptionStatus
-    {
-        public const string Active = "Active";
-        public const string Trial = "Trial";
-        public const string Expired = "Expired";
-        public const string Cancelled = "Cancelled";
-        public const string Suspended = "Suspended";
     }
 
     public static class NotificationType

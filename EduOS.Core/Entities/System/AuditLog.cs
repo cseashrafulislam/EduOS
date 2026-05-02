@@ -4,11 +4,11 @@ namespace EduOS.Core.Entities.System
 {
     public class AuditLog : BaseTenantEntity
     {
-        public int? UserId { get; set; }
+        public long? UserId { get; set; }
         public string UserName { get; set; } = string.Empty;
         public string Action { get; set; } = string.Empty; // Create, Update, Delete
         public string TableName { get; set; } = string.Empty;
-        public int? RecordId { get; set; }
+        public long? RecordId { get; set; }
         public string? OldValue { get; set; } // JSON
         public string? NewValue { get; set; } // JSON
         public string IpAddress { get; set; } = string.Empty;

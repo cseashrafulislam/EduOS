@@ -1,0 +1,75 @@
+@{
+    ViewData["Title"] = "Payment successful";
+    Layout = "_Layout";
+}
+
+<style>
+    .status-wrapper {
+        min-height: calc(100vh - 60px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f8fafc;
+        padding: 2rem;
+    }
+
+    .status-card {
+        background: #fff;
+        border-radius: 16px;
+        padding: 3rem 2.5rem;
+        max-width: 480px;
+        width: 100%;
+        text-align: center;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.06);
+    }
+
+    .status-icon-success {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: #d1fae5;
+        color: #059669;
+        font-size: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1.5rem;
+    }
+
+    .txn-box {
+        background: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        border-radius: 8px;
+        padding: 0.75rem;
+        font-family: monospace;
+        font-size: 13px;
+        margin: 1rem 0;
+        color: #166534;
+    }
+</style>
+
+<div class="status-wrapper">
+    <div class="status-card">
+        <div class="status-icon-success">
+            <i class="bi bi-check-lg"></i>
+        </div>
+        <h3 class="mb-2">Payment successful!</h3>
+        <p class="text-muted mb-3">
+            Your subscription has been activated. Welcome to EduOS!
+        </p>
+
+        @if (Context.Request.Query.ContainsKey("txn"))
+        {
+            <div class="txn-box">
+                Transaction: @Context.Request.Query["txn"]
+            </div>
+        }
+
+        <div class="d-grid gap-2 mt-4">
+            <a href="/Account/CampusSetup" class="btn btn-primary btn-lg">
+                Continue setup <i class="bi bi-arrow-right ms-1"></i>
+            </a>
+            <a href="/Dashboard" class="btn btn-link text-muted">Go to dashboard</a>
+        </div>
+    </div>
+</div>

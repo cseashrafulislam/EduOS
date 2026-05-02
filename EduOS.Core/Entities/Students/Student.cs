@@ -6,8 +6,8 @@ namespace EduOS.Core.Entities.Students
 {
     public class Student : BaseTenantEntity
     {
-        public int? UserId { get; set; }
-        public int? AdmissionId { get; set; }
+        public long? UserId { get; set; }
+        public long? AdmissionId { get; set; }
         public string StudentCode { get; set; } = string.Empty;
         public string Roll { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
@@ -30,7 +30,7 @@ namespace EduOS.Core.Entities.Students
         public string Status { get; set; } = "Active"; // Active/TC/Passed/Dropout
         public bool IsActive { get; set; } = true;
 
-        public virtual User? User { get; set; }
+        public virtual ApplicationUser? User { get; set; }
         public virtual Admission? Admission { get; set; }
         public virtual Class? Class { get; set; }
         public virtual Section? Section { get; set; }

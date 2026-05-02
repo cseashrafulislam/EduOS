@@ -5,8 +5,8 @@ namespace EduOS.Core.Entities.Students
 {
     public class Guardian : BaseTenantEntity
     {
-        public int StudentId { get; set; }
-        public int? UserId { get; set; }
+        public long StudentId { get; set; }
+        public long? UserId { get; set; }
         public string Name { get; set; } = string.Empty;
         public string Relation { get; set; } = string.Empty; // Father/Mother/Other
         public string Phone { get; set; } = string.Empty;
@@ -18,6 +18,6 @@ namespace EduOS.Core.Entities.Students
         public bool IsPrimary { get; set; } = false;
 
         public virtual Student? Student { get; set; }
-        public virtual User? User { get; set; }
+        public virtual ApplicationUser? User { get; set; }
     }
 }

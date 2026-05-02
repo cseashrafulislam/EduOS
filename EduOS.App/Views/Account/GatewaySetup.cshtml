@@ -1,0 +1,224 @@
+@{
+    ViewData["Title"] = "SMS & Email setup";
+    Layout = "_OnboardingLayout";
+}
+
+<style>
+    .gateway-card {
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        background: #fff;
+    }
+    .gateway-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+</style>
+
+<h2 class="mb-2">SMS & Email setup</h2>
+<p class="text-muted mb-4">Configure messaging gateways. You can skip this and set them up later in settings.</p>
+
+<div id="alertContainer"></div>
+
+<!-- SMS -->
+<div class="gateway-card">
+    <div class="gateway-header">
+        <h6 class="mb-0"><i class="bi bi-chat-dots me-2"></i>SMS gateway</h6>
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="smsEnabled" />
+            <label class="form-check-label small" for="smsEnabled">Enable</label>
+        </div>
+    </div>
+
+    <div id="smsForm">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label small fw-bold">Provider</label>
+                <select class="form-select" id="smsProvider">
+                    <option value="">Select provider</option>
+                    <option value="BulkSMSBD">BulkSMSBD</option>
+                    <option value="SslWireless">SSL Wireless</option>
+                    <option value="MimSms">MIM SMS</option>
+                    <option value="Twilio">Twilio</option>
+                    <option value="Custom">Custom</option>
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label small fw-bold">Sender ID</label>
+                <input type="text" class="form-control" id="smsSenderId" placeholder="e.g. EDUOS" />
+            </div>
+            <div class="col-12">
+                <label class="form-label small fw-bold">API URL</label>
+                <input type="url" class="form-control" id="smsApiUrl" placeholder="https://api.example.com/send" />
+            </div>
+            <div class="col-12">
+                <label class="form-label small fw-bold">API key</label>
+                <input type="password" class="form-control" id="smsApiKey" placeholder="••••••••" />
+                <small class="text-muted">Stored securely. Won't be shown again.</small>
+            </div>
+        </div>
+        <button type="button" class="btn btn-outline-primary btn-sm mt-3" id="saveSmsBtn">
+            <i class="bi bi-save"></i> Save SMS settings
+        </button>
+    </div>
+</div>
+
+<!-- Email -->
+<div class="gateway-card">
+    <div class="gateway-header">
+        <h6 class="mb-0"><i class="bi bi-envelope me-2"></i>Email (SMTP)</h6>
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="emailEnabled" />
+            <label class="form-check-label small" for="emailEnabled">Enable</label>
+        </div>
+    </div>
+
+    <div id="emailForm">
+        <div class="row g-3">
+            <div class="col-md-8">
+                <label class="form-label small fw-bold">SMTP Host</label>
+                <input type="text" class="form-control" id="smtpHost" placeholder="e.g. smtp.gmail.com" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small fw-bold">Port</label>
+                <input type="number" class="form-control" id="smtpPort" placeholder="587" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label small fw-bold">Username</label>
+                <input type="text" class="form-control" id="smtpUsername" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label small fw-bold">Password</label>
+                <input type="password" class="form-control" id="smtpPassword" placeholder="••••••••" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label small fw-bold">From email</label>
+                <input type="email" class="form-control" id="fromEmail" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label small fw-bold">From name</label>
+                <input type="text" class="form-control" id="fromName" />
+            </div>
+            <div class="col-12">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="useSsl" checked />
+                    <label class="form-check-label small" for="useSsl">Use SSL/TLS</label>
+                </div>
+            </div>
+        </div>
+        <button type="button" class="btn btn-outline-primary btn-sm mt-3" id="saveEmailBtn">
+            <i class="bi bi-save"></i> Save email settings
+        </button>
+    </div>
+</div>
+
+<div class="d-flex justify-content-between mt-4 pt-3 border-top">
+    <button type="button" class="btn btn-outline-secondary" id="skipBtn">
+        Skip & complete onboarding
+    </button>
+    <button type="button" class="btn btn-primary" id="finishBtn">
+        Finish setup <i class="bi bi-check-lg ms-1"></i>
+    </button>
+</div>
+
+<script>
+    async function loadSms() {
+        const res = await fetch('/api/tenant-settings/sms-gateway', { credentials: 'include' });
+        const data = await res.json();
+        if (data.success && data.data) {
+            const d = data.data;
+            document.getElementById('smsProvider').value = d.provider || '';
+            document.getElementById('smsSenderId').value = d.senderId || '';
+            document.getElementById('smsApiUrl').value = d.apiUrl || '';
+            document.getElementById('smsApiKey').value = d.apiKey || '';
+            document.getElementById('smsEnabled').checked = d.isEnabled || false;
+        }
+    }
+
+    async function loadEmail() {
+        const res = await fetch('/api/tenant-settings/email-gateway', { credentials: 'include' });
+        const data = await res.json();
+        if (data.success && data.data) {
+            const d = data.data;
+            document.getElementById('smtpHost').value = d.smtpHost || '';
+            document.getElementById('smtpPort').value = d.smtpPort || '';
+            document.getElementById('smtpUsername').value = d.smtpUsername || '';
+            document.getElementById('smtpPassword').value = d.smtpPassword || '';
+            document.getElementById('fromEmail').value = d.fromEmail || '';
+            document.getElementById('fromName').value = d.fromName || '';
+            document.getElementById('useSsl').checked = d.useSsl !== false;
+            document.getElementById('emailEnabled').checked = d.isEnabled || false;
+        }
+    }
+
+    document.getElementById('saveSmsBtn').addEventListener('click', async () => {
+        const dto = {
+            provider: document.getElementById('smsProvider').value,
+            apiUrl: document.getElementById('smsApiUrl').value,
+            apiKey: document.getElementById('smsApiKey').value,
+            senderId: document.getElementById('smsSenderId').value,
+            isEnabled: document.getElementById('smsEnabled').checked
+        };
+        const res = await fetch('/api/tenant-settings/sms-gateway', {
+            method: 'PUT', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(dto)
+        });
+        const data = await res.json();
+        showAlert(data.success ? 'success' : 'danger', data.message);
+    });
+
+    document.getElementById('saveEmailBtn').addEventListener('click', async () => {
+        const dto = {
+            smtpHost: document.getElementById('smtpHost').value,
+            smtpPort: parseInt(document.getElementById('smtpPort').value) || null,
+            smtpUsername: document.getElementById('smtpUsername').value,
+            smtpPassword: document.getElementById('smtpPassword').value,
+            fromEmail: document.getElementById('fromEmail').value,
+            fromName: document.getElementById('fromName').value,
+            useSsl: document.getElementById('useSsl').checked,
+            isEnabled: document.getElementById('emailEnabled').checked
+        };
+        const res = await fetch('/api/tenant-settings/email-gateway', {
+            method: 'PUT', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(dto)
+        });
+        const data = await res.json();
+        showAlert(data.success ? 'success' : 'danger', data.message);
+    });
+
+    async function finishOnboarding() {
+        // Mark this step done, then complete onboarding
+        await fetch('/api/onboarding/complete-step', {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ step: 8, skipped: true })
+        });
+        const res = await fetch('/api/onboarding/complete', { method: 'POST', credentials: 'include' });
+        const data = await res.json();
+        if (data.success) {
+            window.location.href = '/Account/OnboardingComplete';
+        } else {
+            showAlert('danger', data.message);
+        }
+    }
+
+    document.getElementById('finishBtn').addEventListener('click', finishOnboarding);
+    document.getElementById('skipBtn').addEventListener('click', finishOnboarding);
+
+    function showAlert(type, msg) {
+        const c = document.getElementById('alertContainer');
+        c.innerHTML = `<div class="alert alert-${type} alert-dismissible">${msg}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
+        setTimeout(() => { c.innerHTML = ''; }, 4000);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadSms();
+        loadEmail();
+    });
+</script>

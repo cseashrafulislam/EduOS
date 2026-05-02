@@ -1,0 +1,224 @@
+@{
+    Layout = "_Layout";
+}
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+
+<style>
+    .onboarding-wrapper {
+        min-height: calc(100vh - 60px);
+        background: #f8f9fa;
+    }
+
+    .onboarding-sidebar {
+        background: #fff;
+        border-right: 1px solid #e5e7eb;
+        min-height: calc(100vh - 60px);
+        padding: 2rem 1.5rem;
+    }
+
+    .onboarding-progress {
+        background: #f1f5f9;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .progress-bar-custom {
+        height: 8px;
+        border-radius: 4px;
+        background: #e2e8f0;
+        overflow: hidden;
+    }
+
+    .progress-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #3b82f6, #1d4ed8);
+        transition: width 0.4s ease;
+    }
+
+    .step-item {
+        display: flex;
+        align-items: flex-start;
+        padding: 0.75rem 0.75rem;
+        border-radius: 8px;
+        margin-bottom: 0.25rem;
+        text-decoration: none;
+        color: #475569;
+        transition: all 0.2s;
+        position: relative;
+    }
+
+    .step-item:hover:not(.locked) {
+        background: #f1f5f9;
+        color: #1e40af;
+    }
+
+    .step-item.current {
+        background: #eff6ff;
+        color: #1e40af;
+        font-weight: 500;
+    }
+
+    .step-item.completed {
+        color: #059669;
+    }
+
+    .step-item.locked {
+        color: #cbd5e1;
+        cursor: not-allowed;
+    }
+
+    .step-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: #e2e8f0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 0.75rem;
+        flex-shrink: 0;
+        font-size: 14px;
+    }
+
+    .step-item.current .step-icon {
+        background: #3b82f6;
+        color: white;
+    }
+
+    .step-item.completed .step-icon {
+        background: #10b981;
+        color: white;
+    }
+
+    .step-content {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .step-name {
+        font-size: 14px;
+        margin: 0;
+        line-height: 1.2;
+    }
+
+    .step-desc {
+        font-size: 12px;
+        color: #94a3b8;
+        margin-top: 2px;
+    }
+
+    .onboarding-content {
+        padding: 2.5rem;
+        max-width: 900px;
+    }
+
+    .step-skip-badge {
+        font-size: 10px;
+        background: #fef3c7;
+        color: #92400e;
+        padding: 2px 6px;
+        border-radius: 4px;
+        margin-left: 4px;
+    }
+</style>
+
+<div class="onboarding-wrapper">
+    <div class="row g-0">
+        <!-- Sidebar -->
+        <div class="col-md-3 col-lg-3">
+            <div class="onboarding-sidebar">
+                <h5 class="mb-3">Setup wizard</h5>
+
+                <div class="onboarding-progress">
+                    <div class="d-flex justify-content-between mb-2">
+                        <small class="text-muted">Progress</small>
+                        <small class="fw-bold" id="progressText">0%</small>
+                    </div>
+                    <div class="progress-bar-custom">
+                        <div class="progress-bar-fill" id="progressBar" style="width: 0%"></div>
+                    </div>
+                    <div class="mt-2 small text-muted">
+                        <span id="completedCount">0</span> of <span id="totalCount">0</span> steps completed
+                    </div>
+                </div>
+
+                <div id="stepsList">
+                    <div class="text-center py-4 text-muted small">
+                        <div class="spinner-border spinner-border-sm" role="status"></div>
+                        Loading...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Content -->
+        <div class="col-md-9 col-lg-9">
+            <div class="onboarding-content">
+                @RenderBody()
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Load onboarding status and render sidebar
+    async function loadOnboardingStatus() {
+        try {
+            const res = await fetch('/api/onboarding/status', {
+                credentials: 'include'
+            });
+            if (!res.ok) return;
+            const data = await res.json();
+            if (!data.success) return;
+            renderSidebar(data.data);
+        } catch (e) {
+            console.error('Failed to load onboarding status', e);
+        }
+    }
+
+    function renderSidebar(status) {
+        document.getElementById('progressBar').style.width = status.progressPercentage + '%';
+        document.getElementById('progressText').textContent = status.progressPercentage + '%';
+        document.getElementById('completedCount').textContent = status.completedSteps;
+        document.getElementById('totalCount').textContent = status.totalSteps;
+
+        const list = document.getElementById('stepsList');
+        list.innerHTML = '';
+
+        status.steps.forEach(step => {
+            const link = document.createElement('a');
+            link.href = step.isLocked ? '#' : step.url;
+            link.className = 'step-item';
+
+            if (step.isCurrent) link.classList.add('current');
+            if (step.isCompleted) link.classList.add('completed');
+            if (step.isLocked) link.classList.add('locked');
+
+            if (step.isLocked) {
+                link.addEventListener('click', e => e.preventDefault());
+            }
+
+            let iconContent = `<i class="${step.iconClass}"></i>`;
+            if (step.isCompleted) {
+                iconContent = '<i class="bi bi-check-lg"></i>';
+            }
+
+            link.innerHTML = `
+                <div class="step-icon">${iconContent}</div>
+                <div class="step-content">
+                    <div class="step-name">
+                        ${step.name}
+                        ${step.isSkippable ? '<span class="step-skip-badge">Optional</span>' : ''}
+                    </div>
+                    <div class="step-desc">${step.description}</div>
+                </div>
+            `;
+
+            list.appendChild(link);
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', loadOnboardingStatus);
+</script>

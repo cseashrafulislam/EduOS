@@ -26,7 +26,7 @@ namespace EduOS.Core.DTOs.System
 
     public class AuditLogFilterDto
     {
-        public int? UserId { get; set; }
+        public long? UserId { get; set; }
         public string? TableName { get; set; }
         public string? Action { get; set; } // Create, Update, Delete
         public DateTime? FromDate { get; set; }
@@ -63,7 +63,7 @@ namespace EduOS.Core.DTOs.System
 
     public class UserActivityDto
     {
-        public int UserId { get; set; }
+        public long UserId { get; set; }
         public string UserName { get; set; } = string.Empty;
         public int ActivityCount { get; set; }
     }

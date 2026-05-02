@@ -1,6 +1,7 @@
 ﻿using AutoMapper;
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.System;
+using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
 using global::System.ComponentModel;
@@ -103,7 +104,7 @@ namespace EduOS.Service.Services
             }
         }
 
-        public async Task<ApiResponse<List<AuditLogDto>>> GetByUserAsync(int userId)
+        public async Task<ApiResponse<List<AuditLogDto>>> GetByUserAsync(long userId)
         {
             try
             {
@@ -221,7 +222,7 @@ namespace EduOS.Service.Services
                         .Take(10)
                         .Select(g => new UserActivityDto
                         {
-                            UserId = g.Key.UserId!.Value,
+                            UserId = g.Key.UserId.HasValue ? g.Key.UserId.Value : 0,
                             UserName = g.Key.UserName,
                             ActivityCount = g.Count()
                         })

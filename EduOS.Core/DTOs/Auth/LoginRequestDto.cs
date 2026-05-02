@@ -6,6 +6,29 @@
         public string Password { get; set; } = string.Empty;
         public bool RememberMe { get; set; }
     }
+
+    public class LoginResponseDto
+    {
+        public string AccessToken { get; set; } = string.Empty;
+        public string RefreshToken { get; set; } = string.Empty;
+        public DateTime ExpiresAt { get; set; }
+        public long userId { get; set; }
+        public string FullName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public int TenantId { get; set; }
+        public string InstitutionName { get; set; } = string.Empty;
+        public IList<string> Roles { get; set; } = new List<string>();
+        public bool IsOnboardingComplete { get; set; }
+        public int CurrentOnboardingStep { get; set; }
+    }
+    public class RefreshTokenRequestDto
+    {
+        public string RefreshToken { get; set; } = string.Empty;
+    }
+    public class LogoutRequestDto
+    {
+        public string? RefreshToken { get; set; }
+    }
     public class ForgotPasswordRequestDto
     {
         public string Email { get; set; } = "";

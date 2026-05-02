@@ -6,7 +6,7 @@ namespace EduOS.Core.Entities.Employees
 {
     public class Employee : BaseTenantEntity
     {
-        public int? UserId { get; set; }
+        public long? UserId { get; set; }
         public string EmployeeCode { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
         public string? FatherName { get; set; }
@@ -28,7 +28,7 @@ namespace EduOS.Core.Entities.Employees
         public bool IsTeacher { get; set; } = false;
         public bool IsActive { get; set; } = true;
 
-        public virtual User? User { get; set; }
+        public virtual ApplicationUser? User { get; set; }
         public virtual Designation? Designation { get; set; }
         public virtual Department? Department { get; set; }
     }

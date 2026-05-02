@@ -5,7 +5,7 @@ namespace EduOS.Core.Entities.Communication
 {
     public class Notification : BaseTenantEntity
     {
-        public int RecipientUserId { get; set; }
+        public long RecipientUserId { get; set; }
         public string Type { get; set; } = "InApp"; // SMS/Email/Push/InApp
         public string? Subject { get; set; }
         public string Message { get; set; } = string.Empty;
@@ -14,8 +14,8 @@ namespace EduOS.Core.Entities.Communication
         public DateTime? ReadAt { get; set; }
         public bool IsRead { get; set; } = false;
         public string? RelatedEntityType { get; set; }
-        public int? RelatedEntityId { get; set; }
+        public long? RelatedEntityId { get; set; }
 
-        public virtual User? Recipient { get; set; }
+        public virtual ApplicationUser? Recipient { get; set; }
     }
 }

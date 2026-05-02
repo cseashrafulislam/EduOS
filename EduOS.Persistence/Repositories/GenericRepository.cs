@@ -18,12 +18,12 @@ namespace EduOS.Persistence.Repositories
             _dbSet = context.Set<T>();
         }
 
-        public virtual async Task<T?> GetByIdAsync(int id)
+        public virtual async Task<T?> GetByIdAsync(long id)
         {
             return await _dbSet.FindAsync(id);
         }
 
-        public virtual async Task<T?> GetByIdAsync(int id, params Expression<Func<T, object>>[] includes)
+        public virtual async Task<T?> GetByIdAsync(long id, params Expression<Func<T, object>>[] includes)
         {
             IQueryable<T> query = _dbSet;
             foreach (var include in includes)
@@ -159,7 +159,7 @@ namespace EduOS.Persistence.Repositories
             _dbSet.RemoveRange(entities);
         }
 
-        public virtual async Task<bool> DeleteByIdAsync(int id)
+        public virtual async Task<bool> DeleteByIdAsync(long id)
         {
             var entity = await GetByIdAsync(id);
             if (entity == null) return false;

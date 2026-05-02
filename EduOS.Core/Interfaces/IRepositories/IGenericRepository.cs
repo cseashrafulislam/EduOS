@@ -4,8 +4,8 @@ namespace EduOS.Core.Interfaces.IRepositories
 {
     public interface IGenericRepository<T> where T : class
     {
-        Task<T?> GetByIdAsync(int id);
-        Task<T?> GetByIdAsync(int id, params Expression<Func<T, object>>[] includes);
+        Task<T?> GetByIdAsync(long id);
+        Task<T?> GetByIdAsync(long id, params Expression<Func<T, object>>[] includes);
         Task<T?> FirstOrDefaultAsync(Expression<Func<T, bool>> predicate);
         Task<T?> FirstOrDefaultAsync(Expression<Func<T, bool>> predicate, params Expression<Func<T, object>>[] includes);
         Task<List<T>> GetAllAsync();
@@ -26,7 +26,7 @@ namespace EduOS.Core.Interfaces.IRepositories
         void UpdateRange(IEnumerable<T> entities);
         void Delete(T entity);
         void DeleteRange(IEnumerable<T> entities);
-        Task<bool> DeleteByIdAsync(int id);
+        Task<bool> DeleteByIdAsync(long id);
         IQueryable<T> GetQueryable();
         IQueryable<T> GetQueryable(Expression<Func<T, bool>> predicate);
         Task<(List<T> Items, int TotalCount)> GetPagedAsync(int page, int pageSize, Expression<Func<T, bool>>? predicate = null, Expression<Func<T, object>>? orderBy = null, bool descending = false, params Expression<Func<T, object>>[] includes);

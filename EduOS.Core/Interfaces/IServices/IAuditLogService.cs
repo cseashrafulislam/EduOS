@@ -7,7 +7,7 @@ namespace EduOS.Core.Interfaces.IServices
     {
         Task<ApiResponse<PagedResult<AuditLogDto>>> GetAllAsync(AuditLogFilterDto filter);
         Task<ApiResponse<List<AuditLogDto>>> GetByRecordAsync(string tableName, int recordId);
-        Task<ApiResponse<List<AuditLogDto>>> GetByUserAsync(int userId);
+        Task<ApiResponse<List<AuditLogDto>>> GetByUserAsync(long userId);
         Task<ApiResponse<List<AuditLogDto>>> GetByDateRangeAsync(DateTime fromDate, DateTime toDate);
         Task<ApiResponse<List<AuditLogDto>>> GetByActionAsync(string action);
         Task<ApiResponse<List<AuditLogDto>>> GetByTableNameAsync(string tableName);

@@ -43,7 +43,7 @@ namespace EduOS.Service.Helpers
 
     public class User
     {
-        public int Id { get; set; }
+        public string Id { get; set; }
         public string FullName { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
         public int TenantId { get; set; }
@@ -435,8 +435,8 @@ namespace EduOS.Service.Helpers
                 throw new SecurityTokenException("Invalid token");
 
             // Get user ID from principal
-            var userIdClaim = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+            var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
                 throw new SecurityTokenException("Invalid user ID in token");
 
             // Validate refresh token (check against database)

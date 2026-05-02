@@ -9,7 +9,7 @@ namespace EduOS.Persistence.Repositories.System
     {
         public AuditLogRepository(EduOSDbContext context) : base(context) { }
 
-        public async Task<List<AuditLog>> GetByUserIdAsync(int userId, int tenantId)
+        public async Task<List<AuditLog>> GetByUserIdAsync(long userId, long tenantId)
         {
             return await _dbSet
                 .Where(a => a.UserId == userId && a.TenantId == tenantId)
@@ -18,7 +18,7 @@ namespace EduOS.Persistence.Repositories.System
                 .ToListAsync();
         }
 
-        public async Task<List<AuditLog>> GetByTableNameAsync(string tableName, int tenantId)
+        public async Task<List<AuditLog>> GetByTableNameAsync(string tableName, long tenantId)
         {
             return await _dbSet
                 .Where(a => a.TableName == tableName && a.TenantId == tenantId)
@@ -27,7 +27,7 @@ namespace EduOS.Persistence.Repositories.System
                 .ToListAsync();
         }
 
-        public async Task<List<AuditLog>> GetByRecordIdAsync(string tableName, int recordId, int tenantId)
+        public async Task<List<AuditLog>> GetByRecordIdAsync(string tableName, int recordId, long tenantId)
         {
             return await _dbSet
                 .Where(a => a.TableName == tableName

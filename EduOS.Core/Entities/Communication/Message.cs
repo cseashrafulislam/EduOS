@@ -5,8 +5,8 @@ namespace EduOS.Core.Entities.Communication
 {
     public class Message : BaseTenantEntity
     {
-        public int SenderId { get; set; }
-        public int ReceiverId { get; set; }
+        public long SenderId { get; set; }
+        public long ReceiverId { get; set; }
         public string? Subject { get; set; }
         public string Content { get; set; } = string.Empty;
         public string? AttachmentUrl { get; set; }
@@ -14,7 +14,7 @@ namespace EduOS.Core.Entities.Communication
         public DateTime SentAt { get; set; }
         public DateTime? ReadAt { get; set; }
 
-        public virtual User? Sender { get; set; }
-        public virtual User? Receiver { get; set; }
+        public virtual ApplicationUser? Sender { get; set; }
+        public virtual ApplicationUser? Receiver { get; set; }
     }
 }

@@ -1,0 +1,358 @@
+@{
+    ViewData["Title"] = "Branding setup";
+    Layout = "_OnboardingLayout";
+}
+
+<style>
+    .upload-preview {
+        width: 120px;
+        height: 120px;
+        border: 2px dashed #cbd5e1;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        background: #f8fafc;
+        overflow: hidden;
+        position: relative;
+    }
+
+    .upload-preview img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
+
+    .upload-preview:hover {
+        border-color: #93c5fd;
+    }
+
+    .color-input-group {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .color-swatch {
+        width: 44px;
+        height: 44px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        cursor: pointer;
+        padding: 0;
+    }
+
+    .subdomain-input {
+        font-family: monospace;
+    }
+
+    .subdomain-suffix {
+        background: #f1f5f9;
+        border: 1px solid #cbd5e1;
+        border-left: 0;
+        padding: 8px 12px;
+        font-size: 14px;
+        color: #475569;
+        border-radius: 0 6px 6px 0;
+    }
+
+    .availability-msg {
+        font-size: 12px;
+        margin-top: 4px;
+        min-height: 18px;
+    }
+
+    .availability-msg.ok { color: #059669; }
+    .availability-msg.bad { color: #dc2626; }
+</style>
+
+<h2 class="mb-2">Branding & subdomain</h2>
+<p class="text-muted mb-4">Customize how your portal looks and where it lives.</p>
+
+<div id="alertContainer"></div>
+
+<form id="brandingForm">
+    <!-- Subdomain -->
+    <div class="card mb-3">
+        <div class="card-body">
+            <h6 class="mb-3"><i class="bi bi-globe me-1"></i> Your subdomain</h6>
+            <p class="small text-muted">This is the URL where your institution's portal will be accessible.</p>
+
+            <div class="row">
+                <div class="col-md-7">
+                    <div class="input-group">
+                        <input type="text" class="form-control subdomain-input" id="subdomainInput"
+                               placeholder="your-school" autocomplete="off" />
+                        <span class="subdomain-suffix">.eduos.com</span>
+                    </div>
+                    <div class="availability-msg" id="availabilityMsg"></div>
+                </div>
+                <div class="col-md-5">
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="saveSubdomainBtn" disabled>
+                        Save subdomain
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Logo -->
+    <div class="card mb-3">
+        <div class="card-body">
+            <h6 class="mb-3"><i class="bi bi-image me-1"></i> Logo & favicon</h6>
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <label class="form-label small fw-bold">Logo</label>
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="upload-preview" id="logoPreview" data-type="logo">
+                            <i class="bi bi-cloud-upload" style="font-size: 24px; color: #94a3b8;"></i>
+                        </div>
+                        <div>
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="uploadLogoBtn">
+                                <i class="bi bi-upload"></i> Upload
+                            </button>
+                            <button type="button" class="btn btn-outline-danger btn-sm" id="removeLogoBtn" style="display:none">
+                                <i class="bi bi-trash"></i> Remove
+                            </button>
+                            <div class="small text-muted mt-1">PNG, JPG, WEBP (max 5MB)</div>
+                        </div>
+                    </div>
+                    <input type="file" id="logoInput" accept=".jpg,.jpeg,.png,.webp" hidden />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label small fw-bold">Favicon</label>
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="upload-preview" id="faviconPreview" data-type="favicon" style="width: 64px; height: 64px;">
+                            <i class="bi bi-window" style="font-size: 18px; color: #94a3b8;"></i>
+                        </div>
+                        <div>
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="uploadFaviconBtn">
+                                <i class="bi bi-upload"></i> Upload
+                            </button>
+                            <button type="button" class="btn btn-outline-danger btn-sm" id="removeFaviconBtn" style="display:none">
+                                <i class="bi bi-trash"></i> Remove
+                            </button>
+                            <div class="small text-muted mt-1">ICO, PNG, JPG</div>
+                        </div>
+                    </div>
+                    <input type="file" id="faviconInput" accept=".ico,.png,.jpg,.jpeg" hidden />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Colors -->
+    <div class="card mb-3">
+        <div class="card-body">
+            <h6 class="mb-3"><i class="bi bi-palette me-1"></i> Brand colors</h6>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label small fw-bold">Primary color</label>
+                    <div class="color-input-group">
+                        <input type="color" class="color-swatch" id="primaryColor" value="#1E40AF" />
+                        <input type="text" class="form-control" id="primaryColorText" value="#1E40AF" />
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small fw-bold">Secondary color</label>
+                    <div class="color-input-group">
+                        <input type="color" class="color-swatch" id="secondaryColor" value="#64748B" />
+                        <input type="text" class="form-control" id="secondaryColorText" value="#64748B" />
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small fw-bold">Accent color</label>
+                    <div class="color-input-group">
+                        <input type="color" class="color-swatch" id="accentColor" value="#F59E0B" />
+                        <input type="text" class="form-control" id="accentColorText" value="#F59E0B" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between mt-4 pt-3 border-top">
+        <button type="button" class="btn btn-outline-secondary" id="skipBtn">
+            Skip for now
+        </button>
+        <button type="submit" class="btn btn-primary">
+            Save & continue <i class="bi bi-arrow-right ms-1"></i>
+        </button>
+    </div>
+</form>
+
+<script>
+    let profile = null;
+    let subdomainTimer;
+
+    // Sync color picker <-> text
+    ['primary', 'secondary', 'accent'].forEach(prefix => {
+        const picker = document.getElementById(prefix + 'Color');
+        const text = document.getElementById(prefix + 'ColorText');
+        picker.addEventListener('input', () => text.value = picker.value.toUpperCase());
+        text.addEventListener('input', () => {
+            if (/^#[0-9A-Fa-f]{6}$/.test(text.value)) picker.value = text.value;
+        });
+    });
+
+    async function loadProfile() {
+        try {
+            const res = await fetch('/api/tenant-profile', { credentials: 'include' });
+            const data = await res.json();
+            if (data.success) {
+                profile = data.data;
+                document.getElementById('subdomainInput').value = profile.subdomain || '';
+                document.getElementById('primaryColor').value = profile.primaryColor || '#1E40AF';
+                document.getElementById('primaryColorText').value = profile.primaryColor || '#1E40AF';
+                document.getElementById('secondaryColor').value = profile.secondaryColor || '#64748B';
+                document.getElementById('secondaryColorText').value = profile.secondaryColor || '#64748B';
+                document.getElementById('accentColor').value = profile.accentColor || '#F59E0B';
+                document.getElementById('accentColorText').value = profile.accentColor || '#F59E0B';
+
+                if (profile.logoUrl) showImagePreview('logo', profile.logoUrl);
+                if (profile.faviconUrl) showImagePreview('favicon', profile.faviconUrl);
+            }
+        } catch (e) { console.error(e); }
+    }
+
+    function showImagePreview(type, url) {
+        const preview = document.getElementById(type + 'Preview');
+        preview.innerHTML = `<img src="${url}" alt="${type}" />`;
+        document.getElementById('remove' + type[0].toUpperCase() + type.slice(1) + 'Btn').style.display = 'inline-block';
+    }
+
+    function clearPreview(type, defaultIcon) {
+        const preview = document.getElementById(type + 'Preview');
+        preview.innerHTML = `<i class="${defaultIcon}" style="font-size: 24px; color: #94a3b8;"></i>`;
+        document.getElementById('remove' + type[0].toUpperCase() + type.slice(1) + 'Btn').style.display = 'none';
+    }
+
+    // Subdomain check
+    document.getElementById('subdomainInput').addEventListener('input', e => {
+        clearTimeout(subdomainTimer);
+        const val = e.target.value.trim().toLowerCase();
+        const msg = document.getElementById('availabilityMsg');
+        const btn = document.getElementById('saveSubdomainBtn');
+
+        msg.className = 'availability-msg';
+        msg.textContent = '';
+        btn.disabled = true;
+
+        if (val.length < 3) return;
+
+        subdomainTimer = setTimeout(async () => {
+            msg.textContent = 'Checking...';
+            try {
+                const res = await fetch(`/api/tenant-profile/subdomain/check?subdomain=${encodeURIComponent(val)}`,
+                    { credentials: 'include' });
+                const data = await res.json();
+                if (data.success && data.data) {
+                    msg.textContent = data.data.message;
+                    msg.className = 'availability-msg ' + (data.data.isAvailable ? 'ok' : 'bad');
+                    btn.disabled = !data.data.isAvailable;
+                }
+            } catch (e) { msg.textContent = 'Check failed'; }
+        }, 400);
+    });
+
+    document.getElementById('saveSubdomainBtn').addEventListener('click', async () => {
+        const subdomain = document.getElementById('subdomainInput').value.trim().toLowerCase();
+        const res = await fetch('/api/tenant-profile/subdomain', {
+            method: 'PUT',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subdomain })
+        });
+        const data = await res.json();
+        showAlert(data.success ? 'success' : 'danger', data.message);
+    });
+
+    // Logo upload
+    document.getElementById('uploadLogoBtn').addEventListener('click', () => document.getElementById('logoInput').click());
+    document.getElementById('logoInput').addEventListener('change', async e => {
+        if (!e.target.files.length) return;
+        const fd = new FormData();
+        fd.append('file', e.target.files[0]);
+        const res = await fetch('/api/tenant-profile/logo', { method: 'POST', credentials: 'include', body: fd });
+        const data = await res.json();
+        if (data.success) {
+            showImagePreview('logo', data.data);
+            showAlert('success', 'Logo uploaded');
+        } else {
+            showAlert('danger', data.message);
+        }
+    });
+    document.getElementById('removeLogoBtn').addEventListener('click', async () => {
+        const res = await fetch('/api/tenant-profile/logo', { method: 'DELETE', credentials: 'include' });
+        const data = await res.json();
+        if (data.success) clearPreview('logo', 'bi bi-cloud-upload');
+    });
+
+    // Favicon upload
+    document.getElementById('uploadFaviconBtn').addEventListener('click', () => document.getElementById('faviconInput').click());
+    document.getElementById('faviconInput').addEventListener('change', async e => {
+        if (!e.target.files.length) return;
+        const fd = new FormData();
+        fd.append('file', e.target.files[0]);
+        const res = await fetch('/api/tenant-profile/favicon', { method: 'POST', credentials: 'include', body: fd });
+        const data = await res.json();
+        if (data.success) {
+            showImagePreview('favicon', data.data);
+            showAlert('success', 'Favicon uploaded');
+        } else {
+            showAlert('danger', data.message);
+        }
+    });
+    document.getElementById('removeFaviconBtn').addEventListener('click', async () => {
+        const res = await fetch('/api/tenant-profile/favicon', { method: 'DELETE', credentials: 'include' });
+        const data = await res.json();
+        if (data.success) clearPreview('favicon', 'bi bi-window');
+    });
+
+    // Save colors + advance
+    document.getElementById('brandingForm').addEventListener('submit', async e => {
+        e.preventDefault();
+
+        const dto = {
+            primaryColor: document.getElementById('primaryColorText').value,
+            secondaryColor: document.getElementById('secondaryColorText').value,
+            accentColor: document.getElementById('accentColorText').value
+        };
+
+        const res = await fetch('/api/tenant-profile/branding', {
+            method: 'PUT',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(dto)
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            await advanceStep(6); // BrandingSetup
+        } else {
+            showAlert('danger', data.message);
+        }
+    });
+
+    document.getElementById('skipBtn').addEventListener('click', () => advanceStep(6));
+
+    async function advanceStep(step) {
+        const res = await fetch('/api/onboarding/complete-step', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ step, skipped: true })
+        });
+        if (res.ok) window.location.href = '/Account/GeneralSettings';
+    }
+
+    function showAlert(type, msg) {
+        const c = document.getElementById('alertContainer');
+        c.innerHTML = `<div class="alert alert-${type} alert-dismissible">${msg}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
+        setTimeout(() => { c.innerHTML = ''; }, 4000);
+    }
+
+    document.addEventListener('DOMContentLoaded', loadProfile);
+</script>

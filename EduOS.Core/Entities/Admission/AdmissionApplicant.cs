@@ -4,10 +4,10 @@ namespace EduOS.Core.Entities.Admission
 {
     public class AdmissionApplicant : BaseTenantEntity
     {
-        public string ApplicantName { get; set; }
-        public string Phone { get; set; }
-        public string Email { get; set; }
+        public string? ApplicantName { get; set; }
+        public string? Phone { get; set; }
+        public string? Email { get; set; }
         public int? ApplyClassId { get; set; }
-        public string Status { get; set; }
+        public string? Status { get; set; }
     }
 }
