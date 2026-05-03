@@ -65,97 +65,102 @@ namespace EduOS.Service.Services.Tenants
                 return Fail<InstitutionSignupResponseDto>(
                     "An account with this email already exists. Please login or use forgot password.");
 
-            try
+            var strategy = _unitOfWork.CreateExecutionStrategy();
+            return await strategy.ExecuteAsync(async () =>
             {
                 await _unitOfWork.BeginTransactionAsync();
 
-                // 1. Create Tenant
-                var tenant = new Tenant
+                try
                 {
-                    Name = dto.InstitutionName.Trim(),
-                    Code = GenerateTenantCode(dto.InstitutionName),
-                    Email = dto.Email.Trim().ToLower(),
-                    OwnerName = dto.OwnerName.Trim(),
-                    OwnerEmail = dto.Email.Trim().ToLower(),
-                    OwnerPhone = dto.Phone?.Trim(),
-                    InstitutionType = dto.InstitutionType?.Trim(),
-                    Status = TenantStatus.PendingVerification,
-                    OnboardingStep = OnboardingStep.EmailVerification,
-                    IsOnboardingComplete = false,
-                    IsEmailVerified = false,
-                    IsActive = true,
-                    Currency = "BDT",
-                    CurrencySymbol = "৳",
-                    TimeZone = "Asia/Dhaka",
-                    Language = "en",
-                    DateFormat = "dd-MM-yyyy",
-                    PrimaryColor = "#1E40AF",
-                    SecondaryColor = "#64748B",
-                    AccentColor = "#F59E0B",
-                    CreatedAt = DateTime.UtcNow
-                };
 
-                await _tenantRepo.AddAsync(tenant);
-                await _unitOfWork.SaveChangesAsync();
+                    // 1. Create Tenant
+                    var tenant = new Tenant
+                    {
+                        Name = dto.InstitutionName.Trim(),
+                        Code = GenerateTenantCode(dto.InstitutionName),
+                        Email = dto.Email.Trim().ToLower(),
+                        OwnerName = dto.OwnerName.Trim(),
+                        OwnerEmail = dto.Email.Trim().ToLower(),
+                        OwnerPhone = dto.Phone?.Trim(),
+                        InstitutionType = dto.InstitutionType?.Trim(),
+                        Status = TenantStatus.PendingVerification,
+                        OnboardingStep = OnboardingStep.EmailVerification,
+                        IsOnboardingComplete = false,
+                        IsEmailVerified = false,
+                        IsActive = true,
+                        Currency = "BDT",
+                        CurrencySymbol = "৳",
+                        TimeZone = "Asia/Dhaka",
+                        Language = "en",
+                        DateFormat = "dd-MM-yyyy",
+                        PrimaryColor = "#1E40AF",
+                        SecondaryColor = "#64748B",
+                        AccentColor = "#F59E0B",
+                        CreatedAt = DateTime.UtcNow
+                    };
 
-                // 2. Create Application User
-                var user = new ApplicationUser
-                {
-                    UserName = dto.Email.Trim().ToLower(),
-                    Email = dto.Email.Trim().ToLower(),
-                    FullName = dto.OwnerName.Trim(),
-                    TenantId = tenant.Id,
-                    UserType = "TenantAdmin",
-                    IsActive = true,
-                    EmailConfirmed = false,
-                    CreatedAt = DateTime.UtcNow
-                };
+                    await _tenantRepo.AddAsync(tenant);
+                    await _unitOfWork.SaveChangesAsync();
 
-                var createResult = await _userManager.CreateAsync(user, dto.Password);
-                if (!createResult.Succeeded)
+                    // 2. Create Application User
+                    var user = new ApplicationUser
+                    {
+                        UserName = dto.Email.Trim().ToLower(),
+                        Email = dto.Email.Trim().ToLower(),
+                        FullName = dto.OwnerName.Trim(),
+                        TenantId = tenant.Id,
+                        UserType = "TenantAdmin",
+                        IsActive = true,
+                        EmailConfirmed = false,
+                        CreatedAt = DateTime.UtcNow
+                    };
+
+                    var createResult = await _userManager.CreateAsync(user, dto.Password);
+                    if (!createResult.Succeeded)
+                    {
+                        await _unitOfWork.RollbackTransactionAsync();
+                        var errors = string.Join(", ", createResult.Errors.Select(e => e.Description));
+                        _logger.LogWarning("Signup failed for {Email}: {Errors}", dto.Email, errors);
+                        return Fail<InstitutionSignupResponseDto>(errors);
+                    }
+
+                    // Assign TenantAdmin role
+                    await _userManager.AddToRoleAsync(user, "TenantAdmin");
+
+                    // Update tenant with owner user ID
+                    tenant.OwnerUserId = user.Id;
+                    _tenantRepo.Update(tenant);
+                    await _unitOfWork.SaveChangesAsync();
+
+                    await _unitOfWork.CommitTransactionAsync();
+
+                    // 3. Send verification email (background job)
+                    var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+                    var verifyUrl = $"{baseUrl}/api/institution-onboarding/verify-email" +
+                                    $"?email={Uri.EscapeDataString(user.Email!)}" +
+                                    $"&token={Uri.EscapeDataString(token)}";
+
+                    BackgroundJob.Enqueue<IEmailJob>(x =>
+                        x.SendVerificationEmailAsync(user.Email!, dto.InstitutionName, user.FullName, verifyUrl));
+
+                    _logger.LogInformation("Institution registered: {Name} ({Email})", dto.InstitutionName, dto.Email);
+
+                    return Ok(new InstitutionSignupResponseDto
+                    {
+                        Success = true,
+                        Message = "Account created! Please check your email to verify your account.",
+                        Email = user.Email,
+                        TenantId = tenant.Id,
+                        UserId = user.Id
+                    });
+                }
+                catch (Exception ex)
                 {
                     await _unitOfWork.RollbackTransactionAsync();
-                    var errors = string.Join(", ", createResult.Errors.Select(e => e.Description));
-                    _logger.LogWarning("Signup failed for {Email}: {Errors}", dto.Email, errors);
-                    return Fail<InstitutionSignupResponseDto>(errors);
+                    _logger.LogError(ex, "Signup failed for {Email}", dto.Email);
+                    return Fail<InstitutionSignupResponseDto>("Registration failed. Please try again.");
                 }
-
-                // Assign TenantAdmin role
-                await _userManager.AddToRoleAsync(user, "TenantAdmin");
-
-                // Update tenant with owner user ID
-                tenant.OwnerUserId = user.Id;
-                _tenantRepo.Update(tenant);
-                await _unitOfWork.SaveChangesAsync();
-
-                await _unitOfWork.CommitTransactionAsync();
-
-                // 3. Send verification email (background job)
-                var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
-                var verifyUrl = $"{baseUrl}/api/institution-onboarding/verify-email" +
-                                $"?email={Uri.EscapeDataString(user.Email!)}" +
-                                $"&token={Uri.EscapeDataString(token)}";
-
-                BackgroundJob.Enqueue<IEmailJob>(x =>
-                    x.SendVerificationEmailAsync(user.Email!, dto.InstitutionName, user.FullName, verifyUrl));
-
-                _logger.LogInformation("Institution registered: {Name} ({Email})", dto.InstitutionName, dto.Email);
-
-                return Ok(new InstitutionSignupResponseDto
-                {
-                    Success = true,
-                    Message = "Account created! Please check your email to verify your account.",
-                    Email = user.Email,
-                    TenantId = tenant.Id,
-                    UserId = user.Id
-                });
-            }
-            catch (Exception ex)
-            {
-                await _unitOfWork.RollbackTransactionAsync();
-                _logger.LogError(ex, "Signup failed for {Email}", dto.Email);
-                return Fail<InstitutionSignupResponseDto>("Registration failed. Please try again.");
-            }
+            });
         }
 
         // ============================================================

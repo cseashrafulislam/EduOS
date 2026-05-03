@@ -554,6 +554,10 @@ namespace EduOS.Persistence.Context
             finally { await _transaction.DisposeAsync(); _transaction = null; }
         }
 
+        public IExecutionStrategy CreateExecutionStrategy()
+        {
+            return Database.CreateExecutionStrategy();
+        }
         public override void Dispose()
         {
             _transaction?.Dispose();

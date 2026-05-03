@@ -28,10 +28,10 @@ builder.Services.AddControllersWithViews(options =>
 
 builder.Services.AddRazorPages();
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddMemoryCache(options =>
-{
-    options.SizeLimit = 100_000;
-});
+//builder.Services.AddMemoryCache(options =>
+//{
+//    options.SizeLimit = 100_000;
+//});
 
 // =============================================================================
 // 3. PERSISTENCE LAYER (DbContext + Repositories)

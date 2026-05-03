@@ -43,34 +43,34 @@
             <div class="logo">EduOS</div>
             <div class="text-muted">Education ERP</div>
         </div>
-
-        <div id="msgBox" class="alert d-none"></div>
+        <form id="loginForm"> <!-- Add this -->
+        <div id="alertContainer" class="alert d-none"></div>
 
         <div class="mb-3">
             <label>Email</label>
-            <input type="email" id="Email" class="form-control" placeholder="admin@school.com" />
+            <input type="email" id="email" class="form-control" placeholder="admin@school.com" />
         </div>
 
         <div class="mb-3">
             <label>Password</label>
-            <input type="password" id="Password" class="form-control" />
+            <input type="password" id="password" class="form-control" />
         </div>
 
         <div class="d-flex justify-content-between align-items-center mb-3">
             <div class="form-check">
-                <input type="checkbox" id="RememberMe" class="form-check-input">
-                <label class="form-check-label" for="RememberMe">Remember me</label>
+                <input type="checkbox" id="rememberMe" class="form-check-input">
+                <label class="form-check-label" for="rememberMe">Remember me</label>
             </div>
 
             <a href="/Account/ForgotPassword" class="text-decoration-none">Forgot Password?</a>
         </div>
 
-        <button id="btnLogin" class="btn btn-primary w-100">Login</button>
+        <button id="loginBtn" class="btn btn-primary w-100">Login</button>
 
         <div class="text-center mt-3">
             <a href="/Account/Signup">Create Institution</a>
         </div>
-
+        </form>
     </div>
 
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>

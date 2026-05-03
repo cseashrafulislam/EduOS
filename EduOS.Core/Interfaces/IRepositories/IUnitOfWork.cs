@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore.Storage;
+
 namespace EduOS.Core.Interfaces.IRepositories
 {
     public interface IUnitOfWork : IDisposable
@@ -6,5 +8,6 @@ namespace EduOS.Core.Interfaces.IRepositories
         Task BeginTransactionAsync();
         Task CommitTransactionAsync();
         Task RollbackTransactionAsync();
+        IExecutionStrategy CreateExecutionStrategy();
     }
 }

@@ -2,7 +2,6 @@
     ViewData["Title"] = "Institution Sign Up";
     Layout = null;
 }
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -13,56 +12,62 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
 
     <style>
-        body {
-            background: linear-gradient(135deg, #f5f7fb, #eef2ff);
-            min-height: 100vh;
-        }
+            body {
+                background: linear-gradient(135deg, #f5f7fb, #eef2ff);
+                min-height: 100vh;
+            }
 
-        .signup-wrap {
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 24px;
-        }
+            .signup-wrap {
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 24px;
+            }
 
-        .card-box {
-            width: 100%;
-            max-width: 760px;
-            border: 0;
-            border-radius: 18px;
-            box-shadow: 0 16px 40px rgba(0,0,0,.08);
-        }
+            .card-box {
+                width: 100%;
+                max-width: 760px;
+                border: 0;
+                border-radius: 18px;
+                box-shadow: 0 16px 40px rgba(0,0,0,.08);
+            }
 
-        .brand-title {
-            font-weight: 700;
-            color: #1e3a8a;
-        }
+            .brand-title {
+                font-weight: 700;
+                color: #1e3a8a;
+            }
 
-        .brand-subtitle {
-            color: #6b7280;
-            font-size: 14px;
-        }
+            .brand-subtitle {
+                color: #6b7280;
+                font-size: 14px;
+            }
 
-        .form-label {
-            font-weight: 600;
-            color: #374151;
-        }
+            .form-label {
+                font-weight: 600;
+                color: #374151;
+            }
 
-        .btn-primary {
-            padding: 12px;
-            border-radius: 10px;
-        }
+            .btn-primary {
+                padding: 12px;
+                border-radius: 10px;
+            }
 
-        .small-note {
-            font-size: 13px;
-            color: #6b7280;
-        }
+            .small-note {
+                font-size: 13px;
+                color: #6b7280;
+            }
+
+            /* Strength bar custom height */
+            .progress {
+                height: 6px;
+                margin-top: 8px;
+            }
     </style>
 </head>
 <body>
     <div class="signup-wrap">
-        <div class="card card-box p-4 p-md-5">
+        <div class="card-box card p-4 p-md-5">
             <div class="text-center mb-4">
                 <h2 class="brand-title mb-1">EduOS Institution Sign Up</h2>
                 <div class="brand-subtitle">
@@ -70,18 +75,20 @@
                 </div>
             </div>
 
-            <div id="msgBox" class="alert d-none"></div>
+            <!-- Alert container will be prepended here by JS if signup fails -->
+            <div id="alertContainer"></div>
 
             <form id="signupForm" novalidate>
                 <div class="row g-3">
                     <div class="col-md-6">
-                        <label class="form-label">Institution Name</label>
-                        <input type="text" id="InstitutionName" class="form-control" placeholder="Green Field School" />
+                        <label class="form-label" for="institutionName">Institution Name</label>
+                        <input type="text" id="institutionName" class="form-control" placeholder="Green Field School" />
+                        <div class="invalid-feedback"></div>
                     </div>
 
                     <div class="col-md-6">
-                        <label class="form-label">Institution Type</label>
-                        <select id="InstitutionType" class="form-select">
+                        <label class="form-label" for="institutionType">Institution Type</label>
+                        <select id="institutionType" class="form-select">
                             <option value="">Select institution type</option>
                             <option value="PrimarySchool">Primary School</option>
                             <option value="HighSchool">High School</option>
@@ -92,49 +99,62 @@
                             <option value="Institute">Institute</option>
                             <option value="TrainingCenter">Training Center</option>
                         </select>
+                        <div class="invalid-feedback"></div>
                     </div>
 
                     <div class="col-md-6">
-                        <label class="form-label">Owner / Admin Full Name</label>
-                        <input type="text" id="OwnerName" class="form-control" placeholder="Md. Rahim Uddin" />
+                        <label class="form-label" for="ownerName">Owner / Admin Full Name</label>
+                        <input type="text" id="ownerName" class="form-control" placeholder="Md. Rahim Uddin" />
+                        <div class="invalid-feedback"></div>
                     </div>
 
                     <div class="col-md-6">
-                        <label class="form-label">Email Address</label>
-                        <input type="email" id="Email" class="form-control" placeholder="admin@school.com" />
+                        <label class="form-label" for="email">Email Address</label>
+                        <input type="email" id="email" class="form-control" placeholder="admin@school.com" />
+                        <div class="invalid-feedback"></div>
                     </div>
 
                     <div class="col-md-6">
-                        <label class="form-label">Phone Number</label>
-                        <input type="text" id="Phone" class="form-control" placeholder="01700000000" />
+                        <label class="form-label" for="phone">Phone Number</label>
+                        <input type="text" id="phone" class="form-control" placeholder="01700000000" />
+                        <div class="invalid-feedback"></div>
                     </div>
 
                     <div class="col-md-6">
-                        <label class="form-label">Password</label>
-                        <input type="password" id="Password" class="form-control" placeholder="Enter password" />
+                        <label class="form-label" for="password">Password</label>
+                        <input type="password" id="password" class="form-control" placeholder="Enter password" />
+                        <!-- Password Strength UI -->
+                        <div class="progress">
+                            <div id="strengthBar" class="progress-bar" role="progressbar" style="width: 0%"></div>
+                        </div>
+                        <small id="strengthLabel" class="text-muted" style="font-size: 11px;"></small>
+                        <div class="invalid-feedback"></div>
                     </div>
 
                     <div class="col-md-6">
-                        <label class="form-label">Confirm Password</label>
-                        <input type="password" id="ConfirmPassword" class="form-control" placeholder="Confirm password" />
+                        <label class="form-label" for="confirmPassword">Confirm Password</label>
+                        <input type="password" id="confirmPassword" class="form-control" placeholder="Confirm password" />
+                        <div class="invalid-feedback"></div>
                     </div>
 
                     <div class="col-md-6">
-                        <label class="form-label">Address</label>
-                        <input type="text" id="Address" class="form-control" placeholder="Dhaka, Bangladesh" />
+                        <label class="form-label" for="address">Address</label>
+                        <input type="text" id="address" class="form-control" placeholder="Dhaka, Bangladesh" />
                     </div>
 
                     <div class="col-12">
                         <div class="form-check mt-2">
-                            <input class="form-check-input" type="checkbox" id="AgreeTerms" />
-                            <label class="form-check-label small-note" for="AgreeTerms">
+                            <input class="form-check-input" type="checkbox" id="agreeTerms" />
+                            <label class="form-check-label small-note" for="agreeTerms">
                                 I agree to the platform terms and understand that my institution account will be activated after email verification.
                             </label>
+                            <div class="invalid-feedback"></div>
                         </div>
                     </div>
 
                     <div class="col-12 mt-3">
-                        <button type="button" id="btnSignup" class="btn btn-primary w-100">
+                        <!-- Changed id to signupBtn and type to submit to match JS logic -->
+                        <button type="submit" id="signupBtn" class="btn btn-primary w-100">
                             Create Institution Account
                         </button>
                     </div>

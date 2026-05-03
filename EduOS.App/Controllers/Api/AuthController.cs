@@ -1,7 +1,10 @@
 using EduOS.Core.DTOs.Auth;
 using EduOS.Core.Entities.Auth;
+using EduOS.Core.Enums;
 using EduOS.Core.Interfaces.Jobs;
+using EduOS.Persistence.Context;
 using Hangfire;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -16,15 +19,17 @@ namespace EduOS.App.Controllers.Api
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly ILogger<AuthController> _logger;
-
+        private readonly EduOSDbContext _db;
         public AuthController(
             UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
-            ILogger<AuthController> logger)
+            ILogger<AuthController> logger,
+            EduOSDbContext db)
         {
             _userManager = userManager;
             _signInManager = signInManager;
             _logger = logger;
+            _db = db;
         }
 
         // ============================================================
@@ -34,72 +39,101 @@ namespace EduOS.App.Controllers.Api
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequestDto dto)
         {
-            if (dto == null || string.IsNullOrEmpty(dto.Email) || string.IsNullOrEmpty(dto.Password))
-                return BadRequest(new { success = false, message = "Email and password required." });
-
-            var user = await _userManager.FindByEmailAsync(dto.Email);
-
-            // Generic error message for security (don't reveal if email exists)
-            if (user == null)
-                return BadRequest(new { success = false, message = "Invalid email or password." });
-
-            if (!user.IsActive)
-                return BadRequest(new { success = false, message = "Your account has been deactivated. Please contact support." });
-
-            if (!user.EmailConfirmed)
-                return BadRequest(new { success = false, message = "Please verify your email before login." });
-
-            // Use lockoutOnFailure: true to enable lockout policy from IdentityExtensions
-            var result = await _signInManager.PasswordSignInAsync(
-                user,
-                dto.Password,
-                dto.RememberMe,
-                lockoutOnFailure: true);
-
-            if (result.IsLockedOut)
+            // ── 1. Basic Validation ───────────────────────────────
+            if (dto == null
+                || string.IsNullOrWhiteSpace(dto.Email)
+                || string.IsNullOrWhiteSpace(dto.Password))
             {
-                _logger.LogWarning("Account locked: {Email}", dto.Email);
+                return BadRequest(new { success = false, message = "Email and password are required." });
+            }
+
+            var ip = GetClientIp();
+            var userAgent = HttpContext.Request.Headers["User-Agent"].FirstOrDefault() ?? string.Empty;
+
+            // ── 2. Find user ──────────────────────────────────────
+            var user = await _userManager.FindByEmailAsync(dto.Email.Trim().ToLower());
+
+            if (user == null)
+            {
+                await SaveLoginHistoryAsync(null, dto.Email, ip, userAgent, false, "User not found");
+                return BadRequest(new { success = false, message = "Invalid email or password." });
+            }
+
+            // ── 3. Security checks ────────────────────────────────
+            if (!user.IsActive)
+            {
+                await SaveLoginHistoryAsync(user, ip, userAgent, false, "Account deactivated");
                 return BadRequest(new
                 {
                     success = false,
-                    message = "Account locked due to too many failed attempts. Try again in 15 minutes."
+                    message = "Your account has been deactivated. Please contact support."
                 });
             }
 
-            if (!result.Succeeded)
+            if (!user.EmailConfirmed)
+            {
+                await SaveLoginHistoryAsync(user, ip, userAgent, false, "Email not verified");
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Please verify your email before signing in."
+                });
+            }
+
+            if (await _userManager.IsLockedOutAsync(user))
+            {
+                _logger.LogWarning("Locked out login attempt: {Email}", dto.Email);
+                await SaveLoginHistoryAsync(user, ip, userAgent, false, "Account locked out");
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Account temporarily locked due to multiple failed attempts. Please try again in 15 minutes."
+                });
+            }
+
+            // ── 4. Password check ─────────────────────────────────
+            var isPasswordValid = await _userManager.CheckPasswordAsync(user, dto.Password);
+
+            if (!isPasswordValid)
+            {
+                await _userManager.AccessFailedAsync(user);
+                _logger.LogWarning("Failed login attempt: {Email}", dto.Email);
+                await SaveLoginHistoryAsync(user, ip, userAgent, false, "Wrong password");
                 return BadRequest(new { success = false, message = "Invalid email or password." });
+            }
 
-            // ============================================================
-            // CRITICAL: Sign in with custom claims (TenantId + FullName)
-            // ============================================================
-            await _signInManager.SignOutAsync();
+            // Reset failed count on successful auth
+            await _userManager.ResetAccessFailedCountAsync(user);
 
+            // ── 5. Build claims ───────────────────────────────────
             var claims = new List<Claim>
             {
-                new Claim("FullName", user.FullName ?? "")
+                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                new Claim(ClaimTypes.Email, user.Email ?? string.Empty),
+                new Claim("FullName", user.FullName ?? string.Empty)
             };
 
-            // Add TenantId claim (only if user has a tenant; SuperAdmin doesn't)
             if (user.TenantId.HasValue)
-            {
                 claims.Add(new Claim("TenantId", user.TenantId.Value.ToString()));
-            }
 
-            // Add UserType claim
-            if (!string.IsNullOrEmpty(user.UserType))
-            {
+            if (!string.IsNullOrWhiteSpace(user.UserType))
                 claims.Add(new Claim("UserType", user.UserType));
-            }
 
+            // ── 6. Sign in with claims ────────────────────────────
             await _signInManager.SignInWithClaimsAsync(user, dto.RememberMe, claims);
 
-            // Update last login
+            // ── 7. Update user metadata ───────────────────────────
             user.LastLogin = DateTime.UtcNow;
-            user.LastLoginIp = HttpContext.Connection.RemoteIpAddress?.ToString();
+            user.LastLoginIp = ip;
+            user.LastActivityAt = DateTime.UtcNow;
+            user.UpdatedAt = DateTime.UtcNow;
             await _userManager.UpdateAsync(user);
 
-            _logger.LogInformation("Login successful: {Email}", dto.Email);
+            // ── 8. Log success ────────────────────────────────────
+            await SaveLoginHistoryAsync(user, ip, userAgent, true, null);
+            _logger.LogInformation("Login successful: {Email} from {Ip}", dto.Email, ip);
 
+            // ── 9. Response ───────────────────────────────────────
             return Ok(new
             {
                 success = true,
@@ -111,7 +145,7 @@ namespace EduOS.App.Controllers.Api
                     fullName = user.FullName,
                     userType = user.UserType,
                     tenantId = user.TenantId,
-                    redirectUrl = await GetRedirectUrlAsync(user)
+                    redirectUrl = await GetRedirectUrlAsync(user.UserType,user.TenantId)
                 }
             });
         }
@@ -177,39 +211,142 @@ namespace EduOS.App.Controllers.Api
             return Ok(new { success = true, message = "Password reset successful." });
         }
 
+        
         // ============================================================
         // LOGOUT
         // ============================================================
+        [Authorize]
         [HttpPost("logout")]
         public async Task<IActionResult> Logout()
         {
-            // Clear tenant cache
-            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (long.TryParse(userIdStr, out var userId))
+            try
             {
-                // If you have memory cache for tenant lookup, clear it here
-                // _cache.Remove($"tenant:user:{userId}");
+                // Update latest login history with logout time
+                var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (long.TryParse(userIdStr, out var userId))
+                {
+                    var history = _db.LoginHistories
+                        .Where(h => h.UserId == userId && h.LogoutAt == null && h.IsSuccess)
+                        .OrderByDescending(h => h.LoginAt)
+                        .FirstOrDefault();
+
+                    if (history != null)
+                    {
+                        history.LogoutAt = DateTime.UtcNow;
+                        _db.LoginHistories.Update(history);
+                        await _db.SaveChangesAsync();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating logout time");
             }
 
             await _signInManager.SignOutAsync();
-            return Ok(new { success = true, message = "Logout successful" });
+
+            return Ok(new { success = true, message = "Logged out successfully." });
         }
 
+
         // ============================================================
-        // HELPER: Determine where to redirect after login
+        // PRIVATE HELPERS
         // ============================================================
-        private async Task<string> GetRedirectUrlAsync(ApplicationUser user)
+        private async Task SaveLoginHistoryAsync(
+            ApplicationUser user,
+            string ip,
+            string userAgent,
+            bool isSuccess,
+            string? failReason)
+        {
+            await SaveLoginHistoryAsync(user, null, ip, userAgent, isSuccess, failReason);
+        }
+
+        private async Task SaveLoginHistoryAsync(
+            ApplicationUser? user,
+            string? attemptedEmail,
+            string ip,
+            string userAgent,
+            bool isSuccess,
+            string? failReason)
+        {
+            try
+            {
+                // Parse browser and device from User-Agent
+                var (browser, device) = ParseUserAgent(userAgent);
+
+                var history = new LoginHistory
+                {
+                    UserId = user?.Id ?? 0,
+                    TenantId = user?.TenantId ?? 0,
+                    LoginAt = DateTime.UtcNow,
+                    IpAddress = ip,
+                    UserAgent = userAgent,
+                    Browser = browser,
+                    Device = device,
+                    IsSuccess = isSuccess,
+                    FailReason = failReason
+                };
+
+                _db.LoginHistories.Add(history);
+                await _db.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                // Never let login history failure break the login flow
+                _logger.LogError(ex, "Failed to save login history for {Email}",
+                    user?.Email ?? attemptedEmail ?? "unknown");
+            }
+        }
+
+        private async Task<string> GetRedirectUrlAsync(string userType, long? tenantId)
         {
             // SuperAdmin → admin dashboard
-            if (await _userManager.IsInRoleAsync(user, "SuperAdmin"))
-                return "/Admin/Dashboard";
+            if (userType == "SuperAdmin")
+                return "/Dashboard/Admin";
 
             // No tenant assigned
-            if (!user.TenantId.HasValue)
-                return "/Account/NoTenant";
+            if (!tenantId.HasValue)
+                return "/Account/Login?error=no_tenant";
 
-            // Tenant user → wizard or dashboard (handled by OnboardingGuard middleware)
-            return "/Dashboard";
+            // Tenant user → OnboardingGuard middleware handles redirect to wizard if incomplete
+            return "/Dashboard/Index";
         }
+
+        private string GetClientIp()
+        {
+            var forwarded = HttpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault();
+            if (!string.IsNullOrEmpty(forwarded))
+                return forwarded.Split(',').FirstOrDefault()?.Trim() ?? string.Empty;
+
+            return HttpContext.Connection.RemoteIpAddress?.ToString() ?? string.Empty;
+        }
+
+        private static (string browser, string device) ParseUserAgent(string ua)
+        {
+            if (string.IsNullOrEmpty(ua))
+                return ("Unknown", "Unknown");
+
+            string browser = ua switch
+            {
+                _ when ua.Contains("Edg/") => "Edge",
+                _ when ua.Contains("Chrome") => "Chrome",
+                _ when ua.Contains("Firefox") => "Firefox",
+                _ when ua.Contains("Safari") && !ua.Contains("Chrome") => "Safari",
+                _ when ua.Contains("Opera") || ua.Contains("OPR") => "Opera",
+                _ => "Other"
+            };
+
+            string device = ua switch
+            {
+                _ when ua.Contains("Mobile") || ua.Contains("Android") && ua.Contains("Mobile") => "Mobile",
+                _ when ua.Contains("iPad") || ua.Contains("Tablet") => "Tablet",
+                _ when ua.Contains("Android") => "Android",
+                _ => "Desktop"
+            };
+
+            return (browser, device);
+        }
+
     }
 }

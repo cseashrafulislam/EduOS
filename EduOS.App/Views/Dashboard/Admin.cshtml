@@ -1,0 +1,86 @@
+﻿@{
+    ViewData["Title"] = "Admin Dashboard";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="container-fluid mt-4">
+
+    <!-- Header -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <h2 class="fw-bold">Admin Dashboard</h2>
+            <p class="text-muted">Welcome to Super Admin control panel</p>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row">
+
+        <div class="col-md-3">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5>Total Users</h5>
+                    <h3>0</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5>Total Tenants</h5>
+                    <h3>0</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5>Active Sessions</h5>
+                    <h3>0</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5>System Status</h5>
+                    <span class="badge bg-success">Healthy</span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+
+                    <h5>Quick Actions</h5>
+
+                    <a class="btn btn-primary me-2" href="/Users">
+                        Manage Users
+                    </a>
+
+                    <a class="btn btn-success me-2" href="/Tenants">
+                        Manage Tenants
+                    </a>
+
+                    <a class="btn btn-warning me-2" href="/Roles">
+                        Roles & Permissions
+                    </a>
+
+                    <a class="btn btn-dark" href="/Settings">
+                        System Settings
+                    </a>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
