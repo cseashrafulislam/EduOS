@@ -21,7 +21,7 @@ namespace EduOS.Persistence.Context
             var builder = new DbContextOptionsBuilder<EduOSDbContext>();
 
             var connectionString = configuration.GetConnectionString("DefaultConnection")
-                ?? "Server=(localdb)\\mssqllocaldb;Database=EduOS_DesignDb;Trusted_Connection=True;MultipleActiveResultSets=true";
+                ?? "Server=localhost;Database=EduOS;Trusted_Connection=True;MultipleActiveResultSets=true";
 
             builder.UseSqlServer(connectionString);
             return new EduOSDbContext(builder.Options);

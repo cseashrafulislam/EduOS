@@ -2,6 +2,7 @@
 //using EduOS.Core.Entities.SaaS;
 //using EduOS.Core.Helpers;
 //using EduOS.Core.Interfaces;
+//using EduOS.Core.Interfaces.IServices;
 //using EduOS.Core.Interfaces.SaaS;
 
 //namespace EduOS.Service.Services.SaaS
@@ -77,8 +78,8 @@
 //            if (onboarding.InstitutionProfileCompleted) done++;
 //            if (onboarding.CampusSetupCompleted) done++;
 //            if (onboarding.AcademicSetupCompleted) done++;
-//           // if (onboarding.AdminUserSetupCompleted) done++;
-//           // if (onboarding.RolePermissionSetupCompleted) done++;
+//            // if (onboarding.AdminUserSetupCompleted) done++;
+//            // if (onboarding.RolePermissionSetupCompleted) done++;
 
 //            return (int)Math.Round((double)done / total * 100);
 //        }

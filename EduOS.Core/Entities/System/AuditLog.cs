@@ -2,8 +2,9 @@ using EduOS.Core.Entities.Base;
 
 namespace EduOS.Core.Entities.System
 {
-    public class AuditLog : BaseTenantEntity
+    public class AuditLog : BaseEntity
     {
+        public long? TenantId { get; set; }
         public long? UserId { get; set; }
         public string UserName { get; set; } = string.Empty;
         public string Action { get; set; } = string.Empty; // Create, Update, Delete

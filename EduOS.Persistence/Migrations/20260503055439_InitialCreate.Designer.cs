@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EduOS.Persistence.Migrations
 {
     [DbContext(typeof(EduOSDbContext))]
-    [Migration("20260502192414_CreateAllTables")]
-    partial class CreateAllTables
+    [Migration("20260503055439_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -7215,7 +7215,7 @@ namespace EduOS.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
-                    b.Property<long>("TenantId")
+                    b.Property<long?>("TenantId")
                         .HasColumnType("bigint");
 
                     b.Property<DateTime?>("UpdatedAt")
@@ -11031,17 +11031,6 @@ namespace EduOS.Persistence.Migrations
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.System.ApiKey", b =>
-                {
-                    b.HasOne("EduOS.Core.Entities.Tenants.Tenant", "Tenant")
-                        .WithMany()
-                        .HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Tenant");
-                });
-
-            modelBuilder.Entity("EduOS.Core.Entities.System.AuditLog", b =>
                 {
                     b.HasOne("EduOS.Core.Entities.Tenants.Tenant", "Tenant")
                         .WithMany()

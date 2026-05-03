@@ -6,10 +6,6 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace EduOS.App.Controllers
 {
-    /// <summary>
-    /// MVC controller for all onboarding-related views.
-    /// API endpoints live separately under /api/* controllers.
-    /// </summary>
     public class AccountController : Controller
     {
         private readonly ICurrentUserService _currentUser;

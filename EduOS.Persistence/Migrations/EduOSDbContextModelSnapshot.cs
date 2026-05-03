@@ -7212,7 +7212,7 @@ namespace EduOS.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
-                    b.Property<long>("TenantId")
+                    b.Property<long?>("TenantId")
                         .HasColumnType("bigint");
 
                     b.Property<DateTime?>("UpdatedAt")
@@ -11028,17 +11028,6 @@ namespace EduOS.Persistence.Migrations
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.System.ApiKey", b =>
-                {
-                    b.HasOne("EduOS.Core.Entities.Tenants.Tenant", "Tenant")
-                        .WithMany()
-                        .HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Tenant");
-                });
-
-            modelBuilder.Entity("EduOS.Core.Entities.System.AuditLog", b =>
                 {
                     b.HasOne("EduOS.Core.Entities.Tenants.Tenant", "Tenant")
                         .WithMany()

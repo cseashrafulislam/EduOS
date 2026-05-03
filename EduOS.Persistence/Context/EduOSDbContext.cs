@@ -27,6 +27,7 @@ using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Storage;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Security.Claims;
 using System.Text.Json;
 
 namespace EduOS.Persistence.Context
@@ -45,50 +46,85 @@ namespace EduOS.Persistence.Context
     {
         #region Private Fields
 
-        private readonly long? _tenantId;
-        private readonly long? _userId;
-        private readonly string? _userName;
-        private readonly string? _ipAddress;
-        private readonly string? _userAgent;
-        private readonly string? _endpoint;
-        private readonly DateTime _startTime;
+        private readonly IHttpContextAccessor? _httpContextAccessor;
+        private readonly DateTime _startTime = DateTime.UtcNow;
         private IDbContextTransaction? _transaction;
         private bool _isAuditing;
 
+        // Lazily resolved from HttpContext claims
+        private long? _tenantId;
+        private long? _userId;
+        private string? _userName;
+        private bool _contextResolved;
+
         #endregion
 
-        #region Constructor (SINGLE constructor - fixes the migration error)
+        #region Single Constructor
+
         public EduOSDbContext(
             DbContextOptions<EduOSDbContext> options,
-            ICurrentUserService? currentUser = null,
             IHttpContextAccessor? httpContextAccessor = null)
             : base(options)
         {
-            _tenantId = currentUser?.TenantId > 0 ? currentUser.TenantId : null;
-            _userId = currentUser?.UserId > 0 ? currentUser.UserId : null;
-            _userName = currentUser?.FullName;
-            _ipAddress = httpContextAccessor?.HttpContext?.Connection?.RemoteIpAddress?.ToString();
-            _userAgent = httpContextAccessor?.HttpContext?.Request?.Headers["User-Agent"].FirstOrDefault();
-            _endpoint = httpContextAccessor?.HttpContext?.Request?.Path;
-            _startTime = DateTime.UtcNow;
-            _isAuditing = false;
+            _httpContextAccessor = httpContextAccessor;
         }
+
+        #endregion
+
+        #region Claim Resolution (no UserManager — no circular dependency)
+
+        private void ResolveContext()
+        {
+            if (_contextResolved) return;
+            _contextResolved = true;
+
+            var user = _httpContextAccessor?.HttpContext?.User;
+            if (user?.Identity?.IsAuthenticated != true) return;
+
+            // UserId from NameIdentifier claim
+            var uidStr = user.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (long.TryParse(uidStr, out var uid)) _userId = uid;
+
+            // TenantId from custom claim set during login
+            var tidStr = user.FindFirstValue("TenantId");
+            if (long.TryParse(tidStr, out var tid)) _tenantId = tid;
+
+            // FullName from custom claim
+            _userName = user.FindFirstValue("FullName")
+                        ?? user.Identity.Name
+                        ?? "System";
+        }
+
+        // Properties trigger lazy resolution
+        private long? TenantId { get { ResolveContext(); return _tenantId; } }
+        private long? UserId { get { ResolveContext(); return _userId; } }
+        private string UserName { get { ResolveContext(); return _userName ?? "System"; } }
+
+        private string IpAddress =>
+            _httpContextAccessor?.HttpContext?.Connection?.RemoteIpAddress?.ToString() ?? "Unknown";
+        private string UserAgent =>
+            _httpContextAccessor?.HttpContext?.Request?.Headers["User-Agent"]
+                .FirstOrDefault() ?? "Unknown";
+        private string Endpoint =>
+            _httpContextAccessor?.HttpContext?.Request?.Path.ToString() ?? "Unknown";
 
         #endregion
 
         #region DbSet Properties
 
+        // IdentityDbContext already provides Users/Roles via base.
+        // These aliases make it easier for service code to reference them.
         public DbSet<ApplicationUser> ApplicationUsers => Set<ApplicationUser>();
         public DbSet<ApplicationRole> ApplicationRoles => Set<ApplicationRole>();
 
-        // ==================== Auth (custom) ====================
+        // Auth (custom)
         public DbSet<Permission> Permissions => Set<Permission>();
         public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
         public DbSet<LoginHistory> LoginHistories => Set<LoginHistory>();
         public DbSet<TwoFactorAuth> TwoFactorAuths => Set<TwoFactorAuth>();
         public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
-        // ==================== Tenants ====================
+        // Tenants
         public DbSet<Tenant> Tenants => Set<Tenant>();
         public DbSet<TenantSetting> TenantSettings => Set<TenantSetting>();
         public DbSet<Campus> Campuses => Set<Campus>();
@@ -96,7 +132,7 @@ namespace EduOS.Persistence.Context
         public DbSet<Medium> Mediums => Set<Medium>();
         public DbSet<TenantUser> TenantUsers => Set<TenantUser>();
 
-        // ==================== SaaS ====================
+        // SaaS
         public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
         public DbSet<TenantSubscription> TenantSubscriptions => Set<TenantSubscription>();
         public DbSet<SubscriptionInvoice> SubscriptionInvoices => Set<SubscriptionInvoice>();
@@ -106,7 +142,7 @@ namespace EduOS.Persistence.Context
         public DbSet<TrialAccount> TrialAccounts => Set<TrialAccount>();
         public DbSet<UsageStatistics> UsageStatistics => Set<UsageStatistics>();
 
-        // ==================== Academic ====================
+        // Academic
         public DbSet<AcademicYear> AcademicYears => Set<AcademicYear>();
         public DbSet<Class> Classes => Set<Class>();
         public DbSet<Section> Sections => Set<Section>();
@@ -120,7 +156,7 @@ namespace EduOS.Persistence.Context
         public DbSet<Holiday> Holidays => Set<Holiday>();
         public DbSet<Event> Events => Set<Event>();
 
-        // ==================== Students ====================
+        // Students
         public DbSet<Admission> Admissions => Set<Admission>();
         public DbSet<Student> Students => Set<Student>();
         public DbSet<Guardian> Guardians => Set<Guardian>();
@@ -130,18 +166,18 @@ namespace EduOS.Persistence.Context
         public DbSet<HealthRecord> HealthRecords => Set<HealthRecord>();
         public DbSet<BehaviorRecord> BehaviorRecords => Set<BehaviorRecord>();
 
-        // ==================== Employees ====================
+        // Employees
         public DbSet<HRDesignation> HRDesignations => Set<HRDesignation>();
         public DbSet<HREmployee> HREmployees => Set<HREmployee>();
         public DbSet<HRAttendanceLog> HRAttendanceLogs => Set<HRAttendanceLog>();
 
-        // ==================== Attendance ====================
+        // Attendance
         public DbSet<StudentAttendance> StudentAttendances => Set<StudentAttendance>();
         public DbSet<EmployeeAttendance> EmployeeAttendances => Set<EmployeeAttendance>();
         public DbSet<LeaveType> LeaveTypes => Set<LeaveType>();
         public DbSet<LeaveApplication> LeaveApplications => Set<LeaveApplication>();
 
-        // ==================== Exams ====================
+        // Exams
         public DbSet<Exam> Exams => Set<Exam>();
         public DbSet<ExamSchedule> ExamSchedules => Set<ExamSchedule>();
         public DbSet<MarkEntry> MarkEntries => Set<MarkEntry>();
@@ -156,7 +192,7 @@ namespace EduOS.Persistence.Context
         public DbSet<OnlineExamQuestion> OnlineExamQuestions => Set<OnlineExamQuestion>();
         public DbSet<OnlineExamAttempt> OnlineExamAttempts => Set<OnlineExamAttempt>();
 
-        // ==================== Finance ====================
+        // Finance
         public DbSet<FeeHead> FeeHeads => Set<FeeHead>();
         public DbSet<FeeStructure> FeeStructures => Set<FeeStructure>();
         public DbSet<StudentInvoice> StudentInvoices => Set<StudentInvoice>();
@@ -174,28 +210,28 @@ namespace EduOS.Persistence.Context
         public DbSet<Voucher> Vouchers => Set<Voucher>();
         public DbSet<VoucherDetail> VoucherDetails => Set<VoucherDetail>();
 
-        // ==================== Payroll ====================
+        // Payroll
         public DbSet<SalaryStructure> SalaryStructures => Set<SalaryStructure>();
         public DbSet<Payroll> Payrolls => Set<Payroll>();
         public DbSet<Increment> Increments => Set<Increment>();
         public DbSet<LoanAdvance> LoanAdvances => Set<LoanAdvance>();
         public DbSet<Bonus> Bonuses => Set<Bonus>();
 
-        // ==================== Library ====================
+        // Library
         public DbSet<Book> Books => Set<Book>();
         public DbSet<BookIssue> BookIssues => Set<BookIssue>();
 
-        // ==================== Transport ====================
+        // Transport
         public DbSet<Route> Routes => Set<Route>();
         public DbSet<Vehicle> Vehicles => Set<Vehicle>();
         public DbSet<StudentTransport> StudentTransports => Set<StudentTransport>();
 
-        // ==================== Hostel ====================
+        // Hostel
         public DbSet<Hostel> Hostels => Set<Hostel>();
         public DbSet<HostelRoom> HostelRooms => Set<HostelRoom>();
         public DbSet<StudentHostel> StudentHostels => Set<StudentHostel>();
 
-        // ==================== LMS ====================
+        // LMS
         public DbSet<Course> Courses => Set<Course>();
         public DbSet<Lesson> Lessons => Set<Lesson>();
         public DbSet<Assignment> Assignments => Set<Assignment>();
@@ -204,11 +240,11 @@ namespace EduOS.Persistence.Context
         public DbSet<HomeworkSubmission> HomeworkSubmissions => Set<HomeworkSubmission>();
         public DbSet<LiveClass> LiveClasses => Set<LiveClass>();
 
-        // ==================== Inventory ====================
+        // Inventory
         public DbSet<Asset> Assets => Set<Asset>();
         public DbSet<AssetMaintenance> AssetMaintenances => Set<AssetMaintenance>();
 
-        // ==================== Communication ====================
+        // Communication
         public DbSet<Notice> Notices => Set<Notice>();
         public DbSet<NoticeCategory> NoticeCategories => Set<NoticeCategory>();
         public DbSet<Notification> Notifications => Set<Notification>();
@@ -220,7 +256,7 @@ namespace EduOS.Persistence.Context
         public DbSet<MessageQueue> MessageQueues => Set<MessageQueue>();
         public DbSet<DeviceToken> DeviceTokens => Set<DeviceToken>();
 
-        // ==================== System ====================
+        // System
         public DbSet<Document> Documents => Set<Document>();
         public DbSet<DocumentTemplate> DocumentTemplates => Set<DocumentTemplate>();
         public DbSet<IdCard> IdCards => Set<IdCard>();
@@ -252,50 +288,51 @@ namespace EduOS.Persistence.Context
             if (modelBuilder == null)
                 throw new ArgumentNullException(nameof(modelBuilder));
 
-            // ⚠️ CRITICAL: base.OnModelCreating FIRST
-            // This sets up all Identity tables (AspNetUsers, AspNetRoles, etc.)
+            // MUST be first: sets up Identity tables (AspNetUsers, etc.)
             base.OnModelCreating(modelBuilder);
 
-            // Apply all IEntityTypeConfiguration<T> classes from this assembly
+            // All IEntityTypeConfiguration<T> classes in this assembly
             modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
 
-            // Global filters: Soft Delete + Multi-Tenancy
+            // Global: soft delete + multi-tenancy
             ApplyGlobalFilters(modelBuilder);
 
-            // datetime2 precision + default string max length
+            // datetime2 + default string lengths
             ApplyDateTimePrecision(modelBuilder);
 
-            // No cascade deletes (safer for multi-tenant data)
+            // No cascade deletes
             DisableCascadeDelete(modelBuilder);
 
-            // AuditLog table extra config
+            // AuditLog special config
             ConfigureAuditLog(modelBuilder);
         }
 
         private void ApplyGlobalFilters(ModelBuilder modelBuilder)
         {
+            ResolveContext(); // ensure claims are read before filters are built
+
             foreach (var entityType in modelBuilder.Model.GetEntityTypes())
             {
                 var clrType = entityType.ClrType;
 
-                // Soft Delete: applies to all BaseEntity subclasses
+                // Soft Delete: all BaseEntity subclasses
                 if (typeof(BaseEntity).IsAssignableFrom(clrType))
                 {
-                    var parameter = Expression.Parameter(clrType, "e");
-                    var isDeletedProp = Expression.Property(parameter, nameof(BaseEntity.IsDeleted));
-                    var notDeleted = Expression.Not(isDeletedProp);
-                    modelBuilder.Entity(clrType).HasQueryFilter(Expression.Lambda(notDeleted, parameter));
+                    var p = Expression.Parameter(clrType, "e");
+                    var notDeleted = Expression.Not(
+                        Expression.Property(p, nameof(BaseEntity.IsDeleted)));
+                    modelBuilder.Entity(clrType)
+                        .HasQueryFilter(Expression.Lambda(notDeleted, p));
                 }
 
-                // Multi-Tenancy: applies to BaseTenantEntity subclasses
-                // Only adds filter if there is an active tenant context
+                // Multi-Tenancy: BaseTenantEntity subclasses, only when tenant is known
                 if (typeof(BaseTenantEntity).IsAssignableFrom(clrType) && _tenantId.HasValue)
                 {
-                    var parameter = Expression.Parameter(clrType, "e");
-                    var tenantProp = Expression.Property(parameter, nameof(BaseTenantEntity.TenantId));
-                    var tenantConst = Expression.Constant(_tenantId.Value, typeof(long));
-                    var tenantFilter = Expression.Equal(tenantProp, tenantConst);
-                    modelBuilder.Entity(clrType).HasQueryFilter(Expression.Lambda(tenantFilter, parameter));
+                    var p = Expression.Parameter(clrType, "e");
+                    var prop = Expression.Property(p, nameof(BaseTenantEntity.TenantId));
+                    var val = Expression.Constant(_tenantId.Value, typeof(long));
+                    modelBuilder.Entity(clrType)
+                        .HasQueryFilter(Expression.Lambda(Expression.Equal(prop, val), p));
                 }
             }
         }
@@ -303,42 +340,32 @@ namespace EduOS.Persistence.Context
         private static void ApplyDateTimePrecision(ModelBuilder modelBuilder)
         {
             foreach (var entityType in modelBuilder.Model.GetEntityTypes())
-            {
-                foreach (var property in entityType.GetProperties())
+                foreach (var prop in entityType.GetProperties())
                 {
-                    if (property.ClrType == typeof(DateTime) || property.ClrType == typeof(DateTime?))
-                    {
-                        property.SetColumnType("datetime2");
-                    }
-                    else if (property.ClrType == typeof(string) && property.GetMaxLength() == null)
-                    {
-                        property.SetMaxLength(500);
-                    }
+                    if (prop.ClrType == typeof(DateTime) || prop.ClrType == typeof(DateTime?))
+                        prop.SetColumnType("datetime2");
+                    else if (prop.ClrType == typeof(string) && prop.GetMaxLength() == null)
+                        prop.SetMaxLength(500);
                 }
-            }
         }
 
         private static void DisableCascadeDelete(ModelBuilder modelBuilder)
         {
             foreach (var entityType in modelBuilder.Model.GetEntityTypes())
-            {
-                foreach (var foreignKey in entityType.GetForeignKeys())
-                {
-                    foreignKey.DeleteBehavior = DeleteBehavior.Restrict;
-                }
-            }
+                foreach (var fk in entityType.GetForeignKeys())
+                    fk.DeleteBehavior = DeleteBehavior.Restrict;
         }
 
         private static void ConfigureAuditLog(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<AuditLog>(entity =>
+            modelBuilder.Entity<AuditLog>(e =>
             {
-                entity.ToTable("AuditLogs");
-                entity.HasKey(e => e.Id);
-                entity.Property(e => e.OldValue).HasColumnType("nvarchar(max)");
-                entity.Property(e => e.NewValue).HasColumnType("nvarchar(max)");
-                entity.HasIndex(e => new { e.TenantId, e.UserId, e.CreatedAt });
-                entity.HasIndex(e => new { e.TenantId, e.TableName, e.RecordId });
+                e.ToTable("AuditLogs");
+                e.HasKey(x => x.Id);
+                e.Property(x => x.OldValue).HasColumnType("nvarchar(max)");
+                e.Property(x => x.NewValue).HasColumnType("nvarchar(max)");
+                e.HasIndex(x => new { x.TenantId, x.UserId, x.CreatedAt });
+                e.HasIndex(x => new { x.TenantId, x.TableName, x.RecordId });
             });
         }
 
@@ -348,9 +375,10 @@ namespace EduOS.Persistence.Context
 
         public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
-            // Prevent re-entry during audit log saving
             if (_isAuditing)
                 return await base.SaveChangesAsync(cancellationToken);
+
+            ResolveContext(); // ensure claims resolved
 
             var entries = ChangeTracker.Entries<BaseEntity>().ToList();
             var now = DateTime.UtcNow;
@@ -360,184 +388,148 @@ namespace EduOS.Persistence.Context
             {
                 foreach (var entry in entries)
                 {
-                    // Skip AuditLog itself to prevent infinite loop
                     if (entry.Entity is AuditLog) continue;
 
                     switch (entry.State)
                     {
                         case EntityState.Added:
                             SetAuditFields(entry, now, EntityState.Added);
-                            var createLog = CreateAuditLog(entry, "Create");
-                            if (createLog != null) auditLogs.Add(createLog);
+                            var a = CreateAuditLog(entry, "Create", now);
+                            if (a != null) auditLogs.Add(a);
                             break;
 
                         case EntityState.Modified:
                             SetAuditFields(entry, now, EntityState.Modified);
-                            var updateLog = CreateAuditLog(entry, "Update");
-                            if (updateLog != null) auditLogs.Add(updateLog);
+                            var m = CreateAuditLog(entry, "Update", now);
+                            if (m != null) auditLogs.Add(m);
                             break;
 
                         case EntityState.Deleted:
-                            // Convert hard delete → soft delete
                             entry.State = EntityState.Modified;
                             entry.Entity.IsDeleted = true;
                             SetAuditFields(entry, now, EntityState.Modified);
-                            var deleteLog = CreateAuditLog(entry, "Delete");
-                            if (deleteLog != null) auditLogs.Add(deleteLog);
+                            var d = CreateAuditLog(entry, "Delete", now);
+                            if (d != null) auditLogs.Add(d);
                             break;
                     }
                 }
 
-                // Save main changes
                 var result = await base.SaveChangesAsync(cancellationToken);
 
-                // Save audit logs (failure here doesn't break the main save)
                 if (auditLogs.Count > 0)
                 {
                     _isAuditing = true;
-                    try
-                    {
-                        await AddAuditLogsAsync(auditLogs, cancellationToken);
-                    }
-                    finally
-                    {
-                        _isAuditing = false;
-                    }
+                    try { await AddAuditLogsAsync(auditLogs, cancellationToken); }
+                    finally { _isAuditing = false; }
                 }
 
                 return result;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"SaveChangesAsync Failed: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"SaveChangesAsync failed: {ex.Message}");
                 throw;
             }
         }
 
         private void SetAuditFields(EntityEntry entry, DateTime now, EntityState state)
         {
-            if (entry.Entity is not BaseEntity baseEntity) return;
+            if (entry.Entity is not BaseEntity entity) return;
 
             if (state == EntityState.Added)
             {
-                baseEntity.CreatedAt = now;
-                baseEntity.CreatedBy = _userId;
-
-                // Auto-assign TenantId if entity is tenant-scoped and not already set
-                if (baseEntity is BaseTenantEntity tenantEntity && tenantEntity.TenantId == 0)
-                {
-                    tenantEntity.TenantId = _tenantId ?? 0;
-                }
+                entity.CreatedAt = now;
+                entity.CreatedBy = UserId;
+                if (entity is BaseTenantEntity te && te.TenantId == 0)
+                    te.TenantId = TenantId ?? 0;
             }
             else
             {
-                baseEntity.UpdatedAt = now;
-                baseEntity.UpdatedBy = _userId;
+                entity.UpdatedAt = now;
+                entity.UpdatedBy = UserId;
             }
         }
 
-        private AuditLog? CreateAuditLog(EntityEntry entry, string action)
+        private AuditLog? CreateAuditLog(EntityEntry entry, string action, DateTime now)
         {
             try
             {
                 if (entry.Entity is AuditLog) return null;
 
-                var auditLog = new AuditLog
+                var log = new AuditLog
                 {
-                    TenantId = _tenantId ?? 0,
-                    UserId = _userId,
-                    UserName = _userName ?? "System",
+                    TenantId = TenantId ?? 0,
+                    UserId = UserId,
+                    UserName = UserName,
                     Action = action,
                     TableName = entry.Entity.GetType().Name,
                     RecordId = GetEntityId(entry),
-                    IpAddress = _ipAddress ?? "Unknown",
-                    UserAgent = _userAgent ?? "Unknown",
-                    Endpoint = _endpoint ?? "Unknown",
+                    IpAddress = IpAddress,
+                    UserAgent = UserAgent,
+                    Endpoint = Endpoint,
                     ExecutionTime = DateTime.UtcNow - _startTime,
                     IsSuccess = true,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = now
                 };
 
-                // Capture changed values, excluding sensitive fields
-                if (action == "Update")
+                switch (action)
                 {
-                    var old = new Dictionary<string, object?>();
-                    var @new = new Dictionary<string, object?>();
+                    case "Update":
+                        var old = new Dictionary<string, object?>();
+                        var @new = new Dictionary<string, object?>();
+                        foreach (var p in entry.Properties
+                            .Where(p => p.IsModified && !IsSensitiveField(p.Metadata.Name)))
+                        { old[p.Metadata.Name] = p.OriginalValue; @new[p.Metadata.Name] = p.CurrentValue; }
+                        if (old.Count > 0)
+                        { log.OldValue = JsonSerializer.Serialize(old); log.NewValue = JsonSerializer.Serialize(@new); }
+                        break;
 
-                    foreach (var prop in entry.Properties.Where(p =>
-                        p.IsModified && !IsSensitiveField(p.Metadata.Name)))
-                    {
-                        old[prop.Metadata.Name] = prop.OriginalValue;
-                        @new[prop.Metadata.Name] = prop.CurrentValue;
-                    }
+                    case "Create":
+                        log.NewValue = JsonSerializer.Serialize(
+                            entry.Properties
+                                .Where(p => !IsSensitiveField(p.Metadata.Name))
+                                .ToDictionary(p => p.Metadata.Name, p => p.CurrentValue));
+                        break;
 
-                    if (old.Count > 0)
-                    {
-                        auditLog.OldValue = JsonSerializer.Serialize(old);
-                        auditLog.NewValue = JsonSerializer.Serialize(@new);
-                    }
-                }
-                else if (action == "Create")
-                {
-                    var values = entry.Properties
-                        .Where(p => !IsSensitiveField(p.Metadata.Name))
-                        .ToDictionary(p => p.Metadata.Name, p => p.CurrentValue);
-
-                    auditLog.NewValue = JsonSerializer.Serialize(values);
-                }
-                else if (action == "Delete")
-                {
-                    var values = entry.Properties
-                        .Where(p => !IsSensitiveField(p.Metadata.Name))
-                        .ToDictionary(p => p.Metadata.Name, p => p.OriginalValue);
-
-                    auditLog.OldValue = JsonSerializer.Serialize(values);
+                    case "Delete":
+                        log.OldValue = JsonSerializer.Serialize(
+                            entry.Properties
+                                .Where(p => !IsSensitiveField(p.Metadata.Name))
+                                .ToDictionary(p => p.Metadata.Name, p => p.OriginalValue));
+                        break;
                 }
 
-                return auditLog;
+                return log;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"CreateAuditLog Failed: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"CreateAuditLog failed: {ex.Message}");
                 return null;
             }
         }
 
         private static long? GetEntityId(EntityEntry entry)
         {
-            try
-            {
-                var idProp = entry.Property(nameof(BaseEntity.Id));
-                return idProp.CurrentValue is long id ? id : null;
-            }
-            catch
-            {
-                return null;
-            }
+            try { var p = entry.Property(nameof(BaseEntity.Id)); return p.CurrentValue is long id ? id : null; }
+            catch { return null; }
         }
 
-        private static bool IsSensitiveField(string fieldName)
-        {
-            var sensitiveFields = new[]
-            {
-                "Password", "PasswordHash", "SecretKey", "Token", "ApiKey",
-                "CreditCard", "BankAccount", "NID", "Passport", "RefreshToken"
-            };
-            return sensitiveFields.Any(f => fieldName.Contains(f, StringComparison.OrdinalIgnoreCase));
-        }
+        private static bool IsSensitiveField(string name) =>
+            new[] { "Password","PasswordHash","SecretKey","Token","ApiKey",
+                    "CreditCard","BankAccount","NID","Passport","RefreshToken" }
+            .Any(f => name.Contains(f, StringComparison.OrdinalIgnoreCase));
 
-        private async Task AddAuditLogsAsync(List<AuditLog> auditLogs, CancellationToken cancellationToken)
+        private async Task AddAuditLogsAsync(List<AuditLog> logs, CancellationToken ct)
         {
             try
             {
-                if (auditLogs.Count == 0) return;
-                await AuditLogs.AddRangeAsync(auditLogs, cancellationToken);
-                await base.SaveChangesAsync(cancellationToken);
+                if (logs.Count == 0) return;
+                await AuditLogs.AddRangeAsync(logs, ct);
+                await base.SaveChangesAsync(ct);
             }
             catch (Exception ex)
             {
-                // Never throw from here — audit failure must not break main operation
-                System.Diagnostics.Debug.WriteLine($"AddAuditLogsAsync Failed: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"AddAuditLogsAsync failed: {ex.Message}");
             }
         }
 
@@ -546,36 +538,20 @@ namespace EduOS.Persistence.Context
         #region IUnitOfWork Transactions
 
         public async Task BeginTransactionAsync()
-        {
-            _transaction ??= await Database.BeginTransactionAsync();
-        }
+            => _transaction ??= await Database.BeginTransactionAsync();
 
         public async Task CommitTransactionAsync()
         {
             if (_transaction == null) return;
-            try
-            {
-                await _transaction.CommitAsync();
-            }
-            finally
-            {
-                await _transaction.DisposeAsync();
-                _transaction = null;
-            }
+            try { await _transaction.CommitAsync(); }
+            finally { await _transaction.DisposeAsync(); _transaction = null; }
         }
 
         public async Task RollbackTransactionAsync()
         {
             if (_transaction == null) return;
-            try
-            {
-                await _transaction.RollbackAsync();
-            }
-            finally
-            {
-                await _transaction.DisposeAsync();
-                _transaction = null;
-            }
+            try { await _transaction.RollbackAsync(); }
+            finally { await _transaction.DisposeAsync(); _transaction = null; }
         }
 
         public override void Dispose()

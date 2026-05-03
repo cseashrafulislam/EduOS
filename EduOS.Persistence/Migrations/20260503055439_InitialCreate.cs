@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace EduOS.Persistence.Migrations
 {
     /// <inheritdoc />
-    public partial class CreateAllTables : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -31,6 +31,37 @@ namespace EduOS.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_AspNetRoles", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AuditLogs",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TenantId = table.Column<long>(type: "bigint", nullable: true),
+                    UserId = table.Column<long>(type: "bigint", nullable: true),
+                    UserName = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    Action = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    TableName = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    RecordId = table.Column<long>(type: "bigint", nullable: true),
+                    OldValue = table.Column<string>(type: "nvarchar(max)", maxLength: 500, nullable: true),
+                    NewValue = table.Column<string>(type: "nvarchar(max)", maxLength: 500, nullable: true),
+                    IpAddress = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    UserAgent = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    Endpoint = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    ExecutionTime = table.Column<TimeSpan>(type: "time", nullable: false),
+                    IsSuccess = table.Column<bool>(type: "bit", nullable: false),
+                    ErrorMessage = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AuditLogs", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -520,43 +551,6 @@ namespace EduOS.Persistence.Migrations
                     table.PrimaryKey("PK_Assets", x => x.Id);
                     table.ForeignKey(
                         name: "FK_Assets_Tenants_TenantId",
-                        column: x => x.TenantId,
-                        principalTable: "Tenants",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "AuditLogs",
-                columns: table => new
-                {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    UserId = table.Column<long>(type: "bigint", nullable: true),
-                    UserName = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    Action = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    TableName = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    RecordId = table.Column<long>(type: "bigint", nullable: true),
-                    OldValue = table.Column<string>(type: "nvarchar(max)", maxLength: 500, nullable: true),
-                    NewValue = table.Column<string>(type: "nvarchar(max)", maxLength: 500, nullable: true),
-                    IpAddress = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    UserAgent = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    Endpoint = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    ExecutionTime = table.Column<TimeSpan>(type: "time", nullable: false),
-                    IsSuccess = table.Column<bool>(type: "bit", nullable: false),
-                    ErrorMessage = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
-                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
-                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
-                    TenantId = table.Column<long>(type: "bigint", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_AuditLogs", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_AuditLogs_Tenants_TenantId",
                         column: x => x.TenantId,
                         principalTable: "Tenants",
                         principalColumn: "Id",
