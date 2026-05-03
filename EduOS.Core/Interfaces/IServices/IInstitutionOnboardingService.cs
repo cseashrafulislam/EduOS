@@ -1,32 +1,39 @@
-﻿using EduOS.Core.DTOs.SaaS;
+using EduOS.Core.Common;
+using EduOS.Core.DTOs.SaaS;
 
 namespace EduOS.Core.Interfaces.IServices
 {
     public interface IInstitutionOnboardingService
     {
-        Task<InstitutionSignupResponseDto> RegisterInstitutionAsync(InstitutionSignupRequestDto dto, string baseUrl);
+        // ── Signup + Email Verify ──────────────────────────────
+        Task<ApiResponse<InstitutionSignupResponseDto>> RegisterInstitutionAsync(
+            InstitutionSignupRequestDto dto, string baseUrl);
+
         Task<bool> VerifyEmailAsync(string email, string token, string baseUrl);
-        Task<bool> SaveInstitutionProfileAsync(InstitutionProfileSetupDto dto);
-        Task<InstitutionProfileSetupDto?> GetInstitutionProfileAsync();
 
-        Task<List<CampusListItemDto>> GetCampusListAsync();
-        Task<CampusSetupDto?> GetCampusByIdAsync(long id);
-        Task<bool> SaveCampusAsync(CampusSetupDto dto);
-        Task<bool> DeleteCampusAsync(long id);
+        // ── Institution Profile ────────────────────────────────
+        Task<ApiResponse<InstitutionProfileSetupDto?>> GetInstitutionProfileAsync();
+        Task<ApiResponse<bool>> SaveInstitutionProfileAsync(InstitutionProfileSetupDto dto);
 
+        // ── Campus ────────────────────────────────────────────
+        Task<ApiResponse<List<CampusListItemDto>>> GetCampusListAsync();
+        Task<ApiResponse<CampusSetupDto?>> GetCampusByIdAsync(long id);
+        Task<ApiResponse<bool>> SaveCampusAsync(CampusSetupDto dto);
+        Task<ApiResponse<bool>> DeleteCampusAsync(long id);
 
+        // ── Academic Year ──────────────────────────────────────
+        Task<ApiResponse<List<AcademicYearListItemDto>>> GetAcademicYearListAsync();
+        Task<ApiResponse<AcademicYearSetupDto?>> GetAcademicYearByIdAsync(long id);
+        Task<ApiResponse<bool>> SaveAcademicYearAsync(AcademicYearSetupDto dto);
+        Task<ApiResponse<bool>> DeleteAcademicYearAsync(long id);
 
-        Task<List<AcademicYearListItemDto>> GetAcademicYearListAsync();
-        Task<AcademicYearSetupDto?> GetAcademicYearByIdAsync(long id);
-        Task<bool> SaveAcademicYearAsync(AcademicYearSetupDto dto);
-        Task<bool> DeleteAcademicYearAsync(long id);
+        // ── Academic Term ──────────────────────────────────────
+        Task<ApiResponse<List<AcademicTermListItemDto>>> GetAcademicTermListAsync();
+        Task<ApiResponse<AcademicTermSetupDto?>> GetAcademicTermByIdAsync(long id);
+        Task<ApiResponse<bool>> SaveAcademicTermAsync(AcademicTermSetupDto dto);
+        Task<ApiResponse<bool>> DeleteAcademicTermAsync(long id);
 
-        Task<List<AcademicTermListItemDto>> GetAcademicTermListAsync();
-        Task<AcademicTermSetupDto?> GetAcademicTermByIdAsync(long id);
-        Task<bool> SaveAcademicTermAsync(AcademicTermSetupDto dto);
-        Task<bool> DeleteAcademicTermAsync(long id);
-
-        
-        Task<bool> FinalCompleteAsync();
+        // ── Final Complete ─────────────────────────────────────
+        Task<ApiResponse<bool>> FinalCompleteAsync();
     }
 }

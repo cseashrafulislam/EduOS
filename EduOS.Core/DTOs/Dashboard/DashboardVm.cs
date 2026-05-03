@@ -1,24 +1,55 @@
-﻿namespace EduOS.Core.DTOs.Dashboard
+namespace EduOS.Core.DTOs.Dashboard
 {
     public class DashboardVm
     {
-        public string InstitutionName { get; set; } = "N/A";
-        public string InstitutionType { get; set; } = "N/A";
-        public string OwnerName { get; set; } = "N/A";
-        public string PlanName { get; set; } = "N/A";
+        // ── Institution Info ───────────────────────────────────
+        public string InstitutionName { get; set; } = string.Empty;
+        public string? InstitutionType { get; set; }
+        public string? OwnerName { get; set; }
+        public string? LogoUrl { get; set; }
 
+        // ── Subscription ───────────────────────────────────────
+        public string PlanName { get; set; } = "N/A";
+        public string PlanCode { get; set; } = string.Empty;
+        public bool IsTrialActive { get; set; }
+        public DateTime? TrialEndDate { get; set; }
+        public int? TrialDaysRemaining { get; set; }
+        public DateTime? SubscriptionEndDate { get; set; }
+        public int DaysUntilExpiry { get; set; }
+        public string SubscriptionStatus { get; set; } = string.Empty;
+
+        // ── Onboarding ─────────────────────────────────────────
+        public bool EmailVerified { get; set; }
+        public bool OnboardingComplete { get; set; }
+        public int OnboardingStep { get; set; }
+        public int OnboardingPercent { get; set; }
+
+        // ── Limits & Usage ─────────────────────────────────────
+        public int MaxStudents { get; set; }
+        public int CurrentStudents { get; set; }
+        public int MaxTeachers { get; set; }
+        public int CurrentTeachers { get; set; }
+        public int MaxCampuses { get; set; }
+        public int ActiveFeatures { get; set; }
+
+        // ── Stats (for dashboard widgets) ──────────────────────
         public int TotalStudents { get; set; }
         public int TotalTeachers { get; set; }
         public int TotalStaff { get; set; }
+        public int TotalCampuses { get; set; }
+        public int TotalClasses { get; set; }
         public decimal MonthlyCollection { get; set; }
+        public decimal TotalDues { get; set; }
 
-        public bool EmailVerified { get; set; }
-        public bool SetupCompleted { get; set; }
+        // ── Alerts (shown as banners on dashboard) ─────────────
+        public List<DashboardAlert> Alerts { get; set; } = new();
+    }
 
-        public int OnboardingPercent { get; set; }
-        public int CurrentStep { get; set; }
-
-        public DateTime? TrialEndDate { get; set; }
-        public int ActiveFeatures { get; set; }
+    public class DashboardAlert
+    {
+        public string Type { get; set; } = "info";   // info | warning | danger | success
+        public string Message { get; set; } = string.Empty;
+        public string? ActionUrl { get; set; }
+        public string? ActionLabel { get; set; }
     }
 }

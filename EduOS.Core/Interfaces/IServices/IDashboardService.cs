@@ -1,9 +1,10 @@
-﻿using EduOS.Core.DTOs.Dashboard;
+using EduOS.Core.Common;
+using EduOS.Core.DTOs.Dashboard;
 
 namespace EduOS.Core.Interfaces.IServices
 {
     public interface IDashboardService
     {
-        Task<DashboardVm?> GetDashboardAsync();
+        Task<ApiResponse<DashboardVm>> GetDashboardAsync();
     }
 }

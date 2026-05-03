@@ -1,117 +1,124 @@
-﻿$(function() {
-    $("#btnSignup").on("click", function() {
-        signup();
-    });
+// ============================================================
+// SIGNUP.JS - Institution Signup
+// ============================================================
 
-    $("#signupForm").on("keypress", function(e) {
-        if (e.which === 13) {
+document.addEventListener('DOMContentLoaded', function () {
+
+    const form = document.getElementById('signupForm');
+    const submitBtn = document.getElementById('signupBtn');
+    const passwordInput = document.getElementById('password');
+    const confirmInput = document.getElementById('confirmPassword');
+    const strengthBar = document.getElementById('strengthBar');
+
+    // ── Password strength indicator ──────────────────────────
+    if (passwordInput && strengthBar) {
+        passwordInput.addEventListener('input', function () {
+            const val = passwordInput.value;
+            let score = 0;
+            if (val.length >= 6) score++;
+            if (val.length >= 10) score++;
+            if (/[A-Z]/.test(val)) score++;
+            if (/[0-9]/.test(val)) score++;
+            if (/[^A-Za-z0-9]/.test(val)) score++;
+
+            const levels = ['', 'danger', 'warning', 'info', 'success', 'success'];
+            const labels = ['', 'Very weak', 'Weak', 'Fair', 'Strong', 'Very strong'];
+
+            strengthBar.style.width = (score * 20) + '%';
+            strengthBar.className = 'progress-bar bg-' + (levels[score] || 'danger');
+            const label = document.getElementById('strengthLabel');
+            if (label) label.textContent = labels[score] || '';
+        });
+    }
+
+    // ── Form submit ───────────────────────────────────────────
+    if (form) {
+        form.addEventListener('submit', async function (e) {
             e.preventDefault();
-            signup();
-        }
-    });
+            clearErrors();
 
-    function signup() {
-        const payload = {
-            institutionName: $("#InstitutionName").val().trim(),
-            institutionType: $("#InstitutionType").val(),
-            ownerName: $("#OwnerName").val().trim(),
-            email: $("#Email").val().trim(),
-            phone: $("#Phone").val().trim(),
-            address: $("#Address").val().trim(),
-            password: $("#Password").val()
-        };
+            const data = {
+                institutionName: val('institutionName'),
+                ownerName: val('ownerName'),
+                email: val('email'),
+                phone: val('phone'),
+                password: val('password'),
+                confirmPassword: val('confirmPassword'),
+                institutionType: val('institutionType'),
+                agreeTerms: document.getElementById('agreeTerms')?.checked
+            };
 
-        const confirmPassword = $("#ConfirmPassword").val();
-        const agreeTerms = $("#AgreeTerms").is(":checked");
+            // Client-side validation
+            let valid = true;
+            if (!data.institutionName) { showError('institutionName', 'Institution name is required'); valid = false; }
+            if (!data.ownerName) { showError('ownerName', 'Owner name is required'); valid = false; }
+            if (!data.email || !isValidEmail(data.email)) { showError('email', 'Valid email is required'); valid = false; }
+            if (!data.password || data.password.length < 6) { showError('password', 'Password must be at least 6 characters'); valid = false; }
+            if (data.password !== data.confirmPassword) { showError('confirmPassword', 'Passwords do not match'); valid = false; }
+            if (!data.agreeTerms) { showError('agreeTerms', 'You must agree to the terms'); valid = false; }
+            if (!valid) return;
 
-        if (!payload.institutionName) {
-            return showMsg("Institution name is required.", "danger");
-        }
+            setLoading(submitBtn, true, 'Creating account...');
 
-        if (!payload.institutionType) {
-            return showMsg("Institution type is required.", "danger");
-        }
+            try {
+                const res = await fetch('/api/institution-onboarding/signup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
 
-        if (!payload.ownerName) {
-            return showMsg("Owner/Admin full name is required.", "danger");
-        }
+                const json = await res.json();
 
-        if (!payload.email) {
-            return showMsg("Email is required.", "danger");
-        }
-
-        if (!isValidEmail(payload.email)) {
-            return showMsg("Please enter a valid email address.", "danger");
-        }
-
-        if (!payload.phone) {
-            return showMsg("Phone number is required.", "danger");
-        }
-
-        if (!payload.password) {
-            return showMsg("Password is required.", "danger");
-        }
-
-        if (payload.password.length < 6) {
-            return showMsg("Password must be at least 6 characters.", "danger");
-        }
-
-        if (payload.password !== confirmPassword) {
-            return showMsg("Password and confirm password do not match.", "danger");
-        }
-
-        if (!agreeTerms) {
-            return showMsg("You must agree to the terms first.", "danger");
-        }
-
-        toggleButton(true);
-
-        $.ajax({
-        url: "/api/institution-onboarding/signup",
-        type: "POST",
-        contentType: "application/json",
-        data: JSON.stringify(payload),
-        success: function(res) {
-            showMsg(res.message || "Institution account created successfully.", "success");
-
-            setTimeout(function() {
-                window.location.href = "/Account/SignupSuccess";
-            }, 1200);
-        },
-        error: function(xhr) {
-            let msg = "Signup failed.";
-
-            if (xhr.responseJSON) {
-                if (xhr.responseJSON.message) {
-                    msg = xhr.responseJSON.message;
-                } else if (xhr.responseJSON.title) {
-                    msg = xhr.responseJSON.title;
+                if (json.success) {
+                    window.location.href = '/Account/SignupSuccess';
+                } else {
+                    showAlert('danger', json.message || 'Signup failed. Please try again.');
                 }
+            } catch {
+                showAlert('danger', 'Network error. Please try again.');
+            } finally {
+                setLoading(submitBtn, false, 'Create account');
             }
-
-            showMsg(msg, "danger");
-        },
-        complete: function() {
-            toggleButton(false);
-        }
-    });
+        });
     }
 
-    function toggleButton(isLoading) {
-        $("#btnSignup")
-   .prop("disabled", isLoading)
-   .text(isLoading ? "Creating..." : "Create Institution Account");
-    }
-
-    function showMsg(message, type) {
-        $("#msgBox")
-   .removeClass("d-none alert-success alert-danger alert-warning")
-   .addClass("alert-" + type)
-   .text(message);
+    // ── Helpers ───────────────────────────────────────────────
+    function val(id) {
+        return document.getElementById(id)?.value?.trim() ?? '';
     }
 
     function isValidEmail(email) {
-        const re = /^[^\s@@]+@[^\s@@]+\.[^\s@@]+$/;
-        return re.test(email);
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    }
+
+    function showError(fieldId, msg) {
+        const field = document.getElementById(fieldId);
+        if (!field) return;
+        field.classList.add('is-invalid');
+        const fb = field.nextElementSibling;
+        if (fb && fb.classList.contains('invalid-feedback')) fb.textContent = msg;
+    }
+
+    function clearErrors() {
+        document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+    }
+
+    function showAlert(type, msg) {
+        let container = document.getElementById('alertContainer');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'alertContainer';
+            form?.prepend(container);
+        }
+        container.innerHTML = `<div class="alert alert-${type} alert-dismissible">
+            ${msg}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
+    }
+
+    function setLoading(btn, loading, label) {
+        if (!btn) return;
+        btn.disabled = loading;
+        btn.innerHTML = loading
+            ? `<span class="spinner-border spinner-border-sm me-2"></span>${label}`
+            : label;
     }
 });

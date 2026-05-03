@@ -76,7 +76,7 @@
                                 <span class="badge bg-warning text-dark px-3 py-2">Email Pending</span>
                             }
 
-                            @if (Model.SetupCompleted)
+                            @if (Model.OnboardingComplete)
                             {
                                 <span class="badge bg-success px-3 py-2">Setup Complete</span>
                             }
@@ -92,7 +92,7 @@
                             <div class="small text-muted mb-2">Onboarding Progress</div>
                             <div class="d-flex justify-content-between mb-2">
                                 <strong>@Model.OnboardingPercent%</strong>
-                                <span class="text-muted">Step @Model.CurrentStep</span>
+                                <span class="text-muted">Step @Model.OnboardingStep</span>
                             </div>
 
                             <div class="progress" style="height: 12px; border-radius: 999px;">
