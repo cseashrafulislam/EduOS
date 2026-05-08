@@ -144,6 +144,8 @@ namespace EduOS.Persistence.Context
 
         // Academic
         public DbSet<AcademicYear> AcademicYears => Set<AcademicYear>();
+        public DbSet<AcademicTerm> AcademicTerms => Set<AcademicTerm>();
+
         public DbSet<Class> Classes => Set<Class>();
         public DbSet<Section> Sections => Set<Section>();
         public DbSet<Group> Groups => Set<Group>();
@@ -537,31 +539,68 @@ namespace EduOS.Persistence.Context
 
         #region IUnitOfWork Transactions
 
-        public async Task BeginTransactionAsync()
-            => _transaction ??= await Database.BeginTransactionAsync();
-
-        public async Task CommitTransactionAsync()
-        {
-            if (_transaction == null) return;
-            try { await _transaction.CommitAsync(); }
-            finally { await _transaction.DisposeAsync(); _transaction = null; }
-        }
-
-        public async Task RollbackTransactionAsync()
-        {
-            if (_transaction == null) return;
-            try { await _transaction.RollbackAsync(); }
-            finally { await _transaction.DisposeAsync(); _transaction = null; }
-        }
-
         public IExecutionStrategy CreateExecutionStrategy()
         {
             return Database.CreateExecutionStrategy();
         }
+
+        public async Task BeginTransactionAsync()
+        {
+            if (_transaction != null)
+                return;
+
+            _transaction = await Database.BeginTransactionAsync();
+        }
+
+        public async Task CommitTransactionAsync()
+        {
+            if (_transaction == null)
+                return;
+
+            try
+            {
+                await _transaction.CommitAsync();
+            }
+            finally
+            {
+                await _transaction.DisposeAsync();
+                _transaction = null;
+            }
+        }
+
+        public async Task RollbackTransactionAsync()
+        {
+            if (_transaction == null)
+                return;
+
+            try
+            {
+                await _transaction.RollbackAsync();
+            }
+            finally
+            {
+                await _transaction.DisposeAsync();
+                _transaction = null;
+            }
+        }
+
         public override void Dispose()
         {
             _transaction?.Dispose();
+            _transaction = null;
+
             base.Dispose();
+        }
+
+        public override async ValueTask DisposeAsync()
+        {
+            if (_transaction != null)
+            {
+                await _transaction.DisposeAsync();
+                _transaction = null;
+            }
+
+            await base.DisposeAsync();
         }
 
         #endregion

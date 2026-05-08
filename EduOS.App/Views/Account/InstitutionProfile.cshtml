@@ -5,9 +5,10 @@
 
 <div class="container py-4">
     <div class="row justify-content-center">
-        <div class="col-xl-12">
+        <div class="col-xl-10 col-lg-11">
             <div class="card shadow-sm border-0 rounded-4">
                 <div class="card-body p-4 p-lg-5">
+
                     <div class="mb-4">
                         <h3 class="fw-bold mb-2">Institution Profile Setup</h3>
                         <p class="text-muted mb-0">
@@ -15,231 +16,136 @@
                         </p>
                     </div>
 
-                    <div id="msgBox" class="alert d-none"></div>
+                    <div id="alertContainer"></div>
 
-                    <div class="row g-3">
+                    <form id="profileForm" enctype="multipart/form-data" novalidate>
+                        <div class="row g-3">
 
-                        <div class="col-12">
-                            <h5 class="fw-semibold border-bottom pb-2 mb-2">Basic Information</h5>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">Institution Name</label>
-                            <input type="text" id="InstitutionName" class="form-control" />
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">Institution Type</label>
-                            <select id="InstitutionType" class="form-select">
-                                <option value="">Select</option>
-                                <option value="PrimarySchool">Primary School</option>
-                                <option value="HighSchool">High School</option>
-                                <option value="College">College</option>
-                                <option value="University">University</option>
-                                <option value="Medical">Medical</option>
-                                <option value="Polytechnic">Polytechnic</option>
-                                <option value="Institute">Institute</option>
-                                <option value="TrainingCenter">Training Center</option>
-                            </select>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">Owner Name</label>
-                            <input type="text" id="OwnerName" class="form-control" />
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">Short Name</label>
-                            <input type="text" id="ShortName" class="form-control" />
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">Institution Code</label>
-                            <input type="text" id="InstitutionCode" class="form-control" />
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">Education Board</label>
-                            <input type="text" id="EducationBoard" class="form-control" />
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">EIIN</label>
-                            <input type="text" id="EIIN" class="form-control" />
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">Registration Number</label>
-                            <input type="text" id="RegistrationNumber" class="form-control" />
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">Established Date</label>
-                            <input type="date" id="EstablishedDate" class="form-control" />
-                        </div>
-
-                        <div class="col-12 mt-4">
-                            <h5 class="fw-semibold border-bottom pb-2 mb-2">Contact Information</h5>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">Email</label>
-                            <input type="email" id="Email" class="form-control" />
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">Phone</label>
-                            <input type="text" id="Phone" class="form-control" />
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">Alternate Phone</label>
-                            <input type="text" id="AlternatePhone" class="form-control" />
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">Contact Person Name</label>
-                            <input type="text" id="ContactPersonName" class="form-control" />
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">Contact Person Designation</label>
-                            <input type="text" id="ContactPersonDesignation" class="form-control" />
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">Contact Person Email</label>
-                            <input type="email" id="ContactPersonEmail" class="form-control" />
-                        </div>
-
-                        <div class="col-12">
-                            <label class="form-label">Address</label>
-                            <textarea id="Address" class="form-control" rows="3"></textarea>
-                        </div>
-
-                        <div class="col-12 mt-4">
-                            <h5 class="fw-semibold border-bottom pb-2 mb-2">Location Information</h5>
-                        </div>
-
-                        <div class="col-md-4">
-                            <label class="form-label">Country</label>
-                            <input type="text" id="Country" class="form-control" />
-                        </div>
-
-                        <div class="col-md-4">
-                            <label class="form-label">Division</label>
-                            <input type="text" id="Division" class="form-control" />
-                        </div>
-
-                        <div class="col-md-4">
-                            <label class="form-label">District</label>
-                            <input type="text" id="District" class="form-control" />
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">Thana</label>
-                            <input type="text" id="Thana" class="form-control" />
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">Post Code</label>
-                            <input type="text" id="PostCode" class="form-control" />
-                        </div>
-
-                        <div class="col-12 mt-4">
-                            <h5 class="fw-semibold border-bottom pb-2 mb-2">Portal / Domain / Branding</h5>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">Subdomain</label>
-                            <div class="input-group">
-                                <input type="text" id="Subdomain" class="form-control" placeholder="greenfield" />
-                                <span class="input-group-text">.eduos.com</span>
+                            <div class="col-12">
+                                <h5 class="fw-semibold border-bottom pb-2 mb-2">
+                                    Basic Information
+                                </h5>
                             </div>
-                        </div>
 
-                        <div class="col-md-6">
-                            <label class="form-label">Custom Domain</label>
-                            <input type="text" id="CustomDomain" class="form-control" placeholder="app.yourschool.com" />
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">Website URL</label>
-                            <input type="text" id="WebsiteUrl" class="form-control" placeholder="https://yourschool.com" />
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">Primary Color</label>
-                            <input type="text" id="PrimaryColor" class="form-control" placeholder="#0d6efd" />
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">Secondary Color</label>
-                            <input type="text" id="SecondaryColor" class="form-control" placeholder="#6c757d" />
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">Logo Upload</label>
-                            <input type="file" id="LogoFile" class="form-control" accept=".jpg,.jpeg,.png,.webp" />
-                            <div class="form-text">Allowed: jpg, jpeg, png, webp</div>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">Current Logo</label>
-                            <div class="border rounded p-2 bg-light text-center">
-                                <img id="LogoPreview" src="" alt="Logo Preview" style="max-height:80px; max-width:100%; display:none;" class="img-thumbnail" />
-                                <div id="LogoEmptyText" class="text-muted small">No logo uploaded</div>
+                            <div class="col-md-6">
+                                <label for="institutionName" class="form-label">
+                                    Institution Name <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" id="institutionName" name="institutionName" class="form-control" />
+                                <div class="invalid-feedback"></div>
                             </div>
-                        </div>
 
-                        <div class="col-md-6">
-                            <label class="form-label">Favicon Upload</label>
-                            <input type="file" id="FaviconFile" class="form-control" accept=".ico,.png,.jpg,.jpeg,.webp,.svg" />
-                            <div class="form-text">Allowed: ico, png, jpg, jpeg, webp, svg</div>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">Current Favicon</label>
-                            <div class="border rounded p-2 bg-light d-flex align-items-center gap-3">
-                                <img id="FaviconPreview" src="" alt="Favicon Preview" style="width:32px; height:32px; display:none;" class="img-thumbnail" />
-                                <div id="FaviconEmptyText" class="text-muted small">No favicon uploaded</div>
+                            <div class="col-md-6">
+                                <label for="institutionType" class="form-label">
+                                    Institution Type <span class="text-danger">*</span>
+                                </label>
+                                <select id="institutionType" name="institutionType" class="form-select">
+                                    <option value="">Select</option>
+                                    <option value="PrimarySchool">Primary School</option>
+                                    <option value="HighSchool">High School</option>
+                                    <option value="College">College</option>
+                                    <option value="University">University</option>
+                                    <option value="Medical">Medical</option>
+                                    <option value="Polytechnic">Polytechnic</option>
+                                    <option value="Institute">Institute</option>
+                                    <option value="TrainingCenter">Training Center</option>
+                                </select>
+                                <div class="invalid-feedback"></div>
                             </div>
-                        </div>
 
-                        <div class="col-12 mt-4">
-                            <h5 class="fw-semibold border-bottom pb-2 mb-2">Regional / System Settings</h5>
-                        </div>
+                            <div class="col-md-6">
+                                <label for="ownerName" class="form-label">
+                                    Owner Name <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" id="ownerName" name="ownerName" class="form-control" />
+                                <div class="invalid-feedback"></div>
+                            </div>
 
-                        <div class="col-md-3">
-                            <label class="form-label">Time Zone</label>
-                            <input type="text" id="TimeZone" class="form-control" placeholder="Asia/Dhaka" />
-                        </div>
+                            <div class="col-md-6">
+                                <label for="ownerDesignation" class="form-label">Owner Designation</label>
+                                <input type="text" id="ownerDesignation" name="ownerDesignation" class="form-control" />
+                                <div class="invalid-feedback"></div>
+                            </div>
 
-                        <div class="col-md-3">
-                            <label class="form-label">Currency</label>
-                            <input type="text" id="Currency" class="form-control" placeholder="BDT" />
-                        </div>
+                            <div class="col-md-6">
+                                <label for="ownerPhone" class="form-label">Owner Phone</label>
+                                <input type="text" id="ownerPhone" name="ownerPhone" class="form-control" />
+                                <div class="invalid-feedback"></div>
+                            </div>
 
-                        <div class="col-md-3">
-                            <label class="form-label">Language</label>
-                            <input type="text" id="Language" class="form-control" placeholder="en / bn-BD" />
-                        </div>
+                            <div class="col-md-6">
+                                <label for="ownerEmail" class="form-label">Owner Email</label>
+                                <input type="email" id="ownerEmail" name="ownerEmail" class="form-control" />
+                                <div class="invalid-feedback"></div>
+                            </div>
 
-                        <div class="col-md-3">
-                            <label class="form-label">Date Format</label>
-                            <input type="text" id="DateFormat" class="form-control" placeholder="dd-MMM-yyyy" />
-                        </div>
+                            <div class="col-12 mt-4">
+                                <h5 class="fw-semibold border-bottom pb-2 mb-2">
+                                    Contact Information
+                                </h5>
+                            </div>
 
-                        <div class="col-12 mt-4">
-                            <button type="button" id="btnSave" class="btn btn-primary px-4">
-                                Save & Continue
-                            </button>
+                            <div class="col-md-6">
+                                <label for="phone" class="form-label">Institution Phone</label>
+                                <input type="text" id="phone" name="phone" class="form-control" />
+                                <div class="invalid-feedback"></div>
+                            </div>
 
-                            <a href="/Dashboard/Index" class="btn btn-outline-secondary ms-2">
-                                Back to Dashboard
-                            </a>
+                            <div class="col-md-6">
+                                <label for="website" class="form-label">Website</label>
+                                <input type="text" id="website" name="website" class="form-control" placeholder="https://yourschool.com" />
+                                <div class="invalid-feedback"></div>
+                            </div>
+
+                            <div class="col-12">
+                                <label for="address" class="form-label">Address</label>
+                                <textarea id="address" name="address" class="form-control" rows="3"></textarea>
+                                <div class="invalid-feedback"></div>
+                            </div>
+
+                            <div class="col-12 mt-4">
+                                <h5 class="fw-semibold border-bottom pb-2 mb-2">
+                                    Location Information
+                                </h5>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="city" class="form-label">City</label>
+                                <input type="text" id="city" name="city" class="form-control" />
+                                <div class="invalid-feedback"></div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="state" class="form-label">State / Division</label>
+                                <input type="text" id="state" name="state" class="form-control" />
+                                <div class="invalid-feedback"></div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="country" class="form-label">Country</label>
+                                <input type="text" id="country" name="country" class="form-control" value="Bangladesh" />
+                                <div class="invalid-feedback"></div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="postalCode" class="form-label">Postal Code</label>
+                                <input type="text" id="postalCode" name="postalCode" class="form-control" />
+                                <div class="invalid-feedback"></div>
+                            </div>
+
+                            <div class="col-12 mt-4 d-flex gap-2">
+                                <button type="submit" id="saveProfileBtn" class="btn btn-primary px-4">
+                                    Save & continue
+                                </button>
+
+                                <a href="/Dashboard/Index" class="btn btn-outline-secondary">
+                                    Back to Dashboard
+                                </a>
+                            </div>
+
                         </div>
-                    </div>
+                    </form>
+
                 </div>
             </div>
         </div>

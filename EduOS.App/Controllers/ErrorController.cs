@@ -2,6 +2,8 @@
 
 namespace EduOS.App.Controllers
 {
+    [ApiExplorerSettings(IgnoreApi = true)]
+
     public class ErrorController : Controller
     {
         [Route("Error/404")]

@@ -8,6 +8,7 @@ using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
 using EduOS.Core.Settings;
 using EduOS.Service.Helpers.Subscription;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -54,187 +55,219 @@ namespace EduOS.Service.Services.SaaS
             CreateSubscriptionRequestDto dto)
         {
             var tenantId = _currentUser.TenantId;
-            if (tenantId <= 0)
-                return ApiResponse<CreateSubscriptionResponseDto>.ErrorResponse("Tenant context required", 401);
 
-            try
+            if (tenantId <= 0)
+            {
+                return ApiResponse<CreateSubscriptionResponseDto>.ErrorResponse(
+                    "Tenant context required",
+                    401);
+            }
+
+            var strategy = _unitOfWork.CreateExecutionStrategy();
+
+            return await strategy.ExecuteAsync(async () =>
             {
                 await _unitOfWork.BeginTransactionAsync();
 
-                // 1. Load plan
-                var plan = await _planRepo.GetByIdAsync(dto.SubscriptionPlanId);
-                if (plan == null || !plan.IsActive)
+                try
                 {
-                    await _unitOfWork.RollbackTransactionAsync();
-                    return ApiResponse<CreateSubscriptionResponseDto>.ErrorResponse("Plan not found", 404);
-                }
+                    // 1. Load plan
+                    var plan = await _planRepo.GetByIdAsync(dto.SubscriptionPlanId);
 
-                // 2. Block if tenant already has active non-trial subscription
-                var existing = await _subscriptionRepo.GetActiveByTenantAsync(tenantId);
-                if (existing != null && !existing.IsTrial &&
-                    existing.Status == SubscriptionStatus.Active)
-                {
-                    await _unitOfWork.RollbackTransactionAsync();
-                    return ApiResponse<CreateSubscriptionResponseDto>.ErrorResponse(
-                        "You already have an active subscription. Please cancel it before subscribing to a new plan.",
-                        400);
-                }
+                    if (plan == null || !plan.IsActive)
+                    {
+                        await _unitOfWork.RollbackTransactionAsync();
 
-                // 3. Load tenant
-                var tenant = await _tenantRepo.GetByIdAsync(tenantId);
-                if (tenant == null)
-                {
-                    await _unitOfWork.RollbackTransactionAsync();
-                    return ApiResponse<CreateSubscriptionResponseDto>.ErrorResponse("Tenant not found", 404);
-                }
+                        return ApiResponse<CreateSubscriptionResponseDto>.ErrorResponse(
+                            "Plan not found",
+                            404);
+                    }
 
-                var now = DateTime.UtcNow;
+                    // 2. Block if tenant already has active non-trial subscription
+                    var existing = await _subscriptionRepo.GetActiveByTenantAsync(tenantId);
 
-                // 4. Build subscription record
-                var subscription = new TenantSubscription
-                {
-                    TenantId = tenantId,
-                    SubscriptionPlanId = plan.Id,
-                    BillingCycle = dto.BillingCycle,
-                    AutoRenew = dto.AutoRenew,
-                    Currency = plan.Currency,
-                    MaxStudents = plan.MaxStudents,
-                    MaxTeachers = plan.MaxTeachers,
-                    MaxCampuses = plan.MaxCampuses,
-                    MaxStorageMb = plan.MaxStorageMb,
-                    StartDate = now,
-                };
+                    if (existing != null &&
+                        !existing.IsTrial &&
+                        existing.Status == SubscriptionStatus.Active)
+                    {
+                        await _unitOfWork.RollbackTransactionAsync();
 
-                bool isTrial = plan.IsFreeTrial;
-                decimal price = isTrial ? 0 : SubscriptionCalculator.GetPriceForCycle(plan, dto.BillingCycle);
+                        return ApiResponse<CreateSubscriptionResponseDto>.ErrorResponse(
+                            "You already have an active subscription. Please cancel it before subscribing to a new plan.",
+                            400);
+                    }
 
-                subscription.Price = price;
-                subscription.DiscountAmount = 0; // TODO: coupon support later
-                subscription.TaxAmount = 0;
-                subscription.FinalAmount = price;
+                    // 3. Load tenant
+                    var tenant = await _tenantRepo.GetByIdAsync(tenantId);
 
-                if (isTrial)
-                {
-                    subscription.IsTrial = true;
-                    subscription.TrialStartDate = now;
-                    subscription.TrialEndDate = SubscriptionCalculator.CalculateTrialEndDate(
-                        now, plan.TrialDays ?? 14);
-                    subscription.EndDate = subscription.TrialEndDate.Value;
-                    subscription.Status = SubscriptionStatus.Trialing;
-                }
-                else
-                {
-                    subscription.EndDate = SubscriptionCalculator.CalculateEndDate(now, dto.BillingCycle);
-                    subscription.Status = SubscriptionStatus.PendingPayment;
-                }
+                    if (tenant == null)
+                    {
+                        await _unitOfWork.RollbackTransactionAsync();
 
-                subscription.NextBillingDate = subscription.EndDate;
+                        return ApiResponse<CreateSubscriptionResponseDto>.ErrorResponse(
+                            "Tenant not found",
+                            404);
+                    }
 
-                await _subscriptionRepo.AddAsync(subscription);
-                await _unitOfWork.SaveChangesAsync();
+                    var now = DateTime.UtcNow;
+                    var isTrial = plan.IsFreeTrial;
 
-                // 5. Generate invoice (only for paid plans)
-                SubscriptionInvoice? invoice = null;
-                if (!isTrial && price > 0)
-                {
-                    invoice = new SubscriptionInvoice
+                    var price = isTrial
+                        ? 0
+                        : SubscriptionCalculator.GetPriceForCycle(plan, dto.BillingCycle);
+
+                    // 4. Build subscription record
+                    var subscription = new TenantSubscription
                     {
                         TenantId = tenantId,
-                        TenantSubscriptionId = subscription.Id,
-                        InvoiceNumber = await _invoiceRepo.GenerateNextInvoiceNumberAsync(),
-                        IssueDate = now,
-                        DueDate = now.AddDays(7),
-                        PeriodStart = now,
-                        PeriodEnd = subscription.EndDate,
-                        Subtotal = price,
+                        SubscriptionPlanId = plan.Id,
+                        BillingCycle = dto.BillingCycle,
+                        AutoRenew = dto.AutoRenew,
+                        Currency = plan.Currency,
+                        MaxStudents = plan.MaxStudents,
+                        MaxTeachers = plan.MaxTeachers,
+                        MaxCampuses = plan.MaxCampuses,
+                        MaxStorageMb = plan.MaxStorageMb,
+                        StartDate = now,
+                        Price = price,
                         DiscountAmount = 0,
                         TaxAmount = 0,
-                        TotalAmount = price,
-                        PaidAmount = 0,
-                        DueAmount = price,
-                        Currency = plan.Currency,
-                        PaymentStatus = PaymentStatus.Pending,
-                        CustomerName = tenant.Name,
-                        CustomerEmail = tenant.Email,
-                        CustomerPhone = tenant.Phone,
-                        CustomerAddress = tenant.Address,
-                        Description = $"{plan.Name} subscription - {dto.BillingCycle}"
+                        FinalAmount = price
                     };
 
-                    await _invoiceRepo.AddAsync(invoice);
-                    await _unitOfWork.SaveChangesAsync();
-                }
-
-                // 6. Update tenant
-                tenant.CurrentSubscriptionId = subscription.Id;
-                tenant.MaxStudents = plan.MaxStudents;
-                tenant.MaxTeachers = plan.MaxTeachers;
-                tenant.MaxCampuses = plan.MaxCampuses;
-                tenant.MaxStorageMb = plan.MaxStorageMb;
-
-                if (isTrial)
-                {
-                    tenant.Status = TenantStatus.Trial;
-                    tenant.IsTrialActive = true;
-                    tenant.TrialEndsAt = subscription.TrialEndDate;
-                    tenant.SubscriptionEndsAt = subscription.EndDate;
-                }
-                else
-                {
-                    // Tenant stays in Onboarding until payment is confirmed
-                    tenant.SubscriptionEndsAt = subscription.EndDate;
-                }
-
-                _tenantRepo.Update(tenant);
-                await _unitOfWork.SaveChangesAsync();
-
-                await _unitOfWork.CommitTransactionAsync();
-
-                _logger.LogInformation("Subscription {Id} created for tenant {TenantId} (plan {Plan})",
-                    subscription.Id, tenantId, plan.Code);
-
-                // 7. Build response
-                var response = new CreateSubscriptionResponseDto
-                {
-                    SubscriptionId = subscription.Id,
-                    InvoiceId = invoice?.Id,
-                    InvoiceNumber = invoice?.InvoiceNumber,
-                    Amount = subscription.FinalAmount,
-                    Currency = subscription.Currency,
-                    Status = subscription.Status,
-                    IsTrialActivated = isTrial,
-                    TrialEndsAt = subscription.TrialEndDate,
-                    Message = isTrial
-                        ? $"Your {plan.TrialDays}-day free trial has started. Enjoy!"
-                        : "Subscription created. Please complete payment to activate."
-                };
-
-                if (!isTrial)
-                {
-                    response.ManualPaymentInstructions = new ManualPaymentInstructionsDto
+                    if (isTrial)
                     {
-                        BankName = _manualSettings.BankName,
-                        AccountName = _manualSettings.AccountName,
-                        AccountNumber = _manualSettings.AccountNumber,
-                        RoutingNumber = _manualSettings.RoutingNumber,
-                        BranchName = _manualSettings.BranchName,
-                        Reference = invoice?.InvoiceNumber ?? string.Empty,
-                        Instructions = _manualSettings.Instructions
+                        var trialDays = plan.TrialDays ?? 14;
+
+                        subscription.IsTrial = true;
+                        subscription.TrialStartDate = now;
+                        subscription.TrialEndDate = SubscriptionCalculator.CalculateTrialEndDate(
+                            now,
+                            trialDays);
+                        subscription.EndDate = subscription.TrialEndDate.Value;
+                        subscription.Status = SubscriptionStatus.Trialing;
+                    }
+                    else
+                    {
+                        subscription.EndDate = SubscriptionCalculator.CalculateEndDate(
+                            now,
+                            dto.BillingCycle);
+                        subscription.Status = SubscriptionStatus.PendingPayment;
+                    }
+
+                    subscription.NextBillingDate = subscription.EndDate;
+
+                    await _subscriptionRepo.AddAsync(subscription);
+                    await _unitOfWork.SaveChangesAsync();
+
+                    // 5. Generate invoice only for paid plans
+                    SubscriptionInvoice? invoice = null;
+
+                    if (!isTrial && price > 0)
+                    {
+                        invoice = new SubscriptionInvoice
+                        {
+                            TenantId = tenantId,
+                            TenantSubscriptionId = subscription.Id,
+                            InvoiceNumber = await _invoiceRepo.GenerateNextInvoiceNumberAsync(),
+                            IssueDate = now,
+                            DueDate = now.AddDays(7),
+                            PeriodStart = now,
+                            PeriodEnd = subscription.EndDate,
+                            Subtotal = price,
+                            DiscountAmount = 0,
+                            TaxAmount = 0,
+                            TotalAmount = price,
+                            PaidAmount = 0,
+                            DueAmount = price,
+                            Currency = plan.Currency,
+                            PaymentStatus = PaymentStatus.Pending,
+                            CustomerName = tenant.Name,
+                            CustomerEmail = tenant.Email,
+                            CustomerPhone = tenant.Phone,
+                            CustomerAddress = tenant.Address,
+                            Description = $"{plan.Name} subscription - {dto.BillingCycle}"
+                        };
+
+                        await _invoiceRepo.AddAsync(invoice);
+                        await _unitOfWork.SaveChangesAsync();
+                    }
+
+                    // 6. Update tenant
+                    tenant.CurrentSubscriptionId = subscription.Id;
+                    tenant.MaxStudents = plan.MaxStudents;
+                    tenant.MaxTeachers = plan.MaxTeachers;
+                    tenant.MaxCampuses = plan.MaxCampuses;
+                    tenant.MaxStorageMb = plan.MaxStorageMb;
+                    tenant.SubscriptionEndsAt = subscription.EndDate;
+
+                    if (isTrial)
+                    {
+                        tenant.Status = TenantStatus.Trial;
+                        tenant.IsTrialActive = true;
+                        tenant.TrialEndsAt = subscription.TrialEndDate;
+                    }
+
+                    _tenantRepo.Update(tenant);
+                    await _unitOfWork.SaveChangesAsync();
+
+                    await _unitOfWork.CommitTransactionAsync();
+
+                    _logger.LogInformation(
+                        "Subscription {SubscriptionId} created for tenant {TenantId} with plan {PlanCode}",
+                        subscription.Id,
+                        tenantId,
+                        plan.Code);
+
+                    // 7. Build response
+                    var response = new CreateSubscriptionResponseDto
+                    {
+                        SubscriptionId = subscription.Id,
+                        InvoiceId = invoice?.Id,
+                        InvoiceNumber = invoice?.InvoiceNumber,
+                        Amount = subscription.FinalAmount,
+                        Currency = subscription.Currency,
+                        Status = subscription.Status,
+                        IsTrialActivated = isTrial,
+                        TrialEndsAt = subscription.TrialEndDate,
+                        Message = isTrial
+                            ? $"Your {plan.TrialDays ?? 14}-day free trial has started. Enjoy!"
+                            : "Subscription created. Please complete payment to activate."
                     };
+
+                    if (!isTrial)
+                    {
+                        response.ManualPaymentInstructions = new ManualPaymentInstructionsDto
+                        {
+                            BankName = _manualSettings.BankName,
+                            AccountName = _manualSettings.AccountName,
+                            AccountNumber = _manualSettings.AccountNumber,
+                            RoutingNumber = _manualSettings.RoutingNumber,
+                            BranchName = _manualSettings.BranchName,
+                            Reference = invoice?.InvoiceNumber ?? string.Empty,
+                            Instructions = _manualSettings.Instructions
+                        };
+                    }
+
+                    return ApiResponse<CreateSubscriptionResponseDto>.SuccessResponse(
+                        response,
+                        "Subscription created successfully");
                 }
+                catch (Exception ex)
+                {
+                    await _unitOfWork.RollbackTransactionAsync();
 
-                return ApiResponse<CreateSubscriptionResponseDto>.SuccessResponse(response,
-                    "Subscription created successfully");
-            }
-            catch (Exception ex)
-            {
-                await _unitOfWork.RollbackTransactionAsync();
-                _logger.LogError(ex, "Failed to create subscription for tenant {TenantId}", tenantId);
-                return ApiResponse<CreateSubscriptionResponseDto>.ErrorResponse(
-                    "Failed to create subscription", 500);
-            }
+                    _logger.LogError(
+                        ex,
+                        "Failed to create subscription for tenant {TenantId}",
+                        tenantId);
+
+                    return ApiResponse<CreateSubscriptionResponseDto>.ErrorResponse(
+                        "Failed to create subscription",
+                        500);
+                }
+            });
         }
-
         // ============================================================
         // GET CURRENT
         // ============================================================

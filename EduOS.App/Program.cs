@@ -5,6 +5,8 @@ using EduOS.Core.Configurations;
 using EduOS.Persistence.Extensions;
 using EduOS.Persistence.Seed;
 using Hangfire;
+using Microsoft.OpenApi;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,28 +25,25 @@ builder.Services.AddControllersWithViews(options =>
 })
 .AddJsonOptions(opts =>
 {
-    opts.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+    opts.JsonSerializerOptions.PropertyNamingPolicy =
+        System.Text.Json.JsonNamingPolicy.CamelCase;
 });
 
 builder.Services.AddRazorPages();
 builder.Services.AddHttpContextAccessor();
-//builder.Services.AddMemoryCache(options =>
-//{
-//    options.SizeLimit = 100_000;
-//});
 
 // =============================================================================
-// 3. PERSISTENCE LAYER (DbContext + Repositories)
+// 3. PERSISTENCE LAYER
 // =============================================================================
 builder.Services.AddPersistenceServices(builder.Configuration);
 
 // =============================================================================
-// 4. IDENTITY (Auth)
+// 4. IDENTITY / AUTH
 // =============================================================================
 builder.Services.AddIdentityConfiguration();
 
 // =============================================================================
-// 5. APPLICATION SERVICES (Service layer)
+// 5. APPLICATION SERVICES
 // =============================================================================
 builder.Services.AddApplicationServices(builder.Configuration);
 
@@ -59,7 +58,7 @@ builder.Services.AddCorsConfiguration(builder.Configuration);
 builder.Services.AddRateLimiterConfiguration();
 
 // =============================================================================
-// 8. HANGFIRE (Background Jobs)
+// 8. HANGFIRE
 // =============================================================================
 builder.Services.AddHangfireConfiguration(builder.Configuration);
 
@@ -69,64 +68,103 @@ builder.Services.AddHangfireConfiguration(builder.Configuration);
 builder.Services.AddHealthChecks();
 
 // =============================================================================
+// 10. SWAGGER
+// =============================================================================
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "EduOS API",
+        Version = "v1",
+        Description = "EduOS Multi-Tenant SaaS Education Management API"
+    });
+
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "Enter JWT token only.",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT"
+    });
+
+    c.AddSecurityRequirement(document => new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecuritySchemeReference("Bearer", document),
+            new List<string>()
+        }
+    });
+});
+
+// =============================================================================
 // BUILD APP
 // =============================================================================
 var app = builder.Build();
 
 // =============================================================================
-// 10. DATABASE INITIALIZATION (Migrations + Seeders)
+// 11. DATABASE INITIALIZATION
 // =============================================================================
 await DatabaseInitializer.InitializeAsync(app.Services, applyMigrations: true);
 
 // =============================================================================
-// 11. MIDDLEWARE PIPELINE (ORDER MATTERS!)
+// 12. MIDDLEWARE PIPELINE
 // =============================================================================
-
-// Dev-only error page
 if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
+
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "EduOS API v1");
+        c.RoutePrefix = "swagger";
+    });
 }
 else
 {
-    // HSTS in production
     app.UseHsts();
-    app.UseHttpsRedirection();
 }
 
-// Security headers - very early in pipeline
+// HTTPS redirection should be outside environment block
+app.UseHttpsRedirection();
+
+// Security headers should be early
 app.UseSecurityHeaders();
 
-// Custom global exception handler
+// Global exception handler
 app.UseCustomExceptionMiddleware();
 
-// Status code pages (404, 500, etc.)
+// Status code pages
 app.UseStatusCodePagesWithReExecute("/Error/{0}");
 
-// Static files (wwwroot)
+// Static files
 app.UseStaticFiles();
 
 // Routing
 app.UseRouting();
 
-// CORS - must be after UseRouting and before UseAuthentication
+// CORS must be after routing and before auth
 app.UseCors(CorsExtensions.DefaultPolicy);
 
 // Rate limiting
 app.UseRateLimiter();
 
-// Authentication MUST come before Authorization
+// Authentication first
 app.UseAuthentication();
-app.UseAuthorization();
 
-// Tenant context - resolves tenant ID for authenticated users
+// Tenant context should come after authentication
 app.UseTenantContext();
 
-// Onboarding guard - redirects incomplete tenants to wizard
+// Onboarding guard depends on tenant context
 app.UseOnboardingGuard();
 
+// Authorization after tenant/onboarding context
+app.UseAuthorization();
+
 // =============================================================================
-// 12. HANGFIRE DASHBOARD (SuperAdmin only)
+// 13. HANGFIRE DASHBOARD
 // =============================================================================
 app.UseHangfireDashboard("/hangfire", new DashboardOptions
 {
@@ -136,7 +174,7 @@ app.UseHangfireDashboard("/hangfire", new DashboardOptions
 });
 
 // =============================================================================
-// 13. ENDPOINTS
+// 14. ENDPOINTS
 // =============================================================================
 app.MapHealthChecks("/health");
 
@@ -147,18 +185,16 @@ app.MapControllerRoute(
 app.MapRazorPages();
 
 // =============================================================================
-// 14. RECURRING JOBS (Hangfire)
+// 15. RECURRING JOBS
 // =============================================================================
-// Uncomment when you have these jobs ready:
-//
 // RecurringJob.AddOrUpdate<ISubscriptionExpiryJob>(
 //     "subscription-expiry-check",
 //     job => job.RunAsync(),
-//     Cron.Daily(2)); // Run at 2 AM daily
+//     Cron.Daily(2));
 //
 // RecurringJob.AddOrUpdate<IRenewalReminderJob>(
 //     "subscription-renewal-reminder",
 //     job => job.RunAsync(),
-//     Cron.Daily(9)); // Run at 9 AM daily
+//     Cron.Daily(9));
 
 app.Run();

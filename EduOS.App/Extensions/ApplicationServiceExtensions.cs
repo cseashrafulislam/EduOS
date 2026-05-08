@@ -30,7 +30,7 @@ namespace EduOS.App.Extensions
             services.Configure<FileUploadSettings>(configuration.GetSection(FileUploadSettings.SectionName));
 
             // ==================== AutoMapper ====================
-            services.AddAutoMapper(typeof(MappingProfile));
+            services.AddAutoMapper(typeof(MappingProfile).Assembly);
 
             // ==================== Core Helpers ====================
             services.AddScoped<ICurrentUserService, CurrentUserService>();
