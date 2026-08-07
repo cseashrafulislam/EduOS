@@ -1849,6 +1849,42 @@ namespace EduOS.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "AcademicTerms",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    AcademicYearId = table.Column<long>(type: "bigint", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    StartDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    EndDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AcademicTerms", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_AcademicTerms_AcademicYears_AcademicYearId",
+                        column: x => x.AcademicYearId,
+                        principalTable: "AcademicYears",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AcademicTerms_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Exams",
                 columns: table => new
                 {
@@ -5252,6 +5288,16 @@ namespace EduOS.Persistence.Migrations
                 });
 
             migrationBuilder.CreateIndex(
+                name: "IX_AcademicTerms_AcademicYearId",
+                table: "AcademicTerms",
+                column: "AcademicYearId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AcademicTerms_TenantId",
+                table: "AcademicTerms",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_AcademicYears_TenantId",
                 table: "AcademicYears",
                 column: "TenantId");
@@ -6754,6 +6800,9 @@ namespace EduOS.Persistence.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropTable(
+                name: "AcademicTerms");
+
             migrationBuilder.DropTable(
                 name: "AdmitCards");
 
