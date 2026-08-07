@@ -3,20 +3,77 @@
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
 
-<div class="container py-4">
-    <div class="row justify-content-center">
-        <div class="col-xl-10 col-lg-11">
+<style>
+    .academic-setup-page {
+        max-width: 1100px;
+        margin: 0 auto;
+    }
 
-            <div class="card shadow-sm border-0 rounded-4">
-                <div class="card-body p-4 p-lg-5">
+    .academic-setup-card {
+        border-radius: 16px;
+    }
 
-                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-                        <div>
-                            <h3 class="fw-bold mb-2">Academic Setup</h3>
-                            <p class="text-muted mb-0">
-                                Add academic years and optional terms/semesters for your institution.
-                            </p>
-                        </div>
+    .year-card {
+        background: #fff;
+        transition: all 0.2s ease-in-out;
+    }
+
+        .year-card:hover {
+            box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.05);
+        }
+
+    .term-item {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+    }
+
+    .required {
+        color: #dc3545;
+    }
+
+    .modal-content {
+        border: 0;
+        border-radius: 16px;
+    }
+
+    .modal-header,
+    .modal-footer {
+        border-color: #f0f0f0;
+    }
+</style>
+
+<div class="container-fluid py-4">
+
+    <div class="academic-setup-page">
+
+        <div class="card shadow-sm border-0 academic-setup-card">
+            <div class="card-body p-4 p-lg-5">
+
+                <!-- =====================================================
+                     HEADER
+                     ===================================================== -->
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+
+                    <div>
+                        <h3 class="fw-bold mb-2">
+                            Academic Setup
+                        </h3>
+
+                        <p class="text-muted mb-0">
+                            Add academic years and optional terms or semesters for your institution.
+                        </p>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-2">
+
+                        <button type="button"
+                                class="btn btn-outline-primary"
+                                data-bs-toggle="modal"
+                                data-bs-target="#termModal"
+                                id="addTermMainBtn">
+                            <i class="bi bi-plus-circle me-1"></i>
+                            Add Term
+                        </button>
 
                         <button type="button"
                                 class="btn btn-primary"
@@ -25,190 +82,495 @@
                             <i class="bi bi-plus-circle me-1"></i>
                             Add Academic Year
                         </button>
-                    </div>
 
-                    <div id="alertContainer"></div>
-
-                    <div id="yearList">
-                        <div class="text-center py-4 text-muted">
-                            Loading academic years...
-                        </div>
-                    </div>
-
-                    <div class="d-flex justify-content-between align-items-center mt-4">
-                        <a href="/Account/CampusSetup" class="btn btn-outline-secondary">
-                            Back
-                        </a>
-
-                        <button type="button" id="continueBtn" class="btn btn-success" disabled>
-                            Continue
-                        </button>
                     </div>
 
                 </div>
-            </div>
 
-        </div>
-    </div>
-</div>
+                <!-- =====================================================
+                     ALERT
+                     ===================================================== -->
+                <div id="alertContainer"></div>
 
-<!-- Academic Year Modal -->
-<div class="modal fade" id="academicYearModal" tabindex="-1" aria-labelledby="academicYearModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content border-0 rounded-4">
+                <!-- =====================================================
+                     INFORMATION
+                     ===================================================== -->
+                <div class="alert alert-light border mb-4">
+                    <div class="d-flex align-items-start gap-2">
+                        <i class="bi bi-info-circle text-primary mt-1"></i>
 
-            <div class="modal-header">
-                <h5 class="modal-title fw-bold" id="academicYearModalLabel">Academic Year</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
+                        <div>
+                            <div class="fw-semibold">
+                                Academic Structure
+                            </div>
 
-            <form id="academicYearForm" novalidate>
-                <div class="modal-body">
-                    <input type="hidden" id="yearId" name="id" />
-
-                    <div class="row g-3">
-                        <div class="col-md-12">
-                            <label for="yearName" class="form-label">
-                                Year Name <span class="text-danger">*</span>
-                            </label>
-                            <input type="text"
-                                   id="yearName"
-                                   name="name"
-                                   class="form-control"
-                                   placeholder="2026 or 2026-2027" />
-                            <div class="invalid-feedback"></div>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label for="yearStartDate" class="form-label">
-                                Start Date <span class="text-danger">*</span>
-                            </label>
-                            <input type="date"
-                                   id="yearStartDate"
-                                   name="startDate"
-                                   class="form-control" />
-                            <div class="invalid-feedback"></div>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label for="yearEndDate" class="form-label">
-                                End Date <span class="text-danger">*</span>
-                            </label>
-                            <input type="date"
-                                   id="yearEndDate"
-                                   name="endDate"
-                                   class="form-control" />
-                            <div class="invalid-feedback"></div>
-                        </div>
-
-                        <div class="col-12">
-                            <div class="form-check mt-2">
-                                <input class="form-check-input"
-                                       type="checkbox"
-                                       id="isCurrent"
-                                       name="isCurrent" />
-                                <label class="form-check-label" for="isCurrent">
-                                    Mark as current academic year
-                                </label>
+                            <div class="small text-muted">
+                                At least one academic year is required.
+                                Terms or semesters are optional and can be added under each academic year.
                             </div>
                         </div>
                     </div>
                 </div>
 
+                <!-- =====================================================
+                     YEAR + TERM LIST
+                     ===================================================== -->
+                <div id="yearList">
+
+                    <div class="text-center py-5 text-muted">
+
+                        <div class="spinner-border spinner-border-sm me-2"
+                             role="status">
+                        </div>
+
+                        Loading academic years...
+
+                    </div>
+
+                </div>
+
+                <!-- =====================================================
+                     NAVIGATION
+                     ===================================================== -->
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-4 pt-3 border-top">
+
+                    <a href="/Account/CampusSetup"
+                           class="btn btn-outline-secondary">
+
+                        <i class="bi bi-arrow-left me-1"></i>
+                        Back
+
+                    </a>
+
+                    <button type="button"
+                            id="continueBtn"
+                            class="btn btn-success"
+                            disabled>
+
+                        Continue
+                        <i class="bi bi-arrow-right ms-1"></i>
+
+                    </button>
+
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =============================================================
+     ACADEMIC YEAR MODAL
+     ============================================================= -->
+
+<div class="modal fade"
+     id="academicYearModal"
+     tabindex="-1"
+     aria-labelledby="academicYearModalLabel"
+     aria-hidden="true">
+
+    <div class="modal-dialog modal-dialog-centered">
+
+        <div class="modal-content shadow">
+
+            <div class="modal-header">
+
+                <div>
+                    <h5 class="modal-title fw-bold mb-1"
+                        id="academicYearModalLabel">
+                        Academic Year
+                    </h5>
+
+                    <div class="small text-muted">
+                        Create or update an academic year.
+                    </div>
+                </div>
+
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Close">
+                </button>
+
+            </div>
+
+            <form id="academicYearForm" novalidate>
+
+                <div class="modal-body">
+
+                    <input type="hidden"
+                           id="yearId"
+                           name="id" />
+
+                    <div class="row g-3">
+
+                        <!-- YEAR NAME -->
+                        <div class="col-12">
+
+                            <label for="yearName"
+                                   class="form-label">
+
+                                Year Name
+                                <span class="required">*</span>
+
+                            </label>
+
+                            <input type="text"
+                                   id="yearName"
+                                   name="name"
+                                   class="form-control"
+                                   maxlength="100"
+                                   autocomplete="off"
+                                   placeholder="Example: 2026 or 2026-2027" />
+
+                            <div class="invalid-feedback"></div>
+
+                        </div>
+
+                        <!-- START DATE -->
+                        <div class="col-md-6">
+
+                            <label for="yearStartDate"
+                                   class="form-label">
+
+                                Start Date
+                                <span class="required">*</span>
+
+                            </label>
+
+                            <input type="date"
+                                   id="yearStartDate"
+                                   name="startDate"
+                                   class="form-control" />
+
+                            <div class="invalid-feedback"></div>
+
+                        </div>
+
+                        <!-- END DATE -->
+                        <div class="col-md-6">
+
+                            <label for="yearEndDate"
+                                   class="form-label">
+
+                                End Date
+                                <span class="required">*</span>
+
+                            </label>
+
+                            <input type="date"
+                                   id="yearEndDate"
+                                   name="endDate"
+                                   class="form-control" />
+
+                            <div class="invalid-feedback"></div>
+
+                        </div>
+
+                        <!-- CURRENT -->
+                        <div class="col-12">
+
+                            <div class="form-check mt-2">
+
+                                <input class="form-check-input"
+                                       type="checkbox"
+                                       id="isCurrent"
+                                       name="isCurrent" />
+
+                                <label class="form-check-label"
+                                       for="isCurrent">
+
+                                    Mark as current academic year
+
+                                </label>
+
+                            </div>
+
+                            <div class="form-text">
+                                Only one academic year should normally be marked as current.
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
                 <div class="modal-footer">
+
                     <button type="button"
                             class="btn btn-outline-secondary"
                             data-bs-dismiss="modal">
                         Cancel
                     </button>
 
-                    <button type="submit" id="saveYearBtn" class="btn btn-primary">
+                    <button type="submit"
+                            id="saveYearBtn"
+                            class="btn btn-primary">
+
                         Save year
+
                     </button>
+
                 </div>
+
             </form>
 
         </div>
+
     </div>
+
 </div>
 
-<!-- Academic Term Modal -->
-<div class="modal fade" id="termModal" tabindex="-1" aria-labelledby="termModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content border-0 rounded-4">
+
+<!-- =============================================================
+     ACADEMIC TERM MODAL
+     ============================================================= -->
+
+<div class="modal fade"
+     id="termModal"
+     tabindex="-1"
+     aria-labelledby="termModalLabel"
+     aria-hidden="true">
+
+    <div class="modal-dialog modal-dialog-centered">
+
+        <div class="modal-content shadow">
 
             <div class="modal-header">
+
                 <div>
-                    <h5 class="modal-title fw-bold" id="termModalLabel">Academic Term</h5>
-                    <div id="termYearLabel" class="small text-muted"></div>
+
+                    <h5 class="modal-title fw-bold mb-1"
+                        id="termModalLabel">
+                        Academic Term
+                    </h5>
+
+                    <div id="termYearLabel"
+                         class="small text-muted">
+                    </div>
+
                 </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Close">
+                </button>
+
             </div>
 
             <form id="termForm" novalidate>
+
                 <div class="modal-body">
-                    <input type="hidden" id="termId" name="id" />
+
+                    <input type="hidden"
+                           id="termId"
+                           name="id" />
 
                     <div class="row g-3">
-                        <div class="col-md-12">
-                            <label for="termYearId" class="form-label">
-                                Academic Year <span class="text-danger">*</span>
+
+                        <!-- ACADEMIC YEAR -->
+                        <div class="col-12">
+
+                            <label for="termYearId"
+                                   class="form-label">
+
+                                Academic Year
+                                <span class="required">*</span>
+
                             </label>
-                            <select id="termYearId" name="academicYearId" class="form-select">
-                                <option value="">Select academic year</option>
+
+                            <select id="termYearId"
+                                    name="academicYearId"
+                                    class="form-select">
+
+                                <option value="">
+                                    Select academic year
+                                </option>
+
                             </select>
+
                             <div class="invalid-feedback"></div>
+
                         </div>
 
-                        <div class="col-md-12">
-                            <label for="termName" class="form-label">
-                                Term Name <span class="text-danger">*</span>
+                        <!-- TERM NAME -->
+                        <div class="col-12">
+
+                            <label for="termName"
+                                   class="form-label">
+
+                                Term / Semester Name
+                                <span class="required">*</span>
+
                             </label>
+
                             <input type="text"
                                    id="termName"
                                    name="name"
                                    class="form-control"
-                                   placeholder="Term 1 / Semester 1" />
+                                   maxlength="100"
+                                   autocomplete="off"
+                                   placeholder="Example: Term 1 / Semester 1" />
+
                             <div class="invalid-feedback"></div>
+
                         </div>
 
+                        <!-- TERM START -->
                         <div class="col-md-6">
-                            <label for="termStartDate" class="form-label">Start Date</label>
+
+                            <label for="termStartDate"
+                                   class="form-label">
+                                Start Date
+                            </label>
+
                             <input type="date"
                                    id="termStartDate"
                                    name="startDate"
                                    class="form-control" />
+
                             <div class="invalid-feedback"></div>
+
                         </div>
 
+                        <!-- TERM END -->
                         <div class="col-md-6">
-                            <label for="termEndDate" class="form-label">End Date</label>
+
+                            <label for="termEndDate"
+                                   class="form-label">
+                                End Date
+                            </label>
+
                             <input type="date"
                                    id="termEndDate"
                                    name="endDate"
                                    class="form-control" />
+
                             <div class="invalid-feedback"></div>
+
                         </div>
+
+                        <div class="col-12">
+
+                            <div class="form-text">
+                                Term dates are optional. If provided, they should normally fall within the selected academic year.
+                            </div>
+
+                        </div>
+
                     </div>
+
                 </div>
 
                 <div class="modal-footer">
+
                     <button type="button"
                             class="btn btn-outline-secondary"
                             data-bs-dismiss="modal">
                         Cancel
                     </button>
 
-                    <button type="submit" id="saveTermBtn" class="btn btn-primary">
+                    <button type="submit"
+                            id="saveTermBtn"
+                            class="btn btn-primary">
+
                         Save term
+
                     </button>
+
                 </div>
+
             </form>
 
         </div>
+
     </div>
+
 </div>
 
+
 @section Scripts {
-    <script src="~/js/account/academic-setup.js"></script>
+
+    <script src="~/js/account/academic-setup.js"
+            asp-append-version="true">
+    </script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+
+            // ============================================================
+            // MAIN ADD TERM BUTTON
+            // ============================================================
+
+            const addTermMainBtn = document.getElementById('addTermMainBtn');
+
+            if (addTermMainBtn) {
+
+                addTermMainBtn.addEventListener('click', function (e) {
+
+                    if (!Array.isArray(window.academicYears) &&
+                        typeof academicYears === 'undefined') {
+                        return;
+                    }
+
+                    const years = typeof academicYears !== 'undefined'
+                        ? academicYears
+                        : [];
+
+                    if (years.length === 0) {
+
+                        e.preventDefault();
+                        e.stopPropagation();
+
+                        const modalElement =
+                            document.getElementById('termModal');
+
+                        const existingModal =
+                            bootstrap.Modal.getInstance(modalElement);
+
+                        if (existingModal) {
+                            existingModal.hide();
+                        }
+
+                        if (typeof showAlert === 'function') {
+                            showAlert(
+                                'warning',
+                                'Please create an academic year before adding a term.'
+                            );
+                        }
+
+                        return;
+                    }
+
+                    if (typeof resetTermForm === 'function') {
+                        resetTermForm();
+                    }
+
+                    if (typeof populateAcademicYearDropdown === 'function') {
+                        populateAcademicYearDropdown();
+                    }
+
+                    const title =
+                        document.getElementById('termModalLabel');
+
+                    if (title) {
+                        title.textContent = 'Add Academic Term';
+                    }
+
+                    const label =
+                        document.getElementById('termYearLabel');
+
+                    if (label) {
+                        label.textContent = 'Select an academic year';
+                    }
+                });
+            }
+
+        });
+    </script>
 }

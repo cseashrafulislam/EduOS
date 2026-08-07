@@ -29,6 +29,11 @@ builder.Services.AddControllersWithViews(options =>
         System.Text.Json.JsonNamingPolicy.CamelCase;
 });
 
+builder.Services.AddAntiforgery(options =>
+{
+    options.HeaderName = "X-CSRF-TOKEN";
+});
+
 builder.Services.AddRazorPages();
 builder.Services.AddHttpContextAccessor();
 

@@ -391,19 +391,15 @@
                                 <a class="dropdown-item rounded-3" href="/Account/Profile">
                                     <i class="fa-regular fa-user me-2"></i> Profile
                                 </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item rounded-3" href="/Account/ChangePassword">
-                                    <i class="fa-solid fa-lock me-2"></i> Change Password
-                                </a>
-                            </li>
+                            </li>           
                             <li><hr class="dropdown-divider" /></li>
                             <li>
-                                <form method="post" action="/api/auth/logout" class="m-0">
-                                    <button type="submit" class="dropdown-item rounded-3 text-danger">
-                                        <i class="fa-solid fa-right-from-bracket me-2"></i> Logout
-                                    </button>
-                                </form>
+                                <button type="button"
+                                        id="btnLogout"
+                                        class="dropdown-item rounded-3 text-danger">
+                                    <i class="fa-solid fa-right-from-bracket me-2"></i>
+                                    Logout
+                                </button>
                             </li>
                         </ul>
                     </div>
@@ -430,7 +426,40 @@
             });
         });
     </script>
+    <script>
+        $(function () {
+        $("#btnSidebarToggle").on("click", function () {
+        $("#sidebarMenu").toggleClass("show");
+        });
+        });
 
+        document.getElementById("btnLogout")?.addEventListener("click", async function () {
+        const button = this;
+
+        button.disabled = true;
+
+        try {
+        const response = await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+        "Accept": "application/json"
+        }
+        });
+
+        if (!response.ok) {
+        throw new Error("Logout failed.");
+        }
+
+        window.location.replace("/Account/Login");
+        } catch (error) {
+        console.error("Logout error:", error);
+        button.disabled = false;
+
+        alert("Unable to logout. Please try again.");
+        }
+        });
+    </script>
     @RenderSection("Scripts", required: false)
 </body>
 </html>

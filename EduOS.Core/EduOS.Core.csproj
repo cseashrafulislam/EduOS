@@ -8,8 +8,11 @@
 
   <ItemGroup>
     <Compile Remove="Entities\Common\**" />
+    <Compile Remove="Helpers\**" />
     <EmbeddedResource Remove="Entities\Common\**" />
+    <EmbeddedResource Remove="Helpers\**" />
     <None Remove="Entities\Common\**" />
+    <None Remove="Helpers\**" />
   </ItemGroup>
 
   <ItemGroup>
@@ -33,7 +36,6 @@
     <Folder Include="DTOs\Library\" />
     <Folder Include="DTOs\Transport\" />
     <Folder Include="Events\" />
-    <Folder Include="Helpers\" />
   </ItemGroup>
 
   <ItemGroup>
