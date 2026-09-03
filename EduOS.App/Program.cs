@@ -1,12 +1,16 @@
 using EduOS.App.Extensions;
 using EduOS.App.Filters;
+using EduOS.App.Localization;
 using EduOS.App.Middleware;
 using EduOS.Core.Configurations;
 using EduOS.Persistence.Extensions;
 using EduOS.Persistence.Seed;
 using Hangfire;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Localization;
+using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.OpenApi;
+using System.Globalization;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -20,14 +24,40 @@ builder.Services.Configure<EmailSettings>(
 // =============================================================================
 // 2. CORE INFRASTRUCTURE
 // =============================================================================
+builder.Services.AddLocalization(options => options.ResourcesPath = "Resources");
+
 builder.Services.AddControllersWithViews(options =>
 {
     // Add global filters here if needed
+})
+.AddViewLocalization()
+.AddDataAnnotationsLocalization(options =>
+{
+    options.DataAnnotationLocalizerProvider = (_, factory) =>
+        factory.Create(typeof(SharedResource));
 })
 .AddJsonOptions(opts =>
 {
     opts.JsonSerializerOptions.PropertyNamingPolicy =
         System.Text.Json.JsonNamingPolicy.CamelCase;
+});
+
+var supportedCultures = new[]
+{
+    new CultureInfo("en-BD"),
+    new CultureInfo("bn-BD")
+};
+
+builder.Services.Configure<RequestLocalizationOptions>(options =>
+{
+    options.DefaultRequestCulture = new RequestCulture("en-BD");
+    options.SupportedCultures = supportedCultures;
+    options.SupportedUICultures = supportedCultures;
+    options.RequestCultureProviders = new IRequestCultureProvider[]
+    {
+        new CookieRequestCultureProvider(),
+        new AcceptLanguageHeaderRequestCultureProvider()
+    };
 });
 
 builder.Services.AddRazorPages();
@@ -162,8 +192,25 @@ app.UseCustomExceptionMiddleware();
 // Status code pages
 app.UseStatusCodePagesWithReExecute("/Error/{0}");
 
-// Static files
-app.UseStaticFiles();
+// Static files. Keep the service worker fresh so security/cache changes activate promptly.
+var staticFileContentTypes = new FileExtensionContentTypeProvider();
+staticFileContentTypes.Mappings[".webmanifest"] = "application/manifest+json";
+app.UseStaticFiles(new StaticFileOptions
+{
+    ContentTypeProvider = staticFileContentTypes,
+    OnPrepareResponse = context =>
+    {
+        var path = context.Context.Request.Path;
+        if (path.Equals("/service-worker.js", StringComparison.OrdinalIgnoreCase) ||
+            path.Equals("/manifest.webmanifest", StringComparison.OrdinalIgnoreCase))
+        {
+            context.Context.Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
+        }
+    }
+});
+
+// UI culture comes from an allow-listed cookie or the Accept-Language header.
+app.UseRequestLocalization();
 
 // Routing
 app.UseRouting();

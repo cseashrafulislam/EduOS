@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">EduOS</title>
+  <defs>
+    <linearGradient id="background" x1="72" y1="52" x2="442" y2="460" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2563eb"/>
+      <stop offset="1" stop-color="#0891b2"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#0f172a"/>
+  <rect x="48" y="48" width="416" height="416" rx="94" fill="url(#background)"/>
+  <path d="M105 206 256 126l151 80-151 80-151-80Z" fill="#fff"/>
+  <path d="M158 240v84c0 32 44 58 98 58s98-26 98-58v-84l-98 52-98-52Z" fill="#fff" opacity=".92"/>
+  <path d="M407 210v105" fill="none" stroke="#fff" stroke-linecap="round" stroke-width="20"/>
+  <circle cx="407" cy="337" r="18" fill="#fff"/>
+</svg>

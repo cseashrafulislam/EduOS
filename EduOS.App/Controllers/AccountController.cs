@@ -1,5 +1,6 @@
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
@@ -99,7 +100,9 @@ namespace EduOS.App.Controllers
         public IActionResult OnboardingComplete() => View();
 
         // ==================== Logout ====================
+        [Authorize]
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Logout()
         {
             if (_currentUser.IsAuthenticated)

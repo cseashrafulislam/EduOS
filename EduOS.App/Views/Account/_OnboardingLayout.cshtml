@@ -1,160 +1,60 @@
 @{
     Layout = "_Layout";
+
+    var onboardingStrings = new
+    {
+        culture = CultureInfo.CurrentUICulture.Name,
+        optional = T["Optional"].Value,
+        loading = T["Loading"].Value,
+        loadFailed = T["OnboardingLoadFailed"].Value,
+        retry = T["Retry"].Value,
+        stepsCompletedTemplate = T["StepsCompletedTemplate"].Value,
+        steps = new Dictionary<string, object>
+        {
+            ["EmailVerification"] = new { name = T["Onboarding_EmailVerification_Name"].Value, description = T["Onboarding_EmailVerification_Description"].Value },
+            ["InstitutionProfile"] = new { name = T["Onboarding_InstitutionProfile_Name"].Value, description = T["Onboarding_InstitutionProfile_Description"].Value },
+            ["PlanSelection"] = new { name = T["Onboarding_PlanSelection_Name"].Value, description = T["Onboarding_PlanSelection_Description"].Value },
+            ["Payment"] = new { name = T["Onboarding_Payment_Name"].Value, description = T["Onboarding_Payment_Description"].Value },
+            ["CampusSetup"] = new { name = T["Onboarding_CampusSetup_Name"].Value, description = T["Onboarding_CampusSetup_Description"].Value },
+            ["AcademicSetup"] = new { name = T["Onboarding_AcademicSetup_Name"].Value, description = T["Onboarding_AcademicSetup_Description"].Value },
+            ["BrandingSetup"] = new { name = T["Onboarding_BrandingSetup_Name"].Value, description = T["Onboarding_BrandingSetup_Description"].Value },
+            ["GeneralSettings"] = new { name = T["Onboarding_GeneralSettings_Name"].Value, description = T["Onboarding_GeneralSettings_Description"].Value },
+            ["GatewaySetup"] = new { name = T["Onboarding_GatewaySetup_Name"].Value, description = T["Onboarding_GatewaySetup_Description"].Value }
+        }
+    };
+    var onboardingJson = System.Text.Json.JsonSerializer.Serialize(onboardingStrings);
 }
-
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
-
-<style>
-    .onboarding-wrapper {
-        min-height: calc(100vh - 60px);
-        background: #f8f9fa;
-    }
-
-    .onboarding-sidebar {
-        background: #fff;
-        border-right: 1px solid #e5e7eb;
-        min-height: calc(100vh - 60px);
-        padding: 2rem 1.5rem;
-    }
-
-    .onboarding-progress {
-        background: #f1f5f9;
-        border-radius: 8px;
-        padding: 1rem;
-        margin-bottom: 1.5rem;
-    }
-
-    .progress-bar-custom {
-        height: 8px;
-        border-radius: 4px;
-        background: #e2e8f0;
-        overflow: hidden;
-    }
-
-    .progress-bar-fill {
-        height: 100%;
-        background: linear-gradient(90deg, #3b82f6, #1d4ed8);
-        transition: width 0.4s ease;
-    }
-
-    .step-item {
-        display: flex;
-        align-items: flex-start;
-        padding: 0.75rem 0.75rem;
-        border-radius: 8px;
-        margin-bottom: 0.25rem;
-        text-decoration: none;
-        color: #475569;
-        transition: all 0.2s;
-        position: relative;
-    }
-
-    .step-item:hover:not(.locked) {
-        background: #f1f5f9;
-        color: #1e40af;
-    }
-
-    .step-item.current {
-        background: #eff6ff;
-        color: #1e40af;
-        font-weight: 500;
-    }
-
-    .step-item.completed {
-        color: #059669;
-    }
-
-    .step-item.locked {
-        color: #cbd5e1;
-        cursor: not-allowed;
-    }
-
-    .step-icon {
-        width: 32px;
-        height: 32px;
-        border-radius: 50%;
-        background: #e2e8f0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-right: 0.75rem;
-        flex-shrink: 0;
-        font-size: 14px;
-    }
-
-    .step-item.current .step-icon {
-        background: #3b82f6;
-        color: white;
-    }
-
-    .step-item.completed .step-icon {
-        background: #10b981;
-        color: white;
-    }
-
-    .step-content {
-        flex: 1;
-        min-width: 0;
-    }
-
-    .step-name {
-        font-size: 14px;
-        margin: 0;
-        line-height: 1.2;
-    }
-
-    .step-desc {
-        font-size: 12px;
-        color: #94a3b8;
-        margin-top: 2px;
-    }
-
-    .onboarding-content {
-        padding: 2.5rem;
-        max-width: 900px;
-    }
-
-    .step-skip-badge {
-        font-size: 10px;
-        background: #fef3c7;
-        color: #92400e;
-        padding: 2px 6px;
-        border-radius: 4px;
-        margin-left: 4px;
-    }
-</style>
 
 <div class="onboarding-wrapper">
     <div class="row g-0">
-        <!-- Sidebar -->
-        <div class="col-md-3 col-lg-3">
-            <div class="onboarding-sidebar">
-                <h5 class="mb-3">Setup wizard</h5>
+        <div class="col-lg-4 col-xl-3">
+            <aside class="onboarding-sidebar" aria-labelledby="setupWizardTitle">
+                <h2 class="h5 mb-3" id="setupWizardTitle">@T["SetupWizard"]</h2>
 
                 <div class="onboarding-progress">
                     <div class="d-flex justify-content-between mb-2">
-                        <small class="text-muted">Progress</small>
-                        <small class="fw-bold" id="progressText">0%</small>
+                        <span class="small text-muted">@T["Progress"]</span>
+                        <span class="small fw-bold" id="progressText">0%</span>
                     </div>
-                    <div class="progress-bar-custom">
-                        <div class="progress-bar-fill" id="progressBar" style="width: 0%"></div>
+                    <div class="progress-bar-custom" id="progressTrack" role="progressbar"
+                         aria-label="@T["Progress"]" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                        <div class="progress-bar-fill" id="progressBar"></div>
                     </div>
-                    <div class="mt-2 small text-muted">
-                        <span id="completedCount">0</span> of <span id="totalCount">0</span> steps completed
+                    <div class="mt-2 small text-muted" id="completedSummary">
+                        @T["StepsCompleted", 0, 0]
                     </div>
                 </div>
 
-                <div id="stepsList">
-                    <div class="text-center py-4 text-muted small">
-                        <div class="spinner-border spinner-border-sm" role="status"></div>
-                        Loading...
+                <nav id="stepsList" aria-label="@T["SetupWizard"]">
+                    <div class="text-center py-4 text-muted small" role="status">
+                        <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                        <span>@T["Loading"]</span>
                     </div>
-                </div>
-            </div>
+                </nav>
+            </aside>
         </div>
 
-        <!-- Content -->
-        <div class="col-md-9 col-lg-9">
+        <div class="col-lg-8 col-xl-9">
             <div class="onboarding-content">
                 @RenderBody()
             </div>
@@ -163,62 +63,126 @@
 </div>
 
 <script>
-    // Load onboarding status and render sidebar
-    async function loadOnboardingStatus() {
-        try {
-            const res = await fetch('/api/onboarding/status', {
-                credentials: 'include'
-            });
-            if (!res.ok) return;
-            const data = await res.json();
-            if (!data.success) return;
-            renderSidebar(data.data);
-        } catch (e) {
-            console.error('Failed to load onboarding status', e);
+    (() => {
+        'use strict';
+
+        const i18n = @Html.Raw(onboardingJson);
+
+        function localizeStep(step) {
+            return i18n.steps[step.code] || {
+                name: step.name || '',
+                description: step.description || ''
+            };
         }
-    }
 
-    function renderSidebar(status) {
-        document.getElementById('progressBar').style.width = status.progressPercentage + '%';
-        document.getElementById('progressText').textContent = status.progressPercentage + '%';
-        document.getElementById('completedCount').textContent = status.completedSteps;
-        document.getElementById('totalCount').textContent = status.totalSteps;
+        function updateProgress(status) {
+            const percentage = Math.min(100, Math.max(0, Number(status.progressPercentage) || 0));
+            const completed = Number(status.completedSteps) || 0;
+            const total = Number(status.totalSteps) || 0;
+            const localizedPercentage = `${percentage.toLocaleString(i18n.culture)}%`;
 
-        const list = document.getElementById('stepsList');
-        list.innerHTML = '';
+            document.getElementById('progressBar').style.width = `${percentage}%`;
+            document.getElementById('progressText').textContent = localizedPercentage;
 
-        status.steps.forEach(step => {
+            const progressTrack = document.getElementById('progressTrack');
+            progressTrack.setAttribute('aria-valuenow', String(percentage));
+            document.getElementById('completedSummary').textContent = i18n.stepsCompletedTemplate
+                .replace('{completed}', completed.toLocaleString(i18n.culture))
+                .replace('{total}', total.toLocaleString(i18n.culture));
+        }
+
+        function createStepLink(step) {
+            const text = localizeStep(step);
             const link = document.createElement('a');
-            link.href = step.isLocked ? '#' : step.url;
             link.className = 'step-item';
 
-            if (step.isCurrent) link.classList.add('current');
+            if (step.isCurrent) {
+                link.classList.add('current');
+                link.setAttribute('aria-current', 'step');
+            }
             if (step.isCompleted) link.classList.add('completed');
-            if (step.isLocked) link.classList.add('locked');
 
             if (step.isLocked) {
-                link.addEventListener('click', e => e.preventDefault());
+                link.classList.add('locked');
+                link.setAttribute('aria-disabled', 'true');
+                link.tabIndex = -1;
+            } else {
+                link.href = step.url;
             }
 
-            let iconContent = `<i class="${step.iconClass}"></i>`;
-            if (step.isCompleted) {
-                iconContent = '<i class="bi bi-check-lg"></i>';
+            const icon = document.createElement('span');
+            icon.className = 'step-icon';
+            icon.setAttribute('aria-hidden', 'true');
+            icon.textContent = step.isCompleted
+                ? '✓'
+                : (Number(step.order) || 0).toLocaleString(i18n.culture);
+
+            const content = document.createElement('span');
+            content.className = 'step-content';
+
+            const name = document.createElement('span');
+            name.className = 'step-name';
+            name.textContent = text.name;
+
+            if (step.isSkippable) {
+                const badge = document.createElement('span');
+                badge.className = 'step-skip-badge';
+                badge.textContent = i18n.optional;
+                name.append(' ', badge);
             }
 
-            link.innerHTML = `
-                <div class="step-icon">${iconContent}</div>
-                <div class="step-content">
-                    <div class="step-name">
-                        ${step.name}
-                        ${step.isSkippable ? '<span class="step-skip-badge">Optional</span>' : ''}
-                    </div>
-                    <div class="step-desc">${step.description}</div>
-                </div>
-            `;
+            const description = document.createElement('span');
+            description.className = 'step-desc';
+            description.textContent = text.description;
 
-            list.appendChild(link);
-        });
-    }
+            content.append(name, description);
+            link.append(icon, content);
+            return link;
+        }
 
-    document.addEventListener('DOMContentLoaded', loadOnboardingStatus);
+        function renderSidebar(status) {
+            updateProgress(status);
+            const list = document.getElementById('stepsList');
+            list.replaceChildren(...(Array.isArray(status.steps) ? status.steps.map(createStepLink) : []));
+        }
+
+        function showLoadError() {
+            const list = document.getElementById('stepsList');
+            const error = document.createElement('div');
+            error.className = 'onboarding-error';
+            error.setAttribute('role', 'alert');
+
+            const message = document.createElement('div');
+            message.textContent = i18n.loadFailed;
+
+            const retry = document.createElement('button');
+            retry.type = 'button';
+            retry.className = 'btn btn-sm btn-outline-danger mt-2';
+            retry.textContent = i18n.retry;
+            retry.addEventListener('click', loadOnboardingStatus);
+
+            error.append(message, retry);
+            list.replaceChildren(error);
+        }
+
+        async function loadOnboardingStatus() {
+            try {
+                const response = await fetch('/api/onboarding/status', {
+                    cache: 'no-store',
+                    credentials: 'same-origin',
+                    headers: { 'Accept': 'application/json' }
+                });
+
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const payload = await response.json();
+                if (!payload.success || !payload.data) throw new Error('Invalid onboarding response');
+                renderSidebar(payload.data);
+            } catch (error) {
+                console.warn('EduOS onboarding status was unavailable.', error);
+                showLoadError();
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', loadOnboardingStatus, { once: true });
+    })();
 </script>

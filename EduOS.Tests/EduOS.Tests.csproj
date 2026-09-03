@@ -27,4 +27,25 @@
     <ProjectReference Include="..\EduOS.Service\EduOS.Service.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\EduOS.App\Resources\Localization\SharedResource.resx"
+          Link="TestAssets\SharedResource.resx"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Resources\Localization\SharedResource.bn-BD.resx"
+          Link="TestAssets\SharedResource.bn-BD.resx"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Views\Shared\_Layout.cshtml"
+          Link="TestAssets\_Layout.cshtml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Views\Account\_OnboardingLayout.cshtml"
+          Link="TestAssets\_OnboardingLayout.cshtml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\wwwroot\manifest.webmanifest"
+          Link="TestAssets\manifest.webmanifest"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\wwwroot\service-worker.js"
+          Link="TestAssets\service-worker.js"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

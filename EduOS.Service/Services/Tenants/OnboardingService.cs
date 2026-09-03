@@ -58,6 +58,7 @@ namespace EduOS.Service.Services.Tenants
                     TotalSteps = total,
                     CompletedSteps = completed,
                     ProgressPercentage = total > 0 ? (int)Math.Round(completed * 100.0 / total) : 0,
+                    NextStepCode = current?.Code,
                     NextStepName = current?.Name,
                     NextStepUrl = current?.Url
                 };
@@ -278,6 +279,7 @@ namespace EduOS.Service.Services.Tenants
                 new()
                 {
                     Step = OnboardingStep.EmailVerification,
+                    Code = nameof(OnboardingStep.EmailVerification),
                     Order = 1,
                     Name = "Email verification",
                     Description = "Verify your email address",
@@ -289,6 +291,7 @@ namespace EduOS.Service.Services.Tenants
                 new()
                 {
                     Step = OnboardingStep.InstitutionProfile,
+                    Code = nameof(OnboardingStep.InstitutionProfile),
                     Order = 2,
                     Name = "Institution profile",
                     Description = "Set up your institution details",
@@ -302,6 +305,7 @@ namespace EduOS.Service.Services.Tenants
                 new()
                 {
                     Step = OnboardingStep.PlanSelection,
+                    Code = nameof(OnboardingStep.PlanSelection),
                     Order = 3,
                     Name = "Choose plan",
                     Description = "Select your subscription plan",
@@ -313,6 +317,7 @@ namespace EduOS.Service.Services.Tenants
                 new()
                 {
                     Step = OnboardingStep.Payment,
+                    Code = nameof(OnboardingStep.Payment),
                     Order = 4,
                     Name = "Payment",
                     Description = "Complete subscription payment",
@@ -324,6 +329,7 @@ namespace EduOS.Service.Services.Tenants
                 new()
                 {
                     Step = OnboardingStep.CampusSetup,
+                    Code = nameof(OnboardingStep.CampusSetup),
                     Order = 5,
                     Name = "Campus setup",
                     Description = "Configure campus information",
@@ -335,6 +341,7 @@ namespace EduOS.Service.Services.Tenants
                 new()
                 {
                     Step = OnboardingStep.AcademicSetup,
+                    Code = nameof(OnboardingStep.AcademicSetup),
                     Order = 6,
                     Name = "Academic year",
                     Description = "Set up academic year & terms",
@@ -346,6 +353,7 @@ namespace EduOS.Service.Services.Tenants
                 new()
                 {
                     Step = OnboardingStep.BrandingSetup,
+                    Code = nameof(OnboardingStep.BrandingSetup),
                     Order = 7,
                     Name = "Branding",
                     Description = "Logo, colors, and subdomain",
@@ -358,6 +366,7 @@ namespace EduOS.Service.Services.Tenants
                 new()
                 {
                     Step = OnboardingStep.GeneralSettings,
+                    Code = nameof(OnboardingStep.GeneralSettings),
                     Order = 8,
                     Name = "General settings",
                     Description = "Currency, timezone, language",
@@ -369,6 +378,7 @@ namespace EduOS.Service.Services.Tenants
                 new()
                 {
                     Step = OnboardingStep.GatewaySetup,
+                    Code = nameof(OnboardingStep.GatewaySetup),
                     Order = 9,
                     Name = "SMS / Email setup",
                     Description = "Configure messaging gateways (optional)",

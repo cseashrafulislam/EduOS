@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="EducationOperatingSystem" xml:space="preserve"><value>শিক্ষা পরিচালনার পূর্ণাঙ্গ প্ল্যাটফর্ম</value></data>
+  <data name="EducationERP" xml:space="preserve"><value>শিক্ষা ব্যবস্থাপনা</value></data>
+  <data name="Main" xml:space="preserve"><value>মূল</value></data>
+  <data name="Dashboard" xml:space="preserve"><value>ড্যাশবোর্ড</value></data>
+  <data name="InstitutionSetup" xml:space="preserve"><value>প্রতিষ্ঠান সেটআপ</value></data>
+  <data name="Campus" xml:space="preserve"><value>ক্যাম্পাস / শাখা</value></data>
+  <data name="AcademicYear" xml:space="preserve"><value>শিক্ষাবর্ষ</value></data>
+  <data name="Academics" xml:space="preserve"><value>একাডেমিক</value></data>
+  <data name="Students" xml:space="preserve"><value>শিক্ষার্থী</value></data>
+  <data name="Teachers" xml:space="preserve"><value>শিক্ষক</value></data>
+  <data name="Classes" xml:space="preserve"><value>শ্রেণি ও কোর্স</value></data>
+  <data name="Attendance" xml:space="preserve"><value>উপস্থিতি</value></data>
+  <data name="ExamsResults" xml:space="preserve"><value>পরীক্ষা ও ফলাফল</value></data>
+  <data name="Management" xml:space="preserve"><value>ব্যবস্থাপনা</value></data>
+  <data name="Finance" xml:space="preserve"><value>অর্থব্যবস্থা</value></data>
+  <data name="UserManagement" xml:space="preserve"><value>ব্যবহারকারী ব্যবস্থাপনা</value></data>
+  <data name="RolePermissions" xml:space="preserve"><value>ভূমিকা ও অনুমতি</value></data>
+  <data name="Reports" xml:space="preserve"><value>প্রতিবেদন</value></data>
+  <data name="ManageInstitution" xml:space="preserve"><value>একটি সমন্বিত শিক্ষা প্ল্যাটফর্ম থেকে আপনার প্রতিষ্ঠান পরিচালনা করুন</value></data>
+  <data name="TenantAdmin" xml:space="preserve"><value>প্রতিষ্ঠান প্রশাসক</value></data>
+  <data name="Profile" xml:space="preserve"><value>প্রোফাইল</value></data>
+  <data name="ChangePassword" xml:space="preserve"><value>পাসওয়ার্ড পরিবর্তন</value></data>
+  <data name="Logout" xml:space="preserve"><value>লগ আউট</value></data>
+  <data name="Footer" xml:space="preserve"><value>শিক্ষা ERP ও SaaS প্ল্যাটফর্ম</value></data>
+  <data name="Notifications" xml:space="preserve"><value>বিজ্ঞপ্তি</value></data>
+  <data name="Settings" xml:space="preserve"><value>সেটিংস</value></data>
+  <data name="OpenMenu" xml:space="preserve"><value>নেভিগেশন মেনু খুলুন</value></data>
+  <data name="CloseMenu" xml:space="preserve"><value>নেভিগেশন মেনু বন্ধ করুন</value></data>
+  <data name="MainNavigation" xml:space="preserve"><value>মূল নেভিগেশন</value></data>
+  <data name="SkipToContent" xml:space="preserve"><value>সরাসরি মূল অংশে যান</value></data>
+  <data name="Language" xml:space="preserve"><value>ভাষা</value></data>
+  <data name="English" xml:space="preserve"><value>English</value></data>
+  <data name="Bangla" xml:space="preserve"><value>বাংলা</value></data>
+  <data name="InstallApp" xml:space="preserve"><value>অ্যাপ ইনস্টল</value></data>
+  <data name="AccountMenu" xml:space="preserve"><value>অ্যাকাউন্ট মেনু খুলুন</value></data>
+  <data name="LogIn" xml:space="preserve"><value>লগ ইন</value></data>
+  <data name="SetupWizard" xml:space="preserve"><value>সেটআপ সহকারী</value></data>
+  <data name="Progress" xml:space="preserve"><value>অগ্রগতি</value></data>
+  <data name="StepsCompleted" xml:space="preserve"><value>{1}টি ধাপের মধ্যে {0}টি সম্পন্ন</value></data>
+  <data name="StepsCompletedTemplate" xml:space="preserve"><value>{total}টি ধাপের মধ্যে {completed}টি সম্পন্ন</value></data>
+  <data name="Loading" xml:space="preserve"><value>লোড হচ্ছে…</value></data>
+  <data name="Optional" xml:space="preserve"><value>ঐচ্ছিক</value></data>
+  <data name="OfflineTitle" xml:space="preserve"><value>আপনি এখন অফলাইনে আছেন</value></data>
+  <data name="OfflineMessage" xml:space="preserve"><value>EduOS নিরাপদে ব্যবহার চালিয়ে যেতে ইন্টারনেটে পুনরায় সংযুক্ত হন। ব্যক্তিগত বা প্রতিষ্ঠানের তথ্য অফলাইন ক্যাশে রাখা হয় না।</value></data>
+  <data name="Retry" xml:space="preserve"><value>আবার চেষ্টা করুন</value></data>
+  <data name="OnboardingLoadFailed" xml:space="preserve"><value>সেটআপের অগ্রগতি লোড করা যায়নি। আবার চেষ্টা করুন।</value></data>
+
+  <data name="Onboarding_EmailVerification_Name" xml:space="preserve"><value>ইমেইল যাচাই</value></data>
+  <data name="Onboarding_EmailVerification_Description" xml:space="preserve"><value>আপনার ইমেইল ঠিকানা যাচাই করুন</value></data>
+  <data name="Onboarding_InstitutionProfile_Name" xml:space="preserve"><value>প্রতিষ্ঠানের প্রোফাইল</value></data>
+  <data name="Onboarding_InstitutionProfile_Description" xml:space="preserve"><value>প্রতিষ্ঠানের প্রয়োজনীয় তথ্য দিন</value></data>
+  <data name="Onboarding_PlanSelection_Name" xml:space="preserve"><value>প্ল্যান নির্বাচন</value></data>
+  <data name="Onboarding_PlanSelection_Description" xml:space="preserve"><value>আপনার প্রয়োজন অনুযায়ী সাবস্ক্রিপশন নিন</value></data>
+  <data name="Onboarding_Payment_Name" xml:space="preserve"><value>পেমেন্ট</value></data>
+  <data name="Onboarding_Payment_Description" xml:space="preserve"><value>সাবস্ক্রিপশনের পেমেন্ট সম্পন্ন করুন</value></data>
+  <data name="Onboarding_CampusSetup_Name" xml:space="preserve"><value>ক্যাম্পাস সেটআপ</value></data>
+  <data name="Onboarding_CampusSetup_Description" xml:space="preserve"><value>ক্যাম্পাস বা শাখার তথ্য নির্ধারণ করুন</value></data>
+  <data name="Onboarding_AcademicSetup_Name" xml:space="preserve"><value>শিক্ষাবর্ষ</value></data>
+  <data name="Onboarding_AcademicSetup_Description" xml:space="preserve"><value>শিক্ষাবর্ষ ও পর্ব নির্ধারণ করুন</value></data>
+  <data name="Onboarding_BrandingSetup_Name" xml:space="preserve"><value>ব্র্যান্ডিং</value></data>
+  <data name="Onboarding_BrandingSetup_Description" xml:space="preserve"><value>লোগো, রং ও সাবডোমেইন ঠিক করুন</value></data>
+  <data name="Onboarding_GeneralSettings_Name" xml:space="preserve"><value>সাধারণ সেটিংস</value></data>
+  <data name="Onboarding_GeneralSettings_Description" xml:space="preserve"><value>মুদ্রা, সময় অঞ্চল ও ভাষা নির্ধারণ করুন</value></data>
+  <data name="Onboarding_GatewaySetup_Name" xml:space="preserve"><value>SMS / ইমেইল সেটআপ</value></data>
+  <data name="Onboarding_GatewaySetup_Description" xml:space="preserve"><value>ঐচ্ছিক বার্তা পাঠানোর গেটওয়ে নির্ধারণ করুন</value></data>
+
+  <data name="Admin Dashboard" xml:space="preserve"><value>অ্যাডমিন ড্যাশবোর্ড</value></data>
+  <data name="Pricing" xml:space="preserve"><value>মূল্য তালিকা</value></data>
+  <data name="Choose your plan" xml:space="preserve"><value>আপনার প্ল্যান বেছে নিন</value></data>
+  <data name="Login" xml:space="preserve"><value>লগ ইন</value></data>
+  <data name="Setup complete" xml:space="preserve"><value>সেটআপ সম্পন্ন</value></data>
+  <data name="Payment failed" xml:space="preserve"><value>পেমেন্ট ব্যর্থ হয়েছে</value></data>
+  <data name="General settings" xml:space="preserve"><value>সাধারণ সেটিংস</value></data>
+  <data name="Branding setup" xml:space="preserve"><value>ব্র্যান্ডিং সেটআপ</value></data>
+  <data name="Payment" xml:space="preserve"><value>পেমেন্ট</value></data>
+  <data name="Payment cancelled" xml:space="preserve"><value>পেমেন্ট বাতিল হয়েছে</value></data>
+  <data name="Campus Setup" xml:space="preserve"><value>ক্যাম্পাস সেটআপ</value></data>
+  <data name="Forgot Password" xml:space="preserve"><value>পাসওয়ার্ড ভুলে গেছেন</value></data>
+  <data name="SMS &amp; Email setup" xml:space="preserve"><value>SMS ও ইমেইল সেটআপ</value></data>
+  <data name="Academic Setup" xml:space="preserve"><value>একাডেমিক সেটআপ</value></data>
+  <data name="Signup Success" xml:space="preserve"><value>নিবন্ধন সফল হয়েছে</value></data>
+  <data name="Payment successful" xml:space="preserve"><value>পেমেন্ট সফল হয়েছে</value></data>
+  <data name="Verify Email" xml:space="preserve"><value>ইমেইল যাচাই করুন</value></data>
+  <data name="Email Verified" xml:space="preserve"><value>ইমেইল যাচাই হয়েছে</value></data>
+  <data name="Institution Sign Up" xml:space="preserve"><value>প্রতিষ্ঠান নিবন্ধন</value></data>
+  <data name="Institution Profile Setup" xml:space="preserve"><value>প্রতিষ্ঠানের প্রোফাইল সেটআপ</value></data>
+</root>

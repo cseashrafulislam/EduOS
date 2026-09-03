@@ -1,0 +1,24 @@
+{
+  "id": "/",
+  "name": "EduOS — Education Operating System",
+  "short_name": "EduOS",
+  "description": "বাংলাদেশের শিক্ষা প্রতিষ্ঠানের জন্য বাংলা ও English সমর্থিত শিক্ষা পরিচালনা প্ল্যাটফর্ম।",
+  "lang": "bn-BD",
+  "dir": "ltr",
+  "start_url": "/Account/Login?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#f5f7fb",
+  "theme_color": "#0f172a",
+  "categories": ["education", "productivity", "business"],
+  "icons": [
+    {
+      "src": "/images/eduos-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
