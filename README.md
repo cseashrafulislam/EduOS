@@ -842,6 +842,8 @@ ASP.NET Core environment-variable nesting uses double underscores:
 ConnectionStrings__DefaultConnection
 DataProtection__KeysPath
 LearnerIdentity__LookupKeyBase64
+SuperAdmin__Email
+SuperAdmin__Password
 JwtSettings__Secret
 EmailSettings__SenderEmail
 EmailSettings__Password
@@ -867,6 +869,7 @@ Production requirements:
 - Never commit credentials, tokens, private keys or production personal data.
 - All application instances share a protected, durable Data Protection key ring.
 - All instances use the same secret `LearnerIdentity__LookupKeyBase64`; generate at least 32 random bytes, store it outside source control, and rotate it only through a reviewed digest-reindex migration.
+- SuperAdmin bootstrap is disabled unless `SuperAdmin__Email` is configured; first creation additionally requires a secret-managed `SuperAdmin__Password`. Remove that bootstrap password after creation and require MFA before production administration.
 - `Payments__AamarPay__CallbackBaseUrl` is the trusted public HTTPS origin; online checkout is disabled when it is missing or invalid.
 - Manual bank details must come from reviewed deployment configuration. Placeholder account details are not rendered.
 - `FileStorage__PrivateBasePath` must be durable, backed up, access-controlled, and outside every static web root. Production receipt uploads also require an operational malware scanner or quarantined object-storage pipeline.

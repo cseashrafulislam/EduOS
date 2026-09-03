@@ -112,6 +112,9 @@
     <None Include="..\EduOS.App\Controllers\Api\SubscriptionPaymentController.cs"
           Link="TestAssets\SubscriptionPaymentController.cs"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.Persistence\Seed\SuperAdminSeeder.cs"
+          Link="TestAssets\SuperAdminSeeder.cs"
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\wwwroot\js\account\login.js"
           Link="TestAssets\login.js"
           CopyToOutputDirectory="PreserveNewest" />

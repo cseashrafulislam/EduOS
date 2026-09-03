@@ -24,10 +24,28 @@ namespace EduOS.Persistence.Seed
             const string roleName = "SuperAdmin";
             const string tenantCode = "EDUOS-SYSTEM";
 
-            // Read credentials from config (fallback to defaults for dev)
-            var email = configuration["SuperAdmin:Email"] ?? "superadmin@eduos.com";
-            var password = configuration["SuperAdmin:Password"] ?? "Admin@123";
-            var fullName = configuration["SuperAdmin:FullName"] ?? "Super Admin";
+            // Bootstrap is opt-in. A public repository must never create a known
+            // privileged account from fallback credentials.
+            var email = configuration["SuperAdmin:Email"]?.Trim();
+            var password = configuration["SuperAdmin:Password"];
+            var fullName = configuration["SuperAdmin:FullName"]?.Trim();
+
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                logger?.LogWarning(
+                    "SuperAdmin bootstrap skipped. Configure SuperAdmin:Email through a secret-managed deployment setting when initial access is required.");
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(fullName))
+                fullName = "Super Admin";
+
+            var user = await userManager.FindByEmailAsync(email);
+            if (user == null && string.IsNullOrWhiteSpace(password))
+            {
+                throw new InvalidOperationException(
+                    "SuperAdmin:Password is required only for first-time SuperAdmin creation and must be supplied through a secret store.");
+            }
 
             // 1) Ensure SuperAdmin role exists
             if (!await roleManager.RoleExistsAsync(roleName))
@@ -90,8 +108,6 @@ namespace EduOS.Persistence.Seed
             }
 
             // 3) Ensure super admin user exists
-            var user = await userManager.FindByEmailAsync(email);
-
             if (user == null)
             {
                 user = new ApplicationUser
@@ -106,7 +122,7 @@ namespace EduOS.Persistence.Seed
                     CreatedAt = DateTime.UtcNow
                 };
 
-                var createResult = await userManager.CreateAsync(user, password);
+                var createResult = await userManager.CreateAsync(user, password!);
                 if (!createResult.Succeeded)
                 {
                     var errors = string.Join(", ", createResult.Errors.Select(e => e.Description));

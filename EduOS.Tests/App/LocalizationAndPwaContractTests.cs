@@ -285,6 +285,19 @@ public class LocalizationAndPwaContractTests
         paymentController.Should().NotContain("Request.Host");
     }
 
+    [Fact]
+    public void Super_admin_bootstrap_has_no_fallback_credentials()
+    {
+        var seeder = File.ReadAllText(Asset("SuperAdminSeeder.cs"));
+
+        seeder.Should().Contain("SuperAdmin:Email");
+        seeder.Should().Contain("SuperAdmin:Password");
+        seeder.Should().Contain("bootstrap skipped");
+        seeder.Should().NotContain("superadmin@eduos.com");
+        seeder.Should().NotContain("Admin@123");
+        seeder.Should().NotContain("?? \"superadmin");
+    }
+
     private static Dictionary<string, string> ReadResource(string fileName)
     {
         return XDocument.Load(Asset(fileName))
