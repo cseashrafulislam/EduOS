@@ -553,6 +553,7 @@ These are the meaningful API areas currently present:
 |---|---|
 | /api/auth | Login, forgot password, reset password, logout |
 | /api/platform-catalog | Public institution presets, preset detail and active product modules |
+| /api/tenant-modules | Current tenant module availability and TenantAdmin activation changes |
 | /api/institution-onboarding | Signup, email verification, profile, campus, academic year/term, final completion |
 | /api/onboarding | Status and step completion |
 | /api/subscription-plans | Public plan list, plan detail, code lookup, comparison |
@@ -564,6 +565,8 @@ These are the meaningful API areas currently present:
 | /api/v1/auditlog | Filter, record/user history and export |
 
 Every new module must add a complete vertical slice: request/response contract, validation, authorization, service, repository/query, migration, UI if required, tests, audit, documentation, and operational monitoring.
+
+Module-owned controllers/actions must use `[RequireModule("MODULE_CODE")]`. Availability requires all three conditions: the platform module is active, the tenant selected it (or the preset requires it), and the tenant's current paid/trial plan includes a mapped granular feature. Pending payment never grants paid module access.
 
 ---
 
@@ -904,7 +907,7 @@ A feature is complete only when:
 
 ### Phase 1 — Configurable SaaS core
 
-Progress: institution preset catalogue, top-level product module catalogue, preset-to-module mapping, public catalogue API, onboarding preset validation/backfill, migration and regression tests are implemented on the Codex development branch. Tenant-specific module activation, plan entitlement and quota enforcement remain pending.
+Progress: institution preset catalogue, top-level product module catalogue, preset-to-module and module-to-plan-feature mapping, tenant module selection, subscription entitlement evaluation, reusable module authorization policy, onboarding preset application, migrations and regression tests are implemented. Quota enforcement and remaining configuration engines are pending.
 
 Deliver:
 

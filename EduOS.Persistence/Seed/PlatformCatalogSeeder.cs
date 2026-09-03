@@ -22,6 +22,7 @@ public static class PlatformCatalogSeeder
     {
         await SeedInstitutionTypesAsync(context);
         await SeedModulesAsync(context);
+        await SeedModuleFeaturesAsync(context);
         await SeedPresetModulesAsync(context);
         await BackfillTenantInstitutionTypesAsync(context);
     }
@@ -168,6 +169,73 @@ public static class PlatformCatalogSeeder
 
         if (mappings.Count == 0) return;
         await context.InstitutionTypeModules.AddRangeAsync(mappings);
+        await context.SaveChangesAsync();
+    }
+
+    private static async Task SeedModuleFeaturesAsync(EduOSDbContext context)
+    {
+        var moduleRows = await context.ProductModules
+            .Select(x => new { x.Id, x.Code })
+            .ToListAsync();
+        var modules = moduleRows.ToDictionary(x => x.Code, StringComparer.OrdinalIgnoreCase);
+        var featureRows = await context.Features
+            .Select(x => new { x.Id, x.Code })
+            .ToListAsync();
+        var features = featureRows.ToDictionary(x => x.Code, StringComparer.OrdinalIgnoreCase);
+        var existingRows = await context.ProductModuleFeatures
+            .Select(x => new { x.ProductModuleId, x.FeatureId })
+            .ToListAsync();
+        var existing = existingRows
+            .Select(x => $"{x.ProductModuleId}:{x.FeatureId}")
+            .ToHashSet(StringComparer.Ordinal);
+
+        var mappings = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["ADMISSION"] = ["STUDENT_MGMT"],
+            ["STUDENT"] = ["STUDENT_MGMT"],
+            ["ACADEMIC"] = ["CLASS_SECTION", "SUBJECT_MGMT", "CLASS_ROUTINE"],
+            ["ATTENDANCE"] = ["ATTENDANCE"],
+            ["EXAM"] = ["EXAM_MGMT", "MARK_ENTRY", "RESULT_REPORT", "ONLINE_EXAM"],
+            ["FINANCE"] = ["FEE_COLLECTION", "INVOICE_GEN", "DISCOUNT_SCHOLARSHIP", "ACCOUNTING"],
+            ["HR"] = ["EMPLOYEE_MGMT", "LEAVE_MGMT"],
+            ["PAYROLL"] = ["PAYROLL"],
+            ["LMS"] = ["ONLINE_EXAM"],
+            ["LIBRARY"] = ["LIBRARY"],
+            ["TRANSPORT"] = ["TRANSPORT"],
+            ["HOSTEL"] = ["HOSTEL"],
+            ["INVENTORY"] = ["INVENTORY"],
+            ["COMMUNICATION"] = ["SMS_NOTIFY", "EMAIL_NOTIFY", "NOTICE_BOARD", "PARENT_PORTAL"],
+            ["DOCUMENTS"] = ["RESULT_REPORT"],
+            ["REPORTING"] = ["RESULT_REPORT", "ACCOUNTING"],
+            ["API_ACCESS"] = ["API_ACCESS"],
+            ["MULTI_CAMPUS"] = ["MULTI_CAMPUS"]
+        };
+
+        var additions = new List<ProductModuleFeature>();
+        foreach (var mapping in mappings)
+        {
+            if (!modules.TryGetValue(mapping.Key, out var module)) continue;
+
+            for (var index = 0; index < mapping.Value.Length; index++)
+            {
+                if (!features.TryGetValue(mapping.Value[index], out var feature)) continue;
+                var key = $"{module.Id}:{feature.Id}";
+                if (existing.Contains(key)) continue;
+
+                additions.Add(new ProductModuleFeature
+                {
+                    ProductModuleId = module.Id,
+                    FeatureId = feature.Id,
+                    IsPrimary = index == 0,
+                    DisplayOrder = (index + 1) * 10,
+                    CreatedAt = DateTime.UtcNow
+                });
+                existing.Add(key);
+            }
+        }
+
+        if (additions.Count == 0) return;
+        await context.ProductModuleFeatures.AddRangeAsync(additions);
         await context.SaveChangesAsync();
     }
 

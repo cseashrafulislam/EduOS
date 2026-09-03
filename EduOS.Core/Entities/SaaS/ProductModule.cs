@@ -21,4 +21,8 @@ public class ProductModule : BaseEntity
 
     public virtual ICollection<InstitutionTypeModule> InstitutionTypes { get; set; } =
         new List<InstitutionTypeModule>();
+    public virtual ICollection<ProductModuleFeature> Features { get; set; } =
+        new List<ProductModuleFeature>();
+    public virtual ICollection<TenantModule> TenantModules { get; set; } =
+        new List<TenantModule>();
 }

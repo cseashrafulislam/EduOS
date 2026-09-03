@@ -1,4 +1,5 @@
 using EduOS.BackgroundJobs.Jobs;
+using EduOS.App.Authorization;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IServices;
 using EduOS.Core.Interfaces.Jobs;
@@ -12,6 +13,7 @@ using EduOS.Service.Services.SaaS;
 using EduOS.Service.Services.Tenants;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Authorization;
 
 namespace EduOS.App.Extensions
 {
@@ -48,6 +50,9 @@ namespace EduOS.App.Extensions
             services.AddScoped<ISubscriptionInvoiceService, SubscriptionInvoiceService>();
             services.AddScoped<ISubscriptionPaymentService, SubscriptionPaymentService>();
             services.AddScoped<IPlatformCatalogService, PlatformCatalogService>();
+            services.AddScoped<ITenantModuleService, TenantModuleService>();
+            services.AddSingleton<IAuthorizationPolicyProvider, ModuleAuthorizationPolicyProvider>();
+            services.AddScoped<IAuthorizationHandler, ModuleAccessHandler>();
 
             // ==================== Tenant Management Services (Phase C) ====================
             services.AddScoped<ITenantProfileService, TenantProfileService>();
