@@ -10,6 +10,7 @@ using EduOS.Core.Entities.Hostel;
 using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.Inventory;
 using EduOS.Core.Entities.Library;
+using EduOS.Core.Entities.Learners;
 using EduOS.Core.Entities.LMS;
 using EduOS.Core.Entities.Payroll;
 using EduOS.Core.Entities.SaaS;
@@ -204,6 +205,11 @@ namespace EduOS.Persistence.Context
         public DbSet<TransferCertificate> TransferCertificates => Set<TransferCertificate>();
         public DbSet<HealthRecord> HealthRecords => Set<HealthRecord>();
         public DbSet<BehaviorRecord> BehaviorRecords => Set<BehaviorRecord>();
+        public DbSet<Person> Persons => Set<Person>();
+        public DbSet<PersonIdentifier> PersonIdentifiers => Set<PersonIdentifier>();
+        public DbSet<StudentPersonLink> StudentPersonLinks => Set<StudentPersonLink>();
+        public DbSet<LearnerConsentRequest> LearnerConsentRequests => Set<LearnerConsentRequest>();
+        public DbSet<LearnerIdentityAccessLog> LearnerIdentityAccessLogs => Set<LearnerIdentityAccessLog>();
 
         // Employees
         public DbSet<HRDesignation> HRDesignations => Set<HRDesignation>();
@@ -436,7 +442,7 @@ namespace EduOS.Persistence.Context
 
                 foreach (var entry in entries)
                 {
-                    if (entry.Entity is AuditLog) continue;
+                    if (entry.Entity is AuditLog or LearnerIdentityAccessLog) continue;
 
                     switch (entry.State)
                     {
@@ -510,6 +516,13 @@ namespace EduOS.Persistence.Context
             foreach (var entry in entries.Where(e =>
                          e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted))
             {
+                if (entry.Entity is LearnerIdentityAccessLog
+                    && entry.State is EntityState.Modified or EntityState.Deleted)
+                {
+                    throw new InvalidOperationException(
+                        "Learner identity access logs are append-only.");
+                }
+
                 if (entry.Entity is not ITenantScopedEntity tenantEntity)
                     continue;
 
@@ -561,6 +574,15 @@ namespace EduOS.Persistence.Context
                     CreatedAt = now
                 };
 
+                if (entry.Entity is Person
+                    or PersonIdentifier
+                    or StudentPersonLink
+                    or LearnerConsentRequest
+                    or LearnerIdentityAccessLog)
+                {
+                    return log;
+                }
+
                 switch (action)
                 {
                     case "Update":
@@ -607,7 +629,8 @@ namespace EduOS.Persistence.Context
             new[] { "Password", "PasswordHash", "Secret", "Token", "ApiKey",
                     "ApiSecret", "CreditCard", "BankAccount", "AccountNumber",
                     "NID", "NationalId", "BirthCert", "Passport", "RefreshToken",
-                    "SettingValue", "GatewayResponse" }
+                    "SettingValue", "GatewayResponse", "Identifier",
+                    "LookupDigest", "ProtectedValue" }
             .Any(f => name.Contains(f, StringComparison.OrdinalIgnoreCase));
 
         private async Task AddAuditLogsAsync(List<AuditLog> logs, CancellationToken ct)

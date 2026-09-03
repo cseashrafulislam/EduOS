@@ -6,7 +6,7 @@ EduOS is a configurable, multi-tenant SaaS platform for the Bangladesh education
 
 একটি প্রতিষ্ঠান signup করবে, plan/trial বেছে নেবে, payment করবে, নিজের campus, academic structure, branding, terminology, workflow ও enabled modules configure করবে এবং ব্যবহার শুরু করবে। কোনো নির্দিষ্ট প্রতিষ্ঠানের নাম, class structure, fee rule, grading rule বা approval flow shared code-এ hard-code করা যাবে না।
 
-> **Current status:** foundation under active development. Phase 0 security work and the Phase 1 institution/module entitlement catalogue are implemented and tested. The shared/public shells, account pages, public pricing, tenant dashboard, SuperAdmin operations landing page, and onboarding progress support responsive desktop/mobile use, installable PWA behaviour, and English/Bangla UI resources. Institution profile, plan/payment, campus/branch, academic year/term, plan-aware module selection, branding/subdomain, regional preferences, and optional SMS/email gateway setup now have bilingual responsive workflows with TenantAdmin authorization and anti-forgery protection. Billing rejects hidden plans and duplicate current subscriptions/payments, includes setup fees in invoice totals, verifies online payment before activation, and keeps manual deposit receipts outside public web storage. Gateway secrets are encrypted and masked, unsafe local/insecure endpoints are rejected, and branding images use image-only validation with failure-safe replacement. Many education modules currently have domain entities only; their complete service, API, UI, permission, report, and test workflows are still planned.
+> **Current status:** foundation under active development. Phase 0 security work, the Phase 1 institution/module entitlement catalogue, and the first Phase 2 privacy-safe learner identity workflow are implemented and tested. The shared/public shells, account pages, public pricing, tenant dashboard, SuperAdmin operations landing page, and onboarding progress support responsive desktop/mobile use, installable PWA behaviour, and English/Bangla UI resources. Institution profile, plan/payment, campus/branch, academic year/term, plan-aware module selection, branding/subdomain, regional preferences, and optional SMS/email gateway setup now have bilingual responsive workflows with TenantAdmin authorization and anti-forgery protection. Billing rejects hidden plans and duplicate current subscriptions/payments, includes setup fees in invoice totals, verifies online payment before activation, and keeps manual deposit receipts outside public web storage. Gateway secrets are encrypted and masked, unsafe local/insecure endpoints are rejected, and branding images use image-only validation with failure-safe replacement. Government identifier equality matching now uses an encrypted value plus keyed lookup digest; a verified cross-tenant match returns no person data and creates an expiring consent request with an append-only access record, while an unverified match fails closed for review. Consent approval, history release, legacy identifier migration, and many education-module workflows remain planned and must not be treated as production-complete.
 
 ---
 
@@ -332,7 +332,7 @@ erDiagram
 
 Birth/NID দিয়ে search করলেই অন্য school-এর student name, photo, guardian, result বা history দেখানো হবে না। Minor student-এর public profile defaultভাবে বন্ধ থাকবে।
 
-Status: 🧭 target architecture. Existing Student.BirthCertNo and Guardian.NID fields require encrypted migration/replacement before production.
+Status: 🟡 privacy foundation implemented. `Person`, protected `PersonIdentifier`, tenant-owned `StudentPersonLink`, expiring `LearnerConsentRequest`, and append-only `LearnerIdentityAccessLog` are wired through a rate-limited admission API. The workflow creates or reuses an institution student's own identity; only an identifier verified by an approved workflow may produce a cross-tenant consent-request reference. Unverified matches fail closed for review. Consent decision/revocation, scoped history delivery, guardian authority, break-glass review, and safe backfill/removal of existing `Student.BirthCertNo` and `Guardian.NID` values are still required before production use.
 
 ### 6.7 Student lifecycle
 
@@ -754,6 +754,7 @@ Implemented Phase 0 controls:
 - Production automatic database migration disabled by default.
 - Secrets removed from current public configuration.
 - Tenant-isolation and tenant-secret automated tests.
+- Encrypted government identifiers, keyed lookup digest, neutral cross-tenant match response, strict identity rate limit, and append-only learner identity access records.
 - GitHub Actions CI, Dependabot, SECURITY.md and AGENTS.md.
 
 Still required before production:
@@ -761,7 +762,7 @@ Still required before production:
 - Rotate/revoke every credential previously committed to Git history.
 - Migrate existing BirthCertNo and Guardian NID data to the protected identity model.
 - MFA and break-glass workflow for privileged platform operations.
-- Key management strategy for encryption and keyed identifier lookup.
+- Managed production key custody and rehearsed rotation for encryption and keyed identifier lookup.
 - CSRF/secure-cookie/API token threat review for each client mode.
 - File signature validation, malware scanning and external object storage.
 - Dependency/code/secret scanning and penetration testing.
@@ -810,6 +811,7 @@ Configure local secrets outside source control:
 ~~~bash
 dotnet user-secrets --project EduOS.App set "ConnectionStrings:DefaultConnection" "Server=localhost;Database=EduOS;Trusted_Connection=true;TrustServerCertificate=true;"
 dotnet user-secrets --project EduOS.App set "JwtSettings:Secret" "replace-with-at-least-32-random-characters"
+dotnet user-secrets --project EduOS.App set "LearnerIdentity:LookupKeyBase64" "replace-with-a-base64-encoded-random-32-byte-key"
 ~~~
 
 Optional email, SMS, and payment key names are documented in [.env.example](.env.example). The sample file is documentation only; ASP.NET Core does not automatically load it.
@@ -839,6 +841,7 @@ ASP.NET Core environment-variable nesting uses double underscores:
 ~~~text
 ConnectionStrings__DefaultConnection
 DataProtection__KeysPath
+LearnerIdentity__LookupKeyBase64
 JwtSettings__Secret
 EmailSettings__SenderEmail
 EmailSettings__Password
@@ -863,6 +866,7 @@ Production requirements:
 - Use deployment environment variables or a managed secret store.
 - Never commit credentials, tokens, private keys or production personal data.
 - All application instances share a protected, durable Data Protection key ring.
+- All instances use the same secret `LearnerIdentity__LookupKeyBase64`; generate at least 32 random bytes, store it outside source control, and rotate it only through a reviewed digest-reindex migration.
 - `Payments__AamarPay__CallbackBaseUrl` is the trusted public HTTPS origin; online checkout is disabled when it is missing or invalid.
 - Manual bank details must come from reviewed deployment configuration. Placeholder account details are not rendered.
 - `FileStorage__PrivateBasePath` must be durable, backed up, access-controlled, and outside every static web root. Production receipt uploads also require an operational malware scanner or quarantined object-storage pipeline.
@@ -960,6 +964,8 @@ Acceptance:
 - Tenant/campus isolation and configuration-version tests pass.
 
 ### Phase 2 — Global identity and student lifecycle
+
+Progress: the privacy-safe identity registration/match boundary is implemented. It includes a global person, encrypted identifier, keyed lookup, tenant-owned student link, neutral expiring consent request, append-only access audit, Bangladesh/ASCII digit normalization, and security tests. A pending request grants no record access. Consent resolution, guardian authority, data grants, history projection, break-glass approval, and legacy-field backfill are the next Phase 2 slices.
 
 Deliver:
 

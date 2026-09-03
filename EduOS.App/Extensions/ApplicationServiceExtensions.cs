@@ -10,6 +10,7 @@ using EduOS.Service.Helpers.Storage;
 using EduOS.Service.Mappings;
 using EduOS.Service.Services.Auth;
 using EduOS.Service.Services.SaaS;
+using EduOS.Service.Services.Students;
 using EduOS.Service.Services.Tenants;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -32,6 +33,7 @@ namespace EduOS.App.Extensions
             services.Configure<FileUploadSettings>(configuration.GetSection(FileUploadSettings.SectionName));
             services.Configure<FileStorageSettings>(configuration.GetSection("FileStorage"));
             services.Configure<TenantPortalSettings>(configuration.GetSection(TenantPortalSettings.SectionName));
+            services.Configure<LearnerIdentitySettings>(configuration.GetSection(LearnerIdentitySettings.SectionName));
 
             // ==================== AutoMapper ====================
             services.AddAutoMapper(_ => { }, typeof(MappingProfile).Assembly);
@@ -39,6 +41,7 @@ namespace EduOS.App.Extensions
             // ==================== Core Helpers ====================
             services.AddScoped<ICurrentUserService, CurrentUserService>();
             services.AddScoped<IFileUploadService, FileUploadService>();
+            services.AddScoped<ILearnerIdentifierProtector, LearnerIdentifierProtector>();
 
             // ==================== HTTP Clients ====================
             services.AddHttpClient<IAamarPayClient, AamarPayClient>(client =>
@@ -66,6 +69,7 @@ namespace EduOS.App.Extensions
              services.AddScoped<IDashboardService, DashboardService>();
              services.AddScoped<IEmailService, EmailService>();
              services.AddScoped<IEmailJob, EmailJob>();
+             services.AddScoped<ILearnerIdentityService, LearnerIdentityService>();
 
 
             return services;

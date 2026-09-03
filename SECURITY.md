@@ -11,6 +11,7 @@ Repository configuration files contain safe defaults only. Supply secrets with d
 ```bash
 dotnet user-secrets --project EduOS.App set "ConnectionStrings:DefaultConnection" "<local-connection-string>"
 dotnet user-secrets --project EduOS.App set "JwtSettings:Secret" "<at-least-32-random-characters>"
+dotnet user-secrets --project EduOS.App set "LearnerIdentity:LookupKeyBase64" "<base64-encoded-random-32-byte-key>"
 dotnet user-secrets --project EduOS.App set "EmailSettings:SenderEmail" "<sender-email>"
 dotnet user-secrets --project EduOS.App set "EmailSettings:Password" "<smtp-app-password>"
 dotnet user-secrets --project EduOS.App set "SmsSettings:ApiKey" "<api-key>"
@@ -20,6 +21,8 @@ dotnet user-secrets --project EduOS.App set "Payments:AamarPay:SignatureKey" "<s
 ```
 
 Production instances must share a durable ASP.NET Core Data Protection key ring. Set `DataProtection__KeysPath` to a protected persistent location available to every application instance, or replace the file provider with a managed key store before horizontal scaling.
+
+Every instance must also receive the same `LearnerIdentity__LookupKeyBase64` from a managed secret store. This keyed HMAC value is independent of Data Protection and must contain at least 32 decoded random bytes. Changing it without re-indexing protected identifiers makes existing equality matches unavailable; rotation therefore requires a reviewed migration with old/new overlap. Never log identifier plaintext, protected values, or lookup digests.
 
 If a value was ever committed, deleting it from the latest file is not enough. Revoke or rotate it at the provider immediately, then purge it from Git history using a reviewed incident-response procedure.
 

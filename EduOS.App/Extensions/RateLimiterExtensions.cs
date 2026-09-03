@@ -36,6 +36,13 @@ namespace EduOS.App.Extensions
                         GetClientPartition(context),
                         _ => CreateOptions(60, TimeSpan.FromMinutes(1), 10)));
 
+                // Government identifier matching is deliberately much tighter than
+                // the general API quota to reduce enumeration attempts.
+                options.AddPolicy("LearnerIdentityPolicy", context =>
+                    RateLimitPartition.GetFixedWindowLimiter(
+                        GetClientPartition(context),
+                        _ => CreateOptions(10, TimeSpan.FromMinutes(1))));
+
                 // Payment callback - more lenient (gateway may retry)
                 options.AddPolicy("PaymentCallbackPolicy", context =>
                     RateLimitPartition.GetFixedWindowLimiter(
