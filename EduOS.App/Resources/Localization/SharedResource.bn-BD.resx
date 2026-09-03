@@ -90,4 +90,107 @@
   <data name="Email Verified" xml:space="preserve"><value>ইমেইল যাচাই হয়েছে</value></data>
   <data name="Institution Sign Up" xml:space="preserve"><value>প্রতিষ্ঠান নিবন্ধন</value></data>
   <data name="Institution Profile Setup" xml:space="preserve"><value>প্রতিষ্ঠানের প্রোফাইল সেটআপ</value></data>
+  <data name="BackToDashboard" xml:space="preserve"><value>ড্যাশবোর্ডে ফিরে যান</value></data>
+  <data name="CreateInstitution" xml:space="preserve"><value>প্রতিষ্ঠান তৈরি করুন</value></data>
+  <data name="PublicTagline" xml:space="preserve"><value>বাংলাদেশের শিক্ষার জন্য একটি সমন্বিত প্ল্যাটফর্ম</value></data>
+  <data name="SecurePlatform" xml:space="preserve"><value>নিরাপদ মাল্টি-টেন্যান্ট প্ল্যাটফর্ম</value></data>
+  <data name="LogInTitle" xml:space="preserve"><value>EduOS-এ লগ ইন করুন</value></data>
+  <data name="LoginSubtitle" xml:space="preserve"><value>নিরাপদে আপনার প্রতিষ্ঠান পরিচালনা চালিয়ে যান</value></data>
+  <data name="Email" xml:space="preserve"><value>ইমেইল</value></data>
+  <data name="EmailAddress" xml:space="preserve"><value>ইমেইল ঠিকানা</value></data>
+  <data name="Password" xml:space="preserve"><value>পাসওয়ার্ড</value></data>
+  <data name="RememberMe" xml:space="preserve"><value>আমাকে মনে রাখুন</value></data>
+  <data name="ForgotPasswordQuestion" xml:space="preserve"><value>পাসওয়ার্ড ভুলে গেছেন?</value></data>
+  <data name="NoAccount" xml:space="preserve"><value>EduOS-এ নতুন?</value></data>
+  <data name="SignUpNow" xml:space="preserve"><value>প্রতিষ্ঠানের অ্যাকাউন্ট তৈরি করুন</value></data>
+  <data name="SigningIn" xml:space="preserve"><value>লগ ইন হচ্ছে…</value></data>
+  <data name="SignIn" xml:space="preserve"><value>লগ ইন</value></data>
+  <data name="EmailPasswordRequired" xml:space="preserve"><value>ইমেইল ও পাসওয়ার্ড আবশ্যক।</value></data>
+  <data name="InvalidCredentials" xml:space="preserve"><value>ইমেইল অথবা পাসওয়ার্ড সঠিক নয়।</value></data>
+  <data name="NetworkError" xml:space="preserve"><value>নেটওয়ার্ক সমস্যা হয়েছে। সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।</value></data>
+  <data name="AccountDeactivated" xml:space="preserve"><value>আপনার অ্যাকাউন্ট নিষ্ক্রিয়। প্রতিষ্ঠানের প্রশাসকের সাথে যোগাযোগ করুন।</value></data>
+  <data name="VerifyBeforeLogin" xml:space="preserve"><value>লগ ইন করার আগে ইমেইল যাচাই করুন।</value></data>
+  <data name="AccountLocked" xml:space="preserve"><value>আপনার অ্যাকাউন্ট সাময়িকভাবে লক হয়েছে। ১৫ মিনিট পর চেষ্টা করুন।</value></data>
+  <data name="ForgotPasswordTitle" xml:space="preserve"><value>পাসওয়ার্ড পুনরুদ্ধার করুন</value></data>
+  <data name="ForgotPasswordHelp" xml:space="preserve"><value>নিবন্ধিত ইমেইল দিন। গোপনীয়তার জন্য অ্যাকাউন্ট থাকুক বা না থাকুক একই উত্তর দেখানো হবে।</value></data>
+  <data name="SendResetLink" xml:space="preserve"><value>রিসেট লিংক পাঠান</value></data>
+  <data name="Sending" xml:space="preserve"><value>পাঠানো হচ্ছে…</value></data>
+  <data name="EmailRequired" xml:space="preserve"><value>ইমেইল আবশ্যক।</value></data>
+  <data name="ResetRequestFailed" xml:space="preserve"><value>রিসেট অনুরোধ সম্পন্ন হয়নি। আবার চেষ্টা করুন।</value></data>
+  <data name="ResetEmailSentTitle" xml:space="preserve"><value>আপনার ইমেইল দেখুন</value></data>
+  <data name="ResetEmailSentMessage" xml:space="preserve"><value>এই ঠিকানার অ্যাকাউন্ট থাকলে পাসওয়ার্ড রিসেট লিংক পাঠানো হয়েছে।</value></data>
+  <data name="BackToLogin" xml:space="preserve"><value>লগ ইন-এ ফিরে যান</value></data>
+  <data name="ResetPasswordTitle" xml:space="preserve"><value>নতুন পাসওয়ার্ড দিন</value></data>
+  <data name="ResetPasswordHelp" xml:space="preserve"><value>কমপক্ষে ৬টি অক্ষর ব্যবহার করুন এবং পুরোনো পাসওয়ার্ড পুনরায় ব্যবহার করবেন না।</value></data>
+  <data name="NewPassword" xml:space="preserve"><value>নতুন পাসওয়ার্ড</value></data>
+  <data name="ConfirmPassword" xml:space="preserve"><value>পাসওয়ার্ড নিশ্চিত করুন</value></data>
+  <data name="ResetPassword" xml:space="preserve"><value>পাসওয়ার্ড রিসেট করুন</value></data>
+  <data name="Resetting" xml:space="preserve"><value>রিসেট হচ্ছে…</value></data>
+  <data name="PasswordMinSix" xml:space="preserve"><value>পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।</value></data>
+  <data name="PasswordsDoNotMatch" xml:space="preserve"><value>পাসওয়ার্ড দুটি মিলছে না।</value></data>
+  <data name="ResetFailed" xml:space="preserve"><value>পাসওয়ার্ড রিসেট হয়নি। লিংকের মেয়াদ শেষ হয়ে থাকতে পারে।</value></data>
+  <data name="PasswordResetSuccess" xml:space="preserve"><value>পাসওয়ার্ড সফলভাবে রিসেট হয়েছে। এখন লগ ইন করুন।</value></data>
+  <data name="SignupTitle" xml:space="preserve"><value>আপনার প্রতিষ্ঠান তৈরি করুন</value></data>
+  <data name="SignupSubtitle" xml:space="preserve"><value>বাংলাদেশ-উপযোগী preset দিয়ে শুরু করে প্রতিষ্ঠানের মতো সাজিয়ে নিন</value></data>
+  <data name="InstitutionName" xml:space="preserve"><value>প্রতিষ্ঠানের নাম</value></data>
+  <data name="InstitutionNameExample" xml:space="preserve"><value>উদাহরণ: গ্রিন ফিল্ড স্কুল</value></data>
+  <data name="InstitutionType" xml:space="preserve"><value>প্রতিষ্ঠানের ধরন</value></data>
+  <data name="LoadingInstitutionTypes" xml:space="preserve"><value>প্রতিষ্ঠানের ধরন লোড হচ্ছে…</value></data>
+  <data name="SelectInstitutionType" xml:space="preserve"><value>প্রতিষ্ঠানের ধরন বেছে নিন</value></data>
+  <data name="OwnerAdminName" xml:space="preserve"><value>মালিক / প্রশাসকের পূর্ণ নাম</value></data>
+  <data name="OwnerNameExample" xml:space="preserve"><value>উদাহরণ: মো. রহিম উদ্দিন</value></data>
+  <data name="PhoneNumber" xml:space="preserve"><value>ফোন নম্বর</value></data>
+  <data name="BangladeshPhoneExample" xml:space="preserve"><value>উদাহরণ: ০১৭০০০০০০০০</value></data>
+  <data name="EnterPassword" xml:space="preserve"><value>পাসওয়ার্ড লিখুন</value></data>
+  <data name="AgreeTerms" xml:space="preserve"><value>আমি প্ল্যাটফর্মের শর্তে সম্মত এবং বুঝি যে ইমেইল যাচাইয়ের পর প্রতিষ্ঠানটি সক্রিয় হবে।</value></data>
+  <data name="CreateInstitutionAccount" xml:space="preserve"><value>প্রতিষ্ঠানের অ্যাকাউন্ট তৈরি করুন</value></data>
+  <data name="AlreadyHaveAccount" xml:space="preserve"><value>আগে থেকেই অ্যাকাউন্ট আছে?</value></data>
+  <data name="CreatingAccount" xml:space="preserve"><value>অ্যাকাউন্ট তৈরি হচ্ছে…</value></data>
+  <data name="InstitutionNameRequired" xml:space="preserve"><value>প্রতিষ্ঠানের নাম আবশ্যক।</value></data>
+  <data name="InstitutionTypeRequired" xml:space="preserve"><value>প্রতিষ্ঠানের ধরন বেছে নিন।</value></data>
+  <data name="OwnerNameRequired" xml:space="preserve"><value>মালিক অথবা প্রশাসকের নাম আবশ্যক।</value></data>
+  <data name="ValidEmailRequired" xml:space="preserve"><value>সঠিক ইমেইল ঠিকানা দিন।</value></data>
+  <data name="MustAgreeTerms" xml:space="preserve"><value>শর্তে সম্মতি দেওয়া আবশ্যক।</value></data>
+  <data name="SignupFailed" xml:space="preserve"><value>অ্যাকাউন্ট তৈরি করা যায়নি। তথ্য দেখে আবার চেষ্টা করুন।</value></data>
+  <data name="CatalogLoadFailed" xml:space="preserve"><value>প্রতিষ্ঠানের ধরন লোড হয়নি। পেজ রিফ্রেশ করে আবার চেষ্টা করুন।</value></data>
+  <data name="VeryWeak" xml:space="preserve"><value>খুব দুর্বল</value></data>
+  <data name="Weak" xml:space="preserve"><value>দুর্বল</value></data>
+  <data name="Fair" xml:space="preserve"><value>মোটামুটি</value></data>
+  <data name="Strong" xml:space="preserve"><value>শক্তিশালী</value></data>
+  <data name="VeryStrong" xml:space="preserve"><value>খুব শক্তিশালী</value></data>
+  <data name="AccountAlreadyExists" xml:space="preserve"><value>এই ইমেইলে অ্যাকাউন্ট আছে। লগ ইন করুন অথবা পাসওয়ার্ড রিসেট করুন।</value></data>
+  <data name="SignupSuccessTitle" xml:space="preserve"><value>প্রতিষ্ঠানের অ্যাকাউন্ট তৈরি হয়েছে</value></data>
+  <data name="SignupSuccessMessage" xml:space="preserve"><value>ইমেইল দেখে অ্যাকাউন্ট যাচাই করুন, তারপর নির্দেশিত সেটআপ চালিয়ে যান।</value></data>
+  <data name="GoToLogin" xml:space="preserve"><value>লগ ইন-এ যান</value></data>
+  <data name="EmailVerifiedTitle" xml:space="preserve"><value>ইমেইল সফলভাবে যাচাই হয়েছে</value></data>
+  <data name="EmailVerifiedMessage" xml:space="preserve"><value>আপনার প্রতিষ্ঠানের অ্যাকাউন্ট যাচাই হয়েছে। এখন লগ ইন করে সেটআপ চালিয়ে যেতে পারবেন।</value></data>
+  <data name="AccessDeniedTitle" xml:space="preserve"><value>প্রবেশের অনুমতি নেই</value></data>
+  <data name="AccessDeniedMessage" xml:space="preserve"><value>এই পেজ দেখার অনুমতি আপনার নেই।</value></data>
+  <data name="PageNotFoundTitle" xml:space="preserve"><value>পেজ পাওয়া যায়নি</value></data>
+  <data name="PageNotFoundMessage" xml:space="preserve"><value>পেজটি সরানো হয়েছে অথবা ঠিকানাটি সঠিক নয়।</value></data>
+  <data name="ServerErrorTitle" xml:space="preserve"><value>কিছু একটা সমস্যা হয়েছে</value></data>
+  <data name="ServerErrorMessage" xml:space="preserve"><value>অনুরোধটি সম্পন্ন করা যায়নি। কিছুক্ষণ পর আবার চেষ্টা করুন।</value></data>
+  <data name="EmailVerificationProcessingTitle" xml:space="preserve"><value>ইমেইল যাচাই</value></data>
+  <data name="EmailVerificationProcessingMessage" xml:space="preserve"><value>আপনার ইমেইল নিরাপদভাবে যাচাই করা হচ্ছে।</value></data>
+  <data name="PaymentFailedTitle" xml:space="preserve"><value>পেমেন্ট ব্যর্থ হয়েছে</value></data>
+  <data name="PaymentFailedMessage" xml:space="preserve"><value>পেমেন্টটি সম্পন্ন হয়নি। আপনার অ্যাকাউন্ট থেকে কোনো টাকা কাটা হয়নি।</value></data>
+  <data name="PaymentFailureReasons" xml:space="preserve"><value>সাধারণ কারণের মধ্যে পর্যাপ্ত ব্যালেন্স না থাকা, ভুল পেমেন্ট তথ্য অথবা নেটওয়ার্ক সমস্যা রয়েছে।</value></data>
+  <data name="TryAgain" xml:space="preserve"><value>আবার চেষ্টা করুন</value></data>
+  <data name="ContinueWithTrial" xml:space="preserve"><value>ট্রায়াল দিয়ে চালিয়ে যান</value></data>
+  <data name="PaymentCancelledTitle" xml:space="preserve"><value>পেমেন্ট বাতিল হয়েছে</value></data>
+  <data name="PaymentCancelledMessage" xml:space="preserve"><value>আপনি পেমেন্টটি বাতিল করেছেন। যেকোনো সময় প্ল্যান বেছে নিয়ে আবার চেষ্টা করতে পারবেন।</value></data>
+  <data name="ChoosePlan" xml:space="preserve"><value>প্ল্যান বেছে নিন</value></data>
+  <data name="PaymentSuccessfulTitle" xml:space="preserve"><value>পেমেন্ট সফল হয়েছে</value></data>
+  <data name="PaymentSuccessfulMessage" xml:space="preserve"><value>আপনার সাবস্ক্রিপশন সক্রিয় হয়েছে। এখন প্রতিষ্ঠানের সেটআপ চালিয়ে যান।</value></data>
+  <data name="Transaction" xml:space="preserve"><value>লেনদেন</value></data>
+  <data name="ContinueSetup" xml:space="preserve"><value>সেটআপ চালিয়ে যান</value></data>
+  <data name="GoToDashboard" xml:space="preserve"><value>ড্যাশবোর্ডে যান</value></data>
+  <data name="OnboardingReadyTitle" xml:space="preserve"><value>আপনার EduOS পোর্টাল প্রস্তুত</value></data>
+  <data name="OnboardingReadyMessage" xml:space="preserve"><value>সেটআপ সম্পন্ন হয়েছে। এখন প্রতিষ্ঠানের প্রয়োজনীয় মানুষ ও একাডেমিক কাঠামো যোগ করুন।</value></data>
+  <data name="SuggestedNextSteps" xml:space="preserve"><value>পরবর্তী প্রস্তাবিত কাজ</value></data>
+  <data name="AddStudentsTeachers" xml:space="preserve"><value>শিক্ষার্থী ও শিক্ষক যোগ করুন</value></data>
+  <data name="SetupClassesSubjects" xml:space="preserve"><value>শ্রেণি, কোর্স ও বিষয় সেটআপ করুন</value></data>
+  <data name="ConfigureFeeStructure" xml:space="preserve"><value>ফি কাঠামো নির্ধারণ করুন</value></data>
+  <data name="InviteTeamMembers" xml:space="preserve"><value>টিম সদস্যদের আমন্ত্রণ জানান</value></data>
+  <data name="ReviewSettings" xml:space="preserve"><value>সেটিংস পর্যালোচনা করুন</value></data>
 </root>

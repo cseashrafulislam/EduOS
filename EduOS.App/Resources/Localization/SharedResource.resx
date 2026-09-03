@@ -90,4 +90,107 @@
   <data name="Email Verified" xml:space="preserve"><value>Email verified</value></data>
   <data name="Institution Sign Up" xml:space="preserve"><value>Institution sign-up</value></data>
   <data name="Institution Profile Setup" xml:space="preserve"><value>Institution profile setup</value></data>
+  <data name="BackToDashboard" xml:space="preserve"><value>Back to dashboard</value></data>
+  <data name="CreateInstitution" xml:space="preserve"><value>Create institution</value></data>
+  <data name="PublicTagline" xml:space="preserve"><value>One connected platform for Bangladesh education</value></data>
+  <data name="SecurePlatform" xml:space="preserve"><value>Secure multi-tenant platform</value></data>
+  <data name="LogInTitle" xml:space="preserve"><value>Sign in to EduOS</value></data>
+  <data name="LoginSubtitle" xml:space="preserve"><value>Continue managing your institution securely</value></data>
+  <data name="Email" xml:space="preserve"><value>Email</value></data>
+  <data name="EmailAddress" xml:space="preserve"><value>Email address</value></data>
+  <data name="Password" xml:space="preserve"><value>Password</value></data>
+  <data name="RememberMe" xml:space="preserve"><value>Remember me</value></data>
+  <data name="ForgotPasswordQuestion" xml:space="preserve"><value>Forgot password?</value></data>
+  <data name="NoAccount" xml:space="preserve"><value>New to EduOS?</value></data>
+  <data name="SignUpNow" xml:space="preserve"><value>Create an institution account</value></data>
+  <data name="SigningIn" xml:space="preserve"><value>Signing in…</value></data>
+  <data name="SignIn" xml:space="preserve"><value>Sign in</value></data>
+  <data name="EmailPasswordRequired" xml:space="preserve"><value>Email and password are required.</value></data>
+  <data name="InvalidCredentials" xml:space="preserve"><value>The email or password is not correct.</value></data>
+  <data name="NetworkError" xml:space="preserve"><value>Network error. Check your connection and try again.</value></data>
+  <data name="AccountDeactivated" xml:space="preserve"><value>Your account is inactive. Contact your institution administrator.</value></data>
+  <data name="VerifyBeforeLogin" xml:space="preserve"><value>Verify your email before signing in.</value></data>
+  <data name="AccountLocked" xml:space="preserve"><value>Your account is temporarily locked. Try again in 15 minutes.</value></data>
+  <data name="ForgotPasswordTitle" xml:space="preserve"><value>Reset your password</value></data>
+  <data name="ForgotPasswordHelp" xml:space="preserve"><value>Enter your registered email. For privacy, the response is the same whether or not an account exists.</value></data>
+  <data name="SendResetLink" xml:space="preserve"><value>Send reset link</value></data>
+  <data name="Sending" xml:space="preserve"><value>Sending…</value></data>
+  <data name="EmailRequired" xml:space="preserve"><value>Email is required.</value></data>
+  <data name="ResetRequestFailed" xml:space="preserve"><value>The reset request could not be completed. Try again.</value></data>
+  <data name="ResetEmailSentTitle" xml:space="preserve"><value>Check your email</value></data>
+  <data name="ResetEmailSentMessage" xml:space="preserve"><value>If an account exists for this address, a password reset link has been sent.</value></data>
+  <data name="BackToLogin" xml:space="preserve"><value>Back to sign in</value></data>
+  <data name="ResetPasswordTitle" xml:space="preserve"><value>Choose a new password</value></data>
+  <data name="ResetPasswordHelp" xml:space="preserve"><value>Use at least six characters and avoid reusing an old password.</value></data>
+  <data name="NewPassword" xml:space="preserve"><value>New password</value></data>
+  <data name="ConfirmPassword" xml:space="preserve"><value>Confirm password</value></data>
+  <data name="ResetPassword" xml:space="preserve"><value>Reset password</value></data>
+  <data name="Resetting" xml:space="preserve"><value>Resetting…</value></data>
+  <data name="PasswordMinSix" xml:space="preserve"><value>Password must be at least 6 characters.</value></data>
+  <data name="PasswordsDoNotMatch" xml:space="preserve"><value>Passwords do not match.</value></data>
+  <data name="ResetFailed" xml:space="preserve"><value>Password reset failed. The link may have expired.</value></data>
+  <data name="PasswordResetSuccess" xml:space="preserve"><value>Password reset successfully. Please sign in.</value></data>
+  <data name="SignupTitle" xml:space="preserve"><value>Create your institution</value></data>
+  <data name="SignupSubtitle" xml:space="preserve"><value>Start with a Bangladesh-ready preset and configure it for your institution</value></data>
+  <data name="InstitutionName" xml:space="preserve"><value>Institution name</value></data>
+  <data name="InstitutionNameExample" xml:space="preserve"><value>Example: Green Field School</value></data>
+  <data name="InstitutionType" xml:space="preserve"><value>Institution type</value></data>
+  <data name="LoadingInstitutionTypes" xml:space="preserve"><value>Loading institution types…</value></data>
+  <data name="SelectInstitutionType" xml:space="preserve"><value>Select institution type</value></data>
+  <data name="OwnerAdminName" xml:space="preserve"><value>Owner / admin full name</value></data>
+  <data name="OwnerNameExample" xml:space="preserve"><value>Example: Md. Rahim Uddin</value></data>
+  <data name="PhoneNumber" xml:space="preserve"><value>Phone number</value></data>
+  <data name="BangladeshPhoneExample" xml:space="preserve"><value>Example: 01700000000</value></data>
+  <data name="EnterPassword" xml:space="preserve"><value>Enter password</value></data>
+  <data name="AgreeTerms" xml:space="preserve"><value>I agree to the platform terms and understand that the institution will activate after email verification.</value></data>
+  <data name="CreateInstitutionAccount" xml:space="preserve"><value>Create institution account</value></data>
+  <data name="AlreadyHaveAccount" xml:space="preserve"><value>Already have an account?</value></data>
+  <data name="CreatingAccount" xml:space="preserve"><value>Creating account…</value></data>
+  <data name="InstitutionNameRequired" xml:space="preserve"><value>Institution name is required.</value></data>
+  <data name="InstitutionTypeRequired" xml:space="preserve"><value>Select an institution type.</value></data>
+  <data name="OwnerNameRequired" xml:space="preserve"><value>Owner or admin name is required.</value></data>
+  <data name="ValidEmailRequired" xml:space="preserve"><value>Enter a valid email address.</value></data>
+  <data name="MustAgreeTerms" xml:space="preserve"><value>You must agree to the terms.</value></data>
+  <data name="SignupFailed" xml:space="preserve"><value>The account could not be created. Please review the form and try again.</value></data>
+  <data name="CatalogLoadFailed" xml:space="preserve"><value>Institution types could not be loaded. Refresh the page and try again.</value></data>
+  <data name="VeryWeak" xml:space="preserve"><value>Very weak</value></data>
+  <data name="Weak" xml:space="preserve"><value>Weak</value></data>
+  <data name="Fair" xml:space="preserve"><value>Fair</value></data>
+  <data name="Strong" xml:space="preserve"><value>Strong</value></data>
+  <data name="VeryStrong" xml:space="preserve"><value>Very strong</value></data>
+  <data name="AccountAlreadyExists" xml:space="preserve"><value>An account already exists for this email. Sign in or reset the password.</value></data>
+  <data name="SignupSuccessTitle" xml:space="preserve"><value>Institution account created</value></data>
+  <data name="SignupSuccessMessage" xml:space="preserve"><value>Check your email and verify the account to continue the guided setup.</value></data>
+  <data name="GoToLogin" xml:space="preserve"><value>Go to sign in</value></data>
+  <data name="EmailVerifiedTitle" xml:space="preserve"><value>Email verified successfully</value></data>
+  <data name="EmailVerifiedMessage" xml:space="preserve"><value>Your institution account is verified. You can now sign in and continue setup.</value></data>
+  <data name="AccessDeniedTitle" xml:space="preserve"><value>Access denied</value></data>
+  <data name="AccessDeniedMessage" xml:space="preserve"><value>You do not have permission to access this page.</value></data>
+  <data name="PageNotFoundTitle" xml:space="preserve"><value>Page not found</value></data>
+  <data name="PageNotFoundMessage" xml:space="preserve"><value>The page may have moved or the address may be incorrect.</value></data>
+  <data name="ServerErrorTitle" xml:space="preserve"><value>Something went wrong</value></data>
+  <data name="ServerErrorMessage" xml:space="preserve"><value>The request could not be completed. Please try again later.</value></data>
+  <data name="EmailVerificationProcessingTitle" xml:space="preserve"><value>Email verification</value></data>
+  <data name="EmailVerificationProcessingMessage" xml:space="preserve"><value>Your email verification is being processed securely.</value></data>
+  <data name="PaymentFailedTitle" xml:space="preserve"><value>Payment failed</value></data>
+  <data name="PaymentFailedMessage" xml:space="preserve"><value>The payment could not be processed. No charge was made to your account.</value></data>
+  <data name="PaymentFailureReasons" xml:space="preserve"><value>Common reasons include insufficient balance, incorrect payment details, or a network issue.</value></data>
+  <data name="TryAgain" xml:space="preserve"><value>Try again</value></data>
+  <data name="ContinueWithTrial" xml:space="preserve"><value>Continue with trial</value></data>
+  <data name="PaymentCancelledTitle" xml:space="preserve"><value>Payment cancelled</value></data>
+  <data name="PaymentCancelledMessage" xml:space="preserve"><value>You cancelled this payment. You can choose a plan and try again anytime.</value></data>
+  <data name="ChoosePlan" xml:space="preserve"><value>Choose a plan</value></data>
+  <data name="PaymentSuccessfulTitle" xml:space="preserve"><value>Payment successful</value></data>
+  <data name="PaymentSuccessfulMessage" xml:space="preserve"><value>Your subscription is active. Continue setting up your institution.</value></data>
+  <data name="Transaction" xml:space="preserve"><value>Transaction</value></data>
+  <data name="ContinueSetup" xml:space="preserve"><value>Continue setup</value></data>
+  <data name="GoToDashboard" xml:space="preserve"><value>Go to dashboard</value></data>
+  <data name="OnboardingReadyTitle" xml:space="preserve"><value>Your EduOS portal is ready</value></data>
+  <data name="OnboardingReadyMessage" xml:space="preserve"><value>Setup is complete. Start adding the people and academic structure your institution needs.</value></data>
+  <data name="SuggestedNextSteps" xml:space="preserve"><value>Suggested next steps</value></data>
+  <data name="AddStudentsTeachers" xml:space="preserve"><value>Add students and teachers</value></data>
+  <data name="SetupClassesSubjects" xml:space="preserve"><value>Set up classes, courses, and subjects</value></data>
+  <data name="ConfigureFeeStructure" xml:space="preserve"><value>Configure the fee structure</value></data>
+  <data name="InviteTeamMembers" xml:space="preserve"><value>Invite team members</value></data>
+  <data name="ReviewSettings" xml:space="preserve"><value>Review settings</value></data>
 </root>

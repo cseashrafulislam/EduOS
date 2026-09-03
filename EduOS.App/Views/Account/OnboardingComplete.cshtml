@@ -3,117 +3,21 @@
     Layout = "_Layout";
 }
 
-<style>
-    .success-wrapper {
-        min-height: calc(100vh - 60px);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%);
-        padding: 2rem;
-    }
+<section class="status-card in-app-status" aria-labelledby="onboardingCompleteTitle">
+    <div class="status-mark" aria-hidden="true">✓</div>
+    <h1 id="onboardingCompleteTitle">@T["OnboardingReadyTitle"]</h1>
+    <p>@T["OnboardingReadyMessage"]</p>
 
-    .success-card {
-        background: #fff;
-        border-radius: 16px;
-        padding: 3rem 2.5rem;
-        max-width: 560px;
-        width: 100%;
-        text-align: center;
-        box-shadow: 0 20px 50px rgba(0,0,0,0.08);
-    }
-
-    .success-icon {
-        width: 88px;
-        height: 88px;
-        border-radius: 50%;
-        background: linear-gradient(135deg, #10b981, #059669);
-        color: white;
-        font-size: 44px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin: 0 auto 1.5rem;
-        animation: pop 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    @@keyframes pop {
-        0% { transform: scale(0); opacity: 0; }
-        50% { transform: scale(1.1); }
-        100% { transform: scale(1); opacity: 1; }
-    }
-
-    .success-card h2 {
-        font-size: 24px;
-        margin-bottom: 0.5rem;
-    }
-
-    .success-card .lead {
-        color: #64748b;
-        font-size: 15px;
-        margin-bottom: 2rem;
-    }
-
-    .next-steps {
-        background: #f8fafc;
-        border-radius: 10px;
-        padding: 1rem 1.25rem;
-        text-align: left;
-        margin-bottom: 1.5rem;
-    }
-
-    .next-step-item {
-        display: flex;
-        align-items: center;
-        padding: 6px 0;
-        font-size: 14px;
-        color: #475569;
-    }
-
-    .next-step-item i {
-        color: #10b981;
-        margin-right: 8px;
-    }
-</style>
-
-<div class="success-wrapper">
-    <div class="success-card">
-        <div class="success-icon">
-            <i class="bi bi-check-lg"></i>
-        </div>
-
-        <h2>You're all set!</h2>
-        <p class="lead">
-            Your EduOS portal is ready. Welcome aboard — let's start managing your institution.
-        </p>
-
-        <div class="next-steps">
-            <div class="fw-bold mb-2 small text-uppercase text-muted">Suggested next steps</div>
-            <div class="next-step-item">
-                <i class="bi bi-check-circle-fill"></i>
-                Add your students and teachers
-            </div>
-            <div class="next-step-item">
-                <i class="bi bi-check-circle-fill"></i>
-                Set up classes and subjects
-            </div>
-            <div class="next-step-item">
-                <i class="bi bi-check-circle-fill"></i>
-                Configure fee structure
-            </div>
-            <div class="next-step-item">
-                <i class="bi bi-check-circle-fill"></i>
-                Invite your team members
-            </div>
-        </div>
-
-        <div class="d-grid gap-2">
-            <a href="/Dashboard" class="btn btn-primary btn-lg">
-                Go to dashboard <i class="bi bi-arrow-right ms-1"></i>
-            </a>
-            <a href="/Account/InstitutionProfile" class="btn btn-link text-muted">
-                Review settings
-            </a>
-        </div>
+    <div class="next-steps">
+        <div class="fw-bold mb-2 small text-uppercase text-muted">@T["SuggestedNextSteps"]</div>
+        <div class="next-step-item"><span class="next-step-check" aria-hidden="true">✓</span><span>@T["AddStudentsTeachers"]</span></div>
+        <div class="next-step-item"><span class="next-step-check" aria-hidden="true">✓</span><span>@T["SetupClassesSubjects"]</span></div>
+        <div class="next-step-item"><span class="next-step-check" aria-hidden="true">✓</span><span>@T["ConfigureFeeStructure"]</span></div>
+        <div class="next-step-item"><span class="next-step-check" aria-hidden="true">✓</span><span>@T["InviteTeamMembers"]</span></div>
     </div>
-</div>
+
+    <div class="d-grid gap-2">
+        <a href="/Dashboard" class="btn btn-primary auth-primary-action">@T["GoToDashboard"]</a>
+        <a href="/Account/InstitutionProfile" class="btn btn-link text-muted">@T["ReviewSettings"]</a>
+    </div>
+</section>

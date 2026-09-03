@@ -6,7 +6,7 @@ EduOS is a configurable, multi-tenant SaaS platform for the Bangladesh education
 
 একটি প্রতিষ্ঠান signup করবে, plan/trial বেছে নেবে, payment করবে, নিজের campus, academic structure, branding, terminology, workflow ও enabled modules configure করবে এবং ব্যবহার শুরু করবে। কোনো নির্দিষ্ট প্রতিষ্ঠানের নাম, class structure, fee rule, grading rule বা approval flow shared code-এ hard-code করা যাবে না।
 
-> **Current status:** foundation under active development. Phase 0 security work and the Phase 1 institution/module entitlement catalogue are implemented and tested. The shared application shell supports responsive desktop/mobile use, installable PWA behaviour, and English/Bangla UI resources. Core onboarding, subscription, payment, tenant profile, gateway settings, authentication, dashboard, and audit APIs exist. Many education modules currently have domain entities only; their complete service, API, UI, permission, report, and test workflows are still planned.
+> **Current status:** foundation under active development. Phase 0 security work and the Phase 1 institution/module entitlement catalogue are implemented and tested. The shared and public application shells, authentication/account status pages, and onboarding progress support responsive desktop/mobile use, installable PWA behaviour, and English/Bangla UI resources. Core onboarding, subscription, payment, tenant profile, gateway settings, authentication, dashboard, and audit APIs exist. Many education modules currently have domain entities only; their complete service, API, UI, permission, report, and test workflows are still planned.
 
 ---
 
@@ -683,6 +683,7 @@ EduOS does not add speculative columns just to appear “future-proof.” A mode
 
 - Supported UI cultures are `en-BD` and `bn-BD`; a validated, HttpOnly culture cookie stores the user's choice.
 - The shared shell uses local Bootstrap/JavaScript assets, accessible navigation, mobile drawer behaviour, safe-area spacing and desktop layouts.
+- Public sign-in, sign-up, password recovery, email/payment status and error pages use the same local responsive bilingual foundation. Sign-up institution types come from the data-driven platform catalogue rather than hard-coded HTML options.
 - The web app manifest enables installation. The service worker caches only same-origin static assets.
 - API responses, uploaded tenant files, authenticated pages and personal/institution data are never added to the offline cache. Offline navigation shows a bilingual reconnect page.
 - Stable onboarding step codes let web/mobile clients localize display text without changing the API state machine.
