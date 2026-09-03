@@ -21,6 +21,7 @@ namespace EduOS.Core.DTOs.SaaS
         [Required]
         public string ConfirmPassword { get; set; } = string.Empty;
 
+        [MaxLength(50)]
         public string? InstitutionType { get; set; }
 
         public bool AgreeTerms { get; set; }

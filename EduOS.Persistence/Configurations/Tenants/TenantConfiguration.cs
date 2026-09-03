@@ -59,8 +59,14 @@ namespace EduOS.Persistence.Configurations.Tenants
             builder.HasIndex(t => t.CustomDomain).IsUnique().HasFilter("[CustomDomain] IS NOT NULL AND [IsDeleted] = 0");
             builder.HasIndex(t => t.Email);
             builder.HasIndex(t => t.Status);
+            builder.HasIndex(t => t.InstitutionTypeDefinitionId);
 
             // Relationships
+            builder.HasOne(t => t.InstitutionTypeDefinition)
+                .WithMany(i => i.Tenants)
+                .HasForeignKey(t => t.InstitutionTypeDefinitionId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             builder.HasMany(t => t.Settings)
                 .WithOne(s => s.Tenant)
                 .HasForeignKey(s => s.TenantId)

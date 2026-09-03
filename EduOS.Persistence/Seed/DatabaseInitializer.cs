@@ -48,6 +48,10 @@ namespace EduOS.Persistence.Seed
                 logger.LogInformation("Seeding subscription plans...");
                 await SubscriptionSeeder.SeedAsync(context);
 
+                // 5) Seed data-driven institution presets and product modules
+                logger.LogInformation("Seeding platform catalog...");
+                await PlatformCatalogSeeder.SeedAsync(context);
+
                 logger.LogInformation("Database initialization completed");
             }
             catch (Exception ex)

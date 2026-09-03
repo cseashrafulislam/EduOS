@@ -1,11 +1,13 @@
 ﻿using Microsoft.AspNetCore.Http;
 using System;
+using System.ComponentModel.DataAnnotations;
 
 namespace EduOS.Core.DTOs.SaaS
 {
     public class InstitutionProfileSetupDto
     {
         public string InstitutionName { get; set; } = string.Empty;
+        [MaxLength(50)]
         public string? InstitutionType { get; set; }
         public string OwnerName { get; set; } = string.Empty;
         public string? OwnerPhone { get; set; }
