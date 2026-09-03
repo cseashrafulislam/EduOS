@@ -151,7 +151,9 @@ public class TenantModuleServiceTests
         SubscriptionStatus subscriptionStatus)
     {
         var httpContext = new DefaultHttpContext();
-        var accessor = new HttpContextAccessor { HttpContext = httpContext };
+        // HttpContextAccessor uses a shared AsyncLocal and is unsafe as a fixture
+        // when xUnit runs tenant-scoped test classes in parallel.
+        var accessor = new TestHttpContextAccessor { HttpContext = httpContext };
         var options = new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase($"tenant-module-{Guid.NewGuid():N}")
             .Options;
@@ -215,5 +217,10 @@ public class TenantModuleServiceTests
         public bool IsInRole(string role) => role == "TenantAdmin";
         public string? IpAddress => "127.0.0.1";
         public string? UserAgent => "Tests";
+    }
+
+    private sealed class TestHttpContextAccessor : IHttpContextAccessor
+    {
+        public HttpContext? HttpContext { get; set; }
     }
 }

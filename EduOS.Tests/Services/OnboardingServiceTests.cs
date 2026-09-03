@@ -145,7 +145,9 @@ public class OnboardingServiceTests
             new Claim(ClaimTypes.Role, "TenantAdmin"),
             new Claim("TenantId", tenantId.ToString())
         ], "TestAuthentication"));
-        var accessor = new HttpContextAccessor { HttpContext = httpContext };
+        // HttpContextAccessor stores its value in a shared AsyncLocal. A dedicated
+        // accessor keeps parallel test classes from replacing this tenant context.
+        var accessor = new TestHttpContextAccessor { HttpContext = httpContext };
         var options = new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase($"onboarding-{Guid.NewGuid():N}")
             .Options;
@@ -222,5 +224,10 @@ public class OnboardingServiceTests
         public bool IsInRole(string role) => role == "TenantAdmin";
         public string? IpAddress => "127.0.0.1";
         public string? UserAgent => "Tests";
+    }
+
+    private sealed class TestHttpContextAccessor : IHttpContextAccessor
+    {
+        public HttpContext? HttpContext { get; set; }
     }
 }
