@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'eduos-static-';
-const CACHE_NAME = `${CACHE_PREFIX}v7`;
+const CACHE_NAME = `${CACHE_PREFIX}v8`;
 const OFFLINE_URL = '/offline.html';
 const CORE_ASSETS = [
     OFFLINE_URL,

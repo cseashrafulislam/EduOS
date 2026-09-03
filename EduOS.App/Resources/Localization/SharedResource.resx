@@ -506,4 +506,89 @@
   <data name="ModuleCategoryLearning" xml:space="preserve"><value>Learning</value></data>
   <data name="ModuleCategoryEngagement" xml:space="preserve"><value>Engagement</value></data>
   <data name="ModuleCategoryPlatform" xml:space="preserve"><value>Platform and integrations</value></data>
+  <data name="BrandingSetupTitle" xml:space="preserve"><value>Branding and portal address</value></data>
+  <data name="BrandingSetupHelp" xml:space="preserve"><value>Choose a secure portal address and the visual identity your community will recognize.</value></data>
+  <data name="PortalAddress" xml:space="preserve"><value>Portal address</value></data>
+  <data name="PortalAddressHelp" xml:space="preserve"><value>This unique address is required before the institution workspace can open.</value></data>
+  <data name="PortalSubdomain" xml:space="preserve"><value>Subdomain</value></data>
+  <data name="SubdomainPlaceholder" xml:space="preserve"><value>your-institution</value></data>
+  <data name="SaveSubdomain" xml:space="preserve"><value>Save address</value></data>
+  <data name="CheckingAvailability" xml:space="preserve"><value>Checking availability…</value></data>
+  <data name="SubdomainAvailable" xml:space="preserve"><value>This portal address is available.</value></data>
+  <data name="SubdomainUnavailable" xml:space="preserve"><value>This portal address is unavailable. Try another name.</value></data>
+  <data name="SubdomainCheckFailed" xml:space="preserve"><value>The address could not be checked. Try again.</value></data>
+  <data name="SubdomainSaved" xml:space="preserve"><value>Portal address saved.</value></data>
+  <data name="SubdomainSaveFailed" xml:space="preserve"><value>The portal address could not be saved. Check it and try again.</value></data>
+  <data name="LogoAndFavicon" xml:space="preserve"><value>Logo and app icon</value></data>
+  <data name="BrandAssetsHelp" xml:space="preserve"><value>Use clear, trusted images that remain readable on phones and computers.</value></data>
+  <data name="Logo" xml:space="preserve"><value>Institution logo</value></data>
+  <data name="Favicon" xml:space="preserve"><value>Browser and app icon</value></data>
+  <data name="Upload" xml:space="preserve"><value>Upload</value></data>
+  <data name="Remove" xml:space="preserve"><value>Remove</value></data>
+  <data name="UploadLogo" xml:space="preserve"><value>Upload institution logo</value></data>
+  <data name="UploadFavicon" xml:space="preserve"><value>Upload browser and app icon</value></data>
+  <data name="LogoUploadHelp" xml:space="preserve"><value>JPG, PNG, or WEBP; maximum 5 MB.</value></data>
+  <data name="FaviconUploadHelp" xml:space="preserve"><value>PNG or JPG; maximum 5 MB.</value></data>
+  <data name="RemoveLogoConfirm" xml:space="preserve"><value>Remove the current institution logo?</value></data>
+  <data name="RemoveFaviconConfirm" xml:space="preserve"><value>Remove the current browser and app icon?</value></data>
+  <data name="LogoPreview" xml:space="preserve"><value>Institution logo preview</value></data>
+  <data name="FaviconPreview" xml:space="preserve"><value>Browser and app icon preview</value></data>
+  <data name="UploadedSuccessfully" xml:space="preserve"><value>Image uploaded securely.</value></data>
+  <data name="UploadFailed" xml:space="preserve"><value>The image could not be uploaded. Check its type and size.</value></data>
+  <data name="RemoveFailed" xml:space="preserve"><value>The image could not be removed. Try again.</value></data>
+  <data name="BrandColors" xml:space="preserve"><value>Brand colors</value></data>
+  <data name="BrandColorsHelp" xml:space="preserve"><value>These colors will identify your institution across the workspace.</value></data>
+  <data name="PrimaryColor" xml:space="preserve"><value>Primary color</value></data>
+  <data name="SecondaryColor" xml:space="preserve"><value>Secondary color</value></data>
+  <data name="AccentColor" xml:space="preserve"><value>Accent color</value></data>
+  <data name="BrandingRequiredNote" xml:space="preserve"><value>The portal address is required. Images and colors can be changed later by an administrator.</value></data>
+  <data name="BrandingSaveFailed" xml:space="preserve"><value>Branding could not be saved. Confirm the portal address and colors.</value></data>
+  <data name="GeneralSettingsTitle" xml:space="preserve"><value>Regional preferences</value></data>
+  <data name="GeneralSettingsHelp" xml:space="preserve"><value>Set the defaults used for money, dates, time, and language across your institution.</value></data>
+  <data name="RegionalPreferences" xml:space="preserve"><value>Institution defaults</value></data>
+  <data name="RegionalPreferencesHelp" xml:space="preserve"><value>Bangladesh-friendly defaults are selected, and an administrator can change them later.</value></data>
+  <data name="Currency" xml:space="preserve"><value>Currency</value></data>
+  <data name="CurrencySymbol" xml:space="preserve"><value>Currency symbol</value></data>
+  <data name="TimeZone" xml:space="preserve"><value>Time zone</value></data>
+  <data name="DateFormat" xml:space="preserve"><value>Date format</value></data>
+  <data name="CurrencyBDT" xml:space="preserve"><value>Bangladeshi taka (BDT)</value></data>
+  <data name="CurrencyUSD" xml:space="preserve"><value>US dollar (USD)</value></data>
+  <data name="CurrencyINR" xml:space="preserve"><value>Indian rupee (INR)</value></data>
+  <data name="CurrencyGBP" xml:space="preserve"><value>British pound (GBP)</value></data>
+  <data name="CurrencyEUR" xml:space="preserve"><value>Euro (EUR)</value></data>
+  <data name="CurrencyAED" xml:space="preserve"><value>UAE dirham (AED)</value></data>
+  <data name="RegionalDefaultsNote" xml:space="preserve"><value>These defaults affect future entries; existing financial records will not be converted.</value></data>
+  <data name="SkipForNow" xml:space="preserve"><value>Skip for now</value></data>
+  <data name="GeneralSettingsSaveFailed" xml:space="preserve"><value>The regional preferences could not be saved. Review the selected values.</value></data>
+  <data name="GatewaySetupTitle" xml:space="preserve"><value>SMS and email delivery</value></data>
+  <data name="GatewaySetupHelp" xml:space="preserve"><value>Connect your own messaging providers now, or safely finish setup and configure them later.</value></data>
+  <data name="GatewayLoadFailed" xml:space="preserve"><value>Gateway settings could not be loaded. Reload before changing them.</value></data>
+  <data name="SmsSettingsSaved" xml:space="preserve"><value>SMS settings saved securely.</value></data>
+  <data name="EmailSettingsSaved" xml:space="preserve"><value>Email settings saved securely.</value></data>
+  <data name="GatewaySaveFailed" xml:space="preserve"><value>The gateway settings were not saved. Use a public secure host and complete all enabled fields.</value></data>
+  <data name="FinishingSetup" xml:space="preserve"><value>Finishing setup…</value></data>
+  <data name="FinishSetup" xml:space="preserve"><value>Finish setup</value></data>
+  <data name="OnboardingCompletionFailed" xml:space="preserve"><value>Setup could not be completed. Review the required steps and try again.</value></data>
+  <data name="SmsGateway" xml:space="preserve"><value>SMS gateway</value></data>
+  <data name="SmsGatewayHelp" xml:space="preserve"><value>Send attendance, payment, and emergency messages through a supported provider.</value></data>
+  <data name="Enable" xml:space="preserve"><value>Enable</value></data>
+  <data name="Provider" xml:space="preserve"><value>Provider</value></data>
+  <data name="SelectProvider" xml:space="preserve"><value>Select a provider</value></data>
+  <data name="CustomProvider" xml:space="preserve"><value>Custom secure provider</value></data>
+  <data name="SenderId" xml:space="preserve"><value>Sender ID</value></data>
+  <data name="ApiUrl" xml:space="preserve"><value>Secure API URL</value></data>
+  <data name="ApiKey" xml:space="preserve"><value>API key</value></data>
+  <data name="SecretStoredHelp" xml:space="preserve"><value>Secrets are encrypted and are shown only as a mask after saving.</value></data>
+  <data name="SaveSmsSettings" xml:space="preserve"><value>Save SMS settings</value></data>
+  <data name="EmailGateway" xml:space="preserve"><value>Email gateway (SMTP)</value></data>
+  <data name="EmailGatewayHelp" xml:space="preserve"><value>Send official notices and account messages from your institution's address.</value></data>
+  <data name="SmtpHost" xml:space="preserve"><value>SMTP host</value></data>
+  <data name="SmtpPort" xml:space="preserve"><value>SMTP port</value></data>
+  <data name="Username" xml:space="preserve"><value>Username</value></data>
+  <data name="FromEmail" xml:space="preserve"><value>From email</value></data>
+  <data name="FromName" xml:space="preserve"><value>From name</value></data>
+  <data name="UseSsl" xml:space="preserve"><value>Use SSL/TLS encryption</value></data>
+  <data name="SaveEmailSettings" xml:space="preserve"><value>Save email settings</value></data>
+  <data name="GatewayOptionalNote" xml:space="preserve"><value>Gateway setup is optional. EduOS never displays a saved secret and blocks local or insecure endpoints.</value></data>
+  <data name="SkipAndFinish" xml:space="preserve"><value>Skip and finish</value></data>
 </root>

@@ -1,155 +1,240 @@
-// ============================================================
-// GATEWAY-SETUP.JS - Onboarding Step 8 (Optional)
-// ============================================================
+(() => {
+    'use strict';
 
-document.addEventListener('DOMContentLoaded', async function () {
+    const stringsNode = document.getElementById('gatewaySetupStrings');
+    const i18n = stringsNode ? JSON.parse(stringsNode.textContent || '{}') : {};
+    const alertContainer = document.getElementById('alertContainer');
+    const finishButton = document.getElementById('finishBtn');
+    const skipButton = document.getElementById('skipBtn');
+    let onboarding = null;
 
-    await Promise.all([loadSmsSettings(), loadEmailSettings()]);
-    loadOnboardingStatus?.();
+    document.addEventListener('DOMContentLoaded', async () => {
+        document.getElementById('smsForm')?.addEventListener('submit', saveSms);
+        document.getElementById('emailForm')?.addEventListener('submit', saveEmail);
+        document.getElementById('smsEnabled')?.addEventListener('change', updateRequiredFields);
+        document.getElementById('emailEnabled')?.addEventListener('change', updateRequiredFields);
+        finishButton?.addEventListener('click', () => finishOnboarding(false));
+        skipButton?.addEventListener('click', () => finishOnboarding(true));
+        await Promise.all([loadSms(), loadEmail(), loadOnboardingState()]);
+        updateRequiredFields();
+        updateActions();
+    }, { once: true });
 
-    // ── SMS Save ──────────────────────────────────────────────
-    document.getElementById('saveSmsBtn')?.addEventListener('click', async function () {
-        const dto = {
-            provider: val('smsProvider'),
-            apiUrl: val('smsApiUrl'),
-            apiKey: val('smsApiKey'),
-            senderId: val('smsSenderId'),
-            isEnabled: document.getElementById('smsEnabled')?.checked ?? false
-        };
-        setLoading(this, true, 'Saving...');
+    async function loadSms() {
         try {
-            const res = await fetch('/api/tenant-settings/sms-gateway', {
-                method: 'PUT', credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(dto)
-            });
-            const json = await res.json();
-            showAlert(json.success ? 'success' : 'danger', json.message);
-        } catch { showAlert('danger', 'Network error'); }
-        finally { setLoading(this, false, '<i class="bi bi-save"></i> Save SMS settings'); }
-    });
-
-    // ── Email Save ────────────────────────────────────────────
-    document.getElementById('saveEmailBtn')?.addEventListener('click', async function () {
-        const dto = {
-            smtpHost: val('smtpHost'),
-            smtpPort: parseInt(val('smtpPort')) || null,
-            smtpUsername: val('smtpUsername'),
-            smtpPassword: val('smtpPassword'),
-            fromEmail: val('fromEmail'),
-            fromName: val('fromName'),
-            useSsl: document.getElementById('useSsl')?.checked ?? true,
-            isEnabled: document.getElementById('emailEnabled')?.checked ?? false
-        };
-        setLoading(this, true, 'Saving...');
-        try {
-            const res = await fetch('/api/tenant-settings/email-gateway', {
-                method: 'PUT', credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(dto)
-            });
-            const json = await res.json();
-            showAlert(json.success ? 'success' : 'danger', json.message);
-        } catch { showAlert('danger', 'Network error'); }
-        finally { setLoading(this, false, '<i class="bi bi-save"></i> Save email settings'); }
-    });
-
-    // ── Test SMS ──────────────────────────────────────────────
-    document.getElementById('testSmsBtn')?.addEventListener('click', async function () {
-        const phone = prompt('Enter phone number to test (e.g., 01700000000):');
-        if (!phone) return;
-        setLoading(this, true, 'Sending...');
-        try {
-            const res = await fetch('/api/tenant-settings/sms-gateway/test', {
-                method: 'POST', credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone })
-            });
-            const json = await res.json();
-            showAlert(json.success ? 'success' : 'danger', json.message || 'Test sent');
-        } catch { showAlert('danger', 'Network error'); }
-        finally { setLoading(this, false, 'Send test SMS'); }
-    });
-
-    // ── Finish / Skip ─────────────────────────────────────────
-    document.getElementById('finishBtn')?.addEventListener('click', finishOnboarding);
-    document.getElementById('skipBtn')?.addEventListener('click', finishOnboarding);
-});
-
-async function loadSmsSettings() {
-    try {
-        const res = await fetch('/api/tenant-settings/sms-gateway', { credentials: 'include' });
-        const json = await res.json();
-        if (!json.success || !json.data) return;
-        const d = json.data;
-        setSelect('smsProvider', d.provider);
-        setVal('smsApiUrl', d.apiUrl);
-        setVal('smsApiKey', d.apiKey ? '••••••••' : ''); // mask API key
-        setVal('smsSenderId', d.senderId);
-        const toggle = document.getElementById('smsEnabled');
-        if (toggle) toggle.checked = d.isEnabled ?? false;
-    } catch { /* ignore */ }
-}
-
-async function loadEmailSettings() {
-    try {
-        const res = await fetch('/api/tenant-settings/email-gateway', { credentials: 'include' });
-        const json = await res.json();
-        if (!json.success || !json.data) return;
-        const d = json.data;
-        setVal('smtpHost', d.smtpHost);
-        setVal('smtpPort', d.smtpPort);
-        setVal('smtpUsername', d.smtpUsername);
-        setVal('smtpPassword', d.smtpPassword ? '••••••••' : '');
-        setVal('fromEmail', d.fromEmail);
-        setVal('fromName', d.fromName);
-        const ssl = document.getElementById('useSsl');
-        if (ssl) ssl.checked = d.useSsl !== false;
-        const toggle = document.getElementById('emailEnabled');
-        if (toggle) toggle.checked = d.isEnabled ?? false;
-    } catch { /* ignore */ }
-}
-
-async function finishOnboarding() {
-    const btn = document.getElementById('finishBtn');
-    setLoading(btn, true, 'Finishing...');
-    try {
-        // Mark gateway step complete
-        await fetch('/api/onboarding/complete-step', {
-            method: 'POST', credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ step: 8, skipped: true })
-        });
-
-        // Complete entire onboarding
-        const res = await fetch('/api/onboarding/complete', {
-            method: 'POST', credentials: 'include'
-        });
-        const json = await res.json();
-
-        if (json.success) {
-            window.location.href = '/Account/OnboardingComplete';
-        } else {
-            showAlert('danger', json.message || 'Could not complete onboarding. Please check required steps.');
-            setLoading(btn, false, 'Finish setup <i class="bi bi-check-lg ms-1"></i>');
+            const payload = await getJson('/api/tenant-settings/sms-gateway');
+            if (!payload?.success || !payload.data) throw new Error('sms');
+            const settings = payload.data;
+            setSelect('smsProvider', settings.provider);
+            setValue('smsSenderId', settings.senderId);
+            setValue('smsApiUrl', settings.apiUrl);
+            setValue('smsApiKey', settings.apiKey);
+            setChecked('smsEnabled', settings.isEnabled);
+        } catch {
+            showAlert('danger', i18n.loadFailed);
         }
-    } catch {
-        showAlert('danger', 'Network error. Please try again.');
-        setLoading(btn, false, 'Finish setup');
     }
-}
 
-function val(id) { return document.getElementById(id)?.value?.trim() ?? ''; }
-function setVal(id, v) { const el = document.getElementById(id); if (el) el.value = v ?? ''; }
-function setSelect(id, v) { const el = document.getElementById(id); if (el && v) el.value = v; }
-function showAlert(type, msg) {
-    const c = document.getElementById('alertContainer');
-    if (c) c.innerHTML = `<div class="alert alert-${type} alert-dismissible">
-        ${msg}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
-    setTimeout(() => { if (c) c.innerHTML = ''; }, 4000);
-}
-function setLoading(btn, loading, label) {
-    if (!btn) return;
-    btn.disabled = loading;
-    btn.innerHTML = loading ? `<span class="spinner-border spinner-border-sm me-2"></span>${label}` : label;
-}
+    async function loadEmail() {
+        try {
+            const payload = await getJson('/api/tenant-settings/email-gateway');
+            if (!payload?.success || !payload.data) throw new Error('email');
+            const settings = payload.data;
+            setValue('smtpHost', settings.smtpHost);
+            setSelect('smtpPort', String(settings.smtpPort || 587));
+            setValue('smtpUsername', settings.smtpUsername);
+            setValue('smtpPassword', settings.smtpPassword);
+            setValue('fromEmail', settings.fromEmail);
+            setValue('fromName', settings.fromName);
+            setChecked('useSsl', settings.useSsl !== false);
+            setChecked('emailEnabled', settings.isEnabled);
+        } catch {
+            showAlert('danger', i18n.loadFailed);
+        }
+    }
+
+    async function loadOnboardingState() {
+        try {
+            const payload = await getJson('/api/onboarding/status');
+            onboarding = payload?.success ? payload.data : null;
+        } catch {
+            onboarding = null;
+        }
+    }
+
+    async function saveSms(event) {
+        event.preventDefault();
+        const button = document.getElementById('saveSmsBtn');
+        setButtonLoading(button, true, i18n.saving);
+        try {
+            const response = await fetch('/api/tenant-settings/sms-gateway', {
+                method: 'PUT',
+                cache: 'no-store',
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    provider: valueOf('smsProvider'),
+                    senderId: valueOf('smsSenderId'),
+                    apiUrl: valueOf('smsApiUrl'),
+                    apiKey: valueOf('smsApiKey'),
+                    isEnabled: isChecked('smsEnabled')
+                })
+            });
+            const payload = await response.json().catch(() => null);
+            if (!response.ok || !payload?.success) throw new Error('sms-save');
+            if (valueOf('smsApiKey')) setValue('smsApiKey', '********');
+            showAlert('success', i18n.smsSaved);
+        } catch {
+            showAlert('danger', i18n.saveFailed);
+        } finally {
+            setButtonLoading(button, false, '');
+        }
+    }
+
+    async function saveEmail(event) {
+        event.preventDefault();
+        const button = document.getElementById('saveEmailBtn');
+        setButtonLoading(button, true, i18n.saving);
+        try {
+            const response = await fetch('/api/tenant-settings/email-gateway', {
+                method: 'PUT',
+                cache: 'no-store',
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    smtpHost: valueOf('smtpHost'),
+                    smtpPort: Number.parseInt(valueOf('smtpPort'), 10) || null,
+                    smtpUsername: valueOf('smtpUsername'),
+                    smtpPassword: valueOf('smtpPassword'),
+                    fromEmail: valueOf('fromEmail'),
+                    fromName: valueOf('fromName'),
+                    useSsl: isChecked('useSsl'),
+                    isEnabled: isChecked('emailEnabled')
+                })
+            });
+            const payload = await response.json().catch(() => null);
+            if (!response.ok || !payload?.success) throw new Error('email-save');
+            if (valueOf('smtpPassword')) setValue('smtpPassword', '********');
+            showAlert('success', i18n.emailSaved);
+        } catch {
+            showAlert('danger', i18n.saveFailed);
+        } finally {
+            setButtonLoading(button, false, '');
+        }
+    }
+
+    async function finishOnboarding(skipped) {
+        if (onboarding?.isComplete) {
+            window.location.assign('/Dashboard/Index');
+            return;
+        }
+        if (!onboarding) {
+            showAlert('danger', i18n.completionFailed);
+            return;
+        }
+        if (Number(onboarding.currentStep) !== 8) {
+            window.location.assign(safeLocalUrl(onboarding.nextStepUrl));
+            return;
+        }
+
+        setButtonLoading(skipped ? skipButton : finishButton, true, i18n.finishing);
+        try {
+            const response = await fetch('/api/onboarding/complete-step', {
+                method: 'POST',
+                cache: 'no-store',
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                body: JSON.stringify({ step: 8, skipped })
+            });
+            const payload = await response.json().catch(() => null);
+            if (!response.ok || !payload?.success) throw new Error('complete');
+            window.location.assign('/Account/OnboardingComplete');
+        } catch {
+            showAlert('danger', i18n.completionFailed || i18n.networkError);
+            setButtonLoading(skipButton, false, '');
+            setButtonLoading(finishButton, false, '');
+        }
+    }
+
+    function updateRequiredFields() {
+        const smsRequired = isChecked('smsEnabled');
+        ['smsProvider', 'smsSenderId', 'smsApiUrl', 'smsApiKey'].forEach(id => {
+            const element = document.getElementById(id);
+            if (element) element.required = smsRequired;
+        });
+
+        const emailRequired = isChecked('emailEnabled');
+        ['smtpHost', 'smtpPort', 'fromEmail'].forEach(id => {
+            const element = document.getElementById(id);
+            if (element) element.required = emailRequired;
+        });
+    }
+
+    function updateActions() {
+        if (onboarding?.isComplete) {
+            if (finishButton) finishButton.textContent = i18n.dashboard || '';
+            if (skipButton) skipButton.hidden = true;
+        } else if (onboarding && Number(onboarding.currentStep) !== 8) {
+            if (finishButton) finishButton.textContent = i18n.continueSetup || '';
+            if (skipButton) skipButton.hidden = true;
+        }
+    }
+
+    async function getJson(url) {
+        const response = await fetch(url, {
+            cache: 'no-store',
+            credentials: 'same-origin',
+            headers: { 'Accept': 'application/json' }
+        });
+        if (!response.ok) throw new Error(String(response.status));
+        return response.json();
+    }
+
+    function valueOf(id) {
+        return document.getElementById(id)?.value?.trim() || '';
+    }
+
+    function setValue(id, value) {
+        const element = document.getElementById(id);
+        if (element) element.value = value || '';
+    }
+
+    function setSelect(id, value) {
+        const element = document.getElementById(id);
+        const normalized = String(value || '');
+        if (element && Array.from(element.options).some(option => option.value === normalized)) {
+            element.value = normalized;
+        }
+    }
+
+    function setChecked(id, checked) {
+        const element = document.getElementById(id);
+        if (element) element.checked = Boolean(checked);
+    }
+
+    function isChecked(id) {
+        return Boolean(document.getElementById(id)?.checked);
+    }
+
+    function showAlert(type, message) {
+        if (!alertContainer) return;
+        alertContainer.className = `alert alert-${type}`;
+        alertContainer.textContent = message || '';
+        alertContainer.focus();
+    }
+
+    function setButtonLoading(button, loading, label) {
+        if (!button) return;
+        button.disabled = loading;
+        button.textContent = loading
+            ? label || i18n.saving || ''
+            : button.dataset.idleLabel || label || '';
+    }
+
+    function safeLocalUrl(value) {
+        const candidate = String(value || '');
+        return candidate.startsWith('/') && !candidate.startsWith('//')
+            ? candidate
+            : '/Dashboard/Index';
+    }
+})();

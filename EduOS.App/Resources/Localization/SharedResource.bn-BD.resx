@@ -506,4 +506,89 @@
   <data name="ModuleCategoryLearning" xml:space="preserve"><value>শিক্ষা কার্যক্রম</value></data>
   <data name="ModuleCategoryEngagement" xml:space="preserve"><value>যোগাযোগ ও অংশগ্রহণ</value></data>
   <data name="ModuleCategoryPlatform" xml:space="preserve"><value>প্ল্যাটফর্ম ও ইন্টিগ্রেশন</value></data>
+  <data name="BrandingSetupTitle" xml:space="preserve"><value>ব্র্যান্ডিং ও পোর্টাল ঠিকানা</value></data>
+  <data name="BrandingSetupHelp" xml:space="preserve"><value>নিরাপদ পোর্টাল ঠিকানা এবং শিক্ষার্থী-অভিভাবকদের পরিচিত ভিজ্যুয়াল পরিচয় নির্ধারণ করুন।</value></data>
+  <data name="PortalAddress" xml:space="preserve"><value>পোর্টাল ঠিকানা</value></data>
+  <data name="PortalAddressHelp" xml:space="preserve"><value>প্রতিষ্ঠানের ওয়ার্কস্পেস চালু করতে এই স্বতন্ত্র ঠিকানাটি আবশ্যক।</value></data>
+  <data name="PortalSubdomain" xml:space="preserve"><value>সাবডোমেইন</value></data>
+  <data name="SubdomainPlaceholder" xml:space="preserve"><value>apnar-protisthan</value></data>
+  <data name="SaveSubdomain" xml:space="preserve"><value>ঠিকানা সংরক্ষণ করুন</value></data>
+  <data name="CheckingAvailability" xml:space="preserve"><value>ঠিকানাটি যাচাই করা হচ্ছে…</value></data>
+  <data name="SubdomainAvailable" xml:space="preserve"><value>এই পোর্টাল ঠিকানাটি ব্যবহার করা যাবে।</value></data>
+  <data name="SubdomainUnavailable" xml:space="preserve"><value>এই পোর্টাল ঠিকানাটি পাওয়া যাচ্ছে না। অন্য নাম দিন।</value></data>
+  <data name="SubdomainCheckFailed" xml:space="preserve"><value>ঠিকানাটি যাচাই করা যায়নি। আবার চেষ্টা করুন।</value></data>
+  <data name="SubdomainSaved" xml:space="preserve"><value>পোর্টাল ঠিকানা সংরক্ষিত হয়েছে।</value></data>
+  <data name="SubdomainSaveFailed" xml:space="preserve"><value>পোর্টাল ঠিকানা সংরক্ষণ করা যায়নি। ঠিকানাটি দেখে আবার চেষ্টা করুন।</value></data>
+  <data name="LogoAndFavicon" xml:space="preserve"><value>লোগো ও অ্যাপ আইকন</value></data>
+  <data name="BrandAssetsHelp" xml:space="preserve"><value>ফোন ও কম্পিউটারে পরিষ্কার দেখা যায় এমন বিশ্বস্ত ছবি ব্যবহার করুন।</value></data>
+  <data name="Logo" xml:space="preserve"><value>প্রতিষ্ঠানের লোগো</value></data>
+  <data name="Favicon" xml:space="preserve"><value>ব্রাউজার ও অ্যাপ আইকন</value></data>
+  <data name="Upload" xml:space="preserve"><value>আপলোড করুন</value></data>
+  <data name="Remove" xml:space="preserve"><value>সরান</value></data>
+  <data name="UploadLogo" xml:space="preserve"><value>প্রতিষ্ঠানের লোগো আপলোড করুন</value></data>
+  <data name="UploadFavicon" xml:space="preserve"><value>ব্রাউজার ও অ্যাপ আইকন আপলোড করুন</value></data>
+  <data name="LogoUploadHelp" xml:space="preserve"><value>JPG, PNG বা WEBP; সর্বোচ্চ ৫ MB।</value></data>
+  <data name="FaviconUploadHelp" xml:space="preserve"><value>PNG বা JPG; সর্বোচ্চ ৫ MB।</value></data>
+  <data name="RemoveLogoConfirm" xml:space="preserve"><value>বর্তমান প্রতিষ্ঠানের লোগোটি সরাবেন?</value></data>
+  <data name="RemoveFaviconConfirm" xml:space="preserve"><value>বর্তমান ব্রাউজার ও অ্যাপ আইকনটি সরাবেন?</value></data>
+  <data name="LogoPreview" xml:space="preserve"><value>প্রতিষ্ঠানের লোগোর প্রিভিউ</value></data>
+  <data name="FaviconPreview" xml:space="preserve"><value>ব্রাউজার ও অ্যাপ আইকনের প্রিভিউ</value></data>
+  <data name="UploadedSuccessfully" xml:space="preserve"><value>ছবিটি নিরাপদভাবে আপলোড হয়েছে।</value></data>
+  <data name="UploadFailed" xml:space="preserve"><value>ছবিটি আপলোড করা যায়নি। ধরন ও আকার যাচাই করুন।</value></data>
+  <data name="RemoveFailed" xml:space="preserve"><value>ছবিটি সরানো যায়নি। আবার চেষ্টা করুন।</value></data>
+  <data name="BrandColors" xml:space="preserve"><value>ব্র্যান্ডের রং</value></data>
+  <data name="BrandColorsHelp" xml:space="preserve"><value>ওয়ার্কস্পেসজুড়ে এই রংগুলো আপনার প্রতিষ্ঠানকে চিহ্নিত করবে।</value></data>
+  <data name="PrimaryColor" xml:space="preserve"><value>প্রধান রং</value></data>
+  <data name="SecondaryColor" xml:space="preserve"><value>দ্বিতীয় রং</value></data>
+  <data name="AccentColor" xml:space="preserve"><value>বিশেষ রং</value></data>
+  <data name="BrandingRequiredNote" xml:space="preserve"><value>পোর্টাল ঠিকানা আবশ্যক। অ্যাডমিন পরে ছবি ও রং পরিবর্তন করতে পারবেন।</value></data>
+  <data name="BrandingSaveFailed" xml:space="preserve"><value>ব্র্যান্ডিং সংরক্ষণ করা যায়নি। পোর্টাল ঠিকানা ও রং যাচাই করুন।</value></data>
+  <data name="GeneralSettingsTitle" xml:space="preserve"><value>আঞ্চলিক পছন্দ</value></data>
+  <data name="GeneralSettingsHelp" xml:space="preserve"><value>প্রতিষ্ঠানের টাকা, তারিখ, সময় ও ভাষার ডিফল্ট মান ঠিক করুন।</value></data>
+  <data name="RegionalPreferences" xml:space="preserve"><value>প্রতিষ্ঠানের ডিফল্ট সেটিংস</value></data>
+  <data name="RegionalPreferencesHelp" xml:space="preserve"><value>বাংলাদেশ উপযোগী মান আগে থেকেই দেওয়া আছে; অ্যাডমিন পরে পরিবর্তন করতে পারবেন।</value></data>
+  <data name="Currency" xml:space="preserve"><value>মুদ্রা</value></data>
+  <data name="CurrencySymbol" xml:space="preserve"><value>মুদ্রার চিহ্ন</value></data>
+  <data name="TimeZone" xml:space="preserve"><value>সময় অঞ্চল</value></data>
+  <data name="DateFormat" xml:space="preserve"><value>তারিখের ধরন</value></data>
+  <data name="CurrencyBDT" xml:space="preserve"><value>বাংলাদেশি টাকা (BDT)</value></data>
+  <data name="CurrencyUSD" xml:space="preserve"><value>মার্কিন ডলার (USD)</value></data>
+  <data name="CurrencyINR" xml:space="preserve"><value>ভারতীয় রুপি (INR)</value></data>
+  <data name="CurrencyGBP" xml:space="preserve"><value>ব্রিটিশ পাউন্ড (GBP)</value></data>
+  <data name="CurrencyEUR" xml:space="preserve"><value>ইউরো (EUR)</value></data>
+  <data name="CurrencyAED" xml:space="preserve"><value>সংযুক্ত আরব আমিরাত দিরহাম (AED)</value></data>
+  <data name="RegionalDefaultsNote" xml:space="preserve"><value>এই মান ভবিষ্যতের এন্ট্রিতে প্রযোজ্য হবে; আগের আর্থিক রেকর্ড রূপান্তর হবে না।</value></data>
+  <data name="SkipForNow" xml:space="preserve"><value>এখন বাদ দিন</value></data>
+  <data name="GeneralSettingsSaveFailed" xml:space="preserve"><value>আঞ্চলিক পছন্দ সংরক্ষণ করা যায়নি। নির্বাচিত মানগুলো যাচাই করুন।</value></data>
+  <data name="GatewaySetupTitle" xml:space="preserve"><value>SMS ও ইমেইল পাঠানো</value></data>
+  <data name="GatewaySetupHelp" xml:space="preserve"><value>নিজস্ব মেসেজিং সেবা এখন যুক্ত করুন, অথবা নিরাপদে সেটআপ শেষ করে পরে কনফিগার করুন।</value></data>
+  <data name="GatewayLoadFailed" xml:space="preserve"><value>গেটওয়ে সেটিংস লোড করা যায়নি। পরিবর্তনের আগে পেজটি আবার লোড করুন।</value></data>
+  <data name="SmsSettingsSaved" xml:space="preserve"><value>SMS সেটিংস নিরাপদভাবে সংরক্ষিত হয়েছে।</value></data>
+  <data name="EmailSettingsSaved" xml:space="preserve"><value>ইমেইল সেটিংস নিরাপদভাবে সংরক্ষিত হয়েছে।</value></data>
+  <data name="GatewaySaveFailed" xml:space="preserve"><value>গেটওয়ে সেটিংস সংরক্ষণ হয়নি। পাবলিক নিরাপদ হোস্ট দিন এবং চালু করা সব ঘর পূরণ করুন।</value></data>
+  <data name="FinishingSetup" xml:space="preserve"><value>সেটআপ শেষ করা হচ্ছে…</value></data>
+  <data name="FinishSetup" xml:space="preserve"><value>সেটআপ শেষ করুন</value></data>
+  <data name="OnboardingCompletionFailed" xml:space="preserve"><value>সেটআপ শেষ করা যায়নি। আবশ্যক ধাপগুলো যাচাই করে আবার চেষ্টা করুন।</value></data>
+  <data name="SmsGateway" xml:space="preserve"><value>SMS গেটওয়ে</value></data>
+  <data name="SmsGatewayHelp" xml:space="preserve"><value>সমর্থিত সেবার মাধ্যমে উপস্থিতি, পেমেন্ট ও জরুরি বার্তা পাঠান।</value></data>
+  <data name="Enable" xml:space="preserve"><value>চালু করুন</value></data>
+  <data name="Provider" xml:space="preserve"><value>সেবা প্রদানকারী</value></data>
+  <data name="SelectProvider" xml:space="preserve"><value>সেবা প্রদানকারী বেছে নিন</value></data>
+  <data name="CustomProvider" xml:space="preserve"><value>নিজস্ব নিরাপদ সেবা</value></data>
+  <data name="SenderId" xml:space="preserve"><value>প্রেরকের নাম (Sender ID)</value></data>
+  <data name="ApiUrl" xml:space="preserve"><value>নিরাপদ API ঠিকানা</value></data>
+  <data name="ApiKey" xml:space="preserve"><value>API কী</value></data>
+  <data name="SecretStoredHelp" xml:space="preserve"><value>গোপন তথ্য এনক্রিপ্ট করা হয় এবং সংরক্ষণের পর শুধু আড়াল করা মান দেখা যায়।</value></data>
+  <data name="SaveSmsSettings" xml:space="preserve"><value>SMS সেটিংস সংরক্ষণ করুন</value></data>
+  <data name="EmailGateway" xml:space="preserve"><value>ইমেইল গেটওয়ে (SMTP)</value></data>
+  <data name="EmailGatewayHelp" xml:space="preserve"><value>প্রতিষ্ঠানের ঠিকানা থেকে অফিসিয়াল নোটিশ ও অ্যাকাউন্ট বার্তা পাঠান।</value></data>
+  <data name="SmtpHost" xml:space="preserve"><value>SMTP হোস্ট</value></data>
+  <data name="SmtpPort" xml:space="preserve"><value>SMTP পোর্ট</value></data>
+  <data name="Username" xml:space="preserve"><value>ইউজারনেম</value></data>
+  <data name="FromEmail" xml:space="preserve"><value>প্রেরকের ইমেইল</value></data>
+  <data name="FromName" xml:space="preserve"><value>প্রেরকের নাম</value></data>
+  <data name="UseSsl" xml:space="preserve"><value>SSL/TLS এনক্রিপশন ব্যবহার করুন</value></data>
+  <data name="SaveEmailSettings" xml:space="preserve"><value>ইমেইল সেটিংস সংরক্ষণ করুন</value></data>
+  <data name="GatewayOptionalNote" xml:space="preserve"><value>গেটওয়ে সেটআপ ঐচ্ছিক। EduOS সংরক্ষিত গোপন তথ্য দেখায় না এবং লোকাল বা অনিরাপদ ঠিকানা বন্ধ রাখে।</value></data>
+  <data name="SkipAndFinish" xml:space="preserve"><value>বাদ দিয়ে শেষ করুন</value></data>
 </root>

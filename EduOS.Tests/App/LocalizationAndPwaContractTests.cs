@@ -231,6 +231,45 @@ public class LocalizationAndPwaContractTests
     }
 
     [Fact]
+    public void Final_onboarding_views_are_bilingual_responsive_and_use_safe_dom_updates()
+    {
+        var brandingView = File.ReadAllText(Asset("BrandingSetup.cshtml"));
+        var generalView = File.ReadAllText(Asset("GeneralSettings.cshtml"));
+        var gatewayView = File.ReadAllText(Asset("GatewaySetup.cshtml"));
+        var brandingScript = File.ReadAllText(Asset("branding-setup.js"));
+        var generalScript = File.ReadAllText(Asset("general-settings.js"));
+        var gatewayScript = File.ReadAllText(Asset("gateway-setup.js"));
+        var profileController = File.ReadAllText(Asset("TenantProfileController.cs"));
+        var settingController = File.ReadAllText(Asset("TenantSettingController.cs"));
+
+        new[] { brandingView, generalView, gatewayView }.Should().AllSatisfy(view =>
+        {
+            view.Should().Contain("Layout = \"_OnboardingLayout\"");
+            view.Should().Contain("@T[");
+            view.Should().Contain("setup-page");
+            view.Should().NotContain("<style>");
+            view.Should().NotContain("onclick=");
+        });
+
+        new[] { brandingScript, generalScript, gatewayScript }.Should().AllSatisfy(script =>
+        {
+            script.Should().Contain("credentials: 'same-origin'");
+            script.Should().Contain("textContent");
+            script.Should().Contain("safeLocalUrl");
+            script.Should().NotContain(".innerHTML");
+            script.Should().NotContain("onclick=");
+        });
+
+        brandingScript.Should().Contain("replaceChildren");
+        brandingScript.Should().Contain("safeAssetUrl");
+        gatewayScript.Should().NotContain("/api/onboarding/complete'");
+        profileController.Should().Contain("[AutoValidateAntiforgeryToken]");
+        profileController.Should().Contain("[Authorize(Roles = \"TenantAdmin,SuperAdmin\")]");
+        settingController.Should().Contain("[AutoValidateAntiforgeryToken]");
+        settingController.Should().Contain("[Authorize(Roles = \"TenantAdmin,SuperAdmin\")]");
+    }
+
+    [Fact]
     public void Subscription_and_payment_writes_require_tenant_admin_and_callback_exemptions_are_explicit()
     {
         var subscriptionController = File.ReadAllText(Asset("SubscriptionController.cs"));

@@ -1,206 +1,333 @@
-// ============================================================
-// BRANDING-SETUP.JS - Onboarding Step 6
-// ============================================================
+(() => {
+    'use strict';
 
-document.addEventListener('DOMContentLoaded', async function () {
+    const stringsNode = document.getElementById('brandingSetupStrings');
+    const i18n = stringsNode ? JSON.parse(stringsNode.textContent || '{}') : {};
+    const alertContainer = document.getElementById('alertContainer');
+    const subdomainInput = document.getElementById('subdomainInput');
+    const availabilityMessage = document.getElementById('availabilityMsg');
+    const saveSubdomainButton = document.getElementById('saveSubdomainBtn');
+    const saveBrandingButton = document.getElementById('saveBrandingBtn');
+    let onboarding = null;
+    let savedSubdomain = '';
+    let availableSubdomain = '';
+    let checkTimer = 0;
 
-    await loadProfile();
-    loadOnboardingStatus?.();
-    initColorPickers();
+    document.addEventListener('DOMContentLoaded', async () => {
+        initializeColorInputs();
+        initializeAssetControls();
+        subdomainInput?.addEventListener('input', handleSubdomainInput);
+        saveSubdomainButton?.addEventListener('click', saveSubdomain);
+        document.getElementById('brandingForm')?.addEventListener('submit', saveBranding);
+        await Promise.all([loadProfile(), loadOnboardingState()]);
+        updatePrimaryAction();
+    }, { once: true });
 
-    // ── Subdomain live check ──────────────────────────────────
-    let checkTimer;
-    document.getElementById('subdomainInput')?.addEventListener('input', function () {
-        clearTimeout(checkTimer);
-        const val = this.value.trim().toLowerCase();
-        const msg = document.getElementById('availabilityMsg');
-        const btn = document.getElementById('saveSubdomainBtn');
-        if (msg) { msg.className = 'availability-msg'; msg.textContent = ''; }
-        if (btn) btn.disabled = true;
-        if (val.length < 3) return;
+    function initializeColorInputs() {
+        ['primary', 'secondary', 'accent'].forEach(prefix => {
+            const picker = document.getElementById(`${prefix}Color`);
+            const text = document.getElementById(`${prefix}ColorText`);
+            picker?.addEventListener('input', () => {
+                if (text) text.value = picker.value.toUpperCase();
+            });
+            text?.addEventListener('input', () => {
+                const value = text.value.trim();
+                if (/^#[0-9a-f]{6}$/i.test(value) && picker) picker.value = value;
+            });
+        });
+    }
 
-        checkTimer = setTimeout(async () => {
-            if (msg) msg.textContent = 'Checking...';
-            try {
-                const res = await fetch(
-                    `/api/tenant-profile/subdomain/check?subdomain=${encodeURIComponent(val)}`,
-                    { credentials: 'include' });
-                const json = await res.json();
-                if (json.success && json.data) {
-                    if (msg) {
-                        msg.textContent = json.data.message;
-                        msg.className = 'availability-msg ' + (json.data.isAvailable ? 'ok' : 'bad');
-                    }
-                    if (btn) btn.disabled = !json.data.isAvailable;
-                }
-            } catch { if (msg) msg.textContent = 'Check failed'; }
-        }, 400);
-    });
+    function initializeAssetControls() {
+        bindUpload('logo', '/api/tenant-profile/logo');
+        bindUpload('favicon', '/api/tenant-profile/favicon');
+        document.getElementById('removeLogoBtn')?.addEventListener('click', () =>
+            removeAsset('logo', '/api/tenant-profile/logo', i18n.removeLogoConfirm));
+        document.getElementById('removeFaviconBtn')?.addEventListener('click', () =>
+            removeAsset('favicon', '/api/tenant-profile/favicon', i18n.removeFaviconConfirm));
+    }
 
-    // ── Save subdomain ────────────────────────────────────────
-    document.getElementById('saveSubdomainBtn')?.addEventListener('click', async function () {
-        const subdomain = document.getElementById('subdomainInput')?.value.trim().toLowerCase();
-        if (!subdomain) return;
-        setLoading(this, true, 'Saving...');
+    async function loadProfile() {
         try {
-            const res = await fetch('/api/tenant-profile/subdomain', {
-                method: 'PUT', credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
+            const response = await fetch('/api/tenant-profile', {
+                cache: 'no-store',
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json' }
+            });
+            const payload = await response.json().catch(() => null);
+            if (!response.ok || !payload?.success || !payload.data) throw new Error('profile');
+
+            const profile = payload.data;
+            savedSubdomain = String(profile.subdomain || '').toLowerCase();
+            if (subdomainInput) subdomainInput.value = savedSubdomain;
+            if (savedSubdomain) setAvailability(i18n.subdomainSaved, 'ok');
+            setColor('primary', profile.primaryColor, '#1E40AF');
+            setColor('secondary', profile.secondaryColor, '#64748B');
+            setColor('accent', profile.accentColor, '#F59E0B');
+            renderAsset('logo', profile.logoUrl);
+            renderAsset('favicon', profile.faviconUrl);
+        } catch {
+            showAlert('danger', i18n.loadFailed);
+        }
+    }
+
+    async function loadOnboardingState() {
+        try {
+            const response = await fetch('/api/onboarding/status', {
+                cache: 'no-store',
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json' }
+            });
+            const payload = await response.json().catch(() => null);
+            onboarding = response.ok && payload?.success ? payload.data : null;
+        } catch {
+            onboarding = null;
+        }
+    }
+
+    function handleSubdomainInput() {
+        window.clearTimeout(checkTimer);
+        availableSubdomain = '';
+        if (saveSubdomainButton) saveSubdomainButton.disabled = true;
+        const value = normalizedSubdomain();
+
+        if (value === savedSubdomain && value) {
+            setAvailability(i18n.subdomainSaved, 'ok');
+            return;
+        }
+        setAvailability('', '');
+        if (!subdomainInput?.checkValidity()) return;
+
+        checkTimer = window.setTimeout(() => checkSubdomain(value), 400);
+    }
+
+    async function checkSubdomain(value) {
+        setAvailability(i18n.checking, '');
+        try {
+            const response = await fetch(
+                `/api/tenant-profile/subdomain/check?subdomain=${encodeURIComponent(value)}`,
+                {
+                    cache: 'no-store',
+                    credentials: 'same-origin',
+                    headers: { 'Accept': 'application/json' }
+                });
+            const payload = await response.json().catch(() => null);
+            if (!response.ok || !payload?.success || !payload.data) throw new Error('check');
+            if (normalizedSubdomain() !== value) return;
+
+            availableSubdomain = payload.data.isAvailable ? value : '';
+            setAvailability(
+                payload.data.isAvailable ? i18n.available : i18n.unavailable,
+                payload.data.isAvailable ? 'ok' : 'bad');
+            if (saveSubdomainButton) saveSubdomainButton.disabled = !availableSubdomain;
+        } catch {
+            setAvailability(i18n.checkFailed, 'bad');
+        }
+    }
+
+    async function saveSubdomain() {
+        const subdomain = normalizedSubdomain();
+        if (!subdomain || subdomain !== availableSubdomain) return;
+        setButtonLoading(saveSubdomainButton, true, i18n.saving);
+        try {
+            const response = await fetch('/api/tenant-profile/subdomain', {
+                method: 'PUT',
+                cache: 'no-store',
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
                 body: JSON.stringify({ subdomain })
             });
-            const json = await res.json();
-            showAlert(json.success ? 'success' : 'danger', json.message);
-        } catch { showAlert('danger', 'Network error.'); }
-        finally { setLoading(this, false, 'Save subdomain'); }
-    });
-
-    // ── Logo upload ───────────────────────────────────────────
-    setupUpload('uploadLogoBtn', 'logoInput', 'logoPreview',
-        '/api/tenant-profile/logo', 'removeLogoBtn', 'bi bi-cloud-upload');
-
-    // ── Favicon upload ────────────────────────────────────────
-    setupUpload('uploadFaviconBtn', 'faviconInput', 'faviconPreview',
-        '/api/tenant-profile/favicon', 'removeFaviconBtn', 'bi bi-window');
-
-    // ── Remove logo/favicon ───────────────────────────────────
-    document.getElementById('removeLogoBtn')?.addEventListener('click', async () => {
-        if (!confirm('Remove logo?')) return;
-        await fetch('/api/tenant-profile/logo', { method: 'DELETE', credentials: 'include' });
-        clearPreview('logoPreview', 'bi bi-cloud-upload');
-        document.getElementById('removeLogoBtn').style.display = 'none';
-    });
-
-    document.getElementById('removeFaviconBtn')?.addEventListener('click', async () => {
-        if (!confirm('Remove favicon?')) return;
-        await fetch('/api/tenant-profile/favicon', { method: 'DELETE', credentials: 'include' });
-        clearPreview('faviconPreview', 'bi bi-window');
-        document.getElementById('removeFaviconBtn').style.display = 'none';
-    });
-
-    // ── Save colors + advance ─────────────────────────────────
-    document.getElementById('brandingForm')?.addEventListener('submit', async function (e) {
-        e.preventDefault();
-        const dto = {
-            primaryColor: document.getElementById('primaryColorText')?.value,
-            secondaryColor: document.getElementById('secondaryColorText')?.value,
-            accentColor: document.getElementById('accentColorText')?.value
-        };
-        const btn = document.getElementById('saveBrandingBtn');
-        setLoading(btn, true, 'Saving...');
-        try {
-            const res = await fetch('/api/tenant-profile/branding', {
-                method: 'PUT', credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(dto)
-            });
-            const json = await res.json();
-            if (json.success) {
-                await advanceStep(6);
-            } else {
-                showAlert('danger', json.message || 'Save failed');
-                setLoading(btn, false, 'Save & continue');
-            }
+            const payload = await response.json().catch(() => null);
+            if (!response.ok || !payload?.success) throw new Error('save');
+            savedSubdomain = subdomain;
+            availableSubdomain = '';
+            setAvailability(i18n.subdomainSaved, 'ok');
+            showAlert('success', i18n.subdomainSaved);
         } catch {
-            showAlert('danger', 'Network error');
-            setLoading(btn, false, 'Save & continue');
+            showAlert('danger', i18n.subdomainSaveFailed);
+        } finally {
+            setButtonLoading(saveSubdomainButton, false, i18n.saveSubdomain);
+            if (saveSubdomainButton) saveSubdomainButton.disabled = true;
         }
-    });
+    }
 
-    document.getElementById('skipBtn')?.addEventListener('click', () => advanceStep(6, true));
-});
-
-// ── Init color pickers ────────────────────────────────────────
-function initColorPickers() {
-    ['primary', 'secondary', 'accent'].forEach(prefix => {
-        const picker = document.getElementById(prefix + 'Color');
-        const text = document.getElementById(prefix + 'ColorText');
-        if (!picker || !text) return;
-        picker.addEventListener('input', () => text.value = picker.value.toUpperCase());
-        text.addEventListener('input', () => {
-            if (/^#[0-9A-Fa-f]{6}$/.test(text.value)) picker.value = text.value;
-        });
-    });
-}
-
-// ── Load profile ──────────────────────────────────────────────
-async function loadProfile() {
-    try {
-        const res = await fetch('/api/tenant-profile', { credentials: 'include' });
-        const json = await res.json();
-        if (!json.success || !json.data) return;
-        const d = json.data;
-
-        const sub = document.getElementById('subdomainInput');
-        if (sub) sub.value = d.subdomain || '';
-
-        setColor('primary', d.primaryColor || '#1E40AF');
-        setColor('secondary', d.secondaryColor || '#64748B');
-        setColor('accent', d.accentColor || '#F59E0B');
-
-        if (d.logoUrl) { showPreview('logoPreview', d.logoUrl); document.getElementById('removeLogoBtn').style.display = 'inline-block'; }
-        if (d.faviconUrl) { showPreview('faviconPreview', d.faviconUrl); document.getElementById('removeFaviconBtn').style.display = 'inline-block'; }
-    } catch { /* ignore */ }
-}
-
-function setColor(prefix, value) {
-    const picker = document.getElementById(prefix + 'Color');
-    const text = document.getElementById(prefix + 'ColorText');
-    if (picker) picker.value = value;
-    if (text) text.value = value;
-}
-
-// ── Upload helper ─────────────────────────────────────────────
-function setupUpload(btnId, inputId, previewId, endpoint, removeBtnId, defaultIcon) {
-    const btn = document.getElementById(btnId);
-    const input = document.getElementById(inputId);
-    if (!btn || !input) return;
-
-    btn.addEventListener('click', () => input.click());
-    input.addEventListener('change', async function () {
-        if (!this.files?.length) return;
-        const fd = new FormData();
-        fd.append('file', this.files[0]);
-        try {
-            const res = await fetch(endpoint, { method: 'POST', credentials: 'include', body: fd });
-            const json = await res.json();
-            if (json.success) {
-                showPreview(previewId, json.data);
-                const rb = document.getElementById(removeBtnId);
-                if (rb) rb.style.display = 'inline-block';
-                showAlert('success', 'Uploaded successfully');
-            } else {
-                showAlert('danger', json.message || 'Upload failed');
+    function bindUpload(type, endpoint) {
+        const capitalized = type[0].toUpperCase() + type.slice(1);
+        const input = document.getElementById(`${type}Input`);
+        document.getElementById(`upload${capitalized}Btn`)?.addEventListener('click', () => input?.click());
+        document.getElementById(`${type}Preview`)?.addEventListener('click', () => input?.click());
+        input?.addEventListener('change', async () => {
+            const file = input.files?.[0];
+            if (!file) return;
+            const body = new FormData();
+            body.append('file', file);
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    cache: 'no-store',
+                    credentials: 'same-origin',
+                    headers: { 'Accept': 'application/json' },
+                    body
+                });
+                const payload = await response.json().catch(() => null);
+                if (!response.ok || !payload?.success || !payload.data) throw new Error('upload');
+                renderAsset(type, payload.data);
+                showAlert('success', i18n.uploadSuccess);
+            } catch {
+                showAlert('danger', i18n.uploadFailed);
+            } finally {
+                input.value = '';
             }
-        } catch { showAlert('danger', 'Upload error'); }
-    });
-}
+        });
+    }
 
-function showPreview(previewId, url) {
-    const el = document.getElementById(previewId);
-    if (el) el.innerHTML = `<img src="${url}" alt="preview" style="width:100%;height:100%;object-fit:contain" />`;
-}
-function clearPreview(previewId, iconClass) {
-    const el = document.getElementById(previewId);
-    if (el) el.innerHTML = `<i class="${iconClass}" style="font-size:24px;color:#94a3b8"></i>`;
-}
+    async function removeAsset(type, endpoint, confirmation) {
+        if (!window.confirm(confirmation || '')) return;
+        try {
+            const response = await fetch(endpoint, {
+                method: 'DELETE',
+                cache: 'no-store',
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json' }
+            });
+            const payload = await response.json().catch(() => null);
+            if (!response.ok || !payload?.success) throw new Error('remove');
+            renderAsset(type, null);
+        } catch {
+            showAlert('danger', i18n.removeFailed);
+        }
+    }
 
-async function advanceStep(step, skipped = false) {
-    await fetch('/api/onboarding/complete-step', {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ step, skipped })
-    });
-    window.location.href = '/Account/GeneralSettings';
-}
+    function renderAsset(type, value) {
+        const preview = document.getElementById(`${type}Preview`);
+        const capitalized = type[0].toUpperCase() + type.slice(1);
+        const removeButton = document.getElementById(`remove${capitalized}Btn`);
+        if (!preview) return;
 
-function showAlert(type, msg) {
-    const c = document.getElementById('alertContainer');
-    if (c) c.innerHTML = `<div class="alert alert-${type} alert-dismissible">
-        ${msg}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
-    setTimeout(() => { if (c) c.innerHTML = ''; }, 4000);
-}
-function setLoading(btn, loading, label) {
-    if (!btn) return;
-    btn.disabled = loading;
-    btn.innerHTML = loading ? `<span class="spinner-border spinner-border-sm me-2"></span>${label}` : label;
-}
+        const safeUrl = safeAssetUrl(value);
+        if (safeUrl) {
+            const image = document.createElement('img');
+            image.src = safeUrl;
+            image.alt = type === 'logo' ? i18n.logoAlt : i18n.faviconAlt;
+            image.loading = 'lazy';
+            preview.replaceChildren(image);
+        } else {
+            const placeholder = document.createElement('span');
+            placeholder.className = 'brand-asset-placeholder';
+            placeholder.setAttribute('aria-hidden', 'true');
+            placeholder.textContent = type === 'logo' ? 'L' : 'F';
+            preview.replaceChildren(placeholder);
+        }
+        if (removeButton) removeButton.hidden = !safeUrl;
+    }
+
+    async function saveBranding(event) {
+        event.preventDefault();
+        setButtonLoading(saveBrandingButton, true, i18n.saving);
+        try {
+            const response = await fetch('/api/tenant-profile/branding', {
+                method: 'PUT',
+                cache: 'no-store',
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    primaryColor: valueOf('primaryColorText'),
+                    secondaryColor: valueOf('secondaryColorText'),
+                    accentColor: valueOf('accentColorText')
+                })
+            });
+            const payload = await response.json().catch(() => null);
+            if (!response.ok || !payload?.success) throw new Error('branding');
+
+            if (onboarding?.isComplete) {
+                window.location.assign('/Dashboard/Index');
+                return;
+            }
+            if (Number(onboarding?.currentStep) !== 6) {
+                window.location.assign(safeLocalUrl(onboarding?.nextStepUrl));
+                return;
+            }
+
+            const completed = await fetch('/api/onboarding/complete-step', {
+                method: 'POST',
+                cache: 'no-store',
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                body: JSON.stringify({ step: 6, skipped: false })
+            });
+            const completionPayload = await completed.json().catch(() => null);
+            if (!completed.ok || !completionPayload?.success) {
+                showAlert('danger', i18n.stepFailed);
+                return;
+            }
+            window.location.assign('/Account/GeneralSettings');
+        } catch {
+            showAlert('danger', i18n.saveFailed || i18n.networkError);
+        } finally {
+            setButtonLoading(saveBrandingButton, false, i18n.saveAndContinue);
+        }
+    }
+
+    function setColor(prefix, candidate, fallback) {
+        const value = /^#[0-9a-f]{6}$/i.test(String(candidate || '')) ? candidate : fallback;
+        const picker = document.getElementById(`${prefix}Color`);
+        const text = document.getElementById(`${prefix}ColorText`);
+        if (picker) picker.value = value;
+        if (text) text.value = value.toUpperCase();
+    }
+
+    function setAvailability(message, state) {
+        if (!availabilityMessage) return;
+        availabilityMessage.className = `availability-msg${state ? ` ${state}` : ''}`;
+        availabilityMessage.textContent = message || '';
+    }
+
+    function showAlert(type, message) {
+        if (!alertContainer) return;
+        alertContainer.className = `alert alert-${type}`;
+        alertContainer.textContent = message || '';
+        alertContainer.focus();
+    }
+
+    function setButtonLoading(button, loading, label) {
+        if (!button) return;
+        button.disabled = loading;
+        button.textContent = loading
+            ? label || button.dataset.loadingLabel || ''
+            : button.dataset.idleLabel || label || '';
+    }
+
+    function updatePrimaryAction() {
+        if (!saveBrandingButton) return;
+        if (onboarding?.isComplete) saveBrandingButton.textContent = i18n.dashboard || '';
+        else if (onboarding && Number(onboarding.currentStep) !== 6) {
+            saveBrandingButton.textContent = i18n.continueSetup || '';
+        }
+    }
+
+    function normalizedSubdomain() {
+        return String(subdomainInput?.value || '').trim().toLowerCase();
+    }
+
+    function valueOf(id) {
+        return document.getElementById(id)?.value?.trim() || '';
+    }
+
+    function safeAssetUrl(value) {
+        if (!value) return null;
+        try {
+            const url = new URL(String(value), window.location.origin);
+            return url.origin === window.location.origin && url.pathname.startsWith('/uploads/')
+                ? url.href
+                : null;
+        } catch {
+            return null;
+        }
+    }
+
+    function safeLocalUrl(value) {
+        const candidate = String(value || '');
+        return candidate.startsWith('/') && !candidate.startsWith('//')
+            ? candidate
+            : '/Dashboard/Index';
+    }
+})();

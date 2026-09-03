@@ -31,6 +31,7 @@ namespace EduOS.App.Extensions
             services.Configure<ManualPaymentSettings>(configuration.GetSection(ManualPaymentSettings.SectionName));
             services.Configure<FileUploadSettings>(configuration.GetSection(FileUploadSettings.SectionName));
             services.Configure<FileStorageSettings>(configuration.GetSection("FileStorage"));
+            services.Configure<TenantPortalSettings>(configuration.GetSection(TenantPortalSettings.SectionName));
 
             // ==================== AutoMapper ====================
             services.AddAutoMapper(_ => { }, typeof(MappingProfile).Assembly);

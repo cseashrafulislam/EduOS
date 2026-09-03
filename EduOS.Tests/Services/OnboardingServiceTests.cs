@@ -114,6 +114,53 @@ public class OnboardingServiceTests
     }
 
     [Fact]
+    public async Task Branding_step_requires_a_subdomain()
+    {
+        await using var setup = await CreateSetupAsync(OnboardingStep.BrandingSetup);
+
+        var result = await setup.Service.CompleteStepAsync(new CompleteStepDto
+        {
+            Step = OnboardingStep.BrandingSetup,
+            Skipped = false
+        });
+
+        result.Success.Should().BeFalse();
+        result.StatusCode.Should().Be(400);
+        setup.Tenant.OnboardingStep.Should().Be(OnboardingStep.BrandingSetup);
+    }
+
+    [Fact]
+    public async Task Branding_step_cannot_be_skipped()
+    {
+        await using var setup = await CreateSetupAsync(OnboardingStep.BrandingSetup);
+        setup.Tenant.Subdomain = "green-school";
+
+        var result = await setup.Service.CompleteStepAsync(new CompleteStepDto
+        {
+            Step = OnboardingStep.BrandingSetup,
+            Skipped = true
+        });
+
+        result.Success.Should().BeFalse();
+        result.StatusCode.Should().Be(409);
+    }
+
+    [Fact]
+    public async Task General_settings_can_be_skipped_and_advances_to_gateway_setup()
+    {
+        await using var setup = await CreateSetupAsync(OnboardingStep.GeneralSettings);
+
+        var result = await setup.Service.CompleteStepAsync(new CompleteStepDto
+        {
+            Step = OnboardingStep.GeneralSettings,
+            Skipped = true
+        });
+
+        result.Success.Should().BeTrue(result.Message);
+        setup.Tenant.OnboardingStep.Should().Be(OnboardingStep.GatewaySetup);
+    }
+
+    [Fact]
     public async Task Status_uses_flow_order_instead_of_persisted_enum_number()
     {
         await using var setup = await CreateSetupAsync(OnboardingStep.ModuleSetup);

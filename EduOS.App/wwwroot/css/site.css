@@ -1137,6 +1137,128 @@ select,
     font-weight: 800;
 }
 
+.setup-guidance {
+    padding: .85rem 1rem;
+    border: 1px solid #bfdbfe;
+    border-radius: .8rem;
+    color: #1e3a8a;
+    background: #eff6ff;
+    font-size: .82rem;
+    line-height: 1.55;
+}
+
+.portal-address-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: .85rem;
+    align-items: end;
+}
+
+.portal-address-row .input-group-text {
+    max-width: 45%;
+    overflow: hidden;
+    color: #475569;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.availability-msg {
+    min-height: 1.25rem;
+    margin-top: .35rem;
+    color: var(--edu-muted);
+    font-size: .76rem;
+}
+
+.availability-msg.ok {
+    color: #047857;
+}
+
+.availability-msg.bad {
+    color: var(--edu-danger);
+}
+
+.brand-assets-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.brand-asset-card {
+    display: grid;
+    gap: .7rem;
+    align-content: start;
+    padding: 1rem;
+    border: 1px solid var(--edu-border);
+    border-radius: .85rem;
+    background: var(--edu-soft);
+}
+
+.brand-asset-preview {
+    display: grid;
+    place-items: center;
+    width: 7.5rem;
+    height: 7.5rem;
+    overflow: hidden;
+    padding: .5rem;
+    border: 2px dashed #94a3b8;
+    border-radius: .85rem;
+    color: #64748b;
+    background: #fff;
+}
+
+.brand-asset-preview.favicon-preview {
+    width: 4.5rem;
+    height: 4.5rem;
+}
+
+.brand-asset-preview:hover,
+.brand-asset-preview:focus-visible {
+    border-color: var(--edu-primary);
+}
+
+.brand-asset-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.brand-asset-placeholder {
+    font-size: 1.35rem;
+    font-weight: 850;
+}
+
+.brand-asset-actions,
+.color-input-group,
+.gateway-header {
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+}
+
+.color-swatch {
+    flex: 0 0 2.75rem;
+    width: 2.75rem;
+    height: 2.75rem;
+    padding: .15rem;
+    border: 1px solid var(--edu-border);
+    border-radius: .65rem;
+    background: #fff;
+}
+
+.gateway-card {
+    box-shadow: 0 .35rem 1rem rgba(15, 23, 42, .035);
+}
+
+.gateway-header {
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.gateway-header .form-switch {
+    flex: 0 0 auto;
+    margin: 0;
+}
+
 .setup-page .form-label {
     margin-bottom: .4rem;
     color: #334155;
@@ -1781,6 +1903,20 @@ select,
 
     .setup-actions .btn {
         width: 100%;
+    }
+
+    .portal-address-row,
+    .brand-assets-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .portal-address-row .btn,
+    .brand-asset-actions .btn {
+        flex: 1 1 auto;
+    }
+
+    .gateway-header {
+        align-items: flex-start;
     }
 
     .setup-record-card {

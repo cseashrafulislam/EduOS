@@ -35,10 +35,10 @@ namespace EduOS.Service.Helpers.Storage
         public string BasePath { get; set; } = "wwwroot/uploads";
         public string PrivateBasePath { get; set; } = "App_Data/private-uploads";
         public int MaxFileSizeMB { get; set; } = 5;
-        public List<string> AllowedExtensions { get; set; } = new() { ".jpg", ".jpeg", ".png", ".pdf", ".doc", ".docx" };
+        public List<string> AllowedExtensions { get; set; } = new() { ".jpg", ".jpeg", ".png", ".webp", ".pdf", ".doc", ".docx" };
         public List<string> AllowedMimeTypes { get; set; } = new()
         {
-            "image/jpeg", "image/png", "application/pdf",
+            "image/jpeg", "image/png", "image/webp", "application/pdf",
             "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         };
         public bool EnableVirusScan { get; set; } = false;
@@ -511,12 +511,17 @@ namespace EduOS.Service.Helpers.Storage
         private bool ValidateFileSignature(IFormFile file, string extension)
         {
             using var reader = new BinaryReader(file.OpenReadStream());
-            var header = reader.ReadBytes(8);
+            var header = reader.ReadBytes(12);
 
             return extension.ToLower() switch
             {
                 ".jpg" or ".jpeg" => header.Length >= 2 && header[0] == 0xFF && header[1] == 0xD8,
                 ".png" => header.Length >= 4 && header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47,
+                ".webp" => header.Length >= 12
+                    && header[0] == 0x52 && header[1] == 0x49
+                    && header[2] == 0x46 && header[3] == 0x46
+                    && header[8] == 0x57 && header[9] == 0x45
+                    && header[10] == 0x42 && header[11] == 0x50,
                 ".pdf" => header.Length >= 4 && header[0] == 0x25 && header[1] == 0x50 && header[2] == 0x44 && header[3] == 0x46,
                 ".doc" => header.Length >= 4 && header[0] == 0xD0 && header[1] == 0xCF && header[2] == 0x11 && header[3] == 0xE0,
                 ".docx" => header.Length >= 2 && header[0] == 0x50 && header[1] == 0x4B, // PK zip file
