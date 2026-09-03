@@ -39,7 +39,6 @@
   <data name="Bangla" xml:space="preserve"><value>বাংলা</value></data>
   <data name="InstallApp" xml:space="preserve"><value>অ্যাপ ইনস্টল</value></data>
   <data name="AccountMenu" xml:space="preserve"><value>অ্যাকাউন্ট মেনু খুলুন</value></data>
-  <data name="LogIn" xml:space="preserve"><value>লগ ইন</value></data>
   <data name="SetupWizard" xml:space="preserve"><value>সেটআপ সহকারী</value></data>
   <data name="Progress" xml:space="preserve"><value>অগ্রগতি</value></data>
   <data name="StepsCompleted" xml:space="preserve"><value>{1}টি ধাপের মধ্যে {0}টি সম্পন্ন</value></data>

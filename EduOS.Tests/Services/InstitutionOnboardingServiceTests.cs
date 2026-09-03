@@ -162,7 +162,15 @@ public class InstitutionOnboardingServiceTests
 
     private static async Task<TestSetup> CreateSetupAsync(int maxCampuses = 3)
     {
+        const long tenantId = 101;
         var httpContext = new DefaultHttpContext();
+        httpContext.Items["TenantId"] = tenantId;
+        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(
+        [
+            new Claim(ClaimTypes.NameIdentifier, "99"),
+            new Claim(ClaimTypes.Role, "TenantAdmin"),
+            new Claim("TenantId", tenantId.ToString())
+        ], "TestAuthentication"));
         var accessor = new HttpContextAccessor { HttpContext = httpContext };
         var options = new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase($"institution-onboarding-{Guid.NewGuid():N}")
@@ -170,6 +178,7 @@ public class InstitutionOnboardingServiceTests
         var context = new EduOSDbContext(options, accessor);
         var tenant = new Tenant
         {
+            Id = tenantId,
             Name = "Test Institution",
             Code = $"INST-{Guid.NewGuid():N}"[..20],
             Email = "institution@example.test",
@@ -178,14 +187,6 @@ public class InstitutionOnboardingServiceTests
         };
         context.Tenants.Add(tenant);
         await context.SaveChangesAsync();
-
-        httpContext.Items["TenantId"] = tenant.Id;
-        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(
-        [
-            new Claim(ClaimTypes.NameIdentifier, "99"),
-            new Claim(ClaimTypes.Role, "TenantAdmin"),
-            new Claim("TenantId", tenant.Id.ToString())
-        ], "TestAuthentication"));
 
         var currentUser = new TestCurrentUser(tenant.Id);
         var service = new InstitutionOnboardingService(
