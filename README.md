@@ -6,7 +6,7 @@ EduOS is a configurable, multi-tenant SaaS platform for the Bangladesh education
 
 একটি প্রতিষ্ঠান signup করবে, plan/trial বেছে নেবে, payment করবে, নিজের campus, academic structure, branding, terminology, workflow ও enabled modules configure করবে এবং ব্যবহার শুরু করবে। কোনো নির্দিষ্ট প্রতিষ্ঠানের নাম, class structure, fee rule, grading rule বা approval flow shared code-এ hard-code করা যাবে না।
 
-> **Current status:** foundation under active development. Phase 0 security work is implemented and tested. Core onboarding, subscription, payment, tenant profile, gateway settings, authentication, dashboard, and audit APIs exist. Many education modules currently have domain entities only; their complete service, API, UI, permission, report, and test workflows are still planned.
+> **Current status:** foundation under active development. Phase 0 security work and the Phase 1 institution/module entitlement catalogue are implemented and tested. The shared application shell supports responsive desktop/mobile use, installable PWA behaviour, and English/Bangla UI resources. Core onboarding, subscription, payment, tenant profile, gateway settings, authentication, dashboard, and audit APIs exist. Many education modules currently have domain entities only; their complete service, API, UI, permission, report, and test workflows are still planned.
 
 ---
 
@@ -146,9 +146,8 @@ The current OnboardingStep lifecycle is:
 
 ### Onboarding requirements still to build
 
-- Institution preset catalogue and automatic setup templates.
-- Module selection UI and plan-entitlement validation.
-- Resumeable wizard with validation and progress recovery.
+- Complete module selection UI; server-side plan-entitlement validation is implemented.
+- Full resumable recovery, expiry handling and idempotent completion around the existing wizard/status API.
 - Terms/privacy-policy version acceptance.
 - Domain verification and custom-domain workflow.
 - Guided sample data, checklist, contextual help, and first-run tours.
@@ -668,6 +667,26 @@ flowchart TD
 
 Modules communicate through application contracts and domain events. Cross-module side effects should use an outbox pattern rather than hidden multi-service calls.
 
+### Model and schema design rules
+
+EduOS does not add speculative columns just to appear “future-proof.” A model receives a field only when it supports a documented business rule, query, permission boundary, lifecycle, integration, or audit requirement.
+
+- Platform identity and institution-owned records remain separate; government identifiers are encrypted external identifiers, never primary keys.
+- Tenant-owned transactional models include tenant scope, stable business identifiers, lifecycle state, timestamps and audit/concurrency fields only where those controls are meaningful.
+- Effective-dated rules and immutable snapshots preserve historical fees, grades, subscriptions, curriculum and credentials.
+- Core relationships stay normalized and relational. Validated JSON configuration is reserved for tenant-specific optional settings that do not need joins, constraints or frequent reporting.
+- Codes used by APIs and integrations are stable and language-neutral; English/Bangla display text is localized at the presentation boundary.
+- Indexes follow measured query paths. Institution-local uniqueness includes TenantId and CampusId when campus-local.
+- Schema evolution uses additive, reviewed migrations with rollback notes. “No future migration ever” is not a safe database goal; backward-compatible evolution is.
+
+### Responsive PWA and localization baseline
+
+- Supported UI cultures are `en-BD` and `bn-BD`; a validated, HttpOnly culture cookie stores the user's choice.
+- The shared shell uses local Bootstrap/JavaScript assets, accessible navigation, mobile drawer behaviour, safe-area spacing and desktop layouts.
+- The web app manifest enables installation. The service worker caches only same-origin static assets.
+- API responses, uploaded tenant files, authenticated pages and personal/institution data are never added to the offline cache. Offline navigation shows a bilingual reconnect page.
+- Stable onboarding step codes let web/mobile clients localize display text without changing the API state machine.
+
 ---
 
 ## 11. Scale and reliability plan
@@ -806,6 +825,8 @@ Development endpoints:
 - **/health** — health endpoint
 - **/hangfire** — authorized background-job dashboard
 
+PWA testing must use HTTPS (or localhost). In browser developer tools, verify the manifest and service worker, switch to offline mode, and confirm that only the bilingual offline page—not a previously authenticated page—is shown.
+
 ---
 
 ## 15. Configuration and secrets
@@ -907,7 +928,7 @@ A feature is complete only when:
 
 ### Phase 1 — Configurable SaaS core
 
-Progress: institution preset catalogue, top-level product module catalogue, preset-to-module and module-to-plan-feature mapping, tenant module selection, subscription entitlement evaluation, reusable module authorization policy, onboarding preset application, migrations and regression tests are implemented. Quota enforcement and remaining configuration engines are pending.
+Progress: institution preset catalogue, top-level product module catalogue, preset-to-module and module-to-plan-feature mapping, tenant module selection, subscription entitlement evaluation, reusable module authorization policy, onboarding preset application, bilingual responsive shared UI/PWA foundation, migrations and regression tests are implemented. Quota enforcement, full view-by-view localization and remaining configuration engines are pending.
 
 Deliver:
 

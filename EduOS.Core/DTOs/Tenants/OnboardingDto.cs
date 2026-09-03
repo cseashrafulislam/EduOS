@@ -18,6 +18,7 @@ namespace EduOS.Core.DTOs.Tenants
         public int CompletedSteps { get; set; }
         public int ProgressPercentage { get; set; }
 
+        public string? NextStepCode { get; set; }
         public string? NextStepName { get; set; }
         public string? NextStepUrl { get; set; }
     }
@@ -25,6 +26,10 @@ namespace EduOS.Core.DTOs.Tenants
     public class OnboardingStepStatusDto
     {
         public OnboardingStep Step { get; set; }
+        /// <summary>
+        /// Stable language-neutral identifier used by web and mobile clients.
+        /// </summary>
+        public string Code { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
         public string IconClass { get; set; } = string.Empty;

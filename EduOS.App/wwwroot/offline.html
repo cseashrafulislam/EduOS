@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="bn-BD" dir="ltr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <title>Offline - EduOS</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { min-height: 100vh; margin: 0; display: grid; place-items: center; padding: 1.25rem; background: linear-gradient(145deg, #0f172a, #1e3a8a); color: #0f172a; font-family: "Noto Sans Bengali", "Segoe UI", Arial, sans-serif; }
+        main { width: min(100%, 32rem); padding: clamp(1.5rem, 5vw, 2.5rem); border-radius: 1.4rem; background: #fff; box-shadow: 0 1.5rem 4rem rgba(0,0,0,.25); text-align: center; }
+        .mark { display: inline-grid; place-items: center; width: 4rem; height: 4rem; margin-bottom: 1rem; border-radius: 1.1rem; background: linear-gradient(135deg, #1d4ed8, #0891b2); color: #fff; font-size: 1.5rem; font-weight: 800; }
+        h1 { margin: 0 0 .7rem; font-size: clamp(1.45rem, 6vw, 2rem); }
+        p { margin: .45rem 0; color: #475569; line-height: 1.65; }
+        hr { margin: 1.25rem 0; border: 0; border-top: 1px solid #e2e8f0; }
+        button { min-height: 2.75rem; margin-top: 1.25rem; padding: .65rem 1.2rem; border: 0; border-radius: .75rem; background: #1d4ed8; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+        button:focus-visible { outline: .2rem solid #38bdf8; outline-offset: .2rem; }
+    </style>
+</head>
+<body>
+    <main>
+        <div class="mark" aria-hidden="true">E</div>
+        <h1>আপনি এখন অফলাইনে আছেন</h1>
+        <p>EduOS নিরাপদে ব্যবহার চালিয়ে যেতে ইন্টারনেটে পুনরায় সংযুক্ত হন। ব্যক্তিগত বা প্রতিষ্ঠানের তথ্য অফলাইন ক্যাশে রাখা হয় না।</p>
+        <hr>
+        <p lang="en-BD"><strong>You are offline.</strong> Reconnect to securely continue. Personal and institution data are not stored in the offline cache.</p>
+        <button type="button" onclick="location.reload()">আবার চেষ্টা করুন / Try again</button>
+    </main>
+</body>
+</html>

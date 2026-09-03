@@ -1,436 +1,203 @@
-﻿<!DOCTYPE html>
-<html lang="en">
+@{
+    var titleKey = ViewData["Title"]?.ToString() ?? "Dashboard";
+    var localizedTitle = T[titleKey];
+    var pageTitle = localizedTitle.ResourceNotFound ? titleKey : localizedTitle.Value;
+    var currentCulture = CultureInfo.CurrentUICulture.Name;
+    var returnUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
+    var userName = User?.Identity?.Name;
+    var userInitial = string.IsNullOrWhiteSpace(userName)
+        ? "U"
+        : userName[..1].ToUpper(CultureInfo.CurrentCulture);
+    var currentPath = Context.Request.Path.Value ?? string.Empty;
+    string ActiveFor(string routePrefix) =>
+        currentPath.StartsWith(routePrefix, StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty;
+}
+<!DOCTYPE html>
+<html lang="@currentCulture" dir="ltr">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - EduOS</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f172a" />
+    <meta name="color-scheme" content="light" />
+    <meta name="application-name" content="EduOS" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="EduOS" />
+    <meta name="description" content="@T["EducationOperatingSystem"]" />
+    <title>@pageTitle - EduOS</title>
 
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
-
-    <style>
-        :root {
-            --edu-primary: #1d4ed8;
-            --edu-secondary: #0f172a;
-            --edu-accent: #06b6d4;
-            --edu-soft: #f8fafc;
-            --edu-border: #e2e8f0;
-            --edu-text: #0f172a;
-            --edu-muted: #64748b;
-            --edu-success: #16a34a;
-            --edu-warning: #f59e0b;
-            --edu-danger: #dc2626;
-        }
-
-        * {
-            box-sizing: border-box;
-        }
-
-        body {
-            margin: 0;
-            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-            background: #f5f7fb;
-            color: var(--edu-text);
-        }
-
-        .app-shell {
-            display: flex;
-            min-height: 100vh;
-        }
-
-        .sidebar {
-            width: 270px;
-            background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
-            color: #fff;
-            position: fixed;
-            top: 0;
-            left: 0;
-            bottom: 0;
-            padding: 22px 18px;
-            overflow-y: auto;
-            z-index: 1040;
-        }
-
-        .brand-box {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 28px;
-            padding: 10px 8px;
-        }
-
-        .brand-logo {
-            width: 46px;
-            height: 46px;
-            border-radius: 14px;
-            background: linear-gradient(135deg, var(--edu-primary), var(--edu-accent));
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 22px;
-            box-shadow: 0 10px 24px rgba(29, 78, 216, .35);
-        }
-
-        .brand-title {
-            font-size: 24px;
-            font-weight: 700;
-            line-height: 1;
-        }
-
-        .brand-subtitle {
-            font-size: 12px;
-            color: rgba(255,255,255,.7);
-            margin-top: 4px;
-        }
-
-        .menu-title {
-            font-size: 11px;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-            color: rgba(255,255,255,.45);
-            margin: 18px 10px 10px;
-        }
-
-        .sidebar .nav-link {
-            color: rgba(255,255,255,.86);
-            border-radius: 14px;
-            padding: 12px 14px;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            transition: .25s ease;
-            font-weight: 500;
-        }
-
-            .sidebar .nav-link:hover,
-            .sidebar .nav-link.active {
-                background: rgba(255,255,255,.10);
-                color: #fff;
-                transform: translateX(3px);
-            }
-
-            .sidebar .nav-link i {
-                width: 18px;
-                text-align: center;
-            }
-
-        .main-area {
-            margin-left: 270px;
-            width: calc(100% - 270px);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .topbar {
-            height: 50px;
-            background: rgba(255,255,255,.92);
-            backdrop-filter: blur(10px);
-            border-bottom: 1px solid var(--edu-border);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 26px;
-            position: sticky;
-            top: 0;
-            z-index: 1030;
-        }
-
-        .topbar-left h4 {
-            margin: 0;
-            font-size: 22px;
-            font-weight: 700;
-        }
-
-        .topbar-left p {
-            margin: 2px 0 0;
-            color: var(--edu-muted);
-            font-size: 13px;
-        }
-
-        .topbar-right {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-        }
-
-        .top-icon {
-            width: 42px;
-            height: 42px;
-            border-radius: 12px;
-            background: #fff;
-            border: 1px solid var(--edu-border);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--edu-secondary);
-            cursor: pointer;
-            transition: .2s ease;
-        }
-
-            .top-icon:hover {
-                background: var(--edu-soft);
-            }
-
-        .user-box {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            background: #fff;
-            border: 1px solid var(--edu-border);
-            border-radius: 16px;
-            padding: 0px 12px;
-        }
-
-        .user-avatar {
-            width: 42px;
-            height: 42px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, var(--edu-primary), var(--edu-accent));
-            color: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-        }
-
-        .user-info {
-            line-height: 1.1;
-        }
-
-            .user-info .name {
-                font-size: 14px;
-                font-weight: 700;
-            }
-
-            .user-info .role {
-                font-size: 12px;
-                color: var(--edu-muted);
-            }
-
-        .page-body {
-            padding: 28px;
-            flex: 1;
-        }
-
-        .edu-card {
-            background: #fff;
-            border: 1px solid #eef2f7;
-            border-radius: 22px;
-            box-shadow: 0 12px 30px rgba(15, 23, 42, .05);
-        }
-
-        .footer-bar {
-            padding: 14px 28px;
-            border-top: 1px solid var(--edu-border);
-            background: #fff;
-            color: var(--edu-muted);
-            font-size: 13px;
-        }
-
-        .sidebar-divider {
-            border: 0;
-            border-top: 1px solid rgba(255,255,255,.08);
-            margin: 18px 8px;
-        }
-
-        .mobile-toggle {
-            display: none;
-        }
-
-        @@media (max-width: 991.98px) {
-            .sidebar {
-                transform: translateX(-100%);
-                transition: .25s ease;
-            }
-
-                .sidebar.show {
-                    transform: translateX(0);
-                }
-
-            .main-area {
-                margin-left: 0;
-                width: 100%;
-            }
-
-            .mobile-toggle {
-                display: inline-flex;
-            }
-        }
-    </style>
+    <link rel="manifest" href="~/manifest.webmanifest" />
+    <link rel="icon" href="~/images/eduos-icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="~/favicon.ico" />
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 </head>
 <body>
+    <a class="skip-link" href="#main-content">@T["SkipToContent"]</a>
+
     <div class="app-shell">
-        <aside class="sidebar" id="sidebarMenu">
+        <aside class="sidebar" id="sidebarMenu" aria-label="@T["MainNavigation"]">
             <div class="brand-box">
-                <div class="brand-logo">
-                    <i class="fa-solid fa-graduation-cap"></i>
-                </div>
-                <div>
-                    <div class="brand-title">EduOS</div>
-                    <div class="brand-subtitle">Education ERP</div>
-                </div>
+                <a class="brand-link" href="/Dashboard/Index" aria-label="EduOS @T["Dashboard"]">
+                    <span class="brand-logo" aria-hidden="true">
+                        <svg class="edu-icon edu-icon-lg"><use href="/images/eduos-icons.svg#graduation" /></svg>
+                    </span>
+                    <span>
+                        <span class="brand-title">EduOS</span>
+                        <span class="brand-subtitle">@T["EducationERP"]</span>
+                    </span>
+                </a>
+                <button class="icon-button sidebar-close" type="button" data-sidebar-close aria-label="@T["CloseMenu"]">
+                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#close" /></svg>
+                </button>
             </div>
 
-            <div class="menu-title">Main</div>
+            <div class="menu-title">@T["Main"]</div>
             <nav class="nav flex-column">
-                <a class="nav-link active" href="/Dashboard/Index">
-                    <i class="fa-solid fa-house"></i>
-                    <span>Dashboard</span>
+                <a class="nav-link @ActiveFor("/Dashboard")" href="/Dashboard/Index">
+                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#dashboard" /></svg>
+                    <span>@T["Dashboard"]</span>
                 </a>
-
-                <a class="nav-link" href="/Account/InstitutionProfile">
-                    <i class="fa-solid fa-school"></i>
-                    <span>Institution Setup</span>
+                <a class="nav-link @ActiveFor("/Account/InstitutionProfile")" href="/Account/InstitutionProfile">
+                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#institution" /></svg>
+                    <span>@T["InstitutionSetup"]</span>
                 </a>
-
-                <a class="nav-link" href="/Account/CampusSetup">
-                    <i class="fa-solid fa-building"></i>
-                    <span>Campus</span>
+                <a class="nav-link @ActiveFor("/Account/CampusSetup")" href="/Account/CampusSetup">
+                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#campus" /></svg>
+                    <span>@T["Campus"]</span>
                 </a>
-
-                <a class="nav-link" href="/Account/AcademicSetup">
-                    <i class="fa-solid fa-calendar-days"></i>
-                    <span>Academic Year</span>
+                <a class="nav-link @ActiveFor("/Account/AcademicSetup")" href="/Account/AcademicSetup">
+                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#calendar" /></svg>
+                    <span>@T["AcademicYear"]</span>
                 </a>
             </nav>
 
             <hr class="sidebar-divider" />
-
-            <div class="menu-title">Academics</div>
+            <div class="menu-title">@T["Academics"]</div>
             <nav class="nav flex-column">
-                <a class="nav-link" href="/Student/Index">
-                    <i class="fa-solid fa-user-graduate"></i>
-                    <span>Students</span>
+                <a class="nav-link @ActiveFor("/Student")" href="/Student/Index">
+                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
+                    <span>@T["Students"]</span>
                 </a>
-
-                <a class="nav-link" href="/Teacher/Index">
-                    <i class="fa-solid fa-chalkboard-user"></i>
-                    <span>Teachers</span>
+                <a class="nav-link @ActiveFor("/Teacher")" href="/Teacher/Index">
+                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#teacher" /></svg>
+                    <span>@T["Teachers"]</span>
                 </a>
-
-                <a class="nav-link" href="/Class/Index">
-                    <i class="fa-solid fa-book-open-reader"></i>
-                    <span>Classes</span>
+                <a class="nav-link @ActiveFor("/Class")" href="/Class/Index">
+                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
+                    <span>@T["Classes"]</span>
                 </a>
-
-                <a class="nav-link" href="/Attendance/Index">
-                    <i class="fa-solid fa-clipboard-check"></i>
-                    <span>Attendance</span>
+                <a class="nav-link @ActiveFor("/Attendance")" href="/Attendance/Index">
+                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#attendance" /></svg>
+                    <span>@T["Attendance"]</span>
                 </a>
-
-                <a class="nav-link" href="/Exam/Index">
-                    <i class="fa-solid fa-file-lines"></i>
-                    <span>Exams & Results</span>
+                <a class="nav-link @ActiveFor("/Exam")" href="/Exam/Index">
+                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#exam" /></svg>
+                    <span>@T["ExamsResults"]</span>
                 </a>
             </nav>
 
             <hr class="sidebar-divider" />
-
-            <div class="menu-title">Management</div>
+            <div class="menu-title">@T["Management"]</div>
             <nav class="nav flex-column">
-                <a class="nav-link" href="/Finance/Index">
-                    <i class="fa-solid fa-money-bill-wave"></i>
-                    <span>Finance</span>
+                <a class="nav-link @ActiveFor("/Finance")" href="/Finance/Index">
+                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#finance" /></svg>
+                    <span>@T["Finance"]</span>
                 </a>
-
-                <a class="nav-link" href="/UserManagement/Index">
-                    <i class="fa-solid fa-users-gear"></i>
-                    <span>User Management</span>
+                <a class="nav-link @ActiveFor("/UserManagement")" href="/UserManagement/Index">
+                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#users" /></svg>
+                    <span>@T["UserManagement"]</span>
                 </a>
-
-                <a class="nav-link" href="/RolePermission/Index">
-                    <i class="fa-solid fa-shield-halved"></i>
-                    <span>Role Permissions</span>
+                <a class="nav-link @ActiveFor("/RolePermission")" href="/RolePermission/Index">
+                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#shield" /></svg>
+                    <span>@T["RolePermissions"]</span>
                 </a>
-
-                <a class="nav-link" href="/Reports/Index">
-                    <i class="fa-solid fa-chart-line"></i>
-                    <span>Reports</span>
+                <a class="nav-link @ActiveFor("/Reports")" href="/Reports/Index">
+                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                    <span>@T["Reports"]</span>
                 </a>
             </nav>
         </aside>
 
+        <button class="sidebar-backdrop" type="button" data-sidebar-close aria-label="@T["CloseMenu"]" tabindex="-1"></button>
+
         <div class="main-area">
             <header class="topbar">
-                <div class="topbar-left d-flex align-items-center gap-3">
-                    <button class="btn btn-light mobile-toggle" id="btnSidebarToggle" type="button">
-                        <i class="fa-solid fa-bars"></i>
+                <div class="topbar-left">
+                    <button class="icon-button mobile-toggle" id="btnSidebarToggle" type="button"
+                            aria-controls="sidebarMenu" aria-expanded="false" aria-label="@T["OpenMenu"]">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#menu" /></svg>
                     </button>
-
-                    <div>
-                        <h4>@(ViewData["Title"] ?? "Dashboard")</h4>
-                        <p>Manage your institution with a premium education platform</p>
+                    <div class="page-heading">
+                        <h1>@pageTitle</h1>
+                        <p>@T["ManageInstitution"]</p>
                     </div>
                 </div>
 
                 <div class="topbar-right">
-                    <div class="top-icon">
-                        <i class="fa-regular fa-bell"></i>
-                    </div>
+                    <button class="install-button" type="button" data-install-app hidden>
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#download" /></svg>
+                        <span>@T["InstallApp"]</span>
+                    </button>
 
-                    <div class="top-icon">
-                        <i class="fa-solid fa-gear"></i>
-                    </div>
+                    <form asp-controller="Localization" asp-action="SetLanguage" method="post" class="language-form">
+                        <input type="hidden" name="returnUrl" value="@returnUrl" />
+                        <label class="visually-hidden" for="uiCulture">@T["Language"]</label>
+                        <svg class="edu-icon language-icon" aria-hidden="true"><use href="/images/eduos-icons.svg#globe" /></svg>
+                        <select id="uiCulture" name="culture" data-language-selector aria-label="@T["Language"]">
+                            <option value="en-BD" selected="@(currentCulture == "en-BD" ? "selected" : null)">@T["English"]</option>
+                            <option value="bn-BD" selected="@(currentCulture == "bn-BD" ? "selected" : null)">@T["Bangla"]</option>
+                        </select>
+                    </form>
 
-                    <div class="dropdown">
-                        <div class="user-box" data-bs-toggle="dropdown" style="cursor:pointer;">
-                            <div class="user-avatar">
-                                @(string.IsNullOrWhiteSpace(User?.Identity?.Name) ? "U" : User.Identity.Name.Substring(0, 1).ToUpper())
-                            </div>
-                            <div class="user-info">
-                                <div class="name">@User?.Identity?.Name</div>
-                                <div class="role">Tenant Admin</div>
-                            </div>
-                            <i class="fa-solid fa-angle-down text-muted"></i>
+                    @if (User?.Identity?.IsAuthenticated == true)
+                    {
+                        <div class="dropdown">
+                            <button class="user-box" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="@T["AccountMenu"]">
+                                <span class="user-avatar" aria-hidden="true">@userInitial</span>
+                                <span class="user-info">
+                                    <span class="name">@userName</span>
+                                    <span class="role">@T["TenantAdmin"]</span>
+                                </span>
+                                <svg class="edu-icon user-chevron" aria-hidden="true"><use href="/images/eduos-icons.svg#chevron-down" /></svg>
+                            </button>
+
+                            <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-4 p-2">
+                                <li><a class="dropdown-item rounded-3" href="/Account/Profile">@T["Profile"]</a></li>
+                                <li><a class="dropdown-item rounded-3" href="/Account/ChangePassword">@T["ChangePassword"]</a></li>
+                                <li><hr class="dropdown-divider" /></li>
+                                <li>
+                                    <form asp-controller="Account" asp-action="Logout" method="post" class="m-0">
+                                        <button type="submit" class="dropdown-item rounded-3 text-danger">@T["Logout"]</button>
+                                    </form>
+                                </li>
+                            </ul>
                         </div>
-
-                        <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-4 p-2">
-                            <li>
-                                <a class="dropdown-item rounded-3" href="/Account/Profile">
-                                    <i class="fa-regular fa-user me-2"></i> Profile
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item rounded-3" href="/Account/ChangePassword">
-                                    <i class="fa-solid fa-lock me-2"></i> Change Password
-                                </a>
-                            </li>
-                            <li><hr class="dropdown-divider" /></li>
-                            <li>
-                                <form method="post" action="/api/auth/logout" class="m-0">
-                                    <button type="submit" class="dropdown-item rounded-3 text-danger">
-                                        <i class="fa-solid fa-right-from-bracket me-2"></i> Logout
-                                    </button>
-                                </form>
-                            </li>
-                        </ul>
-                    </div>
+                    }
+                    else
+                    {
+                        <a class="btn btn-primary topbar-login" href="/Account/Login">@T["LogIn"]</a>
+                    }
                 </div>
             </header>
 
-            <main class="page-body">
+            <main class="page-body" id="main-content" tabindex="-1">
                 @RenderBody()
             </main>
 
             <footer class="footer-bar">
-                © @DateTime.Now.Year EduOS • Education ERP & SaaS Platform
+                <span>© @DateTime.Now.Year EduOS</span>
+                <span aria-hidden="true">•</span>
+                <span>@T["Footer"]</span>
             </footer>
         </div>
     </div>
 
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <div class="visually-hidden" aria-live="polite" data-app-status></div>
 
-    <script>
-        $(function() {
-            $("#btnSidebarToggle").on("click", function() {
-                $("#sidebarMenu").toggleClass("show");
-            });
-        });
-    </script>
-
-    @RenderSection("Scripts", required: false)
+    <script src="~/lib/jquery/dist/jquery.min.js" asp-append-version="true"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js" asp-append-version="true"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>
