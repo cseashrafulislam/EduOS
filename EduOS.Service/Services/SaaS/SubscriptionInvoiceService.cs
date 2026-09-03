@@ -46,7 +46,9 @@ namespace EduOS.Service.Services.SaaS
         {
             try
             {
-                var invoice = await _invoiceRepo.GetByIdAsync(invoiceId);
+                var invoice = _currentUser.IsSuperAdmin
+                    ? await _invoiceRepo.GetByIdForPlatformAsync(invoiceId)
+                    : await _invoiceRepo.GetByIdAsync(invoiceId);
                 if (invoice == null ||
                     (invoice.TenantId != _currentUser.TenantId && !_currentUser.IsSuperAdmin))
                 {

@@ -429,11 +429,12 @@ namespace EduOS.Service.Services.SaaS
         // ============================================================
         // ACTIVATE AFTER PAYMENT (called by PaymentService)
         // ============================================================
-        public async Task<ApiResponse<bool>> ActivateAfterPaymentAsync(long subscriptionId)
+        public async Task<ApiResponse<bool>> ActivateAfterPaymentAsync(long subscriptionId, long tenantId)
         {
             try
             {
-                var subscription = await _subscriptionRepo.GetByIdAsync(subscriptionId);
+                var subscription = await _subscriptionRepo.GetByIdForSystemAsync(
+                    subscriptionId, tenantId);
                 if (subscription == null)
                     return ApiResponse<bool>.ErrorResponse("Subscription not found", 404);
 

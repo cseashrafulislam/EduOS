@@ -13,6 +13,7 @@ namespace EduOS.Core.Interfaces.IRepositories
     public interface ITenantSubscriptionRepository : IGenericRepository<TenantSubscription>
     {
         Task<TenantSubscription?> GetActiveByTenantAsync(long tenantId, CancellationToken ct = default);
+        Task<TenantSubscription?> GetByIdForSystemAsync(long id, long tenantId, CancellationToken ct = default);
         Task<List<TenantSubscription>> GetHistoryByTenantAsync(long tenantId, CancellationToken ct = default);
         Task<List<TenantSubscription>> GetExpiringSoonAsync(int daysAhead, CancellationToken ct = default);
         Task<List<TenantSubscription>> GetExpiredAsync(CancellationToken ct = default);
@@ -20,6 +21,8 @@ namespace EduOS.Core.Interfaces.IRepositories
 
     public interface ISubscriptionInvoiceRepository : IGenericRepository<SubscriptionInvoice>
     {
+        Task<SubscriptionInvoice?> GetByIdForSystemAsync(long id, long tenantId, CancellationToken ct = default);
+        Task<SubscriptionInvoice?> GetByIdForPlatformAsync(long id, CancellationToken ct = default);
         Task<SubscriptionInvoice?> GetByInvoiceNumberAsync(string invoiceNumber, CancellationToken ct = default);
         Task<List<SubscriptionInvoice>> GetByTenantAsync(long tenantId, CancellationToken ct = default);
         Task<List<SubscriptionInvoice>> GetUnpaidByTenantAsync(long tenantId, CancellationToken ct = default);
@@ -28,9 +31,11 @@ namespace EduOS.Core.Interfaces.IRepositories
 
     public interface ISubscriptionPaymentRepository : IGenericRepository<SubscriptionPayment>
     {
-        Task<SubscriptionPayment?> GetByTransactionIdAsync(string transactionId, CancellationToken ct = default);
+        Task<SubscriptionPayment?> GetByIdForPlatformAsync(long id, CancellationToken ct = default);
+        Task<SubscriptionPayment?> GetByTransactionIdForCallbackAsync(string transactionId, CancellationToken ct = default);
         Task<SubscriptionPayment?> GetByGatewayTransactionIdAsync(string gatewayTxnId, CancellationToken ct = default);
         Task<List<SubscriptionPayment>> GetByInvoiceAsync(long invoiceId, CancellationToken ct = default);
-        Task<List<SubscriptionPayment>> GetPendingManualVerificationAsync(CancellationToken ct = default);
+        Task<List<SubscriptionPayment>> GetByInvoiceForPlatformAsync(long invoiceId, long tenantId, CancellationToken ct = default);
+        Task<List<SubscriptionPayment>> GetPendingManualVerificationForPlatformAsync(CancellationToken ct = default);
     }
 }

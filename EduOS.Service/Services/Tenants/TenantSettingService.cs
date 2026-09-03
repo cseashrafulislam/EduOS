@@ -4,8 +4,10 @@ using EduOS.Core.Entities.Tenants;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Security.Cryptography;
 
 namespace EduOS.Service.Services.Tenants
 {
@@ -15,20 +17,26 @@ namespace EduOS.Service.Services.Tenants
         private readonly IUnitOfWork _unitOfWork;
         private readonly ICurrentUserService _currentUser;
         private readonly ILogger<TenantSettingService> _logger;
+        private readonly IDataProtector _protector;
 
         // Setting categories
         private const string CATEGORY_SMS = "Sms";
         private const string CATEGORY_EMAIL = "Email";
+        private const string PROTECTED_PREFIX = "dp:v1:";
+        private const string SECRET_MASK = "********";
 
         public TenantSettingService(
             IGenericRepository<TenantSetting> settingRepo,
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUser,
+            IDataProtectionProvider dataProtectionProvider,
             ILogger<TenantSettingService> logger)
         {
             _settingRepo = settingRepo;
             _unitOfWork = unitOfWork;
             _currentUser = currentUser;
+            _protector = dataProtectionProvider.CreateProtector(
+                "EduOS.TenantSettings.SensitiveValues.v1");
             _logger = logger;
         }
 
@@ -148,7 +156,11 @@ namespace EduOS.Service.Services.Tenants
                     s.SettingKey == key);
 
                 var setting = settings?.FirstOrDefault();
-                return ApiResponse<string?>.SuccessResponse(setting?.SettingValue);
+                var value = setting?.IsSensitive == true
+                    ? UnprotectSensitiveValue(setting.SettingValue)
+                    : setting?.SettingValue;
+
+                return ApiResponse<string?>.SuccessResponse(value);
             }
             catch (Exception ex)
             {
@@ -197,7 +209,9 @@ namespace EduOS.Service.Services.Tenants
 
             return settings?
                 .Where(s => s.SettingValue != null)
-                .ToDictionary(s => s.SettingKey, s => s.SettingValue!)
+                .ToDictionary(
+                    s => s.SettingKey,
+                    s => s.IsSensitive ? SECRET_MASK : s.SettingValue!)
                 ?? new Dictionary<string, string>();
         }
 
@@ -210,23 +224,70 @@ namespace EduOS.Service.Services.Tenants
 
             if (existing != null)
             {
-                existing.SettingValue = value;
+                if (isSensitive && IsUnchangedSecret(value))
+                    return;
+
+                existing.SettingValue = isSensitive
+                    ? ProtectSensitiveValue(value)
+                    : value;
                 existing.IsSensitive = isSensitive;
                 _settingRepo.Update(existing);
             }
             else
             {
+                if (isSensitive && IsUnchangedSecret(value))
+                    return;
+
                 var setting = new TenantSetting
                 {
                     TenantId = _currentUser.TenantId,
                     Category = category,
                     SettingKey = key,
-                    SettingValue = value,
+                    SettingValue = isSensitive
+                        ? ProtectSensitiveValue(value)
+                        : value,
                     IsSensitive = isSensitive,
                     IsEditable = true,
                     DataType = "string"
                 };
                 await _settingRepo.AddAsync(setting);
+            }
+        }
+
+        private static bool IsUnchangedSecret(string? value)
+        {
+            return string.IsNullOrWhiteSpace(value)
+                   || string.Equals(value, SECRET_MASK, StringComparison.Ordinal);
+        }
+
+        private string? ProtectSensitiveValue(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return null;
+
+            return PROTECTED_PREFIX + _protector.Protect(value);
+        }
+
+        private string? UnprotectSensitiveValue(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return null;
+
+            // Legacy rows may still be plaintext. They are never returned by the
+            // category/gateway APIs and will be protected on their next update.
+            if (!value.StartsWith(PROTECTED_PREFIX, StringComparison.Ordinal))
+                return value;
+
+            try
+            {
+                return _protector.Unprotect(value[PROTECTED_PREFIX.Length..]);
+            }
+            catch (CryptographicException ex)
+            {
+                _logger.LogWarning(ex,
+                    "Unable to decrypt a sensitive tenant setting for tenant {TenantId}",
+                    _currentUser.TenantId);
+                return null;
             }
         }
     }

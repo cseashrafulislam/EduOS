@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [ master ]
+  push:
+    branches: [ master ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore EduOS.slnx
+
+      - name: Build
+        run: dotnet build EduOS.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test EduOS.slnx --configuration Release --no-build --logger "trx;LogFileName=tests.trx" --results-directory TestResults

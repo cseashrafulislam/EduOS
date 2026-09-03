@@ -11,6 +11,8 @@ using EduOS.Service.Helpers.Storage;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Globalization;
+using System.Security.Cryptography;
 
 namespace EduOS.Service.Services.SaaS
 {
@@ -75,7 +77,7 @@ namespace EduOS.Service.Services.SaaS
                     return ApiResponse<InitiatePaymentResponseDto>.ErrorResponse("Nothing due on this invoice", 400);
 
                 // 2. Generate our internal transaction ID
-                var transactionId = $"EDU-{DateTime.UtcNow:yyyyMMddHHmmss}-{tenantId}-{invoice.Id}";
+                var transactionId = CreateTransactionId("EDU", tenantId, invoice.Id);
 
                 // 3. Create payment record
                 var payment = new SubscriptionPayment
@@ -158,7 +160,7 @@ namespace EduOS.Service.Services.SaaS
                 if (string.IsNullOrEmpty(callback.MerTxnid))
                     return ApiResponse<bool>.ErrorResponse("Missing transaction ID", 400);
 
-                var payment = await _paymentRepo.GetByTransactionIdAsync(callback.MerTxnid);
+                var payment = await _paymentRepo.GetByTransactionIdForCallbackAsync(callback.MerTxnid);
                 if (payment == null)
                 {
                     _logger.LogWarning("Callback for unknown txn {TxnId}", callback.MerTxnid);
@@ -180,11 +182,24 @@ namespace EduOS.Service.Services.SaaS
                 {
                     // Verify with AamarPay before trusting the callback
                     var verify = await _aamarPay.VerifyTransactionAsync(callback.MerTxnid);
-                    if (!verify.IsSuccess)
+                    var amountMatches = decimal.TryParse(
+                        verify.Amount,
+                        NumberStyles.Number,
+                        CultureInfo.InvariantCulture,
+                        out var verifiedAmount)
+                        && verifiedAmount == payment.Amount;
+                    var currencyMatches = string.IsNullOrWhiteSpace(verify.Currency)
+                        || string.Equals(
+                            verify.Currency,
+                            payment.Currency,
+                            StringComparison.OrdinalIgnoreCase);
+
+                    if (!verify.IsSuccess || !amountMatches || !currencyMatches)
                     {
                         payment.Status = PaymentStatus.Failed;
-                        payment.FailureReason = "Verification failed: " + (verify.ErrorMessage ?? verify.PayStatus);
+                        payment.FailureReason = "Gateway verification failed or payment details did not match.";
                         payment.FailedAt = DateTime.UtcNow;
+                        payment.GatewayResponse = verify.RawResponse;
                         _paymentRepo.Update(payment);
                         await _unitOfWork.SaveChangesAsync();
                         await _unitOfWork.CommitTransactionAsync();
@@ -195,7 +210,8 @@ namespace EduOS.Service.Services.SaaS
                     payment.CompletedAt = DateTime.UtcNow;
 
                     // Update invoice
-                    var invoice = await _invoiceRepo.GetByIdAsync(payment.SubscriptionInvoiceId);
+                    var invoice = await _invoiceRepo.GetByIdForSystemAsync(
+                        payment.SubscriptionInvoiceId, payment.TenantId);
                     if (invoice != null)
                     {
                         invoice.PaidAmount += payment.Amount;
@@ -210,7 +226,8 @@ namespace EduOS.Service.Services.SaaS
                         // Activate subscription if invoice is fully paid
                         if (invoice.PaymentStatus == PaymentStatus.Successful)
                         {
-                            await _subscriptionService.ActivateAfterPaymentAsync(invoice.TenantSubscriptionId);
+                            await _subscriptionService.ActivateAfterPaymentAsync(
+                                invoice.TenantSubscriptionId, payment.TenantId);
                         }
                     }
                 }
@@ -275,7 +292,7 @@ namespace EduOS.Service.Services.SaaS
                     slipUrl = upload.FileUrl;
                 }
 
-                var transactionId = $"MAN-{DateTime.UtcNow:yyyyMMddHHmmss}-{tenantId}-{invoice.Id}";
+                var transactionId = CreateTransactionId("MAN", tenantId, invoice.Id);
 
                 var payment = new SubscriptionPayment
                 {
@@ -324,7 +341,7 @@ namespace EduOS.Service.Services.SaaS
         {
             try
             {
-                var payment = await _paymentRepo.GetByIdAsync(dto.PaymentId);
+                var payment = await _paymentRepo.GetByIdForPlatformAsync(dto.PaymentId);
                 if (payment == null)
                     return ApiResponse<bool>.ErrorResponse("Payment not found", 404);
 
@@ -337,7 +354,8 @@ namespace EduOS.Service.Services.SaaS
                 payment.VerifiedAt = DateTime.UtcNow;
                 payment.VerificationNote = dto.VerificationNote;
 
-                var invoice = await _invoiceRepo.GetByIdAsync(payment.SubscriptionInvoiceId);
+                var invoice = await _invoiceRepo.GetByIdForSystemAsync(
+                    payment.SubscriptionInvoiceId, payment.TenantId);
 
                 if (dto.Approve)
                 {
@@ -361,7 +379,8 @@ namespace EduOS.Service.Services.SaaS
 
                         if (invoice.PaymentStatus == PaymentStatus.Successful)
                         {
-                            await _subscriptionService.ActivateAfterPaymentAsync(invoice.TenantSubscriptionId);
+                            await _subscriptionService.ActivateAfterPaymentAsync(
+                                invoice.TenantSubscriptionId, payment.TenantId);
                         }
                     }
                 }
@@ -405,11 +424,15 @@ namespace EduOS.Service.Services.SaaS
             var tenantId = _currentUser.TenantId;
             try
             {
-                var invoice = await _invoiceRepo.GetByIdAsync(invoiceId);
+                var invoice = _currentUser.IsSuperAdmin
+                    ? await _invoiceRepo.GetByIdForPlatformAsync(invoiceId)
+                    : await _invoiceRepo.GetByIdAsync(invoiceId);
                 if (invoice == null || (invoice.TenantId != tenantId && !_currentUser.IsSuperAdmin))
                     return ApiResponse<List<SubscriptionPaymentDto>>.ErrorResponse("Invoice not found", 404);
 
-                var payments = await _paymentRepo.GetByInvoiceAsync(invoiceId);
+                var payments = _currentUser.IsSuperAdmin
+                    ? await _paymentRepo.GetByInvoiceForPlatformAsync(invoiceId, invoice.TenantId)
+                    : await _paymentRepo.GetByInvoiceAsync(invoiceId);
                 var dtos = payments.Select(p => MapToDto(p, invoice.InvoiceNumber)).ToList();
 
                 return ApiResponse<List<SubscriptionPaymentDto>>.SuccessResponse(dtos);
@@ -431,14 +454,15 @@ namespace EduOS.Service.Services.SaaS
                 if (!_currentUser.IsSuperAdmin)
                     return ApiResponse<List<SubscriptionPaymentDto>>.ErrorResponse("Forbidden", 403);
 
-                var payments = await _paymentRepo.GetPendingManualVerificationAsync();
+                var payments = await _paymentRepo.GetPendingManualVerificationForPlatformAsync();
 
                 // Load invoice numbers
                 var invoiceIds = payments.Select(p => p.SubscriptionInvoiceId).Distinct().ToList();
                 var invoices = new Dictionary<long, string>();
                 foreach (var id in invoiceIds)
                 {
-                    var inv = await _invoiceRepo.GetByIdAsync(id);
+                    var payment = payments.First(p => p.SubscriptionInvoiceId == id);
+                    var inv = await _invoiceRepo.GetByIdForSystemAsync(id, payment.TenantId);
                     if (inv != null) invoices[id] = inv.InvoiceNumber;
                 }
 
@@ -481,6 +505,12 @@ namespace EduOS.Service.Services.SaaS
                 VerifiedAt = p.VerifiedAt,
                 FailureReason = p.FailureReason
             };
+        }
+
+        private static string CreateTransactionId(string prefix, long tenantId, long invoiceId)
+        {
+            var nonce = Convert.ToHexString(RandomNumberGenerator.GetBytes(8));
+            return $"{prefix}-{DateTime.UtcNow:yyyyMMddHHmmss}-{tenantId}-{invoiceId}-{nonce}";
         }
     }
 }

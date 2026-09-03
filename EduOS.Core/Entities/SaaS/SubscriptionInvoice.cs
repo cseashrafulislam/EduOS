@@ -8,7 +8,7 @@ namespace EduOS.Core.Entities.SaaS
     /// Invoice for a tenant's subscription billing cycle.
     /// Generated automatically when a subscription period starts.
     /// </summary>
-    public class SubscriptionInvoice : BaseEntity
+    public class SubscriptionInvoice : BaseEntity, ITenantScopedEntity
     {
         public long TenantId { get; set; }
         public long TenantSubscriptionId { get; set; }

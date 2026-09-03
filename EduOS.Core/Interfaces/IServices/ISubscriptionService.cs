@@ -36,7 +36,7 @@ namespace EduOS.Core.Interfaces.IServices
         /// Activate subscription after successful payment.
         /// Called internally by PaymentService.
         /// </summary>
-        Task<ApiResponse<bool>> ActivateAfterPaymentAsync(long subscriptionId);
+        Task<ApiResponse<bool>> ActivateAfterPaymentAsync(long subscriptionId, long tenantId);
 
         /// <summary>
         /// Check if tenant's subscription has expired and update status if needed.

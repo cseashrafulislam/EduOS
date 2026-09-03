@@ -2,6 +2,7 @@ using EduOS.Core.DTOs.SaaS;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace EduOS.App.Controllers.Api
 {
@@ -39,6 +40,7 @@ namespace EduOS.App.Controllers.Api
         /// AamarPay POSTs success callback here
         /// </summary>
         [AllowAnonymous]
+        [EnableRateLimiting("PaymentCallbackPolicy")]
         [HttpPost("callback/success")]
         public async Task<IActionResult> SuccessCallback([FromForm] AamarPayCallbackDto dto)
         {
@@ -49,6 +51,7 @@ namespace EduOS.App.Controllers.Api
         }
 
         [AllowAnonymous]
+        [EnableRateLimiting("PaymentCallbackPolicy")]
         [HttpPost("callback/fail")]
         public async Task<IActionResult> FailCallback([FromForm] AamarPayCallbackDto dto)
         {
@@ -59,6 +62,7 @@ namespace EduOS.App.Controllers.Api
         }
 
         [AllowAnonymous]
+        [EnableRateLimiting("PaymentCallbackPolicy")]
         [HttpPost("callback/cancel")]
         public async Task<IActionResult> CancelCallback([FromForm] AamarPayCallbackDto dto)
         {
@@ -72,6 +76,7 @@ namespace EduOS.App.Controllers.Api
         /// AamarPay IPN (server-to-server). Returns plain 200.
         /// </summary>
         [AllowAnonymous]
+        [EnableRateLimiting("PaymentCallbackPolicy")]
         [HttpPost("callback/ipn")]
         public async Task<IActionResult> IpnCallback([FromForm] AamarPayCallbackDto dto)
         {

@@ -5,6 +5,7 @@ using EduOS.Core.Configurations;
 using EduOS.Persistence.Extensions;
 using EduOS.Persistence.Seed;
 using Hangfire;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.OpenApi;
 
 
@@ -31,6 +32,14 @@ builder.Services.AddControllersWithViews(options =>
 
 builder.Services.AddRazorPages();
 builder.Services.AddHttpContextAccessor();
+var dataProtection = builder.Services.AddDataProtection()
+    .SetApplicationName("EduOS");
+var dataProtectionKeysPath = builder.Configuration["DataProtection:KeysPath"];
+if (!string.IsNullOrWhiteSpace(dataProtectionKeysPath))
+{
+    dataProtection.PersistKeysToFileSystem(
+        new DirectoryInfo(dataProtectionKeysPath));
+}
 
 // =============================================================================
 // 3. PERSISTENCE LAYER
@@ -40,7 +49,7 @@ builder.Services.AddPersistenceServices(builder.Configuration);
 // =============================================================================
 // 4. IDENTITY / AUTH
 // =============================================================================
-builder.Services.AddIdentityConfiguration();
+builder.Services.AddIdentityConfiguration(builder.Environment);
 
 // =============================================================================
 // 5. APPLICATION SERVICES
@@ -106,7 +115,21 @@ var app = builder.Build();
 // =============================================================================
 // 11. DATABASE INITIALIZATION
 // =============================================================================
-await DatabaseInitializer.InitializeAsync(app.Services, applyMigrations: true);
+// Production deployments must run reviewed migrations as a separate release step.
+// Development can opt in through appsettings.Development.json.
+var initializeDatabase = app.Configuration.GetValue<bool>("DatabaseInitialization:Enabled");
+if (initializeDatabase)
+{
+    var applyMigrations = app.Configuration.GetValue<bool>(
+        "DatabaseInitialization:ApplyMigrations");
+
+    await DatabaseInitializer.InitializeAsync(app.Services, applyMigrations);
+}
+else
+{
+    app.Logger.LogInformation(
+        "Automatic database initialization is disabled. Run controlled migrations before deployment.");
+}
 
 // =============================================================================
 // 12. MIDDLEWARE PIPELINE

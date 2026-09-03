@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.DependencyInjection;
+using System.Security.Claims;
 using System.Threading.RateLimiting;
 
 namespace EduOS.App.Extensions
@@ -10,47 +11,36 @@ namespace EduOS.App.Extensions
         {
             services.AddRateLimiter(options =>
             {
-                // Login - prevent brute force (5 attempts per minute per IP)
-                options.AddFixedWindowLimiter("LoginPolicy", opt =>
-                {
-                    opt.PermitLimit = 5;
-                    opt.Window = TimeSpan.FromMinutes(1);
-                    opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-                    opt.QueueLimit = 0;
-                });
+                // Every policy is partitioned. A non-partitioned limiter would make
+                // one busy client consume the quota for the entire application.
+                options.AddPolicy("LoginPolicy", context =>
+                    RateLimitPartition.GetFixedWindowLimiter(
+                        GetClientPartition(context),
+                        _ => CreateOptions(5, TimeSpan.FromMinutes(1))));
 
                 // Signup - prevent spam (3 per 5 minutes per IP)
-                options.AddFixedWindowLimiter("SignupPolicy", opt =>
-                {
-                    opt.PermitLimit = 3;
-                    opt.Window = TimeSpan.FromMinutes(5);
-                    opt.QueueLimit = 0;
-                });
+                options.AddPolicy("SignupPolicy", context =>
+                    RateLimitPartition.GetFixedWindowLimiter(
+                        GetClientPartition(context),
+                        _ => CreateOptions(3, TimeSpan.FromMinutes(5))));
 
                 // Forgot password (3 per 10 minutes per IP)
-                options.AddFixedWindowLimiter("ForgotPasswordPolicy", opt =>
-                {
-                    opt.PermitLimit = 3;
-                    opt.Window = TimeSpan.FromMinutes(10);
-                    opt.QueueLimit = 0;
-                });
+                options.AddPolicy("ForgotPasswordPolicy", context =>
+                    RateLimitPartition.GetFixedWindowLimiter(
+                        GetClientPartition(context),
+                        _ => CreateOptions(3, TimeSpan.FromMinutes(10))));
 
                 // API - general rate limit (60 requests per minute per IP)
-                options.AddFixedWindowLimiter("ApiPolicy", opt =>
-                {
-                    opt.PermitLimit = 60;
-                    opt.Window = TimeSpan.FromMinutes(1);
-                    opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-                    opt.QueueLimit = 10;
-                });
+                options.AddPolicy("ApiPolicy", context =>
+                    RateLimitPartition.GetFixedWindowLimiter(
+                        GetClientPartition(context),
+                        _ => CreateOptions(60, TimeSpan.FromMinutes(1), 10)));
 
                 // Payment callback - more lenient (gateway may retry)
-                options.AddFixedWindowLimiter("PaymentCallbackPolicy", opt =>
-                {
-                    opt.PermitLimit = 100;
-                    opt.Window = TimeSpan.FromMinutes(1);
-                    opt.QueueLimit = 20;
-                });
+                options.AddPolicy("PaymentCallbackPolicy", context =>
+                    RateLimitPartition.GetFixedWindowLimiter(
+                        GetIpPartition(context),
+                        _ => CreateOptions(100, TimeSpan.FromMinutes(1), 20)));
 
                 // Global rejection response
                 options.OnRejected = async (context, ct) =>
@@ -73,6 +63,34 @@ namespace EduOS.App.Extensions
             });
 
             return services;
+        }
+
+        private static FixedWindowRateLimiterOptions CreateOptions(
+            int permitLimit,
+            TimeSpan window,
+            int queueLimit = 0)
+        {
+            return new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = permitLimit,
+                Window = window,
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = queueLimit,
+                AutoReplenishment = true
+            };
+        }
+
+        private static string GetClientPartition(HttpContext context)
+        {
+            var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            return string.IsNullOrWhiteSpace(userId)
+                ? GetIpPartition(context)
+                : $"user:{userId}";
+        }
+
+        private static string GetIpPartition(HttpContext context)
+        {
+            return $"ip:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
         }
     }
 }

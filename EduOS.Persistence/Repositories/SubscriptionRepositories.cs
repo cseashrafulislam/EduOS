@@ -50,14 +50,26 @@ namespace EduOS.Persistence.Repositories.SaaS
         public async Task<TenantSubscription?> GetActiveByTenantAsync(long tenantId, CancellationToken ct = default)
         {
             return await _context.TenantSubscriptions
+                .IgnoreQueryFilters()
                 .Include(s => s.SubscriptionPlan)
-                .Where(s => s.TenantId == tenantId &&
+                .Where(s => !s.IsDeleted &&
+                           s.TenantId == tenantId &&
                            (s.Status == SubscriptionStatus.Active ||
                             s.Status == SubscriptionStatus.Trialing ||
                             s.Status == SubscriptionStatus.PendingPayment ||
                             s.Status == SubscriptionStatus.CancelAtPeriodEnd))
                 .OrderByDescending(s => s.CreatedAt)
                 .FirstOrDefaultAsync(ct);
+        }
+
+        public async Task<TenantSubscription?> GetByIdForSystemAsync(
+            long id, long tenantId, CancellationToken ct = default)
+        {
+            return await _context.TenantSubscriptions
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(
+                    s => !s.IsDeleted && s.Id == id && s.TenantId == tenantId,
+                    ct);
         }
 
         public async Task<List<TenantSubscription>> GetHistoryByTenantAsync(long tenantId, CancellationToken ct = default)
@@ -73,8 +85,10 @@ namespace EduOS.Persistence.Repositories.SaaS
         {
             var cutoff = DateTime.UtcNow.AddDays(daysAhead);
             return await _context.TenantSubscriptions
+                .IgnoreQueryFilters()
                 .Include(s => s.Tenant)
-                .Where(s => s.Status == SubscriptionStatus.Active &&
+                .Where(s => !s.IsDeleted &&
+                           s.Status == SubscriptionStatus.Active &&
                            s.EndDate <= cutoff &&
                            s.EndDate > DateTime.UtcNow)
                 .ToListAsync(ct);
@@ -83,7 +97,9 @@ namespace EduOS.Persistence.Repositories.SaaS
         public async Task<List<TenantSubscription>> GetExpiredAsync(CancellationToken ct = default)
         {
             return await _context.TenantSubscriptions
-                .Where(s => (s.Status == SubscriptionStatus.Active ||
+                .IgnoreQueryFilters()
+                .Where(s => !s.IsDeleted &&
+                           (s.Status == SubscriptionStatus.Active ||
                              s.Status == SubscriptionStatus.Trialing) &&
                             s.EndDate < DateTime.UtcNow)
                 .ToListAsync(ct);
@@ -94,6 +110,24 @@ namespace EduOS.Persistence.Repositories.SaaS
     {
         public SubscriptionInvoiceRepository(EduOSDbContext context) : base(context) { }
 
+        public async Task<SubscriptionInvoice?> GetByIdForSystemAsync(
+            long id, long tenantId, CancellationToken ct = default)
+        {
+            return await _context.SubscriptionInvoices
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(
+                    i => !i.IsDeleted && i.Id == id && i.TenantId == tenantId,
+                    ct);
+        }
+
+        public async Task<SubscriptionInvoice?> GetByIdForPlatformAsync(
+            long id, CancellationToken ct = default)
+        {
+            return await _context.SubscriptionInvoices
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(i => !i.IsDeleted && i.Id == id, ct);
+        }
+
         public async Task<SubscriptionInvoice?> GetByInvoiceNumberAsync(string invoiceNumber, CancellationToken ct = default)
         {
             return await _context.SubscriptionInvoices
@@ -103,7 +137,8 @@ namespace EduOS.Persistence.Repositories.SaaS
         public async Task<List<SubscriptionInvoice>> GetByTenantAsync(long tenantId, CancellationToken ct = default)
         {
             return await _context.SubscriptionInvoices
-                .Where(i => i.TenantId == tenantId)
+                .IgnoreQueryFilters()
+                .Where(i => !i.IsDeleted && i.TenantId == tenantId)
                 .OrderByDescending(i => i.IssueDate)
                 .ToListAsync(ct);
         }
@@ -111,7 +146,9 @@ namespace EduOS.Persistence.Repositories.SaaS
         public async Task<List<SubscriptionInvoice>> GetUnpaidByTenantAsync(long tenantId, CancellationToken ct = default)
         {
             return await _context.SubscriptionInvoices
-                .Where(i => i.TenantId == tenantId &&
+                .IgnoreQueryFilters()
+                .Where(i => !i.IsDeleted &&
+                           i.TenantId == tenantId &&
                            (i.PaymentStatus == PaymentStatus.Pending ||
                             i.PaymentStatus == PaymentStatus.AwaitingVerification))
                 .OrderByDescending(i => i.IssueDate)
@@ -124,7 +161,8 @@ namespace EduOS.Persistence.Repositories.SaaS
             var prefix = $"INV-{DateTime.UtcNow:yyyyMM}-";
 
             var lastNumber = await _context.SubscriptionInvoices
-                .Where(i => i.InvoiceNumber.StartsWith(prefix))
+                .IgnoreQueryFilters()
+                .Where(i => !i.IsDeleted && i.InvoiceNumber.StartsWith(prefix))
                 .OrderByDescending(i => i.InvoiceNumber)
                 .Select(i => i.InvoiceNumber)
                 .FirstOrDefaultAsync(ct);
@@ -145,10 +183,22 @@ namespace EduOS.Persistence.Repositories.SaaS
     {
         public SubscriptionPaymentRepository(EduOSDbContext context) : base(context) { }
 
-        public async Task<SubscriptionPayment?> GetByTransactionIdAsync(string transactionId, CancellationToken ct = default)
+        public async Task<SubscriptionPayment?> GetByIdForPlatformAsync(
+            long id, CancellationToken ct = default)
         {
             return await _context.SubscriptionPayments
-                .FirstOrDefaultAsync(p => p.TransactionId == transactionId, ct);
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(p => !p.IsDeleted && p.Id == id, ct);
+        }
+
+        public async Task<SubscriptionPayment?> GetByTransactionIdForCallbackAsync(
+            string transactionId, CancellationToken ct = default)
+        {
+            return await _context.SubscriptionPayments
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(
+                    p => !p.IsDeleted && p.TransactionId == transactionId,
+                    ct);
         }
 
         public async Task<SubscriptionPayment?> GetByGatewayTransactionIdAsync(string gatewayTxnId, CancellationToken ct = default)
@@ -165,10 +215,25 @@ namespace EduOS.Persistence.Repositories.SaaS
                 .ToListAsync(ct);
         }
 
-        public async Task<List<SubscriptionPayment>> GetPendingManualVerificationAsync(CancellationToken ct = default)
+        public async Task<List<SubscriptionPayment>> GetByInvoiceForPlatformAsync(
+            long invoiceId, long tenantId, CancellationToken ct = default)
         {
             return await _context.SubscriptionPayments
-                .Where(p => p.PaymentMethod == PaymentMethod.ManualBankTransfer &&
+                .IgnoreQueryFilters()
+                .Where(p => !p.IsDeleted &&
+                            p.TenantId == tenantId &&
+                            p.SubscriptionInvoiceId == invoiceId)
+                .OrderByDescending(p => p.InitiatedAt)
+                .ToListAsync(ct);
+        }
+
+        public async Task<List<SubscriptionPayment>> GetPendingManualVerificationForPlatformAsync(
+            CancellationToken ct = default)
+        {
+            return await _context.SubscriptionPayments
+                .IgnoreQueryFilters()
+                .Where(p => !p.IsDeleted &&
+                           p.PaymentMethod == PaymentMethod.ManualBankTransfer &&
                            p.Status == PaymentStatus.AwaitingVerification)
                 .OrderBy(p => p.InitiatedAt)
                 .ToListAsync(ct);

@@ -155,11 +155,16 @@ namespace EduOS.Service.Helpers.Payment
                     ? amtProp.GetString()
                     : null;
 
+                var currency = root.TryGetProperty("currency", out var currencyProp)
+                    ? currencyProp.GetString()
+                    : null;
+
                 return new AamarPayVerifyResult
                 {
                     IsSuccess = string.Equals(payStatus, "Successful", StringComparison.OrdinalIgnoreCase),
                     PayStatus = payStatus,
                     Amount = amount,
+                    Currency = currency,
                     RawResponse = body
                 };
             }
@@ -208,6 +213,7 @@ namespace EduOS.Service.Helpers.Payment
         public bool IsSuccess { get; set; }
         public string? PayStatus { get; set; }
         public string? Amount { get; set; }
+        public string? Currency { get; set; }
         public string? ErrorMessage { get; set; }
         public string? RawResponse { get; set; }
     }

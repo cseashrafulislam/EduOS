@@ -8,7 +8,7 @@ namespace EduOS.Core.Entities.SaaS
     /// Records each payment transaction made against a SubscriptionInvoice.
     /// One invoice can have multiple payments (partial payments, retries, etc.).
     /// </summary>
-    public class SubscriptionPayment : BaseEntity
+    public class SubscriptionPayment : BaseEntity, ITenantScopedEntity
     {
         public long TenantId { get; set; }
         public long SubscriptionInvoiceId { get; set; }

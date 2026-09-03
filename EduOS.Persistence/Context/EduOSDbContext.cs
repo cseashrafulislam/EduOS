@@ -51,8 +51,8 @@ namespace EduOS.Persistence.Context
         private IDbContextTransaction? _transaction;
         private bool _isAuditing;
 
-        // Lazily resolved from HttpContext claims
-        private long? _tenantId;
+        // Lazily resolved user metadata. Tenant context stays request-dynamic because
+        // middleware may resolve it after the DbContext has been constructed.
         private long? _userId;
         private string? _userName;
         private bool _contextResolved;
@@ -85,18 +85,50 @@ namespace EduOS.Persistence.Context
             var uidStr = user.FindFirstValue(ClaimTypes.NameIdentifier);
             if (long.TryParse(uidStr, out var uid)) _userId = uid;
 
-            // TenantId from custom claim set during login
-            var tidStr = user.FindFirstValue("TenantId");
-            if (long.TryParse(tidStr, out var tid)) _tenantId = tid;
-
             // FullName from custom claim
             _userName = user.FindFirstValue("FullName")
                         ?? user.Identity.Name
                         ?? "System";
         }
 
-        // Properties trigger lazy resolution
-        private long? TenantId { get { ResolveContext(); return _tenantId; } }
+        // Tenant resolution accepts the canonical cookie claim, JWT claim variants,
+        // and the trusted value populated by TenantContextMiddleware.
+        private long? TenantId
+        {
+            get
+            {
+                var httpContext = _httpContextAccessor?.HttpContext;
+
+                if (httpContext?.Items.TryGetValue("TenantId", out var itemValue) == true)
+                {
+                    if (itemValue is long itemTenantId && itemTenantId > 0)
+                        return itemTenantId;
+
+                    if (long.TryParse(itemValue?.ToString(), out var parsedItemTenantId)
+                        && parsedItemTenantId > 0)
+                        return parsedItemTenantId;
+                }
+
+                var user = httpContext?.User;
+                if (user?.Identity?.IsAuthenticated != true)
+                    return null;
+
+                var claimValue = user.FindFirstValue("TenantId")
+                                 ?? user.FindFirstValue("tenantId")
+                                 ?? user.FindFirstValue("tenant_id");
+
+                return long.TryParse(claimValue, out var claimTenantId) && claimTenantId > 0
+                    ? claimTenantId
+                    : null;
+            }
+        }
+
+        /// <summary>
+        /// Used by EF Core's parameterized global query filters. Zero deliberately
+        /// matches no valid tenant when a request has no tenant context.
+        /// </summary>
+        public long CurrentTenantId => TenantId ?? 0;
+
         private long? UserId { get { ResolveContext(); return _userId; } }
         private string UserName { get { ResolveContext(); return _userName ?? "System"; } }
 
@@ -311,30 +343,32 @@ namespace EduOS.Persistence.Context
 
         private void ApplyGlobalFilters(ModelBuilder modelBuilder)
         {
-            ResolveContext(); // ensure claims are read before filters are built
-
             foreach (var entityType in modelBuilder.Model.GetEntityTypes())
             {
                 var clrType = entityType.ClrType;
 
-                // Soft Delete: all BaseEntity subclasses
+                // Soft delete is always applied. Tenant isolation is combined into
+                // the same expression so one unnamed filter cannot overwrite another.
                 if (typeof(BaseEntity).IsAssignableFrom(clrType))
                 {
                     var p = Expression.Parameter(clrType, "e");
-                    var notDeleted = Expression.Not(
+                    Expression filter = Expression.Not(
                         Expression.Property(p, nameof(BaseEntity.IsDeleted)));
-                    modelBuilder.Entity(clrType)
-                        .HasQueryFilter(Expression.Lambda(notDeleted, p));
-                }
 
-                // Multi-Tenancy: BaseTenantEntity subclasses, only when tenant is known
-                if (typeof(BaseTenantEntity).IsAssignableFrom(clrType) && _tenantId.HasValue)
-                {
-                    var p = Expression.Parameter(clrType, "e");
-                    var prop = Expression.Property(p, nameof(BaseTenantEntity.TenantId));
-                    var val = Expression.Constant(_tenantId.Value, typeof(long));
+                    if (typeof(ITenantScopedEntity).IsAssignableFrom(clrType))
+                    {
+                        var entityTenantId = Expression.Property(
+                            p, nameof(ITenantScopedEntity.TenantId));
+                        var currentTenantId = Expression.Property(
+                            Expression.Constant(this), nameof(CurrentTenantId));
+
+                        filter = Expression.AndAlso(
+                            filter,
+                            Expression.Equal(entityTenantId, currentTenantId));
+                    }
+
                     modelBuilder.Entity(clrType)
-                        .HasQueryFilter(Expression.Lambda(Expression.Equal(prop, val), p));
+                        .HasQueryFilter(Expression.Lambda(filter, p));
                 }
             }
         }
@@ -388,6 +422,8 @@ namespace EduOS.Persistence.Context
 
             try
             {
+                ValidateTenantBoundaries(entries);
+
                 foreach (var entry in entries)
                 {
                     if (entry.Entity is AuditLog) continue;
@@ -442,13 +478,52 @@ namespace EduOS.Persistence.Context
             {
                 entity.CreatedAt = now;
                 entity.CreatedBy = UserId;
-                if (entity is BaseTenantEntity te && te.TenantId == 0)
-                    te.TenantId = TenantId ?? 0;
+                if (entity is ITenantScopedEntity tenantEntity && tenantEntity.TenantId == 0)
+                    tenantEntity.TenantId = TenantId
+                        ?? throw new InvalidOperationException(
+                            "Tenant-scoped data requires an explicit tenant context.");
             }
             else
             {
                 entity.UpdatedAt = now;
                 entity.UpdatedBy = UserId;
+            }
+        }
+
+        private void ValidateTenantBoundaries(IEnumerable<EntityEntry<BaseEntity>> entries)
+        {
+            var requestTenantId = TenantId;
+            var user = _httpContextAccessor?.HttpContext?.User;
+            var isAuthenticated = user?.Identity?.IsAuthenticated == true;
+            var isPlatformAdmin = user?.IsInRole("SuperAdmin") == true;
+
+            foreach (var entry in entries.Where(e =>
+                         e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted))
+            {
+                if (entry.Entity is not ITenantScopedEntity tenantEntity)
+                    continue;
+
+                if (requestTenantId.HasValue)
+                {
+                    if (entry.State == EntityState.Added && tenantEntity.TenantId == 0)
+                        tenantEntity.TenantId = requestTenantId.Value;
+
+                    if (tenantEntity.TenantId != requestTenantId.Value)
+                        throw new UnauthorizedAccessException(
+                            "Tenant boundary violation. The record belongs to another tenant.");
+
+                    continue;
+                }
+
+                if (isAuthenticated && !isPlatformAdmin)
+                    throw new UnauthorizedAccessException(
+                        "Tenant context is required for tenant-scoped data.");
+
+                // Platform administration and background/bootstrap work must always
+                // name the target tenant explicitly; TenantId zero is never accepted.
+                if (tenantEntity.TenantId <= 0)
+                    throw new InvalidOperationException(
+                        "Tenant-scoped data requires an explicit TenantId.");
             }
         }
 
@@ -517,8 +592,10 @@ namespace EduOS.Persistence.Context
         }
 
         private static bool IsSensitiveField(string name) =>
-            new[] { "Password","PasswordHash","SecretKey","Token","ApiKey",
-                    "CreditCard","BankAccount","NID","Passport","RefreshToken" }
+            new[] { "Password", "PasswordHash", "Secret", "Token", "ApiKey",
+                    "ApiSecret", "CreditCard", "BankAccount", "AccountNumber",
+                    "NID", "NationalId", "BirthCert", "Passport", "RefreshToken",
+                    "SettingValue", "GatewayResponse" }
             .Any(f => name.Contains(f, StringComparison.OrdinalIgnoreCase));
 
         private async Task AddAuditLogsAsync(List<AuditLog> logs, CancellationToken ct)
