@@ -94,9 +94,17 @@ public class TenantModuleServiceTests
         var setup = await CreateSetupAsync("PRO", SubscriptionStatus.Active);
         await using var context = setup.Context;
         var service = CreateService(context, setup.CurrentUser);
-        await service.ApplyInstitutionPresetAsync(
-            setup.Tenant.Id,
-            setup.Tenant.InstitutionTypeDefinitionId!.Value);
+        var library = await context.ProductModules.SingleAsync(x => x.Code == "LIBRARY");
+        context.TenantModules.Add(new TenantModule
+        {
+            TenantId = setup.Tenant.Id,
+            ProductModuleId = library.Id,
+            IsEnabled = true,
+            ActivationSource = TenantModuleActivationSource.InstitutionPreset,
+            EnabledAt = DateTime.UtcNow
+        });
+        await context.SaveChangesAsync();
+        (await context.TenantModules.CountAsync()).Should().Be(1);
 
         var result = await service.UpdateCurrentTenantModuleAsync(
             "library",

@@ -48,22 +48,21 @@ public class OnboardingServiceTests
         });
         missing.Success.Should().BeFalse();
         missing.StatusCode.Should().Be(409);
+        setup.Tenant.OnboardingStep.Should().Be(OnboardingStep.AcademicSetup);
+    }
 
-        setup.Context.AcademicYears.Add(new AcademicYear
-        {
-            TenantId = setup.Tenant.Id,
-            Name = "2026",
-            StartDate = new DateTime(2026, 1, 1),
-            EndDate = new DateTime(2026, 12, 31),
-            IsCurrent = true
-        });
-        await setup.Context.SaveChangesAsync();
-
+    [Fact]
+    public async Task Academic_step_with_a_year_advances_to_module_selection()
+    {
+        await using var setup = await CreateSetupAsync(
+            OnboardingStep.AcademicSetup,
+            hasAcademicYear: true);
         var completed = await setup.Service.CompleteStepAsync(new CompleteStepDto
         {
             Step = OnboardingStep.AcademicSetup
         });
-        completed.Success.Should().BeTrue();
+
+        completed.Success.Should().BeTrue(completed.Message);
         setup.Tenant.OnboardingStep.Should().Be(OnboardingStep.ModuleSetup);
     }
 
@@ -134,7 +133,8 @@ public class OnboardingServiceTests
 
     private static async Task<TestSetup> CreateSetupAsync(
         OnboardingStep step,
-        ApiResponse<bool>? moduleValidation = null)
+        ApiResponse<bool>? moduleValidation = null,
+        bool hasAcademicYear = false)
     {
         const long tenantId = 410;
         var httpContext = new DefaultHttpContext();
@@ -163,6 +163,17 @@ public class OnboardingServiceTests
             Status = TenantStatus.Onboarding
         };
         context.Tenants.Add(tenant);
+        if (hasAcademicYear)
+        {
+            context.AcademicYears.Add(new AcademicYear
+            {
+                TenantId = tenantId,
+                Name = "2026",
+                StartDate = new DateTime(2026, 1, 1),
+                EndDate = new DateTime(2026, 12, 31),
+                IsCurrent = true
+            });
+        }
         await context.SaveChangesAsync();
 
         var moduleService = new Mock<ITenantModuleService>();
