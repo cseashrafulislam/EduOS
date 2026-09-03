@@ -171,7 +171,7 @@ public class InstitutionOnboardingServiceTests
             new Claim(ClaimTypes.Role, "TenantAdmin"),
             new Claim("TenantId", tenantId.ToString())
         ], "TestAuthentication"));
-        var accessor = new HttpContextAccessor { HttpContext = httpContext };
+        var accessor = new TestHttpContextAccessor { HttpContext = httpContext };
         var options = new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase($"institution-onboarding-{Guid.NewGuid():N}")
             .Options;
@@ -225,6 +225,11 @@ public class InstitutionOnboardingServiceTests
         InstitutionOnboardingService Service) : IAsyncDisposable
     {
         public ValueTask DisposeAsync() => Context.DisposeAsync();
+    }
+
+    private sealed class TestHttpContextAccessor : IHttpContextAccessor
+    {
+        public HttpContext? HttpContext { get; set; }
     }
 
     private sealed class TestCurrentUser(long tenantId) : ICurrentUserService
