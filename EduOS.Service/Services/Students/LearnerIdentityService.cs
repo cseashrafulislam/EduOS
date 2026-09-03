@@ -371,9 +371,11 @@ public sealed class LearnerIdentityService : ILearnerIdentityService
             && x.RequestedStudentId == studentId
             && x.Status == LearnerConsentRequestStatus.Pending
             && x.ExpiresAt > now);
+        var isNewRequest = false;
 
         if (request == null)
         {
+            isNewRequest = true;
             request = new LearnerConsentRequest
             {
                 TenantId = _currentUser.TenantId,
@@ -392,11 +394,11 @@ public sealed class LearnerIdentityService : ILearnerIdentityService
         await AddAccessLogAsync(
             personId,
             studentId,
-            request.Id > 0 ? request.Id : null,
+            isNewRequest ? null : request.Id,
             LearnerIdentityAccessAction.RequestConsent,
             LearnerIdentityAccessOutcome.ConsentRequired,
             purpose,
-            request.Id > 0 ? "CONSENT_REQUEST_REUSED" : "CONSENT_REQUEST_CREATED",
+            isNewRequest ? "CONSENT_REQUEST_CREATED" : "CONSENT_REQUEST_REUSED",
             consentRequest: request);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
