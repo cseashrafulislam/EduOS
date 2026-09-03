@@ -10,6 +10,7 @@ namespace EduOS.Core.DTOs.Dashboard
 
         // ── Subscription ───────────────────────────────────────
         public string PlanName { get; set; } = "N/A";
+        public string? PlanNameBangla { get; set; }
         public string PlanCode { get; set; } = string.Empty;
         public bool IsTrialActive { get; set; }
         public DateTime? TrialEndDate { get; set; }
@@ -47,9 +48,19 @@ namespace EduOS.Core.DTOs.Dashboard
 
     public class DashboardAlert
     {
+        /// <summary>
+        /// Stable machine-readable code used by clients to localize the alert.
+        /// Message remains populated for backward compatibility with API clients.
+        /// </summary>
+        public string Code { get; set; } = string.Empty;
         public string Type { get; set; } = "info";   // info | warning | danger | success
         public string Message { get; set; } = string.Empty;
+        public string? ActionCode { get; set; }
         public string? ActionUrl { get; set; }
         public string? ActionLabel { get; set; }
+        public int? Days { get; set; }
+        public int? Percentage { get; set; }
+        public int? CurrentValue { get; set; }
+        public int? LimitValue { get; set; }
     }
 }

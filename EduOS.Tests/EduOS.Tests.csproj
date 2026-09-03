@@ -52,6 +52,15 @@
     <None Include="..\EduOS.App\Views\Pricing\Index.cshtml"
           Link="TestAssets\Pricing.cshtml"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Views\Dashboard\Index.cshtml"
+          Link="TestAssets\Dashboard.cshtml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Views\Dashboard\Admin.cshtml"
+          Link="TestAssets\AdminDashboard.cshtml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Controllers\DashboardController.cs"
+          Link="TestAssets\DashboardController.cs"
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\wwwroot\js\account\login.js"
           Link="TestAssets\login.js"
           CopyToOutputDirectory="PreserveNewest" />

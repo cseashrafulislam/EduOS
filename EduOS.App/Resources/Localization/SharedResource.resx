@@ -226,4 +226,101 @@
   <data name="FaqCancelAnswer" xml:space="preserve"><value>Yes. The effective date, access period, and any refund conditions are shown before cancellation is confirmed.</value></data>
   <data name="FaqLargeInstitutionQuestion" xml:space="preserve"><value>Can a large or multi-campus institution get a custom plan?</value></data>
   <data name="FaqLargeInstitutionAnswer" xml:space="preserve"><value>Yes. Enterprise capacity and enabled modules can be configured through an approved plan without creating a separate codebase.</value></data>
+  <data name="SaasControlCenter" xml:space="preserve"><value>EduOS institution control centre</value></data>
+  <data name="NotAvailable" xml:space="preserve"><value>Not available</value></data>
+  <data name="Owner" xml:space="preserve"><value>Owner</value></data>
+  <data name="AccountStatus" xml:space="preserve"><value>Account status</value></data>
+  <data name="Plan" xml:space="preserve"><value>Plan</value></data>
+  <data name="NoPlan" xml:space="preserve"><value>No plan</value></data>
+  <data name="EmailVerifiedStatus" xml:space="preserve"><value>Email verified</value></data>
+  <data name="EmailPendingStatus" xml:space="preserve"><value>Email verification pending</value></data>
+  <data name="SetupCompleteStatus" xml:space="preserve"><value>Setup complete</value></data>
+  <data name="SetupInProgressStatus" xml:space="preserve"><value>Setup in progress</value></data>
+  <data name="OnboardingProgress" xml:space="preserve"><value>Setup progress</value></data>
+  <data name="CurrentStep" xml:space="preserve"><value>Current step</value></data>
+  <data name="TrialEnds" xml:space="preserve"><value>Trial ends</value></data>
+  <data name="NeedsAttention" xml:space="preserve"><value>Needs attention</value></data>
+  <data name="LiveOverview" xml:space="preserve"><value>Current data</value></data>
+  <data name="InstitutionOverview" xml:space="preserve"><value>Institution overview</value></data>
+  <data name="CurrentStudents" xml:space="preserve"><value>Current students</value></data>
+  <data name="CurrentTeachers" xml:space="preserve"><value>Current teachers</value></data>
+  <data name="OfPlanLimit" xml:space="preserve"><value>of {0} plan limit</value></data>
+  <data name="NoConfiguredLimit" xml:space="preserve"><value>No configured limit</value></data>
+  <data name="CampusCapacity" xml:space="preserve"><value>Campus capacity</value></data>
+  <data name="IncludedInPlan" xml:space="preserve"><value>included in the plan</value></data>
+  <data name="ActiveFeatures" xml:space="preserve"><value>Active features</value></data>
+  <data name="EnabledByPlan" xml:space="preserve"><value>enabled by the plan</value></data>
+  <data name="PlanUsage" xml:space="preserve"><value>Plan usage</value></data>
+  <data name="CapacityUsage" xml:space="preserve"><value>Capacity and subscription</value></data>
+  <data name="ManagePlan" xml:space="preserve"><value>Manage plan</value></data>
+  <data name="UsageCount" xml:space="preserve"><value>{0} of {1}</value></data>
+  <data name="StudentCapacity" xml:space="preserve"><value>Student capacity used</value></data>
+  <data name="TeacherCapacity" xml:space="preserve"><value>Teacher capacity used</value></data>
+  <data name="Institution" xml:space="preserve"><value>Institution</value></data>
+  <data name="SubscriptionStatus" xml:space="preserve"><value>Subscription status</value></data>
+  <data name="SubscriptionEnds" xml:space="preserve"><value>Subscription ends</value></data>
+  <data name="QuickActions" xml:space="preserve"><value>Quick actions</value></data>
+  <data name="CompleteInstitutionProfile" xml:space="preserve"><value>Complete institution profile</value></data>
+  <data name="SetupCampus" xml:space="preserve"><value>Set up campus or branch</value></data>
+  <data name="SetupAcademicYear" xml:space="preserve"><value>Set up academic year</value></data>
+  <data name="ConfigurePreferences" xml:space="preserve"><value>Configure preferences</value></data>
+  <data name="EmailVerification" xml:space="preserve"><value>Email verification</value></data>
+  <data name="Subscription" xml:space="preserve"><value>Subscription</value></data>
+  <data name="SetupProgress" xml:space="preserve"><value>Setup progress</value></data>
+  <data name="Completed" xml:space="preserve"><value>Completed</value></data>
+  <data name="Pending" xml:space="preserve"><value>Pending</value></data>
+  <data name="GuidedSetup" xml:space="preserve"><value>Guided setup</value></data>
+  <data name="SetupChecklist" xml:space="preserve"><value>Institution setup checklist</value></data>
+  <data name="Review" xml:space="preserve"><value>Review</value></data>
+  <data name="Continue" xml:space="preserve"><value>Continue</value></data>
+  <data name="Open" xml:space="preserve"><value>Open</value></data>
+  <data name="StatusActive" xml:space="preserve"><value>Active</value></data>
+  <data name="StatusTrial" xml:space="preserve"><value>Trial</value></data>
+  <data name="StatusPendingPayment" xml:space="preserve"><value>Payment pending</value></data>
+  <data name="StatusPastDue" xml:space="preserve"><value>Payment overdue</value></data>
+  <data name="StatusExpired" xml:space="preserve"><value>Expired</value></data>
+  <data name="StatusCancelAtPeriodEnd" xml:space="preserve"><value>Cancels at period end</value></data>
+  <data name="StatusCancelled" xml:space="preserve"><value>Cancelled</value></data>
+  <data name="StatusSuspended" xml:space="preserve"><value>Suspended</value></data>
+  <data name="StatusUnavailable" xml:space="preserve"><value>Not available</value></data>
+  <data name="AlertEmailUnverified" xml:space="preserve"><value>Verify your email address to unlock all available features.</value></data>
+  <data name="AlertOnboardingIncomplete" xml:space="preserve"><value>Your institution setup is incomplete. Some features may remain limited.</value></data>
+  <data name="AlertSubscriptionMissing" xml:space="preserve"><value>No active subscription was found. Choose a plan to continue using EduOS.</value></data>
+  <data name="AlertTrialExpired" xml:space="preserve"><value>Your free trial has expired. Upgrade to keep access to your institution data.</value></data>
+  <data name="AlertTrialExpiring" xml:space="preserve"><value>Your free trial expires in {0} days. Upgrade to keep access.</value></data>
+  <data name="AlertTrialEnding" xml:space="preserve"><value>Your free trial ends in {0} days.</value></data>
+  <data name="AlertSubscriptionExpiring" xml:space="preserve"><value>Your subscription expires in {0} days. Renew to avoid interruption.</value></data>
+  <data name="AlertSubscriptionExpired" xml:space="preserve"><value>Your subscription has expired. Renew to restore full access.</value></data>
+  <data name="AlertPaymentPending" xml:space="preserve"><value>Your payment is being verified. Access will activate after it is confirmed.</value></data>
+  <data name="AlertStudentLimitReached" xml:space="preserve"><value>Student limit reached ({0}/{1}). Upgrade your plan to add more students.</value></data>
+  <data name="AlertStudentLimitWarning" xml:space="preserve"><value>You have used {0}% of the student limit ({1}/{2}).</value></data>
+  <data name="VerifyEmailAction" xml:space="preserve"><value>Verify email</value></data>
+  <data name="UpgradeNow" xml:space="preserve"><value>Upgrade now</value></data>
+  <data name="ViewPlans" xml:space="preserve"><value>View plans</value></data>
+  <data name="RenewNow" xml:space="preserve"><value>Renew now</value></data>
+  <data name="RenewSubscription" xml:space="preserve"><value>Renew subscription</value></data>
+  <data name="ViewPaymentStatus" xml:space="preserve"><value>View payment status</value></data>
+  <data name="UpgradePlan" xml:space="preserve"><value>Upgrade plan</value></data>
+  <data name="AdminDashboard" xml:space="preserve"><value>Admin dashboard</value></data>
+  <data name="SuperAdminWorkspace" xml:space="preserve"><value>Super Admin workspace</value></data>
+  <data name="PlatformControlCenter" xml:space="preserve"><value>Platform control centre</value></data>
+  <data name="PlatformControlCenterHelp" xml:space="preserve"><value>Use the verified operational tools available to platform administrators.</value></data>
+  <data name="RestrictedAccess" xml:space="preserve"><value>Restricted access</value></data>
+  <data name="AuthenticatedSession" xml:space="preserve"><value>Authenticated session</value></data>
+  <data name="PlatformSafetyTitle" xml:space="preserve"><value>Privacy boundary active</value></data>
+  <data name="PlatformSafetyHelp" xml:space="preserve"><value>Tenant records remain isolated unless an audited platform operation explicitly selects a tenant.</value></data>
+  <data name="AvailableNow" xml:space="preserve"><value>Available now</value></data>
+  <data name="PlatformTools" xml:space="preserve"><value>Platform tools</value></data>
+  <data name="PricingCatalog" xml:space="preserve"><value>Pricing catalogue</value></data>
+  <data name="PricingCatalogHelp" xml:space="preserve"><value>Review the same bilingual plans and limits shown to institutions.</value></data>
+  <data name="ReviewPublicPricing" xml:space="preserve"><value>Review public pricing</value></data>
+  <data name="BackgroundJobs" xml:space="preserve"><value>Background jobs</value></data>
+  <data name="BackgroundJobsHelp" xml:space="preserve"><value>Inspect scheduled and queued jobs in the protected operations dashboard.</value></data>
+  <data name="OpenJobDashboard" xml:space="preserve"><value>Open job dashboard</value></data>
+  <data name="ServiceHealth" xml:space="preserve"><value>Service health</value></data>
+  <data name="ServiceHealthHelp" xml:space="preserve"><value>Check whether the application health endpoint is responding.</value></data>
+  <data name="CheckServiceHealth" xml:space="preserve"><value>Check service health</value></data>
+  <data name="OperatingRule" xml:space="preserve"><value>Operating rule</value></data>
+  <data name="TenantPrivacyBoundary" xml:space="preserve"><value>Tenant privacy boundary</value></data>
+  <data name="TenantPrivacyBoundaryHelp" xml:space="preserve"><value>Platform-wide access must be explicit, authorized, minimal, and auditable. Government identifiers, guardian details, health records, and academic history must never appear in logs or broad listings.</value></data>
 </root>

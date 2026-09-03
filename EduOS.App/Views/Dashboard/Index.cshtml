@@ -1,248 +1,313 @@
-﻿@model EduOS.Core.DTOs.Dashboard.DashboardVm
+@model EduOS.Core.DTOs.Dashboard.DashboardVm
 @{
     ViewData["Title"] = "Dashboard";
     Layout = "~/Views/Shared/_Layout.cshtml";
 
+    var culture = CultureInfo.CurrentCulture;
+    var useBangla = CultureInfo.CurrentUICulture.Name.StartsWith(
+        "bn", StringComparison.OrdinalIgnoreCase);
+    var progress = Math.Clamp(Model.OnboardingPercent, 0, 100);
+    var studentUsage = Model.MaxStudents > 0
+        ? Math.Clamp((int)Math.Round((double)Model.CurrentStudents / Model.MaxStudents * 100), 0, 100)
+        : 0;
+    var teacherUsage = Model.MaxTeachers > 0
+        ? Math.Clamp((int)Math.Round((double)Model.CurrentTeachers / Model.MaxTeachers * 100), 0, 100)
+        : 0;
+    var planName = useBangla && !string.IsNullOrWhiteSpace(Model.PlanNameBangla)
+        ? Model.PlanNameBangla
+        : Model.PlanName;
+    if (string.IsNullOrWhiteSpace(Model.PlanCode))
+        planName = T["NoPlan"];
+
+    var onboardingSteps = new[]
+    {
+        (Step: 0, Key: "EmailVerification", Controller: "Account", Action: "VerifyEmail"),
+        (Step: 1, Key: "InstitutionProfile", Controller: "Account", Action: "InstitutionProfile"),
+        (Step: 2, Key: "PlanSelection", Controller: "Account", Action: "PlanSelection"),
+        (Step: 3, Key: "Payment", Controller: "Account", Action: "PlanSelection"),
+        (Step: 4, Key: "CampusSetup", Controller: "Account", Action: "CampusSetup"),
+        (Step: 5, Key: "AcademicSetup", Controller: "Account", Action: "AcademicSetup"),
+        (Step: 6, Key: "BrandingSetup", Controller: "Account", Action: "BrandingSetup"),
+        (Step: 7, Key: "GeneralSettings", Controller: "Account", Action: "GeneralSettings"),
+        (Step: 8, Key: "GatewaySetup", Controller: "Account", Action: "GatewaySetup")
+    };
+    var currentStep = onboardingSteps.FirstOrDefault(x => x.Step == Model.OnboardingStep);
+    var currentStepLabel = Model.OnboardingComplete
+        ? T["Completed"].Value
+        : T[$"Onboarding_{currentStep.Key ?? "EmailVerification"}_Name"].Value;
+
+    string Number(int value) => value.ToString("N0", culture);
+    string Format(string key, params object[] values) =>
+        string.Format(culture, T[key].Value, values);
+    string SafeAlertType(string? type) => type?.ToLowerInvariant() switch
+    {
+        "success" => "success",
+        "warning" => "warning",
+        "danger" => "danger",
+        _ => "info"
+    };
+    string? SafeLocalUrl(string? url) =>
+        !string.IsNullOrWhiteSpace(url)
+        && url.StartsWith("/", StringComparison.Ordinal)
+        && !url.StartsWith("//", StringComparison.Ordinal)
+            ? url
+            : null;
+    string AlertMessage(EduOS.Core.DTOs.Dashboard.DashboardAlert alert) => alert.Code switch
+    {
+        "EMAIL_UNVERIFIED" => T["AlertEmailUnverified"],
+        "ONBOARDING_INCOMPLETE" => T["AlertOnboardingIncomplete"],
+        "SUBSCRIPTION_MISSING" => T["AlertSubscriptionMissing"],
+        "TRIAL_EXPIRED" => T["AlertTrialExpired"],
+        "TRIAL_EXPIRING" => Format("AlertTrialExpiring", alert.Days ?? 0),
+        "TRIAL_ENDING" => Format("AlertTrialEnding", alert.Days ?? 0),
+        "SUBSCRIPTION_EXPIRING" => Format("AlertSubscriptionExpiring", alert.Days ?? 0),
+        "SUBSCRIPTION_EXPIRED" => T["AlertSubscriptionExpired"],
+        "PAYMENT_PENDING" => T["AlertPaymentPending"],
+        "STUDENT_LIMIT_REACHED" => Format(
+            "AlertStudentLimitReached", Number(alert.CurrentValue ?? 0), Number(alert.LimitValue ?? 0)),
+        "STUDENT_LIMIT_WARNING" => Format(
+            "AlertStudentLimitWarning", Number(alert.Percentage ?? 0),
+            Number(alert.CurrentValue ?? 0), Number(alert.LimitValue ?? 0)),
+        _ => alert.Message
+    };
+    string AlertAction(EduOS.Core.DTOs.Dashboard.DashboardAlert alert) => alert.ActionCode switch
+    {
+        "VERIFY_EMAIL" => T["VerifyEmailAction"],
+        "CONTINUE_SETUP" => T["ContinueSetup"],
+        "CHOOSE_PLAN" => T["ChoosePlan"],
+        "UPGRADE_NOW" => T["UpgradeNow"],
+        "VIEW_PLANS" => T["ViewPlans"],
+        "RENEW_NOW" => T["RenewNow"],
+        "RENEW_SUBSCRIPTION" => T["RenewSubscription"],
+        "VIEW_PAYMENT_STATUS" => T["ViewPaymentStatus"],
+        "UPGRADE_PLAN" => T["UpgradePlan"],
+        _ => alert.ActionLabel ?? T["Open"]
+    };
+    string SubscriptionStatusLabel(string? status) => status?.ToUpperInvariant() switch
+    {
+        "ACTIVE" => T["StatusActive"],
+        "TRIALING" => T["StatusTrial"],
+        "PENDINGPAYMENT" => T["StatusPendingPayment"],
+        "PASTDUE" => T["StatusPastDue"],
+        "EXPIRED" => T["StatusExpired"],
+        "CANCELATPERIODEND" => T["StatusCancelAtPeriodEnd"],
+        "CANCELLED" => T["StatusCancelled"],
+        "SUSPENDED" => T["StatusSuspended"],
+        _ => T["StatusUnavailable"]
+    };
 }
 
-<style>
-    .dashboard-bg {
-        background: #f5f7fb;
-        min-height: calc(100vh - 56px);
-    }
-
-    .premium-card {
-        border: 0;
-        border-radius: 22px;
-        box-shadow: 0 10px 28px rgba(15, 23, 42, .06);
-    }
-
-    .hero-card {
-        background: linear-gradient(135deg, #1d4ed8, #0f172a);
-        color: #fff;
-        border-radius: 24px;
-    }
-
-    .stat-value {
-        font-size: 30px;
-        font-weight: 700;
-    }
-
-    .stat-label {
-        color: #6b7280;
-        font-size: 14px;
-    }
-
-    .quick-btn {
-        border-radius: 14px;
-        padding: 12px 16px;
-        font-weight: 600;
-    }
-
-    .soft-box {
-        background: #f8fafc;
-        border-radius: 16px;
-        padding: 16px;
-    }
-
-    .section-title {
-        font-weight: 700;
-        font-size: 18px;
-    }
-</style>
-
-<div class="dashboard-bg py-4">
-    <div class="container-fluid px-4">
-
-        <div class="card premium-card hero-card mb-4">
-            <div class="card-body p-4 p-lg-5">
-                <div class="row align-items-center">
-                    <div class="col-lg-8">
-                        <div class="mb-2 text-white-50">EduOS SaaS Control Center</div>
-                        <h2 class="fw-bold mb-2">@Model.InstitutionName</h2>
-                        <div class="mb-3">
-                            @Model.InstitutionType • Owner: @Model.OwnerName
-                        </div>
-
-                        <div class="d-flex flex-wrap gap-2">
-                            <span class="badge bg-light text-dark px-3 py-2">Plan: @Model.PlanName</span>
-
-                            @if (Model.EmailVerified)
-                            {
-                                <span class="badge bg-success px-3 py-2">Email Verified</span>
-                            }
-                            else
-                            {
-                                <span class="badge bg-warning text-dark px-3 py-2">Email Pending</span>
-                            }
-
-                            @if (Model.OnboardingComplete)
-                            {
-                                <span class="badge bg-success px-3 py-2">Setup Complete</span>
-                            }
-                            else
-                            {
-                                <span class="badge bg-info text-dark px-3 py-2">Onboarding Running</span>
-                            }
-                        </div>
-                    </div>
-
-                    <div class="col-lg-4 mt-4 mt-lg-0">
-                        <div class="soft-box bg-white text-dark">
-                            <div class="small text-muted mb-2">Onboarding Progress</div>
-                            <div class="d-flex justify-content-between mb-2">
-                                <strong>@Model.OnboardingPercent%</strong>
-                                <span class="text-muted">Step @Model.OnboardingStep</span>
-                            </div>
-
-                            <div class="progress" style="height: 12px; border-radius: 999px;">
-                                <div class="progress-bar" role="progressbar" style="width:@Model.OnboardingPercent%"></div>
-                            </div>
-
-                            <div class="mt-3 small text-muted">
-                                Trial ends:
-                                @(Model.TrialEndDate.HasValue? Model.TrialEndDate.Value.ToString("dd MMM yyyy") : "N/A")
-                            </div>
-                        </div>
-                    </div>
-                </div>
+<div class="dashboard-page">
+    <section class="dashboard-hero" aria-labelledby="dashboardWelcome">
+        <div class="dashboard-hero-copy">
+            <p class="dashboard-eyebrow">@T["SaasControlCenter"]</p>
+            <h2 id="dashboardWelcome">@Model.InstitutionName</h2>
+            <p class="dashboard-institution-meta">
+                <span>@(string.IsNullOrWhiteSpace(Model.InstitutionType) ? T["NotAvailable"] : Model.InstitutionType)</span>
+                <span aria-hidden="true">•</span>
+                <span>@T["Owner"]: @(string.IsNullOrWhiteSpace(Model.OwnerName) ? T["NotAvailable"] : Model.OwnerName)</span>
+            </p>
+            <div class="dashboard-badges" aria-label="@T["AccountStatus"]">
+                <span class="status-chip status-chip-neutral">@T["Plan"]: @planName</span>
+                <span class="status-chip @(Model.EmailVerified ? "status-chip-success" : "status-chip-warning")">
+                    @(Model.EmailVerified ? T["EmailVerifiedStatus"] : T["EmailPendingStatus"])
+                </span>
+                <span class="status-chip @(Model.OnboardingComplete ? "status-chip-success" : "status-chip-info")">
+                    @(Model.OnboardingComplete ? T["SetupCompleteStatus"] : T["SetupInProgressStatus"])
+                </span>
             </div>
         </div>
 
-        <div class="row g-4 mb-4">
-            <div class="col-md-3">
-                <div class="card premium-card h-100">
-                    <div class="card-body p-4">
-                        <div class="stat-label">Total Students</div>
-                        <div class="stat-value">@Model.TotalStudents</div>
-                    </div>
-                </div>
+        <div class="dashboard-progress-card">
+            <div class="dashboard-progress-heading">
+                <span>@T["OnboardingProgress"]</span>
+                <strong>@progress%</strong>
             </div>
-
-            <div class="col-md-3">
-                <div class="card premium-card h-100">
-                    <div class="card-body p-4">
-                        <div class="stat-label">Total Teachers</div>
-                        <div class="stat-value">@Model.TotalTeachers</div>
-                    </div>
+            <progress class="dashboard-progress" max="100" value="@progress">@progress%</progress>
+            <dl class="dashboard-progress-meta">
+                <div>
+                    <dt>@T["CurrentStep"]</dt>
+                    <dd>@currentStepLabel</dd>
                 </div>
-            </div>
-
-            <div class="col-md-3">
-                <div class="card premium-card h-100">
-                    <div class="card-body p-4">
-                        <div class="stat-label">Total Staff</div>
-                        <div class="stat-value">@Model.TotalStaff</div>
-                    </div>
+                <div>
+                    <dt>@T["TrialEnds"]</dt>
+                    <dd>@(Model.TrialEndDate?.ToString("d", culture) ?? T["NotAvailable"])</dd>
                 </div>
-            </div>
+            </dl>
+        </div>
+    </section>
 
-            <div class="col-md-3">
-                <div class="card premium-card h-100">
-                    <div class="card-body p-4">
-                        <div class="stat-label">Monthly Collection</div>
-                        <div class="stat-value">৳ @Model.MonthlyCollection.ToString("N0")</div>
-                    </div>
+    @if (Model.Alerts.Count > 0)
+    {
+        <section class="dashboard-alerts" aria-labelledby="attentionTitle">
+            <h2 id="attentionTitle" class="visually-hidden">@T["NeedsAttention"]</h2>
+            @foreach (var alert in Model.Alerts)
+            {
+                var actionUrl = SafeLocalUrl(alert.ActionUrl);
+                <div class="dashboard-alert dashboard-alert-@SafeAlertType(alert.Type)" role="status">
+                    <span class="dashboard-alert-dot" aria-hidden="true"></span>
+                    <p>@AlertMessage(alert)</p>
+                    @if (actionUrl != null)
+                    {
+                        <a href="@actionUrl">@AlertAction(alert)</a>
+                    }
                 </div>
+            }
+        </section>
+    }
+
+    <section aria-labelledby="overviewTitle">
+        <div class="dashboard-section-heading">
+            <div>
+                <p class="dashboard-eyebrow">@T["LiveOverview"]</p>
+                <h2 id="overviewTitle">@T["InstitutionOverview"]</h2>
             </div>
         </div>
 
-        <div class="row g-4">
-            <div class="col-xl-8">
-                <div class="card premium-card mb-4">
-                    <div class="card-body p-4">
-                        <div class="section-title mb-3">Institution Overview</div>
-
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <div class="soft-box">
-                                    <div class="text-muted small">Institution</div>
-                                    <div class="fw-semibold">@Model.InstitutionName</div>
-                                </div>
-                            </div>
-
-                            <div class="col-md-6">
-                                <div class="soft-box">
-                                    <div class="text-muted small">Institution Type</div>
-                                    <div class="fw-semibold">@Model.InstitutionType</div>
-                                </div>
-                            </div>
-
-                            <div class="col-md-6">
-                                <div class="soft-box">
-                                    <div class="text-muted small">Owner</div>
-                                    <div class="fw-semibold">@Model.OwnerName</div>
-                                </div>
-                            </div>
-
-                            <div class="col-md-6">
-                                <div class="soft-box">
-                                    <div class="text-muted small">Active Features</div>
-                                    <div class="fw-semibold">@Model.ActiveFeatures</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+        <div class="dashboard-stats-grid">
+            <article class="dashboard-stat-card">
+                <span class="dashboard-stat-icon" aria-hidden="true">
+                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
+                </span>
+                <div>
+                    <p>@T["CurrentStudents"]</p>
+                    <strong>@Number(Model.CurrentStudents)</strong>
+                    <span>@(Model.MaxStudents > 0 ? Format("OfPlanLimit", Number(Model.MaxStudents)) : T["NoConfiguredLimit"])</span>
                 </div>
-
-                <div class="card premium-card">
-                    <div class="card-body p-4">
-                        <div class="section-title mb-3">Recent Activity</div>
-
-                        <div class="list-group list-group-flush">
-                            <div class="list-group-item border-0 px-0">Institution account created</div>
-                            <div class="list-group-item border-0 px-0">Email verified and tenant activated</div>
-                            <div class="list-group-item border-0 px-0">Trial subscription provisioned</div>
-                            <div class="list-group-item border-0 px-0">Onboarding in progress</div>
-                        </div>
-                    </div>
+            </article>
+            <article class="dashboard-stat-card">
+                <span class="dashboard-stat-icon dashboard-stat-icon-green" aria-hidden="true">
+                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#teacher" /></svg>
+                </span>
+                <div>
+                    <p>@T["CurrentTeachers"]</p>
+                    <strong>@Number(Model.CurrentTeachers)</strong>
+                    <span>@(Model.MaxTeachers > 0 ? Format("OfPlanLimit", Number(Model.MaxTeachers)) : T["NoConfiguredLimit"])</span>
                 </div>
-            </div>
-
-            <div class="col-xl-4">
-                <div class="card premium-card mb-4">
-                    <div class="card-body p-4">
-                        <div class="section-title mb-3">Quick Actions</div>
-
-                        <div class="d-grid gap-2">
-                            <a href="/Account/InstitutionProfile" class="btn btn-primary quick-btn">Complete Institution Profile</a>
-                            <a href="/Account/CampusSetup" class="btn btn-outline-primary quick-btn">Setup Campus</a>
-                            <a href="/Account/AcademicSetup" class="btn btn-outline-primary quick-btn">Setup Academic Year</a>
-                            <a href="/UserManagement/Index" class="btn btn-outline-primary quick-btn">Create Admin / Staff</a>
-                            <a href="/RolePermission/Index" class="btn btn-outline-primary quick-btn">Set Role Permissions</a>
-                        </div>
-                    </div>
+            </article>
+            <article class="dashboard-stat-card">
+                <span class="dashboard-stat-icon dashboard-stat-icon-amber" aria-hidden="true">
+                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#campus" /></svg>
+                </span>
+                <div>
+                    <p>@T["CampusCapacity"]</p>
+                    <strong>@Number(Model.MaxCampuses)</strong>
+                    <span>@T["IncludedInPlan"]</span>
                 </div>
-
-                <div class="card premium-card">
-                    <div class="card-body p-4">
-                        <div class="section-title mb-3">System Status</div>
-
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <span>Email Verification</span>
-                            @if (Model.EmailVerified)
-                            {
-                                <span class="badge bg-success">Completed</span>
-                            }
-                            else
-                            {
-                                <span class="badge bg-warning text-dark">Pending</span>
-                            }
-                        </div>
-
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <span>Subscription</span>
-                            <span class="badge bg-primary">@Model.PlanName</span>
-                        </div>
-
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span>Setup Progress</span>
-                            <span class="badge bg-info text-dark">@Model.OnboardingPercent%</span>
-                        </div>
-                    </div>
+            </article>
+            <article class="dashboard-stat-card">
+                <span class="dashboard-stat-icon dashboard-stat-icon-violet" aria-hidden="true">
+                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#dashboard" /></svg>
+                </span>
+                <div>
+                    <p>@T["ActiveFeatures"]</p>
+                    <strong>@Number(Model.ActiveFeatures)</strong>
+                    <span>@T["EnabledByPlan"]</span>
                 </div>
-            </div>
+            </article>
         </div>
+    </section>
 
+    <div class="dashboard-main-grid">
+        <section class="dashboard-panel" aria-labelledby="capacityTitle">
+            <div class="dashboard-section-heading">
+                <div>
+                    <p class="dashboard-eyebrow">@T["PlanUsage"]</p>
+                    <h2 id="capacityTitle">@T["CapacityUsage"]</h2>
+                </div>
+                <a asp-controller="Account" asp-action="PlanSelection" class="dashboard-text-link">@T["ManagePlan"]</a>
+            </div>
+
+            <div class="capacity-list">
+                <div class="capacity-item">
+                    <div class="capacity-copy">
+                        <span>@T["Students"]</span>
+                        <strong>@(Model.MaxStudents > 0
+                            ? Format("UsageCount", Number(Model.CurrentStudents), Number(Model.MaxStudents))
+                            : Number(Model.CurrentStudents))</strong>
+                    </div>
+                    @if (Model.MaxStudents > 0)
+                    {
+                        <progress max="100" value="@studentUsage" aria-label="@T["StudentCapacity"]">@studentUsage%</progress>
+                    }
+                </div>
+                <div class="capacity-item">
+                    <div class="capacity-copy">
+                        <span>@T["Teachers"]</span>
+                        <strong>@(Model.MaxTeachers > 0
+                            ? Format("UsageCount", Number(Model.CurrentTeachers), Number(Model.MaxTeachers))
+                            : Number(Model.CurrentTeachers))</strong>
+                    </div>
+                    @if (Model.MaxTeachers > 0)
+                    {
+                        <progress max="100" value="@teacherUsage" aria-label="@T["TeacherCapacity"]">@teacherUsage%</progress>
+                    }
+                </div>
+            </div>
+
+            <dl class="dashboard-details">
+                <div><dt>@T["Institution"]</dt><dd>@Model.InstitutionName</dd></div>
+                <div><dt>@T["InstitutionType"]</dt><dd>@(Model.InstitutionType ?? T["NotAvailable"])</dd></div>
+                <div><dt>@T["SubscriptionStatus"]</dt><dd>@SubscriptionStatusLabel(Model.SubscriptionStatus)</dd></div>
+                <div><dt>@T["SubscriptionEnds"]</dt><dd>@(Model.SubscriptionEndDate?.ToString("d", culture) ?? T["NotAvailable"])</dd></div>
+            </dl>
+        </section>
+
+        <aside class="dashboard-side-stack">
+            <section class="dashboard-panel" aria-labelledby="quickActionsTitle">
+                <div class="dashboard-section-heading">
+                    <h2 id="quickActionsTitle">@T["QuickActions"]</h2>
+                </div>
+                <nav class="dashboard-actions" aria-label="@T["QuickActions"]">
+                    <a asp-controller="Account" asp-action="InstitutionProfile">@T["CompleteInstitutionProfile"]</a>
+                    <a asp-controller="Account" asp-action="CampusSetup">@T["SetupCampus"]</a>
+                    <a asp-controller="Account" asp-action="AcademicSetup">@T["SetupAcademicYear"]</a>
+                    <a asp-controller="Account" asp-action="GeneralSettings">@T["ConfigurePreferences"]</a>
+                    <a asp-controller="Account" asp-action="PlanSelection">@T["ManagePlan"]</a>
+                </nav>
+            </section>
+
+            <section class="dashboard-panel" aria-labelledby="systemStatusTitle">
+                <div class="dashboard-section-heading">
+                    <h2 id="systemStatusTitle">@T["AccountStatus"]</h2>
+                </div>
+                <dl class="dashboard-status-list">
+                    <div>
+                        <dt>@T["EmailVerification"]</dt>
+                        <dd class="@(Model.EmailVerified ? "text-success" : "text-warning-emphasis")">
+                            @(Model.EmailVerified ? T["Completed"] : T["Pending"])
+                        </dd>
+                    </div>
+                    <div><dt>@T["Subscription"]</dt><dd>@planName</dd></div>
+                    <div><dt>@T["SetupProgress"]</dt><dd>@progress%</dd></div>
+                </dl>
+            </section>
+        </aside>
     </div>
+
+    <section class="dashboard-panel setup-checklist-panel" aria-labelledby="checklistTitle">
+        <div class="dashboard-section-heading">
+            <div>
+                <p class="dashboard-eyebrow">@T["GuidedSetup"]</p>
+                <h2 id="checklistTitle">@T["SetupChecklist"]</h2>
+            </div>
+        </div>
+        <ol class="setup-checklist">
+            @foreach (var item in onboardingSteps)
+            {
+                var isCompleted = Model.OnboardingComplete || Model.OnboardingStep > item.Step;
+                var isCurrent = !Model.OnboardingComplete && Model.OnboardingStep == item.Step;
+                <li class="@(isCompleted ? "completed" : isCurrent ? "current" : string.Empty)">
+                    <span class="setup-step-marker" aria-hidden="true">@(isCompleted ? "✓" : (item.Step + 1).ToString(culture))</span>
+                    <div>
+                        <strong>@T[$"Onboarding_{item.Key}_Name"]</strong>
+                        <span>@T[$"Onboarding_{item.Key}_Description"]</span>
+                    </div>
+                    <a asp-controller="@item.Controller" asp-action="@item.Action">
+                        @(isCompleted ? T["Review"] : isCurrent ? T["Continue"] : T["Open"])
+                    </a>
+                </li>
+            }
+        </ol>
+    </section>
 </div>

@@ -23,6 +23,7 @@ public class DashboardController : Controller
         return View(vm.Data);
     }
     [HttpGet]
+    [Authorize(Roles = "SuperAdmin")]
     public IActionResult Admin()
     {
         return View();

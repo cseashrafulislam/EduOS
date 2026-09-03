@@ -52,6 +52,7 @@ namespace EduOS.Persistence.Repositories.SaaS
             return await _context.TenantSubscriptions
                 .IgnoreQueryFilters()
                 .Include(s => s.SubscriptionPlan)
+                    .ThenInclude(p => p!.PlanFeatures)
                 .Where(s => !s.IsDeleted &&
                            s.TenantId == tenantId &&
                            (s.Status == SubscriptionStatus.Active ||

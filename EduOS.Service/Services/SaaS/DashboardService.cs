@@ -58,12 +58,14 @@ namespace EduOS.Service.Services.SaaS
                 // ── 2. Load active subscription ────────────────────────────
                 var subscription = await _subscriptionRepo.GetActiveByTenantAsync(tenantId);
                 string planName = "No plan";
+                string? planNameBangla = null;
                 string planCode = string.Empty;
                 int featureCount = 0;
 
                 if (subscription?.SubscriptionPlan != null)
                 {
                     planName = subscription.SubscriptionPlan.Name;
+                    planNameBangla = subscription.SubscriptionPlan.NameBangla;
                     planCode = subscription.SubscriptionPlan.Code;
                     featureCount = subscription.SubscriptionPlan.PlanFeatures
                         .Count(pf => pf.IsEnabled);
@@ -75,6 +77,7 @@ namespace EduOS.Service.Services.SaaS
                     if (plan != null)
                     {
                         planName = plan.Name;
+                        planNameBangla = plan.NameBangla;
                         planCode = plan.Code;
                         featureCount = plan.PlanFeatures.Count(pf => pf.IsEnabled);
                     }
@@ -122,6 +125,7 @@ namespace EduOS.Service.Services.SaaS
 
                     // Subscription
                     PlanName = planName,
+                    PlanNameBangla = planNameBangla,
                     PlanCode = planCode,
                     IsTrialActive = tenant.IsTrialActive,
                     TrialEndDate = subscription?.TrialEndDate,
@@ -194,9 +198,11 @@ namespace EduOS.Service.Services.SaaS
             {
                 alerts.Add(new DashboardAlert
                 {
+                    Code = "EMAIL_UNVERIFIED",
                     Type = "warning",
                     Message = "Please verify your email address to unlock all features.",
                     ActionUrl = "/Account/VerifyEmail",
+                    ActionCode = "VERIFY_EMAIL",
                     ActionLabel = "Verify email"
                 });
             }
@@ -206,9 +212,11 @@ namespace EduOS.Service.Services.SaaS
             {
                 alerts.Add(new DashboardAlert
                 {
+                    Code = "ONBOARDING_INCOMPLETE",
                     Type = "info",
                     Message = "Your institution setup is not complete. Some features may be limited.",
                     ActionUrl = "/Account/InstitutionProfile",
+                    ActionCode = "CONTINUE_SETUP",
                     ActionLabel = "Continue setup"
                 });
             }
@@ -218,9 +226,11 @@ namespace EduOS.Service.Services.SaaS
             {
                 alerts.Add(new DashboardAlert
                 {
+                    Code = "SUBSCRIPTION_MISSING",
                     Type = "danger",
                     Message = "No active subscription found. Please choose a plan to continue using EduOS.",
                     ActionUrl = "/Account/PlanSelection",
+                    ActionCode = "CHOOSE_PLAN",
                     ActionLabel = "Choose a plan"
                 });
                 return alerts; // No point showing other alerts
@@ -233,9 +243,11 @@ namespace EduOS.Service.Services.SaaS
                 {
                     alerts.Add(new DashboardAlert
                     {
+                        Code = "TRIAL_EXPIRED",
                         Type = "danger",
                         Message = "Your free trial has expired. Upgrade now to keep your data.",
                         ActionUrl = "/Account/PlanSelection",
+                        ActionCode = "UPGRADE_NOW",
                         ActionLabel = "Upgrade now"
                     });
                 }
@@ -243,9 +255,12 @@ namespace EduOS.Service.Services.SaaS
                 {
                     alerts.Add(new DashboardAlert
                     {
+                        Code = "TRIAL_EXPIRING",
                         Type = "warning",
                         Message = $"Your free trial expires in {trialDaysRemaining.Value} day(s). Upgrade to keep access.",
                         ActionUrl = "/Account/PlanSelection",
+                        ActionCode = "UPGRADE_NOW",
+                        Days = trialDaysRemaining.Value,
                         ActionLabel = "Upgrade now"
                     });
                 }
@@ -253,9 +268,12 @@ namespace EduOS.Service.Services.SaaS
                 {
                     alerts.Add(new DashboardAlert
                     {
+                        Code = "TRIAL_ENDING",
                         Type = "info",
                         Message = $"Your free trial ends in {trialDaysRemaining.Value} days.",
                         ActionUrl = "/Account/PlanSelection",
+                        ActionCode = "VIEW_PLANS",
+                        Days = trialDaysRemaining.Value,
                         ActionLabel = "View plans"
                     });
                 }
@@ -266,9 +284,12 @@ namespace EduOS.Service.Services.SaaS
             {
                 alerts.Add(new DashboardAlert
                 {
+                    Code = "SUBSCRIPTION_EXPIRING",
                     Type = daysUntilExpiry <= 3 ? "danger" : "warning",
                     Message = $"Your subscription expires in {daysUntilExpiry} day(s). Renew to avoid interruption.",
-                    ActionUrl = "/Settings/Subscription",
+                    ActionUrl = "/Account/PlanSelection",
+                    ActionCode = "RENEW_NOW",
+                    Days = daysUntilExpiry,
                     ActionLabel = "Renew now"
                 });
             }
@@ -278,9 +299,11 @@ namespace EduOS.Service.Services.SaaS
             {
                 alerts.Add(new DashboardAlert
                 {
+                    Code = "SUBSCRIPTION_EXPIRED",
                     Type = "danger",
                     Message = "Your subscription has expired. Renew now to restore full access.",
-                    ActionUrl = "/Settings/Subscription",
+                    ActionUrl = "/Account/PlanSelection",
+                    ActionCode = "RENEW_SUBSCRIPTION",
                     ActionLabel = "Renew subscription"
                 });
             }
@@ -290,9 +313,11 @@ namespace EduOS.Service.Services.SaaS
             {
                 alerts.Add(new DashboardAlert
                 {
+                    Code = "PAYMENT_PENDING",
                     Type = "warning",
-                    Message = "Your payment is being verified. Access will activate once confirmed (within 24 hours).",
-                    ActionUrl = "/Settings/Subscription",
+                    Message = "Your payment is being verified. Access will activate once confirmed.",
+                    ActionUrl = "/Account/PlanSelection",
+                    ActionCode = "VIEW_PAYMENT_STATUS",
                     ActionLabel = "View payment status"
                 });
             }
@@ -305,11 +330,16 @@ namespace EduOS.Service.Services.SaaS
                 {
                     alerts.Add(new DashboardAlert
                     {
+                        Code = pct >= 100 ? "STUDENT_LIMIT_REACHED" : "STUDENT_LIMIT_WARNING",
                         Type = pct >= 100 ? "danger" : "warning",
                         Message = pct >= 100
                             ? $"Student limit reached ({tenant.CurrentStudents}/{tenant.MaxStudents}). Upgrade your plan."
                             : $"You are at {(int)pct}% of your student limit ({tenant.CurrentStudents}/{tenant.MaxStudents}).",
                         ActionUrl = "/Account/PlanSelection",
+                        ActionCode = "UPGRADE_PLAN",
+                        Percentage = (int)pct,
+                        CurrentValue = tenant.CurrentStudents,
+                        LimitValue = tenant.MaxStudents,
                         ActionLabel = "Upgrade plan"
                     });
                 }
