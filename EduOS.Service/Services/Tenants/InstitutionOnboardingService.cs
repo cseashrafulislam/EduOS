@@ -2,6 +2,7 @@ using EduOS.Core.Common;
 using EduOS.Core.DTOs.SaaS;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Auth;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Tenants;
 using EduOS.Core.Enums;
 using EduOS.Core.Interfaces;
@@ -22,6 +23,7 @@ namespace EduOS.Service.Services.Tenants
         private readonly IGenericRepository<Campus> _campusRepo;
         private readonly IGenericRepository<AcademicYear> _yearRepo;
         private readonly IGenericRepository<AcademicTerm> _termRepo;
+        private readonly IGenericRepository<InstitutionTypeDefinition> _institutionTypeRepo;
         private readonly IUnitOfWork _unitOfWork;
         private readonly ICurrentUserService _currentUser;
         private readonly ILogger<InstitutionOnboardingService> _logger;
@@ -32,6 +34,7 @@ namespace EduOS.Service.Services.Tenants
             IGenericRepository<Campus> campusRepo,
             IGenericRepository<AcademicYear> yearRepo,
             IGenericRepository<AcademicTerm> termRepo,
+            IGenericRepository<InstitutionTypeDefinition> institutionTypeRepo,
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUser,
             ILogger<InstitutionOnboardingService> logger)
@@ -41,6 +44,7 @@ namespace EduOS.Service.Services.Tenants
             _campusRepo = campusRepo;
             _yearRepo = yearRepo;
             _termRepo = termRepo;
+            _institutionTypeRepo = institutionTypeRepo;
             _unitOfWork = unitOfWork;
             _currentUser = currentUser;
             _logger = logger;
@@ -58,6 +62,18 @@ namespace EduOS.Service.Services.Tenants
 
             if (!dto.AgreeTerms)
                 return Fail<InstitutionSignupResponseDto>("You must agree to the terms of service");
+
+            InstitutionTypeDefinition? institutionType = null;
+            if (!string.IsNullOrWhiteSpace(dto.InstitutionType))
+            {
+                if (!TryNormalizeCatalogCode(dto.InstitutionType, out var institutionTypeCode))
+                    return Fail<InstitutionSignupResponseDto>("Select a valid institution type");
+
+                institutionType = await _institutionTypeRepo.FirstOrDefaultAsync(x =>
+                    x.Code == institutionTypeCode && x.IsActive && x.IsPubliclyVisible);
+                if (institutionType == null)
+                    return Fail<InstitutionSignupResponseDto>("Select a valid institution type");
+            }
 
             // Check duplicate email
             var existing = await _userManager.FindByEmailAsync(dto.Email);
@@ -82,7 +98,8 @@ namespace EduOS.Service.Services.Tenants
                         OwnerName = dto.OwnerName.Trim(),
                         OwnerEmail = dto.Email.Trim().ToLower(),
                         OwnerPhone = dto.Phone?.Trim(),
-                        InstitutionType = dto.InstitutionType?.Trim(),
+                        InstitutionType = institutionType?.Code,
+                        InstitutionTypeDefinitionId = institutionType?.Id,
                         Status = TenantStatus.PendingVerification,
                         OnboardingStep = OnboardingStep.EmailVerification,
                         IsOnboardingComplete = false,
@@ -251,12 +268,21 @@ namespace EduOS.Service.Services.Tenants
                 if (string.IsNullOrWhiteSpace(dto.OwnerName))
                     return Fail<bool>("Owner name is required");
 
+                if (!TryNormalizeCatalogCode(dto.InstitutionType, out var institutionTypeCode))
+                    return Fail<bool>("Institution type is required");
+
+                var institutionType = await _institutionTypeRepo.FirstOrDefaultAsync(x =>
+                    x.Code == institutionTypeCode && x.IsActive && x.IsPubliclyVisible);
+                if (institutionType == null)
+                    return Fail<bool>("Select a valid institution type");
+
                 var tenant = await GetCurrentTenantAsync();
                 if (tenant == null)
                     return Fail<bool>("Tenant not found", 404);
 
                 tenant.Name = dto.InstitutionName.Trim();
-                tenant.InstitutionType = dto.InstitutionType?.Trim();
+                tenant.InstitutionType = institutionType.Code;
+                tenant.InstitutionTypeDefinitionId = institutionType.Id;
                 tenant.OwnerName = dto.OwnerName.Trim();
                 tenant.OwnerPhone = dto.OwnerPhone?.Trim();
                 tenant.OwnerEmail = dto.OwnerEmail?.Trim();
@@ -718,6 +744,9 @@ namespace EduOS.Service.Services.Tenants
                     return Fail<bool>("Tenant not found", 404);
 
                 // Validate minimum requirements
+                if (!tenant.InstitutionTypeDefinitionId.HasValue)
+                    return Fail<bool>("Please select a valid institution type before completing setup");
+
                 var hasCampus = await _campusRepo.GetQueryable()
                     .AnyAsync(c => c.TenantId == _currentUser.TenantId);
 
@@ -766,5 +795,13 @@ namespace EduOS.Service.Services.Tenants
 
         private static ApiResponse<T> Fail<T>(string message, int statusCode = 400)
             => ApiResponse<T>.ErrorResponse(message, statusCode);
+
+        private static bool TryNormalizeCatalogCode(string? code, out string normalizedCode)
+        {
+            normalizedCode = code?.Trim().ToUpperInvariant() ?? string.Empty;
+            return normalizedCode.Length is > 0 and <= 50
+                   && normalizedCode.All(character =>
+                       char.IsAsciiLetterOrDigit(character) || character is '_' or '-');
+        }
     }
 }

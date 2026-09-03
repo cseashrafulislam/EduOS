@@ -14,6 +14,7 @@ namespace EduOS.Core.Entities.Tenants
         public string? Subdomain { get; set; }
         public string? CustomDomain { get; set; }
         public string? InstitutionType { get; set; }
+        public long? InstitutionTypeDefinitionId { get; set; }
 
         // ==================== Contact Information ====================
 
@@ -90,5 +91,6 @@ namespace EduOS.Core.Entities.Tenants
 
         public virtual ICollection<TenantSetting> Settings { get; set; } = new List<TenantSetting>();
         public virtual ICollection<TenantSubscription> Subscriptions { get; set; } = new List<TenantSubscription>();
+        public virtual InstitutionTypeDefinition? InstitutionTypeDefinition { get; set; }
     }
 }

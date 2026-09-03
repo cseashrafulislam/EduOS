@@ -552,6 +552,7 @@ These are the meaningful API areas currently present:
 | Route area | Current functions |
 |---|---|
 | /api/auth | Login, forgot password, reset password, logout |
+| /api/platform-catalog | Public institution presets, preset detail and active product modules |
 | /api/institution-onboarding | Signup, email verification, profile, campus, academic year/term, final completion |
 | /api/onboarding | Status and step completion |
 | /api/subscription-plans | Public plan list, plan detail, code lookup, comparison |
@@ -902,6 +903,8 @@ A feature is complete only when:
 - CI, security policy, agent rules and project documentation.
 
 ### Phase 1 — Configurable SaaS core
+
+Progress: institution preset catalogue, top-level product module catalogue, preset-to-module mapping, public catalogue API, onboarding preset validation/backfill, migration and regression tests are implemented on the Codex development branch. Tenant-specific module activation, plan entitlement and quota enforcement remain pending.
 
 Deliver:
 

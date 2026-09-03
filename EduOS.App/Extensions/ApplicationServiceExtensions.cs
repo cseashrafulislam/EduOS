@@ -47,6 +47,7 @@ namespace EduOS.App.Extensions
             services.AddScoped<ISubscriptionService, SubscriptionService>();
             services.AddScoped<ISubscriptionInvoiceService, SubscriptionInvoiceService>();
             services.AddScoped<ISubscriptionPaymentService, SubscriptionPaymentService>();
+            services.AddScoped<IPlatformCatalogService, PlatformCatalogService>();
 
             // ==================== Tenant Management Services (Phase C) ====================
             services.AddScoped<ITenantProfileService, TenantProfileService>();

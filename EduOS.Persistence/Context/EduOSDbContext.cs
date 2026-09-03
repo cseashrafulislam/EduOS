@@ -171,6 +171,9 @@ namespace EduOS.Persistence.Context
         public DbSet<SubscriptionPayment> SubscriptionPayments => Set<SubscriptionPayment>();
         public DbSet<Feature> Features => Set<Feature>();
         public DbSet<PlanFeature> PlanFeatures => Set<PlanFeature>();
+        public DbSet<InstitutionTypeDefinition> InstitutionTypeDefinitions => Set<InstitutionTypeDefinition>();
+        public DbSet<ProductModule> ProductModules => Set<ProductModule>();
+        public DbSet<InstitutionTypeModule> InstitutionTypeModules => Set<InstitutionTypeModule>();
         public DbSet<TrialAccount> TrialAccounts => Set<TrialAccount>();
         public DbSet<UsageStatistics> UsageStatistics => Set<UsageStatistics>();
 

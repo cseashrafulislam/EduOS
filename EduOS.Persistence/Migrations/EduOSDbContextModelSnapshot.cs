@@ -5728,6 +5728,127 @@ namespace EduOS.Persistence.Migrations
                     b.ToTable("Features", (string)null);
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.SaaS.InstitutionTypeDefinition", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("AcademicCycleType")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("DefaultSettingsJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsPubliclyVisible")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("NameBangla")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("TerminologyJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.HasIndex("IsActive", "IsPubliclyVisible", "DisplayOrder");
+
+                    b.ToTable("InstitutionTypeDefinitions", (string)null);
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.SaaS.InstitutionTypeModule", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<long>("InstitutionTypeDefinitionId")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsEnabledByDefault")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsRequired")
+                        .HasColumnType("bit");
+
+                    b.Property<long>("ProductModuleId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductModuleId");
+
+                    b.HasIndex("InstitutionTypeDefinitionId", "ProductModuleId")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.ToTable("InstitutionTypeModules", (string)null);
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.SaaS.PlanFeature", b =>
                 {
                     b.Property<long>("Id")
@@ -5776,6 +5897,80 @@ namespace EduOS.Persistence.Migrations
                         .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("PlanFeatures", (string)null);
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.SaaS.ProductModule", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("IconName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsCore")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("NameBangla")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("RoutePrefix")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.HasIndex("IsActive", "Category", "DisplayOrder");
+
+                    b.ToTable("ProductModules", (string)null);
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.SaaS.SubscriptionInvoice", b =>
@@ -8514,6 +8709,9 @@ namespace EduOS.Persistence.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<long?>("InstitutionTypeDefinitionId")
+                        .HasColumnType("bigint");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -8648,6 +8846,8 @@ namespace EduOS.Persistence.Migrations
                         .HasFilter("[CustomDomain] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.HasIndex("Email");
+
+                    b.HasIndex("InstitutionTypeDefinitionId");
 
                     b.HasIndex("Status");
 
@@ -10726,6 +10926,25 @@ namespace EduOS.Persistence.Migrations
                     b.Navigation("Tenant");
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.SaaS.InstitutionTypeModule", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.SaaS.InstitutionTypeDefinition", "InstitutionTypeDefinition")
+                        .WithMany("Modules")
+                        .HasForeignKey("InstitutionTypeDefinitionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.SaaS.ProductModule", "ProductModule")
+                        .WithMany("InstitutionTypes")
+                        .HasForeignKey("ProductModuleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("InstitutionTypeDefinition");
+
+                    b.Navigation("ProductModule");
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.SaaS.PlanFeature", b =>
                 {
                     b.HasOne("EduOS.Core.Entities.SaaS.Feature", "Feature")
@@ -11335,6 +11554,16 @@ namespace EduOS.Persistence.Migrations
                     b.Navigation("Tenant");
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.Tenants.Tenant", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.SaaS.InstitutionTypeDefinition", "InstitutionTypeDefinition")
+                        .WithMany("Tenants")
+                        .HasForeignKey("InstitutionTypeDefinitionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("InstitutionTypeDefinition");
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.Tenants.TenantSetting", b =>
                 {
                     b.HasOne("EduOS.Core.Entities.Tenants.Tenant", "Tenant")
@@ -11498,6 +11727,18 @@ namespace EduOS.Persistence.Migrations
             modelBuilder.Entity("EduOS.Core.Entities.SaaS.Feature", b =>
                 {
                     b.Navigation("PlanFeatures");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.SaaS.InstitutionTypeDefinition", b =>
+                {
+                    b.Navigation("Modules");
+
+                    b.Navigation("Tenants");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.SaaS.ProductModule", b =>
+                {
+                    b.Navigation("InstitutionTypes");
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.SaaS.SubscriptionInvoice", b =>
