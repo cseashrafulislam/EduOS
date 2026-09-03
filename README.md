@@ -6,7 +6,7 @@ EduOS is a configurable, multi-tenant SaaS platform for the Bangladesh education
 
 একটি প্রতিষ্ঠান signup করবে, plan/trial বেছে নেবে, payment করবে, নিজের campus, academic structure, branding, terminology, workflow ও enabled modules configure করবে এবং ব্যবহার শুরু করবে। কোনো নির্দিষ্ট প্রতিষ্ঠানের নাম, class structure, fee rule, grading rule বা approval flow shared code-এ hard-code করা যাবে না।
 
-> **Current status:** foundation under active development. Phase 0 security work and the Phase 1 institution/module entitlement catalogue are implemented and tested. The shared/public shells, account pages, public pricing, tenant dashboard, SuperAdmin operations landing page, and onboarding progress support responsive desktop/mobile use, installable PWA behaviour, and English/Bangla UI resources. Institution profile, campus/branch, and academic year/term setup now have bilingual responsive workflows, tenant-admin authorization, anti-forgery protection, plan-limit enforcement, and tested date/ownership invariants. Subscription, payment, tenant profile, gateway settings, authentication, dashboard, and audit APIs also exist. Many education modules currently have domain entities only; their complete service, API, UI, permission, report, and test workflows are still planned.
+> **Current status:** foundation under active development. Phase 0 security work and the Phase 1 institution/module entitlement catalogue are implemented and tested. The shared/public shells, account pages, public pricing, tenant dashboard, SuperAdmin operations landing page, and onboarding progress support responsive desktop/mobile use, installable PWA behaviour, and English/Bangla UI resources. Institution profile, campus/branch, academic year/term, plan selection, and subscription payment now have bilingual responsive workflows with TenantAdmin authorization and anti-forgery protection. Billing rejects hidden plans and duplicate current subscriptions/payments, includes setup fees in invoice totals, verifies online payment before activation, and keeps manual deposit receipts outside public web storage. Many education modules currently have domain entities only; their complete service, API, UI, permission, report, and test workflows are still planned.
 
 ---
 
@@ -144,17 +144,17 @@ The current OnboardingStep lifecycle is:
 9. **GatewaySetup** — optional tenant email/SMS gateway.
 10. **Completed** — dashboard access unlocked.
 
-The profile, campus/branch, and academic year/term screens are implemented as mobile-first bilingual forms. Institution types come from the platform catalogue; campus codes are tenant-unique; the first campus becomes head office; deleting a head office promotes a remaining campus; active plan campus capacity is enforced; and term dates cannot escape their academic year. Onboarding pages and APIs are restricted to TenantAdmin, while same-origin browser writes carry anti-forgery tokens.
+The profile, plan/payment, campus/branch, and academic year/term screens are implemented as mobile-first bilingual forms. Institution types come from the platform catalogue; campus codes are tenant-unique; the first campus becomes head office; deleting a head office promotes a remaining campus; active plan campus capacity is enforced; and term dates cannot escape their academic year. Plan/payment progress is advanced from verified server state: trials move directly to campus setup, paid plans wait for gateway verification or manual review, and a submitted receipt cannot unlock setup. Onboarding pages and APIs are restricted to TenantAdmin, while same-origin browser writes carry anti-forgery tokens.
 
 ### Onboarding requirements still to build
 
 - Complete module selection UI; server-side plan-entitlement validation is implemented.
-- Full resumable recovery, expiry handling and idempotent completion around the existing wizard/status API.
+- Resume/recovery for the remaining branding, general-settings, and gateway steps; plan/payment recovery is implemented.
 - Terms/privacy-policy version acceptance.
 - Domain verification and custom-domain workflow.
 - Guided sample data, checklist, contextual help, and first-run tours.
 - Owner MFA setup and recovery codes.
-- Idempotent signup/payment completion.
+- Idempotent signup completion and provider-side payment reconciliation jobs.
 
 ---
 
@@ -183,7 +183,7 @@ Required completed behaviour:
 - Feature entitlement check in API, menu, job, import, and report paths.
 - Student, teacher, campus, admin, storage, SMS, and email quota enforcement.
 - Upgrade, downgrade, prorating, grace period, renewal, cancellation, refund, and tax/VAT rules.
-- AamarPay implemented first; SSLCommerz, bKash/Nagad merchant, bank transfer, and international gateway adapters planned.
+- AamarPay initiation and verified callback handling plus manual bank-transfer review are implemented; production merchant certification, reconciliation/refund operations, SSLCommerz, direct bKash/Nagad merchant, and international adapters remain planned.
 - Every callback must validate provider authenticity, tenant, invoice, amount, currency, duplicate event, and final state.
 
 ### 6.2 Authentication, authorization, and accounts
@@ -559,7 +559,7 @@ These are the meaningful API areas currently present:
 | /api/onboarding | Status and step completion |
 | /api/subscription-plans | Public plan list, plan detail, code lookup, comparison |
 | /api/subscription | Create/current/history, cancellation, auto-renew, invoices |
-| /api/subscription-payment | AamarPay initiation/callback/IPN, manual payment, SuperAdmin verification |
+| /api/subscription-payment | AamarPay initiation/callback/IPN, configured manual payment, private SuperAdmin receipt download and verification |
 | /api/tenant-profile | Profile, branding, logo/favicon, subdomain, general settings |
 | /api/tenant-settings | TenantAdmin SMS/email gateway settings and categories |
 | /api/dashboard | Authenticated dashboard data |
@@ -847,6 +847,14 @@ SmsSettings__ApiKey
 SmsSettings__ApiSecret
 Payments__AamarPay__StoreId
 Payments__AamarPay__SignatureKey
+Payments__AamarPay__CallbackBaseUrl
+ManualPayment__BankName
+ManualPayment__AccountName
+ManualPayment__AccountNumber
+ManualPayment__RoutingNumber
+ManualPayment__BranchName
+ManualPayment__Instructions
+FileStorage__PrivateBasePath
 SSLCommerz__StoreId
 SSLCommerz__StorePassword
 ~~~
@@ -856,6 +864,9 @@ Production requirements:
 - Use deployment environment variables or a managed secret store.
 - Never commit credentials, tokens, private keys or production personal data.
 - All application instances share a protected, durable Data Protection key ring.
+- `Payments__AamarPay__CallbackBaseUrl` is the trusted public HTTPS origin; online checkout is disabled when it is missing or invalid.
+- Manual bank details must come from reviewed deployment configuration. Placeholder account details are not rendered.
+- `FileStorage__PrivateBasePath` must be durable, backed up, access-controlled, and outside every static web root. Production receipt uploads also require an operational malware scanner or quarantined object-storage pipeline.
 - Secret rotation must support old/new overlap where provider behaviour requires it.
 - Removing a value from the latest Git file does not remove it from Git history.
 

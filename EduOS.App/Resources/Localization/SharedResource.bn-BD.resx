@@ -413,4 +413,69 @@
   <data name="TermName" xml:space="preserve"><value>টার্মের নাম</value></data>
   <data name="TermDateHelp" xml:space="preserve"><value>তারিখ দিলে দুটিই দিন এবং শিক্ষাবর্ষের সীমার মধ্যে রাখুন।</value></data>
   <data name="SaveTerm" xml:space="preserve"><value>টার্ম সংরক্ষণ করুন</value></data>
+  <data name="PlanSelectionTitle" xml:space="preserve"><value>আপনার প্ল্যান বেছে নিন</value></data>
+  <data name="PlanSelectionHelp" xml:space="preserve"><value>প্রতিষ্ঠানের উপযোগী ধারণক্ষমতা ও বিলিং সময় বেছে নিন। এগিয়ে যাওয়ার আগে সব খরচ দেখানো হবে।</value></data>
+  <data name="BillingCycleLabel" xml:space="preserve"><value>বিলিং সময়</value></data>
+  <data name="QuarterlySaving" xml:space="preserve"><value>প্রায় ১০% কম</value></data>
+  <data name="HalfYearlySaving" xml:space="preserve"><value>প্রায় ১৫% কম</value></data>
+  <data name="YearlySaving" xml:space="preserve"><value>প্রায় ২২% কম</value></data>
+  <data name="PerPeriodTemplate" xml:space="preserve"><value>প্রতি {period}</value></data>
+  <data name="SetupFeeTemplate" xml:space="preserve"><value>এককালীন সেটআপ ফি: {amount}</value></data>
+  <data name="SelectPlanAriaTemplate" xml:space="preserve"><value>{name} প্ল্যান বেছে নিন</value></data>
+  <data name="Selected" xml:space="preserve"><value>নির্বাচিত</value></data>
+  <data name="Processing" xml:space="preserve"><value>প্রক্রিয়া চলছে…</value></data>
+  <data name="ContinueToPayment" xml:space="preserve"><value>পেমেন্টে এগিয়ে যান</value></data>
+  <data name="SubscriptionCreateFailed" xml:space="preserve"><value>সাবস্ক্রিপশন তৈরি করা যায়নি। প্ল্যানটি দেখে আবার চেষ্টা করুন।</value></data>
+  <data name="ExistingSubscriptionRedirecting" xml:space="preserve"><value>আপনার চলমান সাবস্ক্রিপশন পাওয়া গেছে। সঠিক সেটআপ ধাপে নেওয়া হচ্ছে…</value></data>
+  <data name="PlanSelectionSafeNote" xml:space="preserve"><value>প্ল্যানের সীমা এখানে দেখানো আছে; এককালীন সেটআপ ফি আলাদাভাবে দেখিয়ে ইনভয়েসে যোগ করা হবে।</value></data>
+  <data name="PaymentTitle" xml:space="preserve"><value>পেমেন্ট সম্পন্ন করুন</value></data>
+  <data name="PaymentHelp" xml:space="preserve"><value>যাচাইকৃত ইনভয়েস অনলাইনে পরিশোধ করুন অথবা পর্যালোচনার জন্য ব্যাংক রসিদ দিন।</value></data>
+  <data name="PaymentMethod" xml:space="preserve"><value>পেমেন্ট পদ্ধতি</value></data>
+  <data name="OnlinePayment" xml:space="preserve"><value>অনলাইন পেমেন্ট</value></data>
+  <data name="OnlinePaymentHelp" xml:space="preserve"><value>AamarPay-এর মাধ্যমে কার্ড, মোবাইল আর্থিক সেবা ও ইন্টারনেট ব্যাংকিং</value></data>
+  <data name="BankTransfer" xml:space="preserve"><value>ব্যাংক ট্রান্সফার</value></data>
+  <data name="BankTransferHelp" xml:space="preserve"><value>ইনভয়েসের পুরো টাকা জমা দিয়ে রসিদ আপলোড করুন</value></data>
+  <data name="SecureGatewayHelp" xml:space="preserve"><value>AamarPay-এর নিরাপদ checkout-এ নেওয়া হবে। সক্রিয় করার আগে EduOS gateway-এর সঙ্গে লেনদেন যাচাই করবে।</value></data>
+  <data name="PaySecurely" xml:space="preserve"><value>নিরাপদে পেমেন্ট করুন</value></data>
+  <data name="PaySecurelyTemplate" xml:space="preserve"><value>নিরাপদে {amount} পেমেন্ট করুন</value></data>
+  <data name="BankAccountHeading" xml:space="preserve"><value>এই অ্যাকাউন্টে টাকা জমা দিন</value></data>
+  <data name="LoadingBankInfo" xml:space="preserve"><value>যাচাইকৃত ব্যাংক তথ্য লোড হচ্ছে…</value></data>
+  <data name="PayerBankName" xml:space="preserve"><value>আপনার ব্যাংকের নাম</value></data>
+  <data name="PayerAccountNumber" xml:space="preserve"><value>আপনার অ্যাকাউন্ট নম্বর</value></data>
+  <data name="DepositSlipNumber" xml:space="preserve"><value>জমা বা লেনদেনের রেফারেন্স</value></data>
+  <data name="DepositDate" xml:space="preserve"><value>টাকা জমার তারিখ</value></data>
+  <data name="AmountPaid" xml:space="preserve"><value>পরিশোধের পরিমাণ</value></data>
+  <data name="NoteOptional" xml:space="preserve"><value>নোট (ঐচ্ছিক)</value></data>
+  <data name="UploadDepositSlip" xml:space="preserve"><value>টাকা জমার রসিদ আপলোড করুন</value></data>
+  <data name="UploadReceiptHelp" xml:space="preserve"><value>সর্বোচ্চ ৫ MB-এর PDF, JPG, JPEG অথবা PNG ফাইল বেছে নিন</value></data>
+  <data name="SubmitForVerification" xml:space="preserve"><value>যাচাইয়ের জন্য জমা দিন</value></data>
+  <data name="ManualVerificationTime" xml:space="preserve"><value>প্ল্যাটফর্ম অ্যাডমিন পুরো পেমেন্ট যাচাই করার পরেই access সক্রিয় হবে।</value></data>
+  <data name="OrderSummary" xml:space="preserve"><value>ইনভয়েস সারাংশ</value></data>
+  <data name="NoInvoiceSelected" xml:space="preserve"><value>কোনো সঠিক ইনভয়েস বাছাই করা হয়নি। প্ল্যান বাছাইয়ে ফিরে যান।</value></data>
+  <data name="InvoiceLoadFailed" xml:space="preserve"><value>ইনভয়েস লোড করা যায়নি। লিংক দেখুন অথবা আবার চেষ্টা করুন।</value></data>
+  <data name="InvoiceLabelTemplate" xml:space="preserve"><value>ইনভয়েস {number}</value></data>
+  <data name="Discount" xml:space="preserve"><value>ছাড়</value></data>
+  <data name="Tax" xml:space="preserve"><value>কর</value></data>
+  <data name="TotalDue" xml:space="preserve"><value>মোট বকেয়া</value></data>
+  <data name="BillingPeriodTemplate" xml:space="preserve"><value>সময়: {start} – {end}</value></data>
+  <data name="PaymentInitiating" xml:space="preserve"><value>নিরাপদ checkout খোলা হচ্ছে…</value></data>
+  <data name="PaymentGatewayFailed" xml:space="preserve"><value>অনলাইন checkout শুরু করা যায়নি। পেমেন্ট configuration দেখে আবার চেষ্টা করুন।</value></data>
+  <data name="InvalidGatewayUrl" xml:space="preserve"><value>পেমেন্ট gateway একটি অকার্যকর checkout ঠিকানা দিয়েছে।</value></data>
+  <data name="ManualPaymentUnavailable" xml:space="preserve"><value>এই environment-এ ব্যাংক ট্রান্সফার configure করা নেই। উপলভ্য যাচাইকৃত পদ্ধতি ব্যবহার করুন।</value></data>
+  <data name="BankLabel" xml:space="preserve"><value>ব্যাংক</value></data>
+  <data name="AccountNameLabel" xml:space="preserve"><value>অ্যাকাউন্টের নাম</value></data>
+  <data name="AccountNumberLabel" xml:space="preserve"><value>অ্যাকাউন্ট নম্বর</value></data>
+  <data name="RoutingNumberLabel" xml:space="preserve"><value>রাউটিং নম্বর</value></data>
+  <data name="BranchLabel" xml:space="preserve"><value>শাখা</value></data>
+  <data name="ReferenceLabel" xml:space="preserve"><value>রেফারেন্স</value></data>
+  <data name="DepositSlipRequired" xml:space="preserve"><value>জমা দেওয়ার আগে রসিদের ফাইল বেছে নিন।</value></data>
+  <data name="DepositSlipInvalid" xml:space="preserve"><value>রসিদটি সর্বোচ্চ ৫ MB-এর PDF, JPG, JPEG অথবা PNG হতে হবে।</value></data>
+  <data name="ManualPaymentFieldsRequired" xml:space="preserve"><value>ব্যাংক ট্রান্সফারের সব আবশ্যিক তথ্য পূরণ করুন।</value></data>
+  <data name="Submitting" xml:space="preserve"><value>জমা দেওয়া হচ্ছে…</value></data>
+  <data name="ManualPaymentSubmitFailed" xml:space="preserve"><value>ব্যাংক ট্রান্সফার জমা দেওয়া যায়নি। তথ্য দেখে আবার চেষ্টা করুন।</value></data>
+  <data name="ManualPaymentSubmitted" xml:space="preserve"><value>রসিদটি নিরাপদে জমা হয়েছে এবং যাচাইয়ের অপেক্ষায় আছে। অনুমোদনের পর সেটআপ খুলবে।</value></data>
+  <data name="InvoiceAlreadyPaid" xml:space="preserve"><value>এই ইনভয়েস পরিশোধিত এবং আপনার সাবস্ক্রিপশন সক্রিয়।</value></data>
+  <data name="PaymentAwaitingVerification" xml:space="preserve"><value>ব্যাংক ট্রান্সফারটি অ্যাডমিন যাচাইয়ের অপেক্ষায় আছে। এই ইনভয়েসে আরেকটি পেমেন্ট জমা দেওয়া যাবে না।</value></data>
+  <data name="PaymentProcessing" xml:space="preserve"><value>একটি অনলাইন পেমেন্ট প্রক্রিয়াধীন। checkout সম্পন্ন বা বাতিল করার পর status reload করুন।</value></data>
+  <data name="ReloadStatus" xml:space="preserve"><value>পেমেন্টের অবস্থা আবার দেখুন</value></data>
 </root>

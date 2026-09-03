@@ -111,11 +111,21 @@ namespace EduOS.Persistence.Repositories.SaaS
     {
         public SubscriptionInvoiceRepository(EduOSDbContext context) : base(context) { }
 
+        public override async Task<SubscriptionInvoice?> GetByIdAsync(long id)
+        {
+            return await _context.SubscriptionInvoices
+                .Include(i => i.Subscription)
+                    .ThenInclude(s => s!.SubscriptionPlan)
+                .FirstOrDefaultAsync(i => i.Id == id);
+        }
+
         public async Task<SubscriptionInvoice?> GetByIdForSystemAsync(
             long id, long tenantId, CancellationToken ct = default)
         {
             return await _context.SubscriptionInvoices
                 .IgnoreQueryFilters()
+                .Include(i => i.Subscription)
+                    .ThenInclude(s => s!.SubscriptionPlan)
                 .FirstOrDefaultAsync(
                     i => !i.IsDeleted && i.Id == id && i.TenantId == tenantId,
                     ct);
@@ -126,6 +136,8 @@ namespace EduOS.Persistence.Repositories.SaaS
         {
             return await _context.SubscriptionInvoices
                 .IgnoreQueryFilters()
+                .Include(i => i.Subscription)
+                    .ThenInclude(s => s!.SubscriptionPlan)
                 .FirstOrDefaultAsync(i => !i.IsDeleted && i.Id == id, ct);
         }
 
@@ -139,6 +151,8 @@ namespace EduOS.Persistence.Repositories.SaaS
         {
             return await _context.SubscriptionInvoices
                 .IgnoreQueryFilters()
+                .Include(i => i.Subscription)
+                    .ThenInclude(s => s!.SubscriptionPlan)
                 .Where(i => !i.IsDeleted && i.TenantId == tenantId)
                 .OrderByDescending(i => i.IssueDate)
                 .ToListAsync(ct);
@@ -148,6 +162,8 @@ namespace EduOS.Persistence.Repositories.SaaS
         {
             return await _context.SubscriptionInvoices
                 .IgnoreQueryFilters()
+                .Include(i => i.Subscription)
+                    .ThenInclude(s => s!.SubscriptionPlan)
                 .Where(i => !i.IsDeleted &&
                            i.TenantId == tenantId &&
                            (i.PaymentStatus == PaymentStatus.Pending ||

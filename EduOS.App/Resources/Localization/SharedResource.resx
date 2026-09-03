@@ -413,4 +413,69 @@
   <data name="TermName" xml:space="preserve"><value>Term name</value></data>
   <data name="TermDateHelp" xml:space="preserve"><value>If dates are used, provide both and keep them within the academic year.</value></data>
   <data name="SaveTerm" xml:space="preserve"><value>Save term</value></data>
+  <data name="PlanSelectionTitle" xml:space="preserve"><value>Choose your plan</value></data>
+  <data name="PlanSelectionHelp" xml:space="preserve"><value>Select the capacity and billing period that fit your institution. Every charge is shown before you continue.</value></data>
+  <data name="BillingCycleLabel" xml:space="preserve"><value>Billing period</value></data>
+  <data name="QuarterlySaving" xml:space="preserve"><value>about 10% less</value></data>
+  <data name="HalfYearlySaving" xml:space="preserve"><value>about 15% less</value></data>
+  <data name="YearlySaving" xml:space="preserve"><value>about 22% less</value></data>
+  <data name="PerPeriodTemplate" xml:space="preserve"><value>per {period}</value></data>
+  <data name="SetupFeeTemplate" xml:space="preserve"><value>One-time setup fee: {amount}</value></data>
+  <data name="SelectPlanAriaTemplate" xml:space="preserve"><value>Select {name} plan</value></data>
+  <data name="Selected" xml:space="preserve"><value>Selected</value></data>
+  <data name="Processing" xml:space="preserve"><value>Processing…</value></data>
+  <data name="ContinueToPayment" xml:space="preserve"><value>Continue to payment</value></data>
+  <data name="SubscriptionCreateFailed" xml:space="preserve"><value>The subscription could not be created. Review the plan and try again.</value></data>
+  <data name="ExistingSubscriptionRedirecting" xml:space="preserve"><value>Your existing subscription was found. Taking you to the correct setup step…</value></data>
+  <data name="PlanSelectionSafeNote" xml:space="preserve"><value>Plan limits are shown here; any one-time setup fee is listed separately and included in the invoice.</value></data>
+  <data name="PaymentTitle" xml:space="preserve"><value>Complete payment</value></data>
+  <data name="PaymentHelp" xml:space="preserve"><value>Pay the verified invoice online or submit a bank receipt for review.</value></data>
+  <data name="PaymentMethod" xml:space="preserve"><value>Payment method</value></data>
+  <data name="OnlinePayment" xml:space="preserve"><value>Online payment</value></data>
+  <data name="OnlinePaymentHelp" xml:space="preserve"><value>Cards, mobile financial services, and internet banking through AamarPay</value></data>
+  <data name="BankTransfer" xml:space="preserve"><value>Bank transfer</value></data>
+  <data name="BankTransferHelp" xml:space="preserve"><value>Deposit the full invoice amount and upload the receipt</value></data>
+  <data name="SecureGatewayHelp" xml:space="preserve"><value>You will continue on AamarPay's secure checkout. EduOS verifies the transaction with the gateway before activation.</value></data>
+  <data name="PaySecurely" xml:space="preserve"><value>Pay securely</value></data>
+  <data name="PaySecurelyTemplate" xml:space="preserve"><value>Pay {amount} securely</value></data>
+  <data name="BankAccountHeading" xml:space="preserve"><value>Deposit to this account</value></data>
+  <data name="LoadingBankInfo" xml:space="preserve"><value>Loading verified bank details…</value></data>
+  <data name="PayerBankName" xml:space="preserve"><value>Your bank name</value></data>
+  <data name="PayerAccountNumber" xml:space="preserve"><value>Your account number</value></data>
+  <data name="DepositSlipNumber" xml:space="preserve"><value>Deposit or transaction reference</value></data>
+  <data name="DepositDate" xml:space="preserve"><value>Deposit date</value></data>
+  <data name="AmountPaid" xml:space="preserve"><value>Amount to pay</value></data>
+  <data name="NoteOptional" xml:space="preserve"><value>Note (optional)</value></data>
+  <data name="UploadDepositSlip" xml:space="preserve"><value>Upload deposit receipt</value></data>
+  <data name="UploadReceiptHelp" xml:space="preserve"><value>Choose a PDF, JPG, JPEG, or PNG file up to 5 MB</value></data>
+  <data name="SubmitForVerification" xml:space="preserve"><value>Submit for verification</value></data>
+  <data name="ManualVerificationTime" xml:space="preserve"><value>Access is activated only after a platform administrator verifies the full payment.</value></data>
+  <data name="OrderSummary" xml:space="preserve"><value>Invoice summary</value></data>
+  <data name="NoInvoiceSelected" xml:space="preserve"><value>No valid invoice was selected. Return to plan selection.</value></data>
+  <data name="InvoiceLoadFailed" xml:space="preserve"><value>The invoice could not be loaded. Check the link or try again.</value></data>
+  <data name="InvoiceLabelTemplate" xml:space="preserve"><value>Invoice {number}</value></data>
+  <data name="Discount" xml:space="preserve"><value>Discount</value></data>
+  <data name="Tax" xml:space="preserve"><value>Tax</value></data>
+  <data name="TotalDue" xml:space="preserve"><value>Total due</value></data>
+  <data name="BillingPeriodTemplate" xml:space="preserve"><value>Period: {start} – {end}</value></data>
+  <data name="PaymentInitiating" xml:space="preserve"><value>Opening secure checkout…</value></data>
+  <data name="PaymentGatewayFailed" xml:space="preserve"><value>Online checkout could not be started. Try again after checking the payment configuration.</value></data>
+  <data name="InvalidGatewayUrl" xml:space="preserve"><value>The payment gateway returned an invalid checkout address.</value></data>
+  <data name="ManualPaymentUnavailable" xml:space="preserve"><value>Bank transfer is not configured for this environment. Use an available verified method.</value></data>
+  <data name="BankLabel" xml:space="preserve"><value>Bank</value></data>
+  <data name="AccountNameLabel" xml:space="preserve"><value>Account name</value></data>
+  <data name="AccountNumberLabel" xml:space="preserve"><value>Account number</value></data>
+  <data name="RoutingNumberLabel" xml:space="preserve"><value>Routing number</value></data>
+  <data name="BranchLabel" xml:space="preserve"><value>Branch</value></data>
+  <data name="ReferenceLabel" xml:space="preserve"><value>Reference</value></data>
+  <data name="DepositSlipRequired" xml:space="preserve"><value>Select the deposit receipt before submitting.</value></data>
+  <data name="DepositSlipInvalid" xml:space="preserve"><value>The receipt must be a PDF, JPG, JPEG, or PNG file no larger than 5 MB.</value></data>
+  <data name="ManualPaymentFieldsRequired" xml:space="preserve"><value>Complete all required bank transfer fields.</value></data>
+  <data name="Submitting" xml:space="preserve"><value>Submitting…</value></data>
+  <data name="ManualPaymentSubmitFailed" xml:space="preserve"><value>The bank transfer could not be submitted. Review the information and try again.</value></data>
+  <data name="ManualPaymentSubmitted" xml:space="preserve"><value>Your receipt was submitted securely and is awaiting verification. Setup will unlock after approval.</value></data>
+  <data name="InvoiceAlreadyPaid" xml:space="preserve"><value>This invoice is paid and your subscription is active.</value></data>
+  <data name="PaymentAwaitingVerification" xml:space="preserve"><value>Your bank transfer is awaiting administrator verification. You cannot submit another payment for this invoice.</value></data>
+  <data name="PaymentProcessing" xml:space="preserve"><value>An online payment is being processed. Reload after completing or cancelling checkout.</value></data>
+  <data name="ReloadStatus" xml:space="preserve"><value>Reload payment status</value></data>
 </root>

@@ -58,6 +58,12 @@ namespace EduOS.Core.Entities.SaaS
 
         public string? FailureReason { get; set; }
 
+        /// <summary>
+        /// Prevents concurrent gateway callbacks or admin actions from applying
+        /// the same payment more than once.
+        /// </summary>
+        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+
         // ==================== Navigation ====================
 
         public virtual Tenant? Tenant { get; set; }

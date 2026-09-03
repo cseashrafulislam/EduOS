@@ -174,6 +174,55 @@ public class LocalizationAndPwaContractTests
         onboardingController.Should().Contain("[AutoValidateAntiforgeryToken]");
     }
 
+    [Fact]
+    public void Plan_and_payment_onboarding_are_bilingual_safe_and_server_state_driven()
+    {
+        var planView = File.ReadAllText(Asset("PlanSelection.cshtml"));
+        var paymentView = File.ReadAllText(Asset("Payment.cshtml"));
+        var planScript = File.ReadAllText(Asset("plan-selection.js"));
+        var paymentScript = File.ReadAllText(Asset("payment.js"));
+
+        new[] { planView, paymentView }.Should().AllSatisfy(view =>
+        {
+            view.Should().Contain("Layout = \"_OnboardingLayout\"");
+            view.Should().Contain("@T[");
+            view.Should().NotContain("<style>");
+            view.Should().NotContain("onclick=");
+        });
+
+        new[] { planScript, paymentScript }.Should().AllSatisfy(script =>
+        {
+            script.Should().Contain("replaceChildren");
+            script.Should().Contain("credentials: 'same-origin'");
+            script.Should().NotContain(".innerHTML");
+            script.Should().NotContain("Dutch Bangla");
+            script.Should().NotContain("1234567890123");
+        });
+
+        planScript.Should().Contain("/api/subscription/current");
+        planScript.Should().Contain("/api/subscription/invoices/unpaid");
+        planScript.Should().NotContain("/api/onboarding/complete-step");
+        paymentScript.Should().Contain("manual-instructions");
+        paymentScript.Should().Contain("trustedGatewayUrl");
+        paymentScript.Should().NotContain("/api/onboarding/complete-step");
+    }
+
+    [Fact]
+    public void Subscription_and_payment_writes_require_tenant_admin_and_callback_exemptions_are_explicit()
+    {
+        var subscriptionController = File.ReadAllText(Asset("SubscriptionController.cs"));
+        var paymentController = File.ReadAllText(Asset("SubscriptionPaymentController.cs"));
+
+        subscriptionController.Should().Contain("[Authorize(Roles = \"TenantAdmin\")]");
+        subscriptionController.Should().Contain("[AutoValidateAntiforgeryToken]");
+        paymentController.Should().Contain("[Authorize(Roles = \"TenantAdmin\")]");
+        paymentController.Should().Contain("[Authorize(Roles = \"SuperAdmin\")]");
+        paymentController.Should().Contain("[AutoValidateAntiforgeryToken]");
+        paymentController.Should().Contain("[IgnoreAntiforgeryToken]");
+        paymentController.Should().Contain("LocalRedirect");
+        paymentController.Should().NotContain("Request.Host");
+    }
+
     private static Dictionary<string, string> ReadResource(string fileName)
     {
         return XDocument.Load(Asset(fileName))

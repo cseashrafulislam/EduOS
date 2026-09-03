@@ -9,9 +9,11 @@ using EduOS.Core.Settings;
 using EduOS.Service.Helpers.Payment;
 using EduOS.Service.Helpers.Storage;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Globalization;
+using System.IO;
 using System.Security.Cryptography;
 
 namespace EduOS.Service.Services.SaaS
@@ -27,7 +29,8 @@ namespace EduOS.Service.Services.SaaS
         private readonly IAamarPayClient _aamarPay;
         private readonly IFileUploadService _fileStorage;
         private readonly ISubscriptionService _subscriptionService;
-        private readonly FileUploadSettings _fileSettings;
+        private readonly AamarPaySettings _aamarPaySettings;
+        private readonly ManualPaymentSettings _manualSettings;
         private readonly ILogger<SubscriptionPaymentService> _logger;
 
         public SubscriptionPaymentService(
@@ -40,7 +43,8 @@ namespace EduOS.Service.Services.SaaS
             IAamarPayClient aamarPay,
             IFileUploadService fileStorage,
             ISubscriptionService subscriptionService,
-            IOptions<FileUploadSettings> fileSettings,
+            IOptions<AamarPaySettings> aamarPaySettings,
+            IOptions<ManualPaymentSettings> manualSettings,
             ILogger<SubscriptionPaymentService> logger)
         {
             _paymentRepo = paymentRepo;
@@ -52,7 +56,8 @@ namespace EduOS.Service.Services.SaaS
             _aamarPay = aamarPay;
             _fileStorage = fileStorage;
             _subscriptionService = subscriptionService;
-            _fileSettings = fileSettings.Value;
+            _aamarPaySettings = aamarPaySettings.Value;
+            _manualSettings = manualSettings.Value;
             _logger = logger;
         }
 
@@ -60,11 +65,24 @@ namespace EduOS.Service.Services.SaaS
         // INITIATE AAMARPAY ONLINE PAYMENT
         // ============================================================
         public async Task<ApiResponse<InitiatePaymentResponseDto>> InitiateAamarPayAsync(
-            InitiatePaymentRequestDto dto, string baseUrl)
+            InitiatePaymentRequestDto dto)
         {
             var tenantId = _currentUser.TenantId;
             try
             {
+                if (tenantId <= 0)
+                    return ApiResponse<InitiatePaymentResponseDto>.ErrorResponse("Tenant context required", 401);
+
+                if (dto.PaymentMethod != PaymentMethod.AamarPay)
+                    return ApiResponse<InitiatePaymentResponseDto>.ErrorResponse("Select AamarPay for online payment");
+
+                if (!TryGetTrustedCallbackBaseUrl(out var callbackBaseUrl))
+                {
+                    _logger.LogError("AamarPay CallbackBaseUrl is missing or invalid");
+                    return ApiResponse<InitiatePaymentResponseDto>.ErrorResponse(
+                        "Online payment is not configured", 503);
+                }
+
                 // 1. Load invoice
                 var invoice = await _invoiceRepo.GetByIdAsync(dto.InvoiceId);
                 if (invoice == null || invoice.TenantId != tenantId)
@@ -75,6 +93,14 @@ namespace EduOS.Service.Services.SaaS
 
                 if (invoice.DueAmount <= 0)
                     return ApiResponse<InitiatePaymentResponseDto>.ErrorResponse("Nothing due on this invoice", 400);
+
+                var existingPayments = await _paymentRepo.GetByInvoiceAsync(invoice.Id);
+                await ExpireStaleProcessingPaymentsAsync(existingPayments);
+                if (existingPayments.Any(p => p.Status is PaymentStatus.Processing or PaymentStatus.AwaitingVerification))
+                {
+                    return ApiResponse<InitiatePaymentResponseDto>.ErrorResponse(
+                        "A payment is already being processed for this invoice", 409);
+                }
 
                 // 2. Generate our internal transaction ID
                 var transactionId = CreateTransactionId("EDU", tenantId, invoice.Id);
@@ -109,9 +135,9 @@ namespace EduOS.Service.Services.SaaS
                     CustomerAddress = invoice.CustomerAddress,
                     CustomerCity = tenant?.City,
                     CustomerCountry = tenant?.Country,
-                    SuccessUrl = $"{baseUrl}/api/subscription-payment/callback/success",
-                    FailUrl = $"{baseUrl}/api/subscription-payment/callback/fail",
-                    CancelUrl = $"{baseUrl}/api/subscription-payment/callback/cancel"
+                    SuccessUrl = $"{callbackBaseUrl}/api/subscription-payment/callback/success",
+                    FailUrl = $"{callbackBaseUrl}/api/subscription-payment/callback/fail",
+                    CancelUrl = $"{callbackBaseUrl}/api/subscription-payment/callback/cancel"
                 };
 
                 // 5. Call AamarPay
@@ -142,6 +168,12 @@ namespace EduOS.Service.Services.SaaS
                         Status = PaymentStatus.Processing,
                         Message = "Redirect user to PaymentUrl to complete payment"
                     });
+            }
+            catch (DbUpdateException ex)
+            {
+                _logger.LogWarning(ex, "Concurrent payment initiation blocked for invoice {InvoiceId}", dto.InvoiceId);
+                return ApiResponse<InitiatePaymentResponseDto>.ErrorResponse(
+                    "A payment is already being processed for this invoice", 409);
             }
             catch (Exception ex)
             {
@@ -226,8 +258,10 @@ namespace EduOS.Service.Services.SaaS
                         // Activate subscription if invoice is fully paid
                         if (invoice.PaymentStatus == PaymentStatus.Successful)
                         {
-                            await _subscriptionService.ActivateAfterPaymentAsync(
+                            var activation = await _subscriptionService.ActivateAfterPaymentAsync(
                                 invoice.TenantSubscriptionId, payment.TenantId);
+                            if (!activation.Success)
+                                throw new InvalidOperationException("Subscription activation failed after verified payment.");
                         }
                     }
                 }
@@ -262,8 +296,12 @@ namespace EduOS.Service.Services.SaaS
             ManualPaymentSubmitDto dto, IFormFile? depositSlip)
         {
             var tenantId = _currentUser.TenantId;
+            string? uploadedStorageKey = null;
             try
             {
+                if (tenantId <= 0)
+                    return ApiResponse<SubscriptionPaymentDto>.ErrorResponse("Tenant context required", 401);
+
                 var invoice = await _invoiceRepo.GetByIdAsync(dto.InvoiceId);
                 if (invoice == null || invoice.TenantId != tenantId)
                     return ApiResponse<SubscriptionPaymentDto>.ErrorResponse("Invoice not found", 404);
@@ -271,26 +309,67 @@ namespace EduOS.Service.Services.SaaS
                 if (invoice.PaymentStatus == PaymentStatus.Successful)
                     return ApiResponse<SubscriptionPaymentDto>.ErrorResponse("Invoice already paid", 400);
 
-                if (dto.Amount <= 0)
-                    return ApiResponse<SubscriptionPaymentDto>.ErrorResponse("Invalid amount", 400);
+                if (dto.Amount <= 0 || dto.Amount != invoice.DueAmount)
+                    return ApiResponse<SubscriptionPaymentDto>.ErrorResponse(
+                        "The submitted amount must match the full invoice balance", 400);
 
-                // Upload deposit slip if provided
-                string? slipUrl = null;
-                if (depositSlip != null && depositSlip.Length > 0)
+                if (string.IsNullOrWhiteSpace(_manualSettings.BankName)
+                    || string.IsNullOrWhiteSpace(_manualSettings.AccountName)
+                    || string.IsNullOrWhiteSpace(_manualSettings.AccountNumber))
                 {
-                    if (!_fileStorage.ValidateFile(depositSlip))
-                    {
-                        return ApiResponse<SubscriptionPaymentDto>.ErrorResponse(
-                            "Invalid file type. Allowed: PDF, JPG, JPEG, PNG", 400);
-                    }
-
-                    var upload = await _fileStorage.UploadAsync(depositSlip, "deposit-slips");
-                    if (!upload.Success)
-                        return ApiResponse<SubscriptionPaymentDto>.ErrorResponse(
-                            upload.ErrorMessage ?? "File upload failed", 400);
-
-                    slipUrl = upload.FileUrl;
+                    return ApiResponse<SubscriptionPaymentDto>.ErrorResponse(
+                        "Manual payment is not configured", 503);
                 }
+
+                if (string.IsNullOrWhiteSpace(dto.PayerBankName)
+                    || string.IsNullOrWhiteSpace(dto.PayerAccountNumber)
+                    || string.IsNullOrWhiteSpace(dto.DepositSlipNumber))
+                {
+                    return ApiResponse<SubscriptionPaymentDto>.ErrorResponse(
+                        "Bank, account, and deposit slip details are required", 400);
+                }
+
+                var bangladeshToday = DateTimeOffset.UtcNow
+                    .ToOffset(TimeSpan.FromHours(6)).Date;
+                if (dto.DepositDate == default || dto.DepositDate.Date > bangladeshToday)
+                    return ApiResponse<SubscriptionPaymentDto>.ErrorResponse("Invalid deposit date", 400);
+
+                var existingPayments = await _paymentRepo.GetByInvoiceAsync(invoice.Id);
+                await ExpireStaleProcessingPaymentsAsync(existingPayments);
+                if (existingPayments.Any(p => p.Status is PaymentStatus.Processing or PaymentStatus.AwaitingVerification))
+                {
+                    return ApiResponse<SubscriptionPaymentDto>.ErrorResponse(
+                        "A manual payment is already awaiting verification", 409);
+                }
+
+                if (depositSlip == null || depositSlip.Length <= 0)
+                    return ApiResponse<SubscriptionPaymentDto>.ErrorResponse("Deposit slip is required", 400);
+
+                var extension = Path.GetExtension(depositSlip.FileName).ToLowerInvariant();
+                var allowedReceiptTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ".pdf", ".jpg", ".jpeg", ".png"
+                };
+                var allowedReceiptMimeTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "application/pdf", "image/jpeg", "image/png"
+                };
+                if (depositSlip.Length > 5 * 1024L * 1024L
+                    || !allowedReceiptTypes.Contains(extension)
+                    || !allowedReceiptMimeTypes.Contains(depositSlip.ContentType ?? string.Empty)
+                    || !_fileStorage.ValidateFile(depositSlip))
+                {
+                    return ApiResponse<SubscriptionPaymentDto>.ErrorResponse(
+                        "Invalid deposit slip. Upload a PDF, JPG, JPEG, or PNG up to 5 MB", 400);
+                }
+
+                var upload = await _fileStorage.UploadPrivateAsync(depositSlip, "deposit-slips");
+                if (!upload.Success)
+                    return ApiResponse<SubscriptionPaymentDto>.ErrorResponse(
+                        upload.ErrorMessage ?? "File upload failed", 400);
+
+                var slipStorageKey = upload.FileUrl;
+                uploadedStorageKey = slipStorageKey;
 
                 var transactionId = CreateTransactionId("MAN", tenantId, invoice.Id);
 
@@ -304,12 +383,14 @@ namespace EduOS.Service.Services.SaaS
                     Currency = invoice.Currency,
                     Status = PaymentStatus.AwaitingVerification,
                     InitiatedAt = DateTime.UtcNow,
-                    PayerBankName = dto.PayerBankName,
-                    PayerAccountNumber = dto.PayerAccountNumber,
-                    DepositSlipNumber = dto.DepositSlipNumber,
+                    PayerBankName = dto.PayerBankName.Trim(),
+                    PayerAccountNumber = dto.PayerAccountNumber.Trim(),
+                    DepositSlipNumber = dto.DepositSlipNumber.Trim(),
                     DepositDate = dto.DepositDate,
-                    DepositSlipUrl = slipUrl,
-                    VerificationNote = dto.Note
+                    // Historical column name retained for migration compatibility. It
+                    // now stores a private key and is never exposed as a public URL.
+                    DepositSlipUrl = slipStorageKey,
+                    VerificationNote = dto.Note?.Trim()
                 };
 
                 await _paymentRepo.AddAsync(payment);
@@ -327,10 +408,90 @@ namespace EduOS.Service.Services.SaaS
                 return ApiResponse<SubscriptionPaymentDto>.SuccessResponse(resultDto,
                     "Payment submitted. Awaiting admin verification.");
             }
+            catch (DbUpdateException ex)
+            {
+                if (!string.IsNullOrWhiteSpace(uploadedStorageKey))
+                    await _fileStorage.DeletePrivateAsync(uploadedStorageKey);
+                _logger.LogWarning(ex, "Concurrent manual payment submission blocked for invoice {InvoiceId}", dto.InvoiceId);
+                return ApiResponse<SubscriptionPaymentDto>.ErrorResponse(
+                    "A payment is already being processed for this invoice", 409);
+            }
             catch (Exception ex)
             {
+                if (!string.IsNullOrWhiteSpace(uploadedStorageKey))
+                    await _fileStorage.DeletePrivateAsync(uploadedStorageKey);
                 _logger.LogError(ex, "Failed to submit manual payment");
                 return ApiResponse<SubscriptionPaymentDto>.ErrorResponse("Submission failed", 500);
+            }
+        }
+
+        public async Task<ApiResponse<ManualPaymentInstructionsDto>> GetManualPaymentInstructionsAsync(
+            long invoiceId)
+        {
+            var tenantId = _currentUser.TenantId;
+            try
+            {
+                if (tenantId <= 0)
+                    return ApiResponse<ManualPaymentInstructionsDto>.ErrorResponse("Tenant context required", 401);
+
+                var invoice = await _invoiceRepo.GetByIdAsync(invoiceId);
+                if (invoice == null || invoice.TenantId != tenantId)
+                    return ApiResponse<ManualPaymentInstructionsDto>.ErrorResponse("Invoice not found", 404);
+
+                if (string.IsNullOrWhiteSpace(_manualSettings.BankName)
+                    || string.IsNullOrWhiteSpace(_manualSettings.AccountName)
+                    || string.IsNullOrWhiteSpace(_manualSettings.AccountNumber))
+                {
+                    return ApiResponse<ManualPaymentInstructionsDto>.ErrorResponse(
+                        "Manual payment is not configured", 503);
+                }
+
+                return ApiResponse<ManualPaymentInstructionsDto>.SuccessResponse(
+                    new ManualPaymentInstructionsDto
+                    {
+                        BankName = _manualSettings.BankName,
+                        AccountName = _manualSettings.AccountName,
+                        AccountNumber = _manualSettings.AccountNumber,
+                        RoutingNumber = _manualSettings.RoutingNumber,
+                        BranchName = _manualSettings.BranchName,
+                        Reference = invoice.InvoiceNumber,
+                        Instructions = _manualSettings.Instructions
+                    });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to load manual payment instructions for invoice {InvoiceId}", invoiceId);
+                return ApiResponse<ManualPaymentInstructionsDto>.ErrorResponse(
+                    "Failed to load manual payment instructions", 500);
+            }
+        }
+
+        public async Task<ApiResponse<PrivateFileDownloadDto>> GetDepositSlipAsync(long paymentId)
+        {
+            try
+            {
+                if (!_currentUser.IsSuperAdmin)
+                    return ApiResponse<PrivateFileDownloadDto>.ErrorResponse("Forbidden", 403);
+
+                var payment = await _paymentRepo.GetByIdForPlatformAsync(paymentId);
+                if (payment == null || string.IsNullOrWhiteSpace(payment.DepositSlipUrl))
+                    return ApiResponse<PrivateFileDownloadDto>.ErrorResponse("Deposit slip not found", 404);
+
+                var file = await _fileStorage.GetPrivateFileAsync(payment.DepositSlipUrl);
+                if (file == null)
+                    return ApiResponse<PrivateFileDownloadDto>.ErrorResponse("Deposit slip not found", 404);
+
+                return ApiResponse<PrivateFileDownloadDto>.SuccessResponse(new PrivateFileDownloadDto
+                {
+                    Content = file.Content,
+                    ContentType = file.ContentType,
+                    FileName = file.FileName
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to load deposit slip for payment {PaymentId}", paymentId);
+                return ApiResponse<PrivateFileDownloadDto>.ErrorResponse("Failed to load deposit slip", 500);
             }
         }
 
@@ -379,8 +540,10 @@ namespace EduOS.Service.Services.SaaS
 
                         if (invoice.PaymentStatus == PaymentStatus.Successful)
                         {
-                            await _subscriptionService.ActivateAfterPaymentAsync(
+                            var activation = await _subscriptionService.ActivateAfterPaymentAsync(
                                 invoice.TenantSubscriptionId, payment.TenantId);
+                            if (!activation.Success)
+                                throw new InvalidOperationException("Subscription activation failed after manual verification.");
                         }
                     }
                 }
@@ -500,7 +663,7 @@ namespace EduOS.Service.Services.SaaS
                 PayerAccountNumber = p.PayerAccountNumber,
                 DepositSlipNumber = p.DepositSlipNumber,
                 DepositDate = p.DepositDate,
-                DepositSlipUrl = p.DepositSlipUrl,
+                HasDepositSlip = !string.IsNullOrWhiteSpace(p.DepositSlipUrl),
                 VerificationNote = p.VerificationNote,
                 VerifiedAt = p.VerifiedAt,
                 FailureReason = p.FailureReason
@@ -511,6 +674,37 @@ namespace EduOS.Service.Services.SaaS
         {
             var nonce = Convert.ToHexString(RandomNumberGenerator.GetBytes(8));
             return $"{prefix}-{DateTime.UtcNow:yyyyMMddHHmmss}-{tenantId}-{invoiceId}-{nonce}";
+        }
+
+        private async Task ExpireStaleProcessingPaymentsAsync(List<SubscriptionPayment> payments)
+        {
+            var cutoff = DateTime.UtcNow.AddMinutes(-30);
+            var stale = payments.Where(p => p.Status == PaymentStatus.Processing && p.InitiatedAt <= cutoff).ToList();
+            if (!stale.Any()) return;
+
+            foreach (var payment in stale)
+            {
+                payment.Status = PaymentStatus.Failed;
+                payment.FailedAt = DateTime.UtcNow;
+                payment.FailureReason = "Online checkout expired before gateway confirmation.";
+                _paymentRepo.Update(payment);
+            }
+            await _unitOfWork.SaveChangesAsync();
+        }
+
+        private bool TryGetTrustedCallbackBaseUrl(out string baseUrl)
+        {
+            baseUrl = string.Empty;
+            if (!Uri.TryCreate(_aamarPaySettings.CallbackBaseUrl, UriKind.Absolute, out var uri)
+                || (uri.Scheme != Uri.UriSchemeHttps && !uri.IsLoopback)
+                || !string.IsNullOrEmpty(uri.Query)
+                || !string.IsNullOrEmpty(uri.Fragment))
+            {
+                return false;
+            }
+
+            baseUrl = uri.GetLeftPart(UriPartial.Authority).TrimEnd('/');
+            return true;
         }
     }
 }

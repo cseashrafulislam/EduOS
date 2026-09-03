@@ -1,4 +1,5 @@
 using EduOS.Core.Enums;
+using System.ComponentModel.DataAnnotations;
 
 namespace EduOS.Core.DTOs.SaaS
 {
@@ -30,6 +31,7 @@ namespace EduOS.Core.DTOs.SaaS
         public string? Description { get; set; }
 
         public string PlanName { get; set; } = string.Empty;
+        public string? PlanNameBangla { get; set; }
     }
 
     public class SubscriptionPaymentDto
@@ -54,7 +56,7 @@ namespace EduOS.Core.DTOs.SaaS
         public string? PayerAccountNumber { get; set; }
         public string? DepositSlipNumber { get; set; }
         public DateTime? DepositDate { get; set; }
-        public string? DepositSlipUrl { get; set; }
+        public bool HasDepositSlip { get; set; }
         public string? VerificationNote { get; set; }
         public DateTime? VerifiedAt { get; set; }
 
@@ -66,7 +68,9 @@ namespace EduOS.Core.DTOs.SaaS
     /// </summary>
     public class InitiatePaymentRequestDto
     {
-        public int InvoiceId { get; set; }
+        [Range(1, long.MaxValue)]
+        public long InvoiceId { get; set; }
+        [EnumDataType(typeof(PaymentMethod))]
         public PaymentMethod PaymentMethod { get; set; }
     }
 
@@ -79,17 +83,34 @@ namespace EduOS.Core.DTOs.SaaS
     }
 
     /// <summary>
+    /// Private file payload returned only through an authorized service boundary.
+    /// The persisted storage key is never exposed to API consumers.
+    /// </summary>
+    public class PrivateFileDownloadDto
+    {
+        public byte[] Content { get; set; } = Array.Empty<byte>();
+        public string ContentType { get; set; } = "application/octet-stream";
+        public string FileName { get; set; } = "document";
+    }
+
+    /// <summary>
     /// Submit manual bank transfer details
     /// </summary>
     public class ManualPaymentSubmitDto
     {
+        [Range(1, long.MaxValue)]
         public long InvoiceId { get; set; }
+        [Required, MaxLength(150)]
         public string PayerBankName { get; set; } = string.Empty;
+        [Required, MaxLength(100)]
         public string PayerAccountNumber { get; set; } = string.Empty;
+        [Required, MaxLength(100)]
         public string DepositSlipNumber { get; set; } = string.Empty;
         public DateTime DepositDate { get; set; }
+        [Range(typeof(decimal), "0.01", "999999999999.99")]
         public decimal Amount { get; set; }
         public IFormFileLite? DepositSlip { get; set; } // file upload (handled in controller)
+        [MaxLength(500)]
         public string? Note { get; set; }
     }
 
@@ -108,8 +129,10 @@ namespace EduOS.Core.DTOs.SaaS
     /// </summary>
     public class VerifyManualPaymentDto
     {
+        [Range(1, long.MaxValue)]
         public long PaymentId { get; set; }
         public bool Approve { get; set; }
+        [MaxLength(500)]
         public string? VerificationNote { get; set; }
     }
 

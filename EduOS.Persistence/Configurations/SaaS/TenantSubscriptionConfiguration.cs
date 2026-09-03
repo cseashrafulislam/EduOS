@@ -23,6 +23,9 @@ namespace EduOS.Persistence.Configurations.SaaS
 
             // Indexes
             builder.HasIndex(s => new { s.TenantId, s.Status });
+            builder.HasIndex(s => s.TenantId)
+                .IsUnique()
+                .HasFilter("[IsDeleted] = 0 AND [Status] IN (1, 2, 3, 6)");
             builder.HasIndex(s => s.EndDate);
             builder.HasIndex(s => s.NextBillingDate);
 

@@ -30,6 +30,7 @@ namespace EduOS.App.Extensions
             services.Configure<AamarPaySettings>(configuration.GetSection(AamarPaySettings.SectionName));
             services.Configure<ManualPaymentSettings>(configuration.GetSection(ManualPaymentSettings.SectionName));
             services.Configure<FileUploadSettings>(configuration.GetSection(FileUploadSettings.SectionName));
+            services.Configure<FileStorageSettings>(configuration.GetSection("FileStorage"));
 
             // ==================== AutoMapper ====================
             services.AddAutoMapper(_ => { }, typeof(MappingProfile).Assembly);
