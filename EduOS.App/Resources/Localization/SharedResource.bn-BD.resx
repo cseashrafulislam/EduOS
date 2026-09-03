@@ -193,4 +193,37 @@
   <data name="ConfigureFeeStructure" xml:space="preserve"><value>ফি কাঠামো নির্ধারণ করুন</value></data>
   <data name="InviteTeamMembers" xml:space="preserve"><value>টিম সদস্যদের আমন্ত্রণ জানান</value></data>
   <data name="ReviewSettings" xml:space="preserve"><value>সেটিংস পর্যালোচনা করুন</value></data>
+  <data name="PricingTitle" xml:space="preserve"><value>সহজ ও স্বচ্ছ মূল্য</value></data>
+  <data name="PricingSubtitle" xml:space="preserve"><value>আপনার প্রতিষ্ঠানের প্রয়োজনীয় ধারণক্ষমতা ও ফিচার বেছে নিন। ট্রায়াল ও পেমেন্টের তথ্য পরিষ্কারভাবে দেখানো হবে।</value></data>
+  <data name="Monthly" xml:space="preserve"><value>মাসিক</value></data>
+  <data name="Quarterly" xml:space="preserve"><value>ত্রৈমাসিক</value></data>
+  <data name="HalfYearly" xml:space="preserve"><value>ষাণ্মাসিক</value></data>
+  <data name="Yearly" xml:space="preserve"><value>বার্ষিক</value></data>
+  <data name="LoadingPlans" xml:space="preserve"><value>প্ল্যান লোড হচ্ছে…</value></data>
+  <data name="PlansLoadFailed" xml:space="preserve"><value>প্ল্যান লোড করা যায়নি। আবার চেষ্টা করুন।</value></data>
+  <data name="NoPlansAvailable" xml:space="preserve"><value>এই মুহূর্তে কোনো প্রকাশ্য প্ল্যান নেই।</value></data>
+  <data name="MostPopular" xml:space="preserve"><value>সবচেয়ে জনপ্রিয়</value></data>
+  <data name="Free" xml:space="preserve"><value>বিনামূল্যে</value></data>
+  <data name="DaysTrialTemplate" xml:space="preserve"><value>{count} দিনের ট্রায়াল</value></data>
+  <data name="PeriodMonth" xml:space="preserve"><value>মাস</value></data>
+  <data name="PeriodThreeMonths" xml:space="preserve"><value>৩ মাস</value></data>
+  <data name="PeriodSixMonths" xml:space="preserve"><value>৬ মাস</value></data>
+  <data name="PeriodYear" xml:space="preserve"><value>বছর</value></data>
+  <data name="StartFreeTrial" xml:space="preserve"><value>ফ্রি ট্রায়াল শুরু করুন</value></data>
+  <data name="GetStarted" xml:space="preserve"><value>শুরু করুন</value></data>
+  <data name="UpToStudentsTemplate" xml:space="preserve"><value>সর্বোচ্চ {count} জন শিক্ষার্থী</value></data>
+  <data name="TeachersTemplate" xml:space="preserve"><value>{count} জন শিক্ষক</value></data>
+  <data name="CampusesTemplate" xml:space="preserve"><value>{count}টি ক্যাম্পাস</value></data>
+  <data name="MoreFeaturesTemplate" xml:space="preserve"><value>আরও {count}টি ফিচার</value></data>
+  <data name="FrequentlyAskedQuestions" xml:space="preserve"><value>সচরাচর জিজ্ঞাসা</value></data>
+  <data name="FaqSwitchPlanQuestion" xml:space="preserve"><value>পরে কি প্ল্যান পরিবর্তন করা যাবে?</value></data>
+  <data name="FaqSwitchPlanAnswer" xml:space="preserve"><value>প্ল্যান পরিবর্তন নিশ্চিত করার আগে upgrade, downgrade, সমন্বিত বিল ও প্রযোজ্য নিয়ম দেখানো হবে।</value></data>
+  <data name="FaqPaymentMethodsQuestion" xml:space="preserve"><value>কোন পেমেন্ট পদ্ধতি পাওয়া যাবে?</value></data>
+  <data name="FaqPaymentMethodsAnswer" xml:space="preserve"><value>checkout-এ যাচাইকৃত gateway অনুযায়ী card, mobile financial service, internet banking অথবা manual payment-এর উপলভ্য পদ্ধতি দেখানো হবে।</value></data>
+  <data name="FaqTrialQuestion" xml:space="preserve"><value>ফ্রি ট্রায়াল কি আছে?</value></data>
+  <data name="FaqTrialAnswer" xml:space="preserve"><value>সক্রিয় trial plan থাকলে signup-এর আগে card-এ এর সঠিক সময়সীমা ও অন্তর্ভুক্ত সীমা দেখানো হবে।</value></data>
+  <data name="FaqCancelQuestion" xml:space="preserve"><value>সাবস্ক্রিপশন বাতিল করা যাবে?</value></data>
+  <data name="FaqCancelAnswer" xml:space="preserve"><value>হ্যাঁ। বাতিল নিশ্চিত করার আগে কার্যকর তারিখ, access-এর মেয়াদ ও refund-এর শর্ত দেখানো হবে।</value></data>
+  <data name="FaqLargeInstitutionQuestion" xml:space="preserve"><value>বড় অথবা বহু-ক্যাম্পাস প্রতিষ্ঠান কি custom plan পাবে?</value></data>
+  <data name="FaqLargeInstitutionAnswer" xml:space="preserve"><value>হ্যাঁ। আলাদা codebase না বানিয়ে অনুমোদিত plan-এর মাধ্যমে enterprise capacity ও module নির্ধারণ করা যাবে।</value></data>
 </root>

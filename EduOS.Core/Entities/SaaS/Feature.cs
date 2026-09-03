@@ -9,8 +9,10 @@ namespace EduOS.Core.Entities.SaaS
     public class Feature : BaseEntity
     {
         public string Name { get; set; } = string.Empty;
+        public string? NameBangla { get; set; }
         public string Code { get; set; } = string.Empty; // e.g. "EXAM_MANAGEMENT"
         public string? Description { get; set; }
+        public string? DescriptionBangla { get; set; }
         public string? Category { get; set; } // e.g. "Academic", "Finance", "HR"
         public string? IconName { get; set; }
 

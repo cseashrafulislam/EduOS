@@ -104,6 +104,7 @@ namespace EduOS.Service.Services.SaaS
                             {
                                 FeatureId = f.Id,
                                 Name = f.Name,
+                                NameBangla = f.NameBangla,
                                 Code = f.Code,
                                 PlanAvailability = plans.ToDictionary(
                                     p => p.Id,

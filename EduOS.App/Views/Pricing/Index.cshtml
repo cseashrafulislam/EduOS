@@ -1,348 +1,277 @@
 @{
     ViewData["Title"] = "Pricing";
-    Layout = "_Layout";
+    Layout = "_PublicLayout";
+
+    var pricingStrings = new
+    {
+        culture = CultureInfo.CurrentUICulture.Name,
+        useBangla = CultureInfo.CurrentUICulture.Name.StartsWith("bn", StringComparison.OrdinalIgnoreCase),
+        loading = T["LoadingPlans"].Value,
+        loadFailed = T["PlansLoadFailed"].Value,
+        noPlans = T["NoPlansAvailable"].Value,
+        retry = T["Retry"].Value,
+        mostPopular = T["MostPopular"].Value,
+        free = T["Free"].Value,
+        daysTrial = T["DaysTrialTemplate"].Value,
+        startTrial = T["StartFreeTrial"].Value,
+        getStarted = T["GetStarted"].Value,
+        students = T["UpToStudentsTemplate"].Value,
+        teachers = T["TeachersTemplate"].Value,
+        campuses = T["CampusesTemplate"].Value,
+        moreFeatures = T["MoreFeaturesTemplate"].Value,
+        periods = new Dictionary<int, string>
+        {
+            [1] = T["PeriodMonth"].Value,
+            [2] = T["PeriodThreeMonths"].Value,
+            [3] = T["PeriodSixMonths"].Value,
+            [4] = T["PeriodYear"].Value
+        }
+    };
+    var pricingJson = System.Text.Json.JsonSerializer.Serialize(pricingStrings);
 }
 
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+<div class="pricing-page">
+    <section class="pricing-hero" aria-labelledby="pricingTitle">
+        <h1 id="pricingTitle">@T["PricingTitle"]</h1>
+        <p>@T["PricingSubtitle"]</p>
+    </section>
 
-<style>
-    .pricing-hero {
-        background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%);
-        color: white;
-        padding: 4rem 2rem 6rem;
-        text-align: center;
-    }
-    .pricing-hero h1 {
-        font-size: 36px;
-        font-weight: 600;
-        margin-bottom: 1rem;
-    }
-    .pricing-hero p {
-        font-size: 16px;
-        opacity: 0.9;
-        max-width: 600px;
-        margin: 0 auto;
-    }
-    .pricing-section {
-        margin-top: -4rem;
-        padding: 0 2rem 4rem;
-    }
-    .billing-toggle {
-        background: #fff;
-        border-radius: 10px;
-        padding: 4px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-        display: inline-flex;
-        margin-bottom: 2rem;
-    }
-    .billing-toggle button {
-        border: none;
-        background: transparent;
-        padding: 8px 18px;
-        border-radius: 6px;
-        font-size: 14px;
-        cursor: pointer;
-        color: #64748b;
-    }
-    .billing-toggle button.active {
-        background: #1e40af;
-        color: white;
-        font-weight: 500;
-    }
-    .billing-toggle button .save-badge {
-        background: #fbbf24;
-        color: #78350f;
-        font-size: 10px;
-        padding: 1px 6px;
-        border-radius: 4px;
-        margin-left: 4px;
-    }
-    .plan-card {
-        background: #fff;
-        border-radius: 14px;
-        padding: 2rem 1.75rem;
-        height: 100%;
-        position: relative;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-        transition: transform 0.2s;
-    }
-    .plan-card:hover { transform: translateY(-4px); }
-    .plan-card.recommended {
-        border: 2px solid #f59e0b;
-    }
-    .recommended-banner {
-        position: absolute;
-        top: -1px;
-        left: -1px;
-        right: -1px;
-        background: #f59e0b;
-        color: white;
-        text-align: center;
-        padding: 4px;
-        font-size: 12px;
-        font-weight: 500;
-        border-radius: 13px 13px 0 0;
-    }
-    .plan-card.recommended { padding-top: 2.5rem; }
-    .plan-name {
-        font-size: 20px;
-        font-weight: 600;
-        margin-bottom: 0.25rem;
-    }
-    .plan-desc {
-        color: #64748b;
-        font-size: 14px;
-        min-height: 42px;
-    }
-    .plan-price {
-        font-size: 36px;
-        font-weight: 700;
-        color: #1e40af;
-        margin: 1.5rem 0 0;
-    }
-    .plan-price-period {
-        font-size: 14px;
-        color: #94a3b8;
-        font-weight: 400;
-    }
-    .plan-features {
-        list-style: none;
-        padding: 0;
-        margin: 1.5rem 0;
-        font-size: 14px;
-    }
-    .plan-features li {
-        padding: 6px 0;
-        color: #475569;
-        display: flex;
-        align-items: center;
-    }
-    .plan-features li i {
-        color: #10b981;
-        margin-right: 8px;
-        flex-shrink: 0;
-    }
-    .plan-cta {
-        display: block;
-        text-align: center;
-        padding: 12px;
-        border-radius: 8px;
-        font-weight: 500;
-        text-decoration: none;
-        transition: all 0.2s;
-    }
-    .plan-cta-primary {
-        background: #1e40af;
-        color: white;
-    }
-    .plan-cta-primary:hover {
-        background: #1e3a8a;
-        color: white;
-    }
-    .plan-cta-secondary {
-        background: #f1f5f9;
-        color: #1e40af;
-    }
-    .plan-cta-secondary:hover {
-        background: #e2e8f0;
-        color: #1e40af;
-    }
-
-    .faq-section {
-        background: #f8fafc;
-        padding: 4rem 2rem;
-    }
-    .faq-item {
-        background: white;
-        border-radius: 10px;
-        padding: 1.25rem 1.5rem;
-        margin-bottom: 1rem;
-    }
-    .faq-q {
-        font-weight: 600;
-        cursor: pointer;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-    .faq-a {
-        color: #64748b;
-        font-size: 14px;
-        margin-top: 0.75rem;
-        display: none;
-    }
-    .faq-item.open .faq-a { display: block; }
-    .faq-item.open .faq-q i { transform: rotate(180deg); }
-    .faq-q i { transition: transform 0.2s; }
-</style>
-
-<!-- Hero -->
-<div class="pricing-hero">
-    <h1>Simple, transparent pricing</h1>
-    <p>Choose the plan that fits your institution. Start with a 14-day free trial — no credit card required.</p>
-</div>
-
-<!-- Plans -->
-<div class="pricing-section">
-    <div class="container">
+    <section class="pricing-content" aria-label="@T["Pricing"]">
         <div class="text-center">
-            <div class="billing-toggle" id="billingToggle">
-                <button data-cycle="1" class="active">Monthly</button>
-                <button data-cycle="2">Quarterly <span class="save-badge">~10%</span></button>
-                <button data-cycle="3">Half-yearly <span class="save-badge">~15%</span></button>
-                <button data-cycle="4">Yearly <span class="save-badge">~22%</span></button>
+            <div class="billing-toggle" id="billingToggle" role="group" aria-label="@T["Pricing"]">
+                <button type="button" data-cycle="1" class="active" aria-pressed="true">@T["Monthly"]</button>
+                <button type="button" data-cycle="2" aria-pressed="false">@T["Quarterly"]</button>
+                <button type="button" data-cycle="3" aria-pressed="false">@T["HalfYearly"]</button>
+                <button type="button" data-cycle="4" aria-pressed="false">@T["Yearly"]</button>
             </div>
         </div>
 
-        <div class="row g-4" id="plansGrid">
-            <div class="col-12 text-center py-5 text-muted">
-                <div class="spinner-border" role="status"></div>
-                <div class="mt-2">Loading plans...</div>
+        <div class="row g-3" id="plansGrid" aria-live="polite">
+            <div class="col-12 text-center py-5 text-muted" role="status">
+                <span class="spinner-border" aria-hidden="true"></span>
+                <div class="mt-2">@T["LoadingPlans"]</div>
             </div>
         </div>
-    </div>
-</div>
+    </section>
 
-<!-- FAQ -->
-<div class="faq-section">
-    <div class="container" style="max-width: 760px;">
-        <h3 class="text-center mb-4">Frequently asked questions</h3>
+    <section class="pricing-faq" aria-labelledby="faqTitle">
+        <div class="pricing-faq-inner">
+            <h2 id="faqTitle">@T["FrequentlyAskedQuestions"]</h2>
 
-        <div class="faq-item">
-            <div class="faq-q">
-                Can I switch plans later? <i class="bi bi-chevron-down"></i>
-            </div>
-            <div class="faq-a">
-                Yes! You can upgrade or downgrade your plan anytime from your dashboard. Pro-rated billing applies to upgrades.
-            </div>
+            <article class="faq-item">
+                <button type="button" class="faq-question" aria-expanded="false" aria-controls="faqAnswer1">@T["FaqSwitchPlanQuestion"]</button>
+                <div class="faq-answer" id="faqAnswer1" hidden>@T["FaqSwitchPlanAnswer"]</div>
+            </article>
+            <article class="faq-item">
+                <button type="button" class="faq-question" aria-expanded="false" aria-controls="faqAnswer2">@T["FaqPaymentMethodsQuestion"]</button>
+                <div class="faq-answer" id="faqAnswer2" hidden>@T["FaqPaymentMethodsAnswer"]</div>
+            </article>
+            <article class="faq-item">
+                <button type="button" class="faq-question" aria-expanded="false" aria-controls="faqAnswer3">@T["FaqTrialQuestion"]</button>
+                <div class="faq-answer" id="faqAnswer3" hidden>@T["FaqTrialAnswer"]</div>
+            </article>
+            <article class="faq-item">
+                <button type="button" class="faq-question" aria-expanded="false" aria-controls="faqAnswer4">@T["FaqCancelQuestion"]</button>
+                <div class="faq-answer" id="faqAnswer4" hidden>@T["FaqCancelAnswer"]</div>
+            </article>
+            <article class="faq-item">
+                <button type="button" class="faq-question" aria-expanded="false" aria-controls="faqAnswer5">@T["FaqLargeInstitutionQuestion"]</button>
+                <div class="faq-answer" id="faqAnswer5" hidden>@T["FaqLargeInstitutionAnswer"]</div>
+            </article>
         </div>
-
-        <div class="faq-item">
-            <div class="faq-q">
-                What payment methods do you accept? <i class="bi bi-chevron-down"></i>
-            </div>
-            <div class="faq-a">
-                We accept all major credit/debit cards, mobile banking (bKash, Nagad, Rocket), internet banking via AamarPay, and direct bank transfer.
-            </div>
-        </div>
-
-        <div class="faq-item">
-            <div class="faq-q">
-                Is there a free trial? <i class="bi bi-chevron-down"></i>
-            </div>
-            <div class="faq-a">
-                Yes — every account gets a 14-day free trial with full feature access. No credit card required to start.
-            </div>
-        </div>
-
-        <div class="faq-item">
-            <div class="faq-q">
-                Can I cancel anytime? <i class="bi bi-chevron-down"></i>
-            </div>
-            <div class="faq-a">
-                Absolutely. You can cancel anytime from your account settings. Your subscription will stay active until the end of the current billing period.
-            </div>
-        </div>
-
-        <div class="faq-item">
-            <div class="faq-q">
-                Do you offer discounts for non-profits or large institutions? <i class="bi bi-chevron-down"></i>
-            </div>
-            <div class="faq-a">
-                Yes — please contact us at sales@eduos.com for custom pricing on Enterprise plans.
-            </div>
-        </div>
-    </div>
+    </section>
 </div>
 
 <script>
-    let plans = [];
-    let selectedCycle = 1;
+    (() => {
+        'use strict';
 
-    async function loadPlans() {
-        try {
-            const res = await fetch('/api/subscription-plans');
-            const data = await res.json();
-            if (data.success) {
-                plans = data.data;
-                renderPlans();
-            }
-        } catch (e) {
-            console.error(e);
-        }
-    }
-
-    function getPriceForCycle(plan, cycle) {
-        switch (parseInt(cycle)) {
-            case 1: return { price: plan.monthlyPrice, period: 'mo' };
-            case 2: return { price: plan.quarterlyPrice, period: '3 mo' };
-            case 3: return { price: plan.halfYearlyPrice, period: '6 mo' };
-            case 4: return { price: plan.yearlyPrice, period: 'yr' };
-            default: return { price: plan.monthlyPrice, period: 'mo' };
-        }
-    }
-
-    function renderPlans() {
+        const i18n = @Html.Raw(pricingJson);
         const grid = document.getElementById('plansGrid');
-        grid.innerHTML = '';
+        const billingToggle = document.getElementById('billingToggle');
+        let plans = [];
+        let selectedCycle = 1;
 
-        plans.forEach(plan => {
-            const col = document.createElement('div');
-            col.className = 'col-md-6 col-lg-3';
+        function text(template, count) {
+            return template.replace('{count}', Number(count || 0).toLocaleString(i18n.culture));
+        }
 
-            const { price, period } = getPriceForCycle(plan, selectedCycle);
-            const isFree = plan.isFreeTrial;
+        function displayName(item, banglaProperty, englishProperty) {
+            return i18n.useBangla && item[banglaProperty]
+                ? item[banglaProperty]
+                : (item[englishProperty] || '');
+        }
 
-            const featuresHtml = plan.features.slice(0, 7).map(f =>
-                `<li><i class="bi bi-check-circle-fill"></i>${escapeHtml(f.featureName)}</li>`
-            ).join('');
+        function cyclePrice(plan) {
+            const prices = {
+                1: plan.monthlyPrice,
+                2: plan.quarterlyPrice,
+                3: plan.halfYearlyPrice,
+                4: plan.yearlyPrice
+            };
+            return Number(prices[selectedCycle] || 0);
+        }
 
-            const more = plan.features.length - 7;
+        function formatMoney(amount, currency) {
+            const currencyCode = String(currency || 'BDT').toUpperCase();
+            try {
+                return new Intl.NumberFormat(i18n.culture, {
+                    style: 'currency',
+                    currency: currencyCode,
+                    maximumFractionDigits: 0
+                }).format(amount);
+            } catch {
+                return `${currencyCode} ${Number(amount || 0).toLocaleString(i18n.culture)}`;
+            }
+        }
 
-            col.innerHTML = `
-                <div class="plan-card ${plan.isRecommended ? 'recommended' : ''}">
-                    ${plan.isRecommended ? '<div class="recommended-banner">Most popular</div>' : ''}
-                    <div class="plan-name">${escapeHtml(plan.name)}</div>
-                    <div class="plan-desc">${escapeHtml(plan.shortDescription || '')}</div>
+        function planLimitItem(label) {
+            const item = document.createElement('li');
+            const check = document.createElement('span');
+            check.className = 'plan-feature-check';
+            check.setAttribute('aria-hidden', 'true');
+            check.textContent = '✓';
+            const content = document.createElement('span');
+            content.textContent = label;
+            item.append(check, content);
+            return item;
+        }
 
-                    ${isFree ? `
-                        <div class="plan-price">Free</div>
-                        <div class="plan-price-period">${plan.trialDays} days trial</div>
-                    ` : `
-                        <div class="plan-price">৳${formatPrice(price)}<span class="plan-price-period"> /${period}</span></div>
-                    `}
+        function createPlanCard(plan) {
+            const column = document.createElement('div');
+            column.className = 'col-md-6 col-xl-3';
 
-                    <a href="/Account/Signup?plan=${plan.code}" class="plan-cta plan-cta-${plan.isRecommended ? 'primary' : 'secondary'} mt-3">
-                        ${isFree ? 'Start free trial' : 'Get started'}
-                    </a>
+            const card = document.createElement('article');
+            card.className = `plan-card${plan.isRecommended ? ' recommended' : ''}`;
 
-                    <ul class="plan-features">
-                        <li><i class="bi bi-people-fill"></i>Up to ${plan.maxStudents.toLocaleString()} students</li>
-                        <li><i class="bi bi-person-badge-fill"></i>${plan.maxTeachers} teachers</li>
-                        <li><i class="bi bi-buildings-fill"></i>${plan.maxCampuses} campus${plan.maxCampuses > 1 ? 'es' : ''}</li>
-                        ${featuresHtml}
-                        ${more > 0 ? `<li class="text-muted">+ ${more} more features</li>` : ''}
-                    </ul>
-                </div>
-            `;
-            grid.appendChild(col);
+            if (plan.isRecommended) {
+                const banner = document.createElement('div');
+                banner.className = 'recommended-banner';
+                banner.textContent = i18n.mostPopular;
+                card.append(banner);
+            }
+
+            const name = document.createElement('h2');
+            name.className = 'plan-name';
+            name.textContent = displayName(plan, 'nameBangla', 'name');
+
+            const description = document.createElement('p');
+            description.className = 'plan-description';
+            description.textContent = displayName(plan, 'shortDescriptionBangla', 'shortDescription');
+
+            const price = document.createElement('div');
+            price.className = 'plan-price';
+            price.textContent = plan.isFreeTrial
+                ? i18n.free
+                : formatMoney(cyclePrice(plan), plan.currency);
+
+            const period = document.createElement('div');
+            period.className = 'plan-period';
+            period.textContent = plan.isFreeTrial
+                ? text(i18n.daysTrial, plan.trialDays)
+                : `/ ${i18n.periods[selectedCycle]}`;
+
+            const action = document.createElement('a');
+            action.className = 'plan-cta';
+            action.href = `/Account/Signup?plan=${encodeURIComponent(plan.code || '')}`;
+            action.textContent = plan.isFreeTrial ? i18n.startTrial : i18n.getStarted;
+
+            const features = document.createElement('ul');
+            features.className = 'plan-features';
+            features.append(
+                planLimitItem(text(i18n.students, plan.maxStudents)),
+                planLimitItem(text(i18n.teachers, plan.maxTeachers)),
+                planLimitItem(text(i18n.campuses, plan.maxCampuses))
+            );
+
+            const planFeatures = Array.isArray(plan.features) ? plan.features : [];
+            planFeatures.slice(0, 7).forEach(feature => {
+                features.append(planLimitItem(
+                    displayName(feature, 'featureNameBangla', 'featureName')));
+            });
+            if (planFeatures.length > 7) {
+                const more = document.createElement('li');
+                more.className = 'text-muted';
+                more.textContent = text(i18n.moreFeatures, planFeatures.length - 7);
+                features.append(more);
+            }
+
+            card.append(name, description, price, period, action, features);
+            column.append(card);
+            return column;
+        }
+
+        function renderPlans() {
+            if (plans.length === 0) {
+                const empty = document.createElement('p');
+                empty.className = 'col-12 text-center py-5 text-muted';
+                empty.textContent = i18n.noPlans;
+                grid.replaceChildren(empty);
+                return;
+            }
+            grid.replaceChildren(...plans.map(createPlanCard));
+        }
+
+        function showLoadError() {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'col-12 text-center py-5';
+            wrapper.setAttribute('role', 'alert');
+
+            const message = document.createElement('p');
+            message.className = 'text-danger';
+            message.textContent = i18n.loadFailed;
+
+            const retry = document.createElement('button');
+            retry.type = 'button';
+            retry.className = 'btn btn-outline-primary';
+            retry.textContent = i18n.retry;
+            retry.addEventListener('click', loadPlans);
+
+            wrapper.append(message, retry);
+            grid.replaceChildren(wrapper);
+        }
+
+        async function loadPlans() {
+            try {
+                const response = await fetch('/api/subscription-plans', {
+                    cache: 'no-store',
+                    credentials: 'same-origin',
+                    headers: { 'Accept': 'application/json' }
+                });
+                const payload = await response.json().catch(() => null);
+                if (!response.ok || !payload?.success || !Array.isArray(payload.data)) {
+                    throw new Error('Invalid plan response');
+                }
+                plans = payload.data;
+                renderPlans();
+            } catch (error) {
+                console.warn('EduOS plans were unavailable.', error);
+                showLoadError();
+            }
+        }
+
+        billingToggle.addEventListener('click', event => {
+            if (!(event.target instanceof Element)) return;
+            const button = event.target.closest('button[data-cycle]');
+            if (!button) return;
+            selectedCycle = Number(button.dataset.cycle) || 1;
+            billingToggle.querySelectorAll('button').forEach(candidate => {
+                const isSelected = candidate === button;
+                candidate.classList.toggle('active', isSelected);
+                candidate.setAttribute('aria-pressed', String(isSelected));
+            });
+            renderPlans();
         });
-    }
 
-    function formatPrice(p) { return Number(p || 0).toLocaleString('en-IN', { minimumFractionDigits: 0 }); }
-    function escapeHtml(s) { return (s || '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]); }
+        document.querySelectorAll('.faq-question').forEach(button => {
+            button.addEventListener('click', () => {
+                const answer = document.getElementById(button.getAttribute('aria-controls'));
+                const expanded = button.getAttribute('aria-expanded') === 'true';
+                button.setAttribute('aria-expanded', String(!expanded));
+                if (answer) answer.hidden = expanded;
+            });
+        });
 
-    document.getElementById('billingToggle').addEventListener('click', e => {
-        if (e.target.tagName !== 'BUTTON') return;
-        document.querySelectorAll('#billingToggle button').forEach(b => b.classList.remove('active'));
-        e.target.classList.add('active');
-        selectedCycle = parseInt(e.target.dataset.cycle);
-        renderPlans();
-    });
-
-    document.querySelectorAll('.faq-item').forEach(item => {
-        item.addEventListener('click', () => item.classList.toggle('open'));
-    });
-
-    document.addEventListener('DOMContentLoaded', loadPlans);
+        document.addEventListener('DOMContentLoaded', loadPlans, { once: true });
+    })();
 </script>

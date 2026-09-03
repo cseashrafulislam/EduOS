@@ -165,8 +165,8 @@ The current OnboardingStep lifecycle is:
 | Tenant | Institution identity, owner, domain, branding, locale, status, onboarding, plan-limit cache | ✅ Core workflow |
 | Campus | Institution branch/campus information | ✅ Onboarding CRUD |
 | TenantSetting | Per-tenant typed settings; sensitive values are encrypted/masked | ✅ Core workflow |
-| SubscriptionPlan | Plan name, billing prices, trial, limits, public visibility | ✅ Public read workflow |
-| Feature | Platform module/feature catalogue and kill switch | 🟡 Foundation |
+| SubscriptionPlan | Stable plan code, English/Bangla display text, billing prices, trial, limits, public visibility | ✅ Bilingual public read workflow |
+| Feature | Stable feature code, English/Bangla display text, category, visibility and platform kill switch | ✅ Entitlement catalogue |
 | PlanFeature | Plan-to-feature entitlement and optional limit | 🟡 Foundation |
 | TenantSubscription | Tenant plan instance, billing cycle, price snapshot, dates, limits, renewal/cancellation | ✅ Core workflow |
 | SubscriptionInvoice | Subscription bill, amount, currency, due/payment state | ✅ Core workflow |

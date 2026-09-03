@@ -22,55 +22,67 @@ namespace EduOS.Persistence.Seed
         // ============================================================
         private static async Task SeedFeaturesAsync(EduOSDbContext context)
         {
-            if (await context.Features.AnyAsync()) return;
-
             var features = new List<Feature>
             {
                 // Academic
-                new() { Name = "Student Management", Code = "STUDENT_MGMT", Category = "Academic", DisplayOrder = 1, IsActive = true, IsPubliclyVisible = true },
-                new() { Name = "Class & Section", Code = "CLASS_SECTION", Category = "Academic", DisplayOrder = 2, IsActive = true, IsPubliclyVisible = true },
-                new() { Name = "Subject Management", Code = "SUBJECT_MGMT", Category = "Academic", DisplayOrder = 3, IsActive = true, IsPubliclyVisible = true },
-                new() { Name = "Class Routine", Code = "CLASS_ROUTINE", Category = "Academic", DisplayOrder = 4, IsActive = true, IsPubliclyVisible = true },
-                new() { Name = "Attendance", Code = "ATTENDANCE", Category = "Academic", DisplayOrder = 5, IsActive = true, IsPubliclyVisible = true },
+                new() { Name = "Student Management", NameBangla = "শিক্ষার্থী ব্যবস্থাপনা", Code = "STUDENT_MGMT", Category = "Academic", DisplayOrder = 1, IsActive = true, IsPubliclyVisible = true },
+                new() { Name = "Class & Section", NameBangla = "শ্রেণি ও শাখা", Code = "CLASS_SECTION", Category = "Academic", DisplayOrder = 2, IsActive = true, IsPubliclyVisible = true },
+                new() { Name = "Subject Management", NameBangla = "বিষয় ব্যবস্থাপনা", Code = "SUBJECT_MGMT", Category = "Academic", DisplayOrder = 3, IsActive = true, IsPubliclyVisible = true },
+                new() { Name = "Class Routine", NameBangla = "ক্লাস রুটিন", Code = "CLASS_ROUTINE", Category = "Academic", DisplayOrder = 4, IsActive = true, IsPubliclyVisible = true },
+                new() { Name = "Attendance", NameBangla = "উপস্থিতি", Code = "ATTENDANCE", Category = "Academic", DisplayOrder = 5, IsActive = true, IsPubliclyVisible = true },
 
                 // Exam
-                new() { Name = "Exam Management", Code = "EXAM_MGMT", Category = "Exam", DisplayOrder = 10, IsActive = true, IsPubliclyVisible = true },
-                new() { Name = "Mark Entry", Code = "MARK_ENTRY", Category = "Exam", DisplayOrder = 11, IsActive = true, IsPubliclyVisible = true },
-                new() { Name = "Result & Report Card", Code = "RESULT_REPORT", Category = "Exam", DisplayOrder = 12, IsActive = true, IsPubliclyVisible = true },
-                new() { Name = "Online Exam", Code = "ONLINE_EXAM", Category = "Exam", DisplayOrder = 13, IsActive = true, IsPubliclyVisible = true },
+                new() { Name = "Exam Management", NameBangla = "পরীক্ষা ব্যবস্থাপনা", Code = "EXAM_MGMT", Category = "Exam", DisplayOrder = 10, IsActive = true, IsPubliclyVisible = true },
+                new() { Name = "Mark Entry", NameBangla = "নম্বর এন্ট্রি", Code = "MARK_ENTRY", Category = "Exam", DisplayOrder = 11, IsActive = true, IsPubliclyVisible = true },
+                new() { Name = "Result & Report Card", NameBangla = "ফলাফল ও রিপোর্ট কার্ড", Code = "RESULT_REPORT", Category = "Exam", DisplayOrder = 12, IsActive = true, IsPubliclyVisible = true },
+                new() { Name = "Online Exam", NameBangla = "অনলাইন পরীক্ষা", Code = "ONLINE_EXAM", Category = "Exam", DisplayOrder = 13, IsActive = true, IsPubliclyVisible = true },
 
                 // Finance
-                new() { Name = "Fee Collection", Code = "FEE_COLLECTION", Category = "Finance", DisplayOrder = 20, IsActive = true, IsPubliclyVisible = true },
-                new() { Name = "Invoice Generation", Code = "INVOICE_GEN", Category = "Finance", DisplayOrder = 21, IsActive = true, IsPubliclyVisible = true },
-                new() { Name = "Discount & Scholarship", Code = "DISCOUNT_SCHOLARSHIP", Category = "Finance", DisplayOrder = 22, IsActive = true, IsPubliclyVisible = true },
-                new() { Name = "Accounting", Code = "ACCOUNTING", Category = "Finance", DisplayOrder = 23, IsActive = true, IsPubliclyVisible = true },
+                new() { Name = "Fee Collection", NameBangla = "ফি আদায়", Code = "FEE_COLLECTION", Category = "Finance", DisplayOrder = 20, IsActive = true, IsPubliclyVisible = true },
+                new() { Name = "Invoice Generation", NameBangla = "ইনভয়েস তৈরি", Code = "INVOICE_GEN", Category = "Finance", DisplayOrder = 21, IsActive = true, IsPubliclyVisible = true },
+                new() { Name = "Discount & Scholarship", NameBangla = "ছাড় ও বৃত্তি", Code = "DISCOUNT_SCHOLARSHIP", Category = "Finance", DisplayOrder = 22, IsActive = true, IsPubliclyVisible = true },
+                new() { Name = "Accounting", NameBangla = "হিসাবরক্ষণ", Code = "ACCOUNTING", Category = "Finance", DisplayOrder = 23, IsActive = true, IsPubliclyVisible = true },
 
                 // HR
-                new() { Name = "Employee Management", Code = "EMPLOYEE_MGMT", Category = "HR", DisplayOrder = 30, IsActive = true, IsPubliclyVisible = true },
-                new() { Name = "Payroll", Code = "PAYROLL", Category = "HR", DisplayOrder = 31, IsActive = true, IsPubliclyVisible = true },
-                new() { Name = "Leave Management", Code = "LEAVE_MGMT", Category = "HR", DisplayOrder = 32, IsActive = true, IsPubliclyVisible = true },
+                new() { Name = "Employee Management", NameBangla = "কর্মী ব্যবস্থাপনা", Code = "EMPLOYEE_MGMT", Category = "HR", DisplayOrder = 30, IsActive = true, IsPubliclyVisible = true },
+                new() { Name = "Payroll", NameBangla = "বেতন ব্যবস্থাপনা", Code = "PAYROLL", Category = "HR", DisplayOrder = 31, IsActive = true, IsPubliclyVisible = true },
+                new() { Name = "Leave Management", NameBangla = "ছুটি ব্যবস্থাপনা", Code = "LEAVE_MGMT", Category = "HR", DisplayOrder = 32, IsActive = true, IsPubliclyVisible = true },
 
                 // Communication
-                new() { Name = "SMS Notifications", Code = "SMS_NOTIFY", Category = "Communication", DisplayOrder = 40, IsActive = true, IsPubliclyVisible = true },
-                new() { Name = "Email Notifications", Code = "EMAIL_NOTIFY", Category = "Communication", DisplayOrder = 41, IsActive = true, IsPubliclyVisible = true },
-                new() { Name = "Notice Board", Code = "NOTICE_BOARD", Category = "Communication", DisplayOrder = 42, IsActive = true, IsPubliclyVisible = true },
-                new() { Name = "Parent Portal", Code = "PARENT_PORTAL", Category = "Communication", DisplayOrder = 43, IsActive = true, IsPubliclyVisible = true },
+                new() { Name = "SMS Notifications", NameBangla = "SMS বিজ্ঞপ্তি", Code = "SMS_NOTIFY", Category = "Communication", DisplayOrder = 40, IsActive = true, IsPubliclyVisible = true },
+                new() { Name = "Email Notifications", NameBangla = "ইমেইল বিজ্ঞপ্তি", Code = "EMAIL_NOTIFY", Category = "Communication", DisplayOrder = 41, IsActive = true, IsPubliclyVisible = true },
+                new() { Name = "Notice Board", NameBangla = "নোটিশ বোর্ড", Code = "NOTICE_BOARD", Category = "Communication", DisplayOrder = 42, IsActive = true, IsPubliclyVisible = true },
+                new() { Name = "Parent Portal", NameBangla = "অভিভাবক পোর্টাল", Code = "PARENT_PORTAL", Category = "Communication", DisplayOrder = 43, IsActive = true, IsPubliclyVisible = true },
 
                 // Operations
-                new() { Name = "Library", Code = "LIBRARY", Category = "Operations", DisplayOrder = 50, IsActive = true, IsPubliclyVisible = true },
-                new() { Name = "Transport", Code = "TRANSPORT", Category = "Operations", DisplayOrder = 51, IsActive = true, IsPubliclyVisible = true },
-                new() { Name = "Hostel", Code = "HOSTEL", Category = "Operations", DisplayOrder = 52, IsActive = true, IsPubliclyVisible = true },
-                new() { Name = "Inventory", Code = "INVENTORY", Category = "Operations", DisplayOrder = 53, IsActive = true, IsPubliclyVisible = true },
+                new() { Name = "Library", NameBangla = "লাইব্রেরি", Code = "LIBRARY", Category = "Operations", DisplayOrder = 50, IsActive = true, IsPubliclyVisible = true },
+                new() { Name = "Transport", NameBangla = "পরিবহন", Code = "TRANSPORT", Category = "Operations", DisplayOrder = 51, IsActive = true, IsPubliclyVisible = true },
+                new() { Name = "Hostel", NameBangla = "হোস্টেল", Code = "HOSTEL", Category = "Operations", DisplayOrder = 52, IsActive = true, IsPubliclyVisible = true },
+                new() { Name = "Inventory", NameBangla = "ইনভেন্টরি", Code = "INVENTORY", Category = "Operations", DisplayOrder = 53, IsActive = true, IsPubliclyVisible = true },
 
                 // Advanced
-                new() { Name = "Multi-Campus", Code = "MULTI_CAMPUS", Category = "Advanced", DisplayOrder = 60, IsActive = true, IsPubliclyVisible = true },
-                new() { Name = "Mobile App", Code = "MOBILE_APP", Category = "Advanced", DisplayOrder = 61, IsActive = true, IsPubliclyVisible = true },
-                new() { Name = "API Access", Code = "API_ACCESS", Category = "Advanced", DisplayOrder = 62, IsActive = true, IsPubliclyVisible = true },
-                new() { Name = "Custom Domain", Code = "CUSTOM_DOMAIN", Category = "Advanced", DisplayOrder = 63, IsActive = true, IsPubliclyVisible = true },
-                new() { Name = "Priority Support", Code = "PRIORITY_SUPPORT", Category = "Advanced", DisplayOrder = 64, IsActive = true, IsPubliclyVisible = true },
+                new() { Name = "Multi-Campus", NameBangla = "একাধিক ক্যাম্পাস", Code = "MULTI_CAMPUS", Category = "Advanced", DisplayOrder = 60, IsActive = true, IsPubliclyVisible = true },
+                new() { Name = "Mobile App", NameBangla = "মোবাইল অ্যাপ", Code = "MOBILE_APP", Category = "Advanced", DisplayOrder = 61, IsActive = true, IsPubliclyVisible = true },
+                new() { Name = "API Access", NameBangla = "API অ্যাক্সেস", Code = "API_ACCESS", Category = "Advanced", DisplayOrder = 62, IsActive = true, IsPubliclyVisible = true },
+                new() { Name = "Custom Domain", NameBangla = "কাস্টম ডোমেইন", Code = "CUSTOM_DOMAIN", Category = "Advanced", DisplayOrder = 63, IsActive = true, IsPubliclyVisible = true },
+                new() { Name = "Priority Support", NameBangla = "অগ্রাধিকার সহায়তা", Code = "PRIORITY_SUPPORT", Category = "Advanced", DisplayOrder = 64, IsActive = true, IsPubliclyVisible = true },
             };
 
-            await context.Features.AddRangeAsync(features);
+            var existingFeatures = await context.Features
+                .ToDictionaryAsync(x => x.Code, StringComparer.OrdinalIgnoreCase);
+            foreach (var definition in features)
+            {
+                if (!existingFeatures.TryGetValue(definition.Code, out var existing))
+                {
+                    await context.Features.AddAsync(definition);
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(existing.NameBangla))
+                    existing.NameBangla = definition.NameBangla;
+                if (string.IsNullOrWhiteSpace(existing.DescriptionBangla))
+                    existing.DescriptionBangla = definition.DescriptionBangla;
+            }
             await context.SaveChangesAsync();
         }
 
@@ -79,16 +91,17 @@ namespace EduOS.Persistence.Seed
         // ============================================================
         private static async Task SeedPlansAsync(EduOSDbContext context)
         {
-            if (await context.SubscriptionPlans.AnyAsync()) return;
-
             var plans = new List<SubscriptionPlan>
             {
                 new()
                 {
                     Name = "Free Trial",
+                    NameBangla = "ফ্রি ট্রায়াল",
                     Code = "TRIAL",
                     Description = "14-day free trial with limited features. No credit card required.",
+                    DescriptionBangla = "সীমিত ফিচারসহ ১৪ দিনের ফ্রি ট্রায়াল। কোনো কার্ড প্রয়োজন নেই।",
                     ShortDescription = "Try EduOS free for 14 days",
+                    ShortDescriptionBangla = "EduOS ১৪ দিন বিনা মূল্যে ব্যবহার করুন",
                     DisplayOrder = 1,
                     IsRecommended = false,
                     IsFreeTrial = true,
@@ -112,9 +125,12 @@ namespace EduOS.Persistence.Seed
                 new()
                 {
                     Name = "Basic",
+                    NameBangla = "বেসিক",
                     Code = "BASIC",
                     Description = "Best for small schools and coaching centers. All essential features.",
+                    DescriptionBangla = "ছোট স্কুল ও কোচিং সেন্টারের প্রয়োজনীয় সব ফিচার।",
                     ShortDescription = "Perfect for small schools",
+                    ShortDescriptionBangla = "ছোট প্রতিষ্ঠানের জন্য উপযোগী",
                     DisplayOrder = 2,
                     IsRecommended = false,
                     IsFreeTrial = false,
@@ -137,9 +153,12 @@ namespace EduOS.Persistence.Seed
                 new()
                 {
                     Name = "Pro",
+                    NameBangla = "প্রো",
                     Code = "PRO",
                     Description = "For growing institutions. Advanced features + multi-campus support.",
+                    DescriptionBangla = "বর্ধমান প্রতিষ্ঠানের জন্য উন্নত ফিচার ও একাধিক ক্যাম্পাস সুবিধা।",
                     ShortDescription = "Advanced features for medium institutions",
+                    ShortDescriptionBangla = "মাঝারি প্রতিষ্ঠানের জন্য উন্নত ফিচার",
                     DisplayOrder = 3,
                     IsRecommended = true,
                     IsFreeTrial = false,
@@ -162,9 +181,12 @@ namespace EduOS.Persistence.Seed
                 new()
                 {
                     Name = "Enterprise",
+                    NameBangla = "এন্টারপ্রাইজ",
                     Code = "ENTERPRISE",
                     Description = "For large universities and multi-branch institutes. Unlimited everything.",
+                    DescriptionBangla = "বড় বিশ্ববিদ্যালয় ও বহুশাখা প্রতিষ্ঠানের জন্য সর্বোচ্চ সক্ষমতা।",
                     ShortDescription = "Unlimited - for large institutions",
+                    ShortDescriptionBangla = "বড় প্রতিষ্ঠানের জন্য সর্বোচ্চ সীমা",
                     DisplayOrder = 4,
                     IsRecommended = false,
                     IsFreeTrial = false,
@@ -186,7 +208,23 @@ namespace EduOS.Persistence.Seed
                 },
             };
 
-            await context.SubscriptionPlans.AddRangeAsync(plans);
+            var existingPlans = await context.SubscriptionPlans
+                .ToDictionaryAsync(x => x.Code, StringComparer.OrdinalIgnoreCase);
+            foreach (var definition in plans)
+            {
+                if (!existingPlans.TryGetValue(definition.Code, out var existing))
+                {
+                    await context.SubscriptionPlans.AddAsync(definition);
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(existing.NameBangla))
+                    existing.NameBangla = definition.NameBangla;
+                if (string.IsNullOrWhiteSpace(existing.DescriptionBangla))
+                    existing.DescriptionBangla = definition.DescriptionBangla;
+                if (string.IsNullOrWhiteSpace(existing.ShortDescriptionBangla))
+                    existing.ShortDescriptionBangla = definition.ShortDescriptionBangla;
+            }
             await context.SaveChangesAsync();
         }
 

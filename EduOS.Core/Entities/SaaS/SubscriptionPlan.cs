@@ -13,9 +13,12 @@ namespace EduOS.Core.Entities.SaaS
         // ==================== Identification ====================
 
         public string Name { get; set; } = string.Empty;
+        public string? NameBangla { get; set; }
         public string Code { get; set; } = string.Empty; // e.g. "BASIC", "PRO"
         public string? Description { get; set; }
+        public string? DescriptionBangla { get; set; }
         public string? ShortDescription { get; set; }
+        public string? ShortDescriptionBangla { get; set; }
         public string? IconUrl { get; set; }
 
         /// <summary>
