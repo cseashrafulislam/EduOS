@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.RateLimiting;
 
 namespace EduOS.App.Controllers.Api
 {
+    [Authorize(Roles = "TenantAdmin")]
+    [AutoValidateAntiforgeryToken]
     [ApiController]
     [Route("api/institution-onboarding")]
     public class InstitutionOnboardingController : ControllerBase
@@ -74,7 +76,6 @@ namespace EduOS.App.Controllers.Api
         /// <summary>
         /// Get current institution profile for the logged-in tenant.
         /// </summary>
-        [Authorize]
         [HttpGet("institution-profile")]
         public async Task<IActionResult> GetInstitutionProfile()
         {
@@ -86,7 +87,6 @@ namespace EduOS.App.Controllers.Api
         /// Save institution profile details (name, type, owner info, address).
         /// Accepts multipart/form-data (for logo upload in same form if needed).
         /// </summary>
-        [Authorize]
         [HttpPost("institution-profile")]
         [Consumes("multipart/form-data", "application/json")]
         public async Task<IActionResult> SaveInstitutionProfile(
@@ -104,7 +104,6 @@ namespace EduOS.App.Controllers.Api
         /// <summary>
         /// List all campuses for the current tenant.
         /// </summary>
-        [Authorize]
         [HttpGet("campus-list")]
         public async Task<IActionResult> GetCampusList()
         {
@@ -115,7 +114,6 @@ namespace EduOS.App.Controllers.Api
         /// <summary>
         /// Get a single campus by ID.
         /// </summary>
-        [Authorize]
         [HttpGet("campus/{id:long}")]
         public async Task<IActionResult> GetCampus(long id)
         {
@@ -126,7 +124,6 @@ namespace EduOS.App.Controllers.Api
         /// <summary>
         /// Create or update a campus (Id = null → create, Id set → update).
         /// </summary>
-        [Authorize]
         [HttpPost("campus")]
         public async Task<IActionResult> SaveCampus([FromBody] CampusSetupDto dto)
         {
@@ -140,7 +137,6 @@ namespace EduOS.App.Controllers.Api
         /// <summary>
         /// Soft-delete a campus.
         /// </summary>
-        [Authorize]
         [HttpDelete("campus/{id:long}")]
         public async Task<IActionResult> DeleteCampus(long id)
         {
@@ -150,7 +146,6 @@ namespace EduOS.App.Controllers.Api
 
         // ── Academic Year ─────────────────────────────────────────
 
-        [Authorize]
         [HttpGet("academic-years")]
         public async Task<IActionResult> GetAcademicYears()
         {
@@ -158,7 +153,6 @@ namespace EduOS.App.Controllers.Api
             return StatusCode(result.StatusCode, result);
         }
 
-        [Authorize]
         [HttpGet("academic-year/{id:long}")]
         public async Task<IActionResult> GetAcademicYear(long id)
         {
@@ -166,7 +160,6 @@ namespace EduOS.App.Controllers.Api
             return StatusCode(result.StatusCode, result);
         }
 
-        [Authorize]
         [HttpPost("academic-year")]
         public async Task<IActionResult> SaveAcademicYear([FromBody] AcademicYearSetupDto dto)
         {
@@ -177,7 +170,6 @@ namespace EduOS.App.Controllers.Api
             return StatusCode(result.StatusCode, result);
         }
 
-        [Authorize]
         [HttpDelete("academic-year/{id:long}")]
         public async Task<IActionResult> DeleteAcademicYear(long id)
         {
@@ -187,7 +179,6 @@ namespace EduOS.App.Controllers.Api
 
         // ── Academic Term ─────────────────────────────────────────
 
-        [Authorize]
         [HttpGet("academic-terms")]
         public async Task<IActionResult> GetAcademicTerms()
         {
@@ -195,7 +186,6 @@ namespace EduOS.App.Controllers.Api
             return StatusCode(result.StatusCode, result);
         }
 
-        [Authorize]
         [HttpGet("academic-term/{id:long}")]
         public async Task<IActionResult> GetAcademicTerm(long id)
         {
@@ -203,7 +193,6 @@ namespace EduOS.App.Controllers.Api
             return StatusCode(result.StatusCode, result);
         }
 
-        [Authorize]
         [HttpPost("academic-term")]
         public async Task<IActionResult> SaveAcademicTerm([FromBody] AcademicTermSetupDto dto)
         {
@@ -217,7 +206,6 @@ namespace EduOS.App.Controllers.Api
             return StatusCode(result.StatusCode, result);
         }
 
-        [Authorize]
         [HttpDelete("academic-term/{id:long}")]
         public async Task<IActionResult> DeleteAcademicTerm(long id)
         {
@@ -231,7 +219,6 @@ namespace EduOS.App.Controllers.Api
         /// Mark onboarding complete after campus and academic year are done.
         /// Validates minimum requirements before allowing completion.
         /// </summary>
-        [Authorize]
         [HttpPost("final-complete")]
         public async Task<IActionResult> FinalComplete()
         {

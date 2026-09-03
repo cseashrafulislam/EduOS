@@ -1,3 +1,4 @@
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
 @{
     var titleKey = ViewData["Title"]?.ToString() ?? "Dashboard";
     var localizedTitle = T[titleKey];
@@ -11,6 +12,7 @@
     var currentPath = Context.Request.Path.Value ?? string.Empty;
     string ActiveFor(string routePrefix) =>
         currentPath.StartsWith(routePrefix, StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty;
+    var requestVerificationToken = Antiforgery.GetAndStoreTokens(Context).RequestToken;
 }
 <!DOCTYPE html>
 <html lang="@currentCulture" dir="ltr">
@@ -24,6 +26,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="EduOS" />
     <meta name="description" content="@T["EducationOperatingSystem"]" />
+    <meta name="request-verification-token" content="@requestVerificationToken" />
     <title>@pageTitle - EduOS</title>
 
     <link rel="manifest" href="~/manifest.webmanifest" />

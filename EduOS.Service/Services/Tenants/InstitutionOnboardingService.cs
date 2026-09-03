@@ -391,8 +391,38 @@ namespace EduOS.Service.Services.Tenants
                 if (string.IsNullOrWhiteSpace(dto.Name))
                     return Fail<bool>("Campus name is required");
 
+                var tenant = await GetCurrentTenantAsync();
+                if (tenant == null)
+                    return Fail<bool>("Tenant not found", 404);
+
+                var isNewCampus = !dto.Id.HasValue || dto.Id <= 0;
+                var currentCampusCount = await _campusRepo.GetQueryable()
+                    .CountAsync(c => c.TenantId == _currentUser.TenantId);
+
+                if (isNewCampus && tenant.MaxCampuses > 0
+                    && currentCampusCount >= tenant.MaxCampuses)
+                {
+                    return Fail<bool>("Campus limit reached for the active plan", 409);
+                }
+
+                var normalizedCode = string.IsNullOrWhiteSpace(dto.Code)
+                    ? null
+                    : dto.Code.Trim().ToUpperInvariant();
+                if (normalizedCode != null)
+                {
+                    var codeInUse = await _campusRepo.GetQueryable().AnyAsync(c =>
+                        c.TenantId == _currentUser.TenantId
+                        && c.Id != (dto.Id ?? 0)
+                        && c.Code != null
+                        && c.Code.ToUpper() == normalizedCode);
+                    if (codeInUse)
+                        return Fail<bool>("Campus code is already in use", 409);
+                }
+
+                var shouldBeHeadOffice = dto.IsHeadOffice || (isNewCampus && currentCampusCount == 0);
+
                 // If marking as head office, unmark others
-                if (dto.IsHeadOffice)
+                if (shouldBeHeadOffice)
                 {
                     var others = await _campusRepo.GetQueryable()
                         .Where(c => c.TenantId == _currentUser.TenantId
@@ -415,12 +445,12 @@ namespace EduOS.Service.Services.Tenants
                         return Fail<bool>("Campus not found", 404);
 
                     campus.Name = dto.Name.Trim();
-                    campus.Code = dto.Code?.Trim();
+                    campus.Code = normalizedCode ?? string.Empty;
                     campus.Address = dto.Address?.Trim();
                     campus.Phone = dto.Phone?.Trim();
                     campus.Email = dto.Email?.Trim();
                     campus.HeadName = dto.HeadName?.Trim();
-                    campus.IsHeadOffice = dto.IsHeadOffice;
+                    campus.IsHeadOffice = shouldBeHeadOffice;
                     campus.UpdatedAt = DateTime.UtcNow;
                     campus.UpdatedBy = _currentUser.UserId;
                     _campusRepo.Update(campus);
@@ -432,26 +462,17 @@ namespace EduOS.Service.Services.Tenants
                     {
                         TenantId = _currentUser.TenantId,
                         Name = dto.Name.Trim(),
-                        Code = dto.Code?.Trim(),
+                        Code = normalizedCode ?? string.Empty,
                         Address = dto.Address?.Trim(),
                         Phone = dto.Phone?.Trim(),
                         Email = dto.Email?.Trim(),
                         HeadName = dto.HeadName?.Trim(),
-                        IsHeadOffice = dto.IsHeadOffice,
+                        IsHeadOffice = shouldBeHeadOffice,
                         IsActive = true,
                         CreatedAt = DateTime.UtcNow,
                         CreatedBy = _currentUser.UserId
                     };
                     await _campusRepo.AddAsync(campus);
-                }
-
-                // Update tenant campus count
-                var tenant = await GetCurrentTenantAsync();
-                if (tenant != null)
-                {
-                    tenant.MaxCampuses = await _campusRepo.GetQueryable()
-                        .CountAsync(c => c.TenantId == _currentUser.TenantId);
-                    _tenantRepo.Update(tenant);
                 }
 
                 await _unitOfWork.SaveChangesAsync();
@@ -476,6 +497,22 @@ namespace EduOS.Service.Services.Tenants
                 campus.UpdatedAt = DateTime.UtcNow;
                 campus.UpdatedBy = _currentUser.UserId;
                 _campusRepo.Update(campus);
+
+                if (campus.IsHeadOffice)
+                {
+                    var replacement = await _campusRepo.GetQueryable()
+                        .Where(c => c.TenantId == _currentUser.TenantId && c.Id != id)
+                        .OrderBy(c => c.Id)
+                        .FirstOrDefaultAsync();
+                    if (replacement != null)
+                    {
+                        replacement.IsHeadOffice = true;
+                        replacement.UpdatedAt = DateTime.UtcNow;
+                        replacement.UpdatedBy = _currentUser.UserId;
+                        _campusRepo.Update(replacement);
+                    }
+                }
+
                 await _unitOfWork.SaveChangesAsync();
 
                 return Ok(true, "Campus deleted");
@@ -546,6 +583,24 @@ namespace EduOS.Service.Services.Tenants
                 if (dto.StartDate >= dto.EndDate)
                     return Fail<bool>("End date must be after start date");
 
+                var normalizedName = dto.Name.Trim();
+                var nameInUse = await _yearRepo.GetQueryable().AnyAsync(y =>
+                    y.TenantId == _currentUser.TenantId
+                    && y.Id != (dto.Id ?? 0)
+                    && y.Name.ToUpper() == normalizedName.ToUpper());
+                if (nameInUse)
+                    return Fail<bool>("Academic year name is already in use", 409);
+
+                if (dto.Id.HasValue && dto.Id > 0)
+                {
+                    var hasTermOutsideRange = await _termRepo.GetQueryable().AnyAsync(t =>
+                        t.AcademicYearId == dto.Id.Value
+                        && ((t.StartDate.HasValue && t.StartDate.Value < dto.StartDate)
+                            || (t.EndDate.HasValue && t.EndDate.Value > dto.EndDate)));
+                    if (hasTermOutsideRange)
+                        return Fail<bool>("Academic year dates must include all existing terms", 409);
+                }
+
                 // If marking as current, unmark others
                 if (dto.IsCurrent)
                 {
@@ -563,7 +618,7 @@ namespace EduOS.Service.Services.Tenants
                     if (year == null || year.TenantId != _currentUser.TenantId)
                         return Fail<bool>("Academic year not found", 404);
 
-                    year.Name = dto.Name.Trim();
+                    year.Name = normalizedName;
                     year.StartDate = dto.StartDate;
                     year.EndDate = dto.EndDate;
                     year.IsCurrent = dto.IsCurrent;
@@ -576,7 +631,7 @@ namespace EduOS.Service.Services.Tenants
                     await _yearRepo.AddAsync(new AcademicYear
                     {
                         TenantId = _currentUser.TenantId,
-                        Name = dto.Name.Trim(),
+                        Name = normalizedName,
                         StartDate = dto.StartDate,
                         EndDate = dto.EndDate,
                         IsCurrent = dto.IsCurrent,
@@ -686,10 +741,30 @@ namespace EduOS.Service.Services.Tenants
                 if (string.IsNullOrWhiteSpace(dto.Name))
                     return Fail<bool>("Term name is required");
 
+                if (dto.StartDate.HasValue != dto.EndDate.HasValue)
+                    return Fail<bool>("Provide both term dates or leave both empty");
+
+                if (dto.StartDate.HasValue && dto.StartDate.Value >= dto.EndDate!.Value)
+                    return Fail<bool>("Term end date must be after start date");
+
                 // Validate academic year belongs to this tenant
                 var year = await _yearRepo.GetByIdAsync(dto.AcademicYearId);
                 if (year == null || year.TenantId != _currentUser.TenantId)
                     return Fail<bool>("Academic year not found", 404);
+
+                if (dto.StartDate.HasValue
+                    && (dto.StartDate.Value < year.StartDate || dto.EndDate!.Value > year.EndDate))
+                {
+                    return Fail<bool>("Term dates must be within the academic year", 409);
+                }
+
+                var normalizedName = dto.Name.Trim();
+                var nameInUse = await _termRepo.GetQueryable().AnyAsync(t =>
+                    t.AcademicYearId == dto.AcademicYearId
+                    && t.Id != (dto.Id ?? 0)
+                    && t.Name.ToUpper() == normalizedName.ToUpper());
+                if (nameInUse)
+                    return Fail<bool>("Term name is already in use for this academic year", 409);
 
                 if (dto.Id.HasValue && dto.Id > 0)
                 {
@@ -697,7 +772,7 @@ namespace EduOS.Service.Services.Tenants
                     if (term == null || term.TenantId != _currentUser.TenantId)
                         return Fail<bool>("Term not found", 404);
 
-                    term.Name = dto.Name.Trim();
+                    term.Name = normalizedName;
                     term.AcademicYearId = dto.AcademicYearId;
                     term.StartDate = dto.StartDate;
                     term.EndDate = dto.EndDate;
@@ -711,7 +786,7 @@ namespace EduOS.Service.Services.Tenants
                     {
                         TenantId = _currentUser.TenantId,
                         AcademicYearId = dto.AcademicYearId,
-                        Name = dto.Name.Trim(),
+                        Name = normalizedName,
                         StartDate = dto.StartDate,
                         EndDate = dto.EndDate,
                         IsActive = true,

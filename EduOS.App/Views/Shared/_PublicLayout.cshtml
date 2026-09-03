@@ -1,9 +1,11 @@
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
 @{
     var titleKey = ViewData["Title"]?.ToString() ?? "Dashboard";
     var localizedTitle = T[titleKey];
     var pageTitle = localizedTitle.ResourceNotFound ? titleKey : localizedTitle.Value;
     var currentCulture = CultureInfo.CurrentUICulture.Name;
     var returnUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
+    var requestVerificationToken = Antiforgery.GetAndStoreTokens(Context).RequestToken;
 }
 <!DOCTYPE html>
 <html lang="@currentCulture" dir="ltr">
@@ -16,6 +18,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="EduOS" />
     <meta name="description" content="@T["EducationOperatingSystem"]" />
+    <meta name="request-verification-token" content="@requestVerificationToken" />
     <title>@pageTitle - EduOS</title>
 
     <link rel="manifest" href="~/manifest.webmanifest" />

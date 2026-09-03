@@ -59,12 +59,15 @@ namespace EduOS.App.Controllers
 
         // ==================== Onboarding Wizard ====================
 
+        [Authorize(Roles = "TenantAdmin")]
         [HttpGet]
         public IActionResult InstitutionProfile() => View();
 
+        [Authorize(Roles = "TenantAdmin")]
         [HttpGet]
         public IActionResult PlanSelection() => View();
 
+        [Authorize(Roles = "TenantAdmin")]
         [HttpGet]
         public IActionResult Payment(long? invoiceId)
         {
@@ -72,30 +75,39 @@ namespace EduOS.App.Controllers
             return View();
         }
 
+        [Authorize(Roles = "TenantAdmin")]
         [HttpGet]
         public IActionResult PaymentSuccess(string? txn) => View();
 
+        [Authorize(Roles = "TenantAdmin")]
         [HttpGet]
         public IActionResult PaymentFailed(string? txn) => View();
 
+        [Authorize(Roles = "TenantAdmin")]
         [HttpGet]
         public IActionResult PaymentCancelled(string? txn) => View();
 
+        [Authorize(Roles = "TenantAdmin")]
         [HttpGet]
         public IActionResult CampusSetup() => View();
 
+        [Authorize(Roles = "TenantAdmin")]
         [HttpGet]
         public IActionResult AcademicSetup() => View();
 
+        [Authorize(Roles = "TenantAdmin")]
         [HttpGet]
         public IActionResult BrandingSetup() => View();
 
+        [Authorize(Roles = "TenantAdmin")]
         [HttpGet]
         public IActionResult GeneralSettings() => View();
 
+        [Authorize(Roles = "TenantAdmin")]
         [HttpGet]
         public IActionResult GatewaySetup() => View();
 
+        [Authorize(Roles = "TenantAdmin")]
         [HttpGet]
         public IActionResult OnboardingComplete() => View();
 

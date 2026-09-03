@@ -323,4 +323,95 @@
   <data name="OperatingRule" xml:space="preserve"><value>পরিচালন নীতি</value></data>
   <data name="TenantPrivacyBoundary" xml:space="preserve"><value>প্রতিষ্ঠান তথ্যের গোপনীয়তা সীমানা</value></data>
   <data name="TenantPrivacyBoundaryHelp" xml:space="preserve"><value>প্ল্যাটফর্মজুড়ে প্রবেশাধিকার অবশ্যই স্পষ্ট, অনুমোদিত, সর্বনিম্ন ও নিরীক্ষণযোগ্য হতে হবে। সরকারি পরিচয় নম্বর, অভিভাবকের তথ্য, স্বাস্থ্য নথি ও শিক্ষাজীবনের ইতিহাস কখনো লগ বা বিস্তৃত তালিকায় দেখানো যাবে না।</value></data>
+  <data name="ValidWebsiteRequired" xml:space="preserve"><value>http:// অথবা https:// দিয়ে শুরু হওয়া সম্পূর্ণ ওয়েবসাইট ঠিকানা দিন।</value></data>
+  <data name="ProfileSaveFailed" xml:space="preserve"><value>প্রতিষ্ঠানের প্রোফাইল সংরক্ষণ করা যায়নি। ফর্ম দেখে আবার চেষ্টা করুন।</value></data>
+  <data name="ProfileLoadFailed" xml:space="preserve"><value>প্রতিষ্ঠানের প্রোফাইল লোড করা যায়নি। পেজ রিফ্রেশ করে আবার চেষ্টা করুন।</value></data>
+  <data name="Saving" xml:space="preserve"><value>সংরক্ষণ হচ্ছে…</value></data>
+  <data name="SaveAndContinue" xml:space="preserve"><value>সংরক্ষণ করে এগিয়ে যান</value></data>
+  <data name="InstitutionProfileSetupTitle" xml:space="preserve"><value>প্রতিষ্ঠানের প্রোফাইল</value></data>
+  <data name="InstitutionProfileSetupHelp" xml:space="preserve"><value>প্রতিষ্ঠানের প্রয়োজনীয় পরিচয়, মালিক, যোগাযোগ ও বাংলাদেশের অবস্থানের তথ্য দিন।</value></data>
+  <data name="BasicInformation" xml:space="preserve"><value>মৌলিক তথ্য</value></data>
+  <data name="RequiredFieldsHelp" xml:space="preserve"><value>তারকা চিহ্নিত ঘরগুলো অবশ্যই পূরণ করতে হবে।</value></data>
+  <data name="OwnerDesignation" xml:space="preserve"><value>মালিকের পদবি</value></data>
+  <data name="OwnerPhone" xml:space="preserve"><value>মালিকের ফোন</value></data>
+  <data name="OwnerEmail" xml:space="preserve"><value>মালিকের ইমেইল</value></data>
+  <data name="ContactInformation" xml:space="preserve"><value>যোগাযোগের তথ্য</value></data>
+  <data name="ContactInformationHelp" xml:space="preserve"><value>অভিভাবক ও শিক্ষার্থীরা চিনতে পারবেন এমন প্রাতিষ্ঠানিক যোগাযোগের তথ্য দিন।</value></data>
+  <data name="InstitutionPhone" xml:space="preserve"><value>প্রতিষ্ঠানের ফোন</value></data>
+  <data name="Website" xml:space="preserve"><value>ওয়েবসাইট</value></data>
+  <data name="Address" xml:space="preserve"><value>ঠিকানা</value></data>
+  <data name="LocationInformation" xml:space="preserve"><value>অবস্থানের তথ্য</value></data>
+  <data name="BangladeshLocationHelp" xml:space="preserve"><value>জেলা, বিভাগ ও পোস্ট কোড স্থানীয় রিপোর্ট ও যোগাযোগে কাজে লাগবে।</value></data>
+  <data name="CityDistrict" xml:space="preserve"><value>শহর / জেলা</value></data>
+  <data name="Division" xml:space="preserve"><value>বিভাগ</value></data>
+  <data name="Country" xml:space="preserve"><value>দেশ</value></data>
+  <data name="PostalCode" xml:space="preserve"><value>পোস্ট কোড</value></data>
+  <data name="CampusNameRequired" xml:space="preserve"><value>ক্যাম্পাসের নাম আবশ্যক।</value></data>
+  <data name="CampusSaveFailed" xml:space="preserve"><value>ক্যাম্পাস সংরক্ষণ করা যায়নি। তথ্য অথবা প্ল্যানের সীমা দেখে আবার চেষ্টা করুন।</value></data>
+  <data name="CampusListLoadFailed" xml:space="preserve"><value>ক্যাম্পাসগুলো লোড করা যায়নি।</value></data>
+  <data name="CampusLoadFailed" xml:space="preserve"><value>এই ক্যাম্পাসটি লোড করা যায়নি।</value></data>
+  <data name="CampusSaved" xml:space="preserve"><value>ক্যাম্পাস সফলভাবে সংরক্ষিত হয়েছে।</value></data>
+  <data name="CampusDeleted" xml:space="preserve"><value>ক্যাম্পাস মুছে ফেলা হয়েছে।</value></data>
+  <data name="CampusDeleteFailed" xml:space="preserve"><value>ক্যাম্পাস মুছে ফেলা যায়নি।</value></data>
+  <data name="NoCampusesYet" xml:space="preserve"><value>এখনও কোনো ক্যাম্পাস যোগ হয়নি। এগিয়ে যেতে অন্তত একটি যোগ করুন।</value></data>
+  <data name="HeadOffice" xml:space="preserve"><value>প্রধান কার্যালয়</value></data>
+  <data name="Edit" xml:space="preserve"><value>সম্পাদনা</value></data>
+  <data name="Delete" xml:space="preserve"><value>মুছুন</value></data>
+  <data name="DeleteCampusConfirm" xml:space="preserve"><value>“{name}” মুছে ফেলবেন? এই কাজ ফিরিয়ে নেওয়া যাবে না।</value></data>
+  <data name="StepCompletionFailed" xml:space="preserve"><value>এই সেটআপ ধাপ সম্পন্ন করা যায়নি। প্রয়োজনীয় তথ্য দেখে আবার চেষ্টা করুন।</value></data>
+  <data name="CampusSetupTitle" xml:space="preserve"><value>ক্যাম্পাস ও শাখা</value></data>
+  <data name="CampusSetupHelp" xml:space="preserve"><value>সক্রিয় প্ল্যানের অনুমোদিত প্রধান ক্যাম্পাস ও অন্যান্য শাখা যোগ করুন।</value></data>
+  <data name="AddCampus" xml:space="preserve"><value>ক্যাম্পাস যোগ করুন</value></data>
+  <data name="CampusAndBranches" xml:space="preserve"><value>ক্যাম্পাস ও শাখার তালিকা</value></data>
+  <data name="FirstCampusHeadOfficeHelp" xml:space="preserve"><value>প্রথম ক্যাম্পাসটি স্বয়ংক্রিয়ভাবে প্রধান কার্যালয় হিসেবে নির্ধারিত হবে।</value></data>
+  <data name="LoadingCampuses" xml:space="preserve"><value>ক্যাম্পাস লোড হচ্ছে…</value></data>
+  <data name="Back" xml:space="preserve"><value>পেছনে</value></data>
+  <data name="Continuing" xml:space="preserve"><value>এগিয়ে যাচ্ছে…</value></data>
+  <data name="CampusInformation" xml:space="preserve"><value>ক্যাম্পাসের তথ্য</value></data>
+  <data name="Close" xml:space="preserve"><value>বন্ধ করুন</value></data>
+  <data name="CampusName" xml:space="preserve"><value>ক্যাম্পাসের নাম</value></data>
+  <data name="CampusCode" xml:space="preserve"><value>ক্যাম্পাস কোড</value></data>
+  <data name="CampusCodeHelp" xml:space="preserve"><value>ঐচ্ছিক সংক্ষিপ্ত অনন্য কোড, যেমন MAIN অথবা DHAKA-1।</value></data>
+  <data name="CampusHeadName" xml:space="preserve"><value>ক্যাম্পাস প্রধানের নাম</value></data>
+  <data name="HeadOfficeMainCampus" xml:space="preserve"><value>প্রধান কার্যালয় / মূল ক্যাম্পাস</value></data>
+  <data name="Cancel" xml:space="preserve"><value>বাতিল</value></data>
+  <data name="SaveCampus" xml:space="preserve"><value>ক্যাম্পাস সংরক্ষণ করুন</value></data>
+  <data name="AcademicYearNameRequired" xml:space="preserve"><value>শিক্ষাবর্ষের নাম আবশ্যক।</value></data>
+  <data name="StartDateRequired" xml:space="preserve"><value>শুরুর তারিখ আবশ্যক।</value></data>
+  <data name="EndDateRequired" xml:space="preserve"><value>শেষের তারিখ আবশ্যক।</value></data>
+  <data name="EndDateAfterStart" xml:space="preserve"><value>শেষের তারিখ শুরুর তারিখের পরে হতে হবে।</value></data>
+  <data name="SelectAcademicYearFirst" xml:space="preserve"><value>প্রথমে একটি শিক্ষাবর্ষ বেছে নিন।</value></data>
+  <data name="TermNameRequired" xml:space="preserve"><value>টার্মের নাম আবশ্যক।</value></data>
+  <data name="BothTermDatesRequired" xml:space="preserve"><value>টার্মের দুটি তারিখই দিন অথবা দুটিই ফাঁকা রাখুন।</value></data>
+  <data name="AcademicSaveFailed" xml:space="preserve"><value>একাডেমিক তথ্য সংরক্ষণ করা যায়নি। নাম ও তারিখের সীমা দেখে আবার চেষ্টা করুন।</value></data>
+  <data name="AcademicListLoadFailed" xml:space="preserve"><value>শিক্ষাবর্ষ ও টার্ম লোড করা যায়নি।</value></data>
+  <data name="AcademicYearLoadFailed" xml:space="preserve"><value>এই শিক্ষাবর্ষটি লোড করা যায়নি।</value></data>
+  <data name="AcademicYearSaved" xml:space="preserve"><value>শিক্ষাবর্ষ সংরক্ষিত হয়েছে।</value></data>
+  <data name="AcademicTermSaved" xml:space="preserve"><value>একাডেমিক টার্ম সংরক্ষিত হয়েছে।</value></data>
+  <data name="Deleted" xml:space="preserve"><value>সফলভাবে মুছে ফেলা হয়েছে।</value></data>
+  <data name="DeleteFailed" xml:space="preserve"><value>তথ্যটি মুছে ফেলা যায়নি।</value></data>
+  <data name="NoAcademicYearsYet" xml:space="preserve"><value>এখনও কোনো শিক্ষাবর্ষ যোগ হয়নি। এগিয়ে যেতে একটি যোগ করুন।</value></data>
+  <data name="NoTermsOptional" xml:space="preserve"><value>কোনো টার্ম যোগ হয়নি। টার্ম দেওয়া ঐচ্ছিক।</value></data>
+  <data name="Current" xml:space="preserve"><value>বর্তমান</value></data>
+  <data name="AddTerm" xml:space="preserve"><value>টার্ম যোগ করুন</value></data>
+  <data name="RemoveTerm" xml:space="preserve"><value>টার্ম সরান</value></data>
+  <data name="SelectAcademicYear" xml:space="preserve"><value>শিক্ষাবর্ষ বেছে নিন</value></data>
+  <data name="ForYearTemplate" xml:space="preserve"><value>{name}-এর জন্য</value></data>
+  <data name="DeleteAcademicYearConfirm" xml:space="preserve"><value>এই শিক্ষাবর্ষ মুছে ফেলবেন? আগে এর টার্মগুলো সরান। এই কাজ ফিরিয়ে নেওয়া যাবে না।</value></data>
+  <data name="DeleteAcademicTermConfirm" xml:space="preserve"><value>এই একাডেমিক টার্ম সরাবেন? এই কাজ ফিরিয়ে নেওয়া যাবে না।</value></data>
+  <data name="AcademicSetupTitle" xml:space="preserve"><value>শিক্ষাবর্ষ ও টার্ম</value></data>
+  <data name="AcademicSetupHelp" xml:space="preserve"><value>প্রতিষ্ঠানের ব্যবহৃত একাডেমিক সময়কাল তৈরি করুন। টার্ম বা সেমিস্টার দেওয়া ঐচ্ছিক।</value></data>
+  <data name="AddAcademicYear" xml:space="preserve"><value>শিক্ষাবর্ষ যোগ করুন</value></data>
+  <data name="AcademicYearsAndTerms" xml:space="preserve"><value>শিক্ষাবর্ষ ও টার্ম</value></data>
+  <data name="AcademicYearsAndTermsHelp" xml:space="preserve"><value>তারিখ রিপোর্টিং সময়কাল সংরক্ষণ করে; একটি শিক্ষাবর্ষ বর্তমান হিসেবে চিহ্নিত করা যাবে।</value></data>
+  <data name="LoadingAcademicYears" xml:space="preserve"><value>শিক্ষাবর্ষ লোড হচ্ছে…</value></data>
+  <data name="YearName" xml:space="preserve"><value>শিক্ষাবর্ষের নাম</value></data>
+  <data name="StartDate" xml:space="preserve"><value>শুরুর তারিখ</value></data>
+  <data name="EndDate" xml:space="preserve"><value>শেষের তারিখ</value></data>
+  <data name="MarkCurrentAcademicYear" xml:space="preserve"><value>বর্তমান শিক্ষাবর্ষ হিসেবে চিহ্নিত করুন</value></data>
+  <data name="SaveYear" xml:space="preserve"><value>শিক্ষাবর্ষ সংরক্ষণ করুন</value></data>
+  <data name="AcademicTerm" xml:space="preserve"><value>একাডেমিক টার্ম</value></data>
+  <data name="TermName" xml:space="preserve"><value>টার্মের নাম</value></data>
+  <data name="TermDateHelp" xml:space="preserve"><value>তারিখ দিলে দুটিই দিন এবং শিক্ষাবর্ষের সীমার মধ্যে রাখুন।</value></data>
+  <data name="SaveTerm" xml:space="preserve"><value>টার্ম সংরক্ষণ করুন</value></data>
 </root>

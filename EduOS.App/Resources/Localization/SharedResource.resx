@@ -323,4 +323,95 @@
   <data name="OperatingRule" xml:space="preserve"><value>Operating rule</value></data>
   <data name="TenantPrivacyBoundary" xml:space="preserve"><value>Tenant privacy boundary</value></data>
   <data name="TenantPrivacyBoundaryHelp" xml:space="preserve"><value>Platform-wide access must be explicit, authorized, minimal, and auditable. Government identifiers, guardian details, health records, and academic history must never appear in logs or broad listings.</value></data>
+  <data name="ValidWebsiteRequired" xml:space="preserve"><value>Enter a complete website address starting with http:// or https://.</value></data>
+  <data name="ProfileSaveFailed" xml:space="preserve"><value>The institution profile could not be saved. Review the form and try again.</value></data>
+  <data name="ProfileLoadFailed" xml:space="preserve"><value>The institution profile could not be loaded. Refresh the page and try again.</value></data>
+  <data name="Saving" xml:space="preserve"><value>Saving…</value></data>
+  <data name="SaveAndContinue" xml:space="preserve"><value>Save and continue</value></data>
+  <data name="InstitutionProfileSetupTitle" xml:space="preserve"><value>Institution profile</value></data>
+  <data name="InstitutionProfileSetupHelp" xml:space="preserve"><value>Add the essential identity, owner, contact, and Bangladesh location details for your institution.</value></data>
+  <data name="BasicInformation" xml:space="preserve"><value>Basic information</value></data>
+  <data name="RequiredFieldsHelp" xml:space="preserve"><value>Fields marked with an asterisk are required.</value></data>
+  <data name="OwnerDesignation" xml:space="preserve"><value>Owner designation</value></data>
+  <data name="OwnerPhone" xml:space="preserve"><value>Owner phone</value></data>
+  <data name="OwnerEmail" xml:space="preserve"><value>Owner email</value></data>
+  <data name="ContactInformation" xml:space="preserve"><value>Contact information</value></data>
+  <data name="ContactInformationHelp" xml:space="preserve"><value>Use official contact details that parents and learners may recognize.</value></data>
+  <data name="InstitutionPhone" xml:space="preserve"><value>Institution phone</value></data>
+  <data name="Website" xml:space="preserve"><value>Website</value></data>
+  <data name="Address" xml:space="preserve"><value>Address</value></data>
+  <data name="LocationInformation" xml:space="preserve"><value>Location information</value></data>
+  <data name="BangladeshLocationHelp" xml:space="preserve"><value>District, division, and postal code support local reporting and communication.</value></data>
+  <data name="CityDistrict" xml:space="preserve"><value>City / district</value></data>
+  <data name="Division" xml:space="preserve"><value>Division</value></data>
+  <data name="Country" xml:space="preserve"><value>Country</value></data>
+  <data name="PostalCode" xml:space="preserve"><value>Postal code</value></data>
+  <data name="CampusNameRequired" xml:space="preserve"><value>Campus name is required.</value></data>
+  <data name="CampusSaveFailed" xml:space="preserve"><value>The campus could not be saved. Check the details or your plan limit and try again.</value></data>
+  <data name="CampusListLoadFailed" xml:space="preserve"><value>Campuses could not be loaded.</value></data>
+  <data name="CampusLoadFailed" xml:space="preserve"><value>This campus could not be loaded.</value></data>
+  <data name="CampusSaved" xml:space="preserve"><value>Campus saved successfully.</value></data>
+  <data name="CampusDeleted" xml:space="preserve"><value>Campus deleted.</value></data>
+  <data name="CampusDeleteFailed" xml:space="preserve"><value>The campus could not be deleted.</value></data>
+  <data name="NoCampusesYet" xml:space="preserve"><value>No campus has been added. Add at least one to continue.</value></data>
+  <data name="HeadOffice" xml:space="preserve"><value>Head office</value></data>
+  <data name="Edit" xml:space="preserve"><value>Edit</value></data>
+  <data name="Delete" xml:space="preserve"><value>Delete</value></data>
+  <data name="DeleteCampusConfirm" xml:space="preserve"><value>Delete “{name}”? This action cannot be undone.</value></data>
+  <data name="StepCompletionFailed" xml:space="preserve"><value>This setup step could not be completed. Review the required information and try again.</value></data>
+  <data name="CampusSetupTitle" xml:space="preserve"><value>Campuses and branches</value></data>
+  <data name="CampusSetupHelp" xml:space="preserve"><value>Add the main campus and any branches allowed by your active plan.</value></data>
+  <data name="AddCampus" xml:space="preserve"><value>Add campus</value></data>
+  <data name="CampusAndBranches" xml:space="preserve"><value>Campus and branch list</value></data>
+  <data name="FirstCampusHeadOfficeHelp" xml:space="preserve"><value>The first campus is automatically treated as the head office.</value></data>
+  <data name="LoadingCampuses" xml:space="preserve"><value>Loading campuses…</value></data>
+  <data name="Back" xml:space="preserve"><value>Back</value></data>
+  <data name="Continuing" xml:space="preserve"><value>Continuing…</value></data>
+  <data name="CampusInformation" xml:space="preserve"><value>Campus information</value></data>
+  <data name="Close" xml:space="preserve"><value>Close</value></data>
+  <data name="CampusName" xml:space="preserve"><value>Campus name</value></data>
+  <data name="CampusCode" xml:space="preserve"><value>Campus code</value></data>
+  <data name="CampusCodeHelp" xml:space="preserve"><value>Optional short unique code, such as MAIN or DHAKA-1.</value></data>
+  <data name="CampusHeadName" xml:space="preserve"><value>Campus head name</value></data>
+  <data name="HeadOfficeMainCampus" xml:space="preserve"><value>Head office / main campus</value></data>
+  <data name="Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="SaveCampus" xml:space="preserve"><value>Save campus</value></data>
+  <data name="AcademicYearNameRequired" xml:space="preserve"><value>Academic year name is required.</value></data>
+  <data name="StartDateRequired" xml:space="preserve"><value>Start date is required.</value></data>
+  <data name="EndDateRequired" xml:space="preserve"><value>End date is required.</value></data>
+  <data name="EndDateAfterStart" xml:space="preserve"><value>End date must be after start date.</value></data>
+  <data name="SelectAcademicYearFirst" xml:space="preserve"><value>Select an academic year first.</value></data>
+  <data name="TermNameRequired" xml:space="preserve"><value>Term name is required.</value></data>
+  <data name="BothTermDatesRequired" xml:space="preserve"><value>Provide both term dates or leave both empty.</value></data>
+  <data name="AcademicSaveFailed" xml:space="preserve"><value>The academic record could not be saved. Check names and date ranges, then try again.</value></data>
+  <data name="AcademicListLoadFailed" xml:space="preserve"><value>Academic years and terms could not be loaded.</value></data>
+  <data name="AcademicYearLoadFailed" xml:space="preserve"><value>This academic year could not be loaded.</value></data>
+  <data name="AcademicYearSaved" xml:space="preserve"><value>Academic year saved.</value></data>
+  <data name="AcademicTermSaved" xml:space="preserve"><value>Academic term saved.</value></data>
+  <data name="Deleted" xml:space="preserve"><value>Deleted successfully.</value></data>
+  <data name="DeleteFailed" xml:space="preserve"><value>The record could not be deleted.</value></data>
+  <data name="NoAcademicYearsYet" xml:space="preserve"><value>No academic year has been added. Add one to continue.</value></data>
+  <data name="NoTermsOptional" xml:space="preserve"><value>No terms added. Terms are optional.</value></data>
+  <data name="Current" xml:space="preserve"><value>Current</value></data>
+  <data name="AddTerm" xml:space="preserve"><value>Add term</value></data>
+  <data name="RemoveTerm" xml:space="preserve"><value>Remove term</value></data>
+  <data name="SelectAcademicYear" xml:space="preserve"><value>Select academic year</value></data>
+  <data name="ForYearTemplate" xml:space="preserve"><value>For {name}</value></data>
+  <data name="DeleteAcademicYearConfirm" xml:space="preserve"><value>Delete this academic year? Remove its terms first. This action cannot be undone.</value></data>
+  <data name="DeleteAcademicTermConfirm" xml:space="preserve"><value>Remove this academic term? This action cannot be undone.</value></data>
+  <data name="AcademicSetupTitle" xml:space="preserve"><value>Academic year and terms</value></data>
+  <data name="AcademicSetupHelp" xml:space="preserve"><value>Create the academic period your institution uses. Terms or semesters are optional.</value></data>
+  <data name="AddAcademicYear" xml:space="preserve"><value>Add academic year</value></data>
+  <data name="AcademicYearsAndTerms" xml:space="preserve"><value>Academic years and terms</value></data>
+  <data name="AcademicYearsAndTermsHelp" xml:space="preserve"><value>Dates preserve reporting periods; one year can be marked current.</value></data>
+  <data name="LoadingAcademicYears" xml:space="preserve"><value>Loading academic years…</value></data>
+  <data name="YearName" xml:space="preserve"><value>Year name</value></data>
+  <data name="StartDate" xml:space="preserve"><value>Start date</value></data>
+  <data name="EndDate" xml:space="preserve"><value>End date</value></data>
+  <data name="MarkCurrentAcademicYear" xml:space="preserve"><value>Mark as current academic year</value></data>
+  <data name="SaveYear" xml:space="preserve"><value>Save year</value></data>
+  <data name="AcademicTerm" xml:space="preserve"><value>Academic term</value></data>
+  <data name="TermName" xml:space="preserve"><value>Term name</value></data>
+  <data name="TermDateHelp" xml:space="preserve"><value>If dates are used, provide both and keep them within the academic year.</value></data>
+  <data name="SaveTerm" xml:space="preserve"><value>Save term</value></data>
 </root>

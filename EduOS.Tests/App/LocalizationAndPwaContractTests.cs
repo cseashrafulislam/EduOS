@@ -122,6 +122,58 @@ public class LocalizationAndPwaContractTests
         controller.Should().Contain("[Authorize(Roles = \"SuperAdmin\")]");
     }
 
+    [Fact]
+    public void Core_institution_setup_is_bilingual_responsive_and_uses_safe_dom_rendering()
+    {
+        var profileView = File.ReadAllText(Asset("InstitutionProfile.cshtml"));
+        var campusView = File.ReadAllText(Asset("CampusSetup.cshtml"));
+        var academicView = File.ReadAllText(Asset("AcademicSetup.cshtml"));
+        var profileScript = File.ReadAllText(Asset("institution-profile.js"));
+        var campusScript = File.ReadAllText(Asset("campus-setup.js"));
+        var academicScript = File.ReadAllText(Asset("academic-setup.js"));
+
+        new[] { profileView, campusView, academicView }.Should().AllSatisfy(view =>
+        {
+            view.Should().Contain("Layout = \"_OnboardingLayout\"");
+            view.Should().Contain("@T[");
+            view.Should().Contain("setup-page");
+            view.Should().NotContain("onclick=");
+        });
+
+        new[] { profileScript, campusScript, academicScript }.Should().AllSatisfy(script =>
+        {
+            script.Should().Contain("replaceChildren");
+            script.Should().NotContain(".innerHTML");
+            script.Should().NotContain("onclick=");
+            script.Should().Contain("credentials: 'same-origin'");
+        });
+
+        profileScript.Should().Contain("/api/platform-catalog/institution-types");
+        campusScript.Should().Contain("addEventListener('click', handleListAction)");
+        academicScript.Should().Contain("addEventListener('click', handleListAction)");
+    }
+
+    [Fact]
+    public void Onboarding_writes_are_tenant_admin_only_and_receive_anti_forgery_tokens()
+    {
+        var layout = File.ReadAllText(Asset("_Layout.cshtml"));
+        var publicLayout = File.ReadAllText(Asset("_PublicLayout.cshtml"));
+        var siteScript = File.ReadAllText(Asset("site.js"));
+        var accountController = File.ReadAllText(Asset("AccountController.cs"));
+        var institutionController = File.ReadAllText(Asset("InstitutionOnboardingController.cs"));
+        var onboardingController = File.ReadAllText(Asset("OnboardingController.cs"));
+
+        layout.Should().Contain("request-verification-token");
+        publicLayout.Should().Contain("request-verification-token");
+        siteScript.Should().Contain("RequestVerificationToken");
+        siteScript.Should().Contain("url.origin !== window.location.origin");
+        accountController.Should().Contain("[Authorize(Roles = \"TenantAdmin\")]");
+        institutionController.Should().Contain("[Authorize(Roles = \"TenantAdmin\")]");
+        institutionController.Should().Contain("[AutoValidateAntiforgeryToken]");
+        onboardingController.Should().Contain("[Authorize(Roles = \"TenantAdmin\")]");
+        onboardingController.Should().Contain("[AutoValidateAntiforgeryToken]");
+    }
+
     private static Dictionary<string, string> ReadResource(string fileName)
     {
         return XDocument.Load(Asset(fileName))

@@ -1,135 +1,130 @@
-﻿@{
+@{
     ViewData["Title"] = "Campus Setup";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    Layout = "_OnboardingLayout";
+
+    var pageStrings = new
+    {
+        culture = CultureInfo.CurrentUICulture.Name,
+        campusNameRequired = T["CampusNameRequired"].Value,
+        saving = T["Saving"].Value,
+        saveCampus = T["SaveCampus"].Value,
+        continuing = T["Continuing"].Value,
+        continueLabel = T["Continue"].Value,
+        networkError = T["NetworkError"].Value,
+        saveFailed = T["CampusSaveFailed"].Value,
+        loadFailed = T["CampusListLoadFailed"].Value,
+        loadItemFailed = T["CampusLoadFailed"].Value,
+        saved = T["CampusSaved"].Value,
+        deleted = T["CampusDeleted"].Value,
+        deleteFailed = T["CampusDeleteFailed"].Value,
+        empty = T["NoCampusesYet"].Value,
+        headOffice = T["HeadOffice"].Value,
+        edit = T["Edit"].Value,
+        deleteLabel = T["Delete"].Value,
+        deleteConfirm = T["DeleteCampusConfirm"].Value,
+        stepFailed = T["StepCompletionFailed"].Value,
+        retry = T["Retry"].Value
+    };
+    var pageJson = System.Text.Json.JsonSerializer.Serialize(pageStrings);
 }
 
-<div class="container py-4">
-    <div class="row justify-content-center">
-        <div class="col-xl-10 col-lg-11">
-
-            <div class="card shadow-sm border-0 rounded-4">
-                <div class="card-body p-4 p-lg-5">
-
-                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-                        <div>
-                            <h3 class="fw-bold mb-2">Campus Setup</h3>
-                            <p class="text-muted mb-0">
-                                Add your main campus or branch campuses to continue onboarding.
-                            </p>
-                        </div>
-
-                        <button type="button"
-                                class="btn btn-primary"
-                                data-bs-toggle="modal"
-                                data-bs-target="#campusModal">
-                            <i class="bi bi-plus-circle me-1"></i>
-                            Add Campus
-                        </button>
-                    </div>
-
-                    <div id="alertContainer"></div>
-
-                    <div id="campusList">
-                        <div class="text-center py-4 text-muted">
-                            Loading campuses...
-                        </div>
-                    </div>
-
-                    <div class="d-flex justify-content-between align-items-center mt-4">
-                        <a href="/Account/PlanSelection" class="btn btn-outline-secondary">
-                            Back
-                        </a>
-
-                        <button type="button" id="continueBtn" class="btn btn-success" disabled>
-                            Continue
-                        </button>
-                    </div>
-
-                </div>
-            </div>
-
+<article class="setup-page" aria-labelledby="campusSetupTitle">
+    <header class="setup-header setup-header-actions">
+        <div>
+            <p class="dashboard-eyebrow">@T["Onboarding_CampusSetup_Name"]</p>
+            <h2 id="campusSetupTitle">@T["CampusSetupTitle"]</h2>
+            <p>@T["CampusSetupHelp"]</p>
         </div>
-    </div>
-</div>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#campusModal">
+            <span aria-hidden="true">+</span> @T["AddCampus"]
+        </button>
+    </header>
+
+    <div id="alertContainer" class="d-none" role="alert" tabindex="-1"></div>
+
+    <section class="setup-section" aria-labelledby="campusListTitle">
+        <div class="setup-section-heading">
+            <h3 id="campusListTitle">@T["CampusAndBranches"]</h3>
+            <p>@T["FirstCampusHeadOfficeHelp"]</p>
+        </div>
+        <div id="campusList" class="setup-record-list" aria-live="polite" aria-busy="true">
+            <div class="setup-empty-state" role="status">
+                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                <span>@T["LoadingCampuses"]</span>
+            </div>
+        </div>
+    </section>
+
+    <footer class="setup-actions">
+        <a asp-controller="Account" asp-action="PlanSelection" class="btn btn-outline-secondary">@T["Back"]</a>
+        <button type="button" id="continueBtn" class="btn btn-success" disabled
+                data-idle-label="@T["Continue"]" data-loading-label="@T["Continuing"]">
+            @T["Continue"]
+        </button>
+    </footer>
+</article>
 
 <div class="modal fade" id="campusModal" tabindex="-1" aria-labelledby="campusModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content border-0 rounded-4">
-
             <div class="modal-header">
-                <h5 class="modal-title fw-bold" id="campusModalLabel">Campus Information</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h2 class="modal-title h5 fw-bold" id="campusModalLabel">@T["CampusInformation"]</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
             </div>
-
             <form id="campusForm" novalidate>
                 <div class="modal-body">
                     <input type="hidden" id="campusId" name="id" />
-
                     <div class="row g-3">
                         <div class="col-md-6">
-                            <label for="campusName" class="form-label">
-                                Campus Name <span class="text-danger">*</span>
-                            </label>
-                            <input type="text" id="campusName" name="name" class="form-control" />
+                            <label for="campusName" class="form-label">@T["CampusName"] <span class="required-mark" aria-hidden="true">*</span></label>
+                            <input type="text" id="campusName" name="name" class="form-control" maxlength="200" required aria-required="true" />
                             <div class="invalid-feedback"></div>
                         </div>
-
                         <div class="col-md-6">
-                            <label for="campusCode" class="form-label">Campus Code</label>
-                            <input type="text" id="campusCode" name="code" class="form-control" />
+                            <label for="campusCode" class="form-label">@T["CampusCode"]</label>
+                            <input type="text" id="campusCode" name="code" class="form-control" maxlength="50" autocapitalize="characters" />
+                            <div class="form-text">@T["CampusCodeHelp"]</div>
                             <div class="invalid-feedback"></div>
                         </div>
-
                         <div class="col-md-6">
-                            <label for="campusPhone" class="form-label">Phone</label>
-                            <input type="text" id="campusPhone" name="phone" class="form-control" />
+                            <label for="campusPhone" class="form-label">@T["PhoneNumber"]</label>
+                            <input type="tel" id="campusPhone" name="phone" class="form-control" maxlength="20" inputmode="tel" autocomplete="tel" />
                             <div class="invalid-feedback"></div>
                         </div>
-
                         <div class="col-md-6">
-                            <label for="campusEmail" class="form-label">Email</label>
-                            <input type="email" id="campusEmail" name="email" class="form-control" />
+                            <label for="campusEmail" class="form-label">@T["EmailAddress"]</label>
+                            <input type="email" id="campusEmail" name="email" class="form-control" maxlength="150" autocomplete="email" />
                             <div class="invalid-feedback"></div>
                         </div>
-
                         <div class="col-12">
-                            <label for="campusAddress" class="form-label">Address</label>
-                            <textarea id="campusAddress" name="address" class="form-control" rows="3"></textarea>
+                            <label for="campusAddress" class="form-label">@T["Address"]</label>
+                            <textarea id="campusAddress" name="address" class="form-control" maxlength="500" rows="3" autocomplete="street-address"></textarea>
                             <div class="invalid-feedback"></div>
                         </div>
-
                         <div class="col-md-6">
-                            <label for="campusHeadName" class="form-label">Head Name</label>
-                            <input type="text" id="campusHeadName" name="headName" class="form-control" />
+                            <label for="campusHeadName" class="form-label">@T["CampusHeadName"]</label>
+                            <input type="text" id="campusHeadName" name="headName" class="form-control" maxlength="150" autocomplete="name" />
                             <div class="invalid-feedback"></div>
                         </div>
-
                         <div class="col-md-6 d-flex align-items-end">
-                            <div class="form-check mb-2">
+                            <div class="form-check setup-check-control">
                                 <input class="form-check-input" type="checkbox" id="isHeadOffice" name="isHeadOffice" />
-                                <label class="form-check-label" for="isHeadOffice">
-                                    Head Office / Main Campus
-                                </label>
+                                <label class="form-check-label" for="isHeadOffice">@T["HeadOfficeMainCampus"]</label>
                             </div>
                         </div>
                     </div>
                 </div>
-
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
-                        Cancel
-                    </button>
-
-                    <button type="submit" id="saveCampusBtn" class="btn btn-primary">
-                        Save campus
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">@T["Cancel"]</button>
+                    <button type="submit" id="saveCampusBtn" class="btn btn-primary"
+                            data-idle-label="@T["SaveCampus"]" data-loading-label="@T["Saving"]">
+                        @T["SaveCampus"]
                     </button>
                 </div>
             </form>
-
         </div>
     </div>
 </div>
 
-@section Scripts {
-    <script src="~/js/account/campus-setup.js"></script>
-}
+<script id="campusSetupStrings" type="application/json">@Html.Raw(pageJson)</script>
+<script src="~/js/account/campus-setup.js" asp-append-version="true"></script>

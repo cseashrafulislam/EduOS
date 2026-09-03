@@ -6,7 +6,7 @@ EduOS is a configurable, multi-tenant SaaS platform for the Bangladesh education
 
 একটি প্রতিষ্ঠান signup করবে, plan/trial বেছে নেবে, payment করবে, নিজের campus, academic structure, branding, terminology, workflow ও enabled modules configure করবে এবং ব্যবহার শুরু করবে। কোনো নির্দিষ্ট প্রতিষ্ঠানের নাম, class structure, fee rule, grading rule বা approval flow shared code-এ hard-code করা যাবে না।
 
-> **Current status:** foundation under active development. Phase 0 security work and the Phase 1 institution/module entitlement catalogue are implemented and tested. The shared/public shells, account pages, public pricing, tenant dashboard, SuperAdmin operations landing page, and onboarding progress support responsive desktop/mobile use, installable PWA behaviour, and English/Bangla UI resources. Core onboarding, subscription, payment, tenant profile, gateway settings, authentication, dashboard, and audit APIs exist. Many education modules currently have domain entities only; their complete service, API, UI, permission, report, and test workflows are still planned.
+> **Current status:** foundation under active development. Phase 0 security work and the Phase 1 institution/module entitlement catalogue are implemented and tested. The shared/public shells, account pages, public pricing, tenant dashboard, SuperAdmin operations landing page, and onboarding progress support responsive desktop/mobile use, installable PWA behaviour, and English/Bangla UI resources. Institution profile, campus/branch, and academic year/term setup now have bilingual responsive workflows, tenant-admin authorization, anti-forgery protection, plan-limit enforcement, and tested date/ownership invariants. Subscription, payment, tenant profile, gateway settings, authentication, dashboard, and audit APIs also exist. Many education modules currently have domain entities only; their complete service, API, UI, permission, report, and test workflows are still planned.
 
 ---
 
@@ -143,6 +143,8 @@ The current OnboardingStep lifecycle is:
 8. **GeneralSettings** — currency, timezone, language, date format.
 9. **GatewaySetup** — optional tenant email/SMS gateway.
 10. **Completed** — dashboard access unlocked.
+
+The profile, campus/branch, and academic year/term screens are implemented as mobile-first bilingual forms. Institution types come from the platform catalogue; campus codes are tenant-unique; the first campus becomes head office; deleting a head office promotes a remaining campus; active plan campus capacity is enforced; and term dates cannot escape their academic year. Onboarding pages and APIs are restricted to TenantAdmin, while same-origin browser writes carry anti-forgery tokens.
 
 ### Onboarding requirements still to build
 
