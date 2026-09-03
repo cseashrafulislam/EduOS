@@ -2,17 +2,23 @@ using EduOS.Core.DTOs.Auth;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Enums;
 using EduOS.Core.Interfaces.Jobs;
+using EduOS.Core.Interfaces.IServices;
+using EduOS.Core.Settings;
 using EduOS.Persistence.Context;
 using Hangfire;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Options;
+using System.Security.Cryptography;
 using System.Security.Claims;
+using System.Text;
 
 namespace EduOS.App.Controllers.Api
 {
     [ApiController]
+    [AutoValidateAntiforgeryToken]
     [Route("api/auth")]
     public class AuthController : ControllerBase
     {
@@ -20,16 +26,22 @@ namespace EduOS.App.Controllers.Api
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly ILogger<AuthController> _logger;
         private readonly EduOSDbContext _db;
+        private readonly IMfaChallengeService _mfaChallengeService;
+        private readonly MfaSettings _mfaSettings;
         public AuthController(
             UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
             ILogger<AuthController> logger,
-            EduOSDbContext db)
+            EduOSDbContext db,
+            IMfaChallengeService mfaChallengeService,
+            IOptions<MfaSettings> mfaSettings)
         {
             _userManager = userManager;
             _signInManager = signInManager;
             _logger = logger;
             _db = db;
+            _mfaChallengeService = mfaChallengeService;
+            _mfaSettings = mfaSettings.Value;
         }
 
         // ============================================================
@@ -48,7 +60,7 @@ namespace EduOS.App.Controllers.Api
             }
 
             var ip = GetClientIp();
-            var userAgent = HttpContext.Request.Headers["User-Agent"].FirstOrDefault() ?? string.Empty;
+            var userAgent = Truncate(HttpContext.Request.Headers["User-Agent"].FirstOrDefault(), 500);
 
             // ── 2. Find user ──────────────────────────────────────
             var user = await _userManager.FindByEmailAsync(dto.Email.Trim().ToLower());
@@ -105,19 +117,33 @@ namespace EduOS.App.Controllers.Api
             // Reset failed count on successful auth
             await _userManager.ResetAccessFailedCountAsync(user);
 
-            // ── 5. Build claims ───────────────────────────────────
-            var claims = new List<Claim>
+            var roles = await _userManager.GetRolesAsync(user);
+            var isPrivileged = IsPrivileged(roles);
+
+            if (user.TwoFactorEnabled)
             {
-                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                new Claim(ClaimTypes.Email, user.Email ?? string.Empty),
-                new Claim("FullName", user.FullName ?? string.Empty)
-            };
+                var securityStamp = await _userManager.GetSecurityStampAsync(user);
+                var challengeToken = _mfaChallengeService.Create(
+                    user.Id,
+                    securityStamp,
+                    dto.RememberMe);
 
-            if (user.TenantId.HasValue)
-                claims.Add(new Claim("TenantId", user.TenantId.Value.ToString()));
+                Response.Headers.CacheControl = "no-store";
+                return StatusCode(StatusCodes.Status202Accepted, new
+                {
+                    success = true,
+                    message = "Multi-factor verification is required.",
+                    data = new
+                    {
+                        requiresTwoFactor = true,
+                        challengeToken,
+                        redirectUrl = "/Account/MfaChallenge"
+                    }
+                });
+            }
 
-            if (!string.IsNullOrWhiteSpace(user.UserType))
-                claims.Add(new Claim("UserType", user.UserType));
+            // ── 5. Build claims ───────────────────────────────────
+            var claims = BuildSessionClaims(user, "pwd");
 
             // ── 6. Sign in with claims ────────────────────────────
             await _signInManager.SignInWithClaimsAsync(user, dto.RememberMe, claims);
@@ -145,7 +171,207 @@ namespace EduOS.App.Controllers.Api
                     fullName = user.FullName,
                     userType = user.UserType,
                     tenantId = user.TenantId,
-                    redirectUrl = await GetRedirectUrlAsync(user.UserType,user.TenantId)
+                    redirectUrl = isPrivileged
+                        ? "/Account/MfaSetup"
+                        : await GetRedirectUrlAsync(user.UserType,user.TenantId)
+                }
+            });
+        }
+
+        // ============================================================
+        // MULTI-FACTOR AUTHENTICATION
+        // ============================================================
+        [Authorize]
+        [HttpGet("mfa/status")]
+        public async Task<IActionResult> MfaStatus()
+        {
+            Response.Headers.CacheControl = "no-store";
+            var user = await GetCurrentUserAsync();
+            if (user == null)
+                return Unauthorized(new { success = false, message = "Invalid session." });
+
+            return Ok(new
+            {
+                success = true,
+                data = new
+                {
+                    enabled = user.TwoFactorEnabled,
+                    sessionVerified = User.HasClaim("amr", "mfa")
+                }
+            });
+        }
+
+        [Authorize]
+        [EnableRateLimiting("MfaPolicy")]
+        [HttpPost("mfa/setup")]
+        public async Task<IActionResult> SetupMfa([FromBody] MfaSetupRequestDto dto)
+        {
+            Response.Headers.CacheControl = "no-store";
+            if (dto == null || string.IsNullOrWhiteSpace(dto.CurrentPassword))
+                return BadRequest(new { success = false, message = "Current password is required." });
+
+            var user = await GetCurrentUserAsync();
+            if (user == null)
+                return Unauthorized(new { success = false, message = "Invalid session." });
+
+            if (user.TwoFactorEnabled)
+                return Conflict(new { success = false, message = "Multi-factor authentication is already enabled." });
+
+            if (!await _userManager.CheckPasswordAsync(user, dto.CurrentPassword))
+                return BadRequest(new { success = false, message = "Current password is incorrect." });
+
+            var sharedKey = await _userManager.GetAuthenticatorKeyAsync(user);
+            if (string.IsNullOrWhiteSpace(sharedKey))
+            {
+                var reset = await _userManager.ResetAuthenticatorKeyAsync(user);
+                if (!reset.Succeeded)
+                    return StatusCode(500, new { success = false, message = "Authenticator setup failed." });
+                sharedKey = await _userManager.GetAuthenticatorKeyAsync(user);
+            }
+
+            if (string.IsNullOrWhiteSpace(sharedKey))
+                return StatusCode(500, new { success = false, message = "Authenticator setup failed." });
+
+            var accountLabel = $"EduOS:{user.Email ?? user.UserName ?? user.Id.ToString()}";
+            var authenticatorUri = "otpauth://totp/"
+                + Uri.EscapeDataString(accountLabel)
+                + "?secret=" + Uri.EscapeDataString(sharedKey)
+                + "&issuer=" + Uri.EscapeDataString("EduOS")
+                + "&digits=6";
+
+            return Ok(new
+            {
+                success = true,
+                data = new
+                {
+                    sharedKey,
+                    authenticatorUri
+                }
+            });
+        }
+
+        [Authorize]
+        [EnableRateLimiting("MfaPolicy")]
+        [HttpPost("mfa/enable")]
+        public async Task<IActionResult> EnableMfa([FromBody] MfaEnableRequestDto dto)
+        {
+            Response.Headers.CacheControl = "no-store";
+            if (dto == null
+                || string.IsNullOrWhiteSpace(dto.CurrentPassword)
+                || string.IsNullOrWhiteSpace(dto.Code))
+            {
+                return BadRequest(new { success = false, message = "Password and verification code are required." });
+            }
+
+            var user = await GetCurrentUserAsync();
+            if (user == null)
+                return Unauthorized(new { success = false, message = "Invalid session." });
+
+            if (user.TwoFactorEnabled)
+                return Conflict(new { success = false, message = "Multi-factor authentication is already enabled." });
+
+            if (!await _userManager.CheckPasswordAsync(user, dto.CurrentPassword))
+                return BadRequest(new { success = false, message = "Password or verification code is invalid." });
+
+            var code = NormalizeMfaCode(dto.Code);
+            var valid = await _userManager.VerifyTwoFactorTokenAsync(
+                user,
+                TokenOptions.DefaultAuthenticatorProvider,
+                code);
+            if (!valid)
+                return BadRequest(new { success = false, message = "Password or verification code is invalid." });
+
+            if (_mfaSettings.RecoveryCodeCount is < 5 or > 20)
+                return StatusCode(500, new { success = false, message = "Recovery-code configuration is invalid." });
+
+            var recoveryCodes = (await _userManager.GenerateNewTwoFactorRecoveryCodesAsync(
+                    user,
+                    _mfaSettings.RecoveryCodeCount))
+                ?.ToArray() ?? [];
+            if (recoveryCodes.Length != _mfaSettings.RecoveryCodeCount)
+                return StatusCode(500, new { success = false, message = "Recovery codes could not be generated." });
+
+            var enabled = await _userManager.SetTwoFactorEnabledAsync(user, true);
+            if (!enabled.Succeeded)
+                return StatusCode(500, new { success = false, message = "Multi-factor authentication could not be enabled." });
+
+            await _signInManager.SignInWithClaimsAsync(
+                user,
+                isPersistent: false,
+                BuildSessionClaims(user, "mfa"));
+
+            return Ok(new
+            {
+                success = true,
+                message = "Multi-factor authentication is enabled.",
+                data = new { recoveryCodes }
+            });
+        }
+
+        [AllowAnonymous]
+        [EnableRateLimiting("MfaPolicy")]
+        [HttpPost("mfa/login")]
+        public async Task<IActionResult> CompleteMfaLogin([FromBody] MfaLoginRequestDto dto)
+        {
+            Response.Headers.CacheControl = "no-store";
+            if (dto == null
+                || string.IsNullOrWhiteSpace(dto.ChallengeToken)
+                || string.IsNullOrWhiteSpace(dto.Code)
+                || !_mfaChallengeService.TryRead(dto.ChallengeToken, out var challenge))
+            {
+                return BadRequest(new { success = false, message = "The verification request is invalid or expired." });
+            }
+
+            var user = await _userManager.FindByIdAsync(challenge.UserId.ToString());
+            if (user == null || !user.IsActive || !user.EmailConfirmed || !user.TwoFactorEnabled)
+                return BadRequest(new { success = false, message = "The verification request is invalid or expired." });
+
+            if (await _userManager.IsLockedOutAsync(user))
+                return BadRequest(new { success = false, message = "Account temporarily locked." });
+
+            var currentStamp = await _userManager.GetSecurityStampAsync(user);
+            if (!FixedTimeEquals(challenge.SecurityStamp, currentStamp))
+                return BadRequest(new { success = false, message = "The verification request is invalid or expired." });
+
+            var code = dto.UseRecoveryCode
+                ? dto.Code.Trim()
+                : NormalizeMfaCode(dto.Code);
+            var valid = dto.UseRecoveryCode
+                ? (await _userManager.RedeemTwoFactorRecoveryCodeAsync(user, code)).Succeeded
+                : await _userManager.VerifyTwoFactorTokenAsync(
+                    user,
+                    TokenOptions.DefaultAuthenticatorProvider,
+                    code);
+
+            var ip = GetClientIp();
+            var userAgent = Truncate(HttpContext.Request.Headers["User-Agent"].FirstOrDefault(), 500);
+            if (!valid)
+            {
+                await _userManager.AccessFailedAsync(user);
+                await SaveLoginHistoryAsync(user, ip, userAgent, false, "Wrong MFA code");
+                return BadRequest(new { success = false, message = "The verification code is invalid." });
+            }
+
+            await _userManager.ResetAccessFailedCountAsync(user);
+            await _signInManager.SignInWithClaimsAsync(
+                user,
+                challenge.RememberMe,
+                BuildSessionClaims(user, "mfa"));
+
+            user.LastLogin = DateTime.UtcNow;
+            user.LastLoginIp = ip;
+            user.LastActivityAt = DateTime.UtcNow;
+            user.UpdatedAt = DateTime.UtcNow;
+            await _userManager.UpdateAsync(user);
+            await SaveLoginHistoryAsync(user, ip, userAgent, true, null);
+
+            return Ok(new
+            {
+                success = true,
+                message = "Login successful",
+                data = new
+                {
+                    redirectUrl = await GetRedirectUrlAsync(user.UserType, user.TenantId)
                 }
             });
         }
@@ -252,6 +478,57 @@ namespace EduOS.App.Controllers.Api
         // ============================================================
         // PRIVATE HELPERS
         // ============================================================
+        private async Task<ApplicationUser?> GetCurrentUserAsync()
+        {
+            var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            return long.TryParse(value, out var userId)
+                ? await _userManager.FindByIdAsync(userId.ToString())
+                : null;
+        }
+
+        private static List<Claim> BuildSessionClaims(ApplicationUser user, string authenticationMethod)
+        {
+            var claims = new List<Claim>
+            {
+                new(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                new(ClaimTypes.Email, user.Email ?? string.Empty),
+                new("FullName", user.FullName ?? string.Empty),
+                new("amr", authenticationMethod),
+                new("auth_time", DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString())
+            };
+
+            if (user.TenantId.HasValue)
+                claims.Add(new Claim("TenantId", user.TenantId.Value.ToString()));
+
+            if (!string.IsNullOrWhiteSpace(user.UserType))
+                claims.Add(new Claim("UserType", user.UserType));
+
+            return claims;
+        }
+
+        private static bool IsPrivileged(IEnumerable<string> roles) =>
+            roles.Any(role => role is "SuperAdmin" or "TenantAdmin");
+
+        private static string NormalizeMfaCode(string code) =>
+            code.Replace(" ", string.Empty, StringComparison.Ordinal)
+                .Replace("-", string.Empty, StringComparison.Ordinal);
+
+        private static bool FixedTimeEquals(string first, string second)
+        {
+            var firstBytes = Encoding.UTF8.GetBytes(first);
+            var secondBytes = Encoding.UTF8.GetBytes(second);
+            try
+            {
+                return firstBytes.Length == secondBytes.Length
+                    && CryptographicOperations.FixedTimeEquals(firstBytes, secondBytes);
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(firstBytes);
+                CryptographicOperations.ZeroMemory(secondBytes);
+            }
+        }
+
         private async Task SaveLoginHistoryAsync(
             ApplicationUser user,
             string ip,
@@ -315,12 +592,16 @@ namespace EduOS.App.Controllers.Api
 
         private string GetClientIp()
         {
-            var forwarded = HttpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault();
-            if (!string.IsNullOrEmpty(forwarded))
-                return forwarded.Split(',').FirstOrDefault()?.Trim() ?? string.Empty;
-
-            return HttpContext.Connection.RemoteIpAddress?.ToString() ?? string.Empty;
+            // RemoteIpAddress is authoritative after ASP.NET Forwarded Headers is
+            // configured with trusted proxies. Never trust a raw client-supplied
+            // X-Forwarded-For value here.
+            return Truncate(HttpContext.Connection.RemoteIpAddress?.ToString(), 64);
         }
+
+        private static string Truncate(string? value, int maxLength) =>
+            string.IsNullOrWhiteSpace(value)
+                ? string.Empty
+                : value.Trim()[..Math.Min(value.Trim().Length, maxLength)];
 
         private static (string browser, string device) ParseUserAgent(string ua)
         {

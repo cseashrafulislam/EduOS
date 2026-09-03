@@ -591,4 +591,36 @@
   <data name="SaveEmailSettings" xml:space="preserve"><value>ইমেইল সেটিংস সংরক্ষণ করুন</value></data>
   <data name="GatewayOptionalNote" xml:space="preserve"><value>গেটওয়ে সেটআপ ঐচ্ছিক। EduOS সংরক্ষিত গোপন তথ্য দেখায় না এবং লোকাল বা অনিরাপদ ঠিকানা বন্ধ রাখে।</value></data>
   <data name="SkipAndFinish" xml:space="preserve"><value>বাদ দিয়ে শেষ করুন</value></data>
+  <data name="MfaChallengeTitle" xml:space="preserve"><value>সাইন-ইন যাচাই করুন</value></data>
+  <data name="MfaChallengeHelp" xml:space="preserve"><value>অথেনটিকেটর অ্যাপের বর্তমান কোড দিন, অথবা অব্যবহৃত একটি রিকভারি কোড ব্যবহার করুন।</value></data>
+  <data name="MfaVerificationCode" xml:space="preserve"><value>যাচাই কোড</value></data>
+  <data name="UseRecoveryCode" xml:space="preserve"><value>রিকভারি কোড ব্যবহার করুন</value></data>
+  <data name="VerifyAndSignIn" xml:space="preserve"><value>যাচাই করে সাইন-ইন করুন</value></data>
+  <data name="Verifying" xml:space="preserve"><value>যাচাই করা হচ্ছে…</value></data>
+  <data name="MfaCodeRequired" xml:space="preserve"><value>যাচাই কোড বা রিকভারি কোড দিন।</value></data>
+  <data name="MfaCodeInvalid" xml:space="preserve"><value>কোডটি সঠিক নয়। ডিভাইসের সময় ঠিক আছে কি না দেখে আবার চেষ্টা করুন।</value></data>
+  <data name="MfaChallengeExpired" xml:space="preserve"><value>সাইন-ইন অনুরোধটি নেই বা মেয়াদ শেষ। লগইনে ফিরে আবার পাসওয়ার্ড দিন।</value></data>
+  <data name="BackToLogin" xml:space="preserve"><value>লগইনে ফিরে যান</value></data>
+  <data name="MfaSetupTitle" xml:space="preserve"><value>অ্যাডমিন অ্যাকাউন্ট সুরক্ষিত করুন</value></data>
+  <data name="MfaSetupHelp" xml:space="preserve"><value>অথেনটিকেটর অ্যাপ যুক্ত না করা পর্যন্ত অ্যাডমিনের কাজ বন্ধ থাকবে।</value></data>
+  <data name="MfaAlreadyEnabled" xml:space="preserve"><value>মাল্টি-ফ্যাক্টর যাচাই আগে থেকেই চালু। এই সেশন যাচাই না হলে আবার সাইন-ইন করুন।</value></data>
+  <data name="ContinueToDashboard" xml:space="preserve"><value>ড্যাশবোর্ডে যান</value></data>
+  <data name="SignInAgain" xml:space="preserve"><value>আবার সাইন-ইন করুন</value></data>
+  <data name="CurrentPassword" xml:space="preserve"><value>বর্তমান পাসওয়ার্ড</value></data>
+  <data name="CurrentPasswordRequired" xml:space="preserve"><value>বর্তমান পাসওয়ার্ড ও যাচাই কোড দিন।</value></data>
+  <data name="CreateAuthenticatorKey" xml:space="preserve"><value>অথেনটিকেটর অ্যাপ যুক্ত করুন</value></data>
+  <data name="Preparing" xml:space="preserve"><value>প্রস্তুত করা হচ্ছে…</value></data>
+  <data name="ConnectAuthenticatorApp" xml:space="preserve"><value>আপনার অ্যাপ যুক্ত করুন</value></data>
+  <data name="MfaInstallAppStep" xml:space="preserve"><value>নিজের ডিভাইসে বিশ্বস্ত TOTP অথেনটিকেটর অ্যাপ ইনস্টল করুন।</value></data>
+  <data name="MfaEnterKeyStep" xml:space="preserve"><value>নতুন অ্যাকাউন্ট যোগ করে নিচের কী দিন। কীটি কাউকে দেবেন না।</value></data>
+  <data name="MfaEnterCodeStep" xml:space="preserve"><value>অ্যাপের তৈরি ছয় সংখ্যার কোডটি দিন।</value></data>
+  <data name="AuthenticatorSharedKey" xml:space="preserve"><value>অথেনটিকেটর সেটআপ কী</value></data>
+  <data name="OpenAuthenticatorApp" xml:space="preserve"><value>অথেনটিকেটর অ্যাপ খুলুন</value></data>
+  <data name="EnableMfa" xml:space="preserve"><value>যাচাই করে চালু করুন</value></data>
+  <data name="MfaSetupFailed" xml:space="preserve"><value>সেটআপ শুরু হয়নি। বর্তমান পাসওয়ার্ড দেখে আবার চেষ্টা করুন।</value></data>
+  <data name="MfaEnableFailed" xml:space="preserve"><value>কোড যাচাই করা যায়নি। অ্যাপ দেখে আবার চেষ্টা করুন।</value></data>
+  <data name="RecoveryCodesTitle" xml:space="preserve"><value>রিকভারি কোডগুলো এখনই সংরক্ষণ করুন</value></data>
+  <data name="RecoveryCodesHelp" xml:space="preserve"><value>একবার ব্যবহারযোগ্য কোডগুলো নিরাপদ অফলাইন স্থানে রাখুন। এগুলো আবার দেখানো হবে না।</value></data>
+  <data name="RecoveryCodesWarning" xml:space="preserve"><value>এই কোড থাকলে অ্যাকাউন্টে ঢোকা যাবে। মেসেজ বা ইমেইলে কখনো পাঠাবেন না।</value></data>
+  <data name="SavedCodesContinue" xml:space="preserve"><value>কোড সংরক্ষণ করেছি — এগিয়ে যান</value></data>
 </root>

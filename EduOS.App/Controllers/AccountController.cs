@@ -57,6 +57,16 @@ namespace EduOS.App.Controllers
             return View();
         }
 
+        [AllowAnonymous]
+        [HttpGet]
+        [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+        public IActionResult MfaChallenge() => View();
+
+        [Authorize(Roles = "SuperAdmin,TenantAdmin")]
+        [HttpGet]
+        [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+        public IActionResult MfaSetup() => View();
+
         // ==================== Onboarding Wizard ====================
 
         [Authorize(Roles = "TenantAdmin")]

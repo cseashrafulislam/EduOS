@@ -8,6 +8,8 @@ EduOS is a configurable, multi-tenant SaaS platform for the Bangladesh education
 
 > **Current status:** foundation under active development. Phase 0 security work, the Phase 1 institution/module entitlement catalogue, and the first Phase 2 privacy-safe learner identity workflow are implemented and tested. The shared/public shells, account pages, public pricing, tenant dashboard, SuperAdmin operations landing page, and onboarding progress support responsive desktop/mobile use, installable PWA behaviour, and English/Bangla UI resources. Institution profile, plan/payment, campus/branch, academic year/term, plan-aware module selection, branding/subdomain, regional preferences, and optional SMS/email gateway setup now have bilingual responsive workflows with TenantAdmin authorization and anti-forgery protection. Billing rejects hidden plans and duplicate current subscriptions/payments, includes setup fees in invoice totals, verifies online payment before activation, and keeps manual deposit receipts outside public web storage. Gateway secrets are encrypted and masked, unsafe local/insecure endpoints are rejected, and branding images use image-only validation with failure-safe replacement. Government identifier equality matching now uses an encrypted value plus keyed lookup digest; a verified cross-tenant match returns no person data and creates an expiring consent request with an append-only access record, while an unverified match fails closed for review. Consent approval, history release, legacy identifier migration, and many education-module workflows remain planned and must not be treated as production-complete.
 
+Privileged cookie sessions now require TOTP MFA: password login produces a short-lived encrypted challenge when MFA is enabled, first-time TenantAdmin/SuperAdmin sessions are restricted to bilingual MFA setup, and recovery codes are displayed once. This is a working security control, not a substitute for production key custody, administrator recovery operations, or penetration testing.
+
 ---
 
 ## 1. Main objective
@@ -196,7 +198,7 @@ Required completed behaviour:
 | AppPage / RolePagePermission / UserPagePermission | Page/menu authorization | 🟡 Foundation |
 | LoginHistory | Successful/failed login and logout audit | ✅ Auth workflow |
 | RefreshToken | API token lifecycle | 🟡 Foundation |
-| TwoFactorAuth | MFA setup and verification data | 🟡 Foundation |
+| TwoFactorAuth / Identity token store | Legacy model plus active TOTP setup, encrypted login challenge, recovery-code and privileged-session enforcement | ✅ Core MFA workflow |
 
 Target capabilities:
 
@@ -755,13 +757,14 @@ Implemented Phase 0 controls:
 - Secrets removed from current public configuration.
 - Tenant-isolation and tenant-secret automated tests.
 - Encrypted government identifiers, keyed lookup digest, neutral cross-tenant match response, strict identity rate limit, and append-only learner identity access records.
+- TOTP setup/login, one-time recovery codes, encrypted five-minute challenge, anti-forgery protected auth writes, and mandatory MFA claim for TenantAdmin/SuperAdmin routes.
 - GitHub Actions CI, Dependabot, SECURITY.md and AGENTS.md.
 
 Still required before production:
 
 - Rotate/revoke every credential previously committed to Git history.
 - Migrate existing BirthCertNo and Guardian NID data to the protected identity model.
-- MFA and break-glass workflow for privileged platform operations.
+- Reviewed administrator MFA reset/recovery operations and break-glass approval workflow.
 - Managed production key custody and rehearsed rotation for encryption and keyed identifier lookup.
 - CSRF/secure-cookie/API token threat review for each client mode.
 - File signature validation, malware scanning and external object storage.

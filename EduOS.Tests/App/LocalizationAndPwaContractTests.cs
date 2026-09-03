@@ -298,6 +298,49 @@ public class LocalizationAndPwaContractTests
         seeder.Should().NotContain("?? \"superadmin");
     }
 
+    [Fact]
+    public void Privileged_mfa_flow_is_antiforgery_protected_localized_and_avoids_dom_injection()
+    {
+        var authController = File.ReadAllText(Asset("AuthController.cs"));
+        var middleware = File.ReadAllText(Asset("PrivilegedMfaMiddleware.cs"));
+        var program = File.ReadAllText(Asset("Program.cs"));
+        var loginScript = File.ReadAllText(Asset("login.js"));
+        var challengeView = File.ReadAllText(Asset("MfaChallenge.cshtml"));
+        var setupView = File.ReadAllText(Asset("MfaSetup.cshtml"));
+        var challengeScript = File.ReadAllText(Asset("mfa-challenge.js"));
+        var setupScript = File.ReadAllText(Asset("mfa-setup.js"));
+
+        authController.Should().Contain("[AutoValidateAntiforgeryToken]");
+        authController.Should().Contain("user.TwoFactorEnabled");
+        authController.Should().Contain("VerifyTwoFactorTokenAsync");
+        authController.Should().Contain("RedeemTwoFactorRecoveryCodeAsync");
+        authController.Should().Contain("Response.Headers.CacheControl = \"no-store\"");
+        authController.Should().NotContain("X-Forwarded-For");
+
+        middleware.Should().Contain("SuperAdmin");
+        middleware.Should().Contain("TenantAdmin");
+        middleware.Should().Contain("x.Type == \"amr\" && x.Value == \"mfa\"");
+        middleware.Should().Contain("MFA_REQUIRED");
+        program.Should().Contain("app.UsePrivilegedMfa()");
+        loginScript.Should().Contain("sessionStorage.setItem('eduos.mfaChallenge'");
+
+        new[] { challengeView, setupView }.Should().AllSatisfy(view =>
+        {
+            view.Should().Contain("Layout = \"_PublicLayout\"");
+            view.Should().Contain("@T[");
+            view.Should().NotContain("<style>");
+            view.Should().NotContain("onclick=");
+        });
+
+        new[] { challengeScript, setupScript }.Should().AllSatisfy(script =>
+        {
+            script.Should().Contain("credentials: 'same-origin'");
+            script.Should().Contain("textContent");
+            script.Should().NotContain(".innerHTML");
+            script.Should().NotContain("onclick=");
+        });
+    }
+
     private static Dictionary<string, string> ReadResource(string fileName)
     {
         return XDocument.Load(Asset(fileName))

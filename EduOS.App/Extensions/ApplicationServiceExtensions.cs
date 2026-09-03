@@ -34,6 +34,7 @@ namespace EduOS.App.Extensions
             services.Configure<FileStorageSettings>(configuration.GetSection("FileStorage"));
             services.Configure<TenantPortalSettings>(configuration.GetSection(TenantPortalSettings.SectionName));
             services.Configure<LearnerIdentitySettings>(configuration.GetSection(LearnerIdentitySettings.SectionName));
+            services.Configure<MfaSettings>(configuration.GetSection(MfaSettings.SectionName));
 
             // ==================== AutoMapper ====================
             services.AddAutoMapper(_ => { }, typeof(MappingProfile).Assembly);
@@ -42,6 +43,8 @@ namespace EduOS.App.Extensions
             services.AddScoped<ICurrentUserService, CurrentUserService>();
             services.AddScoped<IFileUploadService, FileUploadService>();
             services.AddScoped<ILearnerIdentifierProtector, LearnerIdentifierProtector>();
+            services.AddSingleton(TimeProvider.System);
+            services.AddSingleton<IMfaChallengeService, MfaChallengeService>();
 
             // ==================== HTTP Clients ====================
             services.AddHttpClient<IAamarPayClient, AamarPayClient>(client =>

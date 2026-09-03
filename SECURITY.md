@@ -28,6 +28,8 @@ Every instance must also receive the same `LearnerIdentity__LookupKeyBase64` fro
 
 SuperAdmin creation is opt-in: no account is created unless `SuperAdmin__Email` is configured, and first-time creation also requires `SuperAdmin__Password`. There is no default privileged email or password. Remove the bootstrap password from runtime configuration immediately after the first account is created, then enable MFA before production administration.
 
+TenantAdmin and SuperAdmin cookie sessions are gated by TOTP MFA. Setup requires the current password, login uses a short-lived Data Protection challenge tied to the user's security stamp, and recovery codes are issued once. Treat authenticator setup keys and recovery codes as credentials: never log, email, or screenshot them; keep recovery codes offline. A production runbook must define identity-verified MFA reset and emergency access without weakening this gate.
+
 If a value was ever committed, deleting it from the latest file is not enough. Revoke or rotate it at the provider immediately, then purge it from Git history using a reviewed incident-response procedure.
 
 ## Tenant isolation

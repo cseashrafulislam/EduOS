@@ -630,7 +630,7 @@ namespace EduOS.Persistence.Context
                     "ApiSecret", "CreditCard", "BankAccount", "AccountNumber",
                     "NID", "NationalId", "BirthCert", "Passport", "RefreshToken",
                     "SettingValue", "GatewayResponse", "Identifier",
-                    "LookupDigest", "ProtectedValue" }
+                    "LookupDigest", "ProtectedValue", "BackupCode" }
             .Any(f => name.Contains(f, StringComparison.OrdinalIgnoreCase));
 
         private async Task AddAuditLogsAsync(List<AuditLog> logs, CancellationToken ct)

@@ -42,4 +42,31 @@
         public string NewPassword { get; set; } = "";
         public string ConfirmPassword { get; set; } = "";
     }
+
+    public class MfaSetupRequestDto
+    {
+        public string CurrentPassword { get; set; } = string.Empty;
+    }
+
+    public class MfaEnableRequestDto
+    {
+        public string CurrentPassword { get; set; } = string.Empty;
+        public string Code { get; set; } = string.Empty;
+    }
+
+    public class MfaLoginRequestDto
+    {
+        public string ChallengeToken { get; set; } = string.Empty;
+        public string Code { get; set; } = string.Empty;
+        public bool UseRecoveryCode { get; set; }
+    }
+
+    public class MfaChallengeData
+    {
+        public long UserId { get; set; }
+        public string SecurityStamp { get; set; } = string.Empty;
+        public bool RememberMe { get; set; }
+        public DateTime IssuedAtUtc { get; set; }
+        public DateTime ExpiresAtUtc { get; set; }
+    }
 }

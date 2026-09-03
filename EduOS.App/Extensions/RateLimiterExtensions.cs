@@ -43,6 +43,11 @@ namespace EduOS.App.Extensions
                         GetClientPartition(context),
                         _ => CreateOptions(10, TimeSpan.FromMinutes(1))));
 
+                options.AddPolicy("MfaPolicy", context =>
+                    RateLimitPartition.GetFixedWindowLimiter(
+                        GetIpPartition(context),
+                        _ => CreateOptions(5, TimeSpan.FromMinutes(1))));
+
                 // Payment callback - more lenient (gateway may retry)
                 options.AddPolicy("PaymentCallbackPolicy", context =>
                     RateLimitPartition.GetFixedWindowLimiter(

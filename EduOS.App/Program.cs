@@ -227,6 +227,9 @@ app.UseAuthentication();
 // Tenant context should come after authentication
 app.UseTenantContext();
 
+// Privileged cookie sessions must complete MFA before any tenant/platform work.
+app.UsePrivilegedMfa();
+
 // Onboarding guard depends on tenant context
 app.UseOnboardingGuard();
 

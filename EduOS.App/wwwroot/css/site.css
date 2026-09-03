@@ -593,6 +593,43 @@ select,
     font-weight: 800;
 }
 
+.mfa-secret-panel,
+.mfa-recovery-panel {
+    border: 1px solid var(--border-color, #dbe3ef);
+    border-radius: 1rem;
+    background: #f8fafc;
+    padding: 1rem;
+}
+
+.mfa-code-output {
+    min-height: 2.75rem;
+    overflow-wrap: anywhere;
+    user-select: all;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.mfa-recovery-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .5rem;
+    padding: 0;
+    list-style: none;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.mfa-recovery-list li {
+    border-radius: .5rem;
+    background: #fff;
+    padding: .5rem .75rem;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 575.98px) {
+    .mfa-recovery-list {
+        grid-template-columns: 1fr;
+    }
+}
+
 .auth-meta {
     color: var(--edu-muted);
     font-size: .82rem;
