@@ -1064,6 +1064,290 @@ select,
     font-size: .82rem;
 }
 
+/* Guided institution setup forms */
+.setup-page {
+    display: grid;
+    gap: 1.15rem;
+    width: 100%;
+}
+
+.setup-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--edu-border);
+}
+
+.setup-header h2 {
+    margin: .1rem 0 .4rem;
+    font-size: clamp(1.35rem, 3vw, 1.75rem);
+    font-weight: 850;
+    letter-spacing: -.025em;
+}
+
+.setup-header p:not(.dashboard-eyebrow),
+.setup-section-heading p {
+    margin: 0;
+    color: var(--edu-muted);
+    font-size: .84rem;
+    line-height: 1.55;
+}
+
+.setup-header-icon {
+    display: inline-flex;
+    flex: 0 0 3rem;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 3rem;
+    border-radius: .9rem;
+    color: var(--edu-primary-dark);
+    background: #dbeafe;
+}
+
+.setup-header-actions {
+    align-items: center;
+}
+
+.setup-header-actions .btn {
+    flex: 0 0 auto;
+}
+
+.setup-form {
+    display: grid;
+    gap: 1rem;
+}
+
+.setup-section {
+    padding: clamp(1rem, 2.5vw, 1.35rem);
+    border: 1px solid var(--edu-border);
+    border-radius: 1rem;
+    background: #fff;
+}
+
+.setup-section-heading {
+    margin-bottom: 1rem;
+}
+
+.setup-section-heading h3 {
+    margin: 0 0 .25rem;
+    font-size: 1rem;
+    font-weight: 800;
+}
+
+.setup-page .form-label {
+    margin-bottom: .4rem;
+    color: #334155;
+    font-size: .82rem;
+    font-weight: 700;
+}
+
+.setup-page .form-control,
+.setup-page .form-select,
+.modal .form-control,
+.modal .form-select {
+    border-radius: .7rem;
+}
+
+.required-mark {
+    color: var(--edu-danger);
+}
+
+.setup-check-control {
+    width: 100%;
+    min-height: 2.75rem;
+    padding: .7rem .8rem .7rem 2.25rem;
+    border: 1px solid var(--edu-border);
+    border-radius: .7rem;
+    background: var(--edu-soft);
+}
+
+.setup-check-control .form-check-input {
+    margin-left: -1.45rem;
+}
+
+.setup-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    padding-top: .25rem;
+}
+
+.setup-actions .btn {
+    min-width: 8rem;
+    font-weight: 700;
+}
+
+.setup-record-list {
+    display: grid;
+    gap: .75rem;
+}
+
+.setup-record-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: .85rem;
+    align-items: center;
+    padding: .9rem;
+    border: 1px solid var(--edu-border);
+    border-radius: .85rem;
+    background: #fff;
+}
+
+.setup-record-content,
+.setup-record-heading {
+    min-width: 0;
+}
+
+.setup-record-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .45rem;
+}
+
+.setup-record-heading h4 {
+    margin: 0;
+    font-size: .95rem;
+    font-weight: 800;
+    overflow-wrap: anywhere;
+}
+
+.setup-record-content > p {
+    margin: .25rem 0 0;
+    color: var(--edu-muted);
+    font-size: .76rem;
+    overflow-wrap: anywhere;
+}
+
+.setup-record-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: .4rem;
+}
+
+.setup-record-actions .btn {
+    min-height: 2.35rem;
+}
+
+.setup-empty-state {
+    display: grid;
+    place-items: center;
+    gap: .55rem;
+    min-height: 10rem;
+    padding: 1.25rem;
+    border: 1px dashed #cbd5e1;
+    border-radius: .85rem;
+    background: var(--edu-soft);
+    color: var(--edu-muted);
+    text-align: center;
+}
+
+.setup-empty-state p {
+    max-width: 28rem;
+    margin: 0;
+    font-size: .84rem;
+}
+
+.setup-empty-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 999px;
+    color: var(--edu-primary-dark);
+    background: #dbeafe;
+    font-size: 1.25rem;
+    font-weight: 800;
+}
+
+.academic-record-card {
+    align-items: start;
+}
+
+.academic-term-list {
+    grid-column: 1 / -1;
+    display: grid;
+    gap: .4rem;
+    padding: .65rem;
+    border-radius: .7rem;
+    background: var(--edu-soft);
+}
+
+.academic-term-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    min-height: 2.4rem;
+    padding: .35rem .5rem;
+    border-left: .2rem solid #93c5fd;
+    color: #334155;
+    background: #fff;
+    font-size: .76rem;
+}
+
+.academic-term-row span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.academic-term-empty {
+    margin: 0;
+    color: var(--edu-muted);
+    font-size: .76rem;
+}
+
+@media (max-width: 575.98px) {
+    .onboarding-content {
+        padding: .85rem;
+    }
+
+    .setup-header,
+    .setup-header-actions {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .setup-header-icon {
+        display: none;
+    }
+
+    .setup-header-actions .btn {
+        width: 100%;
+    }
+
+    .setup-actions {
+        align-items: stretch;
+        flex-direction: column-reverse;
+    }
+
+    .setup-actions .btn {
+        width: 100%;
+    }
+
+    .setup-record-card {
+        grid-template-columns: 1fr;
+    }
+
+    .setup-record-actions {
+        justify-content: stretch;
+    }
+
+    .setup-record-actions .btn {
+        flex: 1 1 auto;
+    }
+
+    .academic-term-list {
+        grid-column: 1;
+    }
+}
+
 /* Lightweight local fallback for legacy views that still use Bootstrap Icons
    class names. It keeps those controls understandable without a third-party CDN. */
 .bi {

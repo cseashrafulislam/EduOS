@@ -1,6 +1,27 @@
 (() => {
     'use strict';
 
+    const nativeFetch = window.fetch.bind(window);
+    const verificationToken = document.querySelector(
+        'meta[name="request-verification-token"]')?.content;
+    const safeMethods = new Set(['GET', 'HEAD', 'OPTIONS', 'TRACE']);
+
+    // Cookie-authenticated API writes require the server-issued anti-forgery token.
+    // Centralizing this keeps every current and future same-origin fetch protected.
+    window.fetch = (input, init) => {
+        const request = new Request(input, init);
+        const url = new URL(request.url, window.location.href);
+        if (!verificationToken
+            || url.origin !== window.location.origin
+            || safeMethods.has(request.method.toUpperCase())) {
+            return nativeFetch(request);
+        }
+
+        const headers = new Headers(request.headers);
+        headers.set('RequestVerificationToken', verificationToken);
+        return nativeFetch(new Request(request, { headers }));
+    };
+
     const sidebar = document.getElementById('sidebarMenu');
     const sidebarToggle = document.querySelector('[data-sidebar-toggle], #btnSidebarToggle');
     const sidebarClosers = document.querySelectorAll('[data-sidebar-close]');

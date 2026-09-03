@@ -5,7 +5,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EduOS.App.Controllers.Api
 {
-    [Authorize]
+    [Authorize(Roles = "TenantAdmin")]
+    [AutoValidateAntiforgeryToken]
     [ApiController]
     [Route("api/onboarding")]
     public class OnboardingController : ControllerBase
