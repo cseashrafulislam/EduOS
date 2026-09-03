@@ -83,6 +83,19 @@ public class LocalizationAndPwaContractTests
             .Should().AllSatisfy(script => script.Should().NotContain(".innerHTML"));
     }
 
+    [Fact]
+    public void Pricing_view_uses_bilingual_catalog_fields_and_safe_dom_rendering()
+    {
+        var pricing = File.ReadAllText(Asset("Pricing.cshtml"));
+
+        pricing.Should().Contain("nameBangla");
+        pricing.Should().Contain("featureNameBangla");
+        pricing.Should().Contain("toLocaleString(i18n.culture)");
+        pricing.Should().Contain("encodeURIComponent(plan.code");
+        pricing.Should().NotContain(".innerHTML");
+        pricing.Should().NotContain("https://");
+    }
+
     private static Dictionary<string, string> ReadResource(string fileName)
     {
         return XDocument.Load(Asset(fileName))

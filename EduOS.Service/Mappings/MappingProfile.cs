@@ -42,6 +42,8 @@ namespace EduOS.Service.Mappings
             CreateMap<PlanFeature, PlanFeatureDto>()
                 .ForMember(d => d.FeatureName,
                     opt => opt.MapFrom(s => s.Feature != null ? s.Feature.Name : string.Empty))
+                .ForMember(d => d.FeatureNameBangla,
+                    opt => opt.MapFrom(s => s.Feature != null ? s.Feature.NameBangla : null))
                 .ForMember(d => d.FeatureCode,
                     opt => opt.MapFrom(s => s.Feature != null ? s.Feature.Code : string.Empty))
                 .ForMember(d => d.Category,

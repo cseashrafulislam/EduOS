@@ -12,8 +12,10 @@ namespace EduOS.Persistence.Configurations.SaaS
             builder.HasKey(f => f.Id);
 
             builder.Property(f => f.Name).IsRequired().HasMaxLength(100);
+            builder.Property(f => f.NameBangla).HasMaxLength(150);
             builder.Property(f => f.Code).IsRequired().HasMaxLength(100);
             builder.Property(f => f.Description).HasMaxLength(1000);
+            builder.Property(f => f.DescriptionBangla).HasMaxLength(1000);
             builder.Property(f => f.Category).HasMaxLength(50);
             builder.Property(f => f.IconName).HasMaxLength(50);
 

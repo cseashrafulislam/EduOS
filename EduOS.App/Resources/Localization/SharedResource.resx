@@ -193,4 +193,37 @@
   <data name="ConfigureFeeStructure" xml:space="preserve"><value>Configure the fee structure</value></data>
   <data name="InviteTeamMembers" xml:space="preserve"><value>Invite team members</value></data>
   <data name="ReviewSettings" xml:space="preserve"><value>Review settings</value></data>
+  <data name="PricingTitle" xml:space="preserve"><value>Simple, transparent pricing</value></data>
+  <data name="PricingSubtitle" xml:space="preserve"><value>Choose the capacity and features your institution needs. Available trials and payment options are shown clearly.</value></data>
+  <data name="Monthly" xml:space="preserve"><value>Monthly</value></data>
+  <data name="Quarterly" xml:space="preserve"><value>Quarterly</value></data>
+  <data name="HalfYearly" xml:space="preserve"><value>Half-yearly</value></data>
+  <data name="Yearly" xml:space="preserve"><value>Yearly</value></data>
+  <data name="LoadingPlans" xml:space="preserve"><value>Loading plans…</value></data>
+  <data name="PlansLoadFailed" xml:space="preserve"><value>Plans could not be loaded. Please try again.</value></data>
+  <data name="NoPlansAvailable" xml:space="preserve"><value>No public plan is available right now.</value></data>
+  <data name="MostPopular" xml:space="preserve"><value>Most popular</value></data>
+  <data name="Free" xml:space="preserve"><value>Free</value></data>
+  <data name="DaysTrialTemplate" xml:space="preserve"><value>{count}-day trial</value></data>
+  <data name="PeriodMonth" xml:space="preserve"><value>month</value></data>
+  <data name="PeriodThreeMonths" xml:space="preserve"><value>3 months</value></data>
+  <data name="PeriodSixMonths" xml:space="preserve"><value>6 months</value></data>
+  <data name="PeriodYear" xml:space="preserve"><value>year</value></data>
+  <data name="StartFreeTrial" xml:space="preserve"><value>Start free trial</value></data>
+  <data name="GetStarted" xml:space="preserve"><value>Get started</value></data>
+  <data name="UpToStudentsTemplate" xml:space="preserve"><value>Up to {count} students</value></data>
+  <data name="TeachersTemplate" xml:space="preserve"><value>{count} teachers</value></data>
+  <data name="CampusesTemplate" xml:space="preserve"><value>{count} campuses</value></data>
+  <data name="MoreFeaturesTemplate" xml:space="preserve"><value>+ {count} more features</value></data>
+  <data name="FrequentlyAskedQuestions" xml:space="preserve"><value>Frequently asked questions</value></data>
+  <data name="FaqSwitchPlanQuestion" xml:space="preserve"><value>Can I switch plans later?</value></data>
+  <data name="FaqSwitchPlanAnswer" xml:space="preserve"><value>Plan changes follow the upgrade, downgrade, proration, and billing rules shown before you confirm the change.</value></data>
+  <data name="FaqPaymentMethodsQuestion" xml:space="preserve"><value>Which payment methods are available?</value></data>
+  <data name="FaqPaymentMethodsAnswer" xml:space="preserve"><value>Available cards, mobile financial services, internet banking, or manual payment options depend on the verified gateway configured for your checkout.</value></data>
+  <data name="FaqTrialQuestion" xml:space="preserve"><value>Is a free trial available?</value></data>
+  <data name="FaqTrialAnswer" xml:space="preserve"><value>If a trial plan is active, its exact duration and included limits appear in the plan card before sign-up.</value></data>
+  <data name="FaqCancelQuestion" xml:space="preserve"><value>Can I cancel a subscription?</value></data>
+  <data name="FaqCancelAnswer" xml:space="preserve"><value>Yes. The effective date, access period, and any refund conditions are shown before cancellation is confirmed.</value></data>
+  <data name="FaqLargeInstitutionQuestion" xml:space="preserve"><value>Can a large or multi-campus institution get a custom plan?</value></data>
+  <data name="FaqLargeInstitutionAnswer" xml:space="preserve"><value>Yes. Enterprise capacity and enabled modules can be configured through an approved plan without creating a separate codebase.</value></data>
 </root>

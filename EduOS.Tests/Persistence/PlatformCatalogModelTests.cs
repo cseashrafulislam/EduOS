@@ -15,6 +15,8 @@ public class PlatformCatalogModelTests
         using var context = CreateContext();
 
         var institutionType = context.Model.FindEntityType(typeof(InstitutionTypeDefinition))!;
+        var feature = context.Model.FindEntityType(typeof(Feature))!;
+        var subscriptionPlan = context.Model.FindEntityType(typeof(SubscriptionPlan))!;
         var module = context.Model.FindEntityType(typeof(ProductModule))!;
         var mapping = context.Model.FindEntityType(typeof(InstitutionTypeModule))!;
         var moduleFeature = context.Model.FindEntityType(typeof(ProductModuleFeature))!;
@@ -37,6 +39,10 @@ public class PlatformCatalogModelTests
             .IsConcurrencyToken.Should().BeTrue();
         tenantModule.FindProperty(nameof(TenantModule.ConfigurationJson))!
             .GetMaxLength().Should().BeNull();
+        feature.FindProperty(nameof(Feature.NameBangla))!
+            .GetMaxLength().Should().Be(150);
+        subscriptionPlan.FindProperty(nameof(SubscriptionPlan.DescriptionBangla))!
+            .GetMaxLength().Should().Be(2000);
     }
 
     [Fact]

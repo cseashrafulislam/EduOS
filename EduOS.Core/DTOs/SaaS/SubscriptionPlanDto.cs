@@ -7,9 +7,12 @@ namespace EduOS.Core.DTOs.SaaS
     {
         public long Id { get; set; }
         public string Name { get; set; } = string.Empty;
+        public string? NameBangla { get; set; }
         public string Code { get; set; } = string.Empty;
         public string? Description { get; set; }
+        public string? DescriptionBangla { get; set; }
         public string? ShortDescription { get; set; }
+        public string? ShortDescriptionBangla { get; set; }
         public string? IconUrl { get; set; }
         public int DisplayOrder { get; set; }
         public bool IsRecommended { get; set; }
@@ -41,6 +44,7 @@ namespace EduOS.Core.DTOs.SaaS
     {
         public long FeatureId { get; set; }
         public string FeatureName { get; set; } = string.Empty;
+        public string? FeatureNameBangla { get; set; }
         public string FeatureCode { get; set; } = string.Empty;
         public string? Category { get; set; }
         public string? IconName { get; set; }
@@ -68,6 +72,7 @@ namespace EduOS.Core.DTOs.SaaS
     {
         public long FeatureId { get; set; }
         public string Name { get; set; } = string.Empty;
+        public string? NameBangla { get; set; }
         public string Code { get; set; } = string.Empty;
         public Dictionary<long, bool> PlanAvailability { get; set; } = new();
     }

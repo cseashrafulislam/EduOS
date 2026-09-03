@@ -49,6 +49,9 @@
     <None Include="..\EduOS.App\Views\Account\Signup.cshtml"
           Link="TestAssets\Signup.cshtml"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Views\Pricing\Index.cshtml"
+          Link="TestAssets\Pricing.cshtml"
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\wwwroot\js\account\login.js"
           Link="TestAssets\login.js"
           CopyToOutputDirectory="PreserveNewest" />

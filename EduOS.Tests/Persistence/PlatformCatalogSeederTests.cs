@@ -36,6 +36,31 @@ public class PlatformCatalogSeederTests
     }
 
     [Fact]
+    public async Task Subscription_catalog_is_idempotent_and_backfills_missing_Bangla_text()
+    {
+        await using var context = CreateContext();
+
+        await SubscriptionSeeder.SeedAsync(context);
+        var studentFeature = await context.Features.SingleAsync(x => x.Code == "STUDENT_MGMT");
+        var basicPlan = await context.SubscriptionPlans.SingleAsync(x => x.Code == "BASIC");
+        studentFeature.NameBangla = "নিজস্ব শিক্ষার্থী নাম";
+        basicPlan.NameBangla = null;
+        basicPlan.ShortDescriptionBangla = null;
+        await context.SaveChangesAsync();
+
+        await SubscriptionSeeder.SeedAsync(context);
+
+        (await context.Features.CountAsync()).Should().Be(29);
+        (await context.SubscriptionPlans.CountAsync()).Should().Be(4);
+        (await context.Features.SingleAsync(x => x.Code == "STUDENT_MGMT"))
+            .NameBangla.Should().Be("নিজস্ব শিক্ষার্থী নাম");
+        basicPlan.NameBangla.Should().Be("বেসিক");
+        basicPlan.ShortDescriptionBangla.Should().NotBeNullOrWhiteSpace();
+        (await context.Features.CountAsync(x => string.IsNullOrWhiteSpace(x.NameBangla)))
+            .Should().Be(0);
+    }
+
+    [Fact]
     public async Task Seeder_backfills_recognized_legacy_tenant_type_without_changing_unknown_values()
     {
         await using var context = CreateContext();
