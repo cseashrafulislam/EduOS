@@ -1,86 +1,72 @@
-﻿@{
-    ViewData["Title"] = "Admin Dashboard";
+@{
+    ViewData["Title"] = "AdminDashboard";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
 
-<div class="container-fluid mt-4">
-
-    <!-- Header -->
-    <div class="row mb-3">
-        <div class="col-12">
-            <h2 class="fw-bold">Admin Dashboard</h2>
-            <p class="text-muted">Welcome to Super Admin control panel</p>
-        </div>
-    </div>
-
-    <!-- Summary Cards -->
-    <div class="row">
-
-        <div class="col-md-3">
-            <div class="card shadow-sm">
-                <div class="card-body">
-                    <h5>Total Users</h5>
-                    <h3>0</h3>
-                </div>
+<div class="dashboard-page platform-dashboard">
+    <section class="dashboard-hero platform-dashboard-hero" aria-labelledby="platformTitle">
+        <div class="dashboard-hero-copy">
+            <p class="dashboard-eyebrow">@T["SuperAdminWorkspace"]</p>
+            <h2 id="platformTitle">@T["PlatformControlCenter"]</h2>
+            <p>@T["PlatformControlCenterHelp"]</p>
+            <div class="dashboard-badges">
+                <span class="status-chip status-chip-neutral">@T["RestrictedAccess"]</span>
+                <span class="status-chip status-chip-success">@T["AuthenticatedSession"]</span>
             </div>
         </div>
-
-        <div class="col-md-3">
-            <div class="card shadow-sm">
-                <div class="card-body">
-                    <h5>Total Tenants</h5>
-                    <h3>0</h3>
-                </div>
+        <div class="dashboard-progress-card platform-safety-card">
+            <span class="dashboard-stat-icon dashboard-stat-icon-green" aria-hidden="true">
+                <svg class="edu-icon"><use href="/images/eduos-icons.svg#shield" /></svg>
+            </span>
+            <div>
+                <strong>@T["PlatformSafetyTitle"]</strong>
+                <p>@T["PlatformSafetyHelp"]</p>
             </div>
         </div>
+    </section>
 
-        <div class="col-md-3">
-            <div class="card shadow-sm">
-                <div class="card-body">
-                    <h5>Active Sessions</h5>
-                    <h3>0</h3>
-                </div>
+    <section aria-labelledby="adminToolsTitle">
+        <div class="dashboard-section-heading">
+            <div>
+                <p class="dashboard-eyebrow">@T["AvailableNow"]</p>
+                <h2 id="adminToolsTitle">@T["PlatformTools"]</h2>
             </div>
         </div>
+        <div class="platform-tools-grid">
+            <article class="dashboard-panel platform-tool-card">
+                <span class="dashboard-stat-icon" aria-hidden="true">
+                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#finance" /></svg>
+                </span>
+                <h3>@T["PricingCatalog"]</h3>
+                <p>@T["PricingCatalogHelp"]</p>
+                <a asp-controller="Pricing" asp-action="Index">@T["ReviewPublicPricing"]</a>
+            </article>
+            <article class="dashboard-panel platform-tool-card">
+                <span class="dashboard-stat-icon dashboard-stat-icon-violet" aria-hidden="true">
+                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#dashboard" /></svg>
+                </span>
+                <h3>@T["BackgroundJobs"]</h3>
+                <p>@T["BackgroundJobsHelp"]</p>
+                <a href="/hangfire">@T["OpenJobDashboard"]</a>
+            </article>
+            <article class="dashboard-panel platform-tool-card">
+                <span class="dashboard-stat-icon dashboard-stat-icon-green" aria-hidden="true">
+                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#attendance" /></svg>
+                </span>
+                <h3>@T["ServiceHealth"]</h3>
+                <p>@T["ServiceHealthHelp"]</p>
+                <a href="/health">@T["CheckServiceHealth"]</a>
+            </article>
+        </div>
+    </section>
 
-        <div class="col-md-3">
-            <div class="card shadow-sm">
-                <div class="card-body">
-                    <h5>System Status</h5>
-                    <span class="badge bg-success">Healthy</span>
-                </div>
+    <section class="dashboard-panel platform-guidance" aria-labelledby="platformGuidanceTitle">
+        <div class="dashboard-section-heading">
+            <div>
+                <p class="dashboard-eyebrow">@T["OperatingRule"]</p>
+                <h2 id="platformGuidanceTitle">@T["TenantPrivacyBoundary"]</h2>
             </div>
         </div>
-
-    </div>
-
-    <!-- Quick Actions -->
-    <div class="row mt-4">
-        <div class="col-12">
-            <div class="card shadow-sm">
-                <div class="card-body">
-
-                    <h5>Quick Actions</h5>
-
-                    <a class="btn btn-primary me-2" href="/Users">
-                        Manage Users
-                    </a>
-
-                    <a class="btn btn-success me-2" href="/Tenants">
-                        Manage Tenants
-                    </a>
-
-                    <a class="btn btn-warning me-2" href="/Roles">
-                        Roles & Permissions
-                    </a>
-
-                    <a class="btn btn-dark" href="/Settings">
-                        System Settings
-                    </a>
-
-                </div>
-            </div>
-        </div>
-    </div>
-
+        <p>@T["TenantPrivacyBoundaryHelp"]</p>
+    </section>
 </div>

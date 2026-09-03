@@ -96,6 +96,32 @@ public class LocalizationAndPwaContractTests
         pricing.Should().NotContain("https://");
     }
 
+    [Fact]
+    public void Tenant_dashboard_is_localized_responsive_and_uses_safe_local_alert_actions()
+    {
+        var dashboard = File.ReadAllText(Asset("Dashboard.cshtml"));
+
+        dashboard.Should().Contain("@T[");
+        dashboard.Should().Contain("SafeLocalUrl");
+        dashboard.Should().Contain("<progress");
+        dashboard.Should().Contain("asp-controller=\"Account\"");
+        dashboard.Should().NotContain("<style>");
+        dashboard.Should().NotContain("/UserManagement");
+        dashboard.Should().NotContain("Monthly Collection");
+    }
+
+    [Fact]
+    public void Super_admin_dashboard_is_role_restricted_and_contains_no_fake_metrics()
+    {
+        var dashboard = File.ReadAllText(Asset("AdminDashboard.cshtml"));
+        var controller = File.ReadAllText(Asset("DashboardController.cs"));
+
+        dashboard.Should().Contain("@T[");
+        dashboard.Should().NotContain("Total Users");
+        dashboard.Should().NotContain("Total Tenants");
+        controller.Should().Contain("[Authorize(Roles = \"SuperAdmin\")]");
+    }
+
     private static Dictionary<string, string> ReadResource(string fileName)
     {
         return XDocument.Load(Asset(fileName))

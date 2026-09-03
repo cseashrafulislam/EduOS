@@ -226,4 +226,101 @@
   <data name="FaqCancelAnswer" xml:space="preserve"><value>হ্যাঁ। বাতিল নিশ্চিত করার আগে কার্যকর তারিখ, access-এর মেয়াদ ও refund-এর শর্ত দেখানো হবে।</value></data>
   <data name="FaqLargeInstitutionQuestion" xml:space="preserve"><value>বড় অথবা বহু-ক্যাম্পাস প্রতিষ্ঠান কি custom plan পাবে?</value></data>
   <data name="FaqLargeInstitutionAnswer" xml:space="preserve"><value>হ্যাঁ। আলাদা codebase না বানিয়ে অনুমোদিত plan-এর মাধ্যমে enterprise capacity ও module নির্ধারণ করা যাবে।</value></data>
+  <data name="SaasControlCenter" xml:space="preserve"><value>EduOS প্রতিষ্ঠান নিয়ন্ত্রণকেন্দ্র</value></data>
+  <data name="NotAvailable" xml:space="preserve"><value>তথ্য নেই</value></data>
+  <data name="Owner" xml:space="preserve"><value>মালিক</value></data>
+  <data name="AccountStatus" xml:space="preserve"><value>অ্যাকাউন্টের অবস্থা</value></data>
+  <data name="Plan" xml:space="preserve"><value>প্ল্যান</value></data>
+  <data name="NoPlan" xml:space="preserve"><value>কোনো প্ল্যান নেই</value></data>
+  <data name="EmailVerifiedStatus" xml:space="preserve"><value>ইমেইল যাচাইকৃত</value></data>
+  <data name="EmailPendingStatus" xml:space="preserve"><value>ইমেইল যাচাই বাকি</value></data>
+  <data name="SetupCompleteStatus" xml:space="preserve"><value>সেটআপ সম্পন্ন</value></data>
+  <data name="SetupInProgressStatus" xml:space="preserve"><value>সেটআপ চলছে</value></data>
+  <data name="OnboardingProgress" xml:space="preserve"><value>সেটআপ অগ্রগতি</value></data>
+  <data name="CurrentStep" xml:space="preserve"><value>বর্তমান ধাপ</value></data>
+  <data name="TrialEnds" xml:space="preserve"><value>ট্রায়াল শেষ</value></data>
+  <data name="NeedsAttention" xml:space="preserve"><value>মনোযোগ প্রয়োজন</value></data>
+  <data name="LiveOverview" xml:space="preserve"><value>বর্তমান তথ্য</value></data>
+  <data name="InstitutionOverview" xml:space="preserve"><value>প্রতিষ্ঠানের সারসংক্ষেপ</value></data>
+  <data name="CurrentStudents" xml:space="preserve"><value>বর্তমান শিক্ষার্থী</value></data>
+  <data name="CurrentTeachers" xml:space="preserve"><value>বর্তমান শিক্ষক</value></data>
+  <data name="OfPlanLimit" xml:space="preserve"><value>প্ল্যানের {0} সীমার মধ্যে</value></data>
+  <data name="NoConfiguredLimit" xml:space="preserve"><value>সীমা নির্ধারিত নেই</value></data>
+  <data name="CampusCapacity" xml:space="preserve"><value>ক্যাম্পাস ধারণক্ষমতা</value></data>
+  <data name="IncludedInPlan" xml:space="preserve"><value>প্ল্যানে অন্তর্ভুক্ত</value></data>
+  <data name="ActiveFeatures" xml:space="preserve"><value>সক্রিয় ফিচার</value></data>
+  <data name="EnabledByPlan" xml:space="preserve"><value>প্ল্যান অনুযায়ী চালু</value></data>
+  <data name="PlanUsage" xml:space="preserve"><value>প্ল্যান ব্যবহার</value></data>
+  <data name="CapacityUsage" xml:space="preserve"><value>ধারণক্ষমতা ও সাবস্ক্রিপশন</value></data>
+  <data name="ManagePlan" xml:space="preserve"><value>প্ল্যান ব্যবস্থাপনা</value></data>
+  <data name="UsageCount" xml:space="preserve"><value>{1}-এর মধ্যে {0}</value></data>
+  <data name="StudentCapacity" xml:space="preserve"><value>ব্যবহৃত শিক্ষার্থী ধারণক্ষমতা</value></data>
+  <data name="TeacherCapacity" xml:space="preserve"><value>ব্যবহৃত শিক্ষক ধারণক্ষমতা</value></data>
+  <data name="Institution" xml:space="preserve"><value>প্রতিষ্ঠান</value></data>
+  <data name="SubscriptionStatus" xml:space="preserve"><value>সাবস্ক্রিপশনের অবস্থা</value></data>
+  <data name="SubscriptionEnds" xml:space="preserve"><value>সাবস্ক্রিপশন শেষ</value></data>
+  <data name="QuickActions" xml:space="preserve"><value>দ্রুত কাজ</value></data>
+  <data name="CompleteInstitutionProfile" xml:space="preserve"><value>প্রতিষ্ঠানের প্রোফাইল সম্পন্ন করুন</value></data>
+  <data name="SetupCampus" xml:space="preserve"><value>ক্যাম্পাস বা শাখা সেটআপ করুন</value></data>
+  <data name="SetupAcademicYear" xml:space="preserve"><value>শিক্ষাবর্ষ সেটআপ করুন</value></data>
+  <data name="ConfigurePreferences" xml:space="preserve"><value>পছন্দসমূহ নির্ধারণ করুন</value></data>
+  <data name="EmailVerification" xml:space="preserve"><value>ইমেইল যাচাই</value></data>
+  <data name="Subscription" xml:space="preserve"><value>সাবস্ক্রিপশন</value></data>
+  <data name="SetupProgress" xml:space="preserve"><value>সেটআপ অগ্রগতি</value></data>
+  <data name="Completed" xml:space="preserve"><value>সম্পন্ন</value></data>
+  <data name="Pending" xml:space="preserve"><value>অপেক্ষমাণ</value></data>
+  <data name="GuidedSetup" xml:space="preserve"><value>সহায়ক সেটআপ</value></data>
+  <data name="SetupChecklist" xml:space="preserve"><value>প্রতিষ্ঠান সেটআপ তালিকা</value></data>
+  <data name="Review" xml:space="preserve"><value>পর্যালোচনা</value></data>
+  <data name="Continue" xml:space="preserve"><value>চালিয়ে যান</value></data>
+  <data name="Open" xml:space="preserve"><value>খুলুন</value></data>
+  <data name="StatusActive" xml:space="preserve"><value>সক্রিয়</value></data>
+  <data name="StatusTrial" xml:space="preserve"><value>ট্রায়াল</value></data>
+  <data name="StatusPendingPayment" xml:space="preserve"><value>পেমেন্ট অপেক্ষমাণ</value></data>
+  <data name="StatusPastDue" xml:space="preserve"><value>পেমেন্ট বকেয়া</value></data>
+  <data name="StatusExpired" xml:space="preserve"><value>মেয়াদ শেষ</value></data>
+  <data name="StatusCancelAtPeriodEnd" xml:space="preserve"><value>বর্তমান মেয়াদ শেষে বাতিল হবে</value></data>
+  <data name="StatusCancelled" xml:space="preserve"><value>বাতিল</value></data>
+  <data name="StatusSuspended" xml:space="preserve"><value>স্থগিত</value></data>
+  <data name="StatusUnavailable" xml:space="preserve"><value>তথ্য নেই</value></data>
+  <data name="AlertEmailUnverified" xml:space="preserve"><value>সব উপলভ্য ফিচার চালু করতে আপনার ইমেইল ঠিকানা যাচাই করুন।</value></data>
+  <data name="AlertOnboardingIncomplete" xml:space="preserve"><value>প্রতিষ্ঠানের সেটআপ অসম্পূর্ণ। কিছু ফিচার সীমিত থাকতে পারে।</value></data>
+  <data name="AlertSubscriptionMissing" xml:space="preserve"><value>কোনো সক্রিয় সাবস্ক্রিপশন পাওয়া যায়নি। EduOS ব্যবহার চালিয়ে যেতে একটি প্ল্যান বেছে নিন।</value></data>
+  <data name="AlertTrialExpired" xml:space="preserve"><value>আপনার ফ্রি ট্রায়ালের মেয়াদ শেষ। প্রতিষ্ঠানের তথ্যে প্রবেশাধিকার রাখতে প্ল্যান আপগ্রেড করুন।</value></data>
+  <data name="AlertTrialExpiring" xml:space="preserve"><value>আপনার ফ্রি ট্রায়াল {0} দিনের মধ্যে শেষ হবে। প্রবেশাধিকার রাখতে আপগ্রেড করুন।</value></data>
+  <data name="AlertTrialEnding" xml:space="preserve"><value>আপনার ফ্রি ট্রায়াল {0} দিনের মধ্যে শেষ হবে।</value></data>
+  <data name="AlertSubscriptionExpiring" xml:space="preserve"><value>আপনার সাবস্ক্রিপশন {0} দিনের মধ্যে শেষ হবে। নিরবচ্ছিন্ন সেবার জন্য নবায়ন করুন।</value></data>
+  <data name="AlertSubscriptionExpired" xml:space="preserve"><value>আপনার সাবস্ক্রিপশনের মেয়াদ শেষ। পূর্ণ প্রবেশাধিকার ফিরে পেতে নবায়ন করুন।</value></data>
+  <data name="AlertPaymentPending" xml:space="preserve"><value>আপনার পেমেন্ট যাচাই করা হচ্ছে। নিশ্চিত হওয়ার পর প্রবেশাধিকার চালু হবে।</value></data>
+  <data name="AlertStudentLimitReached" xml:space="preserve"><value>শিক্ষার্থী সীমা পূর্ণ হয়েছে ({0}/{1})। আরও শিক্ষার্থী যোগ করতে প্ল্যান আপগ্রেড করুন।</value></data>
+  <data name="AlertStudentLimitWarning" xml:space="preserve"><value>শিক্ষার্থী সীমার {0}% ব্যবহৃত হয়েছে ({1}/{2})।</value></data>
+  <data name="VerifyEmailAction" xml:space="preserve"><value>ইমেইল যাচাই করুন</value></data>
+  <data name="UpgradeNow" xml:space="preserve"><value>এখনই আপগ্রেড করুন</value></data>
+  <data name="ViewPlans" xml:space="preserve"><value>প্ল্যান দেখুন</value></data>
+  <data name="RenewNow" xml:space="preserve"><value>এখনই নবায়ন করুন</value></data>
+  <data name="RenewSubscription" xml:space="preserve"><value>সাবস্ক্রিপশন নবায়ন করুন</value></data>
+  <data name="ViewPaymentStatus" xml:space="preserve"><value>পেমেন্টের অবস্থা দেখুন</value></data>
+  <data name="UpgradePlan" xml:space="preserve"><value>প্ল্যান আপগ্রেড করুন</value></data>
+  <data name="AdminDashboard" xml:space="preserve"><value>অ্যাডমিন ড্যাশবোর্ড</value></data>
+  <data name="SuperAdminWorkspace" xml:space="preserve"><value>সুপার অ্যাডমিন কর্মক্ষেত্র</value></data>
+  <data name="PlatformControlCenter" xml:space="preserve"><value>প্ল্যাটফর্ম নিয়ন্ত্রণকেন্দ্র</value></data>
+  <data name="PlatformControlCenterHelp" xml:space="preserve"><value>প্ল্যাটফর্ম অ্যাডমিনদের জন্য যাচাইকৃত পরিচালন টুল ব্যবহার করুন।</value></data>
+  <data name="RestrictedAccess" xml:space="preserve"><value>সীমিত প্রবেশাধিকার</value></data>
+  <data name="AuthenticatedSession" xml:space="preserve"><value>যাচাইকৃত সেশন</value></data>
+  <data name="PlatformSafetyTitle" xml:space="preserve"><value>গোপনীয়তার সীমানা সক্রিয়</value></data>
+  <data name="PlatformSafetyHelp" xml:space="preserve"><value>নিরীক্ষণযোগ্য প্ল্যাটফর্ম কাজ থেকে নির্দিষ্ট প্রতিষ্ঠান নির্বাচন না করা পর্যন্ত প্রতিষ্ঠানের তথ্য আলাদা থাকে।</value></data>
+  <data name="AvailableNow" xml:space="preserve"><value>এখন উপলভ্য</value></data>
+  <data name="PlatformTools" xml:space="preserve"><value>প্ল্যাটফর্ম টুল</value></data>
+  <data name="PricingCatalog" xml:space="preserve"><value>মূল্য তালিকা</value></data>
+  <data name="PricingCatalogHelp" xml:space="preserve"><value>প্রতিষ্ঠানগুলোকে দেখানো একই দ্বিভাষিক প্ল্যান ও সীমা পর্যালোচনা করুন।</value></data>
+  <data name="ReviewPublicPricing" xml:space="preserve"><value>প্রকাশ্য মূল্য দেখুন</value></data>
+  <data name="BackgroundJobs" xml:space="preserve"><value>ব্যাকগ্রাউন্ড কাজ</value></data>
+  <data name="BackgroundJobsHelp" xml:space="preserve"><value>সুরক্ষিত পরিচালন ড্যাশবোর্ডে নির্ধারিত ও অপেক্ষমাণ কাজ পরীক্ষা করুন।</value></data>
+  <data name="OpenJobDashboard" xml:space="preserve"><value>কাজের ড্যাশবোর্ড খুলুন</value></data>
+  <data name="ServiceHealth" xml:space="preserve"><value>সেবার স্বাস্থ্য</value></data>
+  <data name="ServiceHealthHelp" xml:space="preserve"><value>অ্যাপ্লিকেশনের স্বাস্থ্য যাচাই endpoint সাড়া দিচ্ছে কি না দেখুন।</value></data>
+  <data name="CheckServiceHealth" xml:space="preserve"><value>সেবার স্বাস্থ্য যাচাই করুন</value></data>
+  <data name="OperatingRule" xml:space="preserve"><value>পরিচালন নীতি</value></data>
+  <data name="TenantPrivacyBoundary" xml:space="preserve"><value>প্রতিষ্ঠান তথ্যের গোপনীয়তা সীমানা</value></data>
+  <data name="TenantPrivacyBoundaryHelp" xml:space="preserve"><value>প্ল্যাটফর্মজুড়ে প্রবেশাধিকার অবশ্যই স্পষ্ট, অনুমোদিত, সর্বনিম্ন ও নিরীক্ষণযোগ্য হতে হবে। সরকারি পরিচয় নম্বর, অভিভাবকের তথ্য, স্বাস্থ্য নথি ও শিক্ষাজীবনের ইতিহাস কখনো লগ বা বিস্তৃত তালিকায় দেখানো যাবে না।</value></data>
 </root>
