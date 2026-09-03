@@ -9,7 +9,7 @@ namespace EduOS.Core.Entities.SaaS
     /// One Tenant can have multiple subscription records over time
     /// (history of plan changes, renewals, etc.) but only ONE Active at a time.
     /// </summary>
-    public class TenantSubscription : BaseEntity
+    public class TenantSubscription : BaseEntity, ITenantScopedEntity
     {
         public long TenantId { get; set; }
         public long SubscriptionPlanId { get; set; }

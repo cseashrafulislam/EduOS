@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EduOS.App.Controllers.Api
 {
-    [Authorize]
+    [Authorize(Roles = "TenantAdmin")]
     [ApiController]
     [Route("api/tenant-settings")]
     public class TenantSettingController : ControllerBase

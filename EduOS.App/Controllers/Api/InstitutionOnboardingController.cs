@@ -2,6 +2,7 @@ using EduOS.Core.DTOs.SaaS;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace EduOS.App.Controllers.Api
 {
@@ -24,6 +25,7 @@ namespace EduOS.App.Controllers.Api
         /// Register a new institution. Creates tenant + admin user + sends email verification.
         /// </summary>
         [AllowAnonymous]
+        [EnableRateLimiting("SignupPolicy")]
         [HttpPost("signup")]
         public async Task<IActionResult> Signup([FromBody] InstitutionSignupRequestDto dto)
         {

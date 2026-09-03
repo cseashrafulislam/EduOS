@@ -18,8 +18,9 @@
     <PackageReference Include="EPPlus" Version="8.6.3" />
     <PackageReference Include="FluentValidation" Version="12.1.1" />
     <PackageReference Include="Hangfire" Version="1.8.24" />
-    <PackageReference Include="MailKit" Version="4.17.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.3.11" />
+	<PackageReference Include="MailKit" Version="4.17.0" />
+	<PackageReference Include="Microsoft.AspNetCore.DataProtection" Version="10.0.10" />
+	<PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.3.11" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="QuestPDF" Version="2026.7.2" />
     <PackageReference Include="StackExchange.Redis" Version="3.1.13" />

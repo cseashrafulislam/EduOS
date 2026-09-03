@@ -7,7 +7,7 @@ namespace EduOS.Core.Entities.Tenants
     /// Generic key-value settings store for each tenant.
     /// Used for things that don't deserve their own column (SMS API key, custom flags, etc.).
     /// </summary>
-    public class TenantSetting : BaseEntity
+    public class TenantSetting : BaseEntity, ITenantScopedEntity
     {
         public long TenantId { get; set; }
 

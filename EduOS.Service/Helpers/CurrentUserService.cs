@@ -60,8 +60,12 @@ namespace EduOS.Service.Helpers
             var idStr = user.FindFirstValue(ClaimTypes.NameIdentifier);
             if (long.TryParse(idStr, out var id)) _userId = id;
 
-            // TenantId from custom claim (set in AuthController.Login)
-            var tidStr = user.FindFirstValue("TenantId");
+            // TenantId may be resolved by middleware or supplied by cookie/JWT.
+            var itemValue = _httpContextAccessor.HttpContext?.Items["TenantId"];
+            var tidStr = itemValue?.ToString()
+                         ?? user.FindFirstValue("TenantId")
+                         ?? user.FindFirstValue("tenantId")
+                         ?? user.FindFirstValue("tenant_id");
             if (long.TryParse(tidStr, out var tid)) _tenantId = tid;
 
             // Other claims

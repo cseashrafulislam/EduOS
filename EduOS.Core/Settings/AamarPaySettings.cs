@@ -5,7 +5,7 @@ namespace EduOS.Core.Settings
     /// </summary>
     public class AamarPaySettings
     {
-        public const string SectionName = "AamarPay";
+        public const string SectionName = "Payments:AamarPay";
 
         /// <summary>
         /// Sandbox or Live mode
