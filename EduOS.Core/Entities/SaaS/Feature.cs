@@ -32,5 +32,6 @@ namespace EduOS.Core.Entities.SaaS
         // ==================== Navigation ====================
 
         public virtual ICollection<PlanFeature> PlanFeatures { get; set; } = new List<PlanFeature>();
+        public virtual ICollection<ProductModuleFeature> ProductModules { get; set; } = new List<ProductModuleFeature>();
     }
 }

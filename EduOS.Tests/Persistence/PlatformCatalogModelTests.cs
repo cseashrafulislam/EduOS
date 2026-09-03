@@ -17,6 +17,8 @@ public class PlatformCatalogModelTests
         var institutionType = context.Model.FindEntityType(typeof(InstitutionTypeDefinition))!;
         var module = context.Model.FindEntityType(typeof(ProductModule))!;
         var mapping = context.Model.FindEntityType(typeof(InstitutionTypeModule))!;
+        var moduleFeature = context.Model.FindEntityType(typeof(ProductModuleFeature))!;
+        var tenantModule = context.Model.FindEntityType(typeof(TenantModule))!;
 
         institutionType.GetIndexes().Should().Contain(index =>
             index.IsUnique && index.Properties.Select(x => x.Name).SequenceEqual(new[] { "Code" }));
@@ -25,6 +27,16 @@ public class PlatformCatalogModelTests
         mapping.GetIndexes().Should().Contain(index =>
             index.IsUnique && index.Properties.Select(x => x.Name).SequenceEqual(
                 new[] { "InstitutionTypeDefinitionId", "ProductModuleId" }));
+        moduleFeature.GetIndexes().Should().Contain(index =>
+            index.IsUnique && index.Properties.Select(x => x.Name).SequenceEqual(
+                new[] { "ProductModuleId", "FeatureId" }));
+        tenantModule.GetIndexes().Should().Contain(index =>
+            index.IsUnique && index.Properties.Select(x => x.Name).SequenceEqual(
+                new[] { "TenantId", "ProductModuleId" }));
+        tenantModule.FindProperty(nameof(TenantModule.RowVersion))!
+            .IsConcurrencyToken.Should().BeTrue();
+        tenantModule.FindProperty(nameof(TenantModule.ConfigurationJson))!
+            .GetMaxLength().Should().BeNull();
     }
 
     [Fact]

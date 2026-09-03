@@ -24,6 +24,7 @@ namespace EduOS.Service.Services.Tenants
         private readonly IGenericRepository<AcademicYear> _yearRepo;
         private readonly IGenericRepository<AcademicTerm> _termRepo;
         private readonly IGenericRepository<InstitutionTypeDefinition> _institutionTypeRepo;
+        private readonly ITenantModuleService _tenantModuleService;
         private readonly IUnitOfWork _unitOfWork;
         private readonly ICurrentUserService _currentUser;
         private readonly ILogger<InstitutionOnboardingService> _logger;
@@ -35,6 +36,7 @@ namespace EduOS.Service.Services.Tenants
             IGenericRepository<AcademicYear> yearRepo,
             IGenericRepository<AcademicTerm> termRepo,
             IGenericRepository<InstitutionTypeDefinition> institutionTypeRepo,
+            ITenantModuleService tenantModuleService,
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUser,
             ILogger<InstitutionOnboardingService> logger)
@@ -45,6 +47,7 @@ namespace EduOS.Service.Services.Tenants
             _yearRepo = yearRepo;
             _termRepo = termRepo;
             _institutionTypeRepo = institutionTypeRepo;
+            _tenantModuleService = tenantModuleService;
             _unitOfWork = unitOfWork;
             _currentUser = currentUser;
             _logger = logger;
@@ -148,6 +151,18 @@ namespace EduOS.Service.Services.Tenants
                     tenant.OwnerUserId = user.Id;
                     _tenantRepo.Update(tenant);
                     await _unitOfWork.SaveChangesAsync();
+
+                    if (institutionType != null)
+                    {
+                        var presetResult = await _tenantModuleService.ApplyInstitutionPresetAsync(
+                            tenant.Id,
+                            institutionType.Id);
+                        if (!presetResult.Succeeded)
+                        {
+                            await _unitOfWork.RollbackTransactionAsync();
+                            return Fail<InstitutionSignupResponseDto>(presetResult.Message!);
+                        }
+                    }
 
                     await _unitOfWork.CommitTransactionAsync();
 
@@ -297,7 +312,11 @@ namespace EduOS.Service.Services.Tenants
                 tenant.UpdatedAt = DateTime.UtcNow;
 
                 _tenantRepo.Update(tenant);
-                await _unitOfWork.SaveChangesAsync();
+                var presetResult = await _tenantModuleService.ApplyInstitutionPresetAsync(
+                    tenant.Id,
+                    institutionType.Id);
+                if (!presetResult.Succeeded)
+                    return Fail<bool>(presetResult.Message!);
 
                 return Ok(true, "Profile saved successfully");
             }

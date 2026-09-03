@@ -174,6 +174,8 @@ namespace EduOS.Persistence.Context
         public DbSet<InstitutionTypeDefinition> InstitutionTypeDefinitions => Set<InstitutionTypeDefinition>();
         public DbSet<ProductModule> ProductModules => Set<ProductModule>();
         public DbSet<InstitutionTypeModule> InstitutionTypeModules => Set<InstitutionTypeModule>();
+        public DbSet<ProductModuleFeature> ProductModuleFeatures => Set<ProductModuleFeature>();
+        public DbSet<TenantModule> TenantModules => Set<TenantModule>();
         public DbSet<TrialAccount> TrialAccounts => Set<TrialAccount>();
         public DbSet<UsageStatistics> UsageStatistics => Set<UsageStatistics>();
 
@@ -383,7 +385,12 @@ namespace EduOS.Persistence.Context
                 {
                     if (prop.ClrType == typeof(DateTime) || prop.ClrType == typeof(DateTime?))
                         prop.SetColumnType("datetime2");
-                    else if (prop.ClrType == typeof(string) && prop.GetMaxLength() == null)
+                    else if (prop.ClrType == typeof(string)
+                             && prop.GetMaxLength() == null
+                             && !string.Equals(
+                                 prop.GetColumnType(),
+                                 "nvarchar(max)",
+                                 StringComparison.OrdinalIgnoreCase))
                         prop.SetMaxLength(500);
                 }
         }
@@ -538,7 +545,9 @@ namespace EduOS.Persistence.Context
 
                 var log = new AuditLog
                 {
-                    TenantId = TenantId ?? 0,
+                    TenantId = entry.Entity is ITenantScopedEntity tenantEntity
+                        ? tenantEntity.TenantId
+                        : TenantId ?? 0,
                     UserId = UserId,
                     UserName = UserName,
                     Action = action,

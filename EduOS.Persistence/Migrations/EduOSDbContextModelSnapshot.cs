@@ -5973,6 +5973,52 @@ namespace EduOS.Persistence.Migrations
                     b.ToTable("ProductModules", (string)null);
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.SaaS.ProductModuleFeature", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<long>("FeatureId")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsPrimary")
+                        .HasColumnType("bit");
+
+                    b.Property<long>("ProductModuleId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FeatureId");
+
+                    b.HasIndex("ProductModuleId", "FeatureId")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.ToTable("ProductModuleFeatures", (string)null);
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.SaaS.SubscriptionInvoice", b =>
                 {
                     b.Property<long>("Id")
@@ -6318,6 +6364,83 @@ namespace EduOS.Persistence.Migrations
                     b.HasIndex("IsActive", "IsPubliclyVisible");
 
                     b.ToTable("SubscriptionPlans", (string)null);
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.SaaS.TenantModule", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("ActivationSource")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ConfigurationJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("ConfigurationVersion")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DisabledAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DisabledReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("EffectiveFromUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("EffectiveUntilUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("EnabledAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<long>("ProductModuleId")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsRequired()
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductModuleId");
+
+                    b.HasIndex("TenantId", "IsEnabled", "EffectiveFromUtc", "EffectiveUntilUtc");
+
+                    b.HasIndex("TenantId", "ProductModuleId")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.ToTable("TenantModules", (string)null);
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.SaaS.TenantSubscription", b =>
@@ -10964,6 +11087,25 @@ namespace EduOS.Persistence.Migrations
                     b.Navigation("SubscriptionPlan");
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.SaaS.ProductModuleFeature", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.SaaS.Feature", "Feature")
+                        .WithMany("ProductModules")
+                        .HasForeignKey("FeatureId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.SaaS.ProductModule", "ProductModule")
+                        .WithMany("Features")
+                        .HasForeignKey("ProductModuleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Feature");
+
+                    b.Navigation("ProductModule");
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.SaaS.SubscriptionInvoice", b =>
                 {
                     b.HasOne("EduOS.Core.Entities.Tenants.Tenant", "Tenant")
@@ -10998,6 +11140,25 @@ namespace EduOS.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Invoice");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.SaaS.TenantModule", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.SaaS.ProductModule", "ProductModule")
+                        .WithMany("TenantModules")
+                        .HasForeignKey("ProductModuleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Tenants.Tenant", "Tenant")
+                        .WithMany("Modules")
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ProductModule");
 
                     b.Navigation("Tenant");
                 });
@@ -11727,6 +11888,8 @@ namespace EduOS.Persistence.Migrations
             modelBuilder.Entity("EduOS.Core.Entities.SaaS.Feature", b =>
                 {
                     b.Navigation("PlanFeatures");
+
+                    b.Navigation("ProductModules");
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.SaaS.InstitutionTypeDefinition", b =>
@@ -11738,7 +11901,11 @@ namespace EduOS.Persistence.Migrations
 
             modelBuilder.Entity("EduOS.Core.Entities.SaaS.ProductModule", b =>
                 {
+                    b.Navigation("Features");
+
                     b.Navigation("InstitutionTypes");
+
+                    b.Navigation("TenantModules");
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.SaaS.SubscriptionInvoice", b =>
@@ -11775,6 +11942,8 @@ namespace EduOS.Persistence.Migrations
 
             modelBuilder.Entity("EduOS.Core.Entities.Tenants.Tenant", b =>
                 {
+                    b.Navigation("Modules");
+
                     b.Navigation("Settings");
 
                     b.Navigation("Subscriptions");

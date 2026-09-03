@@ -14,12 +14,14 @@ public class PlatformCatalogSeederTests
     {
         await using var context = CreateContext();
 
+        await SubscriptionSeeder.SeedAsync(context);
         await PlatformCatalogSeeder.SeedAsync(context);
         await PlatformCatalogSeeder.SeedAsync(context);
 
         (await context.InstitutionTypeDefinitions.CountAsync()).Should().Be(13);
         (await context.ProductModules.CountAsync()).Should().Be(20);
         (await context.InstitutionTypeModules.CountAsync()).Should().Be(212);
+        (await context.ProductModuleFeatures.CountAsync()).Should().Be(31);
 
         var university = await context.InstitutionTypeDefinitions
             .Include(x => x.Modules)

@@ -91,6 +91,7 @@ namespace EduOS.Core.Entities.Tenants
 
         public virtual ICollection<TenantSetting> Settings { get; set; } = new List<TenantSetting>();
         public virtual ICollection<TenantSubscription> Subscriptions { get; set; } = new List<TenantSubscription>();
+        public virtual ICollection<TenantModule> Modules { get; set; } = new List<TenantModule>();
         public virtual InstitutionTypeDefinition? InstitutionTypeDefinition { get; set; }
     }
 }
