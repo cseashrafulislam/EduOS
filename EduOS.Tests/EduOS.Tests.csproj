@@ -58,6 +58,9 @@
     <None Include="..\EduOS.App\Views\Account\AcademicSetup.cshtml"
           Link="TestAssets\AcademicSetup.cshtml"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Views\Account\ModuleSetup.cshtml"
+          Link="TestAssets\ModuleSetup.cshtml"
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Views\Account\PlanSelection.cshtml"
           Link="TestAssets\PlanSelection.cshtml"
           CopyToOutputDirectory="PreserveNewest" />
@@ -85,6 +88,9 @@
     <None Include="..\EduOS.App\Controllers\Api\OnboardingController.cs"
           Link="TestAssets\OnboardingController.cs"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Controllers\Api\TenantModuleController.cs"
+          Link="TestAssets\TenantModuleController.cs"
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Controllers\Api\SubscriptionController.cs"
           Link="TestAssets\SubscriptionController.cs"
           CopyToOutputDirectory="PreserveNewest" />
@@ -108,6 +114,9 @@
           CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\wwwroot\js\account\academic-setup.js"
           Link="TestAssets\academic-setup.js"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\wwwroot\js\account\module-setup.js"
+          Link="TestAssets\module-setup.js"
           CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\wwwroot\js\account\plan-selection.js"
           Link="TestAssets\plan-selection.js"

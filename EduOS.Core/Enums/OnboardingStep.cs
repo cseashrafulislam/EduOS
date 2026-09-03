@@ -37,7 +37,14 @@ namespace EduOS.Core.Enums
         AcademicSetup = 5,
 
         /// <summary>
-        /// Academic done, configure branding (logo, colors, subdomain)
+        /// Choose the plan-entitled modules used by this institution. The value
+        /// is intentionally appended so existing persisted step values remain
+        /// backward compatible.
+        /// </summary>
+        ModuleSetup = 9,
+
+        /// <summary>
+        /// Module selection done, configure branding (logo, colors, subdomain)
         /// </summary>
         BrandingSetup = 6,
 

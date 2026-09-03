@@ -2398,6 +2398,146 @@ select,
     min-height: 2.75rem;
 }
 
+.module-guidance {
+    display: flex;
+    gap: .75rem;
+    align-items: flex-start;
+    padding: .9rem 1rem;
+    border: 1px solid #bbf7d0;
+    border-radius: .85rem;
+    color: #166534;
+    background: #f0fdf4;
+}
+
+.module-guidance p {
+    margin: 0;
+}
+
+.module-guidance-icon {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 1.6rem;
+    height: 1.6rem;
+    border-radius: 999px;
+    color: #fff;
+    background: #15803d;
+    font-weight: 800;
+}
+
+.module-summary {
+    margin-top: 1rem;
+    color: var(--edu-text);
+    font-size: .9rem;
+    font-weight: 750;
+}
+
+.module-group-list {
+    display: grid;
+    gap: 1rem;
+}
+
+.module-group {
+    padding: 1rem;
+}
+
+.module-group-title {
+    margin: 0 0 .8rem;
+    font-size: 1rem;
+    font-weight: 800;
+}
+
+.module-card-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .75rem;
+}
+
+.module-card {
+    min-width: 0;
+    padding: 1rem;
+    border: 1px solid var(--edu-border);
+    border-radius: .9rem;
+    background: #fff;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.module-card.selected {
+    border-color: #93c5fd;
+    box-shadow: 0 0 0 2px #dbeafe;
+}
+
+.module-card.not-entitled {
+    background: #f8fafc;
+}
+
+.module-card-heading {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.module-card-heading h4 {
+    margin: 0;
+    font-size: .96rem;
+    font-weight: 800;
+}
+
+.module-toggle {
+    flex: 0 0 auto;
+    width: 2.6rem;
+    height: 1.35rem;
+    cursor: pointer;
+}
+
+.module-toggle:disabled {
+    cursor: not-allowed;
+}
+
+.module-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+    margin-top: .7rem;
+}
+
+.module-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.55rem;
+    padding: .2rem .55rem;
+    border-radius: 999px;
+    color: #334155;
+    background: #e2e8f0;
+    font-size: .68rem;
+    font-weight: 800;
+}
+
+.module-badge.core,
+.module-badge.required {
+    color: #1e3a8a;
+    background: #dbeafe;
+}
+
+.module-badge.included {
+    color: #166534;
+    background: #dcfce7;
+}
+
+.module-badge.excluded {
+    color: #9a3412;
+    background: #ffedd5;
+}
+
+.module-status {
+    margin: .65rem 0 0;
+    color: var(--edu-muted);
+    font-size: .78rem;
+    line-height: 1.45;
+}
+
 @media (max-width: 1199.98px) {
     .dashboard-stats-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2433,7 +2573,8 @@ select,
     .dashboard-stats-grid,
     .dashboard-details,
     .setup-checklist,
-    .platform-tools-grid {
+    .platform-tools-grid,
+    .module-card-grid {
         grid-template-columns: 1fr;
     }
 

@@ -97,6 +97,10 @@ namespace EduOS.App.Controllers
 
         [Authorize(Roles = "TenantAdmin")]
         [HttpGet]
+        public IActionResult ModuleSetup() => View();
+
+        [Authorize(Roles = "TenantAdmin")]
+        [HttpGet]
         public IActionResult BrandingSetup() => View();
 
         [Authorize(Roles = "TenantAdmin")]

@@ -9,6 +9,7 @@ public interface ITenantModuleService
     Task<ApiResponse<TenantModuleDto>> UpdateCurrentTenantModuleAsync(
         string moduleCode,
         UpdateTenantModuleRequestDto request);
+    Task<ApiResponse<bool>> ValidateCurrentTenantSelectionAsync();
     Task<bool> IsCurrentTenantModuleAvailableAsync(string moduleCode);
     Task<Result> ApplyInstitutionPresetAsync(long tenantId, long institutionTypeDefinitionId);
 }

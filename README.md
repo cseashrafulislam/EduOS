@@ -139,16 +139,16 @@ The current OnboardingStep lifecycle is:
 4. **Payment** — online payment, manual payment, or free trial.
 5. **CampusSetup** — head office and additional campus setup.
 6. **AcademicSetup** — academic year and optional terms.
-7. **BrandingSetup** — logo, favicon, colours, subdomain.
-8. **GeneralSettings** — currency, timezone, language, date format.
-9. **GatewaySetup** — optional tenant email/SMS gateway.
-10. **Completed** — dashboard access unlocked.
+7. **ModuleSetup** — preset-aware, plan-entitled module selection.
+8. **BrandingSetup** — logo, favicon, colours, subdomain.
+9. **GeneralSettings** — currency, timezone, language, date format.
+10. **GatewaySetup** — optional tenant email/SMS gateway.
+11. **Completed** — dashboard access unlocked.
 
-The profile, plan/payment, campus/branch, and academic year/term screens are implemented as mobile-first bilingual forms. Institution types come from the platform catalogue; campus codes are tenant-unique; the first campus becomes head office; deleting a head office promotes a remaining campus; active plan campus capacity is enforced; and term dates cannot escape their academic year. Plan/payment progress is advanced from verified server state: trials move directly to campus setup, paid plans wait for gateway verification or manual review, and a submitted receipt cannot unlock setup. Onboarding pages and APIs are restricted to TenantAdmin, while same-origin browser writes carry anti-forgery tokens.
+The profile, plan/payment, campus/branch, academic year/term, and module-selection screens are implemented as mobile-first bilingual forms. Institution types come from the platform catalogue; campus codes are tenant-unique; the first campus becomes head office; deleting a head office promotes a remaining campus; active plan campus capacity is enforced; and term dates cannot escape their academic year. Plan/payment progress is advanced from verified server state: trials move directly to campus setup, paid plans wait for gateway verification or manual review, and a submitted receipt cannot unlock setup. Module selection combines institution presets with active-plan entitlements, protects required modules, uses optimistic concurrency, and cannot be used to unlock paid features. Onboarding completion accepts only the current step, validates campus, academic year, required modules, subscription, and subdomain on the server, and clears the guard cache after state changes. Onboarding pages and APIs are restricted to TenantAdmin, while same-origin browser writes carry anti-forgery tokens.
 
 ### Onboarding requirements still to build
 
-- Complete module selection UI; server-side plan-entitlement validation is implemented.
 - Resume/recovery for the remaining branding, general-settings, and gateway steps; plan/payment recovery is implemented.
 - Terms/privacy-policy version acceptance.
 - Domain verification and custom-domain workflow.

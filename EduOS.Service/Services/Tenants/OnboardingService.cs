@@ -1,10 +1,13 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Tenants;
+using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Tenants;
 using EduOS.Core.Enums;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
 namespace EduOS.Service.Services.Tenants
@@ -12,22 +15,34 @@ namespace EduOS.Service.Services.Tenants
     public class OnboardingService : IOnboardingService
     {
         private readonly IGenericRepository<Tenant> _tenantRepo;
+        private readonly IGenericRepository<Campus> _campusRepo;
+        private readonly IGenericRepository<AcademicYear> _academicYearRepo;
         private readonly ITenantSubscriptionRepository _subscriptionRepo;
+        private readonly ITenantModuleService _tenantModuleService;
         private readonly IUnitOfWork _unitOfWork;
         private readonly ICurrentUserService _currentUser;
+        private readonly IMemoryCache _cache;
         private readonly ILogger<OnboardingService> _logger;
 
         public OnboardingService(
             IGenericRepository<Tenant> tenantRepo,
+            IGenericRepository<Campus> campusRepo,
+            IGenericRepository<AcademicYear> academicYearRepo,
             ITenantSubscriptionRepository subscriptionRepo,
+            ITenantModuleService tenantModuleService,
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUser,
+            IMemoryCache cache,
             ILogger<OnboardingService> logger)
         {
             _tenantRepo = tenantRepo;
+            _campusRepo = campusRepo;
+            _academicYearRepo = academicYearRepo;
             _subscriptionRepo = subscriptionRepo;
+            _tenantModuleService = tenantModuleService;
             _unitOfWork = unitOfWork;
             _currentUser = currentUser;
+            _cache = cache;
             _logger = logger;
         }
 
@@ -44,7 +59,7 @@ namespace EduOS.Service.Services.Tenants
 
                 var steps = BuildStepStatusList(tenant);
                 var completed = steps.Count(s => s.IsCompleted);
-                var total = steps.Count(s => !s.IsLocked); // exclude locked steps from total
+                var total = steps.Count;
 
                 var current = steps.FirstOrDefault(s => s.IsCurrent);
 
@@ -86,16 +101,34 @@ namespace EduOS.Service.Services.Tenants
                 if (tenant.IsOnboardingComplete)
                     return ApiResponse<bool>.ErrorResponse("Onboarding already completed", 400);
 
-                // Allow only forward movement (or staying on current step)
-                if ((int)step < (int)tenant.OnboardingStep)
+                var currentOrder = GetStepOrder(tenant.OnboardingStep);
+                var targetOrder = GetStepOrder(step);
+                if (currentOrder == 0 || targetOrder == 0)
+                    return ApiResponse<bool>.ErrorResponse("Invalid onboarding step", 400);
+
+                // This method may resume the current step or move exactly one
+                // step forward. It cannot be used to bypass prerequisites.
+                if (targetOrder < currentOrder)
                 {
                     return ApiResponse<bool>.ErrorResponse(
                         "Cannot move backwards in onboarding", 400);
                 }
 
+                if (targetOrder > currentOrder + 1)
+                    return ApiResponse<bool>.ErrorResponse("Cannot skip onboarding steps", 409);
+
+                if (targetOrder == currentOrder + 1)
+                {
+                    var validation = await ValidateStepCompletionAsync(
+                        tenant,
+                        tenant.OnboardingStep);
+                    if (!validation.Success) return validation;
+                }
+
                 tenant.OnboardingStep = step;
                 _tenantRepo.Update(tenant);
                 await _unitOfWork.SaveChangesAsync();
+                ClearOnboardingCache(tenant.Id);
 
                 return ApiResponse<bool>.SuccessResponse(true);
             }
@@ -120,6 +153,19 @@ namespace EduOS.Service.Services.Tenants
                 if (tenant.IsOnboardingComplete)
                     return ApiResponse<bool>.ErrorResponse("Onboarding already completed", 400);
 
+                if (GetStepOrder(dto.Step) == 0)
+                    return ApiResponse<bool>.ErrorResponse("Invalid onboarding step", 400);
+
+                if (dto.Step != tenant.OnboardingStep)
+                {
+                    return ApiResponse<bool>.ErrorResponse(
+                        "This onboarding step is not currently active. Reload and continue from the current step.",
+                        409);
+                }
+
+                if (dto.Skipped && !IsSkippable(dto.Step))
+                    return ApiResponse<bool>.ErrorResponse("This onboarding step cannot be skipped", 409);
+
                 // Validate step prerequisites
                 var validation = await ValidateStepCompletionAsync(tenant, dto.Step);
                 if (!validation.Success)
@@ -139,6 +185,7 @@ namespace EduOS.Service.Services.Tenants
 
                 _tenantRepo.Update(tenant);
                 await _unitOfWork.SaveChangesAsync();
+                ClearOnboardingCache(tenant.Id);
 
                 _logger.LogInformation("Tenant {Id} completed step {Step}, now on {Next}",
                     tenant.Id, dto.Step, nextStep);
@@ -169,6 +216,12 @@ namespace EduOS.Service.Services.Tenants
                 if (tenant.IsOnboardingComplete)
                     return ApiResponse<bool>.SuccessResponse(true, "Already completed");
 
+                if (tenant.OnboardingStep != OnboardingStep.GatewaySetup)
+                {
+                    return ApiResponse<bool>.ErrorResponse(
+                        "Complete the current onboarding step before finishing setup", 409);
+                }
+
                 // Validate all required steps
                 var validation = await ValidateAllRequiredStepsAsync(tenant);
                 if (!validation.Success)
@@ -183,6 +236,7 @@ namespace EduOS.Service.Services.Tenants
 
                 _tenantRepo.Update(tenant);
                 await _unitOfWork.SaveChangesAsync();
+                ClearOnboardingCache(tenant.Id);
 
                 _logger.LogInformation("Onboarding completed for tenant {Id}", tenant.Id);
                 return ApiResponse<bool>.SuccessResponse(true, "Onboarding completed successfully");
@@ -233,6 +287,37 @@ namespace EduOS.Service.Services.Tenants
                     }
                     break;
 
+                case OnboardingStep.CampusSetup:
+                    if (!await _campusRepo.GetQueryable()
+                            .AsNoTracking()
+                            .AnyAsync(x => x.TenantId == tenant.Id))
+                    {
+                        return ApiResponse<bool>.ErrorResponse(
+                            "Please add at least one campus first", 409);
+                    }
+                    break;
+
+                case OnboardingStep.AcademicSetup:
+                    if (!await _academicYearRepo.GetQueryable()
+                            .AsNoTracking()
+                            .AnyAsync(x => x.TenantId == tenant.Id))
+                    {
+                        return ApiResponse<bool>.ErrorResponse(
+                            "Please add at least one academic year first", 409);
+                    }
+                    break;
+
+                case OnboardingStep.ModuleSetup:
+                    var moduleValidation = await _tenantModuleService
+                        .ValidateCurrentTenantSelectionAsync();
+                    if (!moduleValidation.Success)
+                    {
+                        return ApiResponse<bool>.ErrorResponse(
+                            moduleValidation.Message ?? "Please review the required modules",
+                            moduleValidation.StatusCode);
+                    }
+                    break;
+
                 case OnboardingStep.BrandingSetup:
                     // Subdomain is required for branding step
                     if (string.IsNullOrWhiteSpace(tenant.Subdomain))
@@ -264,6 +349,27 @@ namespace EduOS.Service.Services.Tenants
                 sub.Status != SubscriptionStatus.Active)
                 return ApiResponse<bool>.ErrorResponse("Subscription not active", 400);
 
+            if (!await _campusRepo.GetQueryable()
+                    .AsNoTracking()
+                    .AnyAsync(x => x.TenantId == tenant.Id))
+                return ApiResponse<bool>.ErrorResponse("Campus setup incomplete", 409);
+
+            if (!await _academicYearRepo.GetQueryable()
+                    .AsNoTracking()
+                    .AnyAsync(x => x.TenantId == tenant.Id))
+                return ApiResponse<bool>.ErrorResponse("Academic setup incomplete", 409);
+
+            var moduleValidation = await _tenantModuleService.ValidateCurrentTenantSelectionAsync();
+            if (!moduleValidation.Success)
+            {
+                return ApiResponse<bool>.ErrorResponse(
+                    moduleValidation.Message ?? "Module setup incomplete",
+                    moduleValidation.StatusCode);
+            }
+
+            if (string.IsNullOrWhiteSpace(tenant.Subdomain))
+                return ApiResponse<bool>.ErrorResponse("Branding setup incomplete", 409);
+
             return ApiResponse<bool>.SuccessResponse(true);
         }
 
@@ -272,8 +378,6 @@ namespace EduOS.Service.Services.Tenants
         // ============================================================
         private List<OnboardingStepStatusDto> BuildStepStatusList(Tenant tenant)
         {
-            var currentStep = (int)tenant.OnboardingStep;
-
             var defs = new List<OnboardingStepStatusDto>
             {
                 new()
@@ -312,7 +416,6 @@ namespace EduOS.Service.Services.Tenants
                     IconClass = "bi-tag",
                     Url = "/Account/PlanSelection",
                     IsSkippable = false,
-                    IsCompleted = currentStep > (int)OnboardingStep.PlanSelection,
                 },
                 new()
                 {
@@ -324,7 +427,6 @@ namespace EduOS.Service.Services.Tenants
                     IconClass = "bi-credit-card",
                     Url = "/Account/Payment",
                     IsSkippable = false,
-                    IsCompleted = currentStep > (int)OnboardingStep.Payment,
                 },
                 new()
                 {
@@ -336,7 +438,6 @@ namespace EduOS.Service.Services.Tenants
                     IconClass = "bi-geo-alt",
                     Url = "/Account/CampusSetup",
                     IsSkippable = false,
-                    IsCompleted = currentStep > (int)OnboardingStep.CampusSetup,
                 },
                 new()
                 {
@@ -348,53 +449,63 @@ namespace EduOS.Service.Services.Tenants
                     IconClass = "bi-calendar3",
                     Url = "/Account/AcademicSetup",
                     IsSkippable = false,
-                    IsCompleted = currentStep > (int)OnboardingStep.AcademicSetup,
+                },
+                new()
+                {
+                    Step = OnboardingStep.ModuleSetup,
+                    Code = nameof(OnboardingStep.ModuleSetup),
+                    Order = 7,
+                    Name = "Module selection",
+                    Description = "Choose the tools used by your institution",
+                    IconClass = "bi-grid",
+                    Url = "/Account/ModuleSetup",
+                    IsSkippable = false,
                 },
                 new()
                 {
                     Step = OnboardingStep.BrandingSetup,
                     Code = nameof(OnboardingStep.BrandingSetup),
-                    Order = 7,
+                    Order = 8,
                     Name = "Branding",
                     Description = "Logo, colors, and subdomain",
                     IconClass = "bi-palette",
                     Url = "/Account/BrandingSetup",
-                    IsSkippable = true,
-                    IsCompleted = currentStep > (int)OnboardingStep.BrandingSetup ||
-                                  !string.IsNullOrEmpty(tenant.Subdomain),
+                    IsSkippable = false,
+                    IsCompleted = !string.IsNullOrEmpty(tenant.Subdomain),
                 },
                 new()
                 {
                     Step = OnboardingStep.GeneralSettings,
                     Code = nameof(OnboardingStep.GeneralSettings),
-                    Order = 8,
+                    Order = 9,
                     Name = "General settings",
                     Description = "Currency, timezone, language",
                     IconClass = "bi-gear",
                     Url = "/Account/GeneralSettings",
                     IsSkippable = true,
-                    IsCompleted = currentStep > (int)OnboardingStep.GeneralSettings,
                 },
                 new()
                 {
                     Step = OnboardingStep.GatewaySetup,
                     Code = nameof(OnboardingStep.GatewaySetup),
-                    Order = 9,
+                    Order = 10,
                     Name = "SMS / Email setup",
                     Description = "Configure messaging gateways (optional)",
                     IconClass = "bi-chat-dots",
                     Url = "/Account/GatewaySetup",
                     IsSkippable = true,
-                    IsCompleted = currentStep > (int)OnboardingStep.GatewaySetup,
                 },
             };
 
-            // Mark current step
+            var currentOrder = tenant.IsOnboardingComplete
+                ? int.MaxValue
+                : defs.FirstOrDefault(x => x.Step == tenant.OnboardingStep)?.Order ?? 1;
+
             foreach (var s in defs)
             {
-                s.IsCurrent = (int)s.Step == currentStep;
-                // Lock steps after the current one (user can't skip ahead)
-                s.IsLocked = (int)s.Step > currentStep && !s.IsCompleted;
+                s.IsCurrent = !tenant.IsOnboardingComplete && s.Step == tenant.OnboardingStep;
+                s.IsCompleted = tenant.IsOnboardingComplete || s.IsCompleted || s.Order < currentOrder;
+                s.IsLocked = !tenant.IsOnboardingComplete && s.Order > currentOrder;
             }
 
             return defs;
@@ -409,12 +520,38 @@ namespace EduOS.Service.Services.Tenants
                 OnboardingStep.PlanSelection => OnboardingStep.Payment,
                 OnboardingStep.Payment => OnboardingStep.CampusSetup,
                 OnboardingStep.CampusSetup => OnboardingStep.AcademicSetup,
-                OnboardingStep.AcademicSetup => OnboardingStep.BrandingSetup,
+                OnboardingStep.AcademicSetup => OnboardingStep.ModuleSetup,
+                OnboardingStep.ModuleSetup => OnboardingStep.BrandingSetup,
                 OnboardingStep.BrandingSetup => OnboardingStep.GeneralSettings,
                 OnboardingStep.GeneralSettings => OnboardingStep.GatewaySetup,
                 OnboardingStep.GatewaySetup => OnboardingStep.Completed,
                 _ => OnboardingStep.Completed
             };
         }
+
+        private static int GetStepOrder(OnboardingStep step)
+        {
+            return step switch
+            {
+                OnboardingStep.EmailVerification => 1,
+                OnboardingStep.InstitutionProfile => 2,
+                OnboardingStep.PlanSelection => 3,
+                OnboardingStep.Payment => 4,
+                OnboardingStep.CampusSetup => 5,
+                OnboardingStep.AcademicSetup => 6,
+                OnboardingStep.ModuleSetup => 7,
+                OnboardingStep.BrandingSetup => 8,
+                OnboardingStep.GeneralSettings => 9,
+                OnboardingStep.GatewaySetup => 10,
+                OnboardingStep.Completed => 11,
+                _ => 0
+            };
+        }
+
+        private static bool IsSkippable(OnboardingStep step) =>
+            step is OnboardingStep.GeneralSettings or OnboardingStep.GatewaySetup;
+
+        private void ClearOnboardingCache(long tenantId) =>
+            _cache.Remove($"onboarding:tenant:{tenantId}");
     }
 }

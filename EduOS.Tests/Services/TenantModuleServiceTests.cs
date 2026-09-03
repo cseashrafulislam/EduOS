@@ -88,6 +88,39 @@ public class TenantModuleServiceTests
         result.StatusCode.Should().Be(403);
     }
 
+    [Fact]
+    public async Task Existing_module_selection_requires_a_concurrency_token()
+    {
+        var setup = await CreateSetupAsync("PRO", SubscriptionStatus.Active);
+        await using var context = setup.Context;
+        var service = CreateService(context, setup.CurrentUser);
+        await service.ApplyInstitutionPresetAsync(
+            setup.Tenant.Id,
+            setup.Tenant.InstitutionTypeDefinitionId!.Value);
+
+        var result = await service.UpdateCurrentTenantModuleAsync(
+            "library",
+            new() { IsEnabled = false });
+
+        result.Success.Should().BeFalse();
+        result.StatusCode.Should().Be(428);
+    }
+
+    [Fact]
+    public async Task Seeded_required_modules_form_a_valid_onboarding_selection()
+    {
+        var setup = await CreateSetupAsync("BASIC", SubscriptionStatus.Active);
+        await using var context = setup.Context;
+        var service = CreateService(context, setup.CurrentUser);
+        await service.ApplyInstitutionPresetAsync(
+            setup.Tenant.Id,
+            setup.Tenant.InstitutionTypeDefinitionId!.Value);
+
+        var result = await service.ValidateCurrentTenantSelectionAsync();
+
+        result.Success.Should().BeTrue();
+    }
+
     private static TenantModuleService CreateService(
         EduOSDbContext context,
         ICurrentUserService currentUser)

@@ -208,6 +208,29 @@ public class LocalizationAndPwaContractTests
     }
 
     [Fact]
+    public void Module_setup_is_bilingual_safe_plan_aware_and_tenant_admin_controlled()
+    {
+        var view = File.ReadAllText(Asset("ModuleSetup.cshtml"));
+        var script = File.ReadAllText(Asset("module-setup.js"));
+        var controller = File.ReadAllText(Asset("TenantModuleController.cs"));
+        var academicScript = File.ReadAllText(Asset("academic-setup.js"));
+
+        view.Should().Contain("Layout = \"_OnboardingLayout\"");
+        view.Should().Contain("@T[");
+        view.Should().NotContain("<style>");
+        view.Should().NotContain("onclick=");
+        script.Should().Contain("/api/tenant-modules");
+        script.Should().Contain("rowVersion");
+        script.Should().Contain("replaceChildren");
+        script.Should().Contain("credentials: 'same-origin'");
+        script.Should().NotContain(".innerHTML");
+        script.Should().NotContain("onclick=");
+        academicScript.Should().Contain("/Account/ModuleSetup");
+        controller.Should().Contain("[AutoValidateAntiforgeryToken]");
+        controller.Should().Contain("[Authorize(Roles = \"TenantAdmin,SuperAdmin\")]");
+    }
+
+    [Fact]
     public void Subscription_and_payment_writes_require_tenant_admin_and_callback_exemptions_are_explicit()
     {
         var subscriptionController = File.ReadAllText(Asset("SubscriptionController.cs"));

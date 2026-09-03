@@ -136,6 +136,12 @@ public class TenantModuleService : ITenantModuleService
             }
             else
             {
+                if (string.IsNullOrWhiteSpace(request.RowVersion))
+                {
+                    return ApiResponse<TenantModuleDto>.ErrorResponse(
+                        "Reload the module selection before changing it.", 428);
+                }
+
                 if (!MatchesExpectedRowVersion(tenantModule, request.RowVersion))
                 {
                     return ApiResponse<TenantModuleDto>
@@ -179,10 +185,50 @@ public class TenantModuleService : ITenantModuleService
             return ApiResponse<TenantModuleDto>
                 .ErrorResponse("The module was changed by another request. Reload and try again.", 409);
         }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Conflicting tenant module update for {Code}", normalizedCode);
+            return ApiResponse<TenantModuleDto>
+                .ErrorResponse("The module was changed by another request. Reload and try again.", 409);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to update module {Code} for tenant {TenantId}", normalizedCode, _currentUser.TenantId);
             return ApiResponse<TenantModuleDto>.ErrorResponse("Failed to update module", 500);
+        }
+    }
+
+    public async Task<ApiResponse<bool>> ValidateCurrentTenantSelectionAsync()
+    {
+        if (_currentUser.TenantId <= 0)
+            return ApiResponse<bool>.ErrorResponse("Tenant context is required", 403);
+
+        try
+        {
+            var modules = await BuildModuleStateAsync(_currentUser.TenantId);
+            if (modules.Count == 0)
+                return ApiResponse<bool>.ErrorResponse("No active modules are configured", 409);
+
+            var unavailableRequired = modules
+                .Where(x => x.IsRequiredForInstitution && !x.IsAvailable)
+                .Select(x => x.Code)
+                .ToArray();
+            if (unavailableRequired.Length > 0)
+            {
+                _logger.LogWarning(
+                    "Tenant {TenantId} cannot complete module setup because required modules are unavailable: {Codes}",
+                    _currentUser.TenantId,
+                    string.Join(",", unavailableRequired));
+                return ApiResponse<bool>.ErrorResponse(
+                    "One or more required modules are unavailable in the current plan", 409);
+            }
+
+            return ApiResponse<bool>.SuccessResponse(true, "Module selection is valid");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to validate modules for tenant {TenantId}", _currentUser.TenantId);
+            return ApiResponse<bool>.ErrorResponse("Failed to validate tenant modules", 500);
         }
     }
 
@@ -400,7 +446,7 @@ public class TenantModuleService : ITenantModuleService
         TenantModule tenantModule,
         string? encodedRowVersion)
     {
-        if (string.IsNullOrWhiteSpace(encodedRowVersion)) return true;
+        if (string.IsNullOrWhiteSpace(encodedRowVersion)) return false;
         var expected = Convert.FromBase64String(encodedRowVersion);
         return expected.AsSpan().SequenceEqual(tenantModule.RowVersion);
     }

@@ -478,4 +478,32 @@
   <data name="PaymentAwaitingVerification" xml:space="preserve"><value>ব্যাংক ট্রান্সফারটি অ্যাডমিন যাচাইয়ের অপেক্ষায় আছে। এই ইনভয়েসে আরেকটি পেমেন্ট জমা দেওয়া যাবে না।</value></data>
   <data name="PaymentProcessing" xml:space="preserve"><value>একটি অনলাইন পেমেন্ট প্রক্রিয়াধীন। checkout সম্পন্ন বা বাতিল করার পর status reload করুন।</value></data>
   <data name="ReloadStatus" xml:space="preserve"><value>পেমেন্টের অবস্থা আবার দেখুন</value></data>
+  <data name="Onboarding_ModuleSetup_Name" xml:space="preserve"><value>মডিউল নির্বাচন</value></data>
+  <data name="Onboarding_ModuleSetup_Description" xml:space="preserve"><value>প্রতিষ্ঠানের প্রয়োজনীয় কাজগুলো বেছে নিন</value></data>
+  <data name="ModuleSetupTitle" xml:space="preserve"><value>আপনার মডিউল বেছে নিন</value></data>
+  <data name="Modules" xml:space="preserve"><value>মডিউলসমূহ</value></data>
+  <data name="ModuleSetupHelp" xml:space="preserve"><value>প্রতিষ্ঠানের প্রয়োজনীয় কাজগুলো দিয়ে শুরু করুন। প্ল্যানে থাকলে ঐচ্ছিক মডিউল পরে পরিবর্তন করতে পারবেন।</value></data>
+  <data name="ChooseInstitutionModules" xml:space="preserve"><value>প্রতিষ্ঠানের কর্মক্ষেত্র</value></data>
+  <data name="ModuleEntitlementHelp" xml:space="preserve"><value>প্রতিষ্ঠানের ধরন অনুযায়ী মডিউল প্রস্তাব করা হয়, আর সক্রিয় প্ল্যান ঠিক করে কোন paid সুবিধা চালু থাকবে।</value></data>
+  <data name="RequiredModulesProtectedHelp" xml:space="preserve"><value>অপরিহার্য রেকর্ড ও workflow সচল রাখতে core এবং প্রতিষ্ঠান-আবশ্যিক মডিউল চালু থাকে।</value></data>
+  <data name="LoadingModules" xml:space="preserve"><value>মডিউল লোড হচ্ছে…</value></data>
+  <data name="ModuleLoadFailed" xml:space="preserve"><value>মডিউল লোড করা যায়নি। সংযোগ দেখে আবার চেষ্টা করুন।</value></data>
+  <data name="CoreModule" xml:space="preserve"><value>মূল মডিউল</value></data>
+  <data name="RequiredModule" xml:space="preserve"><value>আবশ্যিক</value></data>
+  <data name="NotIncludedInPlan" xml:space="preserve"><value>প্ল্যান upgrade প্রয়োজন</value></data>
+  <data name="NotSelected" xml:space="preserve"><value>নির্বাচিত নয়</value></data>
+  <data name="ModuleChangeFailed" xml:space="preserve"><value>মডিউল নির্বাচন পরিবর্তন করা যায়নি। Reload করে আবার চেষ্টা করুন।</value></data>
+  <data name="NoModulesConfigured" xml:space="preserve"><value>কোনো সক্রিয় product module configure করা নেই। প্ল্যাটফর্ম অ্যাডমিনের সঙ্গে যোগাযোগ করুন।</value></data>
+  <data name="ModulesSelectedTemplate" xml:space="preserve"><value>{total}টি মডিউলের মধ্যে {selected}টি নির্বাচিত এবং আপনার প্ল্যানে অন্তর্ভুক্ত।</value></data>
+  <data name="RequiredModuleUnavailable" xml:space="preserve"><value>এই প্ল্যানে একটি আবশ্যিক মডিউল পাওয়া যাচ্ছে না। Support-এর সঙ্গে যোগাযোগ করুন বা উপযুক্ত প্ল্যান নিন।</value></data>
+  <data name="ModuleAvailable" xml:space="preserve"><value>Onboarding শেষে ব্যবহারের জন্য প্রস্তুত।</value></data>
+  <data name="ModuleNotSelectedHelp" xml:space="preserve"><value>ঐচ্ছিক মডিউলটি বর্তমানে বন্ধ আছে।</value></data>
+  <data name="ModuleOutsidePeriod" xml:space="preserve"><value>নির্ধারিত মডিউলটি বর্তমানে তার সক্রিয় সময়ের বাইরে।</value></data>
+  <data name="ModuleUpgradeRequired" xml:space="preserve"><value>সাবস্ক্রিপশনে অন্তর্ভুক্ত না হওয়া পর্যন্ত এই মডিউল চলবে না।</value></data>
+  <data name="ModuleCategoryCore" xml:space="preserve"><value>মূল প্রশাসন</value></data>
+  <data name="ModuleCategoryAcademic" xml:space="preserve"><value>একাডেমিক</value></data>
+  <data name="ModuleCategoryOperations" xml:space="preserve"><value>পরিচালনা</value></data>
+  <data name="ModuleCategoryLearning" xml:space="preserve"><value>শিক্ষা কার্যক্রম</value></data>
+  <data name="ModuleCategoryEngagement" xml:space="preserve"><value>যোগাযোগ ও অংশগ্রহণ</value></data>
+  <data name="ModuleCategoryPlatform" xml:space="preserve"><value>প্ল্যাটফর্ম ও ইন্টিগ্রেশন</value></data>
 </root>

@@ -478,4 +478,32 @@
   <data name="PaymentAwaitingVerification" xml:space="preserve"><value>Your bank transfer is awaiting administrator verification. You cannot submit another payment for this invoice.</value></data>
   <data name="PaymentProcessing" xml:space="preserve"><value>An online payment is being processed. Reload after completing or cancelling checkout.</value></data>
   <data name="ReloadStatus" xml:space="preserve"><value>Reload payment status</value></data>
+  <data name="Onboarding_ModuleSetup_Name" xml:space="preserve"><value>Module selection</value></data>
+  <data name="Onboarding_ModuleSetup_Description" xml:space="preserve"><value>Choose the tools used by your institution</value></data>
+  <data name="ModuleSetupTitle" xml:space="preserve"><value>Choose your modules</value></data>
+  <data name="Modules" xml:space="preserve"><value>Modules</value></data>
+  <data name="ModuleSetupHelp" xml:space="preserve"><value>Start with the tools your institution needs. You can change optional modules later when your plan allows them.</value></data>
+  <data name="ChooseInstitutionModules" xml:space="preserve"><value>Institution workspace</value></data>
+  <data name="ModuleEntitlementHelp" xml:space="preserve"><value>Your institution preset recommends modules, while the active plan controls which paid capabilities can run.</value></data>
+  <data name="RequiredModulesProtectedHelp" xml:space="preserve"><value>Core and institution-required modules stay enabled so essential records and workflows remain available.</value></data>
+  <data name="LoadingModules" xml:space="preserve"><value>Loading modules…</value></data>
+  <data name="ModuleLoadFailed" xml:space="preserve"><value>Modules could not be loaded. Check your connection and try again.</value></data>
+  <data name="CoreModule" xml:space="preserve"><value>Core</value></data>
+  <data name="RequiredModule" xml:space="preserve"><value>Required</value></data>
+  <data name="NotIncludedInPlan" xml:space="preserve"><value>Plan upgrade needed</value></data>
+  <data name="NotSelected" xml:space="preserve"><value>Not selected</value></data>
+  <data name="ModuleChangeFailed" xml:space="preserve"><value>The module selection could not be changed. Reload and try again.</value></data>
+  <data name="NoModulesConfigured" xml:space="preserve"><value>No active product modules are configured. Contact the platform administrator.</value></data>
+  <data name="ModulesSelectedTemplate" xml:space="preserve"><value>{selected} of {total} modules selected and included in your plan.</value></data>
+  <data name="RequiredModuleUnavailable" xml:space="preserve"><value>A required module is unavailable in this plan. Contact support or choose a compatible plan.</value></data>
+  <data name="ModuleAvailable" xml:space="preserve"><value>Ready to use after onboarding.</value></data>
+  <data name="ModuleNotSelectedHelp" xml:space="preserve"><value>Optional module is currently turned off.</value></data>
+  <data name="ModuleOutsidePeriod" xml:space="preserve"><value>This scheduled module is outside its active period.</value></data>
+  <data name="ModuleUpgradeRequired" xml:space="preserve"><value>This module cannot run until the subscription includes it.</value></data>
+  <data name="ModuleCategoryCore" xml:space="preserve"><value>Core administration</value></data>
+  <data name="ModuleCategoryAcademic" xml:space="preserve"><value>Academic</value></data>
+  <data name="ModuleCategoryOperations" xml:space="preserve"><value>Operations</value></data>
+  <data name="ModuleCategoryLearning" xml:space="preserve"><value>Learning</value></data>
+  <data name="ModuleCategoryEngagement" xml:space="preserve"><value>Engagement</value></data>
+  <data name="ModuleCategoryPlatform" xml:space="preserve"><value>Platform and integrations</value></data>
 </root>

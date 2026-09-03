@@ -312,7 +312,7 @@
                 showAlert('danger', i18n.stepFailed);
                 return;
             }
-            window.location.assign('/Account/BrandingSetup');
+            window.location.assign('/Account/ModuleSetup');
         } catch {
             showAlert('danger', i18n.networkError);
         } finally {

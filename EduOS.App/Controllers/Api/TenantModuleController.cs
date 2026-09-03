@@ -7,6 +7,7 @@ namespace EduOS.App.Controllers.Api;
 
 [ApiController]
 [Authorize]
+[AutoValidateAntiforgeryToken]
 [Route("api/tenant-modules")]
 public class TenantModuleController : ControllerBase
 {
