@@ -1,59 +1,11 @@
-﻿@{
-    Layout = null;
+@{
+    ViewData["Title"] = "AccessDeniedTitle";
+    Layout = "_PublicLayout";
 }
 
-<!DOCTYPE html>
-<html>
-<head>
-
-    <meta charset="utf-8" />
-    <title>Access Denied</title>
-
-    <link rel="stylesheet"
-          href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
-
-    <style>
-
-        body {
-            height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: #0f172a;
-            color: white;
-            font-family: Segoe UI;
-        }
-
-        .error-box {
-            text-align: center;
-        }
-
-        .error-code {
-            font-size: 90px;
-            font-weight: 800;
-            color: #f59e0b;
-        }
-
-    </style>
-</head>
-
-<body>
-
-    <div class="error-box">
-
-        <div class="error-code">403</div>
-
-        <h3>Access Denied</h3>
-
-        <p>
-            You do not have permission to access this page.
-        </p>
-
-        <a href="/" class="btn btn-warning mt-3">
-            Go Dashboard
-        </a>
-
-    </div>
-
-</body>
-</html>
+<section class="error-card error-card-warning" aria-labelledby="errorTitle">
+    <div class="error-code" aria-hidden="true">403</div>
+    <h1 id="errorTitle">@T["AccessDeniedTitle"]</h1>
+    <p>@T["AccessDeniedMessage"]</p>
+    <a href="/" class="btn btn-warning auth-primary-action mt-4 px-4">@T["BackToDashboard"]</a>
+</section>

@@ -1,124 +1,177 @@
-// ============================================================
-// SIGNUP.JS - Institution Signup
-// ============================================================
+(() => {
+    'use strict';
 
-document.addEventListener('DOMContentLoaded', function () {
+    document.addEventListener('DOMContentLoaded', () => {
+        const form = document.getElementById('signupForm');
+        const submitButton = document.getElementById('signupBtn');
+        const passwordInput = document.getElementById('password');
+        const strengthBar = document.getElementById('strengthBar');
+        const institutionType = document.getElementById('institutionType');
+        if (!form || !submitButton) return;
 
-    const form = document.getElementById('signupForm');
-    const submitBtn = document.getElementById('signupBtn');
-    const passwordInput = document.getElementById('password');
-    const confirmInput = document.getElementById('confirmPassword');
-    const strengthBar = document.getElementById('strengthBar');
+        loadInstitutionTypes();
 
-    // ── Password strength indicator ──────────────────────────
-    if (passwordInput && strengthBar) {
-        passwordInput.addEventListener('input', function () {
-            const val = passwordInput.value;
+        passwordInput?.addEventListener('input', () => {
+            const value = passwordInput.value;
             let score = 0;
-            if (val.length >= 6) score++;
-            if (val.length >= 10) score++;
-            if (/[A-Z]/.test(val)) score++;
-            if (/[0-9]/.test(val)) score++;
-            if (/[^A-Za-z0-9]/.test(val)) score++;
+            if (value.length >= 6) score++;
+            if (value.length >= 10) score++;
+            if (/[A-Z]/.test(value)) score++;
+            if (/[0-9]/.test(value)) score++;
+            if (/[^A-Za-z0-9]/.test(value)) score++;
 
-            const levels = ['', 'danger', 'warning', 'info', 'success', 'success'];
-            const labels = ['', 'Very weak', 'Weak', 'Fair', 'Strong', 'Very strong'];
+            const levels = ['danger', 'danger', 'warning', 'info', 'success', 'success'];
+            const labels = [
+                '',
+                form.dataset.veryWeak,
+                form.dataset.weak,
+                form.dataset.fair,
+                form.dataset.strong,
+                form.dataset.veryStrong
+            ];
 
-            strengthBar.style.width = (score * 20) + '%';
-            strengthBar.className = 'progress-bar bg-' + (levels[score] || 'danger');
-            const label = document.getElementById('strengthLabel');
-            if (label) label.textContent = labels[score] || '';
+            if (strengthBar) {
+                strengthBar.style.width = `${score * 20}%`;
+                strengthBar.className = `progress-bar bg-${levels[score]}`;
+            }
+            const strengthLabel = document.getElementById('strengthLabel');
+            if (strengthLabel) strengthLabel.textContent = labels[score] || '';
         });
-    }
 
-    // ── Form submit ───────────────────────────────────────────
-    if (form) {
-        form.addEventListener('submit', async function (e) {
-            e.preventDefault();
+        form.addEventListener('submit', async event => {
+            event.preventDefault();
             clearErrors();
 
             const data = {
-                institutionName: val('institutionName'),
-                ownerName: val('ownerName'),
-                email: val('email'),
-                phone: val('phone'),
-                password: val('password'),
-                confirmPassword: val('confirmPassword'),
-                institutionType: val('institutionType'),
-                agreeTerms: document.getElementById('agreeTerms')?.checked
+                institutionName: valueOf('institutionName'),
+                ownerName: valueOf('ownerName'),
+                email: valueOf('email'),
+                phone: normalizeBanglaDigits(valueOf('phone')),
+                password: document.getElementById('password')?.value || '',
+                confirmPassword: document.getElementById('confirmPassword')?.value || '',
+                institutionType: valueOf('institutionType'),
+                agreeTerms: document.getElementById('agreeTerms')?.checked ?? false
             };
 
-            // Client-side validation
-            let valid = true;
-            if (!data.institutionName) { showError('institutionName', 'Institution name is required'); valid = false; }
-            if (!data.ownerName) { showError('ownerName', 'Owner name is required'); valid = false; }
-            if (!data.email || !isValidEmail(data.email)) { showError('email', 'Valid email is required'); valid = false; }
-            if (!data.password || data.password.length < 6) { showError('password', 'Password must be at least 6 characters'); valid = false; }
-            if (data.password !== data.confirmPassword) { showError('confirmPassword', 'Passwords do not match'); valid = false; }
-            if (!data.agreeTerms) { showError('agreeTerms', 'You must agree to the terms'); valid = false; }
-            if (!valid) return;
+            let isValid = true;
+            if (!data.institutionName) isValid = showError('institutionName', form.dataset.institutionRequired);
+            if (!data.institutionType) isValid = showError('institutionType', form.dataset.institutionTypeRequired);
+            if (!data.ownerName) isValid = showError('ownerName', form.dataset.ownerRequired);
+            if (!isValidEmail(data.email)) isValid = showError('email', form.dataset.emailRequired);
+            if (data.password.length < 6) isValid = showError('password', form.dataset.passwordMin);
+            if (data.password !== data.confirmPassword) isValid = showError('confirmPassword', form.dataset.passwordMismatch);
+            if (!data.agreeTerms) isValid = showError('agreeTerms', form.dataset.termsRequired);
+            if (!isValid) return;
 
-            setLoading(submitBtn, true, 'Creating account...');
+            setLoading(submitButton, true);
 
             try {
-                const res = await fetch('/api/institution-onboarding/signup', {
+                const response = await fetch('/api/institution-onboarding/signup', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    cache: 'no-store',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
                     body: JSON.stringify(data)
                 });
+                const payload = await response.json().catch(() => null);
 
-                const json = await res.json();
-
-                if (json.success) {
-                    window.location.href = '/Account/SignupSuccess';
-                } else {
-                    showAlert('danger', json.message || 'Signup failed. Please try again.');
+                if (response.ok && payload?.success) {
+                    window.location.assign('/Account/SignupSuccess');
+                    return;
                 }
+
+                const normalizedMessage = String(payload?.message || '').toLowerCase();
+                showAlert(normalizedMessage.includes('already exists')
+                    ? form.dataset.accountExists
+                    : form.dataset.signupFailed);
             } catch {
-                showAlert('danger', 'Network error. Please try again.');
+                showAlert(form.dataset.networkMessage);
             } finally {
-                setLoading(submitBtn, false, 'Create account');
+                setLoading(submitButton, false);
             }
         });
+
+        async function loadInstitutionTypes() {
+            if (!institutionType) return;
+
+            try {
+                const response = await fetch('/api/platform-catalog/institution-types', {
+                    credentials: 'same-origin',
+                    headers: { 'Accept': 'application/json' }
+                });
+                const payload = await response.json().catch(() => null);
+                if (!response.ok || !payload?.success || !Array.isArray(payload.data)) {
+                    throw new Error('Invalid institution type response');
+                }
+
+                const placeholder = document.createElement('option');
+                placeholder.value = '';
+                placeholder.textContent = form.dataset.selectType || '';
+                institutionType.replaceChildren(placeholder);
+
+                const useBangla = document.documentElement.lang.toLowerCase().startsWith('bn');
+                payload.data.forEach(type => {
+                    const option = document.createElement('option');
+                    option.value = type.code;
+                    option.textContent = useBangla && type.nameBangla ? type.nameBangla : type.name;
+                    institutionType.append(option);
+                });
+                institutionType.disabled = false;
+            } catch (error) {
+                console.warn('EduOS institution catalogue was unavailable.', error);
+                institutionType.disabled = true;
+                showAlert(form.dataset.catalogFailed);
+            }
+        }
+    }, { once: true });
+
+    function valueOf(id) {
+        return document.getElementById(id)?.value?.trim() ?? '';
     }
 
-    // ── Helpers ───────────────────────────────────────────────
-    function val(id) {
-        return document.getElementById(id)?.value?.trim() ?? '';
+    function normalizeBanglaDigits(value) {
+        return value.replace(/[০-৯]/g, digit => String('০১২৩৪৫৬৭৮৯'.indexOf(digit)));
     }
 
     function isValidEmail(email) {
         return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
     }
 
-    function showError(fieldId, msg) {
+    function showError(fieldId, message) {
         const field = document.getElementById(fieldId);
-        if (!field) return;
+        if (!field) return false;
         field.classList.add('is-invalid');
-        const fb = field.nextElementSibling;
-        if (fb && fb.classList.contains('invalid-feedback')) fb.textContent = msg;
+        const wrapper = field.closest('.form-check') || field.parentElement;
+        const feedback = wrapper?.querySelector('.invalid-feedback');
+        if (feedback) feedback.textContent = message || '';
+        return false;
     }
 
     function clearErrors() {
-        document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+        document.querySelectorAll('.is-invalid').forEach(element => element.classList.remove('is-invalid'));
+        document.querySelectorAll('.invalid-feedback').forEach(element => { element.textContent = ''; });
+        const alert = document.getElementById('alertContainer');
+        if (alert) alert.className = 'd-none';
     }
 
-    function showAlert(type, msg) {
-        let container = document.getElementById('alertContainer');
-        if (!container) {
-            container = document.createElement('div');
-            container.id = 'alertContainer';
-            form?.prepend(container);
+    function showAlert(message) {
+        const container = document.getElementById('alertContainer');
+        if (!container) return;
+        container.className = 'alert alert-danger';
+        container.textContent = message || '';
+        container.focus();
+    }
+
+    function setLoading(button, loading) {
+        button.disabled = loading;
+        button.replaceChildren();
+        if (loading) {
+            const spinner = document.createElement('span');
+            spinner.className = 'spinner-border spinner-border-sm me-2';
+            spinner.setAttribute('aria-hidden', 'true');
+            button.append(spinner, button.dataset.loadingLabel || '');
+        } else {
+            button.textContent = button.dataset.idleLabel || '';
         }
-        container.innerHTML = `<div class="alert alert-${type} alert-dismissible">
-            ${msg}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
     }
-
-    function setLoading(btn, loading, label) {
-        if (!btn) return;
-        btn.disabled = loading;
-        btn.innerHTML = loading
-            ? `<span class="spinner-border spinner-border-sm me-2"></span>${label}`
-            : label;
-    }
-});
+})();

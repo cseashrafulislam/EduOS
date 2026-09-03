@@ -63,6 +63,26 @@ public class LocalizationAndPwaContractTests
         manifest.RootElement.GetProperty("icons").GetArrayLength().Should().BeGreaterThan(0);
     }
 
+    [Fact]
+    public void Public_authentication_shell_is_localized_and_avoids_html_injection_sinks()
+    {
+        var publicLayout = File.ReadAllText(Asset("_PublicLayout.cshtml"));
+        var loginView = File.ReadAllText(Asset("Login.cshtml"));
+        var signupView = File.ReadAllText(Asset("Signup.cshtml"));
+        var loginScript = File.ReadAllText(Asset("login.js"));
+        var signupScript = File.ReadAllText(Asset("signup.js"));
+        var authScript = File.ReadAllText(Asset("auth-forms.js"));
+
+        publicLayout.Should().NotContain("https://");
+        publicLayout.Should().Contain("data-language-selector");
+        loginView.Should().Contain("@T[");
+        signupView.Should().Contain("@T[");
+        signupScript.Should().Contain("/api/platform-catalog/institution-types");
+        loginScript.Should().Contain("candidate.startsWith('//')");
+        new[] { loginScript, signupScript, authScript }
+            .Should().AllSatisfy(script => script.Should().NotContain(".innerHTML"));
+    }
+
     private static Dictionary<string, string> ReadResource(string fileName)
     {
         return XDocument.Load(Asset(fileName))

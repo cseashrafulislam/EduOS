@@ -1,88 +1,104 @@
-// ============================================================
-// LOGIN.JS - Login page
-// ============================================================
+(() => {
+    'use strict';
 
-document.addEventListener('DOMContentLoaded', function () {
+    document.addEventListener('DOMContentLoaded', () => {
+        const form = document.getElementById('loginForm');
+        const submitButton = document.getElementById('loginBtn');
+        if (!form || !submitButton) return;
 
-    const form = document.getElementById('loginForm');
-    const submitBtn = document.getElementById('loginBtn');
-
-    // Pre-fill email from query string (e.g., after password reset)
-    const params = new URLSearchParams(window.location.search);
-    const emailParam = params.get('email');
-    if (emailParam) {
+        const parameters = new URLSearchParams(window.location.search);
         const emailField = document.getElementById('email');
-        if (emailField) emailField.value = emailParam;
-    }
+        const emailParameter = parameters.get('email');
+        if (emailField && emailParameter) emailField.value = emailParameter;
 
-    // Show success message if redirected from reset/verify
-    const msg = params.get('message');
-    if (msg) showAlert('success', decodeURIComponent(msg));
+        if (parameters.get('status') === 'password-reset') {
+            showAlert('success', submitButton.dataset.resetSuccess || '');
+        }
 
-    if (form) {
-        form.addEventListener('submit', async function (e) {
-            e.preventDefault();
+        form.addEventListener('submit', async event => {
+            event.preventDefault();
 
-            const email = document.getElementById('email')?.value?.trim();
+            const email = emailField?.value?.trim();
             const password = document.getElementById('password')?.value;
             const rememberMe = document.getElementById('rememberMe')?.checked ?? false;
 
             if (!email || !password) {
-                showAlert('danger', 'Email and password are required.');
+                showAlert('danger', form.dataset.requiredMessage);
                 return;
             }
 
-            setLoading(submitBtn, true, 'Signing in...');
+            setLoading(submitButton, true);
 
             try {
-                const res = await fetch('/api/auth/login', {
+                const response = await fetch('/api/auth/login', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
+                    cache: 'no-store',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
                     body: JSON.stringify({ email, password, rememberMe })
                 });
+                const payload = await response.json().catch(() => null);
 
-                const json = await res.json();
-
-                if (json.success) {
-                    // Redirect to the URL returned by server (handles onboarding vs dashboard)
-                    const redirectUrl = json.data?.redirectUrl
-                        || params.get('returnUrl')
-                        || '/Dashboard';
-                    window.location.href = redirectUrl;
-                } else {
-                    showAlert('danger', json.message || 'Invalid email or password.');
-                    setLoading(submitBtn, false, 'Sign in');
+                if (response.ok && payload?.success) {
+                    window.location.assign(getSafeRedirect(
+                        payload.data?.redirectUrl,
+                        parameters.get('returnUrl')));
+                    return;
                 }
+
+                showAlert('danger', localizeServerFailure(payload?.message));
             } catch {
-                showAlert('danger', 'Network error. Please try again.');
-                setLoading(submitBtn, false, 'Sign in');
+                showAlert('danger', form.dataset.networkMessage);
+            } finally {
+                setLoading(submitButton, false);
             }
         });
+
+        function localizeServerFailure(message) {
+            const normalized = String(message || '').toLowerCase();
+            if (normalized.includes('deactivated') || normalized.includes('inactive')) {
+                return form.dataset.inactiveMessage;
+            }
+            if (normalized.includes('verify your email') || normalized.includes('not verified')) {
+                return form.dataset.verifyMessage;
+            }
+            if (normalized.includes('locked')) return form.dataset.lockedMessage;
+            return form.dataset.invalidMessage;
+        }
+    }, { once: true });
+
+    function getSafeRedirect(primary, fallback) {
+        for (const candidate of [primary, fallback, '/Dashboard']) {
+            if (typeof candidate !== 'string' || !candidate.startsWith('/') || candidate.startsWith('//')) {
+                continue;
+            }
+
+            const resolved = new URL(candidate, window.location.origin);
+            if (resolved.origin === window.location.origin) {
+                return `${resolved.pathname}${resolved.search}${resolved.hash}`;
+            }
+        }
+        return '/Dashboard';
     }
 
-    // Toggle password visibility
-    document.getElementById('togglePassword')?.addEventListener('click', function () {
-        const pwField = document.getElementById('password');
-        if (!pwField) return;
-        const isText = pwField.type === 'text';
-        pwField.type = isText ? 'password' : 'text';
-        this.querySelector('i')?.classList.toggle('bi-eye', isText);
-        this.querySelector('i')?.classList.toggle('bi-eye-slash', !isText);
-    });
-
-    function showAlert(type, msg) {
-        const c = document.getElementById('alertContainer');
-        if (!c) return;
-        c.innerHTML = `<div class="alert alert-${type} alert-dismissible mb-3">
-            ${msg}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
+    function showAlert(type, message) {
+        const container = document.getElementById('alertContainer');
+        if (!container) return;
+        container.className = `alert alert-${type}`;
+        container.textContent = message || '';
     }
 
-    function setLoading(btn, loading, label) {
-        if (!btn) return;
-        btn.disabled = loading;
-        btn.innerHTML = loading
-            ? `<span class="spinner-border spinner-border-sm me-2"></span>${label}`
-            : label;
+    function setLoading(button, loading) {
+        button.disabled = loading;
+        button.replaceChildren();
+
+        if (loading) {
+            const spinner = document.createElement('span');
+            spinner.className = 'spinner-border spinner-border-sm me-2';
+            spinner.setAttribute('aria-hidden', 'true');
+            button.append(spinner, button.dataset.loadingLabel || '');
+        } else {
+            button.textContent = button.dataset.idleLabel || '';
+        }
     }
-});
+})();

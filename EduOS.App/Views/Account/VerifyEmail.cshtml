@@ -1,8 +1,10 @@
-﻿@{
+@{
     ViewData["Title"] = "Verify Email";
+    Layout = "_PublicLayout";
 }
 
-<div class="container mt-5">
-    <h3>Email Verification</h3>
-    <p>Your email verification is being processed.</p>
-</div>
+<section class="status-card" aria-labelledby="verificationTitle">
+    <div class="status-mark" aria-hidden="true">✉</div>
+    <h1 id="verificationTitle">@T["EmailVerificationProcessingTitle"]</h1>
+    <p>@T["EmailVerificationProcessingMessage"]</p>
+</section>

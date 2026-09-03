@@ -1,0 +1,72 @@
+@{
+    var titleKey = ViewData["Title"]?.ToString() ?? "Dashboard";
+    var localizedTitle = T[titleKey];
+    var pageTitle = localizedTitle.ResourceNotFound ? titleKey : localizedTitle.Value;
+    var currentCulture = CultureInfo.CurrentUICulture.Name;
+    var returnUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
+}
+<!DOCTYPE html>
+<html lang="@currentCulture" dir="ltr">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f172a" />
+    <meta name="color-scheme" content="light" />
+    <meta name="application-name" content="EduOS" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="EduOS" />
+    <meta name="description" content="@T["EducationOperatingSystem"]" />
+    <title>@pageTitle - EduOS</title>
+
+    <link rel="manifest" href="~/manifest.webmanifest" />
+    <link rel="icon" href="~/images/eduos-icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="~/favicon.ico" />
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body class="public-page">
+    <a class="skip-link" href="#main-content">@T["SkipToContent"]</a>
+
+    <div class="public-shell">
+        <header class="public-header">
+            <a class="public-brand" href="/" aria-label="EduOS">
+                <span class="brand-logo" aria-hidden="true">
+                    <svg class="edu-icon edu-icon-lg"><use href="/images/eduos-icons.svg#graduation" /></svg>
+                </span>
+                <span>
+                    <strong>EduOS</strong>
+                    <small>@T["EducationERP"]</small>
+                </span>
+            </a>
+
+            <nav class="public-actions" aria-label="@T["MainNavigation"]">
+                <a class="public-nav-link d-none d-md-inline-flex" href="/Pricing">@T["Pricing"]</a>
+                <form asp-controller="Localization" asp-action="SetLanguage" method="post" class="language-form">
+                    <input type="hidden" name="returnUrl" value="@returnUrl" />
+                    <label class="visually-hidden" for="publicUiCulture">@T["Language"]</label>
+                    <svg class="edu-icon language-icon" aria-hidden="true"><use href="/images/eduos-icons.svg#globe" /></svg>
+                    <select id="publicUiCulture" name="culture" data-language-selector aria-label="@T["Language"]">
+                        <option value="en-BD" selected="@(currentCulture == "en-BD" ? "selected" : null)">@T["English"]</option>
+                        <option value="bn-BD" selected="@(currentCulture == "bn-BD" ? "selected" : null)">@T["Bangla"]</option>
+                    </select>
+                </form>
+            </nav>
+        </header>
+
+        <main class="public-main" id="main-content" tabindex="-1">
+            @RenderBody()
+        </main>
+
+        <footer class="public-footer">
+            <span>© @DateTime.Now.Year EduOS</span>
+            <span aria-hidden="true">•</span>
+            <span>@T["SecurePlatform"]</span>
+        </footer>
+    </div>
+
+    <script src="~/lib/jquery/dist/jquery.min.js" asp-append-version="true"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js" asp-append-version="true"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>
