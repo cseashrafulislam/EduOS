@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <Compile Remove="DTOs\Auth\RoleSetupDto.cs" />
+    <Compile Remove="Entities\Academic\AcademicsModels.cs" />
   </ItemGroup>
 
   <ItemGroup>

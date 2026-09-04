@@ -1,4 +1,4 @@
-using EduOS.Core.Entities.Tenants;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;

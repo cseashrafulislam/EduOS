@@ -19,7 +19,7 @@ namespace EduOS.Service.Services.SaaS
         private readonly ITenantSubscriptionRepository _subscriptionRepo;
         private readonly ISubscriptionPlanRepository _planRepo;
         private readonly ISubscriptionInvoiceRepository _invoiceRepo;
-        private readonly IGenericRepository<EduOS.Core.Entities.Tenants.Tenant> _tenantRepo;
+        private readonly IGenericRepository<Tenant> _tenantRepo;
         private readonly IUnitOfWork _unitOfWork;
         private readonly ICurrentUserService _currentUser;
         private readonly IMapper _mapper;
@@ -30,7 +30,7 @@ namespace EduOS.Service.Services.SaaS
             ITenantSubscriptionRepository subscriptionRepo,
             ISubscriptionPlanRepository planRepo,
             ISubscriptionInvoiceRepository invoiceRepo,
-            IGenericRepository<EduOS.Core.Entities.Tenants.Tenant> tenantRepo,
+            IGenericRepository<Tenant> tenantRepo,
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUser,
             IMapper mapper,

@@ -1,8 +1,7 @@
 using EduOS.Core.Entities.Base;
-using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Enums;
 
-namespace EduOS.Core.Entities.Tenants
+namespace EduOS.Core.Entities.SaaS
 {
 
     public class Tenant : BaseEntity

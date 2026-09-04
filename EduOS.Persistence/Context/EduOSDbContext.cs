@@ -15,7 +15,6 @@ using EduOS.Core.Entities.Payroll;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Entities.System;
-using EduOS.Core.Entities.Tenants;
 using EduOS.Core.Entities.Transport;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
@@ -128,8 +127,6 @@ namespace EduOS.Persistence.Context
         public DbSet<Tenant> Tenants => Set<Tenant>();
         public DbSet<TenantSetting> TenantSettings => Set<TenantSetting>();
         public DbSet<Campus> Campuses => Set<Campus>();
-        public DbSet<Shift> Shifts => Set<Shift>();
-        public DbSet<Medium> Mediums => Set<Medium>();
         public DbSet<TenantUser> TenantUsers => Set<TenantUser>();
 
         // SaaS
@@ -142,21 +139,36 @@ namespace EduOS.Persistence.Context
         public DbSet<TrialAccount> TrialAccounts => Set<TrialAccount>();
         public DbSet<UsageStatistics> UsageStatistics => Set<UsageStatistics>();
 
-        // Academic
+        // ============================================================
+        // ACADEMIC
+        // ============================================================
+
         public DbSet<AcademicYear> AcademicYears => Set<AcademicYear>();
         public DbSet<AcademicTerm> AcademicTerms => Set<AcademicTerm>();
 
-        public DbSet<Class> Classes => Set<Class>();
-        public DbSet<Section> Sections => Set<Section>();
-        public DbSet<Group> Groups => Set<Group>();
-        public DbSet<Subject> Subjects => Set<Subject>();
         public DbSet<Department> Departments => Set<Department>();
-        public DbSet<SubjectTeacher> SubjectTeachers => Set<SubjectTeacher>();
-        public DbSet<ClassRoutine> ClassRoutines => Set<ClassRoutine>();
-        public DbSet<Substitution> Substitutions => Set<Substitution>();
-        public DbSet<LessonPlan> LessonPlans => Set<LessonPlan>();
-        public DbSet<Holiday> Holidays => Set<Holiday>();
-        public DbSet<Event> Events => Set<Event>();
+        public DbSet<Medium> Mediums => Set<Medium>();
+        public DbSet<Shift> Shifts => Set<Shift>();
+
+        public DbSet<AcademicProgram> AcademicPrograms => Set<AcademicProgram>();
+        public DbSet<AcademicLevel> AcademicLevels => Set<AcademicLevel>();
+        public DbSet<AcademicTrack> AcademicTracks => Set<AcademicTrack>();
+
+        public DbSet<Subject> Subjects => Set<Subject>();
+        public DbSet<CurriculumSubject> CurriculumSubjects => Set<CurriculumSubject>();
+
+        public DbSet<AcademicBatch> AcademicBatches => Set<AcademicBatch>();
+
+        public DbSet<InstructorAssignment> InstructorAssignments => Set<InstructorAssignment>();
+
+        public DbSet<RoutineTimeSlot> RoutineTimeSlots => Set<RoutineTimeSlot>();
+        public DbSet<RoutineEntry> RoutineEntries => Set<RoutineEntry>();
+
+        public DbSet<AcademicCalendarEvent> AcademicCalendarEvents => Set<AcademicCalendarEvent>();
+        public DbSet<Room> Rooms => Set<Room>();
+        public DbSet<ProgramCampus> ProgramCampuses => Set<ProgramCampus>();
+        public DbSet<AcademicCurriculum> AcademicCurriculums => Set<AcademicCurriculum>();
+        public DbSet<SubjectPrerequisite> SubjectPrerequisites => Set<SubjectPrerequisite>();
 
         // Students
         public DbSet<Admission> Admissions => Set<Admission>();

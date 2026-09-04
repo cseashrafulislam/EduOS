@@ -19,7 +19,7 @@ namespace EduOS.Service.Services.SaaS
         private readonly ISubscriptionPaymentRepository _paymentRepo;
         private readonly ISubscriptionInvoiceRepository _invoiceRepo;
         private readonly ITenantSubscriptionRepository _subscriptionRepo;
-        private readonly IGenericRepository<EduOS.Core.Entities.Tenants.Tenant> _tenantRepo;
+        private readonly IGenericRepository<Tenant> _tenantRepo;
         private readonly IUnitOfWork _unitOfWork;
         private readonly ICurrentUserService _currentUser;
         private readonly IAamarPayClient _aamarPay;
@@ -32,7 +32,7 @@ namespace EduOS.Service.Services.SaaS
             ISubscriptionPaymentRepository paymentRepo,
             ISubscriptionInvoiceRepository invoiceRepo,
             ITenantSubscriptionRepository subscriptionRepo,
-            IGenericRepository<EduOS.Core.Entities.Tenants.Tenant> tenantRepo,
+            IGenericRepository<Tenant> tenantRepo,
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUser,
             IAamarPayClient aamarPay,

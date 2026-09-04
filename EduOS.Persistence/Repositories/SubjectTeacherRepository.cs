@@ -5,11 +5,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EduOS.Persistence.Repositories
 {
-    public class SubjectTeacherRepository : GenericRepository<SubjectTeacher>, ISubjectTeacherRepository
+    public class InstructorAssignmentRepository : GenericRepository<InstructorAssignment>, IInstructorAssignmentRepository
     {
-        public SubjectTeacherRepository(EduOSDbContext context) : base(context) { }
+        public InstructorAssignmentRepository(EduOSDbContext context) : base(context) { }
 
-        public async Task<List<SubjectTeacher>> GetByTeacherAsync(int teacherId, int academicYearId)
+        public async Task<List<InstructorAssignment>> GetByTeacherAsync(int teacherId, int academicYearId)
         {
             return await _dbSet
                 .Include(st => st.Class)
@@ -19,7 +19,7 @@ namespace EduOS.Persistence.Repositories
                 .ToListAsync();
         }
 
-        public async Task<List<SubjectTeacher>> GetByClassSectionAsync(int classId, int sectionId)
+        public async Task<List<InstructorAssignment>> GetByClassSectionAsync(int classId, int sectionId)
         {
             return await _dbSet
                 .Include(st => st.Subject)
@@ -28,7 +28,7 @@ namespace EduOS.Persistence.Repositories
                 .ToListAsync();
         }
 
-        public async Task<SubjectTeacher?> GetClassTeacherAsync(int classId, int sectionId, int academicYearId)
+        public async Task<InstructorAssignment?> GetClassTeacherAsync(int classId, int sectionId, int academicYearId)
         {
             return await _dbSet
                 .Include(st => st.Teacher)

@@ -1,4 +1,4 @@
-using EduOS.Core.Entities.Tenants;
+using EduOS.Core.Entities.SaaS;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 

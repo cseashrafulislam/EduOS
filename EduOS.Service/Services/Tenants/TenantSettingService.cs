@@ -1,6 +1,6 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Tenants;
-using EduOS.Core.Entities.Tenants;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
