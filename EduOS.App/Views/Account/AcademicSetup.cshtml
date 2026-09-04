@@ -42,6 +42,7 @@
     var pageJson = System.Text.Json.JsonSerializer.Serialize(pageStrings);
 }
 
+<<<<<<< HEAD
 <article class="setup-page" aria-labelledby="academicSetupTitle">
     <header class="setup-header setup-header-actions">
         <div>
@@ -109,73 +110,637 @@
                             <div class="form-check setup-check-control">
                                 <input class="form-check-input" type="checkbox" id="isCurrent" name="isCurrent" />
                                 <label class="form-check-label" for="isCurrent">@T["MarkCurrentAcademicYear"]</label>
+=======
+<style>
+    .academic-setup-page {
+        max-width: 1100px;
+        margin: 0 auto;
+    }
+
+    .academic-setup-card {
+        border-radius: 16px;
+    }
+
+    .year-card {
+        background: #fff;
+        transition: all 0.2s ease-in-out;
+    }
+
+        .year-card:hover {
+            box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.05);
+        }
+
+    .term-item {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+    }
+
+    .required {
+        color: #dc3545;
+    }
+
+    .modal-content {
+        border: 0;
+        border-radius: 16px;
+    }
+
+    .modal-header,
+    .modal-footer {
+        border-color: #f0f0f0;
+    }
+</style>
+
+<div class="container-fluid py-4">
+
+    <div class="academic-setup-page">
+
+        <div class="card shadow-sm border-0 academic-setup-card">
+            <div class="card-body p-4 p-lg-5">
+
+                <!-- =====================================================
+                     HEADER
+                     ===================================================== -->
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+
+                    <div>
+                        <h3 class="fw-bold mb-2">
+                            Academic Setup
+                        </h3>
+
+                        <p class="text-muted mb-0">
+                            Add academic years and optional terms or semesters for your institution.
+                        </p>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-2">
+
+                        <button type="button"
+                                class="btn btn-outline-primary"
+                                data-bs-toggle="modal"
+                                data-bs-target="#termModal"
+                                id="addTermMainBtn">
+                            <i class="bi bi-plus-circle me-1"></i>
+                            Add Term
+                        </button>
+
+                        <button type="button"
+                                class="btn btn-primary"
+                                data-bs-toggle="modal"
+                                data-bs-target="#academicYearModal">
+                            <i class="bi bi-plus-circle me-1"></i>
+                            Add Academic Year
+                        </button>
+
+                    </div>
+
+                </div>
+
+                <!-- =====================================================
+                     ALERT
+                     ===================================================== -->
+                <div id="alertContainer"></div>
+
+                <!-- =====================================================
+                     INFORMATION
+                     ===================================================== -->
+                <div class="alert alert-light border mb-4">
+                    <div class="d-flex align-items-start gap-2">
+                        <i class="bi bi-info-circle text-primary mt-1"></i>
+
+                        <div>
+                            <div class="fw-semibold">
+                                Academic Structure
+                            </div>
+
+                            <div class="small text-muted">
+                                At least one academic year is required.
+                                Terms or semesters are optional and can be added under each academic year.
+>>>>>>> Ashraful
                             </div>
                         </div>
                     </div>
                 </div>
+<<<<<<< HEAD
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">@T["Cancel"]</button>
                     <button type="submit" id="saveYearBtn" class="btn btn-primary"
                             data-idle-label="@T["SaveYear"]" data-loading-label="@T["Saving"]">
                         @T["SaveYear"]
-                    </button>
+=======
+
+                <!-- =====================================================
+                     YEAR + TERM LIST
+                     ===================================================== -->
+                <div id="yearList">
+
+                    <div class="text-center py-5 text-muted">
+
+                        <div class="spinner-border spinner-border-sm me-2"
+                             role="status">
+                        </div>
+
+                        Loading academic years...
+
+                    </div>
+
                 </div>
-            </form>
+
+                <!-- =====================================================
+                     NAVIGATION
+                     ===================================================== -->
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-4 pt-3 border-top">
+
+                    <a href="/Account/CampusSetup"
+                           class="btn btn-outline-secondary">
+
+                        <i class="bi bi-arrow-left me-1"></i>
+                        Back
+
+                    </a>
+
+                    <button type="button"
+                            id="continueBtn"
+                            class="btn btn-success"
+                            disabled>
+
+                        Continue
+                        <i class="bi bi-arrow-right ms-1"></i>
+
+                    </button>
+
+                </div>
+
+            </div>
         </div>
+
     </div>
+
 </div>
 
+
+<!-- =============================================================
+     ACADEMIC YEAR MODAL
+     ============================================================= -->
+
+<div class="modal fade"
+     id="academicYearModal"
+     tabindex="-1"
+     aria-labelledby="academicYearModalLabel"
+     aria-hidden="true">
+
+    <div class="modal-dialog modal-dialog-centered">
+
+        <div class="modal-content shadow">
+
+            <div class="modal-header">
+
+                <div>
+                    <h5 class="modal-title fw-bold mb-1"
+                        id="academicYearModalLabel">
+                        Academic Year
+                    </h5>
+
+                    <div class="small text-muted">
+                        Create or update an academic year.
+                    </div>
+                </div>
+
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Close">
+                </button>
+
+            </div>
+
+            <form id="academicYearForm" novalidate>
+
+                <div class="modal-body">
+
+                    <input type="hidden"
+                           id="yearId"
+                           name="id" />
+
+                    <div class="row g-3">
+
+                        <!-- YEAR NAME -->
+                        <div class="col-12">
+
+                            <label for="yearName"
+                                   class="form-label">
+
+                                Year Name
+                                <span class="required">*</span>
+
+                            </label>
+
+                            <input type="text"
+                                   id="yearName"
+                                   name="name"
+                                   class="form-control"
+                                   maxlength="100"
+                                   autocomplete="off"
+                                   placeholder="Example: 2026 or 2026-2027" />
+
+                            <div class="invalid-feedback"></div>
+
+                        </div>
+
+                        <!-- START DATE -->
+                        <div class="col-md-6">
+
+                            <label for="yearStartDate"
+                                   class="form-label">
+
+                                Start Date
+                                <span class="required">*</span>
+
+                            </label>
+
+                            <input type="date"
+                                   id="yearStartDate"
+                                   name="startDate"
+                                   class="form-control" />
+
+                            <div class="invalid-feedback"></div>
+
+                        </div>
+
+                        <!-- END DATE -->
+                        <div class="col-md-6">
+
+                            <label for="yearEndDate"
+                                   class="form-label">
+
+                                End Date
+                                <span class="required">*</span>
+
+                            </label>
+
+                            <input type="date"
+                                   id="yearEndDate"
+                                   name="endDate"
+                                   class="form-control" />
+
+                            <div class="invalid-feedback"></div>
+
+                        </div>
+
+                        <!-- CURRENT -->
+                        <div class="col-12">
+
+                            <div class="form-check mt-2">
+
+                                <input class="form-check-input"
+                                       type="checkbox"
+                                       id="isCurrent"
+                                       name="isCurrent" />
+
+                                <label class="form-check-label"
+                                       for="isCurrent">
+
+                                    Mark as current academic year
+
+                                </label>
+
+                            </div>
+
+                            <div class="form-text">
+                                Only one academic year should normally be marked as current.
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <div class="modal-footer">
+
+                    <button type="button"
+                            class="btn btn-outline-secondary"
+                            data-bs-dismiss="modal">
+                        Cancel
+                    </button>
+
+                    <button type="submit"
+                            id="saveYearBtn"
+                            class="btn btn-primary">
+
+                        Save year
+
+>>>>>>> Ashraful
+                    </button>
+
+                </div>
+
+            </form>
+        </div>
+
+    </div>
+
+</div>
+
+<<<<<<< HEAD
 <div class="modal fade" id="termModal" tabindex="-1" aria-labelledby="termModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content border-0 rounded-4">
+=======
+
+<!-- =============================================================
+     ACADEMIC TERM MODAL
+     ============================================================= -->
+
+<div class="modal fade"
+     id="termModal"
+     tabindex="-1"
+     aria-labelledby="termModalLabel"
+     aria-hidden="true">
+
+    <div class="modal-dialog modal-dialog-centered">
+
+        <div class="modal-content shadow">
+
+>>>>>>> Ashraful
             <div class="modal-header">
+
                 <div>
+<<<<<<< HEAD
                     <h2 class="modal-title h5 fw-bold" id="termModalLabel">@T["AcademicTerm"]</h2>
                     <p id="termYearLabel" class="small text-muted mb-0"></p>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
+=======
+
+                    <h5 class="modal-title fw-bold mb-1"
+                        id="termModalLabel">
+                        Academic Term
+                    </h5>
+
+                    <div id="termYearLabel"
+                         class="small text-muted">
+                    </div>
+
+                </div>
+
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Close">
+                </button>
+
+>>>>>>> Ashraful
             </div>
             <form id="termForm" novalidate>
+
                 <div class="modal-body">
+<<<<<<< HEAD
                     <input type="hidden" id="termId" name="id" />
                     <div class="row g-3">
                         <div class="col-12">
                             <label for="termYearId" class="form-label">@T["AcademicYear"] <span class="required-mark" aria-hidden="true">*</span></label>
                             <select id="termYearId" name="academicYearId" class="form-select" required aria-required="true">
                                 <option value="">@T["SelectAcademicYear"]</option>
+=======
+
+                    <input type="hidden"
+                           id="termId"
+                           name="id" />
+
+                    <div class="row g-3">
+
+                        <!-- ACADEMIC YEAR -->
+                        <div class="col-12">
+
+                            <label for="termYearId"
+                                   class="form-label">
+
+                                Academic Year
+                                <span class="required">*</span>
+
+                            </label>
+
+                            <select id="termYearId"
+                                    name="academicYearId"
+                                    class="form-select">
+
+                                <option value="">
+                                    Select academic year
+                                </option>
+
+>>>>>>> Ashraful
                             </select>
+
                             <div class="invalid-feedback"></div>
+
                         </div>
+<<<<<<< HEAD
                         <div class="col-12">
                             <label for="termName" class="form-label">@T["TermName"] <span class="required-mark" aria-hidden="true">*</span></label>
                             <input type="text" id="termName" name="name" class="form-control" maxlength="100"
                                    placeholder="Term 1 / Semester 1" required aria-required="true" />
+=======
+
+                        <!-- TERM NAME -->
+                        <div class="col-12">
+
+                            <label for="termName"
+                                   class="form-label">
+
+                                Term / Semester Name
+                                <span class="required">*</span>
+
+                            </label>
+
+                            <input type="text"
+                                   id="termName"
+                                   name="name"
+                                   class="form-control"
+                                   maxlength="100"
+                                   autocomplete="off"
+                                   placeholder="Example: Term 1 / Semester 1" />
+
+>>>>>>> Ashraful
                             <div class="invalid-feedback"></div>
+
                         </div>
+<<<<<<< HEAD
                         <div class="col-md-6">
                             <label for="termStartDate" class="form-label">@T["StartDate"]</label>
                             <input type="date" id="termStartDate" name="startDate" class="form-control" />
+=======
+
+                        <!-- TERM START -->
+                        <div class="col-md-6">
+
+                            <label for="termStartDate"
+                                   class="form-label">
+                                Start Date
+                            </label>
+
+                            <input type="date"
+                                   id="termStartDate"
+                                   name="startDate"
+                                   class="form-control" />
+
+>>>>>>> Ashraful
                             <div class="invalid-feedback"></div>
+
                         </div>
+<<<<<<< HEAD
                         <div class="col-md-6">
                             <label for="termEndDate" class="form-label">@T["EndDate"]</label>
                             <input type="date" id="termEndDate" name="endDate" class="form-control" />
+=======
+
+                        <!-- TERM END -->
+                        <div class="col-md-6">
+
+                            <label for="termEndDate"
+                                   class="form-label">
+                                End Date
+                            </label>
+
+                            <input type="date"
+                                   id="termEndDate"
+                                   name="endDate"
+                                   class="form-control" />
+
+>>>>>>> Ashraful
                             <div class="invalid-feedback"></div>
+
                         </div>
+<<<<<<< HEAD
                         <div class="col-12"><p class="form-text mb-0">@T["TermDateHelp"]</p></div>
+=======
+
+                        <div class="col-12">
+
+                            <div class="form-text">
+                                Term dates are optional. If provided, they should normally fall within the selected academic year.
+                            </div>
+
+                        </div>
+
+>>>>>>> Ashraful
                     </div>
+
                 </div>
                 <div class="modal-footer">
+<<<<<<< HEAD
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">@T["Cancel"]</button>
                     <button type="submit" id="saveTermBtn" class="btn btn-primary"
                             data-idle-label="@T["SaveTerm"]" data-loading-label="@T["Saving"]">
                         @T["SaveTerm"]
+=======
+
+                    <button type="button"
+                            class="btn btn-outline-secondary"
+                            data-bs-dismiss="modal">
+                        Cancel
                     </button>
+
+                    <button type="submit"
+                            id="saveTermBtn"
+                            class="btn btn-primary">
+
+                        Save term
+
+>>>>>>> Ashraful
+                    </button>
+
                 </div>
+
             </form>
         </div>
+
     </div>
+
 </div>
 
+<<<<<<< HEAD
 <script id="academicSetupStrings" type="application/json">@Html.Raw(pageJson)</script>
 <script src="~/js/account/academic-setup.js" asp-append-version="true"></script>
+=======
+
+@section Scripts {
+
+    <script src="~/js/account/academic-setup.js"
+            asp-append-version="true">
+    </script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+
+            // ============================================================
+            // MAIN ADD TERM BUTTON
+            // ============================================================
+
+            const addTermMainBtn = document.getElementById('addTermMainBtn');
+
+            if (addTermMainBtn) {
+
+                addTermMainBtn.addEventListener('click', function (e) {
+
+                    if (!Array.isArray(window.academicYears) &&
+                        typeof academicYears === 'undefined') {
+                        return;
+                    }
+
+                    const years = typeof academicYears !== 'undefined'
+                        ? academicYears
+                        : [];
+
+                    if (years.length === 0) {
+
+                        e.preventDefault();
+                        e.stopPropagation();
+
+                        const modalElement =
+                            document.getElementById('termModal');
+
+                        const existingModal =
+                            bootstrap.Modal.getInstance(modalElement);
+
+                        if (existingModal) {
+                            existingModal.hide();
+                        }
+
+                        if (typeof showAlert === 'function') {
+                            showAlert(
+                                'warning',
+                                'Please create an academic year before adding a term.'
+                            );
+                        }
+
+                        return;
+                    }
+
+                    if (typeof resetTermForm === 'function') {
+                        resetTermForm();
+                    }
+
+                    if (typeof populateAcademicYearDropdown === 'function') {
+                        populateAcademicYearDropdown();
+                    }
+
+                    const title =
+                        document.getElementById('termModalLabel');
+
+                    if (title) {
+                        title.textContent = 'Add Academic Term';
+                    }
+
+                    const label =
+                        document.getElementById('termYearLabel');
+
+                    if (label) {
+                        label.textContent = 'Select an academic year';
+                    }
+                });
+            }
+
+        });
+    </script>
+}
+>>>>>>> Ashraful

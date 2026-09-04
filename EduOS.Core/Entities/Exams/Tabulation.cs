@@ -16,8 +16,8 @@ namespace EduOS.Core.Entities.Exams
         public string Result { get; set; } = "Pass"; // Pass/Fail
 
         public virtual Exam? Exam { get; set; }
-        public virtual Class? Class { get; set; }
-        public virtual Section? Section { get; set; }
+        public virtual AcademicLevel? Class { get; set; }
+        public virtual AcademicBatch? Section { get; set; }
         public virtual Student? Student { get; set; }
     }
 }

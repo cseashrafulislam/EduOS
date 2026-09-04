@@ -1,26 +1,20 @@
-using EduOS.Core.Entities.Base;
+﻿using EduOS.Core.Entities.Base;
 using System.ComponentModel.DataAnnotations;
 
 namespace EduOS.Core.Entities.Academic
 {
-    public class Department : BaseTenantEntity
+    public class Medium : BaseTenantEntity
     {
-        public long? CampusId { get; set; }
-
-        [Required, MaxLength(200)]
+        [Required, MaxLength(100)]
         public string Name { get; set; } = string.Empty;
 
-        [Required, MaxLength(50)]
+        [Required, MaxLength(30)]
         public string Code { get; set; } = string.Empty;
 
-        [MaxLength(100)]
-        public string? ShortName { get; set; }
-
-        public long? HeadEmployeeId { get; set; }
-
-        [MaxLength(500)]
+        [MaxLength(300)]
         public string? Description { get; set; }
 
+        public bool IsDefault { get; set; }
         public bool IsActive { get; set; } = true;
         public int DisplayOrder { get; set; } = 1;
     }

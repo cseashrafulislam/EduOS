@@ -1,0 +1,342 @@
+﻿@{
+    ViewData["Title"] = "My Profile";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="container-fluid py-4">
+
+    @Html.AntiForgeryToken()
+
+    <div class="row justify-content-center">
+        <div class="col-xl-10 col-lg-11">
+
+            <div id="alertContainer"></div>
+
+            <!-- =====================================================
+                 PAGE HEADER
+                 ===================================================== -->
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+                <div>
+                    <h3 class="fw-bold mb-1">My Profile</h3>
+                    <p class="text-muted mb-0">
+                        Manage your personal information and account security.
+                    </p>
+                </div>
+
+                <a href="/" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left me-1"></i>
+                    Back
+                </a>
+            </div>
+
+            <div class="row g-4">
+
+                <!-- =====================================================
+                     PROFILE SUMMARY
+                     ===================================================== -->
+                <div class="col-lg-4">
+
+                    <div class="card shadow-sm border-0 rounded-4 h-100">
+                        <div class="card-body text-center p-4">
+
+                            <div id="profileAvatar"
+                                 class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center fw-bold mb-3"
+                                 style="width:100px;height:100px;font-size:32px;">
+                                U
+                            </div>
+
+                            <h5 id="profileDisplayName" class="fw-bold mb-1">
+                                Loading...
+                            </h5>
+
+                            <div id="profileDisplayEmail"
+                                 class="text-muted small mb-3">
+                            </div>
+
+                            <span class="badge bg-success-subtle text-success px-3 py-2">
+                                <i class="bi bi-check-circle me-1"></i>
+                                Active Account
+                            </span>
+
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- =====================================================
+                     PROFILE INFORMATION
+                     ===================================================== -->
+                <div class="col-lg-8">
+
+                    <div class="card shadow-sm border-0 rounded-4">
+                        <div class="card-header bg-white border-0 p-4 pb-0">
+
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-person-circle text-primary fs-4"></i>
+
+                                <div>
+                                    <h5 class="fw-bold mb-1">
+                                        Personal Information
+                                    </h5>
+
+                                    <div class="small text-muted">
+                                        Update your account information.
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <div class="card-body p-4">
+
+                            <form id="profileForm" novalidate>
+
+                                <div class="row g-3">
+
+                                    <!-- FULL NAME -->
+                                    <div class="col-md-6">
+
+                                        <label for="fullName"
+                                               class="form-label">
+                                            Full Name
+                                            <span class="text-danger">*</span>
+                                        </label>
+
+                                        <input type="text"
+                                               id="fullName"
+                                               class="form-control"
+                                               maxlength="150"
+                                               autocomplete="name"
+                                               placeholder="Enter full name" />
+
+                                        <div class="invalid-feedback"></div>
+
+                                    </div>
+
+                                    <!-- EMAIL -->
+                                    <div class="col-md-6">
+
+                                        <label for="email"
+                                               class="form-label">
+                                            Email Address
+                                        </label>
+
+                                        <input type="email"
+                                               id="email"
+                                               class="form-control"
+                                               readonly />
+
+                                        <div class="form-text">
+                                            Email change requires a separate verification process.
+                                        </div>
+
+                                    </div>
+
+                                    <!-- PHONE -->
+                                    <div class="col-md-6">
+
+                                        <label for="phoneNumber"
+                                               class="form-label">
+                                            Phone Number
+                                        </label>
+
+                                        <input type="tel"
+                                               id="phoneNumber"
+                                               class="form-control"
+                                               maxlength="30"
+                                               autocomplete="tel"
+                                               placeholder="Enter phone number" />
+
+                                    </div>
+
+                                    <!-- ADDRESS -->
+                                    <div class="col-12">
+
+                                        <label for="address"
+                                               class="form-label">
+                                            Address
+                                        </label>
+
+                                        <textarea id="address"
+                                                  class="form-control"
+                                                  rows="3"
+                                                  maxlength="500"
+                                                  placeholder="Enter address"></textarea>
+
+                                    </div>
+
+                                </div>
+
+                                <div class="d-flex justify-content-end mt-4">
+
+                                    <button type="submit"
+                                            id="saveProfileBtn"
+                                            class="btn btn-primary">
+
+                                        <i class="bi bi-check-circle me-1"></i>
+                                        Save Changes
+
+                                    </button>
+
+                                </div>
+
+                            </form>
+
+                        </div>
+                    </div>
+
+                    <!-- =================================================
+                         PASSWORD
+                         ================================================= -->
+                    <div class="card shadow-sm border-0 rounded-4 mt-4">
+
+                        <div class="card-header bg-white border-0 p-4 pb-0">
+
+                            <div class="d-flex align-items-center gap-2">
+
+                                <i class="bi bi-shield-lock text-primary fs-4"></i>
+
+                                <div>
+                                    <h5 class="fw-bold mb-1">
+                                        Change Password
+                                    </h5>
+
+                                    <div class="small text-muted">
+                                        Use a strong password to protect your account.
+                                    </div>
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                        <div class="card-body p-4">
+
+                            <form id="passwordForm" novalidate>
+
+                                <div class="row g-3">
+
+                                    <!-- CURRENT PASSWORD -->
+                                    <div class="col-12">
+
+                                        <label for="currentPassword"
+                                               class="form-label">
+                                            Current Password
+                                            <span class="text-danger">*</span>
+                                        </label>
+
+                                        <div class="input-group">
+
+                                            <input type="password"
+                                                   id="currentPassword"
+                                                   class="form-control"
+                                                   autocomplete="current-password"
+                                                   placeholder="Enter current password" />
+
+                                            <button type="button"
+                                                    class="btn btn-outline-secondary password-toggle"
+                                                    data-target="currentPassword">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+
+                                            <div class="invalid-feedback"></div>
+
+                                        </div>
+
+                                    </div>
+
+                                    <!-- NEW PASSWORD -->
+                                    <div class="col-md-6">
+
+                                        <label for="newPassword"
+                                               class="form-label">
+                                            New Password
+                                            <span class="text-danger">*</span>
+                                        </label>
+
+                                        <div class="input-group">
+
+                                            <input type="password"
+                                                   id="newPassword"
+                                                   class="form-control"
+                                                   autocomplete="new-password"
+                                                   placeholder="Enter new password" />
+
+                                            <button type="button"
+                                                    class="btn btn-outline-secondary password-toggle"
+                                                    data-target="newPassword">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+
+                                        </div>
+
+                                        <div id="newPasswordError"
+                                             class="text-danger small mt-1">
+                                        </div>
+
+                                    </div>
+
+                                    <!-- CONFIRM PASSWORD -->
+                                    <div class="col-md-6">
+
+                                        <label for="confirmPassword"
+                                               class="form-label">
+                                            Confirm Password
+                                            <span class="text-danger">*</span>
+                                        </label>
+
+                                        <div class="input-group">
+
+                                            <input type="password"
+                                                   id="confirmPassword"
+                                                   class="form-control"
+                                                   autocomplete="new-password"
+                                                   placeholder="Confirm new password" />
+
+                                            <button type="button"
+                                                    class="btn btn-outline-secondary password-toggle"
+                                                    data-target="confirmPassword">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+
+                                        </div>
+
+                                        <div id="confirmPasswordError"
+                                             class="text-danger small mt-1">
+                                        </div>
+
+                                    </div>
+
+                                </div>
+
+                                <div class="d-flex justify-content-end mt-4">
+
+                                    <button type="submit"
+                                            id="changePasswordBtn"
+                                            class="btn btn-warning">
+
+                                        <i class="bi bi-shield-check me-1"></i>
+                                        Change Password
+
+                                    </button>
+
+                                </div>
+
+                            </form>
+
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+@section Scripts {
+    <script src="~/js/account/profile.js"
+            asp-append-version="true"></script>
+}

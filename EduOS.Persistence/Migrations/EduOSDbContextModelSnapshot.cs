@@ -173,7 +173,7 @@ namespace EduOS.Persistence.Migrations
                     b.ToTable("Classes", (string)null);
                 });
 
-            modelBuilder.Entity("EduOS.Core.Entities.Academic.ClassRoutine", b =>
+            modelBuilder.Entity("EduOS.Core.Entities.Academic.RoutineEntry", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -258,7 +258,7 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId");
 
-                    b.ToTable("ClassRoutines");
+                    b.ToTable("RoutineEntrys");
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.Academic.Department", b =>
@@ -687,7 +687,7 @@ namespace EduOS.Persistence.Migrations
                     b.ToTable("Subjects");
                 });
 
-            modelBuilder.Entity("EduOS.Core.Entities.Academic.SubjectTeacher", b =>
+            modelBuilder.Entity("EduOS.Core.Entities.Academic.InstructorAssignment", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -760,7 +760,7 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId");
 
-                    b.ToTable("SubjectTeachers");
+                    b.ToTable("InstructorAssignments");
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.Academic.Substitution", b =>
@@ -9408,7 +9408,7 @@ namespace EduOS.Persistence.Migrations
                     b.Navigation("Tenant");
                 });
 
-            modelBuilder.Entity("EduOS.Core.Entities.Academic.ClassRoutine", b =>
+            modelBuilder.Entity("EduOS.Core.Entities.Academic.RoutineEntry", b =>
                 {
                     b.HasOne("EduOS.Core.Entities.Academic.AcademicYear", "AcademicYear")
                         .WithMany()
@@ -9580,7 +9580,7 @@ namespace EduOS.Persistence.Migrations
                     b.Navigation("Tenant");
                 });
 
-            modelBuilder.Entity("EduOS.Core.Entities.Academic.SubjectTeacher", b =>
+            modelBuilder.Entity("EduOS.Core.Entities.Academic.InstructorAssignment", b =>
                 {
                     b.HasOne("EduOS.Core.Entities.Academic.AcademicYear", "AcademicYear")
                         .WithMany()

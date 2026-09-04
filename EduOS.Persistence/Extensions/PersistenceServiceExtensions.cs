@@ -71,8 +71,8 @@ namespace EduOS.Persistence.Extensions
             s.AddScoped<IGroupRepository, GroupRepository>();
             s.AddScoped<ISubjectRepository, SubjectRepository>();
             s.AddScoped<IDepartmentRepository, DepartmentRepository>();
-            s.AddScoped<ISubjectTeacherRepository, SubjectTeacherRepository>();
-            s.AddScoped<IClassRoutineRepository, ClassRoutineRepository>();
+            s.AddScoped<IInstructorAssignmentRepository, InstructorAssignmentRepository>();
+            s.AddScoped<IRoutineEntryRepository, RoutineEntryRepository>();
         }
 
         private static void RegisterStudentRepositories(IServiceCollection s)

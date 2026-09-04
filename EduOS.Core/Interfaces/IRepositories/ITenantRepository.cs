@@ -1,4 +1,4 @@
-using EduOS.Core.Entities.Tenants;
+using EduOS.Core.Entities.SaaS;
 
 namespace EduOS.Core.Interfaces.IRepositories
 {

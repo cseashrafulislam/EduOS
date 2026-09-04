@@ -3400,7 +3400,7 @@ namespace EduOS.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "ClassRoutines",
+                name: "RoutineEntrys",
                 columns: table => new
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
@@ -3428,39 +3428,39 @@ namespace EduOS.Persistence.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_ClassRoutines", x => x.Id);
+                    table.PrimaryKey("PK_RoutineEntrys", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_ClassRoutines_AcademicYears_AcademicYearId1",
+                        name: "FK_RoutineEntrys_AcademicYears_AcademicYearId1",
                         column: x => x.AcademicYearId1,
                         principalTable: "AcademicYears",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_ClassRoutines_Classes_ClassId1",
+                        name: "FK_RoutineEntrys_Classes_ClassId1",
                         column: x => x.ClassId1,
                         principalTable: "Classes",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_ClassRoutines_Employee_TeacherId1",
+                        name: "FK_RoutineEntrys_Employee_TeacherId1",
                         column: x => x.TeacherId1,
                         principalTable: "Employee",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_ClassRoutines_Sections_SectionId1",
+                        name: "FK_RoutineEntrys_Sections_SectionId1",
                         column: x => x.SectionId1,
                         principalTable: "Sections",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_ClassRoutines_Subjects_SubjectId1",
+                        name: "FK_RoutineEntrys_Subjects_SubjectId1",
                         column: x => x.SubjectId1,
                         principalTable: "Subjects",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_ClassRoutines_Tenants_TenantId",
+                        name: "FK_RoutineEntrys_Tenants_TenantId",
                         column: x => x.TenantId,
                         principalTable: "Tenants",
                         principalColumn: "Id",
@@ -3838,7 +3838,7 @@ namespace EduOS.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "SubjectTeachers",
+                name: "InstructorAssignments",
                 columns: table => new
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
@@ -3863,39 +3863,39 @@ namespace EduOS.Persistence.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_SubjectTeachers", x => x.Id);
+                    table.PrimaryKey("PK_InstructorAssignments", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_SubjectTeachers_AcademicYears_AcademicYearId1",
+                        name: "FK_InstructorAssignments_AcademicYears_AcademicYearId1",
                         column: x => x.AcademicYearId1,
                         principalTable: "AcademicYears",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_SubjectTeachers_Classes_ClassId1",
+                        name: "FK_InstructorAssignments_Classes_ClassId1",
                         column: x => x.ClassId1,
                         principalTable: "Classes",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_SubjectTeachers_Employee_TeacherId1",
+                        name: "FK_InstructorAssignments_Employee_TeacherId1",
                         column: x => x.TeacherId1,
                         principalTable: "Employee",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_SubjectTeachers_Sections_SectionId1",
+                        name: "FK_InstructorAssignments_Sections_SectionId1",
                         column: x => x.SectionId1,
                         principalTable: "Sections",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_SubjectTeachers_Subjects_SubjectId1",
+                        name: "FK_InstructorAssignments_Subjects_SubjectId1",
                         column: x => x.SubjectId1,
                         principalTable: "Subjects",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_SubjectTeachers_Tenants_TenantId",
+                        name: "FK_InstructorAssignments_Tenants_TenantId",
                         column: x => x.TenantId,
                         principalTable: "Tenants",
                         principalColumn: "Id",
@@ -5539,33 +5539,33 @@ namespace EduOS.Persistence.Migrations
                 filter: "[IsDeleted] = 0");
 
             migrationBuilder.CreateIndex(
-                name: "IX_ClassRoutines_AcademicYearId1",
-                table: "ClassRoutines",
+                name: "IX_RoutineEntrys_AcademicYearId1",
+                table: "RoutineEntrys",
                 column: "AcademicYearId1");
 
             migrationBuilder.CreateIndex(
-                name: "IX_ClassRoutines_ClassId1",
-                table: "ClassRoutines",
+                name: "IX_RoutineEntrys_ClassId1",
+                table: "RoutineEntrys",
                 column: "ClassId1");
 
             migrationBuilder.CreateIndex(
-                name: "IX_ClassRoutines_SectionId1",
-                table: "ClassRoutines",
+                name: "IX_RoutineEntrys_SectionId1",
+                table: "RoutineEntrys",
                 column: "SectionId1");
 
             migrationBuilder.CreateIndex(
-                name: "IX_ClassRoutines_SubjectId1",
-                table: "ClassRoutines",
+                name: "IX_RoutineEntrys_SubjectId1",
+                table: "RoutineEntrys",
                 column: "SubjectId1");
 
             migrationBuilder.CreateIndex(
-                name: "IX_ClassRoutines_TeacherId1",
-                table: "ClassRoutines",
+                name: "IX_RoutineEntrys_TeacherId1",
+                table: "RoutineEntrys",
                 column: "TeacherId1");
 
             migrationBuilder.CreateIndex(
-                name: "IX_ClassRoutines_TenantId",
-                table: "ClassRoutines",
+                name: "IX_RoutineEntrys_TenantId",
+                table: "RoutineEntrys",
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
@@ -6513,33 +6513,33 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_SubjectTeachers_AcademicYearId1",
-                table: "SubjectTeachers",
+                name: "IX_InstructorAssignments_AcademicYearId1",
+                table: "InstructorAssignments",
                 column: "AcademicYearId1");
 
             migrationBuilder.CreateIndex(
-                name: "IX_SubjectTeachers_ClassId1",
-                table: "SubjectTeachers",
+                name: "IX_InstructorAssignments_ClassId1",
+                table: "InstructorAssignments",
                 column: "ClassId1");
 
             migrationBuilder.CreateIndex(
-                name: "IX_SubjectTeachers_SectionId1",
-                table: "SubjectTeachers",
+                name: "IX_InstructorAssignments_SectionId1",
+                table: "InstructorAssignments",
                 column: "SectionId1");
 
             migrationBuilder.CreateIndex(
-                name: "IX_SubjectTeachers_SubjectId1",
-                table: "SubjectTeachers",
+                name: "IX_InstructorAssignments_SubjectId1",
+                table: "InstructorAssignments",
                 column: "SubjectId1");
 
             migrationBuilder.CreateIndex(
-                name: "IX_SubjectTeachers_TeacherId1",
-                table: "SubjectTeachers",
+                name: "IX_InstructorAssignments_TeacherId1",
+                table: "InstructorAssignments",
                 column: "TeacherId1");
 
             migrationBuilder.CreateIndex(
-                name: "IX_SubjectTeachers_TenantId",
-                table: "SubjectTeachers",
+                name: "IX_InstructorAssignments_TenantId",
+                table: "InstructorAssignments",
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
@@ -6852,7 +6852,7 @@ namespace EduOS.Persistence.Migrations
                 name: "Campuses");
 
             migrationBuilder.DropTable(
-                name: "ClassRoutines");
+                name: "RoutineEntrys");
 
             migrationBuilder.DropTable(
                 name: "Complaints");
@@ -7029,7 +7029,7 @@ namespace EduOS.Persistence.Migrations
                 name: "StudentTransports");
 
             migrationBuilder.DropTable(
-                name: "SubjectTeachers");
+                name: "InstructorAssignments");
 
             migrationBuilder.DropTable(
                 name: "SubscriptionPayments");

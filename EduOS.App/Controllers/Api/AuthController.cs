@@ -248,10 +248,208 @@ namespace EduOS.App.Controllers.Api
             return Ok(new { success = true, message = "Logged out successfully." });
         }
 
+        // ============================================================
+        // GET PROFILE
+        // ============================================================
+
+        [Authorize]
+        [HttpGet("profile")]
+        public async Task<IActionResult> GetProfile()
+        {
+            var user = await _userManager.GetUserAsync(User);
+
+            if (user == null)
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = "User session not found."
+                });
+            }
+
+            var dto = new UserProfileDto
+            {
+                Id = user.Id,
+                FullName = user.FullName ?? string.Empty,
+                Email = user.Email ?? string.Empty,
+                PhoneNumber = user.PhoneNumber,
+                Address = user.Address
+            };
+
+            return Ok(new
+            {
+                success = true,
+                data = dto
+            });
+        }
+
+        // ============================================================
+        // UPDATE PROFILE
+        // ============================================================
+
+        [Authorize]
+        [HttpPut("profile")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateProfile([FromBody] UpdateUserProfileDto dto)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = GetModelStateError()
+                });
+            }
+
+            var user = await _userManager.GetUserAsync(User);
+
+            if (user == null)
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = "User session not found."
+                });
+            }
+
+            user.FullName = dto.FullName.Trim();
+            user.PhoneNumber = string.IsNullOrWhiteSpace(dto.PhoneNumber)
+                ? null
+                : dto.PhoneNumber.Trim();
+
+            user.Address = string.IsNullOrWhiteSpace(dto.Address)
+                ? null
+                : dto.Address.Trim();
+
+            user.UpdatedAt = DateTime.UtcNow;
+
+            var result = await _userManager.UpdateAsync(user);
+
+            if (!result.Succeeded)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = string.Join(" | ", result.Errors.Select(x => x.Description))
+                });
+            }
+
+            return Ok(new
+            {
+                success = true,
+                message = "Profile updated successfully.",
+                data = new
+                {
+                    id = user.Id,
+                    fullName = user.FullName,
+                    email = user.Email,
+                    phoneNumber = user.PhoneNumber,
+                    address = user.Address
+                }
+            });
+        }
+
+        // ============================================================
+        // CHANGE PASSWORD
+        // ============================================================
+
+        [Authorize]
+        [HttpPost("change-password")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = GetModelStateError()
+                });
+            }
+
+            if (dto.NewPassword != dto.ConfirmPassword)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "New password and confirm password do not match."
+                });
+            }
+
+            var user = await _userManager.GetUserAsync(User);
+
+            if (user == null)
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = "User session not found."
+                });
+            }
+
+            var isCurrentPasswordValid = await _userManager.CheckPasswordAsync(
+                user,
+                dto.CurrentPassword);
+
+            if (!isCurrentPasswordValid)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Current password is incorrect."
+                });
+            }
+
+            var result = await _userManager.ChangePasswordAsync(
+                user,
+                dto.CurrentPassword,
+                dto.NewPassword);
+
+            if (!result.Succeeded)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = string.Join(" | ", result.Errors.Select(x => x.Description))
+                });
+            }
+
+            user.UpdatedAt = DateTime.UtcNow;
+            await _userManager.UpdateAsync(user);
+
+            // Password change updates the security stamp.
+            // Refresh current cookie so the user remains logged in.
+            await _signInManager.RefreshSignInAsync(user);
+
+            _logger.LogInformation(
+                "Password changed successfully for user {UserId}",
+                user.Id);
+
+            return Ok(new
+            {
+                success = true,
+                message = "Password changed successfully."
+            });
+        }
+
+        // ============================================================
+        // MODEL STATE ERROR
+        // ============================================================
+
+        private string GetModelStateError()
+        {
+            return string.Join(
+                " | ",
+                ModelState.Values
+                    .SelectMany(x => x.Errors)
+                    .Select(x => x.ErrorMessage)
+                    .Where(x => !string.IsNullOrWhiteSpace(x)));
+        }
 
         // ============================================================
         // PRIVATE HELPERS
         // ============================================================
+
         private async Task SaveLoginHistoryAsync(
             ApplicationUser user,
             string ip,
@@ -259,7 +457,13 @@ namespace EduOS.App.Controllers.Api
             bool isSuccess,
             string? failReason)
         {
-            await SaveLoginHistoryAsync(user, null, ip, userAgent, isSuccess, failReason);
+            await SaveLoginHistoryAsync(
+                user,
+                null,
+                ip,
+                userAgent,
+                isSuccess,
+                failReason);
         }
 
         private async Task SaveLoginHistoryAsync(
@@ -272,7 +476,6 @@ namespace EduOS.App.Controllers.Api
         {
             try
             {
-                // Parse browser and device from User-Agent
                 var (browser, device) = ParseUserAgent(userAgent);
 
                 var history = new LoginHistory
@@ -293,41 +496,55 @@ namespace EduOS.App.Controllers.Api
             }
             catch (Exception ex)
             {
-                // Never let login history failure break the login flow
-                _logger.LogError(ex, "Failed to save login history for {Email}",
+                _logger.LogError(
+                    ex,
+                    "Failed to save login history for {Email}",
                     user?.Email ?? attemptedEmail ?? "unknown");
             }
         }
 
-        private async Task<string> GetRedirectUrlAsync(string userType, long? tenantId)
+        private Task<string> GetRedirectUrlAsync(string userType, long? tenantId)
         {
-            // SuperAdmin → admin dashboard
             if (userType == "SuperAdmin")
-                return "/Dashboard/Admin";
+            {
+                return Task.FromResult("/Dashboard/Admin");
+            }
 
-            // No tenant assigned
             if (!tenantId.HasValue)
-                return "/Account/Login?error=no_tenant";
+            {
+                return Task.FromResult("/Account/Login?error=no_tenant");
+            }
 
-            // Tenant user → OnboardingGuard middleware handles redirect to wizard if incomplete
-            return "/Dashboard/Index";
+            return Task.FromResult("/Dashboard/Index");
         }
 
         private string GetClientIp()
         {
-            var forwarded = HttpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault();
-            if (!string.IsNullOrEmpty(forwarded))
-                return forwarded.Split(',').FirstOrDefault()?.Trim() ?? string.Empty;
+            var forwarded = HttpContext.Request
+                .Headers["X-Forwarded-For"]
+                .FirstOrDefault();
 
-            return HttpContext.Connection.RemoteIpAddress?.ToString() ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(forwarded))
+            {
+                return forwarded
+                    .Split(',')
+                    .FirstOrDefault()
+                    ?.Trim() ?? string.Empty;
+            }
+
+            return HttpContext.Connection
+                .RemoteIpAddress
+                ?.ToString() ?? string.Empty;
         }
 
         private static (string browser, string device) ParseUserAgent(string ua)
         {
-            if (string.IsNullOrEmpty(ua))
+            if (string.IsNullOrWhiteSpace(ua))
+            {
                 return ("Unknown", "Unknown");
+            }
 
-            string browser = ua switch
+            var browser = ua switch
             {
                 _ when ua.Contains("Edg/") => "Edge",
                 _ when ua.Contains("Chrome") => "Chrome",
@@ -337,9 +554,9 @@ namespace EduOS.App.Controllers.Api
                 _ => "Other"
             };
 
-            string device = ua switch
+            var device = ua switch
             {
-                _ when ua.Contains("Mobile") || ua.Contains("Android") && ua.Contains("Mobile") => "Mobile",
+                _ when ua.Contains("Mobile") => "Mobile",
                 _ when ua.Contains("iPad") || ua.Contains("Tablet") => "Tablet",
                 _ when ua.Contains("Android") => "Android",
                 _ => "Desktop"
@@ -347,6 +564,5 @@ namespace EduOS.App.Controllers.Api
 
             return (browser, device);
         }
-
     }
 }
