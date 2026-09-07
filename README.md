@@ -360,7 +360,7 @@ Required functions:
 - Student/guardian self-service profile corrections with approval.
 - Record retention, legal hold, correction, export, and deletion/anonymization policy.
 
-Status: 🟡 basic entities and StudentService exist; complete lifecycle API/UI is incomplete.
+Status: 🟡 tenant-safe responsive bilingual student directory, authorized profile/guardian/enrollment details, admission conversion and basic entities are implemented. Profile correction, promotion, transfer, completion and self-service lifecycle workflows remain incomplete.
 
 ### 6.8 Attendance
 

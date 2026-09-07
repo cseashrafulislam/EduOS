@@ -687,4 +687,23 @@
   <data name="Section" xml:space="preserve"><value>শাখা</value></data>
   <data name="Group" xml:space="preserve"><value>বিভাগ</value></data>
   <data name="Roll" xml:space="preserve"><value>রোল</value></data>
+  <data name="StudentDirectory" xml:space="preserve"><value>শিক্ষার্থী তালিকা</value></data>
+  <data name="StudentDirectoryHelp" xml:space="preserve"><value>ভর্তিকৃত শিক্ষার্থী খুঁজুন এবং অনুমোদিত প্রোফাইল, অভিভাবক ও ভর্তির ইতিহাস দেখুন।</value></data>
+  <data name="LoadingStudents" xml:space="preserve"><value>শিক্ষার্থী লোড হচ্ছে…</value></data>
+  <data name="NoStudents" xml:space="preserve"><value>বর্তমান ছাঁকনিতে কোনো শিক্ষার্থী নেই।</value></data>
+  <data name="StudentsLoadFailed" xml:space="preserve"><value>শিক্ষার্থীদের লোড করা যায়নি।</value></data>
+  <data name="StudentDetailsFailed" xml:space="preserve"><value>শিক্ষার্থীর বিস্তারিত লোড করা যায়নি।</value></data>
+  <data name="ViewDetails" xml:space="preserve"><value>বিস্তারিত দেখুন</value></data>
+  <data name="StudentCode" xml:space="preserve"><value>শিক্ষার্থী কোড</value></data>
+  <data name="AdmissionDate" xml:space="preserve"><value>ভর্তির তারিখ</value></data>
+  <data name="EnrollmentHistory" xml:space="preserve"><value>ভর্তির ইতিহাস</value></data>
+  <data name="SearchStudents" xml:space="preserve"><value>নাম, কোড বা রোল দিয়ে খুঁজুন</value></data>
+  <data name="StudentPagination" xml:space="preserve"><value>শিক্ষার্থী তালিকার পৃষ্ঠা</value></data>
+  <data name="StudentProfile" xml:space="preserve"><value>শিক্ষার্থী প্রোফাইল</value></data>
+  <data name="Active" xml:space="preserve"><value>সক্রিয়</value></data>
+  <data name="Suspended" xml:space="preserve"><value>স্থগিত</value></data>
+  <data name="Transferred" xml:space="preserve"><value>স্থানান্তরিত</value></data>
+  <data name="Passed" xml:space="preserve"><value>উত্তীর্ণ</value></data>
+  <data name="Dropout" xml:space="preserve"><value>পড়াশোনা ছেড়েছে</value></data>
+  <data name="Archived" xml:space="preserve"><value>আর্কাইভ</value></data>
 </root>

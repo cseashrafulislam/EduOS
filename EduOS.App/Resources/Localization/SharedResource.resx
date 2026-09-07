@@ -687,4 +687,23 @@
   <data name="Section" xml:space="preserve"><value>Section</value></data>
   <data name="Group" xml:space="preserve"><value>Group</value></data>
   <data name="Roll" xml:space="preserve"><value>Roll</value></data>
+  <data name="StudentDirectory" xml:space="preserve"><value>Student directory</value></data>
+  <data name="StudentDirectoryHelp" xml:space="preserve"><value>Find enrolled students and view their authorized profile, guardian and enrollment history.</value></data>
+  <data name="LoadingStudents" xml:space="preserve"><value>Loading students…</value></data>
+  <data name="NoStudents" xml:space="preserve"><value>No students match the current filters.</value></data>
+  <data name="StudentsLoadFailed" xml:space="preserve"><value>Students could not be loaded.</value></data>
+  <data name="StudentDetailsFailed" xml:space="preserve"><value>Student details could not be loaded.</value></data>
+  <data name="ViewDetails" xml:space="preserve"><value>View details</value></data>
+  <data name="StudentCode" xml:space="preserve"><value>Student code</value></data>
+  <data name="AdmissionDate" xml:space="preserve"><value>Admission date</value></data>
+  <data name="EnrollmentHistory" xml:space="preserve"><value>Enrollment history</value></data>
+  <data name="SearchStudents" xml:space="preserve"><value>Search by name, code or roll</value></data>
+  <data name="StudentPagination" xml:space="preserve"><value>Student pages</value></data>
+  <data name="StudentProfile" xml:space="preserve"><value>Student profile</value></data>
+  <data name="Active" xml:space="preserve"><value>Active</value></data>
+  <data name="Suspended" xml:space="preserve"><value>Suspended</value></data>
+  <data name="Transferred" xml:space="preserve"><value>Transferred</value></data>
+  <data name="Passed" xml:space="preserve"><value>Passed</value></data>
+  <data name="Dropout" xml:space="preserve"><value>Dropout</value></data>
+  <data name="Archived" xml:space="preserve"><value>Archived</value></data>
 </root>
