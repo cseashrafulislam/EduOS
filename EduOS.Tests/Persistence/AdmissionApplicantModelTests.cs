@@ -19,7 +19,9 @@ public class AdmissionApplicantModelTests
 
         entity.Should().NotBeNull();
         entity!.GetQueryFilter().Should().NotBeNull();
-        entity.FindProperty(nameof(AdmissionApplicant.DateOfBirth))!.GetColumnType().Should().Be("date");
+        entity.FindProperty(nameof(AdmissionApplicant.DateOfBirth))!
+            .FindAnnotation(RelationalAnnotationNames.ColumnType)!
+            .Value.Should().Be("date");
         entity.FindProperty(nameof(AdmissionApplicant.RowVersion))!.IsConcurrencyToken.Should().BeTrue();
         entity.GetForeignKeys().Should().HaveCount(5);
         entity.GetForeignKeys().Should().OnlyContain(x => x.DeleteBehavior == DeleteBehavior.Restrict);
