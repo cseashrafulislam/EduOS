@@ -23,15 +23,9 @@ public class AdmissionApplicantModelTests
         entity.FindProperty(nameof(AdmissionApplicant.RowVersion))!.IsConcurrencyToken.Should().BeTrue();
         entity.GetForeignKeys().Should().HaveCount(5);
         entity.GetForeignKeys().Should().OnlyContain(x => x.DeleteBehavior == DeleteBehavior.Restrict);
-        entity.GetIndexes().Should().Contain(x => x.IsUnique
-            && x.Properties.Select(p => p.Name).SequenceEqual([
-                nameof(AdmissionApplicant.TenantId),
-                nameof(AdmissionApplicant.ClientRequestId)
-            ]));
-        entity.GetIndexes().Should().Contain(x => x.IsUnique
-            && x.Properties.Select(p => p.Name).SequenceEqual([
-                nameof(AdmissionApplicant.TenantId),
-                nameof(AdmissionApplicant.ApplicationNumber)
-            ]));
+        var clientRequestIndex = new[] { nameof(AdmissionApplicant.TenantId), nameof(AdmissionApplicant.ClientRequestId) };
+        var applicationNumberIndex = new[] { nameof(AdmissionApplicant.TenantId), nameof(AdmissionApplicant.ApplicationNumber) };
+        entity.GetIndexes().Any(x => x.IsUnique && x.Properties.Select(p => p.Name).SequenceEqual(clientRequestIndex)).Should().BeTrue();
+        entity.GetIndexes().Any(x => x.IsUnique && x.Properties.Select(p => p.Name).SequenceEqual(applicationNumberIndex)).Should().BeTrue();
     }
 }
