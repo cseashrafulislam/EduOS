@@ -6,9 +6,9 @@ EduOS is a configurable, multi-tenant SaaS platform for the Bangladesh education
 
 একটি প্রতিষ্ঠান signup করবে, plan/trial বেছে নেবে, payment করবে, নিজের campus, academic structure, branding, terminology, workflow ও enabled modules configure করবে এবং ব্যবহার শুরু করবে। কোনো নির্দিষ্ট প্রতিষ্ঠানের নাম, class structure, fee rule, grading rule বা approval flow shared code-এ hard-code করা যাবে না।
 
-> **Current status:** foundation under active development. Phase 0 security work, the Phase 1 institution/module entitlement catalogue, and the first Phase 2 privacy-safe learner identity workflow are implemented and tested. The shared/public shells, account pages, public pricing, tenant dashboard, SuperAdmin operations landing page, and onboarding progress support responsive desktop/mobile use, installable PWA behaviour, and English/Bangla UI resources. Institution profile, plan/payment, campus/branch, academic year/term, plan-aware module selection, branding/subdomain, regional preferences, and optional SMS/email gateway setup now have bilingual responsive workflows with TenantAdmin authorization and anti-forgery protection. Billing rejects hidden plans and duplicate current subscriptions/payments, includes setup fees in invoice totals, verifies online payment before activation, and keeps manual deposit receipts outside public web storage. Gateway secrets are encrypted and masked, unsafe local/insecure endpoints are rejected, and branding images use image-only validation with failure-safe replacement. Government identifier equality matching now uses an encrypted value plus keyed lookup digest; a verified cross-tenant match returns no person data and creates an expiring consent request with an append-only access record, while an unverified match fails closed for review. Consent approval, history release, legacy identifier migration, and many education-module workflows remain planned and must not be treated as production-complete.
+> **Current status:** foundation under active development. Phase 0 security work, the Phase 1 institution/module entitlement catalogue, the first Phase 2 privacy-safe learner identity workflow, and the first production admission-intake workflow are implemented and tested. The shared/public shells, account pages, public pricing, tenant dashboard, SuperAdmin operations landing page, onboarding progress, and admission intake support responsive desktop/mobile use, installable PWA behaviour, and English/Bangla UI resources. Institution profile, plan/payment, campus/branch, academic year/term, plan-aware module selection, branding/subdomain, regional preferences, optional SMS/email gateway setup, and staff-entered admission application review have TenantAdmin/role authorization and anti-forgery protection. Billing rejects hidden plans and duplicate current subscriptions/payments, includes setup fees in invoice totals, verifies online payment before activation, and keeps manual deposit receipts outside public web storage. Gateway secrets are encrypted and masked, unsafe local/insecure endpoints are rejected, and branding images use image-only validation with failure-safe replacement. Government identifier equality matching uses an encrypted value plus keyed lookup digest; a verified cross-tenant match returns no person data and creates an expiring consent request with an append-only access record, while an unverified match fails closed for review. Consent approval, applicant-to-student conversion, history release, legacy identifier migration, and many education-module workflows remain planned and must not be treated as production-complete.
 
-Privileged cookie sessions now require TOTP MFA: password login produces a short-lived encrypted challenge when MFA is enabled, first-time TenantAdmin/SuperAdmin sessions are restricted to bilingual MFA setup, and recovery codes are displayed once. This is a working security control, not a substitute for production key custody, administrator recovery operations, or penetration testing.
+Privileged cookie sessions now require TOTP MFA: password login produces a short-lived encrypted challenge when MFA is enabled, first-time TenantAdmin/SuperAdmin/AdmissionOfficer sessions are restricted to bilingual MFA setup, and recovery codes are displayed once. This is a working security control, not a substitute for production key custody, administrator recovery operations, or penetration testing.
 
 ---
 
@@ -154,7 +154,7 @@ All listed onboarding screens are implemented as mobile-first bilingual forms an
 - Terms/privacy-policy version acceptance.
 - Domain verification and custom-domain workflow.
 - Guided sample data, checklist, contextual help, and first-run tours.
-- Owner MFA setup and recovery codes.
+- Identity-verified administrator MFA reset and emergency-access operations.
 - Idempotent signup completion and provider-side payment reconciliation jobs.
 
 ---
@@ -280,7 +280,16 @@ Required functions:
 - Online and counter admission workflows.
 - No applicant/student record should be created twice because a request was retried.
 
-Status: 🟡 entities exist; full end-to-end admission workflow is incomplete.
+Implemented intake slice:
+
+- Tenant-owned `AdmissionApplicant` with stable public reference, readable application number, campus/year/term/academic-unit linkage, guardian/contact fields, preferred language, decision state, indexes and optimistic concurrency.
+- TenantAdmin/AdmissionOfficer-only responsive English/Bangla page and API for options, paged/searchable list, details, submission and guarded review transitions.
+- A client request UUID makes submission retries idempotent; replaying the UUID with different core data returns a conflict.
+- Applicant list responses mask mobile numbers. Full contact is limited to authorized details access, and applicant PII is excluded from general audit payloads.
+- Applicants under 18 require guardian name, relationship and valid mobile. Common Bangladesh numbers and Bangla digits normalize to E.164; international intake requires E.164 input.
+- Government identifiers are intentionally absent from the intake row and must use the protected learner-identity workflow after a student is created.
+
+Status: 🟡 first staff intake/review workflow implemented. Configurable public forms, documents, assessment/merit, offer/payment, and transactional conversion to Student + Enrollment remain incomplete.
 
 ### 6.6 Global learner identity and institution enrolment
 

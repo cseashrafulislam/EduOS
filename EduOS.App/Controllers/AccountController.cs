@@ -62,7 +62,7 @@ namespace EduOS.App.Controllers
         [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
         public IActionResult MfaChallenge() => View();
 
-        [Authorize(Roles = "SuperAdmin,TenantAdmin")]
+        [Authorize(Roles = "SuperAdmin,TenantAdmin,AdmissionOfficer")]
         [HttpGet]
         [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
         public IActionResult MfaSetup() => View();

@@ -41,7 +41,9 @@ public sealed class PrivilegedMfaMiddleware
     {
         var user = context.User;
         if (user.Identity?.IsAuthenticated != true
-            || (!user.IsInRole("SuperAdmin") && !user.IsInRole("TenantAdmin"))
+            || (!user.IsInRole("SuperAdmin")
+                && !user.IsInRole("TenantAdmin")
+                && !user.IsInRole("AdmissionOfficer"))
             || user.Claims.Any(x => x.Type == "amr" && x.Value == "mfa")
             || IsAllowed(context.Request.Path))
         {

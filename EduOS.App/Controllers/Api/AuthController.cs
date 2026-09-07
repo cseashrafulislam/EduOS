@@ -507,7 +507,7 @@ namespace EduOS.App.Controllers.Api
         }
 
         private static bool IsPrivileged(IEnumerable<string> roles) =>
-            roles.Any(role => role is "SuperAdmin" or "TenantAdmin");
+            roles.Any(role => role is "SuperAdmin" or "TenantAdmin" or "AdmissionOfficer");
 
         private static string NormalizeMfaCode(string code) =>
             code.Replace(" ", string.Empty, StringComparison.Ordinal)

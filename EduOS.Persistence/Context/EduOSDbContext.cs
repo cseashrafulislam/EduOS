@@ -1,5 +1,6 @@
 using EduOS.Core.Common;
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Admission;
 using EduOS.Core.Entities.Attendance;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Base;
@@ -197,6 +198,7 @@ namespace EduOS.Persistence.Context
         public DbSet<Event> Events => Set<Event>();
 
         // Students
+        public DbSet<AdmissionApplicant> AdmissionApplicants => Set<AdmissionApplicant>();
         public DbSet<Admission> Admissions => Set<Admission>();
         public DbSet<Student> Students => Set<Student>();
         public DbSet<Guardian> Guardians => Set<Guardian>();
@@ -389,7 +391,8 @@ namespace EduOS.Persistence.Context
             foreach (var entityType in modelBuilder.Model.GetEntityTypes())
                 foreach (var prop in entityType.GetProperties())
                 {
-                    if (prop.ClrType == typeof(DateTime) || prop.ClrType == typeof(DateTime?))
+                    if ((prop.ClrType == typeof(DateTime) || prop.ClrType == typeof(DateTime?))
+                        && prop.GetColumnType() == null)
                         prop.SetColumnType("datetime2");
                     else if (prop.ClrType == typeof(string)
                              && prop.GetMaxLength() == null
@@ -574,7 +577,8 @@ namespace EduOS.Persistence.Context
                     CreatedAt = now
                 };
 
-                if (entry.Entity is Person
+                if (entry.Entity is AdmissionApplicant
+                    or Person
                     or PersonIdentifier
                     or StudentPersonLink
                     or LearnerConsentRequest

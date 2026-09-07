@@ -622,4 +622,62 @@
   <data name="RecoveryCodesHelp" xml:space="preserve"><value>একবার ব্যবহারযোগ্য কোডগুলো নিরাপদ অফলাইন স্থানে রাখুন। এগুলো আবার দেখানো হবে না।</value></data>
   <data name="RecoveryCodesWarning" xml:space="preserve"><value>এই কোড থাকলে অ্যাকাউন্টে ঢোকা যাবে। মেসেজ বা ইমেইলে কখনো পাঠাবেন না।</value></data>
   <data name="SavedCodesContinue" xml:space="preserve"><value>কোড সংরক্ষণ করেছি — এগিয়ে যান</value></data>
+  <data name="Admission" xml:space="preserve"><value>ভর্তি</value></data>
+  <data name="AdmissionApplications" xml:space="preserve"><value>ভর্তি আবেদন</value></data>
+  <data name="AdmissionApplicationsHelp" xml:space="preserve"><value>অন্য প্রতিষ্ঠানের শিক্ষার্থী পরিচয় প্রকাশ না করে আবেদন গ্রহণ, পর্যালোচনা ও অগ্রগতি দেখুন।</value></data>
+  <data name="AdmissionPrivacyHelp" xml:space="preserve"><value>এখানে শুধু ভর্তির তথ্য দিন। ভর্তি সম্পন্ন হওয়ার পর সুরক্ষিত পরিচয় প্রক্রিয়ায় NID ও জন্মনিবন্ধন পরিচালিত হবে।</value></data>
+  <data name="NewApplication" xml:space="preserve"><value>নতুন আবেদন</value></data>
+  <data name="ApplicantName" xml:space="preserve"><value>আবেদনকারীর নাম</value></data>
+  <data name="ApplicantNameBangla" xml:space="preserve"><value>আবেদনকারীর বাংলা নাম</value></data>
+  <data name="DateOfBirth" xml:space="preserve"><value>জন্মতারিখ</value></data>
+  <data name="Gender" xml:space="preserve"><value>লিঙ্গ</value></data>
+  <data name="Male" xml:space="preserve"><value>পুরুষ</value></data>
+  <data name="Female" xml:space="preserve"><value>নারী</value></data>
+  <data name="Other" xml:space="preserve"><value>অন্যান্য</value></data>
+  <data name="PrimaryMobile" xml:space="preserve"><value>প্রধান মোবাইল</value></data>
+  <data name="GuardianInformation" xml:space="preserve"><value>অভিভাবকের তথ্য</value></data>
+  <data name="GuardianName" xml:space="preserve"><value>অভিভাবকের নাম</value></data>
+  <data name="GuardianRelation" xml:space="preserve"><value>সম্পর্ক</value></data>
+  <data name="GuardianMobile" xml:space="preserve"><value>অভিভাবকের মোবাইল</value></data>
+  <data name="PresentAddress" xml:space="preserve"><value>বর্তমান ঠিকানা</value></data>
+  <data name="PermanentAddress" xml:space="preserve"><value>স্থায়ী ঠিকানা</value></data>
+  <data name="PermanentAddressSame" xml:space="preserve"><value>স্থায়ী ঠিকানা একই</value></data>
+  <data name="PreviousInstitution" xml:space="preserve"><value>পূর্ববর্তী প্রতিষ্ঠান</value></data>
+  <data name="PreferredLanguage" xml:space="preserve"><value>পছন্দের ভাষা</value></data>
+  <data name="SubmitApplication" xml:space="preserve"><value>আবেদন জমা দিন</value></data>
+  <data name="ApplicationList" xml:space="preserve"><value>আবেদনের তালিকা</value></data>
+  <data name="SearchApplications" xml:space="preserve"><value>নাম বা আবেদন নম্বর খুঁজুন</value></data>
+  <data name="FilterStatus" xml:space="preserve"><value>অবস্থা অনুযায়ী ছাঁকুন</value></data>
+  <data name="AllStatuses" xml:space="preserve"><value>সব অবস্থা</value></data>
+  <data name="Search" xml:space="preserve"><value>খুঁজুন</value></data>
+  <data name="SelectOption" xml:space="preserve"><value>নির্বাচন করুন</value></data>
+  <data name="ApplicationNumber" xml:space="preserve"><value>আবেদন নম্বর</value></data>
+  <data name="SubmittedAt" xml:space="preserve"><value>জমার সময়</value></data>
+  <data name="Status" xml:space="preserve"><value>অবস্থা</value></data>
+  <data name="Previous" xml:space="preserve"><value>আগের</value></data>
+  <data name="Next" xml:space="preserve"><value>পরের</value></data>
+  <data name="Page" xml:space="preserve"><value>পৃষ্ঠা</value></data>
+  <data name="FullContact" xml:space="preserve"><value>যোগাযোগ</value></data>
+  <data name="NewStatus" xml:space="preserve"><value>নতুন অবস্থা</value></data>
+  <data name="SaveDecision" xml:space="preserve"><value>সিদ্ধান্ত সংরক্ষণ করুন</value></data>
+  <data name="DecisionNote" xml:space="preserve"><value>সিদ্ধান্তের নোট</value></data>
+  <data name="LoadingApplications" xml:space="preserve"><value>আবেদন লোড হচ্ছে…</value></data>
+  <data name="NoApplications" xml:space="preserve"><value>বর্তমান ছাঁকনিতে কোনো আবেদন নেই।</value></data>
+  <data name="ApplicationLoadFailed" xml:space="preserve"><value>আবেদনগুলো লোড করা যায়নি।</value></data>
+  <data name="AdmissionOptionsFailed" xml:space="preserve"><value>ভর্তির অপশন লোড করা যায়নি। আগে শিক্ষাবর্ষ ও ক্যাম্পাস সেটআপ সম্পন্ন করুন।</value></data>
+  <data name="ApplicationCreateFailed" xml:space="preserve"><value>আবেদন জমা দেওয়া যায়নি।</value></data>
+  <data name="ApplicationCreated" xml:space="preserve"><value>আবেদন জমা হয়েছে:</value></data>
+  <data name="ApplicationDetailsFailed" xml:space="preserve"><value>আবেদনের বিস্তারিত লোড করা যায়নি।</value></data>
+  <data name="DecisionSaveFailed" xml:space="preserve"><value>আবেদনের সিদ্ধান্ত সংরক্ষণ করা যায়নি।</value></data>
+  <data name="DecisionSaved" xml:space="preserve"><value>আবেদনের সিদ্ধান্ত সংরক্ষিত হয়েছে।</value></data>
+  <data name="MinorGuardianRequired" xml:space="preserve"><value>১৮ বছরের কম আবেদনকারীর জন্য অভিভাবকের নাম, সম্পর্ক ও মোবাইল আবশ্যক।</value></data>
+  <data name="ApplicationPagination" xml:space="preserve"><value>আবেদনের পৃষ্ঠা</value></data>
+  <data name="AdmissionReviewTitle" xml:space="preserve"><value>ভর্তি আবেদন পর্যালোচনা</value></data>
+  <data name="AdmissionStatusSubmitted" xml:space="preserve"><value>জমা হয়েছে</value></data>
+  <data name="AdmissionStatusUnderReview" xml:space="preserve"><value>পর্যালোচনাধীন</value></data>
+  <data name="AdmissionStatusWaitlisted" xml:space="preserve"><value>অপেক্ষমাণ তালিকা</value></data>
+  <data name="AdmissionStatusApproved" xml:space="preserve"><value>অনুমোদিত</value></data>
+  <data name="AdmissionStatusRejected" xml:space="preserve"><value>বাতিল</value></data>
+  <data name="AdmissionStatusWithdrawn" xml:space="preserve"><value>প্রত্যাহার</value></data>
+  <data name="AdmissionStatusAdmitted" xml:space="preserve"><value>ভর্তি সম্পন্ন</value></data>
 </root>

@@ -28,7 +28,9 @@ Every instance must also receive the same `LearnerIdentity__LookupKeyBase64` fro
 
 SuperAdmin creation is opt-in: no account is created unless `SuperAdmin__Email` is configured, and first-time creation also requires `SuperAdmin__Password`. There is no default privileged email or password. Remove the bootstrap password from runtime configuration immediately after the first account is created, then enable MFA before production administration.
 
-TenantAdmin and SuperAdmin cookie sessions are gated by TOTP MFA. Setup requires the current password, login uses a short-lived Data Protection challenge tied to the user's security stamp, and recovery codes are issued once. Treat authenticator setup keys and recovery codes as credentials: never log, email, or screenshot them; keep recovery codes offline. A production runbook must define identity-verified MFA reset and emergency access without weakening this gate.
+TenantAdmin, SuperAdmin and AdmissionOfficer cookie sessions are gated by TOTP MFA. Setup requires the current password, login uses a short-lived Data Protection challenge tied to the user's security stamp, and recovery codes are issued once. Treat authenticator setup keys and recovery codes as credentials: never log, email, or screenshot them; keep recovery codes offline. A production runbook must define identity-verified MFA reset and emergency access without weakening this gate.
+
+Admission applications contain tenant-owned personal data. Access is restricted to TenantAdmin and AdmissionOfficer and also requires the tenant's ADMISSION entitlement. List responses mask mobile numbers; full contact is returned only by the authorized details endpoint. Applicant values are not copied into general audit JSON. NID, birth registration and passport values must never be added to `AdmissionApplicant`; they belong only in the protected learner-identity workflow. Minor applications require guardian contact, but this is not proof of legal authority and cannot approve cross-tenant history access.
 
 If a value was ever committed, deleting it from the latest file is not enough. Revoke or rotate it at the provider immediately, then purge it from Git history using a reviewed incident-response procedure.
 
@@ -37,3 +39,7 @@ If a value was ever committed, deleting it from the latest file is not enough. R
 Tenant-owned entities implement `ITenantScopedEntity`. The database context applies a soft-delete and current-tenant filter and rejects cross-tenant writes from authenticated tenant users. Platform/background operations must specify the target tenant explicitly and remain auditable.
 
 No-tenant requests receive no tenant-owned records by default.
+
+## Admission intake migration
+
+`20260907130000_AddAdmissionIntakeWorkflow` is additive: it creates only `AdmissionApplicants`, its indexes and restrictive foreign keys. Rollback drops that table and permanently removes any collected applications, so production rollback requires a reviewed encrypted export or an explicit decision that the data is disposable. Schema migration remains a controlled deployment step and is not run automatically in production.

@@ -115,6 +115,15 @@
     <None Include="..\EduOS.App\Controllers\Api\AuthController.cs"
           Link="TestAssets\AuthController.cs"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Controllers\Api\AdmissionApplicationsController.cs"
+          Link="TestAssets\AdmissionApplicationsController.cs"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Views\Admissions\Index.cshtml"
+          Link="TestAssets\AdmissionsIndex.cshtml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\wwwroot\js\admissions\index.js"
+          Link="TestAssets\admissions-index.js"
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Middleware\PrivilegedMfaMiddleware.cs"
           Link="TestAssets\PrivilegedMfaMiddleware.cs"
           CopyToOutputDirectory="PreserveNewest" />

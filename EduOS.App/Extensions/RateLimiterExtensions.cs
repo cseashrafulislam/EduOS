@@ -43,6 +43,11 @@ namespace EduOS.App.Extensions
                         GetClientPartition(context),
                         _ => CreateOptions(10, TimeSpan.FromMinutes(1))));
 
+                options.AddPolicy("AdmissionIntakePolicy", context =>
+                    RateLimitPartition.GetFixedWindowLimiter(
+                        GetClientPartition(context),
+                        _ => CreateOptions(30, TimeSpan.FromMinutes(1), 5)));
+
                 options.AddPolicy("MfaPolicy", context =>
                     RateLimitPartition.GetFixedWindowLimiter(
                         GetIpPartition(context),

@@ -9,6 +9,7 @@ using EduOS.Service.Helpers.Payment;
 using EduOS.Service.Helpers.Storage;
 using EduOS.Service.Mappings;
 using EduOS.Service.Services.Auth;
+using EduOS.Service.Services.Admission;
 using EduOS.Service.Services.SaaS;
 using EduOS.Service.Services.Students;
 using EduOS.Service.Services.Tenants;
@@ -73,6 +74,7 @@ namespace EduOS.App.Extensions
              services.AddScoped<IEmailService, EmailService>();
              services.AddScoped<IEmailJob, EmailJob>();
              services.AddScoped<ILearnerIdentityService, LearnerIdentityService>();
+             services.AddScoped<IAdmissionApplicationService, AdmissionApplicationService>();
 
 
             return services;

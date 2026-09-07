@@ -82,6 +82,10 @@
             <hr class="sidebar-divider" />
             <div class="menu-title">@T["Academics"]</div>
             <nav class="nav flex-column">
+                <a class="nav-link @ActiveFor("/Admissions")" href="/Admissions/Index">
+                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#institution" /></svg>
+                    <span>@T["AdmissionApplications"]</span>
+                </a>
                 <a class="nav-link @ActiveFor("/Student")" href="/Student/Index">
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
                     <span>@T["Students"]</span>

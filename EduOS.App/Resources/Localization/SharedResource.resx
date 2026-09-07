@@ -622,4 +622,62 @@
   <data name="RecoveryCodesHelp" xml:space="preserve"><value>Store these one-time codes offline in a secure place. They will not be shown again.</value></data>
   <data name="RecoveryCodesWarning" xml:space="preserve"><value>Anyone with one of these codes can access your account. Never send them by message or email.</value></data>
   <data name="SavedCodesContinue" xml:space="preserve"><value>I saved the codes — continue</value></data>
+  <data name="Admission" xml:space="preserve"><value>Admission</value></data>
+  <data name="AdmissionApplications" xml:space="preserve"><value>Admission applications</value></data>
+  <data name="AdmissionApplicationsHelp" xml:space="preserve"><value>Receive, review and track applications without exposing learner identity data across institutions.</value></data>
+  <data name="AdmissionPrivacyHelp" xml:space="preserve"><value>Enter only admission details here. NID and birth registration are handled through the protected identity workflow after enrollment.</value></data>
+  <data name="NewApplication" xml:space="preserve"><value>New application</value></data>
+  <data name="ApplicantName" xml:space="preserve"><value>Applicant name</value></data>
+  <data name="ApplicantNameBangla" xml:space="preserve"><value>Applicant name in Bangla</value></data>
+  <data name="DateOfBirth" xml:space="preserve"><value>Date of birth</value></data>
+  <data name="Gender" xml:space="preserve"><value>Gender</value></data>
+  <data name="Male" xml:space="preserve"><value>Male</value></data>
+  <data name="Female" xml:space="preserve"><value>Female</value></data>
+  <data name="Other" xml:space="preserve"><value>Other</value></data>
+  <data name="PrimaryMobile" xml:space="preserve"><value>Primary mobile</value></data>
+  <data name="GuardianInformation" xml:space="preserve"><value>Guardian information</value></data>
+  <data name="GuardianName" xml:space="preserve"><value>Guardian name</value></data>
+  <data name="GuardianRelation" xml:space="preserve"><value>Relationship</value></data>
+  <data name="GuardianMobile" xml:space="preserve"><value>Guardian mobile</value></data>
+  <data name="PresentAddress" xml:space="preserve"><value>Present address</value></data>
+  <data name="PermanentAddress" xml:space="preserve"><value>Permanent address</value></data>
+  <data name="PermanentAddressSame" xml:space="preserve"><value>Permanent address is the same</value></data>
+  <data name="PreviousInstitution" xml:space="preserve"><value>Previous institution</value></data>
+  <data name="PreferredLanguage" xml:space="preserve"><value>Preferred language</value></data>
+  <data name="SubmitApplication" xml:space="preserve"><value>Submit application</value></data>
+  <data name="ApplicationList" xml:space="preserve"><value>Application list</value></data>
+  <data name="SearchApplications" xml:space="preserve"><value>Search name or application number</value></data>
+  <data name="FilterStatus" xml:space="preserve"><value>Filter by status</value></data>
+  <data name="AllStatuses" xml:space="preserve"><value>All statuses</value></data>
+  <data name="Search" xml:space="preserve"><value>Search</value></data>
+  <data name="SelectOption" xml:space="preserve"><value>Select</value></data>
+  <data name="ApplicationNumber" xml:space="preserve"><value>Application number</value></data>
+  <data name="SubmittedAt" xml:space="preserve"><value>Submitted</value></data>
+  <data name="Status" xml:space="preserve"><value>Status</value></data>
+  <data name="Previous" xml:space="preserve"><value>Previous</value></data>
+  <data name="Next" xml:space="preserve"><value>Next</value></data>
+  <data name="Page" xml:space="preserve"><value>Page</value></data>
+  <data name="FullContact" xml:space="preserve"><value>Contact</value></data>
+  <data name="NewStatus" xml:space="preserve"><value>New status</value></data>
+  <data name="SaveDecision" xml:space="preserve"><value>Save decision</value></data>
+  <data name="DecisionNote" xml:space="preserve"><value>Decision note</value></data>
+  <data name="LoadingApplications" xml:space="preserve"><value>Loading applications…</value></data>
+  <data name="NoApplications" xml:space="preserve"><value>No applications match the current filters.</value></data>
+  <data name="ApplicationLoadFailed" xml:space="preserve"><value>Applications could not be loaded.</value></data>
+  <data name="AdmissionOptionsFailed" xml:space="preserve"><value>Admission options could not be loaded. Complete academic and campus setup first.</value></data>
+  <data name="ApplicationCreateFailed" xml:space="preserve"><value>The application could not be submitted.</value></data>
+  <data name="ApplicationCreated" xml:space="preserve"><value>Application submitted:</value></data>
+  <data name="ApplicationDetailsFailed" xml:space="preserve"><value>Application details could not be loaded.</value></data>
+  <data name="DecisionSaveFailed" xml:space="preserve"><value>The application decision could not be saved.</value></data>
+  <data name="DecisionSaved" xml:space="preserve"><value>Application decision saved.</value></data>
+  <data name="MinorGuardianRequired" xml:space="preserve"><value>Guardian name, relationship and mobile are required for an applicant under 18.</value></data>
+  <data name="ApplicationPagination" xml:space="preserve"><value>Application pages</value></data>
+  <data name="AdmissionReviewTitle" xml:space="preserve"><value>Review admission application</value></data>
+  <data name="AdmissionStatusSubmitted" xml:space="preserve"><value>Submitted</value></data>
+  <data name="AdmissionStatusUnderReview" xml:space="preserve"><value>Under review</value></data>
+  <data name="AdmissionStatusWaitlisted" xml:space="preserve"><value>Waitlisted</value></data>
+  <data name="AdmissionStatusApproved" xml:space="preserve"><value>Approved</value></data>
+  <data name="AdmissionStatusRejected" xml:space="preserve"><value>Rejected</value></data>
+  <data name="AdmissionStatusWithdrawn" xml:space="preserve"><value>Withdrawn</value></data>
+  <data name="AdmissionStatusAdmitted" xml:space="preserve"><value>Admitted</value></data>
 </root>
