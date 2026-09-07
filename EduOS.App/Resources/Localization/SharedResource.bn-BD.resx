@@ -600,7 +600,6 @@
   <data name="MfaCodeRequired" xml:space="preserve"><value>যাচাই কোড বা রিকভারি কোড দিন।</value></data>
   <data name="MfaCodeInvalid" xml:space="preserve"><value>কোডটি সঠিক নয়। ডিভাইসের সময় ঠিক আছে কি না দেখে আবার চেষ্টা করুন।</value></data>
   <data name="MfaChallengeExpired" xml:space="preserve"><value>সাইন-ইন অনুরোধটি নেই বা মেয়াদ শেষ। লগইনে ফিরে আবার পাসওয়ার্ড দিন।</value></data>
-  <data name="BackToLogin" xml:space="preserve"><value>লগইনে ফিরে যান</value></data>
   <data name="MfaSetupTitle" xml:space="preserve"><value>অ্যাডমিন অ্যাকাউন্ট সুরক্ষিত করুন</value></data>
   <data name="MfaSetupHelp" xml:space="preserve"><value>অথেনটিকেটর অ্যাপ যুক্ত না করা পর্যন্ত অ্যাডমিনের কাজ বন্ধ থাকবে।</value></data>
   <data name="MfaAlreadyEnabled" xml:space="preserve"><value>মাল্টি-ফ্যাক্টর যাচাই আগে থেকেই চালু। এই সেশন যাচাই না হলে আবার সাইন-ইন করুন।</value></data>

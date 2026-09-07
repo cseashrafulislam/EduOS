@@ -600,7 +600,6 @@
   <data name="MfaCodeRequired" xml:space="preserve"><value>Enter a verification or recovery code.</value></data>
   <data name="MfaCodeInvalid" xml:space="preserve"><value>The code is invalid. Check the time on your device and try again.</value></data>
   <data name="MfaChallengeExpired" xml:space="preserve"><value>This sign-in request is missing or expired. Return to login and enter your password again.</value></data>
-  <data name="BackToLogin" xml:space="preserve"><value>Back to login</value></data>
   <data name="MfaSetupTitle" xml:space="preserve"><value>Protect your administrator account</value></data>
   <data name="MfaSetupHelp" xml:space="preserve"><value>Administrator work is locked until an authenticator app is connected.</value></data>
   <data name="MfaAlreadyEnabled" xml:space="preserve"><value>Multi-factor authentication is already enabled. Sign in again if this session still needs verification.</value></data>

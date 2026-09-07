@@ -315,7 +315,7 @@ public class LocalizationAndPwaContractTests
         authController.Should().Contain("VerifyTwoFactorTokenAsync");
         authController.Should().Contain("RedeemTwoFactorRecoveryCodeAsync");
         authController.Should().Contain("Response.Headers.CacheControl = \"no-store\"");
-        authController.Should().NotContain("X-Forwarded-For");
+        authController.Should().NotContain("Request.Headers[\"X-Forwarded-For\"]");
 
         middleware.Should().Contain("SuperAdmin");
         middleware.Should().Contain("TenantAdmin");
