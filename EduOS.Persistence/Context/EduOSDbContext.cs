@@ -578,6 +578,9 @@ namespace EduOS.Persistence.Context
                 };
 
                 if (entry.Entity is AdmissionApplicant
+                    or Student
+                    or Guardian
+                    or Enrollment
                     or Person
                     or PersonIdentifier
                     or StudentPersonLink

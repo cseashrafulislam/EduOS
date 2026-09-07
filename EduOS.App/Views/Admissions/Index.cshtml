@@ -48,7 +48,13 @@
         other = T["Other"].Value,
         presentAddress = T["PresentAddress"].Value,
         permanentAddress = T["PermanentAddress"].Value,
-        preferredLanguage = T["PreferredLanguage"].Value
+        preferredLanguage = T["PreferredLanguage"].Value,
+        admitApplicant = T["AdmitApplicant"].Value,
+        enrollmentFailed = T["EnrollmentFailed"].Value,
+        admittedSuccess = T["ApplicantAdmittedSuccess"].Value,
+        section = T["Section"].Value,
+        group = T["Group"].Value,
+        roll = T["Roll"].Value
     };
     var pageJson = System.Text.Json.JsonSerializer.Serialize(pageStrings);
     var maximumBirthDate = DateTime.UtcNow.ToString("yyyy-MM-dd");
@@ -219,11 +225,48 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">@T["Cancel"]</button>
+                <button id="admitApplicantButton" class="btn btn-success d-none" type="button">@T["AdmitApplicant"]</button>
                 <button id="saveDecisionButton" class="btn btn-primary" type="submit" form="reviewForm"
                         data-idle-label="@T["SaveDecision"]" data-loading-label="@T["Saving"]">
                     @T["SaveDecision"]
                 </button>
             </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="enrollmentModal" tabindex="-1" aria-labelledby="enrollmentModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 rounded-4">
+            <div class="modal-header">
+                <h2 class="modal-title h5" id="enrollmentModalTitle">@T["CompleteEnrollment"]</h2>
+                <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
+            </div>
+            <form id="enrollmentForm">
+                <div class="modal-body row g-3">
+                    <input id="enrollmentReference" type="hidden" />
+                    <input id="enrollmentRowVersion" type="hidden" />
+                    <div class="col-md-6">
+                        <label class="form-label" for="enrollmentSectionId">@T["Section"] *</label>
+                        <select class="form-select" id="enrollmentSectionId" required></select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="enrollmentGroupId">@T["Group"]</label>
+                        <select class="form-select" id="enrollmentGroupId"></select>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label" for="enrollmentRoll">@T["Roll"] *</label>
+                        <input class="form-control" id="enrollmentRoll" maxlength="50" autocomplete="off" required />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">@T["Cancel"]</button>
+                    <button id="completeEnrollmentButton" class="btn btn-success" type="submit"
+                            data-idle-label="@T["CompleteEnrollment"]" data-loading-label="@T["Saving"]">
+                        @T["CompleteEnrollment"]
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>

@@ -75,6 +75,7 @@ namespace EduOS.App.Extensions
              services.AddScoped<IEmailJob, EmailJob>();
              services.AddScoped<ILearnerIdentityService, LearnerIdentityService>();
              services.AddScoped<IAdmissionApplicationService, AdmissionApplicationService>();
+             services.AddScoped<IAdmissionEnrollmentService, AdmissionEnrollmentService>();
 
 
             return services;

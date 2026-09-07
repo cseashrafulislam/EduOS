@@ -43,3 +43,5 @@ No-tenant requests receive no tenant-owned records by default.
 ## Admission intake migration
 
 `20260907130000_AddAdmissionIntakeWorkflow` is additive: it creates only `AdmissionApplicants`, its indexes and restrictive foreign keys. Rollback drops that table and permanently removes any collected applications, so production rollback requires a reviewed encrypted export or an explicit decision that the data is disposable. Schema migration remains a controlled deployment step and is not run automatically in production.
+
+`20260908010000_AddAdmissionEnrollmentWorkflow` is also additive. It adds stable public references, optimistic-concurrency tokens, admission linkage and enrollment campus/term metadata to existing Student, Guardian and Enrollment tables. Conversion executes inside one retry-aware database transaction; student, guardian and enrollment PII is excluded from general audit JSON. Rollback removes the added linkage metadata, so export and review admitted records before any production rollback.

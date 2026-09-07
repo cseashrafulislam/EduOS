@@ -1,4 +1,5 @@
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Admission;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Base;
 
@@ -6,11 +7,14 @@ namespace EduOS.Core.Entities.Students
 {
     public class Student : BaseTenantEntity
     {
+        public Guid PublicId { get; set; } = Guid.NewGuid();
         public long? UserId { get; set; }
         public long? AdmissionId { get; set; }
+        public long? AdmissionApplicationId { get; set; }
         public string StudentCode { get; set; } = string.Empty;
         public string Roll { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
+        public string? FullNameBangla { get; set; }
         public string FatherName { get; set; } = string.Empty;
         public string MotherName { get; set; } = string.Empty;
         public DateTime DOB { get; set; }
@@ -27,15 +31,19 @@ namespace EduOS.Core.Entities.Students
         public int AcademicYearId { get; set; }
         public DateTime AdmissionDate { get; set; }
         public string? PhotoUrl { get; set; }
+        public string PreferredLanguage { get; set; } = "bn-BD";
         public string Status { get; set; } = "Active"; // Active/TC/Passed/Dropout
         public bool IsActive { get; set; } = true;
+        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
         public virtual ApplicationUser? User { get; set; }
         public virtual Admission? Admission { get; set; }
+        public virtual AdmissionApplicant? AdmissionApplication { get; set; }
         public virtual Class? Class { get; set; }
         public virtual Section? Section { get; set; }
         public virtual Group? Group { get; set; }
         public virtual AcademicYear? AcademicYear { get; set; }
         public virtual ICollection<Guardian> Guardians { get; set; } = new List<Guardian>();
+        public virtual ICollection<Enrollment> Enrollments { get; set; } = new List<Enrollment>();
     }
 }

@@ -13,6 +13,8 @@ public class AdmissionApplicationContractTests
         source.Should().Contain("[RequireModule(\"ADMISSION\")]");
         source.Should().Contain("[AutoValidateAntiforgeryToken]");
         source.Should().Contain("[EnableRateLimiting(\"AdmissionIntakePolicy\")]");
+        source.Should().Contain("[HttpPost(\"{reference:guid}/admit\")]");
+        source.Should().Contain("IAdmissionEnrollmentService");
         source.Should().NotContain("IgnoreQueryFilters");
 
         var middleware = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "PrivilegedMfaMiddleware.cs"));
@@ -31,6 +33,7 @@ public class AdmissionApplicationContractTests
         view.Should().NotContain("onclick=");
         view.Should().NotContain("style=\"");
         script.Should().Contain("clientRequestId");
+        script.Should().Contain("/admit");
         script.Should().Contain("credentials: 'same-origin'");
         script.Should().Contain("textContent");
         script.Should().NotContain("innerHTML");

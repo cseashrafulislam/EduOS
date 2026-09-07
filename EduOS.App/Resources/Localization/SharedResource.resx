@@ -680,4 +680,11 @@
   <data name="AdmissionStatusRejected" xml:space="preserve"><value>Rejected</value></data>
   <data name="AdmissionStatusWithdrawn" xml:space="preserve"><value>Withdrawn</value></data>
   <data name="AdmissionStatusAdmitted" xml:space="preserve"><value>Admitted</value></data>
+  <data name="AdmitApplicant" xml:space="preserve"><value>Admit applicant</value></data>
+  <data name="CompleteEnrollment" xml:space="preserve"><value>Complete enrollment</value></data>
+  <data name="EnrollmentFailed" xml:space="preserve"><value>Enrollment could not be completed.</value></data>
+  <data name="ApplicantAdmittedSuccess" xml:space="preserve"><value>Applicant admitted:</value></data>
+  <data name="Section" xml:space="preserve"><value>Section</value></data>
+  <data name="Group" xml:space="preserve"><value>Group</value></data>
+  <data name="Roll" xml:space="preserve"><value>Roll</value></data>
 </root>

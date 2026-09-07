@@ -150,3 +150,34 @@ public class AdmissionApplicationOptionsDto
     public List<AdmissionReferenceOptionDto> Campuses { get; set; } = new();
     public List<AdmissionReferenceOptionDto> AcademicUnits { get; set; } = new();
 }
+
+public class AdmitAdmissionApplicationDto
+{
+    [Range(1, long.MaxValue)]
+    public long SectionId { get; set; }
+
+    [Range(1, long.MaxValue)]
+    public long? GroupId { get; set; }
+
+    [Required, StringLength(50, MinimumLength = 1)]
+    public string Roll { get; set; } = string.Empty;
+
+    [Required]
+    public string RowVersion { get; set; } = string.Empty;
+}
+
+public class AdmissionEnrollmentOptionsDto
+{
+    public List<AdmissionReferenceOptionDto> Sections { get; set; } = new();
+    public List<AdmissionReferenceOptionDto> Groups { get; set; } = new();
+}
+
+public class AdmittedStudentDto
+{
+    public Guid StudentReference { get; set; }
+    public string StudentCode { get; set; } = string.Empty;
+    public string Roll { get; set; } = string.Empty;
+    public long StudentId { get; set; }
+    public long EnrollmentId { get; set; }
+    public AdmissionApplicationStatus ApplicationStatus { get; set; }
+}

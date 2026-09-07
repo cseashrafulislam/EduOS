@@ -7347,10 +7347,16 @@ namespace EduOS.Persistence.Migrations
                     b.Property<long?>("AcademicYearId1")
                         .HasColumnType("bigint");
 
+                    b.Property<long?>("AcademicTermId")
+                        .HasColumnType("bigint");
+
                     b.Property<int>("ClassId")
                         .HasColumnType("int");
 
                     b.Property<long?>("ClassId1")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("CampusId")
                         .HasColumnType("bigint");
 
                     b.Property<DateTime>("CreatedAt")
@@ -7379,6 +7385,11 @@ namespace EduOS.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.Property<int>("SectionId")
                         .HasColumnType("int");
 
@@ -7404,6 +7415,10 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("AcademicYearId1");
 
+                    b.HasIndex("AcademicTermId");
+
+                    b.HasIndex("CampusId");
+
                     b.HasIndex("ClassId1");
 
                     b.HasIndex("GroupId1");
@@ -7413,6 +7428,14 @@ namespace EduOS.Persistence.Migrations
                     b.HasIndex("StudentId1");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "AcademicYearId", "ClassId", "SectionId", "Roll")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0 AND [IsActive] = 1");
+
+                    b.HasIndex("TenantId", "StudentId", "AcademicYearId")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("Enrollments");
                 });
@@ -7457,6 +7480,10 @@ namespace EduOS.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<string>("NameBangla")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<string>("Occupation")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
@@ -7466,10 +7493,20 @@ namespace EduOS.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<Guid>("PublicId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
                     b.Property<string>("Relation")
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
 
                     b.Property<long>("StudentId")
                         .HasColumnType("bigint");
@@ -7490,9 +7527,18 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("StudentId");
 
+                    b.HasIndex("PublicId")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
                     b.HasIndex("TenantId");
 
                     b.HasIndex("UserId");
+
+                    b.HasIndex("TenantId", "Phone");
+
+                    b.HasIndex("TenantId", "StudentId", "IsPrimary")
+                        .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("Guardians");
                 });
@@ -7676,6 +7722,9 @@ namespace EduOS.Persistence.Migrations
                     b.Property<long?>("AdmissionId")
                         .HasColumnType("bigint");
 
+                    b.Property<long?>("AdmissionApplicationId")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("BirthCertNo")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
@@ -7713,6 +7762,10 @@ namespace EduOS.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<string>("FullNameBangla")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<string>("Gender")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -7743,6 +7796,18 @@ namespace EduOS.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<string>("PreferredLanguage")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)")
+                        .HasDefaultValue("bn-BD");
+
+                    b.Property<Guid>("PublicId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
                     b.Property<string>("Religion")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
@@ -7751,6 +7816,11 @@ namespace EduOS.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
 
                     b.Property<int>("SectionId")
                         .HasColumnType("int");
@@ -7784,6 +7854,8 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("AcademicYearId1");
 
+                    b.HasIndex("AdmissionApplicationId");
+
                     b.HasIndex("AdmissionId");
 
                     b.HasIndex("ClassId1");
@@ -7793,6 +7865,22 @@ namespace EduOS.Persistence.Migrations
                     b.HasIndex("SectionId1");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("PublicId")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.HasIndex("TenantId", "AcademicYearId", "ClassId", "SectionId", "Roll")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0 AND [IsActive] = 1");
+
+                    b.HasIndex("TenantId", "AdmissionApplicationId")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0 AND [AdmissionApplicationId] IS NOT NULL");
+
+                    b.HasIndex("TenantId", "StudentCode")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
 
                     b.HasIndex("UserId");
 
@@ -11879,6 +11967,11 @@ namespace EduOS.Persistence.Migrations
 
             modelBuilder.Entity("EduOS.Core.Entities.Students.Enrollment", b =>
                 {
+                    b.HasOne("EduOS.Core.Entities.Academic.AcademicTerm", "AcademicTerm")
+                        .WithMany()
+                        .HasForeignKey("AcademicTermId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("EduOS.Core.Entities.Academic.AcademicYear", "AcademicYear")
                         .WithMany()
                         .HasForeignKey("AcademicYearId1")
@@ -11887,6 +11980,11 @@ namespace EduOS.Persistence.Migrations
                     b.HasOne("EduOS.Core.Entities.Academic.Class", "Class")
                         .WithMany()
                         .HasForeignKey("ClassId1")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.Tenants.Campus", "Campus")
+                        .WithMany()
+                        .HasForeignKey("CampusId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("EduOS.Core.Entities.Academic.Group", "Group")
@@ -11900,7 +11998,7 @@ namespace EduOS.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("EduOS.Core.Entities.Students.Student", "Student")
-                        .WithMany()
+                        .WithMany("Enrollments")
                         .HasForeignKey("StudentId1")
                         .OnDelete(DeleteBehavior.Restrict);
 
@@ -11910,7 +12008,11 @@ namespace EduOS.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("AcademicTerm");
+
                     b.Navigation("AcademicYear");
+
+                    b.Navigation("Campus");
 
                     b.Navigation("Class");
 
@@ -12025,6 +12127,11 @@ namespace EduOS.Persistence.Migrations
                         .HasForeignKey("AdmissionId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("EduOS.Core.Entities.Admission.AdmissionApplicant", "AdmissionApplication")
+                        .WithMany()
+                        .HasForeignKey("AdmissionApplicationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("EduOS.Core.Entities.Academic.Class", "Class")
                         .WithMany()
                         .HasForeignKey("ClassId1")
@@ -12054,6 +12161,8 @@ namespace EduOS.Persistence.Migrations
                     b.Navigation("AcademicYear");
 
                     b.Navigation("Admission");
+
+                    b.Navigation("AdmissionApplication");
 
                     b.Navigation("Class");
 
@@ -12565,6 +12674,8 @@ namespace EduOS.Persistence.Migrations
 
             modelBuilder.Entity("EduOS.Core.Entities.Students.Student", b =>
                 {
+                    b.Navigation("Enrollments");
+
                     b.Navigation("Guardians");
                 });
 

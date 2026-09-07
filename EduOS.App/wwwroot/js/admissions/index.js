@@ -2,7 +2,7 @@
     'use strict';
 
     const i18n = JSON.parse(document.getElementById('admissionStrings')?.textContent || '{}');
-    const state = { page: 1, pageSize: 20, totalPages: 1, options: null, pendingRequestId: createRequestId() };
+    const state = { page: 1, pageSize: 20, totalPages: 1, options: null, currentApplication: null, pendingRequestId: createRequestId() };
     const statuses = {
         1: i18n.submitted,
         2: i18n.underReview,
@@ -22,6 +22,8 @@
         document.getElementById('sameAddress')?.addEventListener('change', copyAddress);
         document.getElementById('applicationList')?.addEventListener('click', openReview);
         document.getElementById('reviewForm')?.addEventListener('submit', saveDecision);
+        document.getElementById('admitApplicantButton')?.addEventListener('click', prepareEnrollment);
+        document.getElementById('enrollmentForm')?.addEventListener('submit', completeEnrollment);
         document.getElementById('previousPage')?.addEventListener('click', () => changePage(-1));
         document.getElementById('nextPage')?.addEventListener('click', () => changePage(1));
         await loadOptions();
@@ -192,10 +194,12 @@
             const payload = await response.json().catch(() => null);
             if (!response.ok || !payload?.success || !payload.data) throw new Error('Invalid details');
             renderDetails(payload.data);
+            state.currentApplication = payload.data;
             setValue('reviewReference', payload.data.reference);
             setValue('reviewRowVersion', payload.data.rowVersion);
             setValue('decisionNote', payload.data.decisionNote);
             fillReviewStatuses(Number(payload.data.status));
+            document.getElementById('admitApplicantButton')?.classList.toggle('d-none', Number(payload.data.status) !== 4);
             bootstrap.Modal.getOrCreateInstance(document.getElementById('reviewModal')).show();
         } catch {
             showAlert('danger', i18n.detailsFailed);
@@ -269,6 +273,54 @@
             }
             bootstrap.Modal.getInstance(document.getElementById('reviewModal'))?.hide();
             showAlert('success', i18n.decisionSaved);
+            await loadApplications();
+        } catch {
+            showAlert('danger', i18n.networkError);
+        } finally {
+            setLoading(button, false);
+        }
+    }
+
+    async function prepareEnrollment() {
+        const item = state.currentApplication;
+        if (!item?.reference || Number(item.status) !== 4) return;
+        try {
+            const response = await fetch(`/api/admission-applications/${encodeURIComponent(item.reference)}/enrollment-options`, apiOptions());
+            const payload = await response.json().catch(() => null);
+            if (!response.ok || !payload?.success || !payload.data) throw new Error('Invalid enrollment options');
+            fillSelect('enrollmentSectionId', payload.data.sections, true);
+            fillSelect('enrollmentGroupId', payload.data.groups, false);
+            setValue('enrollmentReference', item.reference);
+            setValue('enrollmentRowVersion', item.rowVersion);
+            setValue('enrollmentRoll', '');
+            bootstrap.Modal.getInstance(document.getElementById('reviewModal'))?.hide();
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('enrollmentModal')).show();
+        } catch {
+            showAlert('danger', i18n.enrollmentFailed);
+        }
+    }
+
+    async function completeEnrollment(event) {
+        event.preventDefault();
+        if (!event.currentTarget.reportValidity()) return;
+        const reference = valueOf('enrollmentReference');
+        const button = document.getElementById('completeEnrollmentButton');
+        setLoading(button, true);
+        try {
+            const response = await fetch(`/api/admission-applications/${encodeURIComponent(reference)}/admit`, apiOptions('POST', {
+                sectionId: positiveInteger(valueOf('enrollmentSectionId')),
+                groupId: positiveInteger(valueOf('enrollmentGroupId')),
+                roll: valueOf('enrollmentRoll'),
+                rowVersion: valueOf('enrollmentRowVersion')
+            }));
+            const payload = await response.json().catch(() => null);
+            if (!response.ok || !payload?.success) {
+                showAlert('danger', i18n.enrollmentFailed);
+                return;
+            }
+            bootstrap.Modal.getInstance(document.getElementById('enrollmentModal'))?.hide();
+            showAlert('success', `${i18n.admittedSuccess} ${payload.data?.studentCode || ''}`.trim());
+            state.currentApplication = null;
             await loadApplications();
         } catch {
             showAlert('danger', i18n.networkError);

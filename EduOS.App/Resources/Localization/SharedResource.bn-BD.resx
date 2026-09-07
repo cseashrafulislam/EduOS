@@ -680,4 +680,11 @@
   <data name="AdmissionStatusRejected" xml:space="preserve"><value>বাতিল</value></data>
   <data name="AdmissionStatusWithdrawn" xml:space="preserve"><value>প্রত্যাহার</value></data>
   <data name="AdmissionStatusAdmitted" xml:space="preserve"><value>ভর্তি সম্পন্ন</value></data>
+  <data name="AdmitApplicant" xml:space="preserve"><value>আবেদনকারীকে ভর্তি করুন</value></data>
+  <data name="CompleteEnrollment" xml:space="preserve"><value>ভর্তি সম্পন্ন করুন</value></data>
+  <data name="EnrollmentFailed" xml:space="preserve"><value>ভর্তি সম্পন্ন করা যায়নি।</value></data>
+  <data name="ApplicantAdmittedSuccess" xml:space="preserve"><value>ভর্তি সম্পন্ন হয়েছে:</value></data>
+  <data name="Section" xml:space="preserve"><value>শাখা</value></data>
+  <data name="Group" xml:space="preserve"><value>বিভাগ</value></data>
+  <data name="Roll" xml:space="preserve"><value>রোল</value></data>
 </root>

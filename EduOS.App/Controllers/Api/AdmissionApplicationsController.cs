@@ -15,10 +15,12 @@ namespace EduOS.App.Controllers.Api;
 public class AdmissionApplicationsController : ControllerBase
 {
     private readonly IAdmissionApplicationService _service;
+    private readonly IAdmissionEnrollmentService _enrollmentService;
 
-    public AdmissionApplicationsController(IAdmissionApplicationService service)
+    public AdmissionApplicationsController(IAdmissionApplicationService service, IAdmissionEnrollmentService enrollmentService)
     {
         _service = service;
+        _enrollmentService = enrollmentService;
     }
 
     [HttpGet("options")]
@@ -57,6 +59,22 @@ public class AdmissionApplicationsController : ControllerBase
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         var result = await _service.ReviewAsync(reference, request, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("{reference:guid}/enrollment-options")]
+    public async Task<IActionResult> GetEnrollmentOptions(Guid reference, CancellationToken cancellationToken)
+    {
+        var result = await _enrollmentService.GetOptionsAsync(reference, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("{reference:guid}/admit")]
+    [EnableRateLimiting("AdmissionIntakePolicy")]
+    public async Task<IActionResult> Admit(Guid reference, [FromBody] AdmitAdmissionApplicationDto request, CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await _enrollmentService.AdmitAsync(reference, request, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 }
