@@ -6,7 +6,7 @@ EduOS is a configurable, multi-tenant SaaS platform for the Bangladesh education
 
 একটি প্রতিষ্ঠান signup করবে, plan/trial বেছে নেবে, payment করবে, নিজের campus, academic structure, branding, terminology, workflow ও enabled modules configure করবে এবং ব্যবহার শুরু করবে। কোনো নির্দিষ্ট প্রতিষ্ঠানের নাম, class structure, fee rule, grading rule বা approval flow shared code-এ hard-code করা যাবে না।
 
-> **Current status:** foundation under active development. Phase 0 security work, institution/module entitlement, privacy-safe learner identity, account-linked student/parent consent decisions, revocable time-bound data grants, admission intake/review, and approved applicant-to-student/guardian/enrolment conversion are implemented and tested. Admission conversion is tenant-scoped, transactional, retry-safe and concurrency-protected; consent approval grants only the requested scopes and creates no unrestricted cross-institution access. Public admission forms, documents, assessment/merit, offer/payment, scoped history projection, legacy identifier migration, and many education-module workflows remain planned and must not be treated as production-complete.
+> **Current status:** foundation under active development. Phase 0 security work, institution/module entitlement, privacy-safe learner identity, account-linked student/parent consent decisions, revocable time-bound data grants, admission intake/review, approved applicant-to-student/guardian/enrolment conversion, and annual student promotion/repeat are implemented and tested. Admission conversion and progression are tenant-scoped, transactional, retry-safe and concurrency-protected; consent approval grants only the requested scopes and creates no unrestricted cross-institution access. Public admission forms, documents, assessment/merit, offer/payment, scoped history projection, legacy identifier migration, transfer/completion, and many education-module workflows remain planned and must not be treated as production-complete.
 
 Privileged cookie sessions now require TOTP MFA: password login produces a short-lived encrypted challenge when MFA is enabled, first-time TenantAdmin/SuperAdmin/AdmissionOfficer sessions are restricted to bilingual MFA setup, and recovery codes are displayed once. This is a working security control, not a substitute for production key custody, administrator recovery operations, or penetration testing.
 
@@ -360,7 +360,7 @@ Required functions:
 - Student/guardian self-service profile corrections with approval.
 - Record retention, legal hold, correction, export, and deletion/anonymization policy.
 
-Status: 🟡 tenant-safe responsive bilingual student directory, authorized profile/guardian/enrollment details, admission conversion and basic entities are implemented. Profile correction, promotion, transfer, completion and self-service lifecycle workflows remain incomplete.
+Status: 🟡 tenant-safe responsive bilingual student directory, authorized profile/guardian/enrollment details, admission conversion, and annual promotion/repeat are implemented. Progression is atomic, idempotent, concurrency-protected and tenant-scoped: it closes the source enrolment, creates the validated next enrolment, updates current placement, and preserves immutable history. Profile correction, suspend/dropout/readmission, transfer, completion and self-service lifecycle workflows remain incomplete.
 
 ### 6.8 Attendance
 
@@ -575,6 +575,7 @@ These are the meaningful API areas currently present:
 | /api/dashboard | Authenticated dashboard data |
 | /api/learner-identities | Rate-limited privacy-safe identity creation, reuse and neutral consent request |
 | /api/learner-consents | Student/parent pending requests, approve/deny, active grants and revocation |
+| /api/students/{studentReference}/promotions | TenantAdmin/Principal promotion or repeat and immutable progression history |
 | /api/v1/auditlog | Filter, record/user history and export |
 
 Every new module must add a complete vertical slice: request/response contract, validation, authorization, service, repository/query, migration, UI if required, tests, audit, documentation, and operational monitoring.
@@ -982,7 +983,7 @@ Acceptance:
 
 ### Phase 2 — Global identity and student lifecycle
 
-Progress: the privacy-safe identity registration/match boundary and first consent/access slice are implemented. They include a global person, encrypted identifier, keyed lookup, tenant-owned student link, neutral expiring request, account-linked student/parent authorization, idempotent approval/denial, exact-scope time-bound grants, revocation, optimistic concurrency, append-only access audit, Bangladesh/ASCII digit normalization, and security tests. A pending or denied request grants no access. Scoped history projection, verified contact and richer guardian authority, break-glass approval, and legacy-field backfill are the next Phase 2 slices.
+Progress: the privacy-safe identity registration/match boundary, first consent/access slice, and annual promotion/repeat workflow are implemented. They include a global person, encrypted identifier, keyed lookup, tenant-owned student link, neutral expiring request, account-linked student/parent authorization, idempotent approval/denial, exact-scope time-bound grants, revocation, optimistic concurrency, append-only access audit, Bangladesh/ASCII digit normalization, and security tests. Promotion/repeat is tenant-scoped, atomic and retry-safe, validates the target academic structure and capacity, and records immutable progression history. A pending or denied consent request grants no access. Scoped history projection, verified contact and richer guardian authority, break-glass approval, legacy-field backfill, transfer and completion are the next Phase 2 slices.
 
 Deliver:
 
