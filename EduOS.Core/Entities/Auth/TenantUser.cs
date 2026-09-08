@@ -1,5 +1,5 @@
 ﻿using EduOS.Core.Entities.Base;
-using EduOS.Core.Entities.Tenants;
+using EduOS.Core.Entities.SaaS;
 using System;
 using System.Collections.Generic;
 using System.Text;

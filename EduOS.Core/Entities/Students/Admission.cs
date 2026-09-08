@@ -25,6 +25,6 @@ namespace EduOS.Core.Entities.Students
         public string? Remarks { get; set; }
 
         public virtual AcademicYear? AcademicYear { get; set; }
-        public virtual Class? Class { get; set; }
+        public virtual AcademicLevel? Class { get; set; }
     }
 }

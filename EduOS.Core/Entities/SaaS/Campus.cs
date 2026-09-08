@@ -1,6 +1,6 @@
 using EduOS.Core.Entities.Base;
 
-namespace EduOS.Core.Entities.Tenants
+namespace EduOS.Core.Entities.SaaS
 {
     public class Campus : BaseTenantEntity
     {

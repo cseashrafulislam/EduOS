@@ -125,6 +125,12 @@ namespace EduOS.App.Controllers
         [HttpGet]
         public IActionResult OnboardingComplete() => View();
 
+
+        [HttpGet]
+        public IActionResult Profile()
+        {
+            return View();
+        }
         // ==================== Logout ====================
         [Authorize]
         [HttpPost]

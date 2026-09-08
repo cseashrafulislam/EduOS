@@ -5,37 +5,38 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EduOS.Persistence.Repositories
 {
-    public class SubjectTeacherRepository : GenericRepository<SubjectTeacher>, ISubjectTeacherRepository
+    public class InstructorAssignmentRepository : GenericRepository<InstructorAssignment>, IInstructorAssignmentRepository
     {
-        public SubjectTeacherRepository(EduOSDbContext context) : base(context) { }
+        public InstructorAssignmentRepository(EduOSDbContext context) : base(context) { }
 
-        public async Task<List<SubjectTeacher>> GetByTeacherAsync(int teacherId, int academicYearId)
+        public async Task<List<InstructorAssignment>> GetByEmployeeAsync(long employeeId, long academicYearId)
         {
             return await _dbSet
-                .Include(st => st.Class)
-                .Include(st => st.Section)
+                .Include(st => st.AcademicBatch)
                 .Include(st => st.Subject)
-                .Where(st => st.TeacherId == teacherId && st.AcademicYearId == academicYearId)
+                .Include(st => st.Employee)
+                .Include(st => st.AcademicTerm)
+                .Where(st => st.EmployeeId == employeeId && st.AcademicYearId == academicYearId)
                 .ToListAsync();
         }
 
-        public async Task<List<SubjectTeacher>> GetByClassSectionAsync(int classId, int sectionId)
+        public async Task<List<InstructorAssignment>> GetByBatchAsync(long academicBatchId)
         {
             return await _dbSet
+                .Include(st => st.AcademicBatch)
                 .Include(st => st.Subject)
-                .Include(st => st.Teacher)
-                .Where(st => st.ClassId == classId && st.SectionId == sectionId)
+                .Include(st => st.Employee)
+                .Include(st => st.AcademicTerm)
+                .Where(st => st.AcademicBatchId == academicBatchId)
                 .ToListAsync();
         }
 
-        public async Task<SubjectTeacher?> GetClassTeacherAsync(int classId, int sectionId, int academicYearId)
+        public async Task<InstructorAssignment?> GetAdvisorAsync(long academicBatchId, long academicYearId)
         {
             return await _dbSet
-                .Include(st => st.Teacher)
-                .FirstOrDefaultAsync(st => st.ClassId == classId 
-                    && st.SectionId == sectionId 
-                    && st.AcademicYearId == academicYearId 
-                    && st.IsClassTeacher);
+                .Include(st => st.AcademicBatch)
+                .Include(st => st.Employee)
+                .FirstOrDefaultAsync(st => st.AcademicBatchId == academicBatchId && st.AcademicYearId == academicYearId && st.IsClassAdvisor && st.IsActive);
         }
     }
 }

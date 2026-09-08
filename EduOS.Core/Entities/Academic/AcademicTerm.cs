@@ -1,22 +1,25 @@
 using EduOS.Core.Entities.Base;
+using System.ComponentModel.DataAnnotations;
 
 namespace EduOS.Core.Entities.Academic
 {
-    /// <summary>
-    /// A term/semester within an academic year.
-    /// Example: "Term 1", "First Semester", "January Term"
-    /// Optional — institutions that don't use terms can skip.
-    /// </summary>
     public class AcademicTerm : BaseTenantEntity
     {
         public long AcademicYearId { get; set; }
+
+        [Required, MaxLength(100)]
         public string Name { get; set; } = string.Empty;
+
+        [MaxLength(50)]
+        public string? Code { get; set; }
+
         public DateTime? StartDate { get; set; }
         public DateTime? EndDate { get; set; }
-        public bool IsActive { get; set; } = true;
-        public int DisplayOrder { get; set; }
 
-        // Navigation
+        public bool IsCurrent { get; set; }
+        public bool IsActive { get; set; } = true;
+        public int DisplayOrder { get; set; } = 1;
+
         public virtual AcademicYear? AcademicYear { get; set; }
     }
 }

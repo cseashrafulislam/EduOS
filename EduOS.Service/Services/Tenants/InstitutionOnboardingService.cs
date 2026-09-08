@@ -3,7 +3,7 @@ using EduOS.Core.DTOs.SaaS;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.SaaS;
-using EduOS.Core.Entities.Tenants;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Enums;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;

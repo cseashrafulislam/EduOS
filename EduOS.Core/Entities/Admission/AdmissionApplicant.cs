@@ -1,6 +1,6 @@
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Base;
-using EduOS.Core.Entities.Tenants;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Enums;
 
 namespace EduOS.Core.Entities.Admission;

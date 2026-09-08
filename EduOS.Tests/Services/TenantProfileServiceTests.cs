@@ -1,5 +1,5 @@
 using EduOS.Core.DTOs.Tenants;
-using EduOS.Core.Entities.Tenants;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Settings;
 using EduOS.Persistence.Context;

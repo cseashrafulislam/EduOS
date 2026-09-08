@@ -1,4 +1,4 @@
-using EduOS.Core.Entities.Tenants;
+using EduOS.Core.Entities.SaaS;
 using Microsoft.AspNetCore.Identity;
 
 namespace EduOS.Core.Entities.Auth

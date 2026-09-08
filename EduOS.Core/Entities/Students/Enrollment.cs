@@ -1,6 +1,6 @@
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Base;
-using EduOS.Core.Entities.Tenants;
+using EduOS.Core.Entities.SaaS;
 
 namespace EduOS.Core.Entities.Students
 {

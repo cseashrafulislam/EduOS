@@ -1,5 +1,5 @@
 using EduOS.Core.Entities.SaaS;
-using EduOS.Core.Entities.Tenants;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Persistence.Context;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;

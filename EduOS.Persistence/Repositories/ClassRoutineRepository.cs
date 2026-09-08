@@ -5,59 +5,54 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EduOS.Persistence.Repositories
 {
-    public class ClassRoutineRepository : GenericRepository<ClassRoutine>, IClassRoutineRepository
+    public class RoutineEntryRepository : GenericRepository<RoutineEntry>, IRoutineEntryRepository
     {
-        public ClassRoutineRepository(EduOSDbContext context) : base(context) { }
+        public RoutineEntryRepository(EduOSDbContext context) : base(context) { }
 
-        public async Task<List<ClassRoutine>> GetByClassSectionAsync(int classId, int sectionId, int academicYearId)
+        public async Task<List<RoutineEntry>> GetByBatchAsync(long academicBatchId, long academicYearId)
         {
             return await _dbSet
+                .Include(r => r.AcademicBatch)
+                .Include(r => r.RoutineTimeSlot)
                 .Include(r => r.Subject)
-                .Include(r => r.Teacher)
-                .Where(r => r.ClassId == classId 
-                    && r.SectionId == sectionId 
-                    && r.AcademicYearId == academicYearId)
+                .Include(r => r.Employee)
+                .Where(r => r.AcademicBatchId == academicBatchId && r.AcademicYearId == academicYearId)
                 .OrderBy(r => r.DayOfWeek)
-                .ThenBy(r => r.StartTime)
+                .ThenBy(r => r.RoutineTimeSlot!.StartTime)
                 .ToListAsync();
         }
 
-        public async Task<List<ClassRoutine>> GetByTeacherAsync(int teacherId, int academicYearId)
+        public async Task<List<RoutineEntry>> GetByEmployeeAsync(long employeeId, long academicYearId)
         {
             return await _dbSet
-                .Include(r => r.Class)
-                .Include(r => r.Section)
+                .Include(r => r.AcademicBatch)
+                .Include(r => r.RoutineTimeSlot)
                 .Include(r => r.Subject)
-                .Where(r => r.TeacherId == teacherId && r.AcademicYearId == academicYearId)
+                .Include(r => r.Employee)
+                .Where(r => r.EmployeeId == employeeId && r.AcademicYearId == academicYearId)
                 .OrderBy(r => r.DayOfWeek)
-                .ThenBy(r => r.StartTime)
+                .ThenBy(r => r.RoutineTimeSlot!.StartTime)
                 .ToListAsync();
         }
 
-        public async Task<List<ClassRoutine>> GetByDayAsync(string dayOfWeek, int classId, int sectionId)
+        public async Task<List<RoutineEntry>> GetByDayAsync(DayOfWeek dayOfWeek, long academicBatchId)
         {
             return await _dbSet
+                .Include(r => r.AcademicBatch)
+                .Include(r => r.RoutineTimeSlot)
                 .Include(r => r.Subject)
-                .Include(r => r.Teacher)
-                .Where(r => r.DayOfWeek == dayOfWeek 
-                    && r.ClassId == classId 
-                    && r.SectionId == sectionId)
-                .OrderBy(r => r.StartTime)
+                .Include(r => r.Employee)
+                .Where(r => r.DayOfWeek == dayOfWeek && r.AcademicBatchId == academicBatchId)
+                .OrderBy(r => r.RoutineTimeSlot!.StartTime)
                 .ToListAsync();
         }
 
-        public async Task<bool> HasConflictAsync(
-            int teacherId, string dayOfWeek, TimeSpan startTime, TimeSpan endTime, int? excludeId = null)
+        public async Task<bool> HasConflictAsync(long employeeId, DayOfWeek dayOfWeek, TimeSpan startTime, TimeSpan endTime, long? excludeId = null)
         {
-            var query = _dbSet.Where(r => 
-                r.TeacherId == teacherId 
-                && r.DayOfWeek == dayOfWeek
-                && ((r.StartTime <= startTime && r.EndTime > startTime)
-                    || (r.StartTime < endTime && r.EndTime >= endTime)
-                    || (r.StartTime >= startTime && r.EndTime <= endTime)));
+            var query = _dbSet.Where(r => r.EmployeeId == employeeId && r.DayOfWeek == dayOfWeek && r.RoutineTimeSlot != null
+                && r.RoutineTimeSlot.StartTime < endTime && r.RoutineTimeSlot.EndTime > startTime);
 
-            if (excludeId.HasValue)
-                query = query.Where(r => r.Id != excludeId.Value);
+            if (excludeId.HasValue) query = query.Where(r => r.Id != excludeId.Value);
 
             return await query.AnyAsync();
         }

@@ -1,5 +1,5 @@
 using EduOS.Core.Entities.Auth;
-using EduOS.Core.Entities.Tenants;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Enums;
 using EduOS.Persistence.Context;
 using Microsoft.AspNetCore.Identity;
