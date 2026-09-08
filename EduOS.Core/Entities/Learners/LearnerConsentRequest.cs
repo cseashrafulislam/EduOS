@@ -20,6 +20,7 @@ public class LearnerConsentRequest : BaseTenantEntity
     public DateTime ExpiresAt { get; set; }
     public DateTime? ResolvedAt { get; set; }
     public long? ResolvedByUserId { get; set; }
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
     public virtual Person? Person { get; set; }
     public virtual Student? RequestedStudent { get; set; }

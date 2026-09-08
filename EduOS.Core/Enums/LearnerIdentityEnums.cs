@@ -47,10 +47,25 @@ public enum LearnerConsentRequestStatus
     Revoked = 5
 }
 
+public enum LearnerConsentDecision
+{
+    Approve = 1,
+    Deny = 2
+}
+
+public enum LearnerDataGrantStatus
+{
+    Active = 1,
+    Revoked = 2,
+    Expired = 3
+}
+
 public enum LearnerIdentityAccessAction
 {
     RegisterOrLink = 1,
-    RequestConsent = 2
+    RequestConsent = 2,
+    ResolveConsent = 3,
+    RevokeDataGrant = 4
 }
 
 public enum LearnerIdentityAccessOutcome
@@ -59,5 +74,9 @@ public enum LearnerIdentityAccessOutcome
     Reused = 2,
     ConsentRequired = 3,
     Denied = 4,
-    Failed = 5
+    Failed = 5,
+    Approved = 6,
+    Revoked = 7,
+    Expired = 8,
+    Conflict = 9
 }

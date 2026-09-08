@@ -81,6 +81,7 @@ namespace EduOS.Persistence.Extensions
             s.AddScoped<IGuardianRepository, GuardianRepository>();
             s.AddScoped<IAdmissionRepository, AdmissionRepository>();
             s.AddScoped<IEnrollmentRepository, EnrollmentRepository>();
+            s.AddScoped<ILearnerConsentRepository, LearnerConsentRepository>();
         }
 
         private static void RegisterEmployeeRepositories(IServiceCollection s)

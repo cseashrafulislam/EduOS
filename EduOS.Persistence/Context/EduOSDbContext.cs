@@ -51,12 +51,20 @@ namespace EduOS.Persistence.Context
         private readonly DateTime _startTime = DateTime.UtcNow;
         private IDbContextTransaction? _transaction;
         private bool _isAuditing;
+        private LearnerConsentWriteScope? _learnerConsentWriteScope;
 
         // Lazily resolved user metadata. Tenant context stays request-dynamic because
         // middleware may resolve it after the DbContext has been constructed.
         private long? _userId;
         private string? _userName;
         private bool _contextResolved;
+
+        private sealed record LearnerConsentWriteScope(
+            long ConsentRequestId,
+            long TenantId,
+            long PersonId,
+            long StudentId,
+            long UserId);
 
         #endregion
 
@@ -234,6 +242,7 @@ namespace EduOS.Persistence.Context
         public DbSet<PersonIdentifier> PersonIdentifiers => Set<PersonIdentifier>();
         public DbSet<StudentPersonLink> StudentPersonLinks => Set<StudentPersonLink>();
         public DbSet<LearnerConsentRequest> LearnerConsentRequests => Set<LearnerConsentRequest>();
+        public DbSet<LearnerDataGrant> LearnerDataGrants => Set<LearnerDataGrant>();
         public DbSet<LearnerIdentityAccessLog> LearnerIdentityAccessLogs => Set<LearnerIdentityAccessLog>();
 
         // Employees
@@ -512,6 +521,51 @@ namespace EduOS.Persistence.Context
             }
         }
 
+        /// <summary>
+        /// Narrow persistence escape hatch for an authenticated learner/guardian
+        /// resolving a request created by another tenant. The repository proves
+        /// ownership first; this scope then permits only the exact request, grant,
+        /// link and append-only log involved in that decision.
+        /// </summary>
+        internal async Task<int> SaveLearnerConsentDecisionAsync(
+            long consentRequestId,
+            long tenantId,
+            long personId,
+            long studentId,
+            long userId,
+            CancellationToken cancellationToken)
+        {
+            ResolveContext();
+            if (consentRequestId <= 0
+                || tenantId <= 0
+                || personId <= 0
+                || studentId <= 0
+                || userId <= 0
+                || UserId != userId)
+            {
+                throw new UnauthorizedAccessException(
+                    "A valid authenticated learner consent scope is required.");
+            }
+
+            if (_learnerConsentWriteScope != null)
+                throw new InvalidOperationException("A learner consent write is already in progress.");
+
+            _learnerConsentWriteScope = new LearnerConsentWriteScope(
+                consentRequestId,
+                tenantId,
+                personId,
+                studentId,
+                userId);
+            try
+            {
+                return await SaveChangesAsync(cancellationToken);
+            }
+            finally
+            {
+                _learnerConsentWriteScope = null;
+            }
+        }
+
         private void SetAuditFields(EntityEntry entry, DateTime now, EntityState state)
         {
             if (entry.Entity is not BaseEntity entity) return;
@@ -552,6 +606,9 @@ namespace EduOS.Persistence.Context
                 if (entry.Entity is not ITenantScopedEntity tenantEntity)
                     continue;
 
+                if (IsAuthorizedLearnerConsentWrite(entry, tenantEntity))
+                    continue;
+
                 if (requestTenantId.HasValue)
                 {
                     if (entry.State == EntityState.Added && tenantEntity.TenantId == 0)
@@ -575,6 +632,60 @@ namespace EduOS.Persistence.Context
                         "Tenant-scoped data requires an explicit TenantId.");
             }
         }
+
+        private bool IsAuthorizedLearnerConsentWrite(
+            EntityEntry<BaseEntity> entry,
+            ITenantScopedEntity tenantEntity)
+        {
+            var scope = _learnerConsentWriteScope;
+            if (scope == null
+                || tenantEntity.TenantId != scope.TenantId
+                || UserId != scope.UserId)
+            {
+                return false;
+            }
+
+            return entry.Entity switch
+            {
+                LearnerConsentRequest request =>
+                    entry.State == EntityState.Modified
+                    && request.Id == scope.ConsentRequestId
+                    && request.PersonId == scope.PersonId
+                    && request.RequestedStudentId == scope.StudentId
+                    && HasOnlyModifiedProperties(entry,
+                        nameof(LearnerConsentRequest.Status),
+                        nameof(LearnerConsentRequest.ResolvedAt),
+                        nameof(LearnerConsentRequest.ResolvedByUserId)),
+                LearnerDataGrant grant =>
+                    (entry.State is EntityState.Added or EntityState.Modified)
+                    && grant.ConsentRequestId == scope.ConsentRequestId
+                    && grant.PersonId == scope.PersonId
+                    && grant.StudentId == scope.StudentId
+                    && (entry.State == EntityState.Added
+                        || HasOnlyModifiedProperties(entry,
+                            nameof(LearnerDataGrant.Status),
+                            nameof(LearnerDataGrant.RevokedAt),
+                            nameof(LearnerDataGrant.RevokedByUserId))),
+                StudentPersonLink link =>
+                    entry.State == EntityState.Added
+                    && link.PersonId == scope.PersonId
+                    && link.StudentId == scope.StudentId,
+                LearnerIdentityAccessLog log =>
+                    entry.State == EntityState.Added
+                    && log.ConsentRequestId == scope.ConsentRequestId
+                    && log.PersonId == scope.PersonId
+                    && log.StudentId == scope.StudentId
+                    && log.UserId == scope.UserId,
+                _ => false
+            };
+        }
+
+        private static bool HasOnlyModifiedProperties(
+            EntityEntry<BaseEntity> entry,
+            params string[] allowedProperties) =>
+            entry.Properties
+                .Where(property => property.IsModified)
+                .All(property => allowedProperties.Contains(property.Metadata.Name));
 
         private AuditLog? CreateAuditLog(EntityEntry entry, string action, DateTime now)
         {
@@ -608,6 +719,7 @@ namespace EduOS.Persistence.Context
                     or PersonIdentifier
                     or StudentPersonLink
                     or LearnerConsentRequest
+                    or LearnerDataGrant
                     or LearnerIdentityAccessLog)
                 {
                     return log;

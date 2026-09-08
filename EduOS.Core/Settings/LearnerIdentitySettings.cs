@@ -11,4 +11,5 @@ public sealed class LearnerIdentitySettings
     public string LookupKeyBase64 { get; set; } = string.Empty;
 
     public int ConsentRequestLifetimeHours { get; set; } = 168;
+    public int DataGrantLifetimeDays { get; set; } = 365;
 }
