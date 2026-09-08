@@ -7980,6 +7980,135 @@ namespace EduOS.Persistence.Migrations
                     b.ToTable("Students");
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.Students.StudentPromotionRecord", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Decision")
+                        .HasColumnType("int");
+
+                    b.Property<long>("FromAcademicYearId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("FromClassId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("FromEnrollmentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("FromGroupId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("FromRoll")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<long>("FromSectionId")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("ProcessedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("ProcessedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("PublicId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("StudentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("ToAcademicYearId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("ToClassId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("ToEnrollmentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("ToGroupId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ToRoll")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<long>("ToSectionId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FromAcademicYearId");
+
+                    b.HasIndex("FromClassId");
+
+                    b.HasIndex("FromEnrollmentId");
+
+                    b.HasIndex("FromGroupId");
+
+                    b.HasIndex("FromSectionId");
+
+                    b.HasIndex("PublicId")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.HasIndex("StudentId");
+
+                    b.HasIndex("ToAcademicYearId");
+
+                    b.HasIndex("ToClassId");
+
+                    b.HasIndex("ToEnrollmentId");
+
+                    b.HasIndex("ToGroupId");
+
+                    b.HasIndex("ToSectionId");
+
+                    b.HasIndex("TenantId", "ClientRequestId")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.HasIndex("TenantId", "FromEnrollmentId")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.HasIndex("TenantId", "StudentId", "ProcessedAt");
+
+                    b.ToTable("StudentPromotionRecords", (string)null);
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.Students.TransferCertificate", b =>
                 {
                     b.Property<long>("Id")
@@ -12301,6 +12430,103 @@ namespace EduOS.Persistence.Migrations
                     b.Navigation("Tenant");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Students.StudentPromotionRecord", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.Academic.AcademicYear", "FromAcademicYear")
+                        .WithMany()
+                        .HasForeignKey("FromAcademicYearId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Academic.Class", "FromClass")
+                        .WithMany()
+                        .HasForeignKey("FromClassId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Students.Enrollment", "FromEnrollment")
+                        .WithMany()
+                        .HasForeignKey("FromEnrollmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Academic.Group", "FromGroup")
+                        .WithMany()
+                        .HasForeignKey("FromGroupId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.Academic.Section", "FromSection")
+                        .WithMany()
+                        .HasForeignKey("FromSectionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Students.Student", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Tenants.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Academic.AcademicYear", "ToAcademicYear")
+                        .WithMany()
+                        .HasForeignKey("ToAcademicYearId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Academic.Class", "ToClass")
+                        .WithMany()
+                        .HasForeignKey("ToClassId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Students.Enrollment", "ToEnrollment")
+                        .WithMany()
+                        .HasForeignKey("ToEnrollmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Academic.Group", "ToGroup")
+                        .WithMany()
+                        .HasForeignKey("ToGroupId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.Academic.Section", "ToSection")
+                        .WithMany()
+                        .HasForeignKey("ToSectionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("FromAcademicYear");
+
+                    b.Navigation("FromClass");
+
+                    b.Navigation("FromEnrollment");
+
+                    b.Navigation("FromGroup");
+
+                    b.Navigation("FromSection");
+
+                    b.Navigation("Student");
+
+                    b.Navigation("Tenant");
+
+                    b.Navigation("ToAcademicYear");
+
+                    b.Navigation("ToClass");
+
+                    b.Navigation("ToEnrollment");
+
+                    b.Navigation("ToGroup");
+
+                    b.Navigation("ToSection");
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.Students.TransferCertificate", b =>

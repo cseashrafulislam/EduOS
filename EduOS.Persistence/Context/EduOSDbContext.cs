@@ -235,6 +235,7 @@ namespace EduOS.Persistence.Context
         public DbSet<Guardian> Guardians => Set<Guardian>();
         public DbSet<Enrollment> Enrollments => Set<Enrollment>();
         public DbSet<Promotion> Promotions => Set<Promotion>();
+        public DbSet<StudentPromotionRecord> StudentPromotionRecords => Set<StudentPromotionRecord>();
         public DbSet<TransferCertificate> TransferCertificates => Set<TransferCertificate>();
         public DbSet<HealthRecord> HealthRecords => Set<HealthRecord>();
         public DbSet<BehaviorRecord> BehaviorRecords => Set<BehaviorRecord>();
@@ -603,6 +604,13 @@ namespace EduOS.Persistence.Context
                         "Learner identity access logs are append-only.");
                 }
 
+                if (entry.Entity is StudentPromotionRecord
+                    && entry.State is EntityState.Modified or EntityState.Deleted)
+                {
+                    throw new InvalidOperationException(
+                        "Student promotion records are append-only.");
+                }
+
                 if (entry.Entity is not ITenantScopedEntity tenantEntity)
                     continue;
 
@@ -715,6 +723,7 @@ namespace EduOS.Persistence.Context
                     or Student
                     or Guardian
                     or Enrollment
+                    or StudentPromotionRecord
                     or Person
                     or PersonIdentifier
                     or StudentPersonLink
