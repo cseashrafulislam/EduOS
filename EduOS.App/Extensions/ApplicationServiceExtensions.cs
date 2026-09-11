@@ -68,18 +68,18 @@ namespace EduOS.App.Extensions
             services.AddScoped<ITenantSettingService, TenantSettingService>();
             services.AddScoped<IOnboardingService, OnboardingService>();
 
-            // ==================== TODO: Add other services as you build them ====================
-             services.AddScoped<IInstitutionOnboardingService, InstitutionOnboardingService>();
-             services.AddScoped<IDashboardService, DashboardService>();
-             services.AddScoped<IEmailService, EmailService>();
-             services.AddScoped<IEmailJob, EmailJob>();
-             services.AddScoped<ILearnerIdentityService, LearnerIdentityService>();
-             services.AddScoped<ILearnerConsentService, LearnerConsentService>();
-             services.AddScoped<IAdmissionApplicationService, AdmissionApplicationService>();
-             services.AddScoped<IAdmissionEnrollmentService, AdmissionEnrollmentService>();
-             services.AddScoped<IStudentDirectoryService, StudentDirectoryService>();
-             services.AddScoped<IStudentPromotionService, StudentPromotionService>();
-
+            // ==================== Education Workflows ====================
+            services.AddScoped<IInstitutionOnboardingService, InstitutionOnboardingService>();
+            services.AddScoped<IDashboardService, DashboardService>();
+            services.AddScoped<IEmailService, EmailService>();
+            services.AddScoped<IEmailJob, EmailJob>();
+            services.AddScoped<ILearnerIdentityService, LearnerIdentityService>();
+            services.AddScoped<ILearnerConsentService, LearnerConsentService>();
+            services.AddScoped<IAdmissionApplicationService, AdmissionApplicationService>();
+            services.AddScoped<IAdmissionEnrollmentService, AdmissionEnrollmentService>();
+            services.AddScoped<IAdmissionAssessmentService, AdmissionAssessmentService>();
+            services.AddScoped<IStudentDirectoryService, StudentDirectoryService>();
+            services.AddScoped<IStudentPromotionService, StudentPromotionService>();
 
             return services;
         }
