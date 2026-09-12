@@ -5,12 +5,12 @@ namespace EduOS.Core.Entities.Exams
 {
     public class ExamResult : BaseTenantEntity
     {
-        public int ExamId { get; set; }
+        public long ExamId { get; set; }
         public long StudentId { get; set; }
-        public int AcademicYearId { get; set; }
-        public int ClassId { get; set; }
-        public int SectionId { get; set; }
-        public int? GroupId { get; set; }
+        public long AcademicYearId { get; set; }
+        public long ClassId { get; set; }
+        public long SectionId { get; set; }
+        public long? GroupId { get; set; }
         public decimal TotalMark { get; set; }
         public decimal TotalFullMark { get; set; }
         public decimal Percentage { get; set; }
