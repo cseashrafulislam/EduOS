@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace EduOS.Core.DTOs.Attendance;
 
-public sealed class StudentAttendanceRosterQueryDto
+public class StudentAttendanceRosterQueryDto
 {
     public DateTime Date { get; set; } = DateTime.Today;
 
