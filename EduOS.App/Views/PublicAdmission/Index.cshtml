@@ -1,0 +1,62 @@
+@{
+    Layout = null;
+    var tenantKey = ViewData["TenantKey"]?.ToString() ?? string.Empty;
+}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Admission Application | EduOS</title>
+    <style>
+        :root{color-scheme:light;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}*{box-sizing:border-box}body{margin:0;background:#f5f7fb;color:#172033}.shell{max-width:920px;margin:0 auto;padding:28px 16px 48px}.hero{background:linear-gradient(135deg,#172554,#1d4ed8);color:#fff;border-radius:22px;padding:26px;box-shadow:0 18px 45px rgba(30,64,175,.18)}.hero h1{margin:0 0 8px;font-size:clamp(26px,5vw,40px)}.hero p{margin:0;opacity:.88}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.card{margin-top:18px;background:#fff;border:1px solid #e7ebf3;border-radius:20px;padding:22px;box-shadow:0 10px 30px rgba(15,23,42,.06)}.card h2{margin:0 0 16px;font-size:20px}.field{display:flex;flex-direction:column;gap:6px}.field.full{grid-column:1/-1}label{font-size:13px;font-weight:700;color:#475569}input,select,textarea{width:100%;border:1px solid #cbd5e1;border-radius:12px;padding:11px 12px;font:inherit;background:#fff;color:#172033;outline:none}input:focus,select:focus,textarea:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.1)}textarea{min-height:88px;resize:vertical}.actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:18px}.btn{border:0;border-radius:12px;padding:11px 18px;font:inherit;font-weight:800;cursor:pointer}.btn-primary{background:#1d4ed8;color:#fff}.btn-soft{background:#e8eefc;color:#1e40af}.btn:disabled{opacity:.55;cursor:not-allowed}.message{margin-top:14px;border-radius:12px;padding:12px 14px;display:none}.message.ok{display:block;background:#ecfdf5;color:#166534;border:1px solid #bbf7d0}.message.error{display:block;background:#fff1f2;color:#9f1239;border:1px solid #fecdd3}.receipt{display:none;margin-top:16px;padding:16px;border:1px dashed #93c5fd;border-radius:14px;background:#eff6ff}.receipt.show{display:block}.receipt strong{display:block;font-size:18px;margin-top:4px}.muted{color:#64748b;font-size:13px}.status-row{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end}@media(max-width:720px){.grid{grid-template-columns:1fr}.field.full{grid-column:auto}.status-row{grid-template-columns:1fr}.card,.hero{padding:18px;border-radius:16px}.shell{padding-top:16px}}
+    </style>
+</head>
+<body>
+<main class="shell" id="publicAdmissionApp" data-tenant="@tenantKey">
+    <section class="hero">
+        <h1>Admission Application</h1>
+        <p>ভর্তি আবেদন অনলাইনে জমা দিন এবং application reference দিয়ে status দেখুন।</p>
+    </section>
+
+    <section class="card">
+        <h2>Apply / আবেদন করুন</h2>
+        <form id="admissionForm" autocomplete="on">
+            <div class="grid">
+                <div class="field"><label for="academicYearId">Academic Year / শিক্ষাবর্ষ</label><select id="academicYearId" required><option value="">Loading...</option></select></div>
+                <div class="field"><label for="academicTermId">Term / টার্ম</label><select id="academicTermId"><option value="">Optional</option></select></div>
+                <div class="field"><label for="campusId">Campus / ক্যাম্পাস</label><select id="campusId" required><option value="">Loading...</option></select></div>
+                <div class="field"><label for="academicUnitId">Class / Level</label><select id="academicUnitId" required><option value="">Loading...</option></select></div>
+                <div class="field"><label for="applicantName">Applicant Name / নাম</label><input id="applicantName" maxlength="200" required /></div>
+                <div class="field"><label for="applicantNameBangla">বাংলা নাম</label><input id="applicantNameBangla" maxlength="200" /></div>
+                <div class="field"><label for="dateOfBirth">Date of Birth / জন্মতারিখ</label><input id="dateOfBirth" type="date" required /></div>
+                <div class="field"><label for="gender">Gender / লিঙ্গ</label><select id="gender" required><option value="">Select</option><option value="1">Male</option><option value="2">Female</option><option value="3">Other</option></select></div>
+                <div class="field"><label for="primaryMobile">Mobile / মোবাইল</label><input id="primaryMobile" inputmode="tel" maxlength="30" placeholder="01XXXXXXXXX" required /></div>
+                <div class="field"><label for="email">Email</label><input id="email" type="email" maxlength="254" /></div>
+                <div class="field"><label for="guardianName">Guardian Name / অভিভাবক</label><input id="guardianName" maxlength="200" /></div>
+                <div class="field"><label for="guardianRelation">Relation / সম্পর্ক</label><input id="guardianRelation" maxlength="50" /></div>
+                <div class="field"><label for="guardianMobile">Guardian Mobile</label><input id="guardianMobile" inputmode="tel" maxlength="30" /></div>
+                <div class="field"><label for="previousInstitution">Previous Institution</label><input id="previousInstitution" maxlength="200" /></div>
+                <div class="field full"><label for="presentAddress">Present Address / বর্তমান ঠিকানা</label><textarea id="presentAddress" maxlength="1000"></textarea></div>
+                <div class="field full"><label for="permanentAddress">Permanent Address / স্থায়ী ঠিকানা</label><textarea id="permanentAddress" maxlength="1000"></textarea></div>
+                <div class="field"><label for="preferredLanguage">Preferred Language</label><select id="preferredLanguage"><option value="bn-BD">বাংলা</option><option value="en-BD">English</option></select></div>
+            </div>
+            <div class="actions"><button class="btn btn-primary" id="submitButton" type="submit">Submit Application</button><span class="muted">একবার submit করার পর reference সংরক্ষণ করুন।</span></div>
+            <div id="formMessage" class="message"></div>
+            <div id="receipt" class="receipt"><span>Application Number</span><strong id="applicationNumber"></strong><span class="muted">Reference: <span id="applicationReference"></span></span></div>
+        </form>
+    </section>
+
+    <section class="card">
+        <h2>Check Status / স্ট্যাটাস দেখুন</h2>
+        <div class="status-row">
+            <div class="field"><label for="statusReference">Application Reference</label><input id="statusReference" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" /></div>
+            <div class="field"><label for="statusMobile">Mobile used in application</label><input id="statusMobile" inputmode="tel" placeholder="01XXXXXXXXX" /></div>
+            <button class="btn btn-soft" id="statusButton" type="button">Check Status</button>
+        </div>
+        <div id="statusMessage" class="message"></div>
+    </section>
+</main>
+<script src="~/js/public-admission/index.js" asp-append-version="true"></script>
+</body>
+</html>
