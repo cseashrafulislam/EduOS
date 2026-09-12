@@ -7,10 +7,10 @@ namespace EduOS.Core.Entities.Students
     public class Enrollment : BaseTenantEntity
     {
         public long StudentId { get; set; }
-        public int AcademicYearId { get; set; }
-        public int ClassId { get; set; }
-        public int SectionId { get; set; }
-        public int? GroupId { get; set; }
+        public long AcademicYearId { get; set; }
+        public long ClassId { get; set; }
+        public long SectionId { get; set; }
+        public long? GroupId { get; set; }
         public long? CampusId { get; set; }
         public long? AcademicTermId { get; set; }
         public string Roll { get; set; } = string.Empty;
