@@ -42,8 +42,11 @@ BEGIN
     ELSE
         ALTER TABLE [dbo].[Increments] ALTER COLUMN [EmployeeId] BIGINT NOT NULL;
 
-    DELETE FROM [dbo].[Increments]
-    WHERE [EmployeeId] IS NULL OR NOT EXISTS(SELECT 1 FROM [dbo].[Employees] e WHERE e.Id=[Increments].[EmployeeId]);
+    IF EXISTS(
+        SELECT 1 FROM [dbo].[Increments] i
+        WHERE i.[EmployeeId] IS NULL OR NOT EXISTS(SELECT 1 FROM [dbo].[Employees] e WHERE e.Id=i.[EmployeeId])
+    )
+        THROW 51000, 'Cannot normalize Increments.EmployeeId because orphaned employee references exist.', 1;
 
     ALTER TABLE [dbo].[Increments] ALTER COLUMN [EmployeeId] BIGINT NOT NULL;
     IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'[dbo].[Increments]') AND name=N'IX_Increments_EmployeeId')
