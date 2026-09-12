@@ -7,7 +7,7 @@ namespace EduOS.Core.Entities.Finance
     {
         public int AcademicYearId { get; set; }
         public int ClassId { get; set; }
-        public int FeeHeadId { get; set; }
+        public long FeeHeadId { get; set; }
         public decimal Amount { get; set; }
 
         public virtual AcademicYear? AcademicYear { get; set; }

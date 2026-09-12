@@ -12,6 +12,7 @@ using EduOS.Service.Services.Auth;
 using EduOS.Service.Services.Admission;
 using EduOS.Service.Services.Attendance;
 using EduOS.Service.Services.Exams;
+using EduOS.Service.Services.Finance;
 using EduOS.Service.Services.SaaS;
 using EduOS.Service.Services.Students;
 using EduOS.Service.Services.Tenants;
@@ -64,6 +65,7 @@ namespace EduOS.App.Extensions
             services.AddScoped<IStudentPromotionService, StudentPromotionService>();
             services.AddScoped<IStudentAttendanceService, StudentAttendanceService>();
             services.AddScoped<IExamWorkflowService, ExamWorkflowService>();
+            services.AddScoped<IFeeBillingService, FeeBillingService>();
             return services;
         }
     }
