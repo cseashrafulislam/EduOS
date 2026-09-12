@@ -5,9 +5,9 @@ namespace EduOS.Core.Entities.Academic
 {
     public class LessonPlan : BaseTenantEntity
     {
-        public int ClassId { get; set; }
-        public int SubjectId { get; set; }
-        public int TeacherId { get; set; }
+        public long ClassId { get; set; }
+        public long SubjectId { get; set; }
+        public long TeacherId { get; set; }
         public string ChapterName { get; set; } = string.Empty;
         public string? Topic { get; set; }
         public DateTime StartDate { get; set; }
