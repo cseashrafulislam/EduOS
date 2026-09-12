@@ -5,10 +5,10 @@ namespace EduOS.Core.DTOs.LMS;
 public sealed class SaveCourseDto
 {
     public Guid? Reference { get; set; }
-    [Range(1,int.MaxValue)] public int AcademicYearId { get; set; }
-    [Range(1,int.MaxValue)] public int ClassId { get; set; }
-    [Range(1,int.MaxValue)] public int? SectionId { get; set; }
-    [Range(1,int.MaxValue)] public int SubjectId { get; set; }
+    [Range(1,long.MaxValue)] public long AcademicYearId { get; set; }
+    [Range(1,long.MaxValue)] public long ClassId { get; set; }
+    [Range(1,long.MaxValue)] public long? SectionId { get; set; }
+    [Range(1,long.MaxValue)] public long SubjectId { get; set; }
     [Range(1,long.MaxValue)] public long? TeacherId { get; set; }
     [Required,StringLength(200)] public string Title { get; set; } = string.Empty;
     [StringLength(4000)] public string? Description { get; set; }
@@ -53,10 +53,10 @@ public sealed class LmsCourseDto
 {
     public Guid Reference { get; set; }
     public string Title { get; set; } = string.Empty;
-    public int AcademicYearId { get; set; }
-    public int ClassId { get; set; }
-    public int? SectionId { get; set; }
-    public int SubjectId { get; set; }
+    public long AcademicYearId { get; set; }
+    public long ClassId { get; set; }
+    public long? SectionId { get; set; }
+    public long SubjectId { get; set; }
     public string SubjectName { get; set; } = string.Empty;
     public long TeacherId { get; set; }
     public string TeacherName { get; set; } = string.Empty;
