@@ -6,9 +6,9 @@ namespace EduOS.Core.Entities.Exams
 {
     public class MarkEntry : BaseTenantEntity
     {
-        public int ExamId { get; set; }
+        public long ExamId { get; set; }
         public long StudentId { get; set; }
-        public int SubjectId { get; set; }
+        public long SubjectId { get; set; }
         public decimal ObtainedMark { get; set; }
         public int FullMark { get; set; }
         public bool IsAbsent { get; set; }
