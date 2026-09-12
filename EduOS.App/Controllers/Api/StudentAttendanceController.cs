@@ -30,7 +30,7 @@ public sealed class StudentAttendanceController : ControllerBase
     }
 
     [HttpPost]
-    [EnableRateLimiting("AuthenticatedWritePolicy")]
+    [EnableRateLimiting("ApiPolicy")]
     public async Task<IActionResult> Save([FromBody] SaveStudentAttendanceDto request, CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
