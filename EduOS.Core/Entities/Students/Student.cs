@@ -32,7 +32,7 @@ namespace EduOS.Core.Entities.Students
         public DateTime AdmissionDate { get; set; }
         public string? PhotoUrl { get; set; }
         public string PreferredLanguage { get; set; } = "bn-BD";
-        public string Status { get; set; } = "Active"; // Active/TC/Passed/Dropout
+        public string Status { get; set; } = "Active";
         public bool IsActive { get; set; } = true;
         public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
@@ -45,5 +45,6 @@ namespace EduOS.Core.Entities.Students
         public virtual AcademicYear? AcademicYear { get; set; }
         public virtual ICollection<Guardian> Guardians { get; set; } = new List<Guardian>();
         public virtual ICollection<Enrollment> Enrollments { get; set; } = new List<Enrollment>();
+        public virtual ICollection<StudentExitRecord> ExitRecords { get; set; } = new List<StudentExitRecord>();
     }
 }
