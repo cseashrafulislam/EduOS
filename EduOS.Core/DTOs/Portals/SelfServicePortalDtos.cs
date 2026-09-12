@@ -22,7 +22,7 @@ public sealed class PortalAttendanceDto
 
 public sealed class PortalResultDto
 {
-    public int ExamId { get; set; }
+    public long ExamId { get; set; }
     public string ExamName { get; set; } = string.Empty;
     public decimal TotalMark { get; set; }
     public decimal TotalFullMark { get; set; }
