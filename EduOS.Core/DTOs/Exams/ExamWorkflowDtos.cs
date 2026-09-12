@@ -16,7 +16,7 @@ public sealed class ExamMarkRosterQueryDto : ExamScopeDto
 
 public sealed class SaveExamMarkItemDto
 {
-    [Range(1, int.MaxValue)] public int StudentId { get; set; }
+    [Range(1, long.MaxValue)] public long StudentId { get; set; }
     [Range(typeof(decimal), "0", "1000000")] public decimal ObtainedMark { get; set; }
     public bool IsAbsent { get; set; }
 }
@@ -28,7 +28,7 @@ public sealed class SaveExamMarksDto : ExamMarkRosterQueryDto
 
 public sealed class ExamMarkRosterItemDto
 {
-    public int StudentId { get; set; }
+    public long StudentId { get; set; }
     public Guid StudentReference { get; set; }
     public string StudentCode { get; set; } = string.Empty;
     public string Roll { get; set; } = string.Empty;
@@ -55,7 +55,7 @@ public sealed class ExamMarkRosterDto
 
 public sealed class ExamResultItemDto
 {
-    public int StudentId { get; set; }
+    public long StudentId { get; set; }
     public Guid StudentReference { get; set; }
     public string StudentCode { get; set; } = string.Empty;
     public string Roll { get; set; } = string.Empty;

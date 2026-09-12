@@ -6,7 +6,7 @@ namespace EduOS.Core.Entities.Exams
     public class ExamResult : BaseTenantEntity
     {
         public int ExamId { get; set; }
-        public int StudentId { get; set; }
+        public long StudentId { get; set; }
         public int AcademicYearId { get; set; }
         public int ClassId { get; set; }
         public int SectionId { get; set; }

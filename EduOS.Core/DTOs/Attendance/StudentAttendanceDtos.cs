@@ -5,41 +5,28 @@ namespace EduOS.Core.DTOs.Attendance;
 public class StudentAttendanceRosterQueryDto
 {
     public DateTime Date { get; set; } = DateTime.Today;
-
-    [Range(1, int.MaxValue)]
-    public int AcademicYearId { get; set; }
-
-    [Range(1, int.MaxValue)]
-    public int ClassId { get; set; }
-
-    [Range(1, int.MaxValue)]
-    public int SectionId { get; set; }
+    [Range(1, int.MaxValue)] public int AcademicYearId { get; set; }
+    [Range(1, int.MaxValue)] public int ClassId { get; set; }
+    [Range(1, int.MaxValue)] public int SectionId { get; set; }
 }
 
 public sealed class SaveStudentAttendanceItemDto
 {
-    [Range(1, int.MaxValue)]
-    public int StudentId { get; set; }
-
-    [Required, RegularExpression("^(Present|Absent|Late|Leave)$")]
-    public string Status { get; set; } = "Present";
-
+    [Range(1, long.MaxValue)] public long StudentId { get; set; }
+    [Required, RegularExpression("^(Present|Absent|Late|Leave)$")] public string Status { get; set; } = "Present";
     public TimeSpan? InTime { get; set; }
     public TimeSpan? OutTime { get; set; }
-
-    [StringLength(500)]
-    public string? Remarks { get; set; }
+    [StringLength(500)] public string? Remarks { get; set; }
 }
 
 public sealed class SaveStudentAttendanceDto : StudentAttendanceRosterQueryDto
 {
-    [Required, MinLength(1)]
-    public List<SaveStudentAttendanceItemDto> Items { get; set; } = new();
+    [Required, MinLength(1)] public List<SaveStudentAttendanceItemDto> Items { get; set; } = new();
 }
 
 public sealed class StudentAttendanceRosterItemDto
 {
-    public int StudentId { get; set; }
+    public long StudentId { get; set; }
     public Guid StudentReference { get; set; }
     public string StudentCode { get; set; } = string.Empty;
     public string Roll { get; set; } = string.Empty;
