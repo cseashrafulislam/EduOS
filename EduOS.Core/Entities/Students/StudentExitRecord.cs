@@ -10,10 +10,10 @@ public class StudentExitRecord : BaseTenantEntity
     public long? EnrollmentId { get; set; }
     public string ExitType { get; set; } = string.Empty; // Transfer/Completed/Dropout
     public string? CertificateNo { get; set; }
-    public int AcademicYearId { get; set; }
-    public int ClassId { get; set; }
-    public int SectionId { get; set; }
-    public int? GroupId { get; set; }
+    public long AcademicYearId { get; set; }
+    public long ClassId { get; set; }
+    public long SectionId { get; set; }
+    public long? GroupId { get; set; }
     public string Roll { get; set; } = string.Empty;
     public decimal DueAtExit { get; set; }
     public bool FeesCleared { get; set; }
