@@ -7,10 +7,10 @@ namespace EduOS.Core.Entities.LMS
     public class Course : BaseTenantEntity
     {
         public Guid PublicId { get; set; } = Guid.NewGuid();
-        public int AcademicYearId { get; set; }
-        public int ClassId { get; set; }
-        public int? SectionId { get; set; }
-        public int SubjectId { get; set; }
+        public long AcademicYearId { get; set; }
+        public long ClassId { get; set; }
+        public long? SectionId { get; set; }
+        public long SubjectId { get; set; }
         public string Title { get; set; } = string.Empty;
         public string? Description { get; set; }
         public long TeacherId { get; set; }
