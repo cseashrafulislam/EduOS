@@ -10,6 +10,7 @@ using EduOS.Service.Helpers.Storage;
 using EduOS.Service.Mappings;
 using EduOS.Service.Services.Auth;
 using EduOS.Service.Services.Admission;
+using EduOS.Service.Services.Attendance;
 using EduOS.Service.Services.SaaS;
 using EduOS.Service.Services.Students;
 using EduOS.Service.Services.Tenants;
@@ -81,6 +82,7 @@ namespace EduOS.App.Extensions
             services.AddScoped<IAdmissionAssessmentService, AdmissionAssessmentService>();
             services.AddScoped<IStudentDirectoryService, StudentDirectoryService>();
             services.AddScoped<IStudentPromotionService, StudentPromotionService>();
+            services.AddScoped<IStudentAttendanceService, StudentAttendanceService>();
 
             return services;
         }
