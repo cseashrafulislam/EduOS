@@ -4,7 +4,7 @@ namespace EduOS.Core.Entities.Academic
 {
     public class Holiday : BaseTenantEntity
     {
-        public int AcademicYearId { get; set; }
+        public long AcademicYearId { get; set; }
         public string Title { get; set; } = string.Empty;
         public DateTime StartDate { get; set; }
         public DateTime EndDate { get; set; }
