@@ -1,10 +1,10 @@
-﻿using EduOS.Core.Entities.Base;
+using EduOS.Core.Entities.Base;
 
 namespace EduOS.Core.Entities.HR
 {
     public class HRSalaryStructure : BaseTenantEntity
     {
-        public int EmployeeId { get; set; }
+        public long EmployeeId { get; set; }
         public decimal BasicSalary { get; set; }
         public decimal HouseRent { get; set; }
         public decimal MedicalAllowance { get; set; }
