@@ -13,6 +13,7 @@ using EduOS.Service.Services.Admission;
 using EduOS.Service.Services.Attendance;
 using EduOS.Service.Services.Exams;
 using EduOS.Service.Services.Finance;
+using EduOS.Service.Services.Portals;
 using EduOS.Service.Services.SaaS;
 using EduOS.Service.Services.Students;
 using EduOS.Service.Services.Tenants;
@@ -26,46 +27,11 @@ namespace EduOS.App.Extensions
     {
         public static IServiceCollection AddApplicationServices(this IServiceCollection services, IConfiguration configuration)
         {
-            services.Configure<AamarPaySettings>(configuration.GetSection(AamarPaySettings.SectionName));
-            services.Configure<ManualPaymentSettings>(configuration.GetSection(ManualPaymentSettings.SectionName));
-            services.Configure<FileUploadSettings>(configuration.GetSection(FileUploadSettings.SectionName));
-            services.Configure<FileStorageSettings>(configuration.GetSection("FileStorage"));
-            services.Configure<TenantPortalSettings>(configuration.GetSection(TenantPortalSettings.SectionName));
-            services.Configure<LearnerIdentitySettings>(configuration.GetSection(LearnerIdentitySettings.SectionName));
-            services.Configure<MfaSettings>(configuration.GetSection(MfaSettings.SectionName));
-            services.AddAutoMapper(_ => { }, typeof(MappingProfile).Assembly);
-            services.AddScoped<ICurrentUserService, CurrentUserService>();
-            services.AddScoped<IFileUploadService, FileUploadService>();
-            services.AddScoped<ILearnerIdentifierProtector, LearnerIdentifierProtector>();
-            services.AddSingleton(TimeProvider.System);
-            services.AddSingleton<IMfaChallengeService, MfaChallengeService>();
-            services.AddHttpClient<IAamarPayClient, AamarPayClient>(client => client.Timeout = TimeSpan.FromSeconds(30));
-            services.AddScoped<ISubscriptionPlanService, SubscriptionPlanService>();
-            services.AddScoped<ISubscriptionService, SubscriptionService>();
-            services.AddScoped<ISubscriptionInvoiceService, SubscriptionInvoiceService>();
-            services.AddScoped<ISubscriptionPaymentService, SubscriptionPaymentService>();
-            services.AddScoped<IPlatformCatalogService, PlatformCatalogService>();
-            services.AddScoped<ITenantModuleService, TenantModuleService>();
-            services.AddSingleton<IAuthorizationPolicyProvider, ModuleAuthorizationPolicyProvider>();
-            services.AddScoped<IAuthorizationHandler, ModuleAccessHandler>();
-            services.AddScoped<ITenantProfileService, TenantProfileService>();
-            services.AddScoped<ITenantSettingService, TenantSettingService>();
-            services.AddScoped<IOnboardingService, OnboardingService>();
-            services.AddScoped<IInstitutionOnboardingService, InstitutionOnboardingService>();
-            services.AddScoped<IDashboardService, DashboardService>();
-            services.AddScoped<IEmailService, EmailService>();
-            services.AddScoped<IEmailJob, EmailJob>();
-            services.AddScoped<ILearnerIdentityService, LearnerIdentityService>();
-            services.AddScoped<ILearnerConsentService, LearnerConsentService>();
-            services.AddScoped<IAdmissionApplicationService, AdmissionApplicationService>();
-            services.AddScoped<IPublicAdmissionService, PublicAdmissionService>();
-            services.AddScoped<IAdmissionEnrollmentService, AdmissionEnrollmentService>();
-            services.AddScoped<IAdmissionAssessmentService, AdmissionAssessmentService>();
-            services.AddScoped<IStudentDirectoryService, StudentDirectoryService>();
-            services.AddScoped<IStudentPromotionService, StudentPromotionService>();
-            services.AddScoped<IStudentAttendanceService, StudentAttendanceService>();
-            services.AddScoped<IExamWorkflowService, ExamWorkflowService>();
-            services.AddScoped<IFeeBillingService, FeeBillingService>();
+            services.Configure<AamarPaySettings>(configuration.GetSection(AamarPaySettings.SectionName)); services.Configure<ManualPaymentSettings>(configuration.GetSection(ManualPaymentSettings.SectionName)); services.Configure<FileUploadSettings>(configuration.GetSection(FileUploadSettings.SectionName)); services.Configure<FileStorageSettings>(configuration.GetSection("FileStorage")); services.Configure<TenantPortalSettings>(configuration.GetSection(TenantPortalSettings.SectionName)); services.Configure<LearnerIdentitySettings>(configuration.GetSection(LearnerIdentitySettings.SectionName)); services.Configure<MfaSettings>(configuration.GetSection(MfaSettings.SectionName));
+            services.AddAutoMapper(_ => { }, typeof(MappingProfile).Assembly); services.AddScoped<ICurrentUserService, CurrentUserService>(); services.AddScoped<IFileUploadService, FileUploadService>(); services.AddScoped<ILearnerIdentifierProtector, LearnerIdentifierProtector>(); services.AddSingleton(TimeProvider.System); services.AddSingleton<IMfaChallengeService, MfaChallengeService>(); services.AddHttpClient<IAamarPayClient, AamarPayClient>(client => client.Timeout = TimeSpan.FromSeconds(30));
+            services.AddScoped<ISubscriptionPlanService, SubscriptionPlanService>(); services.AddScoped<ISubscriptionService, SubscriptionService>(); services.AddScoped<ISubscriptionInvoiceService, SubscriptionInvoiceService>(); services.AddScoped<ISubscriptionPaymentService, SubscriptionPaymentService>(); services.AddScoped<IPlatformCatalogService, PlatformCatalogService>(); services.AddScoped<ITenantModuleService, TenantModuleService>(); services.AddSingleton<IAuthorizationPolicyProvider, ModuleAuthorizationPolicyProvider>(); services.AddScoped<IAuthorizationHandler, ModuleAccessHandler>();
+            services.AddScoped<ITenantProfileService, TenantProfileService>(); services.AddScoped<ITenantSettingService, TenantSettingService>(); services.AddScoped<IOnboardingService, OnboardingService>(); services.AddScoped<IInstitutionOnboardingService, InstitutionOnboardingService>(); services.AddScoped<IDashboardService, DashboardService>(); services.AddScoped<IEmailService, EmailService>(); services.AddScoped<IEmailJob, EmailJob>(); services.AddScoped<ILearnerIdentityService, LearnerIdentityService>(); services.AddScoped<ILearnerConsentService, LearnerConsentService>();
+            services.AddScoped<IAdmissionApplicationService, AdmissionApplicationService>(); services.AddScoped<IPublicAdmissionService, PublicAdmissionService>(); services.AddScoped<IAdmissionEnrollmentService, AdmissionEnrollmentService>(); services.AddScoped<IAdmissionAssessmentService, AdmissionAssessmentService>(); services.AddScoped<IStudentDirectoryService, StudentDirectoryService>(); services.AddScoped<IStudentPromotionService, StudentPromotionService>(); services.AddScoped<IStudentAttendanceService, StudentAttendanceService>(); services.AddScoped<IExamWorkflowService, ExamWorkflowService>(); services.AddScoped<IFeeBillingService, FeeBillingService>(); services.AddScoped<ISelfServicePortalService, SelfServicePortalService>();
             return services;
         }
     }
