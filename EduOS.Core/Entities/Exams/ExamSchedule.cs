@@ -5,9 +5,9 @@ namespace EduOS.Core.Entities.Exams
 {
     public class ExamSchedule : BaseTenantEntity
     {
-        public int ExamId { get; set; }
-        public int ClassId { get; set; }
-        public int SubjectId { get; set; }
+        public long ExamId { get; set; }
+        public long ClassId { get; set; }
+        public long SubjectId { get; set; }
         public DateTime ExamDate { get; set; }
         public TimeSpan StartTime { get; set; }
         public TimeSpan EndTime { get; set; }
