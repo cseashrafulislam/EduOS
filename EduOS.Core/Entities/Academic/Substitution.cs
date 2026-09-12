@@ -6,10 +6,10 @@ namespace EduOS.Core.Entities.Academic
     public class Substitution : BaseTenantEntity
     {
         public DateTime Date { get; set; }
-        public int OriginalTeacherId { get; set; }
-        public int SubstituteTeacherId { get; set; }
-        public int ClassId { get; set; }
-        public int SubjectId { get; set; }
+        public long OriginalTeacherId { get; set; }
+        public long SubstituteTeacherId { get; set; }
+        public long ClassId { get; set; }
+        public long SubjectId { get; set; }
         public string? Period { get; set; }
         public string? Reason { get; set; }
 
