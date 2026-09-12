@@ -4,14 +4,14 @@ namespace EduOS.Core.DTOs.Exams;
 
 public class ExamScopeDto
 {
-    [Range(1, int.MaxValue)] public int ExamId { get; set; }
-    [Range(1, int.MaxValue)] public int ClassId { get; set; }
-    [Range(1, int.MaxValue)] public int SectionId { get; set; }
+    [Range(1, long.MaxValue)] public long ExamId { get; set; }
+    [Range(1, long.MaxValue)] public long ClassId { get; set; }
+    [Range(1, long.MaxValue)] public long SectionId { get; set; }
 }
 
 public class ExamMarkRosterQueryDto : ExamScopeDto
 {
-    [Range(1, int.MaxValue)] public int SubjectId { get; set; }
+    [Range(1, long.MaxValue)] public long SubjectId { get; set; }
 }
 
 public sealed class SaveExamMarkItemDto
@@ -41,11 +41,11 @@ public sealed class ExamMarkRosterItemDto
 
 public sealed class ExamMarkRosterDto
 {
-    public int ExamId { get; set; }
+    public long ExamId { get; set; }
     public string ExamName { get; set; } = string.Empty;
-    public int ClassId { get; set; }
-    public int SectionId { get; set; }
-    public int SubjectId { get; set; }
+    public long ClassId { get; set; }
+    public long SectionId { get; set; }
+    public long SubjectId { get; set; }
     public string SubjectName { get; set; } = string.Empty;
     public int FullMark { get; set; }
     public int PassMark { get; set; }
@@ -73,11 +73,11 @@ public sealed class ExamResultItemDto
 
 public sealed class ExamResultSheetDto
 {
-    public int ExamId { get; set; }
+    public long ExamId { get; set; }
     public string ExamName { get; set; } = string.Empty;
-    public int AcademicYearId { get; set; }
-    public int ClassId { get; set; }
-    public int SectionId { get; set; }
+    public long AcademicYearId { get; set; }
+    public long ClassId { get; set; }
+    public long SectionId { get; set; }
     public int SubjectCount { get; set; }
     public List<ExamResultItemDto> Results { get; set; } = new();
 }
