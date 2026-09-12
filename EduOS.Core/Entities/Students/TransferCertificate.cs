@@ -11,9 +11,9 @@ namespace EduOS.Core.Entities.Students
         public string TcNo { get; set; } = string.Empty;
         public DateTime IssueDate { get; set; }
         public string? Reason { get; set; }
-        public int LastClassId { get; set; }
-        public int LastSectionId { get; set; }
-        public int LastAcademicYearId { get; set; }
+        public long LastClassId { get; set; }
+        public long LastSectionId { get; set; }
+        public long LastAcademicYearId { get; set; }
         public string LastRoll { get; set; } = string.Empty;
         public string? ConductRemark { get; set; }
         public bool FeesCleared { get; set; }
