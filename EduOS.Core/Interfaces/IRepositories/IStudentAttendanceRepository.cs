@@ -4,7 +4,7 @@ namespace EduOS.Core.Interfaces.IRepositories
 {
     public interface IStudentAttendanceRepository : IGenericRepository<StudentAttendance>
     {
-        Task<List<StudentAttendance>> GetByDateAsync(DateTime date, int classId, int sectionId);
+        Task<List<StudentAttendance>> GetByDateAsync(DateTime date, long classId, long sectionId);
         Task<List<StudentAttendance>> GetByStudentRangeAsync(long studentId, DateTime fromDate, DateTime toDate);
         Task<StudentAttendance?> GetByStudentAndDateAsync(long studentId, DateTime date);
         Task<bool> IsAlreadyMarkedAsync(long studentId, DateTime date);
