@@ -9,7 +9,7 @@ public class ExamScopeDto
     [Range(1, int.MaxValue)] public int SectionId { get; set; }
 }
 
-public sealed class ExamMarkRosterQueryDto : ExamScopeDto
+public class ExamMarkRosterQueryDto : ExamScopeDto
 {
     [Range(1, int.MaxValue)] public int SubjectId { get; set; }
 }
