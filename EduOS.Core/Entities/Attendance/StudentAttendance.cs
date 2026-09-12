@@ -7,8 +7,8 @@ namespace EduOS.Core.Entities.Attendance
     public class StudentAttendance : BaseTenantEntity
     {
         public long StudentId { get; set; }
-        public int ClassId { get; set; }
-        public int SectionId { get; set; }
+        public long ClassId { get; set; }
+        public long SectionId { get; set; }
         public DateTime Date { get; set; }
         public string Status { get; set; } = string.Empty; // Present/Absent/Late/Leave
         public TimeSpan? InTime { get; set; }
