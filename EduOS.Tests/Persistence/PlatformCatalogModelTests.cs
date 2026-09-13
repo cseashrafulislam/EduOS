@@ -1,6 +1,6 @@
 using EduOS.Core.Entities.SaaS;
-using EduOS.Core.Entities.SaaS;
 using EduOS.Persistence.Context;
+using EduOS.Persistence.Repositories.SaaS;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
@@ -75,6 +75,23 @@ public class PlatformCatalogModelTests
             && index.GetFilter()!.Contains("[Status] IN (2, 7)"));
         payment.FindProperty(nameof(SubscriptionPayment.RowVersion))!
             .IsConcurrencyToken.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Invoice_numbers_are_unique_when_generated_concurrently()
+    {
+        using var context = CreateContext();
+        var repository = new SubscriptionInvoiceRepository(context);
+
+        var tasks = Enumerable.Range(0, 512)
+            .Select(_ => repository.GenerateNextInvoiceNumberAsync())
+            .ToArray();
+        var invoiceNumbers = await Task.WhenAll(tasks);
+
+        invoiceNumbers.Should().OnlyHaveUniqueItems();
+        invoiceNumbers.Should().OnlyContain(number =>
+            number.StartsWith($"INV-{DateTime.UtcNow:yyyyMM}-", StringComparison.Ordinal)
+            && number.Length <= 50);
     }
 
     private static EduOSDbContext CreateContext()
