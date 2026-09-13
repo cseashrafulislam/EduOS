@@ -17,7 +17,7 @@ namespace EduOS.Persistence.Repositories
                 .FirstOrDefaultAsync(a => a.ApplicationNo == appNo);
         }
 
-        public async Task<List<Admission>> GetByStatusAsync(string status, int tenantId)
+        public async Task<List<Admission>> GetByStatusAsync(string status, long tenantId)
         {
             return await _dbSet
                 .Where(a => a.Status == status && a.TenantId == tenantId)
@@ -25,7 +25,7 @@ namespace EduOS.Persistence.Repositories
                 .ToListAsync();
         }
 
-        public async Task<List<Admission>> GetByYearAsync(int academicYearId)
+        public async Task<List<Admission>> GetByYearAsync(long academicYearId)
         {
             return await _dbSet
                 .Include(a => a.Class)
@@ -34,14 +34,14 @@ namespace EduOS.Persistence.Repositories
                 .ToListAsync();
         }
 
-        public async Task<string> GenerateApplicationNoAsync(int tenantId, int academicYearId)
+        public async Task<string> GenerateApplicationNoAsync(long tenantId, long academicYearId)
         {
             var count = await _dbSet
                 .CountAsync(a => a.TenantId == tenantId && a.AcademicYearId == academicYearId);
             return $"APP{(count + 1):D5}";
         }
 
-        public async Task<int> GetCountByStatusAsync(string status, int tenantId)
+        public async Task<int> GetCountByStatusAsync(string status, long tenantId)
         {
             return await _dbSet
                 .CountAsync(a => a.Status == status && a.TenantId == tenantId);
