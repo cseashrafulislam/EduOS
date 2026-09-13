@@ -4,9 +4,9 @@ namespace EduOS.Core.Interfaces.IRepositories
 {
     public interface IAcademicYearRepository : IGenericRepository<AcademicYear>
     {
-        Task<AcademicYear?> GetCurrentAsync(int tenantId);
-        Task<bool> IsNameExistsAsync(string name, int tenantId, int? excludeId = null);
-        Task<List<AcademicYear>> GetActiveYearsAsync(int tenantId);
-        Task SetCurrentAsync(int yearId, int tenantId);
+        Task<AcademicYear?> GetCurrentAsync(long tenantId);
+        Task<bool> IsNameExistsAsync(string name, long tenantId, long? excludeId = null);
+        Task<List<AcademicYear>> GetActiveYearsAsync(long tenantId);
+        Task SetCurrentAsync(long yearId, long tenantId);
     }
 }
