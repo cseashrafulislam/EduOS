@@ -5,11 +5,11 @@ namespace EduOS.Core.Entities.Students
 {
     public class Promotion : BaseTenantEntity
     {
-        public int StudentId { get; set; }
-        public int FromClassId { get; set; }
-        public int ToClassId { get; set; }
-        public int FromYearId { get; set; }
-        public int ToYearId { get; set; }
+        public long StudentId { get; set; }
+        public long FromClassId { get; set; }
+        public long ToClassId { get; set; }
+        public long FromYearId { get; set; }
+        public long ToYearId { get; set; }
         public string Status { get; set; } = "Promoted"; // Promoted/Repeated
         public DateTime PromotionDate { get; set; }
 
