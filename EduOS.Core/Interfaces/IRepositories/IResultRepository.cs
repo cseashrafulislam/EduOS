@@ -4,8 +4,8 @@ namespace EduOS.Core.Interfaces.IRepositories
 {
     public interface IResultRepository : IGenericRepository<ExamResult>
     {
-        Task<ExamResult?> GetByExamAndStudentAsync(int examId, int studentId);
-        Task<List<ExamResult>> GetByExamAndClassAsync(int examId, int classId);
-        Task<List<ExamResult>> GetTopRankersAsync(int examId, int classId, int top = 10);
+        Task<ExamResult?> GetByExamAndStudentAsync(long examId, long studentId);
+        Task<List<ExamResult>> GetByExamAndClassAsync(long examId, long classId);
+        Task<List<ExamResult>> GetTopRankersAsync(long examId, long classId, int top = 10);
     }
 }

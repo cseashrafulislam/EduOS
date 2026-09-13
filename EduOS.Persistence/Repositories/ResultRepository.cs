@@ -9,13 +9,13 @@ namespace EduOS.Persistence.Repositories
     {
         public ResultRepository(EduOSDbContext context) : base(context) { }
 
-        public async Task<ExamResult?> GetByExamAndStudentAsync(int examId, int studentId)
+        public async Task<ExamResult?> GetByExamAndStudentAsync(long examId, long studentId)
         {
             return await _dbSet
                 .FirstOrDefaultAsync(r => r.ExamId == examId && r.StudentId == studentId);
         }
 
-        public async Task<List<ExamResult>> GetByExamAndClassAsync(int examId, int classId)
+        public async Task<List<ExamResult>> GetByExamAndClassAsync(long examId, long classId)
         {
             return await _dbSet
                 .Include(r => r.Student)
@@ -24,12 +24,12 @@ namespace EduOS.Persistence.Repositories
                 .ToListAsync();
         }
 
-        public async Task<List<ExamResult>> GetTopRankersAsync(int examId, int classId, int top = 10)
+        public async Task<List<ExamResult>> GetTopRankersAsync(long examId, long classId, int top = 10)
         {
             return await _dbSet
                 .Include(r => r.Student)
-                .Where(r => r.ExamId == examId 
-                    && r.Student!.ClassId == classId 
+                .Where(r => r.ExamId == examId
+                    && r.Student!.ClassId == classId
                     && r.IsPassed)
                 .OrderBy(r => r.Position)
                 .Take(top)
