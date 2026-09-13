@@ -427,6 +427,12 @@ namespace EduOS.Service.Services.SaaS
                         ? "Subscription will be cancelled at period end"
                         : "Subscription cancelled immediately");
             }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                _logger.LogWarning(ex, "Concurrent cancellation rejected for subscription {Id}", subscriptionId);
+                return ApiResponse<bool>.ErrorResponse(
+                    "Subscription changed while cancellation was being saved. Reload and try again.", 409);
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to cancel subscription {Id}", subscriptionId);
@@ -452,6 +458,12 @@ namespace EduOS.Service.Services.SaaS
 
                 return ApiResponse<bool>.SuccessResponse(true,
                     autoRenew ? "Auto-renew enabled" : "Auto-renew disabled");
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                _logger.LogWarning(ex, "Concurrent auto-renew update rejected for subscription {Id}", subscriptionId);
+                return ApiResponse<bool>.ErrorResponse(
+                    "Subscription changed while auto-renew was being saved. Reload and try again.", 409);
             }
             catch (Exception ex)
             {
@@ -497,6 +509,12 @@ namespace EduOS.Service.Services.SaaS
 
                 return ApiResponse<bool>.SuccessResponse(true, "Subscription activated");
             }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                _logger.LogWarning(ex, "Concurrent activation rejected for subscription {Id}", subscriptionId);
+                return ApiResponse<bool>.ErrorResponse(
+                    "Subscription changed while activation was being saved. Retry the payment callback.", 409);
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to activate subscription {Id}", subscriptionId);
@@ -534,6 +552,13 @@ namespace EduOS.Service.Services.SaaS
                 }
 
                 return ApiResponse<bool>.SuccessResponse(true);
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                _logger.LogInformation(ex,
+                    "Expiry update skipped because subscription state changed for tenant {TenantId}", tenantId);
+                return ApiResponse<bool>.SuccessResponse(true,
+                    "Subscription state changed before expiry could be applied");
             }
             catch (Exception ex)
             {
