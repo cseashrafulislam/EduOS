@@ -10,7 +10,7 @@ namespace EduOS.Core.Entities.System
         public int SuccessRows { get; set; }
         public int FailedRows { get; set; }
         public string? ErrorLog { get; set; }
-        public int ImportedBy { get; set; }
+        public long ImportedBy { get; set; }
         public DateTime ImportedAt { get; set; }
     }
 }
