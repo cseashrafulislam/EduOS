@@ -37,7 +37,8 @@ namespace EduOS.App.Controllers.Api
         // ============================================================
 
         /// <summary>
-        /// AamarPay POSTs success callback here
+        /// AamarPay POSTs success callback here. The service independently
+        /// verifies the transaction with AamarPay before applying payment state.
         /// </summary>
         [AllowAnonymous]
         [IgnoreAntiforgeryToken]
@@ -46,35 +47,43 @@ namespace EduOS.App.Controllers.Api
         public async Task<IActionResult> SuccessCallback([FromForm] AamarPayCallbackDto dto)
         {
             var result = await _paymentService.HandleAamarPayCallbackAsync(dto);
-            // Redirect to success page in app
             var outcome = result.Success ? "PaymentSuccess" : "PaymentFailed";
             return LocalRedirect($"/Account/{outcome}?txn={Uri.EscapeDataString(dto.MerTxnid ?? string.Empty)}");
         }
 
+        /// <summary>
+        /// Browser-facing failure callbacks are intentionally informational only.
+        /// They are unauthenticated and therefore must not be allowed to mutate
+        /// a payment into a terminal state based only on caller-supplied fields.
+        /// Processing attempts expire through the normal stale-payment workflow.
+        /// </summary>
         [AllowAnonymous]
         [IgnoreAntiforgeryToken]
         [EnableRateLimiting("PaymentCallbackPolicy")]
         [HttpPost("callback/fail")]
-        public async Task<IActionResult> FailCallback([FromForm] AamarPayCallbackDto dto)
+        public IActionResult FailCallback([FromForm] AamarPayCallbackDto dto)
         {
-            dto.PayStatus = "Failed";
-            await _paymentService.HandleAamarPayCallbackAsync(dto);
             return LocalRedirect($"/Account/PaymentFailed?txn={Uri.EscapeDataString(dto.MerTxnid ?? string.Empty)}");
         }
 
+        /// <summary>
+        /// Cancellation redirects are informational only for the same reason as
+        /// failure callbacks: an anonymous caller cannot authoritatively change
+        /// persisted payment state.
+        /// </summary>
         [AllowAnonymous]
         [IgnoreAntiforgeryToken]
         [EnableRateLimiting("PaymentCallbackPolicy")]
         [HttpPost("callback/cancel")]
-        public async Task<IActionResult> CancelCallback([FromForm] AamarPayCallbackDto dto)
+        public IActionResult CancelCallback([FromForm] AamarPayCallbackDto dto)
         {
-            dto.PayStatus = "Cancelled";
-            await _paymentService.HandleAamarPayCallbackAsync(dto);
             return LocalRedirect($"/Account/PaymentCancelled?txn={Uri.EscapeDataString(dto.MerTxnid ?? string.Empty)}");
         }
 
         /// <summary>
-        /// AamarPay IPN (server-to-server). Returns plain 200.
+        /// AamarPay IPN (server-to-server). Only successful notifications are
+        /// processed because the service verifies successful transactions with
+        /// the provider. Unverified failure/cancel payloads cannot mutate state.
         /// </summary>
         [AllowAnonymous]
         [IgnoreAntiforgeryToken]
@@ -82,6 +91,9 @@ namespace EduOS.App.Controllers.Api
         [HttpPost("callback/ipn")]
         public async Task<IActionResult> IpnCallback([FromForm] AamarPayCallbackDto dto)
         {
+            if (!string.Equals(dto.PayStatus, "Successful", StringComparison.OrdinalIgnoreCase))
+                return Ok(new { success = true, message = "Non-success notification acknowledged" });
+
             var result = await _paymentService.HandleAamarPayCallbackAsync(dto);
             return StatusCode(result.StatusCode, result);
         }
