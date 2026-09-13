@@ -9,7 +9,7 @@ namespace EduOS.Persistence.Repositories
     {
         public SubjectRepository(EduOSDbContext context) : base(context) { }
 
-        public async Task<List<Subject>> GetByClassIdAsync(int classId)
+        public async Task<List<Subject>> GetByClassIdAsync(long classId)
         {
             return await _dbSet
                 .Where(s => s.ClassId == classId && s.IsActive)
@@ -17,19 +17,19 @@ namespace EduOS.Persistence.Repositories
                 .ToListAsync();
         }
 
-        public async Task<List<Subject>> GetByClassAndGroupAsync(int classId, int? groupId)
+        public async Task<List<Subject>> GetByClassAndGroupAsync(long classId, long? groupId)
         {
             return await _dbSet
-                .Where(s => s.ClassId == classId 
-                    && (s.GroupId == groupId || s.GroupId == null) 
+                .Where(s => s.ClassId == classId
+                    && (s.GroupId == groupId || s.GroupId == null)
                     && s.IsActive)
                 .OrderBy(s => s.Name)
                 .ToListAsync();
         }
 
-        public async Task<bool> IsCodeExistsAsync(string code, int tenantId, int? excludeId = null)
+        public async Task<bool> IsCodeExistsAsync(string code, long tenantId, long? excludeId = null)
         {
-            var query = _dbSet.Where(s => 
+            var query = _dbSet.Where(s =>
                 s.Code.ToLower() == code.ToLower() && s.TenantId == tenantId);
             if (excludeId.HasValue)
                 query = query.Where(s => s.Id != excludeId.Value);
