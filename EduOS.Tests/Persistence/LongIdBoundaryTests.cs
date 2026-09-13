@@ -1,10 +1,33 @@
 using EduOS.Core.Interfaces.IRepositories;
+using EduOS.Persistence.Context;
+using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 namespace EduOS.Tests.Persistence;
 
 public class LongIdBoundaryTests
 {
+    [Fact]
+    public void Mapped_identifier_properties_do_not_use_32_bit_or_legacy_shadow_boundaries()
+    {
+        using var context = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase($"mapped-id-audit-{Guid.NewGuid():N}").Options);
+
+        var offenders = context.Model.GetEntityTypes()
+            .SelectMany(e => e.GetProperties().Select(p => new { Entity = e, Property = p }))
+            .Where(x => (x.Property.Name.EndsWith("Id", StringComparison.Ordinal) &&
+                         (x.Property.ClrType == typeof(int) || x.Property.ClrType == typeof(int?))) ||
+                        (x.Property.PropertyInfo == null && x.Property.FieldInfo == null &&
+                         x.Property.Name.EndsWith("Id1", StringComparison.Ordinal)))
+            .Select(x => $"{x.Entity.ClrType.FullName}.{x.Property.Name}: {x.Property.ClrType.Name}")
+            .Distinct()
+            .OrderBy(x => x)
+            .ToList();
+
+        Assert.True(offenders.Count == 0,
+            "Mapped 32-bit or legacy shadow identifier properties remain:\n" + string.Join("\n", offenders));
+    }
+
     [Fact]
     public void Repository_identifier_parameters_do_not_use_32_bit_identifiers()
     {
