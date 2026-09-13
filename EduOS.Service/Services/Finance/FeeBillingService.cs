@@ -131,10 +131,10 @@ public sealed class FeeBillingService : IFeeBillingService
         var method = request.PaymentMethod.Trim();
         if (!string.Equals(method, "Cash", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(request.TransactionId)) return ApiResponse<StudentPaymentDto>.ErrorResponse("Transaction reference is required for non-cash payment.");
         var tenantId = _currentUser.TenantId;
-        var existingPayment = await _payments.GetQueryable().AsNoTracking().Include(x => x.Invoice).ThenInclude(x => x!.Student).FirstOrDefaultAsync(x => x.TenantId == tenantId && x.ClientRequestId == request.ClientRequestId, cancellationToken);
+        var existingPayment = await FindPaymentByRequestAsync(tenantId, request.ClientRequestId, cancellationToken);
         if (existingPayment != null)
         {
-            if (existingPayment.Invoice?.PublicId != request.InvoiceReference || existingPayment.Amount != request.Amount) return ApiResponse<StudentPaymentDto>.ErrorResponse("Client request reference was already used for a different payment.", 409);
+            if (!PaymentMatchesRequest(existingPayment, request, method)) return ApiResponse<StudentPaymentDto>.ErrorResponse("Client request reference was already used for a different payment.", 409);
             return ApiResponse<StudentPaymentDto>.SuccessResponse(MapPayment(existingPayment), "Payment was already received.");
         }
         try
@@ -163,7 +163,20 @@ public sealed class FeeBillingService : IFeeBillingService
         }
         catch (DbUpdateException ex)
         {
-            await SafeRollbackAsync(); _logger.LogWarning(ex, "Duplicate/conflicting payment request {RequestId}", request.ClientRequestId); return ApiResponse<StudentPaymentDto>.ErrorResponse("Payment request conflicts with an existing transaction.", 409);
+            await SafeRollbackAsync();
+            var persistedPayment = await FindPaymentByRequestAsync(tenantId, request.ClientRequestId, cancellationToken);
+            if (persistedPayment == null)
+            {
+                _logger.LogError(ex, "Payment persistence failed without an idempotency winner for tenant {TenantId}, request {RequestId}", tenantId, request.ClientRequestId);
+                return ApiResponse<StudentPaymentDto>.ErrorResponse("Payment could not be completed.", 500);
+            }
+            if (!PaymentMatchesRequest(persistedPayment, request, method))
+            {
+                _logger.LogWarning(ex, "Payment request {RequestId} collided with a different persisted payload for tenant {TenantId}", request.ClientRequestId, tenantId);
+                return ApiResponse<StudentPaymentDto>.ErrorResponse("Client request reference was already used for a different payment.", 409);
+            }
+            _logger.LogInformation("Concurrent payment request {RequestId} replayed persisted payment {PaymentId} for tenant {TenantId}", request.ClientRequestId, persistedPayment.Id, tenantId);
+            return ApiResponse<StudentPaymentDto>.SuccessResponse(MapPayment(persistedPayment), "Payment was already received.");
         }
         catch (Exception ex)
         {
@@ -214,6 +227,17 @@ public sealed class FeeBillingService : IFeeBillingService
         }
         return Math.Min(total, Math.Round(discount, 2));
     }
+
+    private Task<Payment?> FindPaymentByRequestAsync(long tenantId, Guid clientRequestId, CancellationToken cancellationToken) =>
+        _payments.GetQueryable().AsNoTracking().Include(x => x.Invoice).ThenInclude(x => x!.Student).FirstOrDefaultAsync(x => x.TenantId == tenantId && x.ClientRequestId == clientRequestId, cancellationToken);
+
+    private static bool PaymentMatchesRequest(Payment payment, CollectStudentPaymentDto request, string method) =>
+        payment.Invoice?.PublicId == request.InvoiceReference
+        && payment.Amount == request.Amount
+        && string.Equals(payment.PaymentMethod, method, StringComparison.OrdinalIgnoreCase)
+        && string.Equals(Trim(payment.TransactionId), Trim(request.TransactionId), StringComparison.Ordinal)
+        && string.Equals(Trim(payment.Note), Trim(request.Note), StringComparison.Ordinal)
+        && payment.BankAccountId == request.BankAccountId;
 
     private static StudentInvoiceDto MapInvoice(StudentInvoice x) => new() { Reference = x.PublicId, InvoiceNo = x.InvoiceNo, StudentId = x.StudentId, StudentReference = x.Student?.PublicId ?? Guid.Empty, StudentName = x.Student?.FullName ?? string.Empty, Roll = x.Student?.Roll ?? string.Empty, Month = x.Month, Year = x.Year, TotalAmount = x.TotalAmount, DiscountAmount = x.DiscountAmount ?? 0m, FineAmount = x.FineAmount ?? 0m, PaidAmount = x.PaidAmount, DueAmount = x.DueAmount, Status = x.Status, DueDate = x.DueDate, RowVersion = Convert.ToBase64String(x.RowVersion) };
     private static StudentPaymentDto MapPayment(Payment x) => new() { Reference = x.PublicId, InvoiceReference = x.Invoice?.PublicId ?? Guid.Empty, ReceiptNo = x.ReceiptNo, Amount = x.Amount, PaymentMethod = x.PaymentMethod, PaymentDate = x.PaymentDate, TransactionId = x.TransactionId, Invoice = x.Invoice == null ? new StudentInvoiceDto() : MapInvoice(x.Invoice) };
