@@ -97,6 +97,7 @@ namespace EduOS.Service.Helpers
             {
                 ValidateIssuerSigningKey = true,
                 IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_settings.Secret)),
+                ValidAlgorithms = new[] { SecurityAlgorithms.HmacSha256 },
                 ValidateIssuer = _settings.ValidateIssuer,
                 ValidIssuer = _settings.Issuer,
                 ValidateAudience = _settings.ValidateAudience,
@@ -112,6 +113,7 @@ namespace EduOS.Service.Helpers
             {
                 ValidateIssuerSigningKey = true,
                 IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_settings.Secret)),
+                ValidAlgorithms = new[] { SecurityAlgorithms.HmacSha256 },
                 ValidateIssuer = _settings.ValidateIssuer,
                 ValidIssuer = _settings.Issuer,
                 ValidateAudience = _settings.ValidateAudience,
