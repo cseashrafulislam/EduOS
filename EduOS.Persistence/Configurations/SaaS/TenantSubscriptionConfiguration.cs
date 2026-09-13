@@ -15,6 +15,7 @@ namespace EduOS.Persistence.Configurations.SaaS
             builder.Property(s => s.Status).HasConversion<int>();
             builder.Property(s => s.Currency).HasMaxLength(10);
             builder.Property(s => s.CancellationReason).HasMaxLength(500);
+            builder.Property(s => s.RowVersion).IsRowVersion();
 
             builder.Property(s => s.Price).HasColumnType("decimal(18,2)");
             builder.Property(s => s.DiscountAmount).HasColumnType("decimal(18,2)");
