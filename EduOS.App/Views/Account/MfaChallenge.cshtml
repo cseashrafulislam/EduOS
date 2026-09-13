@@ -1,0 +1,43 @@
+@{
+    ViewData["Title"] = "MfaChallengeTitle";
+    Layout = "_PublicLayout";
+}
+
+<section class="auth-card" aria-labelledby="mfaChallengeTitle">
+    <div class="auth-heading">
+        <h1 id="mfaChallengeTitle">@T["MfaChallengeTitle"]</h1>
+        <p>@T["MfaChallengeHelp"]</p>
+    </div>
+
+    <div id="mfaAlert" class="d-none" role="alert" aria-live="assertive" tabindex="-1"></div>
+
+    <form id="mfaChallengeForm" novalidate
+          data-required-message="@T["MfaCodeRequired"]"
+          data-invalid-message="@T["MfaCodeInvalid"]"
+          data-expired-message="@T["MfaChallengeExpired"]"
+          data-network-message="@T["NetworkError"]">
+        <div class="mb-3">
+            <label class="form-label" for="mfaCode">@T["MfaVerificationCode"]</label>
+            <input id="mfaCode" class="form-control" type="text" inputmode="numeric"
+                   autocomplete="one-time-code" maxlength="32" required />
+        </div>
+
+        <div class="form-check mb-3">
+            <input id="useRecoveryCode" class="form-check-input" type="checkbox" />
+            <label class="form-check-label auth-meta" for="useRecoveryCode">@T["UseRecoveryCode"]</label>
+        </div>
+
+        <button id="mfaVerifyButton" type="submit" class="btn btn-primary auth-primary-action w-100"
+                data-idle-label="@T["VerifyAndSignIn"]" data-loading-label="@T["Verifying"]">
+            @T["VerifyAndSignIn"]
+        </button>
+    </form>
+
+    <p class="auth-meta text-center mt-3 mb-0">
+        <a href="/Account/Login">@T["BackToLogin"]</a>
+    </p>
+</section>
+
+@section Scripts {
+    <script src="~/js/account/mfa-challenge.js" asp-append-version="true"></script>
+}

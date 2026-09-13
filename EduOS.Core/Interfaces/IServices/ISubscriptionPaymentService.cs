@@ -16,7 +16,7 @@ namespace EduOS.Core.Interfaces.IServices
         /// <summary>
         /// Initiate online payment via AamarPay - returns redirect URL
         /// </summary>
-        Task<ApiResponse<InitiatePaymentResponseDto>> InitiateAamarPayAsync(InitiatePaymentRequestDto dto, string baseUrl);
+        Task<ApiResponse<InitiatePaymentResponseDto>> InitiateAamarPayAsync(InitiatePaymentRequestDto dto);
 
         /// <summary>
         /// Handle AamarPay IPN callback
@@ -29,6 +29,11 @@ namespace EduOS.Core.Interfaces.IServices
         Task<ApiResponse<SubscriptionPaymentDto>> SubmitManualPaymentAsync(
             ManualPaymentSubmitDto dto,
             IFormFile? depositSlip);
+
+        Task<ApiResponse<ManualPaymentInstructionsDto>> GetManualPaymentInstructionsAsync(
+            long invoiceId);
+
+        Task<ApiResponse<PrivateFileDownloadDto>> GetDepositSlipAsync(long paymentId);
 
         /// <summary>
         /// SuperAdmin verifies/rejects a manual payment

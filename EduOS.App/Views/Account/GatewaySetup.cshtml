@@ -1,224 +1,135 @@
 @{
-    ViewData["Title"] = "SMS & Email setup";
+    ViewData["Title"] = "GatewaySetupTitle";
     Layout = "_OnboardingLayout";
+    var pageStrings = new
+    {
+        loadFailed = T["GatewayLoadFailed"].Value,
+        networkError = T["NetworkError"].Value,
+        saving = T["Saving"].Value,
+        smsSaved = T["SmsSettingsSaved"].Value,
+        emailSaved = T["EmailSettingsSaved"].Value,
+        saveFailed = T["GatewaySaveFailed"].Value,
+        finishing = T["FinishingSetup"].Value,
+        finishSetup = T["FinishSetup"].Value,
+        completionFailed = T["OnboardingCompletionFailed"].Value,
+        continueSetup = T["ContinueSetup"].Value,
+        dashboard = T["Dashboard"].Value
+    };
+    var pageJson = System.Text.Json.JsonSerializer.Serialize(pageStrings);
 }
 
-<style>
-    .gateway-card {
-        border: 1px solid #e5e7eb;
-        border-radius: 10px;
-        padding: 1.5rem;
-        margin-bottom: 1.5rem;
-        background: #fff;
-    }
-    .gateway-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 1rem;
-    }
-</style>
-
-<h2 class="mb-2">SMS & Email setup</h2>
-<p class="text-muted mb-4">Configure messaging gateways. You can skip this and set them up later in settings.</p>
-
-<div id="alertContainer"></div>
-
-<!-- SMS -->
-<div class="gateway-card">
-    <div class="gateway-header">
-        <h6 class="mb-0"><i class="bi bi-chat-dots me-2"></i>SMS gateway</h6>
-        <div class="form-check form-switch">
-            <input class="form-check-input" type="checkbox" id="smsEnabled" />
-            <label class="form-check-label small" for="smsEnabled">Enable</label>
+<article class="setup-page" aria-labelledby="gatewaySetupTitle">
+    <header class="setup-header">
+        <div>
+            <p class="dashboard-eyebrow">@T["Onboarding_GatewaySetup_Name"]</p>
+            <h2 id="gatewaySetupTitle">@T["GatewaySetupTitle"]</h2>
+            <p>@T["GatewaySetupHelp"]</p>
         </div>
-    </div>
+    </header>
 
-    <div id="smsForm">
-        <div class="row g-3">
-            <div class="col-md-6">
-                <label class="form-label small fw-bold">Provider</label>
-                <select class="form-select" id="smsProvider">
-                    <option value="">Select provider</option>
-                    <option value="BulkSMSBD">BulkSMSBD</option>
-                    <option value="SslWireless">SSL Wireless</option>
-                    <option value="MimSms">MIM SMS</option>
-                    <option value="Twilio">Twilio</option>
-                    <option value="Custom">Custom</option>
-                </select>
+    <div id="alertContainer" class="d-none" role="alert" tabindex="-1"></div>
+
+    <section class="setup-section gateway-card" aria-labelledby="smsGatewayTitle">
+        <div class="gateway-header">
+            <div class="setup-section-heading mb-0">
+                <h3 id="smsGatewayTitle">@T["SmsGateway"]</h3>
+                <p>@T["SmsGatewayHelp"]</p>
             </div>
-            <div class="col-md-6">
-                <label class="form-label small fw-bold">Sender ID</label>
-                <input type="text" class="form-control" id="smsSenderId" placeholder="e.g. EDUOS" />
-            </div>
-            <div class="col-12">
-                <label class="form-label small fw-bold">API URL</label>
-                <input type="url" class="form-control" id="smsApiUrl" placeholder="https://api.example.com/send" />
-            </div>
-            <div class="col-12">
-                <label class="form-label small fw-bold">API key</label>
-                <input type="password" class="form-control" id="smsApiKey" placeholder="••••••••" />
-                <small class="text-muted">Stored securely. Won't be shown again.</small>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="smsEnabled" />
+                <label class="form-check-label" for="smsEnabled">@T["Enable"]</label>
             </div>
         </div>
-        <button type="button" class="btn btn-outline-primary btn-sm mt-3" id="saveSmsBtn">
-            <i class="bi bi-save"></i> Save SMS settings
-        </button>
-    </div>
-</div>
-
-<!-- Email -->
-<div class="gateway-card">
-    <div class="gateway-header">
-        <h6 class="mb-0"><i class="bi bi-envelope me-2"></i>Email (SMTP)</h6>
-        <div class="form-check form-switch">
-            <input class="form-check-input" type="checkbox" id="emailEnabled" />
-            <label class="form-check-label small" for="emailEnabled">Enable</label>
-        </div>
-    </div>
-
-    <div id="emailForm">
-        <div class="row g-3">
-            <div class="col-md-8">
-                <label class="form-label small fw-bold">SMTP Host</label>
-                <input type="text" class="form-control" id="smtpHost" placeholder="e.g. smtp.gmail.com" />
-            </div>
-            <div class="col-md-4">
-                <label class="form-label small fw-bold">Port</label>
-                <input type="number" class="form-control" id="smtpPort" placeholder="587" />
-            </div>
-            <div class="col-md-6">
-                <label class="form-label small fw-bold">Username</label>
-                <input type="text" class="form-control" id="smtpUsername" />
-            </div>
-            <div class="col-md-6">
-                <label class="form-label small fw-bold">Password</label>
-                <input type="password" class="form-control" id="smtpPassword" placeholder="••••••••" />
-            </div>
-            <div class="col-md-6">
-                <label class="form-label small fw-bold">From email</label>
-                <input type="email" class="form-control" id="fromEmail" />
-            </div>
-            <div class="col-md-6">
-                <label class="form-label small fw-bold">From name</label>
-                <input type="text" class="form-control" id="fromName" />
-            </div>
-            <div class="col-12">
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="useSsl" checked />
-                    <label class="form-check-label small" for="useSsl">Use SSL/TLS</label>
+        <form id="smsForm" class="setup-form mt-3">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label" for="smsProvider">@T["Provider"]</label>
+                    <select class="form-select" id="smsProvider">
+                        <option value="">@T["SelectProvider"]</option>
+                        <option value="BulkSMSBD">BulkSMSBD</option>
+                        <option value="SslWireless">SSL Wireless</option>
+                        <option value="MimSms">MIM SMS</option>
+                        <option value="Twilio">Twilio</option>
+                        <option value="Custom">@T["CustomProvider"]</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="smsSenderId">@T["SenderId"]</label>
+                    <input type="text" class="form-control" id="smsSenderId" maxlength="20" autocomplete="off" />
+                </div>
+                <div class="col-12">
+                    <label class="form-label" for="smsApiUrl">@T["ApiUrl"]</label>
+                    <input type="url" class="form-control" id="smsApiUrl" maxlength="2048" inputmode="url" placeholder="https://api.example.com/send" />
+                </div>
+                <div class="col-12">
+                    <label class="form-label" for="smsApiKey">@T["ApiKey"]</label>
+                    <input type="password" class="form-control" id="smsApiKey" maxlength="1000" autocomplete="new-password" />
+                    <small class="text-muted">@T["SecretStoredHelp"]</small>
                 </div>
             </div>
+            <div><button type="submit" class="btn btn-outline-primary" id="saveSmsBtn" data-idle-label="@T["SaveSmsSettings"]">@T["SaveSmsSettings"]</button></div>
+        </form>
+    </section>
+
+    <section class="setup-section gateway-card" aria-labelledby="emailGatewayTitle">
+        <div class="gateway-header">
+            <div class="setup-section-heading mb-0">
+                <h3 id="emailGatewayTitle">@T["EmailGateway"]</h3>
+                <p>@T["EmailGatewayHelp"]</p>
+            </div>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="emailEnabled" />
+                <label class="form-check-label" for="emailEnabled">@T["Enable"]</label>
+            </div>
         </div>
-        <button type="button" class="btn btn-outline-primary btn-sm mt-3" id="saveEmailBtn">
-            <i class="bi bi-save"></i> Save email settings
-        </button>
-    </div>
-</div>
+        <form id="emailForm" class="setup-form mt-3">
+            <div class="row g-3">
+                <div class="col-md-8">
+                    <label class="form-label" for="smtpHost">@T["SmtpHost"]</label>
+                    <input type="text" class="form-control" id="smtpHost" maxlength="253" inputmode="url" placeholder="smtp.example.com" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="smtpPort">@T["SmtpPort"]</label>
+                    <select class="form-select" id="smtpPort">
+                        <option value="587">587</option>
+                        <option value="465">465</option>
+                        <option value="25">25</option>
+                        <option value="2525">2525</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="smtpUsername">@T["Username"]</label>
+                    <input type="text" class="form-control" id="smtpUsername" maxlength="320" autocomplete="off" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="smtpPassword">@T["Password"]</label>
+                    <input type="password" class="form-control" id="smtpPassword" maxlength="1000" autocomplete="new-password" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="fromEmail">@T["FromEmail"]</label>
+                    <input type="email" class="form-control" id="fromEmail" maxlength="320" autocomplete="email" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="fromName">@T["FromName"]</label>
+                    <input type="text" class="form-control" id="fromName" maxlength="150" />
+                </div>
+                <div class="col-12">
+                    <div class="form-check setup-check-control">
+                        <input class="form-check-input" type="checkbox" id="useSsl" checked />
+                        <label class="form-check-label" for="useSsl">@T["UseSsl"]</label>
+                    </div>
+                </div>
+            </div>
+            <div><button type="submit" class="btn btn-outline-primary" id="saveEmailBtn" data-idle-label="@T["SaveEmailSettings"]">@T["SaveEmailSettings"]</button></div>
+        </form>
+    </section>
 
-<div class="d-flex justify-content-between mt-4 pt-3 border-top">
-    <button type="button" class="btn btn-outline-secondary" id="skipBtn">
-        Skip & complete onboarding
-    </button>
-    <button type="button" class="btn btn-primary" id="finishBtn">
-        Finish setup <i class="bi bi-check-lg ms-1"></i>
-    </button>
-</div>
+    <div class="setup-guidance" role="note">@T["GatewayOptionalNote"]</div>
+    <footer class="setup-actions">
+        <button type="button" class="btn btn-outline-secondary" id="skipBtn">@T["SkipAndFinish"]</button>
+        <button type="button" class="btn btn-success" id="finishBtn" data-idle-label="@T["FinishSetup"]">@T["FinishSetup"]</button>
+    </footer>
+</article>
 
-<script>
-    async function loadSms() {
-        const res = await fetch('/api/tenant-settings/sms-gateway', { credentials: 'include' });
-        const data = await res.json();
-        if (data.success && data.data) {
-            const d = data.data;
-            document.getElementById('smsProvider').value = d.provider || '';
-            document.getElementById('smsSenderId').value = d.senderId || '';
-            document.getElementById('smsApiUrl').value = d.apiUrl || '';
-            document.getElementById('smsApiKey').value = d.apiKey || '';
-            document.getElementById('smsEnabled').checked = d.isEnabled || false;
-        }
-    }
-
-    async function loadEmail() {
-        const res = await fetch('/api/tenant-settings/email-gateway', { credentials: 'include' });
-        const data = await res.json();
-        if (data.success && data.data) {
-            const d = data.data;
-            document.getElementById('smtpHost').value = d.smtpHost || '';
-            document.getElementById('smtpPort').value = d.smtpPort || '';
-            document.getElementById('smtpUsername').value = d.smtpUsername || '';
-            document.getElementById('smtpPassword').value = d.smtpPassword || '';
-            document.getElementById('fromEmail').value = d.fromEmail || '';
-            document.getElementById('fromName').value = d.fromName || '';
-            document.getElementById('useSsl').checked = d.useSsl !== false;
-            document.getElementById('emailEnabled').checked = d.isEnabled || false;
-        }
-    }
-
-    document.getElementById('saveSmsBtn').addEventListener('click', async () => {
-        const dto = {
-            provider: document.getElementById('smsProvider').value,
-            apiUrl: document.getElementById('smsApiUrl').value,
-            apiKey: document.getElementById('smsApiKey').value,
-            senderId: document.getElementById('smsSenderId').value,
-            isEnabled: document.getElementById('smsEnabled').checked
-        };
-        const res = await fetch('/api/tenant-settings/sms-gateway', {
-            method: 'PUT', credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(dto)
-        });
-        const data = await res.json();
-        showAlert(data.success ? 'success' : 'danger', data.message);
-    });
-
-    document.getElementById('saveEmailBtn').addEventListener('click', async () => {
-        const dto = {
-            smtpHost: document.getElementById('smtpHost').value,
-            smtpPort: parseInt(document.getElementById('smtpPort').value) || null,
-            smtpUsername: document.getElementById('smtpUsername').value,
-            smtpPassword: document.getElementById('smtpPassword').value,
-            fromEmail: document.getElementById('fromEmail').value,
-            fromName: document.getElementById('fromName').value,
-            useSsl: document.getElementById('useSsl').checked,
-            isEnabled: document.getElementById('emailEnabled').checked
-        };
-        const res = await fetch('/api/tenant-settings/email-gateway', {
-            method: 'PUT', credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(dto)
-        });
-        const data = await res.json();
-        showAlert(data.success ? 'success' : 'danger', data.message);
-    });
-
-    async function finishOnboarding() {
-        // Mark this step done, then complete onboarding
-        await fetch('/api/onboarding/complete-step', {
-            method: 'POST', credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ step: 8, skipped: true })
-        });
-        const res = await fetch('/api/onboarding/complete', { method: 'POST', credentials: 'include' });
-        const data = await res.json();
-        if (data.success) {
-            window.location.href = '/Account/OnboardingComplete';
-        } else {
-            showAlert('danger', data.message);
-        }
-    }
-
-    document.getElementById('finishBtn').addEventListener('click', finishOnboarding);
-    document.getElementById('skipBtn').addEventListener('click', finishOnboarding);
-
-    function showAlert(type, msg) {
-        const c = document.getElementById('alertContainer');
-        c.innerHTML = `<div class="alert alert-${type} alert-dismissible">${msg}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
-        setTimeout(() => { c.innerHTML = ''; }, 4000);
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-        loadSms();
-        loadEmail();
-    });
-</script>
+<script id="gatewaySetupStrings" type="application/json">@Html.Raw(pageJson)</script>
+<script src="~/js/account/gateway-setup.js" asp-append-version="true"></script>

@@ -6,10 +6,10 @@ namespace EduOS.Core.Entities.Exams
 {
     public class Tabulation : BaseTenantEntity
     {
-        public int ExamId { get; set; }
-        public int ClassId { get; set; }
-        public int SectionId { get; set; }
-        public int StudentId { get; set; }
+        public long ExamId { get; set; }
+        public long ClassId { get; set; }
+        public long SectionId { get; set; }
+        public long StudentId { get; set; }
         public decimal TotalMarks { get; set; }
         public decimal TotalGPA { get; set; }
         public int? Position { get; set; }

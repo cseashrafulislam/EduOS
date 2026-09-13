@@ -39,6 +39,12 @@ namespace EduOS.Core.Settings
         /// Currency code (BDT, USD)
         /// </summary>
         public string Currency { get; set; } = "BDT";
+
+        /// <summary>
+        /// Trusted public HTTPS origin used for payment gateway callbacks.
+        /// Configure this per environment; never derive it from the request Host header.
+        /// </summary>
+        public string CallbackBaseUrl { get; set; } = string.Empty;
     }
 
     /// <summary>

@@ -6,7 +6,9 @@ EduOS is a configurable, multi-tenant SaaS platform for the Bangladesh education
 
 একটি প্রতিষ্ঠান signup করবে, plan/trial বেছে নেবে, payment করবে, নিজের campus, academic structure, branding, terminology, workflow ও enabled modules configure করবে এবং ব্যবহার শুরু করবে। কোনো নির্দিষ্ট প্রতিষ্ঠানের নাম, class structure, fee rule, grading rule বা approval flow shared code-এ hard-code করা যাবে না।
 
-> **Current status:** foundation under active development. Phase 0 security work and the Phase 1 institution/module entitlement catalogue are implemented and tested. The shared/public shells, account pages, public pricing, tenant dashboard, SuperAdmin operations landing page, and onboarding progress support responsive desktop/mobile use, installable PWA behaviour, and English/Bangla UI resources. Institution profile, campus/branch, and academic year/term setup now have bilingual responsive workflows, tenant-admin authorization, anti-forgery protection, plan-limit enforcement, and tested date/ownership invariants. Subscription, payment, tenant profile, gateway settings, authentication, dashboard, and audit APIs also exist. Many education modules currently have domain entities only; their complete service, API, UI, permission, report, and test workflows are still planned.
+> **Current status:** foundation under active development. Phase 0 security work, institution/module entitlement, privacy-safe learner identity, account-linked student/parent consent decisions, revocable time-bound data grants, admission intake/review, approved applicant-to-student/guardian/enrolment conversion, and annual student promotion/repeat are implemented and tested. Admission conversion and progression are tenant-scoped, transactional, retry-safe and concurrency-protected; consent approval grants only the requested scopes and creates no unrestricted cross-institution access. Public admission forms, documents, assessment/merit, offer/payment, scoped history projection, legacy identifier migration, transfer/completion, and many education-module workflows remain planned and must not be treated as production-complete.
+
+Privileged cookie sessions now require TOTP MFA: password login produces a short-lived encrypted challenge when MFA is enabled, first-time TenantAdmin/SuperAdmin/AdmissionOfficer sessions are restricted to bilingual MFA setup, and recovery codes are displayed once. This is a working security control, not a substitute for production key custody, administrator recovery operations, or penetration testing.
 
 ---
 
@@ -139,22 +141,21 @@ The current OnboardingStep lifecycle is:
 4. **Payment** — online payment, manual payment, or free trial.
 5. **CampusSetup** — head office and additional campus setup.
 6. **AcademicSetup** — academic year and optional terms.
-7. **BrandingSetup** — logo, favicon, colours, subdomain.
-8. **GeneralSettings** — currency, timezone, language, date format.
-9. **GatewaySetup** — optional tenant email/SMS gateway.
-10. **Completed** — dashboard access unlocked.
+7. **ModuleSetup** — preset-aware, plan-entitled module selection.
+8. **BrandingSetup** — logo, favicon, colours, subdomain.
+9. **GeneralSettings** — currency, timezone, language, date format.
+10. **GatewaySetup** — optional tenant email/SMS gateway.
+11. **Completed** — dashboard access unlocked.
 
-The profile, campus/branch, and academic year/term screens are implemented as mobile-first bilingual forms. Institution types come from the platform catalogue; campus codes are tenant-unique; the first campus becomes head office; deleting a head office promotes a remaining campus; active plan campus capacity is enforced; and term dates cannot escape their academic year. Onboarding pages and APIs are restricted to TenantAdmin, while same-origin browser writes carry anti-forgery tokens.
+All listed onboarding screens are implemented as mobile-first bilingual forms and can resume from server-owned state. Institution types come from the platform catalogue; campus codes are tenant-unique; the first campus becomes head office; deleting a head office promotes a remaining campus; active plan campus capacity is enforced; and term dates cannot escape their academic year. Plan/payment progress is advanced from verified server state: trials move directly to campus setup, paid plans wait for gateway verification or manual review, and a submitted receipt cannot unlock setup. Module selection combines institution presets with active-plan entitlements, protects required modules, uses optimistic concurrency, and cannot be used to unlock paid features. Branding requires a unique configurable-domain subdomain; logo/favicon uploads accept images only and replace an existing asset only after the new database reference is committed. Regional settings use a server allow-list. SMS and SMTP secrets are encrypted, returned only as masks, and enabled gateways require complete public endpoints; localhost, private addresses, insecure SMS URLs, and unexpected SMTP ports are rejected. Onboarding completion accepts only the current step, validates campus, academic year, required modules, subscription, and subdomain on the server, and clears the guard cache after state changes. Onboarding mutation APIs are restricted to TenantAdmin (or an explicitly tenant-scoped SuperAdmin operation), while same-origin browser writes carry anti-forgery tokens.
 
 ### Onboarding requirements still to build
 
-- Complete module selection UI; server-side plan-entitlement validation is implemented.
-- Full resumable recovery, expiry handling and idempotent completion around the existing wizard/status API.
 - Terms/privacy-policy version acceptance.
 - Domain verification and custom-domain workflow.
 - Guided sample data, checklist, contextual help, and first-run tours.
-- Owner MFA setup and recovery codes.
-- Idempotent signup/payment completion.
+- Identity-verified administrator MFA reset and emergency-access operations.
+- Idempotent signup completion and provider-side payment reconciliation jobs.
 
 ---
 
@@ -183,7 +184,7 @@ Required completed behaviour:
 - Feature entitlement check in API, menu, job, import, and report paths.
 - Student, teacher, campus, admin, storage, SMS, and email quota enforcement.
 - Upgrade, downgrade, prorating, grace period, renewal, cancellation, refund, and tax/VAT rules.
-- AamarPay implemented first; SSLCommerz, bKash/Nagad merchant, bank transfer, and international gateway adapters planned.
+- AamarPay initiation and verified callback handling plus manual bank-transfer review are implemented; production merchant certification, reconciliation/refund operations, SSLCommerz, direct bKash/Nagad merchant, and international adapters remain planned.
 - Every callback must validate provider authenticity, tenant, invoice, amount, currency, duplicate event, and final state.
 
 ### 6.2 Authentication, authorization, and accounts
@@ -197,7 +198,7 @@ Required completed behaviour:
 | AppPage / RolePagePermission / UserPagePermission | Page/menu authorization | 🟡 Foundation |
 | LoginHistory | Successful/failed login and logout audit | ✅ Auth workflow |
 | RefreshToken | API token lifecycle | 🟡 Foundation |
-| TwoFactorAuth | MFA setup and verification data | 🟡 Foundation |
+| TwoFactorAuth / Identity token store | Legacy model plus active TOTP setup, encrypted login challenge, recovery-code and privileged-session enforcement | ✅ Core MFA workflow |
 
 Target capabilities:
 
@@ -279,7 +280,16 @@ Required functions:
 - Online and counter admission workflows.
 - No applicant/student record should be created twice because a request was retried.
 
-Status: 🟡 entities exist; full end-to-end admission workflow is incomplete.
+Implemented intake slice:
+
+- Tenant-owned `AdmissionApplicant` with stable public reference, readable application number, campus/year/term/academic-unit linkage, guardian/contact fields, preferred language, decision state, indexes and optimistic concurrency.
+- TenantAdmin/AdmissionOfficer-only responsive English/Bangla page and API for options, paged/searchable list, details, submission and guarded review transitions.
+- A client request UUID makes submission retries idempotent; replaying the UUID with different core data returns a conflict.
+- Applicant list responses mask mobile numbers. Full contact is limited to authorized details access, and applicant PII is excluded from general audit payloads.
+- Applicants under 18 require guardian name, relationship and valid mobile. Common Bangladesh numbers and Bangla digits normalize to E.164; international intake requires E.164 input.
+- Government identifiers are intentionally absent from the intake row and must use the protected learner-identity workflow after a student is created.
+
+Status: 🟡 staff intake/review and transactional approved-applicant conversion to Student + Guardian + Enrollment + Person link are implemented. Configurable public forms, documents, assessment/merit and offer/payment remain incomplete.
 
 ### 6.6 Global learner identity and institution enrolment
 
@@ -333,7 +343,7 @@ erDiagram
 
 Birth/NID দিয়ে search করলেই অন্য school-এর student name, photo, guardian, result বা history দেখানো হবে না। Minor student-এর public profile defaultভাবে বন্ধ থাকবে।
 
-Status: 🧭 target architecture. Existing Student.BirthCertNo and Guardian.NID fields require encrypted migration/replacement before production.
+Status: 🟡 privacy and consent foundation implemented. `Person`, protected `PersonIdentifier`, tenant-owned `StudentPersonLink`, expiring `LearnerConsentRequest`, revocable `LearnerDataGrant`, and append-only `LearnerIdentityAccessLog` are wired through rate-limited APIs. Only an identifier verified by an approved workflow may produce a neutral cross-tenant request reference. A signed-in student or account-linked parent can see requests only for a person they control, approve or deny idempotently, and revoke the exact-scope, time-bound grant; unauthorized references return a neutral not-found response. Scoped history delivery, verified contacts and richer guardian relationships, break-glass review, and safe backfill/removal of existing `Student.BirthCertNo` and `Guardian.NID` values are still required before production use.
 
 ### 6.7 Student lifecycle
 
@@ -350,7 +360,7 @@ Required functions:
 - Student/guardian self-service profile corrections with approval.
 - Record retention, legal hold, correction, export, and deletion/anonymization policy.
 
-Status: 🟡 basic entities and StudentService exist; complete lifecycle API/UI is incomplete.
+Status: 🟡 tenant-safe responsive bilingual student directory, authorized profile/guardian/enrollment details, admission conversion, and annual promotion/repeat are implemented. Progression is atomic, idempotent, concurrency-protected and tenant-scoped: it closes the source enrolment, creates the validated next enrolment, updates current placement, and preserves immutable history. Profile correction, suspend/dropout/readmission, transfer, completion and self-service lifecycle workflows remain incomplete.
 
 ### 6.8 Attendance
 
@@ -559,10 +569,13 @@ These are the meaningful API areas currently present:
 | /api/onboarding | Status and step completion |
 | /api/subscription-plans | Public plan list, plan detail, code lookup, comparison |
 | /api/subscription | Create/current/history, cancellation, auto-renew, invoices |
-| /api/subscription-payment | AamarPay initiation/callback/IPN, manual payment, SuperAdmin verification |
+| /api/subscription-payment | AamarPay initiation/callback/IPN, configured manual payment, private SuperAdmin receipt download and verification |
 | /api/tenant-profile | Profile, branding, logo/favicon, subdomain, general settings |
 | /api/tenant-settings | TenantAdmin SMS/email gateway settings and categories |
 | /api/dashboard | Authenticated dashboard data |
+| /api/learner-identities | Rate-limited privacy-safe identity creation, reuse and neutral consent request |
+| /api/learner-consents | Student/parent pending requests, approve/deny, active grants and revocation |
+| /api/students/{studentReference}/promotions | TenantAdmin/Principal promotion or repeat and immutable progression history |
 | /api/v1/auditlog | Filter, record/user history and export |
 
 Every new module must add a complete vertical slice: request/response contract, validation, authorization, service, repository/query, migration, UI if required, tests, audit, documentation, and operational monitoring.
@@ -755,14 +768,16 @@ Implemented Phase 0 controls:
 - Production automatic database migration disabled by default.
 - Secrets removed from current public configuration.
 - Tenant-isolation and tenant-secret automated tests.
+- Encrypted government identifiers, keyed lookup digest, neutral cross-tenant match response, strict identity rate limit, and append-only learner identity access records.
+- TOTP setup/login, one-time recovery codes, encrypted five-minute challenge, anti-forgery protected auth writes, and mandatory MFA claim for TenantAdmin/SuperAdmin routes.
 - GitHub Actions CI, Dependabot, SECURITY.md and AGENTS.md.
 
 Still required before production:
 
 - Rotate/revoke every credential previously committed to Git history.
 - Migrate existing BirthCertNo and Guardian NID data to the protected identity model.
-- MFA and break-glass workflow for privileged platform operations.
-- Key management strategy for encryption and keyed identifier lookup.
+- Reviewed administrator MFA reset/recovery operations and break-glass approval workflow.
+- Managed production key custody and rehearsed rotation for encryption and keyed identifier lookup.
 - CSRF/secure-cookie/API token threat review for each client mode.
 - File signature validation, malware scanning and external object storage.
 - Dependency/code/secret scanning and penetration testing.
@@ -811,6 +826,7 @@ Configure local secrets outside source control:
 ~~~bash
 dotnet user-secrets --project EduOS.App set "ConnectionStrings:DefaultConnection" "Server=localhost;Database=EduOS;Trusted_Connection=true;TrustServerCertificate=true;"
 dotnet user-secrets --project EduOS.App set "JwtSettings:Secret" "replace-with-at-least-32-random-characters"
+dotnet user-secrets --project EduOS.App set "LearnerIdentity:LookupKeyBase64" "replace-with-a-base64-encoded-random-32-byte-key"
 ~~~
 
 Optional email, SMS, and payment key names are documented in [.env.example](.env.example). The sample file is documentation only; ASP.NET Core does not automatically load it.
@@ -840,6 +856,9 @@ ASP.NET Core environment-variable nesting uses double underscores:
 ~~~text
 ConnectionStrings__DefaultConnection
 DataProtection__KeysPath
+LearnerIdentity__LookupKeyBase64
+SuperAdmin__Email
+SuperAdmin__Password
 JwtSettings__Secret
 EmailSettings__SenderEmail
 EmailSettings__Password
@@ -847,6 +866,14 @@ SmsSettings__ApiKey
 SmsSettings__ApiSecret
 Payments__AamarPay__StoreId
 Payments__AamarPay__SignatureKey
+Payments__AamarPay__CallbackBaseUrl
+ManualPayment__BankName
+ManualPayment__AccountName
+ManualPayment__AccountNumber
+ManualPayment__RoutingNumber
+ManualPayment__BranchName
+ManualPayment__Instructions
+FileStorage__PrivateBasePath
 SSLCommerz__StoreId
 SSLCommerz__StorePassword
 ~~~
@@ -856,6 +883,11 @@ Production requirements:
 - Use deployment environment variables or a managed secret store.
 - Never commit credentials, tokens, private keys or production personal data.
 - All application instances share a protected, durable Data Protection key ring.
+- All instances use the same secret `LearnerIdentity__LookupKeyBase64`; generate at least 32 random bytes, store it outside source control, and rotate it only through a reviewed digest-reindex migration.
+- SuperAdmin bootstrap is disabled unless `SuperAdmin__Email` is configured; first creation additionally requires a secret-managed `SuperAdmin__Password`. Remove that bootstrap password after creation and require MFA before production administration.
+- `Payments__AamarPay__CallbackBaseUrl` is the trusted public HTTPS origin; online checkout is disabled when it is missing or invalid.
+- Manual bank details must come from reviewed deployment configuration. Placeholder account details are not rendered.
+- `FileStorage__PrivateBasePath` must be durable, backed up, access-controlled, and outside every static web root. Production receipt uploads also require an operational malware scanner or quarantined object-storage pipeline.
 - Secret rotation must support old/new overlap where provider behaviour requires it.
 - Removing a value from the latest Git file does not remove it from Git history.
 
@@ -950,6 +982,8 @@ Acceptance:
 - Tenant/campus isolation and configuration-version tests pass.
 
 ### Phase 2 — Global identity and student lifecycle
+
+Progress: the privacy-safe identity registration/match boundary, first consent/access slice, and annual promotion/repeat workflow are implemented. They include a global person, encrypted identifier, keyed lookup, tenant-owned student link, neutral expiring request, account-linked student/parent authorization, idempotent approval/denial, exact-scope time-bound grants, revocation, optimistic concurrency, append-only access audit, Bangladesh/ASCII digit normalization, and security tests. Promotion/repeat is tenant-scoped, atomic and retry-safe, validates the target academic structure and capacity, and records immutable progression history. A pending or denied consent request grants no access. Scoped history projection, verified contact and richer guardian authority, break-glass approval, legacy-field backfill, transfer and completion are the next Phase 2 slices.
 
 Deliver:
 

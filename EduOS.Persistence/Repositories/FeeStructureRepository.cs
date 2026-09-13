@@ -9,7 +9,7 @@ namespace EduOS.Persistence.Repositories
     {
         public FeeStructureRepository(EduOSDbContext context) : base(context) { }
 
-        public async Task<List<FeeStructure>> GetByClassAsync(int classId, int academicYearId)
+        public async Task<List<FeeStructure>> GetByClassAsync(long classId, long academicYearId)
         {
             return await _dbSet
                 .Include(f => f.FeeHead)
@@ -17,12 +17,12 @@ namespace EduOS.Persistence.Repositories
                 .ToListAsync();
         }
 
-        public async Task<decimal> GetTotalMonthlyFeeAsync(int classId, int academicYearId)
+        public async Task<decimal> GetTotalMonthlyFeeAsync(long classId, long academicYearId)
         {
             return await _dbSet
                 .Include(f => f.FeeHead)
-                .Where(f => f.ClassId == classId 
-                    && f.AcademicYearId == academicYearId 
+                .Where(f => f.ClassId == classId
+                    && f.AcademicYearId == academicYearId
                     && f.FeeHead!.Type == "Monthly")
                 .SumAsync(f => f.Amount);
         }

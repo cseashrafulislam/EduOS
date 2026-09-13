@@ -5,17 +5,18 @@ namespace EduOS.Core.Entities.Finance
 {
     public class Payment : BaseTenantEntity
     {
-        public int InvoiceId { get; set; }
-        public int StudentId { get; set; }
+        public Guid PublicId { get; set; } = Guid.NewGuid();
+        public Guid ClientRequestId { get; set; }
+        public long InvoiceId { get; set; }
+        public long StudentId { get; set; }
         public string ReceiptNo { get; set; } = string.Empty;
         public decimal Amount { get; set; }
-        public string PaymentMethod { get; set; } = "Cash"; // Cash/Bkash/Nagad/Card/Bank
+        public string PaymentMethod { get; set; } = "Cash";
         public DateTime PaymentDate { get; set; }
-        public int ReceivedBy { get; set; }
+        public long ReceivedBy { get; set; }
         public string? TransactionId { get; set; }
         public string? Note { get; set; }
-        public int? BankAccountId { get; set; }
-
+        public long? BankAccountId { get; set; }
         public virtual StudentInvoice? Invoice { get; set; }
         public virtual Student? Student { get; set; }
         public virtual BankAccount? BankAccount { get; set; }

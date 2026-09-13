@@ -1,0 +1,73 @@
+@{
+    ViewData["Title"] = "MfaSetupTitle";
+    Layout = "_PublicLayout";
+}
+
+<section class="auth-card auth-card-wide" aria-labelledby="mfaSetupTitle">
+    <div class="auth-heading">
+        <h1 id="mfaSetupTitle">@T["MfaSetupTitle"]</h1>
+        <p>@T["MfaSetupHelp"]</p>
+    </div>
+
+    <div id="mfaSetupAlert" class="d-none" role="alert" aria-live="assertive" tabindex="-1"></div>
+
+    <div id="mfaAlreadyEnabled" class="d-none">
+        <p>@T["MfaAlreadyEnabled"]</p>
+        <a id="mfaEnabledAction" class="btn btn-primary" href="/Dashboard"
+           data-dashboard-label="@T["ContinueToDashboard"]" data-login-label="@T["SignInAgain"]">
+            @T["ContinueToDashboard"]
+        </a>
+    </div>
+
+    <form id="mfaSetupForm" novalidate
+          data-required-message="@T["CurrentPasswordRequired"]"
+          data-setup-failed="@T["MfaSetupFailed"]"
+          data-enable-failed="@T["MfaEnableFailed"]"
+          data-network-message="@T["NetworkError"]">
+        <div class="mb-3">
+            <label class="form-label" for="currentPassword">@T["CurrentPassword"]</label>
+            <input id="currentPassword" class="form-control" type="password"
+                   autocomplete="current-password" required />
+        </div>
+
+        <button id="mfaSetupButton" type="button" class="btn btn-primary w-100"
+                data-idle-label="@T["CreateAuthenticatorKey"]" data-loading-label="@T["Preparing"]">
+            @T["CreateAuthenticatorKey"]
+        </button>
+
+        <div id="mfaKeyPanel" class="mfa-secret-panel mt-4" hidden>
+            <h2 class="h5">@T["ConnectAuthenticatorApp"]</h2>
+            <ol class="auth-meta ps-3">
+                <li>@T["MfaInstallAppStep"]</li>
+                <li>@T["MfaEnterKeyStep"]</li>
+                <li>@T["MfaEnterCodeStep"]</li>
+            </ol>
+            <div class="mb-3">
+                <label class="form-label" for="mfaSharedKey">@T["AuthenticatorSharedKey"]</label>
+                <output id="mfaSharedKey" class="form-control mfa-code-output" aria-live="polite"></output>
+            </div>
+            <a id="openAuthenticatorLink" class="btn btn-outline-secondary btn-sm mb-3" href="#">@T["OpenAuthenticatorApp"]</a>
+            <div class="mb-3">
+                <label class="form-label" for="mfaEnableCode">@T["MfaVerificationCode"]</label>
+                <input id="mfaEnableCode" class="form-control" type="text" inputmode="numeric"
+                       autocomplete="one-time-code" maxlength="12" />
+            </div>
+            <button id="mfaEnableButton" type="submit" class="btn btn-success w-100"
+                    data-idle-label="@T["EnableMfa"]" data-loading-label="@T["Verifying"]">
+                @T["EnableMfa"]
+            </button>
+        </div>
+    </form>
+
+    <section id="mfaRecoveryPanel" class="mfa-recovery-panel mt-4" hidden aria-labelledby="recoveryTitle">
+        <h2 id="recoveryTitle" class="h5">@T["RecoveryCodesTitle"]</h2>
+        <p>@T["RecoveryCodesHelp"]</p>
+        <ul id="mfaRecoveryCodes" class="mfa-recovery-list"></ul>
+        <p class="alert alert-warning mb-3">@T["RecoveryCodesWarning"]</p>
+        <a class="btn btn-primary w-100" href="/Dashboard">@T["SavedCodesContinue"]</a>
+    </section>
+</section>
+
+@section Scripts {
+    <script src="~/js/account/mfa-setup.js" asp-append-version="true"></script>
+}

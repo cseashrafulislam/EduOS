@@ -1,0 +1,17 @@
+using EduOS.Persistence.Context;using Microsoft.EntityFrameworkCore.Infrastructure;using Microsoft.EntityFrameworkCore.Migrations;
+#nullable disable
+namespace EduOS.Persistence.Migrations;
+[DbContext(typeof(EduOSDbContext))][Migration("20260912140000_AddHrPayrollWorkflow")]
+public partial class AddHrPayrollWorkflow:Migration
+{
+ protected override void Up(MigrationBuilder m)
+ {
+  N(m,"EmployeeAttendances","EmployeeId","Employees");N(m,"SalaryStructures","EmployeeId","Employees");N(m,"Payrolls","EmployeeId","Employees");N(m,"Bonuses","EmployeeId","Employees");N(m,"LoanAdvances","EmployeeId","Employees");
+  m.AddColumn<Guid>("PublicId","Employees","uniqueidentifier",nullable:false,defaultValueSql:"NEWID()");m.AddColumn<byte[]>("RowVersion","Employees","rowversion",rowVersion:true,nullable:false);
+  m.AddColumn<Guid>("PublicId","Payrolls","uniqueidentifier",nullable:false,defaultValueSql:"NEWID()");m.AddColumn<Guid>("GenerationRequestId","Payrolls","uniqueidentifier",nullable:false,defaultValueSql:"NEWID()");m.AddColumn<string>("BillingKey","Payrolls","nvarchar(120)",maxLength:120,nullable:false,defaultValue:"");m.AddColumn<int>("AbsentDays","Payrolls","int",nullable:false,defaultValue:0);m.AddColumn<decimal>("AttendanceDeduction","Payrolls","decimal(18,2)",nullable:false,defaultValue:0m);m.AddColumn<decimal>("LoanDeduction","Payrolls","decimal(18,2)",nullable:false,defaultValue:0m);m.AddColumn<long>("PaidByUserId","Payrolls","bigint",nullable:true);m.AddColumn<byte[]>("RowVersion","Payrolls","rowversion",rowVersion:true,nullable:false);
+  m.Sql("UPDATE Payrolls SET BillingKey='LEGACY-'+CONVERT(varchar(30),Id) WHERE BillingKey='';");
+  m.CreateIndex("UX_Employees_Tenant_PublicId","Employees",new[]{"TenantId","PublicId"},unique:true);m.CreateIndex("UX_Payrolls_Tenant_PublicId","Payrolls",new[]{"TenantId","PublicId"},unique:true);m.CreateIndex("UX_Payrolls_Tenant_BillingKey","Payrolls",new[]{"TenantId","BillingKey"},unique:true,filter:"[IsDeleted] = 0");m.CreateIndex("UX_Payrolls_Tenant_Request_Employee","Payrolls",new[]{"TenantId","GenerationRequestId","EmployeeId"},unique:true,filter:"[IsDeleted] = 0");m.CreateIndex("UX_EmployeeAttendances_Tenant_Employee_Date","EmployeeAttendances",new[]{"TenantId","EmployeeId","Date"},unique:true,filter:"[IsDeleted] = 0");
+ }
+ protected override void Down(MigrationBuilder m){}
+ private static void N(MigrationBuilder m,string table,string col,string principal)=>m.Sql($@"DECLARE @s nvarchar(max)=N'';SELECT @s+=N'ALTER TABLE [dbo].[{table}] DROP CONSTRAINT ['+fk.name+N'];' FROM sys.foreign_keys fk JOIN sys.foreign_key_columns fkc ON fk.object_id=fkc.constraint_object_id JOIN sys.columns c ON c.object_id=fkc.parent_object_id AND c.column_id=fkc.parent_column_id WHERE fkc.parent_object_id=OBJECT_ID(N'[dbo].[{table}]') AND c.name=N'{col}';IF LEN(@s)>0 EXEC sp_executesql @s;DECLARE @i nvarchar(max)=N'';SELECT @i+=N'DROP INDEX ['+i.name+N'] ON [dbo].[{table}];' FROM sys.indexes i JOIN sys.index_columns ic ON i.object_id=ic.object_id AND i.index_id=ic.index_id JOIN sys.columns c ON c.object_id=ic.object_id AND c.column_id=ic.column_id WHERE i.object_id=OBJECT_ID(N'[dbo].[{table}]') AND c.name=N'{col}' AND i.is_primary_key=0 AND i.is_unique_constraint=0;IF LEN(@i)>0 EXEC sp_executesql @i;ALTER TABLE [dbo].[{table}] ALTER COLUMN [{col}] bigint NOT NULL;CREATE INDEX [IX_{table}_{col}] ON [dbo].[{table}]([{col}]);ALTER TABLE [dbo].[{table}] WITH CHECK ADD CONSTRAINT [FK_{table}_{principal}_{col}] FOREIGN KEY([{col}]) REFERENCES [dbo].[{principal}]([Id]);");
+}

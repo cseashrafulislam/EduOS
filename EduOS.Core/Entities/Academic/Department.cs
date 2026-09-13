@@ -18,6 +18,9 @@ namespace EduOS.Core.Entities.Academic
 
         public long? HeadEmployeeId { get; set; }
 
+        [MaxLength(200)]
+        public string? HeadOfDepartment { get; set; }
+
         [MaxLength(500)]
         public string? Description { get; set; }
 

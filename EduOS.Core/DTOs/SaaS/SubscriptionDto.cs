@@ -1,4 +1,5 @@
 using EduOS.Core.Enums;
+using System.ComponentModel.DataAnnotations;
 
 namespace EduOS.Core.DTOs.SaaS
 {
@@ -7,14 +8,18 @@ namespace EduOS.Core.DTOs.SaaS
     /// </summary>
     public class CreateSubscriptionRequestDto
     {
+        [Range(1, long.MaxValue)]
         public long SubscriptionPlanId { get; set; }
+        [EnumDataType(typeof(BillingCycle))]
         public BillingCycle BillingCycle { get; set; } = BillingCycle.Monthly;
-        public PaymentMethod PaymentMethod { get; set; }
+        [EnumDataType(typeof(PaymentMethod))]
+        public PaymentMethod PaymentMethod { get; set; } = PaymentMethod.ManualBankTransfer;
         public bool AutoRenew { get; set; } = true;
 
         /// <summary>
         /// Optional discount/coupon code
         /// </summary>
+        [MaxLength(50)]
         public string? CouponCode { get; set; }
     }
 

@@ -1,5 +1,5 @@
 using EduOS.Core.Entities.Base;
-using EduOS.Core.Entities.Tenants;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Enums.Academics;
 
 namespace EduOS.Core.Entities.SaaS;

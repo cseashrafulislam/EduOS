@@ -8,6 +8,7 @@ using EduOS.Core.Interfaces.IServices;
 using EduOS.Core.Settings;
 using EduOS.Service.Helpers.Storage;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Text.RegularExpressions;
@@ -21,7 +22,30 @@ namespace EduOS.Service.Services.Tenants
         private readonly ICurrentUserService _currentUser;
         private readonly IFileUploadService _fileStorage;
         private readonly FileUploadSettings _fileSettings;
+        private readonly string _portalBaseDomain;
         private readonly ILogger<TenantProfileService> _logger;
+
+        private static readonly IReadOnlySet<string> SupportedCurrencies =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "BDT", "USD", "INR", "GBP", "EUR", "AUD", "CAD", "SGD", "MYR", "AED"
+            };
+
+        private static readonly IReadOnlySet<string> SupportedTimeZones =
+            new HashSet<string>(StringComparer.Ordinal)
+            {
+                "Asia/Dhaka", "Asia/Kolkata", "Asia/Karachi", "Asia/Dubai",
+                "UTC", "America/New_York", "Europe/London"
+            };
+
+        private static readonly IReadOnlySet<string> SupportedLanguages =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "en", "bn-BD" };
+
+        private static readonly IReadOnlySet<string> SupportedDateFormats =
+            new HashSet<string>(StringComparer.Ordinal)
+            {
+                "dd-MM-yyyy", "MM-dd-yyyy", "yyyy-MM-dd", "dd/MM/yyyy"
+            };
 
         // Reserved subdomains that cannot be used
         private static readonly HashSet<string> _reservedSubdomains = new(StringComparer.OrdinalIgnoreCase)
@@ -37,6 +61,7 @@ namespace EduOS.Service.Services.Tenants
             ICurrentUserService currentUser,
             IFileUploadService fileStorage,
             IOptions<FileUploadSettings> fileSettings,
+            IOptions<TenantPortalSettings> portalSettings,
             ILogger<TenantProfileService> logger)
         {
             _tenantRepo = tenantRepo;
@@ -44,6 +69,7 @@ namespace EduOS.Service.Services.Tenants
             _currentUser = currentUser;
             _fileStorage = fileStorage;
             _fileSettings = fileSettings.Value;
+            _portalBaseDomain = NormalizeBaseDomain(portalSettings.Value.BaseDomain);
             _logger = logger;
         }
 
@@ -154,42 +180,7 @@ namespace EduOS.Service.Services.Tenants
         // ============================================================
         public async Task<ApiResponse<string>> UploadLogoAsync(IFormFile file)
         {
-            try
-            {
-                if (file == null || file.Length == 0)
-                    return ApiResponse<string>.ErrorResponse("No file provided", 400);
-
-                if (!_fileStorage.ValidateFile(file))
-                    return ApiResponse<string>.ErrorResponse(
-                        "Invalid file type. Allowed: JPG, PNG, WEBP", 400);
-
-                var tenant = await _tenantRepo.GetByIdAsync(_currentUser.TenantId);
-                if (tenant == null)
-                    return ApiResponse<string>.ErrorResponse("Tenant not found", 404);
-
-                // Delete old logo if exists
-                if (!string.IsNullOrEmpty(tenant.LogoUrl))
-                {
-                    await _fileStorage.DeleteAsync(tenant.LogoUrl);
-                }
-
-                var upload = await _fileStorage.UploadAsync(file, $"tenants/{tenant.Id}/branding");
-                if (!upload.Success)
-                    return ApiResponse<string>.ErrorResponse(
-                        upload.ErrorMessage ?? "Upload failed", 400);
-
-                tenant.LogoUrl = upload.FileUrl;
-                _tenantRepo.Update(tenant);
-                await _unitOfWork.SaveChangesAsync();
-
-                _logger.LogInformation("Logo uploaded for tenant {Id}: {Path}", tenant.Id, upload.FileUrl);
-                return ApiResponse<string>.SuccessResponse(upload.FileUrl!, "Logo uploaded successfully");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Logo upload failed");
-                return ApiResponse<string>.ErrorResponse("Logo upload failed", 500);
-            }
+            return await UploadBrandAssetAsync(file, isFavicon: false);
         }
 
         // ============================================================
@@ -197,41 +188,7 @@ namespace EduOS.Service.Services.Tenants
         // ============================================================
         public async Task<ApiResponse<string>> UploadFaviconAsync(IFormFile file)
         {
-            try
-            {
-                if (file == null || file.Length == 0)
-                    return ApiResponse<string>.ErrorResponse("No file provided", 400);
-
-                var allowed = new[] { ".ico", ".png", ".jpg", ".jpeg" };
-                if (!_fileStorage.ValidateFile(file))
-                    return ApiResponse<string>.ErrorResponse(
-                        "Invalid file type. Allowed: ICO, PNG, JPG", 400);
-
-                var tenant = await _tenantRepo.GetByIdAsync(_currentUser.TenantId);
-                if (tenant == null)
-                    return ApiResponse<string>.ErrorResponse("Tenant not found", 404);
-
-                if (!string.IsNullOrEmpty(tenant.FaviconUrl))
-                {
-                    await _fileStorage.DeleteAsync(tenant.FaviconUrl);
-                }
-
-                var upload = await _fileStorage.UploadAsync(file, $"tenants/{tenant.Id}/branding");
-                if (!upload.Success)
-                    return ApiResponse<string>.ErrorResponse(
-                        upload.ErrorMessage ?? "Upload failed", 400);
-
-                tenant.FaviconUrl = upload.FileUrl;
-                _tenantRepo.Update(tenant);
-                await _unitOfWork.SaveChangesAsync();
-
-                return ApiResponse<string>.SuccessResponse(upload.FileUrl!, "Favicon uploaded successfully");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Favicon upload failed");
-                return ApiResponse<string>.ErrorResponse("Favicon upload failed", 500);
-            }
+            return await UploadBrandAssetAsync(file, isFavicon: true);
         }
 
         // ============================================================
@@ -247,10 +204,11 @@ namespace EduOS.Service.Services.Tenants
 
                 if (!string.IsNullOrEmpty(tenant.LogoUrl))
                 {
-                    await _fileStorage.DeleteAsync(tenant.LogoUrl);
+                    var previousUrl = tenant.LogoUrl;
                     tenant.LogoUrl = null;
                     _tenantRepo.Update(tenant);
                     await _unitOfWork.SaveChangesAsync();
+                    await DeleteReplacedAssetAsync(previousUrl, tenant.Id);
                 }
 
                 return ApiResponse<bool>.SuccessResponse(true, "Logo removed");
@@ -272,10 +230,11 @@ namespace EduOS.Service.Services.Tenants
 
                 if (!string.IsNullOrEmpty(tenant.FaviconUrl))
                 {
-                    await _fileStorage.DeleteAsync(tenant.FaviconUrl);
+                    var previousUrl = tenant.FaviconUrl;
                     tenant.FaviconUrl = null;
                     _tenantRepo.Update(tenant);
                     await _unitOfWork.SaveChangesAsync();
+                    await DeleteReplacedAssetAsync(previousUrl, tenant.Id);
                 }
 
                 return ApiResponse<bool>.SuccessResponse(true, "Favicon removed");
@@ -346,7 +305,7 @@ namespace EduOS.Service.Services.Tenants
                 {
                     result.IsAvailable = true;
                     result.Message = "Available!";
-                    result.FullUrl = $"https://{result.Subdomain}.eduos.com";
+                    result.FullUrl = $"https://{result.Subdomain}.{_portalBaseDomain}";
                 }
 
                 return ApiResponse<SubdomainCheckResult>.SuccessResponse(result);
@@ -383,6 +342,13 @@ namespace EduOS.Service.Services.Tenants
 
                 return ApiResponse<bool>.SuccessResponse(true, "Subdomain saved successfully");
             }
+            catch (DbUpdateException ex)
+            {
+                _logger.LogWarning(ex,
+                    "Subdomain update conflicted for tenant {TenantId}", _currentUser.TenantId);
+                return ApiResponse<bool>.ErrorResponse(
+                    "This subdomain was just taken. Choose another one.", 409);
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to update subdomain");
@@ -397,15 +363,32 @@ namespace EduOS.Service.Services.Tenants
         {
             try
             {
+                var currency = dto.Currency?.Trim().ToUpperInvariant() ?? string.Empty;
+                var currencySymbol = dto.CurrencySymbol?.Trim() ?? string.Empty;
+                var timeZone = dto.TimeZone?.Trim() ?? string.Empty;
+                var language = NormalizeLanguage(dto.Language);
+                var dateFormat = dto.DateFormat?.Trim() ?? string.Empty;
+
+                if (!SupportedCurrencies.Contains(currency))
+                    return ApiResponse<bool>.ErrorResponse("Unsupported currency", 400);
+                if (string.IsNullOrWhiteSpace(currencySymbol) || currencySymbol.Length > 10)
+                    return ApiResponse<bool>.ErrorResponse("Invalid currency symbol", 400);
+                if (!SupportedTimeZones.Contains(timeZone))
+                    return ApiResponse<bool>.ErrorResponse("Unsupported time zone", 400);
+                if (!SupportedLanguages.Contains(language))
+                    return ApiResponse<bool>.ErrorResponse("Unsupported language", 400);
+                if (!SupportedDateFormats.Contains(dateFormat))
+                    return ApiResponse<bool>.ErrorResponse("Unsupported date format", 400);
+
                 var tenant = await _tenantRepo.GetByIdAsync(_currentUser.TenantId);
                 if (tenant == null)
                     return ApiResponse<bool>.ErrorResponse("Tenant not found", 404);
 
-                tenant.Currency = dto.Currency?.Trim().ToUpperInvariant() ?? "BDT";
-                tenant.CurrencySymbol = dto.CurrencySymbol?.Trim() ?? "৳";
-                tenant.TimeZone = dto.TimeZone?.Trim() ?? "Asia/Dhaka";
-                tenant.Language = dto.Language?.Trim().ToLowerInvariant() ?? "en";
-                tenant.DateFormat = dto.DateFormat?.Trim() ?? "dd-MM-yyyy";
+                tenant.Currency = currency;
+                tenant.CurrencySymbol = currencySymbol;
+                tenant.TimeZone = timeZone;
+                tenant.Language = language;
+                tenant.DateFormat = dateFormat;
 
                 _tenantRepo.Update(tenant);
                 await _unitOfWork.SaveChangesAsync();
@@ -425,6 +408,116 @@ namespace EduOS.Service.Services.Tenants
         private static bool IsValidHexColor(string color)
         {
             return Regex.IsMatch(color, @"^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$");
+        }
+
+        private async Task<ApiResponse<string>> UploadBrandAssetAsync(
+            IFormFile file,
+            bool isFavicon)
+        {
+            var assetName = isFavicon ? "Favicon" : "Logo";
+            string? uploadedUrl = null;
+
+            try
+            {
+                if (file == null || file.Length == 0)
+                    return ApiResponse<string>.ErrorResponse("No file provided", 400);
+
+                var maxBytes = Math.Max(1, _fileSettings.MaxFileSizeMb) * 1024L * 1024L;
+                var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+                var allowedExtensions = isFavicon
+                    ? new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".png", ".jpg", ".jpeg" }
+                    : new HashSet<string>(
+                        _fileSettings.AllowedImageExtensions,
+                        StringComparer.OrdinalIgnoreCase);
+
+                if (file.Length > maxBytes || !allowedExtensions.Contains(extension)
+                    || !_fileStorage.ValidateFile(file))
+                {
+                    return ApiResponse<string>.ErrorResponse(
+                        isFavicon
+                            ? "Invalid favicon. Use PNG or JPG within the upload limit."
+                            : "Invalid logo. Use JPG, PNG, or WEBP within the upload limit.",
+                        400);
+                }
+
+                var tenant = await _tenantRepo.GetByIdAsync(_currentUser.TenantId);
+                if (tenant == null)
+                    return ApiResponse<string>.ErrorResponse("Tenant not found", 404);
+
+                var previousUrl = isFavicon ? tenant.FaviconUrl : tenant.LogoUrl;
+                var upload = await _fileStorage.UploadAsync(
+                    file,
+                    $"tenants/{tenant.Id}/branding");
+                if (!upload.Success || string.IsNullOrWhiteSpace(upload.FileUrl))
+                {
+                    return ApiResponse<string>.ErrorResponse(
+                        upload.ErrorMessage ?? $"{assetName} upload failed", 400);
+                }
+
+                uploadedUrl = upload.FileUrl;
+                if (isFavicon)
+                    tenant.FaviconUrl = uploadedUrl;
+                else
+                    tenant.LogoUrl = uploadedUrl;
+
+                _tenantRepo.Update(tenant);
+                try
+                {
+                    await _unitOfWork.SaveChangesAsync();
+                }
+                catch
+                {
+                    await _fileStorage.DeleteAsync(uploadedUrl);
+                    throw;
+                }
+
+                if (!string.IsNullOrWhiteSpace(previousUrl)
+                    && !string.Equals(previousUrl, uploadedUrl, StringComparison.Ordinal))
+                {
+                    await DeleteReplacedAssetAsync(previousUrl, tenant.Id);
+                }
+
+                _logger.LogInformation(
+                    "{AssetName} uploaded for tenant {TenantId}", assetName, tenant.Id);
+                return ApiResponse<string>.SuccessResponse(
+                    uploadedUrl,
+                    $"{assetName} uploaded successfully");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "{AssetName} upload failed", assetName);
+                return ApiResponse<string>.ErrorResponse($"{assetName} upload failed", 500);
+            }
+        }
+
+        private async Task DeleteReplacedAssetAsync(string fileUrl, long tenantId)
+        {
+            if (!await _fileStorage.DeleteAsync(fileUrl))
+            {
+                _logger.LogWarning(
+                    "Old branding asset could not be deleted for tenant {TenantId}", tenantId);
+            }
+        }
+
+        private static string NormalizeLanguage(string? language)
+        {
+            var normalized = language?.Trim() ?? string.Empty;
+            return string.Equals(normalized, "bn", StringComparison.OrdinalIgnoreCase)
+                ? "bn-BD"
+                : normalized;
+        }
+
+        private static string NormalizeBaseDomain(string? baseDomain)
+        {
+            var normalized = (baseDomain ?? string.Empty)
+                .Trim()
+                .Trim('.')
+                .ToLowerInvariant();
+            return Regex.IsMatch(
+                normalized,
+                @"^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$")
+                ? normalized
+                : "eduos.com";
         }
 
         private static TenantProfileDto MapToProfileDto(Tenant t)

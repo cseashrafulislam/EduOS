@@ -4,9 +4,9 @@ namespace EduOS.Core.Interfaces.IRepositories
 {
     public interface IRoutineEntryRepository : IGenericRepository<RoutineEntry>
     {
-        Task<List<RoutineEntry>> GetByClassSectionAsync(int classId, int sectionId, int academicYearId);
-        Task<List<RoutineEntry>> GetByTeacherAsync(int teacherId, int academicYearId);
-        Task<List<RoutineEntry>> GetByDayAsync(string dayOfWeek, int classId, int sectionId);
-        Task<bool> HasConflictAsync(int teacherId, string dayOfWeek, TimeSpan startTime, TimeSpan endTime, int? excludeId = null);
+        Task<List<RoutineEntry>> GetByBatchAsync(long academicBatchId, long academicYearId);
+        Task<List<RoutineEntry>> GetByEmployeeAsync(long employeeId, long academicYearId);
+        Task<List<RoutineEntry>> GetByDayAsync(DayOfWeek dayOfWeek, long academicBatchId);
+        Task<bool> HasConflictAsync(long employeeId, DayOfWeek dayOfWeek, TimeSpan startTime, TimeSpan endTime, long? excludeId = null);
     }
 }

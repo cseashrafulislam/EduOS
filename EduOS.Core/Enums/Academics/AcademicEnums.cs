@@ -1,5 +1,15 @@
 ﻿namespace EduOS.Core.Enums.Academics
 {
+    public enum AcademicCycleType
+    {
+        Annual = 1,
+        Semester = 2,
+        Trimester = 3,
+        Quarterly = 4,
+        Modular = 5,
+        BatchBased = 6
+    }
+
     public enum DeliveryMode
     {
         OnCampus = 1,

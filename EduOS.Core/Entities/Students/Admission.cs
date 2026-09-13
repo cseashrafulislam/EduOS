@@ -5,8 +5,8 @@ namespace EduOS.Core.Entities.Students
 {
     public class Admission : BaseTenantEntity
     {
-        public int AcademicYearId { get; set; }
-        public int ClassId { get; set; }
+        public long AcademicYearId { get; set; }
+        public long ClassId { get; set; }
         public string ApplicationNo { get; set; } = string.Empty;
         public string StudentName { get; set; } = string.Empty;
         public string FatherName { get; set; } = string.Empty;

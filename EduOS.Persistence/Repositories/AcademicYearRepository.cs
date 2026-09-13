@@ -9,36 +9,27 @@ namespace EduOS.Persistence.Repositories
     {
         public AcademicYearRepository(EduOSDbContext context) : base(context) { }
 
-        public async Task<AcademicYear?> GetCurrentAsync(int tenantId)
+        public async Task<AcademicYear?> GetCurrentAsync(long tenantId)
         {
-            return await _dbSet
-                .FirstOrDefaultAsync(y => y.TenantId == tenantId && y.IsCurrent);
+            return await _dbSet.FirstOrDefaultAsync(y => y.TenantId == tenantId && y.IsCurrent);
         }
 
-        public async Task<bool> IsNameExistsAsync(string name, int tenantId, int? excludeId = null)
+        public async Task<bool> IsNameExistsAsync(string name, long tenantId, long? excludeId = null)
         {
-            var query = _dbSet.Where(y => 
-                y.Name.ToLower() == name.ToLower() && y.TenantId == tenantId);
+            var query = _dbSet.Where(y => y.Name.ToLower() == name.ToLower() && y.TenantId == tenantId);
             if (excludeId.HasValue)
                 query = query.Where(y => y.Id != excludeId.Value);
             return await query.AnyAsync();
         }
 
-        public async Task<List<AcademicYear>> GetActiveYearsAsync(int tenantId)
+        public async Task<List<AcademicYear>> GetActiveYearsAsync(long tenantId)
         {
-            return await _dbSet
-                .Where(y => y.TenantId == tenantId && y.IsActive)
-                .OrderByDescending(y => y.StartDate)
-                .ToListAsync();
+            return await _dbSet.Where(y => y.TenantId == tenantId && y.IsActive).OrderByDescending(y => y.StartDate).ToListAsync();
         }
 
-        public async Task SetCurrentAsync(int yearId, int tenantId)
+        public async Task SetCurrentAsync(long yearId, long tenantId)
         {
-            // Reset all years for this tenant
-            var allYears = await _dbSet
-                .Where(y => y.TenantId == tenantId)
-                .ToListAsync();
-
+            var allYears = await _dbSet.Where(y => y.TenantId == tenantId).ToListAsync();
             foreach (var year in allYears)
                 year.IsCurrent = year.Id == yearId;
         }

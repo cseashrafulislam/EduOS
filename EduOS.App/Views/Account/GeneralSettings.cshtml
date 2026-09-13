@@ -1,142 +1,93 @@
 @{
-    ViewData["Title"] = "General settings";
+    ViewData["Title"] = "GeneralSettingsTitle";
     Layout = "_OnboardingLayout";
+    var pageStrings = new
+    {
+        loadFailed = T["ProfileLoadFailed"].Value,
+        networkError = T["NetworkError"].Value,
+        saving = T["Saving"].Value,
+        saveAndContinue = T["SaveAndContinue"].Value,
+        saveFailed = T["GeneralSettingsSaveFailed"].Value,
+        stepFailed = T["StepCompletionFailed"].Value,
+        continuing = T["Continuing"].Value,
+        skipForNow = T["SkipForNow"].Value,
+        continueSetup = T["ContinueSetup"].Value,
+        dashboard = T["Dashboard"].Value
+    };
+    var pageJson = System.Text.Json.JsonSerializer.Serialize(pageStrings);
 }
 
-<h2 class="mb-2">General settings</h2>
-<p class="text-muted mb-4">Set your default currency, timezone, and language preferences.</p>
+<article class="setup-page" aria-labelledby="generalSettingsTitle">
+    <header class="setup-header">
+        <div>
+            <p class="dashboard-eyebrow">@T["Onboarding_GeneralSettings_Name"]</p>
+            <h2 id="generalSettingsTitle">@T["GeneralSettingsTitle"]</h2>
+            <p>@T["GeneralSettingsHelp"]</p>
+        </div>
+    </header>
 
-<div id="alertContainer"></div>
+    <div id="alertContainer" class="d-none" role="alert" tabindex="-1"></div>
 
-<form id="settingsForm">
-    <div class="card">
-        <div class="card-body">
+    <form id="settingsForm" class="setup-form">
+        <section class="setup-section" aria-labelledby="regionalPreferencesTitle">
+            <div class="setup-section-heading">
+                <h3 id="regionalPreferencesTitle">@T["RegionalPreferences"]</h3>
+                <p>@T["RegionalPreferencesHelp"]</p>
+            </div>
             <div class="row g-3">
                 <div class="col-md-6">
-                    <label class="form-label small fw-bold">Currency</label>
+                    <label class="form-label" for="currency">@T["Currency"]</label>
                     <select class="form-select" id="currency" required>
-                        <option value="BDT">Bangladeshi Taka (BDT)</option>
-                        <option value="USD">US Dollar (USD)</option>
-                        <option value="INR">Indian Rupee (INR)</option>
-                        <option value="GBP">British Pound (GBP)</option>
-                        <option value="EUR">Euro (EUR)</option>
+                        <option value="BDT">@T["CurrencyBDT"]</option>
+                        <option value="USD">@T["CurrencyUSD"]</option>
+                        <option value="INR">@T["CurrencyINR"]</option>
+                        <option value="GBP">@T["CurrencyGBP"]</option>
+                        <option value="EUR">@T["CurrencyEUR"]</option>
+                        <option value="AED">@T["CurrencyAED"]</option>
                     </select>
                 </div>
-
                 <div class="col-md-6">
-                    <label class="form-label small fw-bold">Currency symbol</label>
-                    <input type="text" class="form-control" id="currencySymbol" maxlength="5" />
+                    <label class="form-label" for="currencySymbol">@T["CurrencySymbol"]</label>
+                    <input type="text" class="form-control" id="currencySymbol" maxlength="10" required />
                 </div>
-
                 <div class="col-md-6">
-                    <label class="form-label small fw-bold">Timezone</label>
+                    <label class="form-label" for="timeZone">@T["TimeZone"]</label>
                     <select class="form-select" id="timeZone" required>
-                        <option value="Asia/Dhaka">Asia/Dhaka (BST, UTC+6)</option>
-                        <option value="Asia/Kolkata">Asia/Kolkata (IST, UTC+5:30)</option>
-                        <option value="Asia/Karachi">Asia/Karachi (PKT, UTC+5)</option>
-                        <option value="Asia/Dubai">Asia/Dubai (GST, UTC+4)</option>
-                        <option value="UTC">UTC (GMT)</option>
-                        <option value="America/New_York">America/New_York (EST, UTC-5)</option>
-                        <option value="Europe/London">Europe/London (GMT)</option>
+                        <option value="Asia/Dhaka">Asia/Dhaka (UTC+6)</option>
+                        <option value="Asia/Kolkata">Asia/Kolkata (UTC+5:30)</option>
+                        <option value="Asia/Karachi">Asia/Karachi (UTC+5)</option>
+                        <option value="Asia/Dubai">Asia/Dubai (UTC+4)</option>
+                        <option value="UTC">UTC</option>
+                        <option value="Europe/London">Europe/London</option>
+                        <option value="America/New_York">America/New_York</option>
                     </select>
                 </div>
-
                 <div class="col-md-6">
-                    <label class="form-label small fw-bold">Language</label>
+                    <label class="form-label" for="language">@T["Language"]</label>
                     <select class="form-select" id="language" required>
                         <option value="en">English</option>
-                        <option value="bn">বাংলা (Bangla)</option>
-                        <option value="ar">العربية (Arabic)</option>
+                        <option value="bn-BD">বাংলা</option>
                     </select>
                 </div>
-
                 <div class="col-md-6">
-                    <label class="form-label small fw-bold">Date format</label>
+                    <label class="form-label" for="dateFormat">@T["DateFormat"]</label>
                     <select class="form-select" id="dateFormat" required>
-                        <option value="dd-MM-yyyy">DD-MM-YYYY (e.g., 02-05-2026)</option>
-                        <option value="MM-dd-yyyy">MM-DD-YYYY (e.g., 05-02-2026)</option>
-                        <option value="yyyy-MM-dd">YYYY-MM-DD (e.g., 2026-05-02)</option>
+                        <option value="dd-MM-yyyy">DD-MM-YYYY</option>
                         <option value="dd/MM/yyyy">DD/MM/YYYY</option>
+                        <option value="yyyy-MM-dd">YYYY-MM-DD</option>
+                        <option value="MM-dd-yyyy">MM-DD-YYYY</option>
                     </select>
                 </div>
             </div>
-        </div>
-    </div>
+        </section>
 
-    <div class="d-flex justify-content-between mt-4 pt-3 border-top">
-        <button type="button" class="btn btn-outline-secondary" id="skipBtn">
-            Skip for now
-        </button>
-        <button type="submit" class="btn btn-primary">
-            Save & continue <i class="bi bi-arrow-right ms-1"></i>
-        </button>
-    </div>
-</form>
+        <div class="setup-guidance" role="note">@T["RegionalDefaultsNote"]</div>
+        <footer class="setup-actions">
+            <button type="button" class="btn btn-outline-secondary" id="skipBtn" data-idle-label="@T["SkipForNow"]" data-loading-label="@T["Continuing"]">@T["SkipForNow"]</button>
+            <button type="submit" class="btn btn-primary" id="saveSettingsBtn" data-idle-label="@T["SaveAndContinue"]" data-loading-label="@T["Saving"]">@T["SaveAndContinue"]</button>
+        </footer>
+    </form>
+</article>
 
-<script>
-    const currencySymbols = { BDT: '৳', USD: '$', INR: '₹', GBP: '£', EUR: '€' };
-
-    async function loadSettings() {
-        try {
-            const res = await fetch('/api/tenant-profile', { credentials: 'include' });
-            const data = await res.json();
-            if (data.success) {
-                document.getElementById('currency').value = data.data.currency || 'BDT';
-                document.getElementById('currencySymbol').value = data.data.currencySymbol || '৳';
-                document.getElementById('timeZone').value = data.data.timeZone || 'Asia/Dhaka';
-                document.getElementById('language').value = data.data.language || 'en';
-                document.getElementById('dateFormat').value = data.data.dateFormat || 'dd-MM-yyyy';
-            }
-        } catch (e) { console.error(e); }
-    }
-
-    document.getElementById('currency').addEventListener('change', e => {
-        const sym = currencySymbols[e.target.value];
-        if (sym) document.getElementById('currencySymbol').value = sym;
-    });
-
-    document.getElementById('settingsForm').addEventListener('submit', async e => {
-        e.preventDefault();
-
-        const dto = {
-            currency: document.getElementById('currency').value,
-            currencySymbol: document.getElementById('currencySymbol').value,
-            timeZone: document.getElementById('timeZone').value,
-            language: document.getElementById('language').value,
-            dateFormat: document.getElementById('dateFormat').value
-        };
-
-        const res = await fetch('/api/tenant-profile/general-settings', {
-            method: 'PUT',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(dto)
-        });
-        const data = await res.json();
-
-        if (data.success) {
-            await advanceStep();
-        } else {
-            showAlert('danger', data.message);
-        }
-    });
-
-    document.getElementById('skipBtn').addEventListener('click', advanceStep);
-
-    async function advanceStep() {
-        await fetch('/api/onboarding/complete-step', {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ step: 7, skipped: true })
-        });
-        window.location.href = '/Account/GatewaySetup';
-    }
-
-    function showAlert(type, msg) {
-        const c = document.getElementById('alertContainer');
-        c.innerHTML = `<div class="alert alert-${type} alert-dismissible">${msg}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
-    }
-
-    document.addEventListener('DOMContentLoaded', loadSettings);
-</script>
+<script id="generalSettingsStrings" type="application/json">@Html.Raw(pageJson)</script>
+<script src="~/js/account/general-settings.js" asp-append-version="true"></script>

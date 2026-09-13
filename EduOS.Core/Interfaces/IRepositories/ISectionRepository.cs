@@ -4,8 +4,8 @@ namespace EduOS.Core.Interfaces.IRepositories
 {
     public interface ISectionRepository : IGenericRepository<Section>
     {
-        Task<List<Section>> GetByClassIdAsync(int classId);
-        Task<bool> IsSectionNameExistsAsync(string name, int classId, int? excludeId = null);
-        Task<int> GetTotalCapacityAsync(int classId);
+        Task<List<Section>> GetByClassIdAsync(long classId);
+        Task<bool> IsSectionNameExistsAsync(string name, long classId, long? excludeId = null);
+        Task<int> GetTotalCapacityAsync(long classId);
     }
 }

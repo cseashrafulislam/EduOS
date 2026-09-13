@@ -5,9 +5,9 @@ namespace EduOS.Core.Entities.Finance
 {
     public class FeeStructure : BaseTenantEntity
     {
-        public int AcademicYearId { get; set; }
-        public int ClassId { get; set; }
-        public int FeeHeadId { get; set; }
+        public long AcademicYearId { get; set; }
+        public long ClassId { get; set; }
+        public long FeeHeadId { get; set; }
         public decimal Amount { get; set; }
 
         public virtual AcademicYear? AcademicYear { get; set; }

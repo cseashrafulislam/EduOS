@@ -56,7 +56,11 @@ namespace EduOS.Service.Mappings
                 .ForMember(d => d.PlanName,
                     opt => opt.MapFrom(s => s.Subscription != null && s.Subscription.SubscriptionPlan != null
                         ? s.Subscription.SubscriptionPlan.Name
-                        : string.Empty));
+                        : string.Empty))
+                .ForMember(d => d.PlanNameBangla,
+                    opt => opt.MapFrom(s => s.Subscription != null && s.Subscription.SubscriptionPlan != null
+                        ? s.Subscription.SubscriptionPlan.NameBangla
+                        : null));
 
         }
     }

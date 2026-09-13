@@ -63,6 +63,18 @@ namespace EduOS.Service.Services.SaaS
                     401);
             }
 
+            if (!Enum.IsDefined(dto.BillingCycle))
+            {
+                return ApiResponse<CreateSubscriptionResponseDto>.ErrorResponse(
+                    "Select a valid billing cycle");
+            }
+
+            if (!string.IsNullOrWhiteSpace(dto.CouponCode))
+            {
+                return ApiResponse<CreateSubscriptionResponseDto>.ErrorResponse(
+                    "Coupon codes are not available yet");
+            }
+
             var strategy = _unitOfWork.CreateExecutionStrategy();
 
             return await strategy.ExecuteAsync(async () =>
@@ -74,7 +86,7 @@ namespace EduOS.Service.Services.SaaS
                     // 1. Load plan
                     var plan = await _planRepo.GetByIdAsync(dto.SubscriptionPlanId);
 
-                    if (plan == null || !plan.IsActive)
+                    if (plan == null || !plan.IsActive || !plan.IsPubliclyVisible)
                     {
                         await _unitOfWork.RollbackTransactionAsync();
 
@@ -83,18 +95,17 @@ namespace EduOS.Service.Services.SaaS
                             404);
                     }
 
-                    // 2. Block if tenant already has active non-trial subscription
+                    // 2. Prevent duplicate pending invoices and trial resets. Plan
+                    // changes use a separate reviewed upgrade/downgrade workflow.
                     var existing = await _subscriptionRepo.GetActiveByTenantAsync(tenantId);
 
-                    if (existing != null &&
-                        !existing.IsTrial &&
-                        existing.Status == SubscriptionStatus.Active)
+                    if (existing != null)
                     {
                         await _unitOfWork.RollbackTransactionAsync();
 
                         return ApiResponse<CreateSubscriptionResponseDto>.ErrorResponse(
-                            "You already have an active subscription. Please cancel it before subscribing to a new plan.",
-                            400);
+                            "A current or pending subscription already exists for this institution.",
+                            409);
                     }
 
                     // 3. Load tenant
@@ -112,9 +123,19 @@ namespace EduOS.Service.Services.SaaS
                     var now = DateTime.UtcNow;
                     var isTrial = plan.IsFreeTrial;
 
-                    var price = isTrial
+                    var recurringPrice = isTrial
                         ? 0
                         : SubscriptionCalculator.GetPriceForCycle(plan, dto.BillingCycle);
+                    var setupFee = isTrial ? 0 : Math.Max(0, plan.SetupFee);
+                    var invoiceTotal = recurringPrice + setupFee;
+
+                    if (!isTrial && recurringPrice <= 0)
+                    {
+                        await _unitOfWork.RollbackTransactionAsync();
+                        return ApiResponse<CreateSubscriptionResponseDto>.ErrorResponse(
+                            "The selected plan is not available for this billing cycle.",
+                            400);
+                    }
 
                     // 4. Build subscription record
                     var subscription = new TenantSubscription
@@ -129,10 +150,10 @@ namespace EduOS.Service.Services.SaaS
                         MaxCampuses = plan.MaxCampuses,
                         MaxStorageMb = plan.MaxStorageMb,
                         StartDate = now,
-                        Price = price,
+                        Price = recurringPrice,
                         DiscountAmount = 0,
                         TaxAmount = 0,
-                        FinalAmount = price
+                        FinalAmount = invoiceTotal
                     };
 
                     if (isTrial)
@@ -163,7 +184,7 @@ namespace EduOS.Service.Services.SaaS
                     // 5. Generate invoice only for paid plans
                     SubscriptionInvoice? invoice = null;
 
-                    if (!isTrial && price > 0)
+                    if (!isTrial && invoiceTotal > 0)
                     {
                         invoice = new SubscriptionInvoice
                         {
@@ -174,12 +195,12 @@ namespace EduOS.Service.Services.SaaS
                             DueDate = now.AddDays(7),
                             PeriodStart = now,
                             PeriodEnd = subscription.EndDate,
-                            Subtotal = price,
+                            Subtotal = invoiceTotal,
                             DiscountAmount = 0,
                             TaxAmount = 0,
-                            TotalAmount = price,
+                            TotalAmount = invoiceTotal,
                             PaidAmount = 0,
-                            DueAmount = price,
+                            DueAmount = invoiceTotal,
                             Currency = plan.Currency,
                             PaymentStatus = PaymentStatus.Pending,
                             CustomerName = tenant.Name,
@@ -206,6 +227,12 @@ namespace EduOS.Service.Services.SaaS
                         tenant.Status = TenantStatus.Trial;
                         tenant.IsTrialActive = true;
                         tenant.TrialEndsAt = subscription.TrialEndDate;
+                        if (tenant.OnboardingStep <= OnboardingStep.PlanSelection)
+                            tenant.OnboardingStep = OnboardingStep.CampusSetup;
+                    }
+                    else if (tenant.OnboardingStep <= OnboardingStep.PlanSelection)
+                    {
+                        tenant.OnboardingStep = OnboardingStep.Payment;
                     }
 
                     _tenantRepo.Update(tenant);
@@ -252,6 +279,13 @@ namespace EduOS.Service.Services.SaaS
                     return ApiResponse<CreateSubscriptionResponseDto>.SuccessResponse(
                         response,
                         "Subscription created successfully");
+                }
+                catch (DbUpdateException ex)
+                {
+                    await _unitOfWork.RollbackTransactionAsync();
+                    _logger.LogWarning(ex, "Concurrent subscription creation blocked for tenant {TenantId}", tenantId);
+                    return ApiResponse<CreateSubscriptionResponseDto>.ErrorResponse(
+                        "A current or pending subscription already exists for this institution.", 409);
                 }
                 catch (Exception ex)
                 {
@@ -451,6 +485,8 @@ namespace EduOS.Service.Services.SaaS
                     tenant.Status = TenantStatus.Active;
                     tenant.IsTrialActive = false;
                     tenant.ActivatedAt ??= DateTime.UtcNow;
+                    if (tenant.OnboardingStep == OnboardingStep.Payment)
+                        tenant.OnboardingStep = OnboardingStep.CampusSetup;
                     _tenantRepo.Update(tenant);
                 }
 

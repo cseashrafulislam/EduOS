@@ -28,10 +28,14 @@ namespace EduOS.Persistence.Configurations.SaaS
             builder.Property(p => p.VerificationNote).HasMaxLength(1000);
             builder.Property(p => p.GatewayResponse).HasColumnType("nvarchar(max)");
             builder.Property(p => p.FailureReason).HasMaxLength(1000);
+            builder.Property(p => p.RowVersion).IsRowVersion();
 
             builder.HasIndex(p => p.TransactionId).IsUnique().HasFilter("[IsDeleted] = 0");
             builder.HasIndex(p => p.GatewayTransactionId);
             builder.HasIndex(p => new { p.TenantId, p.Status });
+            builder.HasIndex(p => p.SubscriptionInvoiceId)
+                .IsUnique()
+                .HasFilter("[IsDeleted] = 0 AND [Status] IN (2, 7)");
         }
     }
 }

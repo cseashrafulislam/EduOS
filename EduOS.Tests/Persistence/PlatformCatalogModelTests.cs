@@ -1,5 +1,5 @@
 using EduOS.Core.Entities.SaaS;
-using EduOS.Core.Entities.Tenants;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Persistence.Context;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
@@ -56,6 +56,25 @@ public class PlatformCatalogModelTests
 
         foreignKey.IsRequired.Should().BeFalse();
         foreignKey.DeleteBehavior.Should().Be(DeleteBehavior.Restrict);
+    }
+
+    [Fact]
+    public void Billing_model_prevents_duplicate_current_subscriptions_and_in_flight_payments()
+    {
+        using var context = CreateContext();
+        var subscription = context.Model.FindEntityType(typeof(TenantSubscription))!;
+        var payment = context.Model.FindEntityType(typeof(SubscriptionPayment))!;
+
+        subscription.GetIndexes().Should().Contain(index =>
+            index.IsUnique
+            && index.Properties.Select(property => property.Name).SequenceEqual(new[] { "TenantId" })
+            && index.GetFilter()!.Contains("[Status] IN (1, 2, 3, 6)"));
+        payment.GetIndexes().Should().Contain(index =>
+            index.IsUnique
+            && index.Properties.Select(property => property.Name).SequenceEqual(new[] { "SubscriptionInvoiceId" })
+            && index.GetFilter()!.Contains("[Status] IN (2, 7)"));
+        payment.FindProperty(nameof(SubscriptionPayment.RowVersion))!
+            .IsConcurrencyToken.Should().BeTrue();
     }
 
     private static EduOSDbContext CreateContext()

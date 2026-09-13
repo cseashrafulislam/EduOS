@@ -1,302 +1,86 @@
 @{
-    ViewData["Title"] = "Choose your plan";
+    ViewData["Title"] = T["PlanSelectionTitle"];
     Layout = "_OnboardingLayout";
+
+    var pageStrings = new
+    {
+        culture = CultureInfo.CurrentUICulture.Name,
+        isBangla = CultureInfo.CurrentUICulture.Name.StartsWith("bn", StringComparison.OrdinalIgnoreCase),
+        loading = T["LoadingPlans"].Value,
+        loadFailed = T["PlansLoadFailed"].Value,
+        noPlans = T["NoPlansAvailable"].Value,
+        retry = T["Retry"].Value,
+        recommended = T["MostPopular"].Value,
+        free = T["Free"].Value,
+        daysTrialTemplate = T["DaysTrialTemplate"].Value,
+        perPeriodTemplate = T["PerPeriodTemplate"].Value,
+        setupFeeTemplate = T["SetupFeeTemplate"].Value,
+        studentsTemplate = T["UpToStudentsTemplate"].Value,
+        teachersTemplate = T["TeachersTemplate"].Value,
+        campusesTemplate = T["CampusesTemplate"].Value,
+        moreFeaturesTemplate = T["MoreFeaturesTemplate"].Value,
+        selectPlanTemplate = T["SelectPlanAriaTemplate"].Value,
+        selected = T["Selected"].Value,
+        processing = T["Processing"].Value,
+        continueLabel = T["ContinueToPayment"].Value,
+        createFailed = T["SubscriptionCreateFailed"].Value,
+        networkError = T["NetworkError"].Value,
+        recovering = T["ExistingSubscriptionRedirecting"].Value,
+        periods = new Dictionary<string, string>
+        {
+            ["1"] = T["PeriodMonth"].Value,
+            ["2"] = T["PeriodThreeMonths"].Value,
+            ["3"] = T["PeriodSixMonths"].Value,
+            ["4"] = T["PeriodYear"].Value
+        }
+    };
+    var pageJson = System.Text.Json.JsonSerializer.Serialize(pageStrings);
 }
 
-<style>
-    .plan-card {
-        border: 2px solid #e5e7eb;
-        border-radius: 12px;
-        padding: 1.5rem;
-        background: #fff;
-        position: relative;
-        transition: all 0.2s;
-        cursor: pointer;
-        height: 100%;
-    }
+<article class="setup-page plan-selection-page" aria-labelledby="planSelectionTitle">
+    <header class="setup-header">
+        <div>
+            <p class="dashboard-eyebrow">@T["Onboarding_PlanSelection_Name"]</p>
+            <h2 id="planSelectionTitle">@T["PlanSelectionTitle"]</h2>
+            <p>@T["PlanSelectionHelp"]</p>
+        </div>
+    </header>
 
-    .plan-card:hover {
-        border-color: #93c5fd;
-        transform: translateY(-2px);
-        box-shadow: 0 8px 16px rgba(0,0,0,0.06);
-    }
+    <div id="alertContainer" class="d-none" role="alert" tabindex="-1"></div>
 
-    .plan-card.selected {
-        border-color: #2563eb;
-        background: #eff6ff;
-    }
+    <section aria-labelledby="billingCycleTitle">
+        <div class="setup-section-heading">
+            <h3 id="billingCycleTitle">@T["BillingCycleLabel"]</h3>
+        </div>
+        <div class="billing-cycle-tabs" id="billingToggle" role="group" aria-label="@T["BillingCycleLabel"]">
+            <button type="button" class="active" data-cycle="1" aria-pressed="true">@T["Monthly"]</button>
+            <button type="button" data-cycle="2" aria-pressed="false">
+                <span>@T["Quarterly"]</span><small>@T["QuarterlySaving"]</small>
+            </button>
+            <button type="button" data-cycle="3" aria-pressed="false">
+                <span>@T["HalfYearly"]</span><small>@T["HalfYearlySaving"]</small>
+            </button>
+            <button type="button" data-cycle="4" aria-pressed="false">
+                <span>@T["Yearly"]</span><small>@T["YearlySaving"]</small>
+            </button>
+        </div>
+    </section>
 
-    .plan-card.recommended {
-        border-color: #f59e0b;
-    }
+    <section id="plansGrid" class="plan-selection-grid" aria-live="polite" aria-busy="true">
+        <div class="setup-empty-state" role="status">
+            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+            <span>@T["LoadingPlans"]</span>
+        </div>
+    </section>
 
-    .recommended-badge {
-        position: absolute;
-        top: -10px;
-        right: 16px;
-        background: #f59e0b;
-        color: white;
-        padding: 2px 12px;
-        font-size: 11px;
-        font-weight: 500;
-        border-radius: 12px;
-    }
+    <footer class="setup-actions plan-selection-actions">
+        <p class="setup-safe-note"><span aria-hidden="true">✓</span> @T["PlanSelectionSafeNote"]</p>
+        <button type="button" class="btn btn-primary" id="continueBtn" disabled
+                data-idle-label="@T["ContinueToPayment"]" data-loading-label="@T["Processing"]">
+            @T["ContinueToPayment"]
+        </button>
+    </footer>
+</article>
 
-    .plan-name {
-        font-size: 18px;
-        font-weight: 600;
-        margin-bottom: 0.25rem;
-    }
-
-    .plan-desc {
-        font-size: 13px;
-        color: #64748b;
-        margin-bottom: 1rem;
-        min-height: 36px;
-    }
-
-    .plan-price {
-        font-size: 28px;
-        font-weight: 600;
-        color: #1e40af;
-        line-height: 1;
-    }
-
-    .plan-price-period {
-        font-size: 13px;
-        color: #94a3b8;
-        font-weight: 400;
-    }
-
-    .plan-features {
-        list-style: none;
-        padding: 0;
-        margin: 1rem 0 0 0;
-        font-size: 13px;
-    }
-
-    .plan-features li {
-        padding: 4px 0;
-        color: #475569;
-    }
-
-    .plan-features li i {
-        color: #10b981;
-        margin-right: 6px;
-    }
-
-    .billing-toggle {
-        display: inline-flex;
-        background: #f1f5f9;
-        border-radius: 8px;
-        padding: 4px;
-        margin-bottom: 2rem;
-    }
-
-    .billing-toggle button {
-        border: none;
-        background: transparent;
-        padding: 6px 16px;
-        border-radius: 6px;
-        font-size: 13px;
-        cursor: pointer;
-        color: #64748b;
-    }
-
-    .billing-toggle button.active {
-        background: #fff;
-        color: #1e40af;
-        font-weight: 500;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-    }
-
-    .billing-toggle button .save-badge {
-        background: #d1fae5;
-        color: #065f46;
-        font-size: 10px;
-        padding: 1px 6px;
-        border-radius: 4px;
-        margin-left: 4px;
-    }
-</style>
-
-<h2 class="mb-2">Choose your plan</h2>
-<p class="text-muted mb-4">Pick the plan that best fits your institution. You can upgrade or downgrade anytime.</p>
-
-<!-- Billing cycle toggle -->
-<div class="billing-toggle" id="billingToggle">
-    <button data-cycle="1" class="active">Monthly</button>
-    <button data-cycle="2">Quarterly <span class="save-badge">~10% off</span></button>
-    <button data-cycle="3">Half-yearly <span class="save-badge">~15% off</span></button>
-    <button data-cycle="4">Yearly <span class="save-badge">~22% off</span></button>
-</div>
-
-<!-- Plans grid -->
-<div class="row g-3" id="plansGrid">
-    <div class="col-12 text-center py-5 text-muted">
-        <div class="spinner-border" role="status"></div>
-        <div class="mt-2">Loading plans...</div>
-    </div>
-</div>
-
-<!-- Action footer -->
-<div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
-    <div class="text-muted small">
-        <i class="bi bi-shield-check"></i>
-        Cancel anytime. No hidden fees.
-    </div>
-    <button type="button" class="btn btn-primary" id="continueBtn" disabled>
-        Continue to payment
-        <i class="bi bi-arrow-right ms-1"></i>
-    </button>
-</div>
-
-<script>
-    let plans = [];
-    let selectedPlan = null;
-    let selectedCycle = 1;
-
-    async function loadPlans() {
-        try {
-            const res = await fetch('/api/subscription-plans', { credentials: 'include' });
-            const data = await res.json();
-            if (data.success) {
-                plans = data.data;
-                renderPlans();
-            }
-        } catch (e) {
-            document.getElementById('plansGrid').innerHTML =
-                '<div class="col-12 text-center text-danger">Failed to load plans</div>';
-        }
-    }
-
-    function getPriceForCycle(plan, cycle) {
-        switch (parseInt(cycle)) {
-            case 1: return { price: plan.monthlyPrice, period: 'month' };
-            case 2: return { price: plan.quarterlyPrice, period: '3 months' };
-            case 3: return { price: plan.halfYearlyPrice, period: '6 months' };
-            case 4: return { price: plan.yearlyPrice, period: 'year' };
-            default: return { price: plan.monthlyPrice, period: 'month' };
-        }
-    }
-
-    function renderPlans() {
-        const grid = document.getElementById('plansGrid');
-        grid.innerHTML = '';
-
-        plans.forEach(plan => {
-            const col = document.createElement('div');
-            col.className = 'col-md-6 col-lg-3';
-
-            const { price, period } = getPriceForCycle(plan, selectedCycle);
-            const isFree = plan.isFreeTrial;
-
-            const featuresHtml = plan.features.slice(0, 6).map(f =>
-                `<li><i class="bi bi-check-circle-fill"></i>${escapeHtml(f.featureName)}</li>`
-            ).join('');
-
-            const moreCount = plan.features.length - 6;
-            const moreFeatures = moreCount > 0 ? `<li class="text-muted">+ ${moreCount} more features</li>` : '';
-
-            col.innerHTML = `
-                <div class="plan-card ${plan.isRecommended ? 'recommended' : ''}" data-plan-id="${plan.id}">
-                    ${plan.isRecommended ? '<span class="recommended-badge">Recommended</span>' : ''}
-                    <div class="plan-name">${escapeHtml(plan.name)}</div>
-                    <div class="plan-desc">${escapeHtml(plan.shortDescription || '')}</div>
-                    ${isFree ? `
-                        <div class="plan-price">Free</div>
-                        <div class="plan-price-period">${plan.trialDays} days trial</div>
-                    ` : `
-                        <div class="plan-price">৳${formatPrice(price)}</div>
-                        <div class="plan-price-period">per ${period}</div>
-                    `}
-                    <div class="mt-2 small text-muted">
-                        <i class="bi bi-people"></i> Up to ${plan.maxStudents} students
-                        &nbsp;·&nbsp;
-                        <i class="bi bi-person-badge"></i> ${plan.maxTeachers} teachers
-                    </div>
-                    <ul class="plan-features">
-                        ${featuresHtml}
-                        ${moreFeatures}
-                    </ul>
-                </div>
-            `;
-
-            col.querySelector('.plan-card').addEventListener('click', () => selectPlan(plan.id));
-            grid.appendChild(col);
-        });
-    }
-
-    function selectPlan(planId) {
-        selectedPlan = planId;
-        document.querySelectorAll('.plan-card').forEach(c => c.classList.remove('selected'));
-        const card = document.querySelector(`[data-plan-id="${planId}"]`);
-        if (card) card.classList.add('selected');
-        document.getElementById('continueBtn').disabled = false;
-    }
-
-    function formatPrice(p) {
-        return Number(p).toLocaleString('en-IN', { minimumFractionDigits: 0 });
-    }
-
-    function escapeHtml(s) {
-        if (!s) return '';
-        return s.replace(/[&<>"']/g, c =>
-            ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-    }
-
-    // Billing toggle
-    document.getElementById('billingToggle').addEventListener('click', e => {
-        if (e.target.tagName !== 'BUTTON') return;
-        document.querySelectorAll('#billingToggle button').forEach(b => b.classList.remove('active'));
-        e.target.classList.add('active');
-        selectedCycle = parseInt(e.target.dataset.cycle);
-        renderPlans();
-        if (selectedPlan) selectPlan(selectedPlan);
-    });
-
-    // Continue button - subscribe
-    document.getElementById('continueBtn').addEventListener('click', async () => {
-        if (!selectedPlan) return;
-
-        const btn = document.getElementById('continueBtn');
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
-
-        try {
-            const res = await fetch('/api/subscription', {
-                method: 'POST',
-                credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    subscriptionPlanId: selectedPlan,
-                    billingCycle: selectedCycle,
-                    paymentMethod: 1, // Manual; user can switch to AamarPay on payment page
-                    autoRenew: true
-                })
-            });
-            const data = await res.json();
-
-            if (!data.success) {
-                alert(data.message || 'Failed to subscribe');
-                btn.disabled = false;
-                btn.innerHTML = 'Continue to payment <i class="bi bi-arrow-right ms-1"></i>';
-                return;
-            }
-
-            // If trial activated, skip payment and go to next step
-            if (data.data.isTrialActivated) {
-                window.location.href = '/Account/CampusSetup';
-            } else {
-                // Redirect to payment page with invoice ID
-                window.location.href = `/Account/Payment?invoiceId=${data.data.invoiceId}`;
-            }
-        } catch (e) {
-            alert('Network error. Please try again.');
-            btn.disabled = false;
-            btn.innerHTML = 'Continue to payment <i class="bi bi-arrow-right ms-1"></i>';
-        }
-    });
-
-    document.addEventListener('DOMContentLoaded', loadPlans);
-</script>
+<script id="planSelectionStrings" type="application/json">@Html.Raw(pageJson)</script>
+<script src="~/js/account/plan-selection.js" asp-append-version="true"></script>

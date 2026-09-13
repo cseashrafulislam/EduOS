@@ -6,12 +6,12 @@ namespace EduOS.Core.Entities.System
 {
     public class IdCard : BaseTenantEntity
     {
-        public int? StudentId { get; set; }
-        public int? EmployeeId { get; set; }
+        public long? StudentId { get; set; }
+        public long? EmployeeId { get; set; }
         public string CardNo { get; set; } = string.Empty;
         public DateTime IssueDate { get; set; }
         public DateTime? ExpiryDate { get; set; }
-        public int? TemplateId { get; set; }
+        public long? TemplateId { get; set; }
         public bool IsActive { get; set; } = true;
 
         public virtual Student? Student { get; set; }
