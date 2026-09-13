@@ -32,12 +32,6 @@ namespace EduOS.App.Middleware
                 return;
             }
 
-            if (context.User.IsInRole("SuperAdmin"))
-            {
-                await _next(context);
-                return;
-            }
-
             try
             {
                 var userIdStr = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -48,8 +42,8 @@ namespace EduOS.App.Middleware
                     return;
                 }
 
-                // Resolve canonical membership on every request. Tenant assignments are security-sensitive
-                // and must not remain stale after an administrator moves/disables a user.
+                // Resolve canonical account state on every authenticated request. Tenant assignments and
+                // account activation are security-sensitive and must not remain stale in an old cookie.
                 var user = await userManager.FindByIdAsync(userId.ToString());
                 if (user == null)
                 {
@@ -62,6 +56,14 @@ namespace EduOS.App.Middleware
                 {
                     _logger.LogWarning("Deactivated user {UserId} attempted to use an authenticated session.", userId);
                     await RejectAsync(context, StatusCodes.Status403Forbidden, "Your account has been deactivated. Please contact support.");
+                    return;
+                }
+
+                // Platform administrators are intentionally tenantless, but they still pass the canonical
+                // account existence/activation checks above before bypassing tenant resolution.
+                if (context.User.IsInRole("SuperAdmin"))
+                {
+                    await _next(context);
                     return;
                 }
 
@@ -90,11 +92,11 @@ namespace EduOS.App.Middleware
             }
             catch (Exception ex)
             {
-                // Tenant resolution is an authorization boundary. Never continue without a trusted tenant
-                // context when the authenticated non-platform request cannot be resolved safely.
-                _logger.LogError(ex, "Tenant context resolution failed for authenticated request.");
+                // Tenant/account resolution is an authorization boundary. Never continue without trusted
+                // canonical state when an authenticated request cannot be resolved safely.
+                _logger.LogError(ex, "Authenticated account or tenant context resolution failed.");
                 if (!context.Response.HasStarted)
-                    await RejectAsync(context, StatusCodes.Status503ServiceUnavailable, "Unable to validate your institution access right now. Please try again.");
+                    await RejectAsync(context, StatusCodes.Status503ServiceUnavailable, "Unable to validate your account access right now. Please try again.");
             }
         }
 
