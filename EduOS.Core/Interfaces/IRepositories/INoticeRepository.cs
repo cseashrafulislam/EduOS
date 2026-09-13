@@ -4,8 +4,8 @@ namespace EduOS.Core.Interfaces.IRepositories
 {
     public interface INoticeRepository : IGenericRepository<Notice>
     {
-        Task<List<Notice>> GetActiveAsync(int tenantId);
-        Task<List<Notice>> GetByAudienceAsync(string audience, int tenantId);
-        Task<List<Notice>> GetRecentAsync(int tenantId, int count = 10);
+        Task<List<Notice>> GetActiveAsync(long tenantId);
+        Task<List<Notice>> GetByAudienceAsync(string audience, long tenantId);
+        Task<List<Notice>> GetRecentAsync(long tenantId, int count = 10);
     }
 }
