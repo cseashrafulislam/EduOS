@@ -10,9 +10,9 @@ namespace EduOS.Core.Entities.Finance
         public Guid GenerationRequestId { get; set; }
         public string BillingKey { get; set; } = string.Empty;
         public long StudentId { get; set; }
-        public int AcademicYearId { get; set; }
-        public int ClassId { get; set; }
-        public int SectionId { get; set; }
+        public long AcademicYearId { get; set; }
+        public long ClassId { get; set; }
+        public long SectionId { get; set; }
         public string InvoiceNo { get; set; } = string.Empty;
         public string Month { get; set; } = string.Empty;
         public int Year { get; set; }
