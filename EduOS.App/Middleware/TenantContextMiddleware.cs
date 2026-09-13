@@ -42,8 +42,8 @@ namespace EduOS.App.Middleware
                     return;
                 }
 
-                // Resolve canonical account state on every authenticated request. Tenant assignments and
-                // account activation are security-sensitive and must not remain stale in an old cookie.
+                // Resolve canonical account state on every authenticated request. Tenant assignments,
+                // activation and authorization membership must not remain stale in an old cookie.
                 var user = await userManager.FindByIdAsync(userId.ToString());
                 if (user == null)
                 {
@@ -59,9 +59,21 @@ namespace EduOS.App.Middleware
                     return;
                 }
 
-                // Platform administrators are intentionally tenantless, but they still pass the canonical
-                // account existence/activation checks above before bypassing tenant resolution.
-                if (context.User.IsInRole("SuperAdmin"))
+                var canonicalRoles = await userManager.GetRolesAsync(user);
+                var principalRoles = context.User.FindAll(ClaimTypes.Role)
+                    .Select(x => x.Value)
+                    .Where(x => !string.IsNullOrWhiteSpace(x));
+                var canonicalRoleSet = new HashSet<string>(canonicalRoles, StringComparer.OrdinalIgnoreCase);
+                if (!canonicalRoleSet.SetEquals(principalRoles))
+                {
+                    _logger.LogWarning("User {UserId} attempted to use a session with stale role claims.", userId);
+                    await RejectAsync(context, StatusCodes.Status401Unauthorized, "Your permissions changed. Please sign in again.");
+                    return;
+                }
+
+                // Platform administrators are intentionally tenantless, but only the canonical role
+                // membership resolved above may bypass tenant resolution.
+                if (canonicalRoleSet.Contains("SuperAdmin"))
                 {
                     await _next(context);
                     return;
