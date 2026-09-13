@@ -25,10 +25,10 @@ namespace EduOS.Core.Entities.Students
         public string? Email { get; set; }
         public string? Address { get; set; }
         public string? BirthCertNo { get; set; }
-        public int ClassId { get; set; }
-        public int SectionId { get; set; }
-        public int? GroupId { get; set; }
-        public int AcademicYearId { get; set; }
+        public long ClassId { get; set; }
+        public long SectionId { get; set; }
+        public long? GroupId { get; set; }
+        public long AcademicYearId { get; set; }
         public DateTime AdmissionDate { get; set; }
         public string? PhotoUrl { get; set; }
         public string PreferredLanguage { get; set; } = "bn-BD";
