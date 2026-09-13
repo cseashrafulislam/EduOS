@@ -240,6 +240,14 @@ namespace EduOS.Service.Services.SaaS
 
                     payment.Status = PaymentStatus.Successful;
                     payment.CompletedAt = DateTime.UtcNow;
+                    payment.FailedAt = null;
+                    payment.FailureReason = null;
+                    payment.GatewayResponse = verify.RawResponse;
+
+                    // Persist the terminal payment state first. RowVersion makes this
+                    // the concurrency gate before invoice/subscription side effects.
+                    _paymentRepo.Update(payment);
+                    await _unitOfWork.SaveChangesAsync();
 
                     // Update invoice
                     var invoice = await _invoiceRepo.GetByIdForSystemAsync(
@@ -280,6 +288,13 @@ namespace EduOS.Service.Services.SaaS
                     callback.MerTxnid, payment.Status);
 
                 return ApiResponse<bool>.SuccessResponse(true);
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                _logger.LogInformation(ex,
+                    "Concurrent AamarPay callback ignored for {TxnId}", callback.MerTxnid);
+                return ApiResponse<bool>.SuccessResponse(true, "Already processed");
             }
             catch (Exception ex)
             {
@@ -526,6 +541,11 @@ namespace EduOS.Service.Services.SaaS
                     payment.Status = PaymentStatus.Successful;
                     payment.CompletedAt = DateTime.UtcNow;
 
+                    // Claim this review before mutating the invoice or activating the
+                    // subscription. A competing admin action will fail RowVersion.
+                    _paymentRepo.Update(payment);
+                    await _unitOfWork.SaveChangesAsync();
+
                     if (invoice != null)
                     {
                         invoice.PaidAmount += payment.Amount;
@@ -573,6 +593,12 @@ namespace EduOS.Service.Services.SaaS
 
                 return ApiResponse<bool>.SuccessResponse(true,
                     dto.Approve ? "Payment approved" : "Payment rejected");
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                _logger.LogWarning(ex, "Concurrent manual payment review blocked for {Id}", dto.PaymentId);
+                return ApiResponse<bool>.ErrorResponse("Payment was already reviewed", 409);
             }
             catch (Exception ex)
             {
