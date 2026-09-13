@@ -67,7 +67,7 @@ namespace EduOS.Core.Entities.SaaS
 
         // ==================== Concurrency ====================
 
-        public byte[] RowVersion { get; set; } = null!;
+        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
         // ==================== Navigation ====================
 
