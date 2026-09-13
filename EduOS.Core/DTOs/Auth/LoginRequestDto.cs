@@ -15,7 +15,7 @@
         public long userId { get; set; }
         public string FullName { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
-        public int TenantId { get; set; }
+        public long TenantId { get; set; }
         public string InstitutionName { get; set; } = string.Empty;
         public IList<string> Roles { get; set; } = new List<string>();
         public bool IsOnboardingComplete { get; set; }
