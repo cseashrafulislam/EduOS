@@ -6,7 +6,7 @@ namespace EduOS.Core.Interfaces.IRepositories
         Task<Employee?> GetByCodeAsync(string code);
         Task<Employee?> GetByUserIdAsync(long userId);
         Task<List<Employee>> GetTeachersAsync(long tenantId);
-        Task<List<Employee>> GetByDepartmentAsync(int departmentId);
+        Task<List<Employee>> GetByDepartmentAsync(long departmentId);
         Task<bool> IsCodeExistsAsync(string code, long tenantId, long? excludeId = null);
         Task<string> GenerateEmployeeCodeAsync(long tenantId);
     }
