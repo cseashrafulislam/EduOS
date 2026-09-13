@@ -83,6 +83,7 @@ namespace EduOS.Service.Services.SaaS
                         "Online payment is not configured", 503);
                 }
 
+                // 1. Load invoice
                 var invoice = await _invoiceRepo.GetByIdAsync(dto.InvoiceId);
                 if (invoice == null || invoice.TenantId != tenantId)
                     return ApiResponse<InitiatePaymentResponseDto>.ErrorResponse("Invoice not found", 404);
@@ -96,9 +97,15 @@ namespace EduOS.Service.Services.SaaS
                 var existingPayments = await _paymentRepo.GetByInvoiceAsync(invoice.Id);
                 await ExpireStaleProcessingPaymentsAsync(existingPayments);
                 if (existingPayments.Any(p => p.Status is PaymentStatus.Processing or PaymentStatus.AwaitingVerification))
-                    return ApiResponse<InitiatePaymentResponseDto>.ErrorResponse("A payment is already being processed for this invoice", 409);
+                {
+                    return ApiResponse<InitiatePaymentResponseDto>.ErrorResponse(
+                        "A payment is already being processed for this invoice", 409);
+                }
 
+                // 2. Generate our internal transaction ID
                 var transactionId = CreateTransactionId("EDU", tenantId, invoice.Id);
+
+                // 3. Create payment record
                 var payment = new SubscriptionPayment
                 {
                     TenantId = tenantId,
@@ -114,7 +121,9 @@ namespace EduOS.Service.Services.SaaS
                 await _paymentRepo.AddAsync(payment);
                 await _unitOfWork.SaveChangesAsync();
 
+                // 4. Build AamarPay request
                 var tenant = await _tenantRepo.GetByIdAsync(tenantId);
+
                 var apRequest = new AamarPayRequest
                 {
                     TransactionId = transactionId,
@@ -131,7 +140,9 @@ namespace EduOS.Service.Services.SaaS
                     CancelUrl = $"{callbackBaseUrl}/api/subscription-payment/callback/cancel"
                 };
 
+                // 5. Call AamarPay
                 var apResult = await _aamarPay.InitiatePaymentAsync(apRequest);
+
                 if (!apResult.IsSuccess)
                 {
                     payment.Status = PaymentStatus.Failed;
@@ -140,25 +151,29 @@ namespace EduOS.Service.Services.SaaS
                     payment.GatewayResponse = apResult.RawResponse;
                     _paymentRepo.Update(payment);
                     await _unitOfWork.SaveChangesAsync();
-                    return ApiResponse<InitiatePaymentResponseDto>.ErrorResponse(apResult.ErrorMessage ?? "Payment gateway error", 500);
+
+                    return ApiResponse<InitiatePaymentResponseDto>.ErrorResponse(
+                        apResult.ErrorMessage ?? "Payment gateway error", 500);
                 }
 
                 payment.GatewayResponse = apResult.RawResponse;
                 _paymentRepo.Update(payment);
                 await _unitOfWork.SaveChangesAsync();
 
-                return ApiResponse<InitiatePaymentResponseDto>.SuccessResponse(new InitiatePaymentResponseDto
-                {
-                    TransactionId = transactionId,
-                    PaymentUrl = apResult.PaymentUrl,
-                    Status = PaymentStatus.Processing,
-                    Message = "Redirect user to PaymentUrl to complete payment"
-                });
+                return ApiResponse<InitiatePaymentResponseDto>.SuccessResponse(
+                    new InitiatePaymentResponseDto
+                    {
+                        TransactionId = transactionId,
+                        PaymentUrl = apResult.PaymentUrl,
+                        Status = PaymentStatus.Processing,
+                        Message = "Redirect user to PaymentUrl to complete payment"
+                    });
             }
             catch (DbUpdateException ex)
             {
                 _logger.LogWarning(ex, "Concurrent payment initiation blocked for invoice {InvoiceId}", dto.InvoiceId);
-                return ApiResponse<InitiatePaymentResponseDto>.ErrorResponse("A payment is already being processed for this invoice", 409);
+                return ApiResponse<InitiatePaymentResponseDto>.ErrorResponse(
+                    "A payment is already being processed for this invoice", 409);
             }
             catch (Exception ex)
             {
@@ -184,21 +199,32 @@ namespace EduOS.Service.Services.SaaS
                     return ApiResponse<bool>.ErrorResponse("Transaction not found", 404);
                 }
 
+                // Already processed - idempotent
                 if (payment.Status == PaymentStatus.Successful)
                     return ApiResponse<bool>.SuccessResponse(true, "Already processed");
 
                 await _unitOfWork.BeginTransactionAsync();
+
                 payment.GatewayTransactionId = callback.PgTxnid;
                 payment.GatewayReference = callback.BankTxnid;
+
                 var isSuccess = string.Equals(callback.PayStatus, "Successful", StringComparison.OrdinalIgnoreCase);
 
                 if (isSuccess)
                 {
+                    // Verify with AamarPay before trusting the callback
                     var verify = await _aamarPay.VerifyTransactionAsync(callback.MerTxnid);
-                    var amountMatches = decimal.TryParse(verify.Amount, NumberStyles.Number, CultureInfo.InvariantCulture, out var verifiedAmount)
+                    var amountMatches = decimal.TryParse(
+                        verify.Amount,
+                        NumberStyles.Number,
+                        CultureInfo.InvariantCulture,
+                        out var verifiedAmount)
                         && verifiedAmount == payment.Amount;
                     var currencyMatches = string.IsNullOrWhiteSpace(verify.Currency)
-                        || string.Equals(verify.Currency, payment.Currency, StringComparison.OrdinalIgnoreCase);
+                        || string.Equals(
+                            verify.Currency,
+                            payment.Currency,
+                            StringComparison.OrdinalIgnoreCase);
 
                     if (!verify.IsSuccess || !amountMatches || !currencyMatches)
                     {
@@ -214,7 +240,10 @@ namespace EduOS.Service.Services.SaaS
 
                     payment.Status = PaymentStatus.Successful;
                     payment.CompletedAt = DateTime.UtcNow;
-                    var invoice = await _invoiceRepo.GetByIdForSystemAsync(payment.SubscriptionInvoiceId, payment.TenantId);
+
+                    // Update invoice
+                    var invoice = await _invoiceRepo.GetByIdForSystemAsync(
+                        payment.SubscriptionInvoiceId, payment.TenantId);
                     if (invoice != null)
                     {
                         invoice.PaidAmount += payment.Amount;
@@ -226,9 +255,11 @@ namespace EduOS.Service.Services.SaaS
                         }
                         _invoiceRepo.Update(invoice);
 
+                        // Activate subscription if invoice is fully paid
                         if (invoice.PaymentStatus == PaymentStatus.Successful)
                         {
-                            var activation = await _subscriptionService.ActivateAfterPaymentAsync(invoice.TenantSubscriptionId, payment.TenantId);
+                            var activation = await _subscriptionService.ActivateAfterPaymentAsync(
+                                invoice.TenantSubscriptionId, payment.TenantId);
                             if (!activation.Success)
                                 throw new InvalidOperationException("Subscription activation failed after verified payment.");
                         }
@@ -244,7 +275,10 @@ namespace EduOS.Service.Services.SaaS
                 _paymentRepo.Update(payment);
                 await _unitOfWork.SaveChangesAsync();
                 await _unitOfWork.CommitTransactionAsync();
-                _logger.LogInformation("AamarPay callback processed for {TxnId}, status={Status}", callback.MerTxnid, payment.Status);
+
+                _logger.LogInformation("AamarPay callback processed for {TxnId}, status={Status}",
+                    callback.MerTxnid, payment.Status);
+
                 return ApiResponse<bool>.SuccessResponse(true);
             }
             catch (Exception ex)
@@ -258,7 +292,8 @@ namespace EduOS.Service.Services.SaaS
         // ============================================================
         // SUBMIT MANUAL PAYMENT
         // ============================================================
-        public async Task<ApiResponse<SubscriptionPaymentDto>> SubmitManualPaymentAsync(ManualPaymentSubmitDto dto, IFormFile? depositSlip)
+        public async Task<ApiResponse<SubscriptionPaymentDto>> SubmitManualPaymentAsync(
+            ManualPaymentSubmitDto dto, IFormFile? depositSlip)
         {
             var tenantId = _currentUser.TenantId;
             string? uploadedStorageKey = null;
@@ -275,45 +310,67 @@ namespace EduOS.Service.Services.SaaS
                     return ApiResponse<SubscriptionPaymentDto>.ErrorResponse("Invoice already paid", 400);
 
                 if (dto.Amount <= 0 || dto.Amount != invoice.DueAmount)
-                    return ApiResponse<SubscriptionPaymentDto>.ErrorResponse("The submitted amount must match the full invoice balance", 400);
+                    return ApiResponse<SubscriptionPaymentDto>.ErrorResponse(
+                        "The submitted amount must match the full invoice balance", 400);
 
                 if (string.IsNullOrWhiteSpace(_manualSettings.BankName)
                     || string.IsNullOrWhiteSpace(_manualSettings.AccountName)
                     || string.IsNullOrWhiteSpace(_manualSettings.AccountNumber))
-                    return ApiResponse<SubscriptionPaymentDto>.ErrorResponse("Manual payment is not configured", 503);
+                {
+                    return ApiResponse<SubscriptionPaymentDto>.ErrorResponse(
+                        "Manual payment is not configured", 503);
+                }
 
                 if (string.IsNullOrWhiteSpace(dto.PayerBankName)
                     || string.IsNullOrWhiteSpace(dto.PayerAccountNumber)
                     || string.IsNullOrWhiteSpace(dto.DepositSlipNumber))
-                    return ApiResponse<SubscriptionPaymentDto>.ErrorResponse("Bank, account, and deposit slip details are required", 400);
+                {
+                    return ApiResponse<SubscriptionPaymentDto>.ErrorResponse(
+                        "Bank, account, and deposit slip details are required", 400);
+                }
 
-                var bangladeshToday = DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(6)).Date;
+                var bangladeshToday = DateTimeOffset.UtcNow
+                    .ToOffset(TimeSpan.FromHours(6)).Date;
                 if (dto.DepositDate == default || dto.DepositDate.Date > bangladeshToday)
                     return ApiResponse<SubscriptionPaymentDto>.ErrorResponse("Invalid deposit date", 400);
 
                 var existingPayments = await _paymentRepo.GetByInvoiceAsync(invoice.Id);
                 await ExpireStaleProcessingPaymentsAsync(existingPayments);
                 if (existingPayments.Any(p => p.Status is PaymentStatus.Processing or PaymentStatus.AwaitingVerification))
-                    return ApiResponse<SubscriptionPaymentDto>.ErrorResponse("A manual payment is already awaiting verification", 409);
+                {
+                    return ApiResponse<SubscriptionPaymentDto>.ErrorResponse(
+                        "A manual payment is already awaiting verification", 409);
+                }
 
                 if (depositSlip == null || depositSlip.Length <= 0)
                     return ApiResponse<SubscriptionPaymentDto>.ErrorResponse("Deposit slip is required", 400);
 
                 var extension = Path.GetExtension(depositSlip.FileName).ToLowerInvariant();
-                var allowedReceiptTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".pdf", ".jpg", ".jpeg", ".png" };
-                var allowedReceiptMimeTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "application/pdf", "image/jpeg", "image/png" };
+                var allowedReceiptTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ".pdf", ".jpg", ".jpeg", ".png"
+                };
+                var allowedReceiptMimeTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "application/pdf", "image/jpeg", "image/png"
+                };
                 if (depositSlip.Length > 5 * 1024L * 1024L
                     || !allowedReceiptTypes.Contains(extension)
                     || !allowedReceiptMimeTypes.Contains(depositSlip.ContentType ?? string.Empty)
                     || !_fileStorage.ValidateFile(depositSlip))
-                    return ApiResponse<SubscriptionPaymentDto>.ErrorResponse("Invalid deposit slip. Upload a PDF, JPG, JPEG, or PNG up to 5 MB", 400);
+                {
+                    return ApiResponse<SubscriptionPaymentDto>.ErrorResponse(
+                        "Invalid deposit slip. Upload a PDF, JPG, JPEG, or PNG up to 5 MB", 400);
+                }
 
                 var upload = await _fileStorage.UploadPrivateAsync(depositSlip, "deposit-slips");
                 if (!upload.Success)
-                    return ApiResponse<SubscriptionPaymentDto>.ErrorResponse(upload.ErrorMessage ?? "File upload failed", 400);
+                    return ApiResponse<SubscriptionPaymentDto>.ErrorResponse(
+                        upload.ErrorMessage ?? "File upload failed", 400);
 
                 var slipStorageKey = upload.FileUrl;
                 uploadedStorageKey = slipStorageKey;
+
                 var transactionId = CreateTransactionId("MAN", tenantId, invoice.Id);
 
                 var payment = new SubscriptionPayment
@@ -330,24 +387,34 @@ namespace EduOS.Service.Services.SaaS
                     PayerAccountNumber = dto.PayerAccountNumber.Trim(),
                     DepositSlipNumber = dto.DepositSlipNumber.Trim(),
                     DepositDate = dto.DepositDate,
+                    // Historical column name retained for migration compatibility. It
+                    // now stores a private key and is never exposed as a public URL.
                     DepositSlipUrl = slipStorageKey,
                     VerificationNote = dto.Note?.Trim()
                 };
 
                 await _paymentRepo.AddAsync(payment);
+
+                // Mark invoice as awaiting verification
                 invoice.PaymentStatus = PaymentStatus.AwaitingVerification;
                 _invoiceRepo.Update(invoice);
+
                 await _unitOfWork.SaveChangesAsync();
 
-                _logger.LogInformation("Manual payment submitted for invoice {InvoiceId}, txn {TxnId}", invoice.Id, transactionId);
-                return ApiResponse<SubscriptionPaymentDto>.SuccessResponse(MapToDto(payment, invoice.InvoiceNumber), "Payment submitted. Awaiting admin verification.");
+                _logger.LogInformation("Manual payment submitted for invoice {InvoiceId}, txn {TxnId}",
+                    invoice.Id, transactionId);
+
+                var resultDto = MapToDto(payment, invoice.InvoiceNumber);
+                return ApiResponse<SubscriptionPaymentDto>.SuccessResponse(resultDto,
+                    "Payment submitted. Awaiting admin verification.");
             }
             catch (DbUpdateException ex)
             {
                 if (!string.IsNullOrWhiteSpace(uploadedStorageKey))
                     await _fileStorage.DeletePrivateAsync(uploadedStorageKey);
                 _logger.LogWarning(ex, "Concurrent manual payment submission blocked for invoice {InvoiceId}", dto.InvoiceId);
-                return ApiResponse<SubscriptionPaymentDto>.ErrorResponse("A payment is already being processed for this invoice", 409);
+                return ApiResponse<SubscriptionPaymentDto>.ErrorResponse(
+                    "A payment is already being processed for this invoice", 409);
             }
             catch (Exception ex)
             {
@@ -358,7 +425,8 @@ namespace EduOS.Service.Services.SaaS
             }
         }
 
-        public async Task<ApiResponse<ManualPaymentInstructionsDto>> GetManualPaymentInstructionsAsync(long invoiceId)
+        public async Task<ApiResponse<ManualPaymentInstructionsDto>> GetManualPaymentInstructionsAsync(
+            long invoiceId)
         {
             var tenantId = _currentUser.TenantId;
             try
@@ -373,23 +441,28 @@ namespace EduOS.Service.Services.SaaS
                 if (string.IsNullOrWhiteSpace(_manualSettings.BankName)
                     || string.IsNullOrWhiteSpace(_manualSettings.AccountName)
                     || string.IsNullOrWhiteSpace(_manualSettings.AccountNumber))
-                    return ApiResponse<ManualPaymentInstructionsDto>.ErrorResponse("Manual payment is not configured", 503);
-
-                return ApiResponse<ManualPaymentInstructionsDto>.SuccessResponse(new ManualPaymentInstructionsDto
                 {
-                    BankName = _manualSettings.BankName,
-                    AccountName = _manualSettings.AccountName,
-                    AccountNumber = _manualSettings.AccountNumber,
-                    RoutingNumber = _manualSettings.RoutingNumber,
-                    BranchName = _manualSettings.BranchName,
-                    Reference = invoice.InvoiceNumber,
-                    Instructions = _manualSettings.Instructions
-                });
+                    return ApiResponse<ManualPaymentInstructionsDto>.ErrorResponse(
+                        "Manual payment is not configured", 503);
+                }
+
+                return ApiResponse<ManualPaymentInstructionsDto>.SuccessResponse(
+                    new ManualPaymentInstructionsDto
+                    {
+                        BankName = _manualSettings.BankName,
+                        AccountName = _manualSettings.AccountName,
+                        AccountNumber = _manualSettings.AccountNumber,
+                        RoutingNumber = _manualSettings.RoutingNumber,
+                        BranchName = _manualSettings.BranchName,
+                        Reference = invoice.InvoiceNumber,
+                        Instructions = _manualSettings.Instructions
+                    });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to load manual payment instructions for invoice {InvoiceId}", invoiceId);
-                return ApiResponse<ManualPaymentInstructionsDto>.ErrorResponse("Failed to load manual payment instructions", 500);
+                return ApiResponse<ManualPaymentInstructionsDto>.ErrorResponse(
+                    "Failed to load manual payment instructions", 500);
             }
         }
 
@@ -440,15 +513,19 @@ namespace EduOS.Service.Services.SaaS
                     return ApiResponse<bool>.ErrorResponse("Payment is not awaiting verification", 400);
 
                 await _unitOfWork.BeginTransactionAsync();
+
                 payment.VerifiedByUserId = _currentUser.UserId;
                 payment.VerifiedAt = DateTime.UtcNow;
                 payment.VerificationNote = dto.VerificationNote;
 
-                var invoice = await _invoiceRepo.GetByIdForSystemAsync(payment.SubscriptionInvoiceId, payment.TenantId);
+                var invoice = await _invoiceRepo.GetByIdForSystemAsync(
+                    payment.SubscriptionInvoiceId, payment.TenantId);
+
                 if (dto.Approve)
                 {
                     payment.Status = PaymentStatus.Successful;
                     payment.CompletedAt = DateTime.UtcNow;
+
                     if (invoice != null)
                     {
                         invoice.PaidAmount += payment.Amount;
@@ -459,12 +536,15 @@ namespace EduOS.Service.Services.SaaS
                             invoice.PaidAt = DateTime.UtcNow;
                         }
                         else
+                        {
                             invoice.PaymentStatus = PaymentStatus.Pending;
-
+                        }
                         _invoiceRepo.Update(invoice);
+
                         if (invoice.PaymentStatus == PaymentStatus.Successful)
                         {
-                            var activation = await _subscriptionService.ActivateAfterPaymentAsync(invoice.TenantSubscriptionId, payment.TenantId);
+                            var activation = await _subscriptionService.ActivateAfterPaymentAsync(
+                                invoice.TenantSubscriptionId, payment.TenantId);
                             if (!activation.Success)
                                 throw new InvalidOperationException("Subscription activation failed after manual verification.");
                         }
@@ -475,6 +555,8 @@ namespace EduOS.Service.Services.SaaS
                     payment.Status = PaymentStatus.Failed;
                     payment.FailedAt = DateTime.UtcNow;
                     payment.FailureReason = dto.VerificationNote ?? "Rejected by admin";
+
+                    // Revert invoice status to Pending if no other successful payment
                     if (invoice != null && invoice.PaymentStatus == PaymentStatus.AwaitingVerification)
                     {
                         invoice.PaymentStatus = PaymentStatus.Pending;
@@ -485,8 +567,12 @@ namespace EduOS.Service.Services.SaaS
                 _paymentRepo.Update(payment);
                 await _unitOfWork.SaveChangesAsync();
                 await _unitOfWork.CommitTransactionAsync();
-                _logger.LogInformation("Manual payment {Id} {Action} by user {UserId}", payment.Id, dto.Approve ? "approved" : "rejected", _currentUser.UserId);
-                return ApiResponse<bool>.SuccessResponse(true, dto.Approve ? "Payment approved" : "Payment rejected");
+
+                _logger.LogInformation("Manual payment {Id} {Action} by user {UserId}",
+                    payment.Id, dto.Approve ? "approved" : "rejected", _currentUser.UserId);
+
+                return ApiResponse<bool>.SuccessResponse(true,
+                    dto.Approve ? "Payment approved" : "Payment rejected");
             }
             catch (Exception ex)
             {
@@ -496,6 +582,9 @@ namespace EduOS.Service.Services.SaaS
             }
         }
 
+        // ============================================================
+        // GET PAYMENTS BY INVOICE
+        // ============================================================
         public async Task<ApiResponse<List<SubscriptionPaymentDto>>> GetByInvoiceAsync(long invoiceId)
         {
             var tenantId = _currentUser.TenantId;
@@ -511,6 +600,7 @@ namespace EduOS.Service.Services.SaaS
                     ? await _paymentRepo.GetByInvoiceForPlatformAsync(invoiceId, invoice.TenantId)
                     : await _paymentRepo.GetByInvoiceAsync(invoiceId);
                 var dtos = payments.Select(p => MapToDto(p, invoice.InvoiceNumber)).ToList();
+
                 return ApiResponse<List<SubscriptionPaymentDto>>.SuccessResponse(dtos);
             }
             catch (Exception ex)
@@ -520,6 +610,9 @@ namespace EduOS.Service.Services.SaaS
             }
         }
 
+        // ============================================================
+        // PENDING MANUAL VERIFICATIONS (SuperAdmin)
+        // ============================================================
         public async Task<ApiResponse<List<SubscriptionPaymentDto>>> GetPendingManualVerificationsAsync()
         {
             try
@@ -528,6 +621,8 @@ namespace EduOS.Service.Services.SaaS
                     return ApiResponse<List<SubscriptionPaymentDto>>.ErrorResponse("Forbidden", 403);
 
                 var payments = await _paymentRepo.GetPendingManualVerificationForPlatformAsync();
+
+                // Load invoice numbers
                 var invoiceIds = payments.Select(p => p.SubscriptionInvoiceId).Distinct().ToList();
                 var invoices = new Dictionary<long, string>();
                 foreach (var id in invoiceIds)
@@ -537,7 +632,9 @@ namespace EduOS.Service.Services.SaaS
                     if (inv != null) invoices[id] = inv.InvoiceNumber;
                 }
 
-                var dtos = payments.Select(p => MapToDto(p, invoices.GetValueOrDefault(p.SubscriptionInvoiceId, ""))).ToList();
+                var dtos = payments.Select(p => MapToDto(p,
+                    invoices.GetValueOrDefault(p.SubscriptionInvoiceId, ""))).ToList();
+
                 return ApiResponse<List<SubscriptionPaymentDto>>.SuccessResponse(dtos);
             }
             catch (Exception ex)
@@ -547,6 +644,9 @@ namespace EduOS.Service.Services.SaaS
             }
         }
 
+        // ============================================================
+        // MAPPING HELPER
+        // ============================================================
         private static SubscriptionPaymentDto MapToDto(SubscriptionPayment p, string invoiceNumber)
         {
             return new SubscriptionPaymentDto
@@ -602,7 +702,9 @@ namespace EduOS.Service.Services.SaaS
                 || (uri.Scheme != Uri.UriSchemeHttps && !uri.IsLoopback)
                 || !string.IsNullOrEmpty(uri.Query)
                 || !string.IsNullOrEmpty(uri.Fragment))
+            {
                 return false;
+            }
 
             baseUrl = uri.GetLeftPart(UriPartial.Authority).TrimEnd('/');
             return true;
