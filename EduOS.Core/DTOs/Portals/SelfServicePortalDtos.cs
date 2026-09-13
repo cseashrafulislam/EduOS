@@ -6,9 +6,9 @@ public sealed class PortalStudentDto
     public string StudentCode { get; set; } = string.Empty;
     public string Roll { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
-    public int AcademicYearId { get; set; }
-    public int ClassId { get; set; }
-    public int SectionId { get; set; }
+    public long AcademicYearId { get; set; }
+    public long ClassId { get; set; }
+    public long SectionId { get; set; }
 }
 
 public sealed class PortalAttendanceDto
