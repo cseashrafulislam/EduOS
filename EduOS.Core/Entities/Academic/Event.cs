@@ -9,7 +9,7 @@ namespace EduOS.Core.Entities.Academic
         public DateTime StartDate { get; set; }
         public DateTime EndDate { get; set; }
         public string? Location { get; set; }
-        public int? OrganizerId { get; set; }
+        public long? OrganizerId { get; set; }
         public string Type { get; set; } = "Academic"; // Sports/Cultural/Academic
         public string Status { get; set; } = "Upcoming"; // Upcoming/Ongoing/Completed
     }
