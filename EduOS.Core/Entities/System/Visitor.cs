@@ -9,7 +9,7 @@ namespace EduOS.Core.Entities.System
         public string? NID { get; set; }
         public string Purpose { get; set; } = string.Empty;
         public string? ToMeet { get; set; }
-        public int? MeetingPersonId { get; set; }
+        public long? MeetingPersonId { get; set; }
         public DateTime InTime { get; set; }
         public DateTime? OutTime { get; set; }
         public string? PhotoUrl { get; set; }
