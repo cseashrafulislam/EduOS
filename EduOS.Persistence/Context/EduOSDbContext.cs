@@ -100,41 +100,26 @@ namespace EduOS.Persistence.Context
                         ?? "System";
         }
 
-        // Tenant resolution accepts the canonical cookie claim, JWT claim variants,
-        // and the trusted value populated by TenantContextMiddleware.
+        // TenantContextMiddleware resolves canonical membership from ApplicationUser
+        // and stores the trusted tenant ID in HttpContext.Items. Cookie/JWT tenant
+        // claims are intentionally ignored because they can remain stale after an
+        // administrator moves a user to another tenant.
         private long? TenantId
         {
             get
             {
                 var httpContext = _httpContextAccessor?.HttpContext;
-
-                if (httpContext?.Items.TryGetValue("TenantId", out var itemValue) == true)
-                {
-                    if (itemValue is long itemTenantId && itemTenantId > 0)
-                        return itemTenantId;
-
-                    if (long.TryParse(itemValue?.ToString(), out var parsedItemTenantId)
-                        && parsedItemTenantId > 0)
-                        return parsedItemTenantId;
-                }
-
-                var user = httpContext?.User;
-                if (user?.Identity?.IsAuthenticated != true)
-                    return null;
-
-                var claimValue = user.FindFirstValue("TenantId")
-                                 ?? user.FindFirstValue("tenantId")
-                                 ?? user.FindFirstValue("tenant_id");
-
-                return long.TryParse(claimValue, out var claimTenantId) && claimTenantId > 0
-                    ? claimTenantId
-                    : null;
+                return httpContext?.Items.TryGetValue("TenantId", out var itemValue) == true
+                    && itemValue is long itemTenantId
+                    && itemTenantId > 0
+                        ? itemTenantId
+                        : null;
             }
         }
 
         /// <summary>
         /// Used by EF Core's parameterized global query filters. Zero deliberately
-        /// matches no valid tenant when a request has no tenant context.
+        /// matches no valid tenant when a request has no trusted tenant context.
         /// </summary>
         public long CurrentTenantId => TenantId ?? 0;
 
