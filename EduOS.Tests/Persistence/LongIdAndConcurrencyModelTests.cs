@@ -23,6 +23,8 @@ public class LongIdAndConcurrencyModelTests
         AssertLongProperties<TrialAccount>(context, nameof(TrialAccount.TenantId));
         AssertLongProperties<Document>(context, nameof(Document.OwnerId));
         AssertLongProperties<ImportLog>(context, nameof(ImportLog.ImportedBy));
+        AssertLongProperties<SurveyQuestion>(context, nameof(SurveyQuestion.SurveyId));
+        AssertLongProperties<SurveyResponse>(context, nameof(SurveyResponse.SurveyId), nameof(SurveyResponse.QuestionId));
 
         var trial = context.Model.FindEntityType(typeof(TrialAccount))!;
         trial.FindProperty(nameof(TrialAccount.ConvertedToPlanId))!.ClrType.Should().Be(typeof(long?));
@@ -37,7 +39,10 @@ public class LongIdAndConcurrencyModelTests
         var visitor = context.Model.FindEntityType(typeof(Visitor))!;
         visitor.FindProperty(nameof(Visitor.MeetingPersonId))!.ClrType.Should().Be(typeof(long?));
 
-        foreach (var entityType in new[] { typeof(ClassRoutine), typeof(StudentTransport), typeof(LeaveApplication), typeof(TrialAccount), typeof(Event), typeof(Document), typeof(ImportLog), typeof(Complaint), typeof(Visitor) })
+        var surveyResponse = context.Model.FindEntityType(typeof(SurveyResponse))!;
+        surveyResponse.FindProperty(nameof(SurveyResponse.RespondentId))!.ClrType.Should().Be(typeof(long?));
+
+        foreach (var entityType in new[] { typeof(ClassRoutine), typeof(StudentTransport), typeof(LeaveApplication), typeof(TrialAccount), typeof(Event), typeof(Document), typeof(ImportLog), typeof(Complaint), typeof(Visitor), typeof(SurveyQuestion), typeof(SurveyResponse) })
         {
             var entity = context.Model.FindEntityType(entityType)!;
             entity.GetProperties().Should().NotContain(p => p.PropertyInfo == null && p.FieldInfo == null && p.Name.EndsWith("Id1", StringComparison.Ordinal));
