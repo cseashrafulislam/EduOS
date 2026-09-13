@@ -24,7 +24,10 @@ public class LongIdAndConcurrencyModelTests
         var trial = context.Model.FindEntityType(typeof(TrialAccount))!;
         trial.FindProperty(nameof(TrialAccount.ConvertedToPlanId))!.ClrType.Should().Be(typeof(long?));
 
-        foreach (var entityType in new[] { typeof(ClassRoutine), typeof(StudentTransport), typeof(LeaveApplication), typeof(TrialAccount) })
+        var academicEvent = context.Model.FindEntityType(typeof(Event))!;
+        academicEvent.FindProperty(nameof(Event.OrganizerId))!.ClrType.Should().Be(typeof(long?));
+
+        foreach (var entityType in new[] { typeof(ClassRoutine), typeof(StudentTransport), typeof(LeaveApplication), typeof(TrialAccount), typeof(Event) })
         {
             var entity = context.Model.FindEntityType(entityType)!;
             entity.GetProperties().Should().NotContain(p => p.PropertyInfo == null && p.FieldInfo == null && p.Name.EndsWith("Id1", StringComparison.Ordinal));
