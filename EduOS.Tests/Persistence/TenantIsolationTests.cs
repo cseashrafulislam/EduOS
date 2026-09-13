@@ -51,7 +51,7 @@ public class TenantIsolationTests
             await seed.SaveChangesAsync();
         }
 
-        await using (var tenant101 = CreateContext(options, 101, "TenantId"))
+        await using (var tenant101 = CreateContext(options, 101))
         {
             var classes = await tenant101.Classes.Select(x => x.Name).ToListAsync();
             classes.Should().Equal("Tenant 101");
@@ -62,8 +62,7 @@ public class TenantIsolationTests
             settings.Should().Equal("Tenant 101");
         }
 
-        // JWTs historically used the lower-camel claim. It must receive the same isolation.
-        await using (var tenant202 = CreateContext(options, 202, "tenantId"))
+        await using (var tenant202 = CreateContext(options, 202))
         {
             var classes = await tenant202.Classes.Select(x => x.Name).ToListAsync();
             classes.Should().Equal("Tenant 202");
@@ -74,6 +73,22 @@ public class TenantIsolationTests
             (await noTenant.Classes.CountAsync()).Should().Be(0);
             (await noTenant.TenantSettings.CountAsync()).Should().Be(0);
         }
+    }
+
+    [Fact]
+    public async Task Stale_tenant_claim_without_canonical_context_cannot_select_tenant_data()
+    {
+        var options = CreateOptions();
+
+        await using (var seed = CreateContext(options))
+        {
+            seed.Classes.Add(new Class { Name = "Private", NumericValue = 1, TenantId = 101 });
+            await seed.SaveChangesAsync();
+        }
+
+        await using var staleClaim = CreateContextWithClaimOnly(options, 101);
+
+        (await staleClaim.Classes.CountAsync()).Should().Be(0);
     }
 
     [Fact]
@@ -135,23 +150,40 @@ public class TenantIsolationTests
 
     private static EduOSDbContext CreateContext(
         DbContextOptions<EduOSDbContext> options,
-        long? tenantId = null,
-        string tenantClaimType = "TenantId")
+        long? tenantId = null)
     {
         var httpContext = new DefaultHttpContext();
 
         if (tenantId.HasValue)
         {
-            httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(
-            [
-                new Claim(ClaimTypes.NameIdentifier, "9001"),
-                new Claim(ClaimTypes.Name, "Test User"),
-                new Claim(tenantClaimType, tenantId.Value.ToString())
-            ], "TestAuthentication"));
+            httpContext.User = CreatePrincipal(tenantId.Value);
+            httpContext.Items["TenantId"] = tenantId.Value;
         }
 
         return new EduOSDbContext(
             options,
             new HttpContextAccessor { HttpContext = httpContext });
     }
+
+    private static EduOSDbContext CreateContextWithClaimOnly(
+        DbContextOptions<EduOSDbContext> options,
+        long tenantId)
+    {
+        var httpContext = new DefaultHttpContext
+        {
+            User = CreatePrincipal(tenantId)
+        };
+
+        return new EduOSDbContext(
+            options,
+            new HttpContextAccessor { HttpContext = httpContext });
+    }
+
+    private static ClaimsPrincipal CreatePrincipal(long tenantId) =>
+        new(new ClaimsIdentity(
+        [
+            new Claim(ClaimTypes.NameIdentifier, "9001"),
+            new Claim(ClaimTypes.Name, "Test User"),
+            new Claim("TenantId", tenantId.ToString())
+        ], "TestAuthentication"));
 }
