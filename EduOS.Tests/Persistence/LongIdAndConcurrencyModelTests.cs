@@ -34,7 +34,10 @@ public class LongIdAndConcurrencyModelTests
         complaint.FindProperty(nameof(Complaint.SubmittedBy))!.ClrType.Should().Be(typeof(long?));
         complaint.FindProperty(nameof(Complaint.AssignedTo))!.ClrType.Should().Be(typeof(long?));
 
-        foreach (var entityType in new[] { typeof(ClassRoutine), typeof(StudentTransport), typeof(LeaveApplication), typeof(TrialAccount), typeof(Event), typeof(Document), typeof(ImportLog), typeof(Complaint) })
+        var visitor = context.Model.FindEntityType(typeof(Visitor))!;
+        visitor.FindProperty(nameof(Visitor.MeetingPersonId))!.ClrType.Should().Be(typeof(long?));
+
+        foreach (var entityType in new[] { typeof(ClassRoutine), typeof(StudentTransport), typeof(LeaveApplication), typeof(TrialAccount), typeof(Event), typeof(Document), typeof(ImportLog), typeof(Complaint), typeof(Visitor) })
         {
             var entity = context.Model.FindEntityType(entityType)!;
             entity.GetProperties().Should().NotContain(p => p.PropertyInfo == null && p.FieldInfo == null && p.Name.EndsWith("Id1", StringComparison.Ordinal));
