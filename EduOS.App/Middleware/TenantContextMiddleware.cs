@@ -58,6 +58,13 @@ namespace EduOS.App.Middleware
                     return;
                 }
 
+                if (!user.IsActive)
+                {
+                    _logger.LogWarning("Deactivated user {UserId} attempted to use an authenticated session.", userId);
+                    await RejectAsync(context, StatusCodes.Status403Forbidden, "Your account has been deactivated. Please contact support.");
+                    return;
+                }
+
                 if (user.TenantId is not long tenantId || tenantId <= 0)
                 {
                     _logger.LogWarning("User {UserId} has no valid tenant assignment.", userId);
