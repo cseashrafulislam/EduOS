@@ -172,27 +172,15 @@ namespace EduOS.Persistence.Repositories.SaaS
                 .ToListAsync(ct);
         }
 
-        public async Task<string> GenerateNextInvoiceNumberAsync(CancellationToken ct = default)
+        public Task<string> GenerateNextInvoiceNumberAsync(CancellationToken ct = default)
         {
-            // Format: INV-YYYYMM-NNNNN  (e.g. INV-202605-00001)
-            var prefix = $"INV-{DateTime.UtcNow:yyyyMM}-";
+            ct.ThrowIfCancellationRequested();
 
-            var lastNumber = await _context.SubscriptionInvoices
-                .IgnoreQueryFilters()
-                .Where(i => !i.IsDeleted && i.InvoiceNumber.StartsWith(prefix))
-                .OrderByDescending(i => i.InvoiceNumber)
-                .Select(i => i.InvoiceNumber)
-                .FirstOrDefaultAsync(ct);
-
-            int nextSeq = 1;
-            if (!string.IsNullOrEmpty(lastNumber))
-            {
-                var seqPart = lastNumber.Substring(prefix.Length);
-                if (int.TryParse(seqPart, out var lastSeq))
-                    nextSeq = lastSeq + 1;
-            }
-
-            return $"{prefix}{nextSeq:D5}";
+            // The former "last sequence + 1" allocator could issue the same number
+            // on concurrent app instances. Keep the business prefix while using a
+            // collision-resistant suffix that is safe without a database sequence.
+            var invoiceNumber = $"INV-{DateTime.UtcNow:yyyyMM}-{Guid.NewGuid():N}";
+            return Task.FromResult(invoiceNumber);
         }
     }
 
