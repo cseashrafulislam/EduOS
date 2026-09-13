@@ -4,10 +4,10 @@ namespace EduOS.Core.Interfaces.IRepositories
 {
     public interface INotificationRepository : IGenericRepository<Notification>
     {
-        Task<List<Notification>> GetByUserAsync(int userId);
-        Task<List<Notification>> GetUnreadAsync(int userId);
-        Task<int> GetUnreadCountAsync(int userId);
-        Task MarkAsReadAsync(int notificationId);
-        Task MarkAllAsReadAsync(int userId);
+        Task<List<Notification>> GetByUserAsync(long userId);
+        Task<List<Notification>> GetUnreadAsync(long userId);
+        Task<int> GetUnreadCountAsync(long userId);
+        Task MarkAsReadAsync(long notificationId);
+        Task MarkAllAsReadAsync(long userId);
     }
 }

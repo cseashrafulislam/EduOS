@@ -9,7 +9,7 @@ namespace EduOS.Persistence.Repositories
     {
         public ExamScheduleRepository(EduOSDbContext context) : base(context) { }
 
-        public async Task<List<ExamSchedule>> GetByExamAndClassAsync(int examId, int classId)
+        public async Task<List<ExamSchedule>> GetByExamAndClassAsync(long examId, long classId)
         {
             return await _dbSet
                 .Include(s => s.Subject)
@@ -18,7 +18,7 @@ namespace EduOS.Persistence.Repositories
                 .ToListAsync();
         }
 
-        public async Task<List<ExamSchedule>> GetByDateAsync(DateTime date, int tenantId)
+        public async Task<List<ExamSchedule>> GetByDateAsync(DateTime date, long tenantId)
         {
             return await _dbSet
                 .Include(s => s.Subject)
