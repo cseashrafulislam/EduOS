@@ -137,7 +137,7 @@ public class TenantSettingSecurityTests
 
     private static DefaultHttpContext CreateHttpContext(long tenantId)
     {
-        return new DefaultHttpContext
+        var context = new DefaultHttpContext
         {
             User = new ClaimsPrincipal(new ClaimsIdentity(
             [
@@ -146,6 +146,8 @@ public class TenantSettingSecurityTests
                 new Claim("TenantId", tenantId.ToString())
             ], "TestAuthentication"))
         };
+        context.Items["TenantId"] = tenantId;
+        return context;
     }
 
     private sealed record TestSetup(
