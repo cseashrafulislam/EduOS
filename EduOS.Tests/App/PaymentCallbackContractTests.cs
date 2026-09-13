@@ -29,12 +29,60 @@ public class PaymentCallbackContractTests
         ipn.Should().Contain("Non-success notification acknowledged");
     }
 
+    [Fact]
+    public void Successful_gateway_callback_claims_payment_before_invoice_side_effects()
+    {
+        var service = ReadService();
+        var callback = Slice(service,
+            "public async Task<ApiResponse<bool>> HandleAamarPayCallbackAsync",
+            "// SUBMIT MANUAL PAYMENT");
+        var successful = Slice(callback,
+            "payment.Status = PaymentStatus.Successful;",
+            "else\n                {");
+
+        var save = successful.IndexOf("await _unitOfWork.SaveChangesAsync();", StringComparison.Ordinal);
+        var invoice = successful.IndexOf("// Update invoice", StringComparison.Ordinal);
+
+        save.Should().BeGreaterThanOrEqualTo(0);
+        invoice.Should().BeGreaterThan(save);
+        callback.Should().Contain("catch (DbUpdateConcurrencyException ex)");
+        callback.Should().Contain("Already processed");
+    }
+
+    [Fact]
+    public void Manual_approval_claims_review_before_subscription_activation_side_effects()
+    {
+        var service = ReadService();
+        var verify = Slice(service,
+            "public async Task<ApiResponse<bool>> VerifyManualPaymentAsync",
+            "// GET PAYMENTS BY INVOICE");
+        var approve = Slice(verify,
+            "if (dto.Approve)",
+            "else\n                {");
+
+        var save = approve.IndexOf("await _unitOfWork.SaveChangesAsync();", StringComparison.Ordinal);
+        var invoiceMutation = approve.IndexOf("if (invoice != null)", StringComparison.Ordinal);
+
+        save.Should().BeGreaterThanOrEqualTo(0);
+        invoiceMutation.Should().BeGreaterThan(save);
+        verify.Should().Contain("catch (DbUpdateConcurrencyException ex)");
+        verify.Should().Contain("Payment was already reviewed");
+    }
+
     private static string ReadController()
     {
         return File.ReadAllText(Path.Combine(
             AppContext.BaseDirectory,
             "TestAssets",
             "SubscriptionPaymentController.cs"));
+    }
+
+    private static string ReadService()
+    {
+        return File.ReadAllText(Path.Combine(
+            AppContext.BaseDirectory,
+            "TestAssets",
+            "SubscriptionPaymentService.cs"));
     }
 
     private static string Slice(string source, string startMarker, string endMarker)

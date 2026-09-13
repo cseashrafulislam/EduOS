@@ -112,6 +112,9 @@
     <None Include="..\EduOS.App\Controllers\Api\SubscriptionPaymentController.cs"
           Link="TestAssets\SubscriptionPaymentController.cs"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.Service\Services\SaaS\SubscriptionPaymentService.cs"
+          Link="TestAssets\SubscriptionPaymentService.cs"
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Controllers\Api\AuthController.cs"
           Link="TestAssets\AuthController.cs"
           CopyToOutputDirectory="PreserveNewest" />
