@@ -21,7 +21,7 @@ namespace EduOS.Persistence.Repositories
                 .FirstOrDefaultAsync(t => t.Code.ToLower() == code.ToLower());
         }
 
-        public async Task<bool> IsSubdomainExistsAsync(string subdomain, int? excludeId = null)
+        public async Task<bool> IsSubdomainExistsAsync(string subdomain, long? excludeId = null)
         {
             var query = _dbSet.Where(t => t.Subdomain.ToLower() == subdomain.ToLower());
             if (excludeId.HasValue)
@@ -29,7 +29,7 @@ namespace EduOS.Persistence.Repositories
             return await query.AnyAsync();
         }
 
-        public async Task<bool> IsCodeExistsAsync(string code, int? excludeId = null)
+        public async Task<bool> IsCodeExistsAsync(string code, long? excludeId = null)
         {
             var query = _dbSet.Where(t => t.Code.ToLower() == code.ToLower());
             if (excludeId.HasValue)
