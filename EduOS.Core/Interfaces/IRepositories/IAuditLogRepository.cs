@@ -6,6 +6,6 @@ namespace EduOS.Core.Interfaces.IRepositories
     {
         Task<List<AuditLog>> GetByUserIdAsync(long userId, long tenantId);
         Task<List<AuditLog>> GetByTableNameAsync(string tableName, long tenantId);
-        Task<List<AuditLog>> GetByRecordIdAsync(string tableName, int recordId, long tenantId);
+        Task<List<AuditLog>> GetByRecordIdAsync(string tableName, long recordId, long tenantId);
     }
 }

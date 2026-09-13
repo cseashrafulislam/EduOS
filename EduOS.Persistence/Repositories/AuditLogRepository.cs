@@ -27,7 +27,7 @@ namespace EduOS.Persistence.Repositories.System
                 .ToListAsync();
         }
 
-        public async Task<List<AuditLog>> GetByRecordIdAsync(string tableName, int recordId, long tenantId)
+        public async Task<List<AuditLog>> GetByRecordIdAsync(string tableName, long recordId, long tenantId)
         {
             return await _dbSet
                 .Where(a => a.TableName == tableName
