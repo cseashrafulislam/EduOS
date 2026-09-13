@@ -1,6 +1,7 @@
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Attendance;
 using EduOS.Core.Entities.SaaS;
+using EduOS.Core.Entities.System;
 using EduOS.Core.Entities.Transport;
 using EduOS.Persistence.Context;
 using FluentAssertions;
@@ -20,6 +21,8 @@ public class LongIdAndConcurrencyModelTests
         AssertLongProperties<StudentTransport>(context, nameof(StudentTransport.StudentId), nameof(StudentTransport.VehicleId), nameof(StudentTransport.RouteId));
         AssertLongProperties<LeaveApplication>(context, nameof(LeaveApplication.UserId), nameof(LeaveApplication.LeaveTypeId));
         AssertLongProperties<TrialAccount>(context, nameof(TrialAccount.TenantId));
+        AssertLongProperties<Document>(context, nameof(Document.OwnerId));
+        AssertLongProperties<ImportLog>(context, nameof(ImportLog.ImportedBy));
 
         var trial = context.Model.FindEntityType(typeof(TrialAccount))!;
         trial.FindProperty(nameof(TrialAccount.ConvertedToPlanId))!.ClrType.Should().Be(typeof(long?));
@@ -27,7 +30,11 @@ public class LongIdAndConcurrencyModelTests
         var academicEvent = context.Model.FindEntityType(typeof(Event))!;
         academicEvent.FindProperty(nameof(Event.OrganizerId))!.ClrType.Should().Be(typeof(long?));
 
-        foreach (var entityType in new[] { typeof(ClassRoutine), typeof(StudentTransport), typeof(LeaveApplication), typeof(TrialAccount), typeof(Event) })
+        var complaint = context.Model.FindEntityType(typeof(Complaint))!;
+        complaint.FindProperty(nameof(Complaint.SubmittedBy))!.ClrType.Should().Be(typeof(long?));
+        complaint.FindProperty(nameof(Complaint.AssignedTo))!.ClrType.Should().Be(typeof(long?));
+
+        foreach (var entityType in new[] { typeof(ClassRoutine), typeof(StudentTransport), typeof(LeaveApplication), typeof(TrialAccount), typeof(Event), typeof(Document), typeof(ImportLog), typeof(Complaint) })
         {
             var entity = context.Model.FindEntityType(entityType)!;
             entity.GetProperties().Should().NotContain(p => p.PropertyInfo == null && p.FieldInfo == null && p.Name.EndsWith("Id1", StringComparison.Ordinal));
