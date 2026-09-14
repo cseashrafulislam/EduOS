@@ -22,189 +22,72 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\EduOS.App\EduOS.App.csproj" />
     <ProjectReference Include="..\EduOS.Core\EduOS.Core.csproj" />
     <ProjectReference Include="..\EduOS.Persistence\EduOS.Persistence.csproj" />
     <ProjectReference Include="..\EduOS.Service\EduOS.Service.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\EduOS.App\Resources\Localization\SharedResource.resx"
-          Link="TestAssets\SharedResource.resx"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Resources\Localization\SharedResource.bn-BD.resx"
-          Link="TestAssets\SharedResource.bn-BD.resx"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Views\Shared\_Layout.cshtml"
-          Link="TestAssets\_Layout.cshtml"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Views\Account\_OnboardingLayout.cshtml"
-          Link="TestAssets\_OnboardingLayout.cshtml"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Views\Shared\_PublicLayout.cshtml"
-          Link="TestAssets\_PublicLayout.cshtml"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Views\Account\Login.cshtml"
-          Link="TestAssets\Login.cshtml"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Views\Account\Signup.cshtml"
-          Link="TestAssets\Signup.cshtml"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Views\Account\InstitutionProfile.cshtml"
-          Link="TestAssets\InstitutionProfile.cshtml"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Views\Account\CampusSetup.cshtml"
-          Link="TestAssets\CampusSetup.cshtml"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Views\Account\AcademicSetup.cshtml"
-          Link="TestAssets\AcademicSetup.cshtml"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Views\Account\ModuleSetup.cshtml"
-          Link="TestAssets\ModuleSetup.cshtml"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Views\Account\BrandingSetup.cshtml"
-          Link="TestAssets\BrandingSetup.cshtml"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Views\Account\GeneralSettings.cshtml"
-          Link="TestAssets\GeneralSettings.cshtml"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Views\Account\GatewaySetup.cshtml"
-          Link="TestAssets\GatewaySetup.cshtml"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Views\Account\PlanSelection.cshtml"
-          Link="TestAssets\PlanSelection.cshtml"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Views\Account\Payment.cshtml"
-          Link="TestAssets\Payment.cshtml"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Views\Pricing\Index.cshtml"
-          Link="TestAssets\Pricing.cshtml"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Views\Dashboard\Index.cshtml"
-          Link="TestAssets\Dashboard.cshtml"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Views\Dashboard\Admin.cshtml"
-          Link="TestAssets\AdminDashboard.cshtml"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Controllers\DashboardController.cs"
-          Link="TestAssets\DashboardController.cs"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Controllers\AccountController.cs"
-          Link="TestAssets\AccountController.cs"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Controllers\Api\InstitutionOnboardingController.cs"
-          Link="TestAssets\InstitutionOnboardingController.cs"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Controllers\Api\OnboardingController.cs"
-          Link="TestAssets\OnboardingController.cs"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Controllers\Api\TenantModuleController.cs"
-          Link="TestAssets\TenantModuleController.cs"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Controllers\Api\TenantProfileController.cs"
-          Link="TestAssets\TenantProfileController.cs"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Controllers\Api\TenantSettingController.cs"
-          Link="TestAssets\TenantSettingController.cs"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Controllers\Api\SubscriptionController.cs"
-          Link="TestAssets\SubscriptionController.cs"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Controllers\Api\SubscriptionPaymentController.cs"
-          Link="TestAssets\SubscriptionPaymentController.cs"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.Service\Services\SaaS\SubscriptionPaymentService.cs"
-          Link="TestAssets\SubscriptionPaymentService.cs"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Controllers\Api\AuthController.cs"
-          Link="TestAssets\AuthController.cs"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Controllers\Api\AdmissionApplicationsController.cs"
-          Link="TestAssets\AdmissionApplicationsController.cs"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Controllers\Api\StudentsController.cs"
-          Link="TestAssets\StudentsApiController.cs"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Controllers\StudentsController.cs"
-          Link="TestAssets\StudentsController.cs"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Views\Students\Index.cshtml"
-          Link="TestAssets\StudentsIndex.cshtml"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\wwwroot\js\students\index.js"
-          Link="TestAssets\students-index.js"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Views\Admissions\Index.cshtml"
-          Link="TestAssets\AdmissionsIndex.cshtml"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\wwwroot\js\admissions\index.js"
-          Link="TestAssets\admissions-index.js"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Middleware\PrivilegedMfaMiddleware.cs"
-          Link="TestAssets\PrivilegedMfaMiddleware.cs"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Program.cs"
-          Link="TestAssets\Program.cs"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Views\Account\MfaChallenge.cshtml"
-          Link="TestAssets\MfaChallenge.cshtml"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Views\Account\MfaSetup.cshtml"
-          Link="TestAssets\MfaSetup.cshtml"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\wwwroot\js\account\mfa-challenge.js"
-          Link="TestAssets\mfa-challenge.js"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\wwwroot\js\account\mfa-setup.js"
-          Link="TestAssets\mfa-setup.js"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.Persistence\Seed\SuperAdminSeeder.cs"
-          Link="TestAssets\SuperAdminSeeder.cs"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\wwwroot\js\account\login.js"
-          Link="TestAssets\login.js"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\wwwroot\js\account\signup.js"
-          Link="TestAssets\signup.js"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\wwwroot\js\account\auth-forms.js"
-          Link="TestAssets\auth-forms.js"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\wwwroot\js\account\institution-profile.js"
-          Link="TestAssets\institution-profile.js"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\wwwroot\js\account\campus-setup.js"
-          Link="TestAssets\campus-setup.js"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\wwwroot\js\account\academic-setup.js"
-          Link="TestAssets\academic-setup.js"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\wwwroot\js\account\module-setup.js"
-          Link="TestAssets\module-setup.js"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\wwwroot\js\account\branding-setup.js"
-          Link="TestAssets\branding-setup.js"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\wwwroot\js\account\general-settings.js"
-          Link="TestAssets\general-settings.js"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\wwwroot\js\account\gateway-setup.js"
-          Link="TestAssets\gateway-setup.js"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\wwwroot\js\account\plan-selection.js"
-          Link="TestAssets\plan-selection.js"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\wwwroot\js\account\payment.js"
-          Link="TestAssets\payment.js"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\wwwroot\js\site.js"
-          Link="TestAssets\site.js"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\wwwroot\manifest.webmanifest"
-          Link="TestAssets\manifest.webmanifest"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\wwwroot\service-worker.js"
-          Link="TestAssets\service-worker.js"
-          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Resources\Localization\SharedResource.resx" Link="TestAssets\SharedResource.resx" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Resources\Localization\SharedResource.bn-BD.resx" Link="TestAssets\SharedResource.bn-BD.resx" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Views\Shared\_Layout.cshtml" Link="TestAssets\_Layout.cshtml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Views\Account\_OnboardingLayout.cshtml" Link="TestAssets\_OnboardingLayout.cshtml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Views\Shared\_PublicLayout.cshtml" Link="TestAssets\_PublicLayout.cshtml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Views\Account\Login.cshtml" Link="TestAssets\Login.cshtml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Views\Account\Signup.cshtml" Link="TestAssets\Signup.cshtml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Views\Account\InstitutionProfile.cshtml" Link="TestAssets\InstitutionProfile.cshtml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Views\Account\CampusSetup.cshtml" Link="TestAssets\CampusSetup.cshtml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Views\Account\AcademicSetup.cshtml" Link="TestAssets\AcademicSetup.cshtml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Views\Account\ModuleSetup.cshtml" Link="TestAssets\ModuleSetup.cshtml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Views\Account\BrandingSetup.cshtml" Link="TestAssets\BrandingSetup.cshtml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Views\Account\GeneralSettings.cshtml" Link="TestAssets\GeneralSettings.cshtml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Views\Account\GatewaySetup.cshtml" Link="TestAssets\GatewaySetup.cshtml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Views\Account\PlanSelection.cshtml" Link="TestAssets\PlanSelection.cshtml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Views\Account\Payment.cshtml" Link="TestAssets\Payment.cshtml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Views\Pricing\Index.cshtml" Link="TestAssets\Pricing.cshtml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Views\Dashboard\Index.cshtml" Link="TestAssets\Dashboard.cshtml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Views\Dashboard\Admin.cshtml" Link="TestAssets\AdminDashboard.cshtml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Controllers\DashboardController.cs" Link="TestAssets\DashboardController.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Controllers\AccountController.cs" Link="TestAssets\AccountController.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Controllers\Api\InstitutionOnboardingController.cs" Link="TestAssets\InstitutionOnboardingController.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Controllers\Api\OnboardingController.cs" Link="TestAssets\OnboardingController.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Controllers\Api\TenantModuleController.cs" Link="TestAssets\TenantModuleController.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Controllers\Api\TenantProfileController.cs" Link="TestAssets\TenantProfileController.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Controllers\Api\TenantSettingController.cs" Link="TestAssets\TenantSettingController.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Controllers\Api\SubscriptionController.cs" Link="TestAssets\SubscriptionController.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Controllers\Api\SubscriptionPaymentController.cs" Link="TestAssets\SubscriptionPaymentController.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.Service\Services\SaaS\SubscriptionPaymentService.cs" Link="TestAssets\SubscriptionPaymentService.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Controllers\Api\AuthController.cs" Link="TestAssets\AuthController.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Controllers\Api\AdmissionApplicationsController.cs" Link="TestAssets\AdmissionApplicationsController.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Controllers\Api\StudentsController.cs" Link="TestAssets\StudentsApiController.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Controllers\StudentsController.cs" Link="TestAssets\StudentsController.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Views\Students\Index.cshtml" Link="TestAssets\StudentsIndex.cshtml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\wwwroot\js\students\index.js" Link="TestAssets\students-index.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Views\Admissions\Index.cshtml" Link="TestAssets\AdmissionsIndex.cshtml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\wwwroot\js\admissions\index.js" Link="TestAssets\admissions-index.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Middleware\PrivilegedMfaMiddleware.cs" Link="TestAssets\PrivilegedMfaMiddleware.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Program.cs" Link="TestAssets\Program.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Views\Account\MfaChallenge.cshtml" Link="TestAssets\MfaChallenge.cshtml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Views\Account\MfaSetup.cshtml" Link="TestAssets\MfaSetup.cshtml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\wwwroot\js\account\mfa-challenge.js" Link="TestAssets\mfa-challenge.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\wwwroot\js\account\mfa-setup.js" Link="TestAssets\mfa-setup.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.Persistence\Seed\SuperAdminSeeder.cs" Link="TestAssets\SuperAdminSeeder.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\wwwroot\js\account\login.js" Link="TestAssets\login.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\wwwroot\js\account\signup.js" Link="TestAssets\signup.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\wwwroot\js\account\auth-forms.js" Link="TestAssets\auth-forms.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\wwwroot\js\account\institution-profile.js" Link="TestAssets\institution-profile.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\wwwroot\js\account\campus-setup.js" Link="TestAssets\campus-setup.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\wwwroot\js\account\academic-setup.js" Link="TestAssets\academic-setup.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\wwwroot\js\account\module-setup.js" Link="TestAssets\module-setup.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\wwwroot\js\account\branding-setup.js" Link="TestAssets\branding-setup.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\wwwroot\js\account\general-settings.js" Link="TestAssets\general-settings.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\wwwroot\js\account\gateway-setup.js" Link="TestAssets\gateway-setup.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\wwwroot\js\account\plan-selection.js" Link="TestAssets\plan-selection.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\wwwroot\js\account\payment.js" Link="TestAssets\payment.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\wwwroot\js\site.js" Link="TestAssets\site.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\wwwroot\manifest.webmanifest" Link="TestAssets\manifest.webmanifest" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\wwwroot\service-worker.js" Link="TestAssets\service-worker.js" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
