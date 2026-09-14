@@ -71,7 +71,6 @@ namespace EduOS.Service.Caches
                 }
                 else
                 {
-                    // Default: 30 minutes absolute + 15 minutes sliding
                     options.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(30);
                     options.SlidingExpiration = TimeSpan.FromMinutes(15);
                 }
@@ -108,21 +107,17 @@ namespace EduOS.Service.Caches
 
             try
             {
-                // Method 1: If we have Redis connection, use SCAN/LUA for pattern matching
                 if (_redisConnection != null)
                 {
                     await RemoveByPatternUsingRedisAsync(pattern);
                 }
                 else
                 {
-                    // Method 2: Log warning - pattern removal requires Redis connection
                     _logger.LogWarning(
                         "Redis connection not available for pattern removal: {Pattern}. " +
                         "Consider using In-Memory cache or providing IConnectionMultiplexer.",
                         pattern);
 
-                    // Option 3: For basic patterns, you'd need to implement key enumeration
-                    // This is NOT recommended for production with many keys
                     await RemoveByPatternFallbackAsync(pattern);
                 }
             }
@@ -136,30 +131,22 @@ namespace EduOS.Service.Caches
         {
             var redisDb = _redisConnection!.GetDatabase();
             var server = _redisConnection.GetServer(_redisConnection.GetEndPoints().First());
+            var keys = server.Keys(pattern: pattern).ToList();
 
-            // Convert pattern to Redis format (replace * with *)
-            var redisPattern = pattern.Replace("*", "*");
+            if (keys.Count == 0)
+                return;
 
-            var keys = server.Keys(pattern: redisPattern).ToList();
+            var batch = redisDb.CreateBatch();
+            var deleteTasks = keys.Select(key => batch.KeyDeleteAsync(key)).ToArray();
+            batch.Execute();
+            await Task.WhenAll(deleteTasks);
 
-            if (keys.Any())
-            {
-                var batch = redisDb.CreateBatch();
-                foreach (var key in keys)
-                {
-                    batch.KeyDeleteAsync(key);
-                }
-                batch.Execute();
-
-                _logger.LogInformation("Removed {Count} cache keys matching pattern: {Pattern}",
-                    keys.Count, pattern);
-            }
+            _logger.LogInformation("Removed {Count} cache keys matching pattern: {Pattern}",
+                keys.Count, pattern);
         }
 
         private async Task RemoveByPatternFallbackAsync(string pattern)
         {
-            // This is a simplified fallback - in production, you'd need a way to list keys
-            // Consider using a naming convention and storing key indexes
             _logger.LogWarning("Pattern removal fallback used for: {Pattern}. Keys may not be fully removed.", pattern);
             await Task.CompletedTask;
         }
