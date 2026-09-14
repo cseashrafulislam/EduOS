@@ -37,7 +37,7 @@ jobs:
         if: github.ref == 'refs/heads/codex/phase-0-security-foundation' || github.head_ref == 'codex/phase-0-security-foundation'
         run: |
           dotnet tool install --global dotnet-ef --version 10.0.10
-          dotnet ef migrations add SnapshotSyncProbe --project EduOS.Persistence --startup-project EduOS.App --context EduOSDbContext --no-build --output-dir Migrations/SnapshotSyncProbe
+          dotnet ef migrations add SnapshotSyncProbe --project EduOS.Persistence --startup-project EduOS.App --context EduOSDbContext --configuration Release --no-build --output-dir Migrations/SnapshotSyncProbe
 
       - name: Upload EF snapshot probe
         if: always() && (github.ref == 'refs/heads/codex/phase-0-security-foundation' || github.head_ref == 'codex/phase-0-security-foundation')
