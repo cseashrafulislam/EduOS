@@ -7,7 +7,7 @@ on:
     branches: [ master, codex/phase-0-security-foundation ]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -33,19 +33,10 @@ jobs:
       - name: Build
         run: dotnet build EduOS.slnx --configuration Release --no-restore
 
-      - name: Regenerate EF snapshot
-        if: github.event_name == 'push' && github.ref == 'refs/heads/codex/phase-0-security-foundation'
+      - name: Validate EF model snapshot
         run: |
           dotnet tool install --global dotnet-ef --version 10.0.10
-          dotnet ef migrations add SnapshotSyncProbe --project EduOS.Persistence --startup-project EduOS.App --context EduOSDbContext --configuration Release --no-build --output-dir Migrations/SnapshotSyncProbe
-          rm -rf EduOS.Persistence/Migrations/SnapshotSyncProbe
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add EduOS.Persistence/Migrations/EduOSDbContextModelSnapshot.cs
-          if ! git diff --cached --quiet; then
-            git commit -m "chore: regenerate ef model snapshot [skip ci]"
-            git push origin HEAD:codex/phase-0-security-foundation
-          fi
+          dotnet ef migrations has-pending-model-changes --project EduOS.Persistence --startup-project EduOS.App --context EduOSDbContext --configuration Release --no-build
 
       - name: Test
         run: dotnet test EduOS.slnx --configuration Release --no-build --logger "trx;LogFileName=tests.trx" --results-directory TestResults
