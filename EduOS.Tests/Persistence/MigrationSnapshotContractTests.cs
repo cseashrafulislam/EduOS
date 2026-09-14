@@ -1,7 +1,7 @@
 using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
-using Microsoft.EntityFrameworkCore.Migrations;
 using Xunit;
 
 namespace EduOS.Tests.Persistence;
