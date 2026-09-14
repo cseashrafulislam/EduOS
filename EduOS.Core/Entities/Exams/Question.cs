@@ -6,7 +6,7 @@ namespace EduOS.Core.Entities.Exams
     public class Question : BaseTenantEntity
     {
         public long SubjectId { get; set; }
-        public int? ChapterId { get; set; }
+        public long? ChapterId { get; set; }
         public string Type { get; set; } = "MCQ"; // MCQ/Short/Broad
         public string QuestionText { get; set; } = string.Empty;
         public decimal Mark { get; set; }
