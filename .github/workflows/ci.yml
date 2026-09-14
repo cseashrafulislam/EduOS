@@ -7,7 +7,7 @@ on:
     branches: [ master, codex/phase-0-security-foundation ]
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -33,22 +33,19 @@ jobs:
       - name: Build
         run: dotnet build EduOS.slnx --configuration Release --no-restore
 
-      - name: Generate EF snapshot probe
-        if: github.ref == 'refs/heads/codex/phase-0-security-foundation' || github.head_ref == 'codex/phase-0-security-foundation'
+      - name: Regenerate EF snapshot
+        if: github.event_name == 'push' && github.ref == 'refs/heads/codex/phase-0-security-foundation'
         run: |
           dotnet tool install --global dotnet-ef --version 10.0.10
           dotnet ef migrations add SnapshotSyncProbe --project EduOS.Persistence --startup-project EduOS.App --context EduOSDbContext --configuration Release --no-build --output-dir Migrations/SnapshotSyncProbe
-
-      - name: Upload EF snapshot probe
-        if: always() && (github.ref == 'refs/heads/codex/phase-0-security-foundation' || github.head_ref == 'codex/phase-0-security-foundation')
-        uses: actions/upload-artifact@v4
-        with:
-          name: ef-snapshot-probe
-          path: |
-            EduOS.Persistence/Migrations/EduOSDbContextModelSnapshot.cs
-            EduOS.Persistence/Migrations/SnapshotSyncProbe
-          if-no-files-found: warn
-          retention-days: 1
+          rm -rf EduOS.Persistence/Migrations/SnapshotSyncProbe
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add EduOS.Persistence/Migrations/EduOSDbContextModelSnapshot.cs
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: regenerate ef model snapshot [skip ci]"
+            git push origin HEAD:codex/phase-0-security-foundation
+          fi
 
       - name: Test
         run: dotnet test EduOS.slnx --configuration Release --no-build --logger "trx;LogFileName=tests.trx" --results-directory TestResults
