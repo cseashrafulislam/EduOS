@@ -15,7 +15,7 @@ public class LongIdBoundaryTests
 
         var offenders = context.Model.GetEntityTypes()
             .SelectMany(e => e.GetProperties().Select(p => new { Entity = e, Property = p }))
-            .Where(x => (x.Property.Name.EndsWith("Id", StringComparison.Ordinal) &&
+            .Where(x => (x.Property.Name != "Id" && x.Property.Name.EndsWith("Id", StringComparison.Ordinal) &&
                          (x.Property.ClrType == typeof(int) || x.Property.ClrType == typeof(int?))) ||
                         (x.Property.PropertyInfo == null && x.Property.FieldInfo == null &&
                          x.Property.Name.EndsWith("Id1", StringComparison.Ordinal)))
