@@ -249,7 +249,7 @@ app.UseHangfireDashboard("/hangfire", new DashboardOptions
 // =============================================================================
 // 14. ENDPOINTS
 // =============================================================================
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/health").AllowAnonymous();
 
 app.MapControllerRoute(
     name: "default",
