@@ -7,7 +7,12 @@ namespace EduOS.Persistence.Seed
     {
         public static async Task SeedAsync(RoleManager<ApplicationRole> roleManager)
         {
-            string[] roles = { "SuperAdmin", "TenantAdmin", "Admin", "Teacher", "Student", "Staff" };
+            string[] roles =
+            {
+                "SuperAdmin", "TenantAdmin", "Admin", "AdmissionOfficer",
+                "Principal", "VicePrincipal", "Teacher", "Student", "Parent",
+                "Accountant", "HR", "Librarian", "ExamController", "Staff"
+            };
 
             foreach (var roleName in roles)
             {

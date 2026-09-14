@@ -31,7 +31,7 @@ namespace EduOS.App.Controllers.Api
 
         [HttpGet("record/{tableName}/{recordId}")]
         //[HasPermission(PermissionConstants.AuditLog.View)]
-        public async Task<IActionResult> GetByRecord(string tableName, int recordId)
+        public async Task<IActionResult> GetByRecord(string tableName, long recordId)
         {
             var result = await _auditLogService.GetByRecordAsync(tableName, recordId);
             return StatusCode(result.StatusCode, result);

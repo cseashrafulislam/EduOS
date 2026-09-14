@@ -6,10 +6,10 @@ namespace EduOS.Core.Entities.LMS
 {
     public class LiveClass : BaseTenantEntity
     {
-        public int ClassId { get; set; }
-        public int SectionId { get; set; }
-        public int SubjectId { get; set; }
-        public int TeacherId { get; set; }
+        public long ClassId { get; set; }
+        public long SectionId { get; set; }
+        public long SubjectId { get; set; }
+        public long TeacherId { get; set; }
         public string Title { get; set; } = string.Empty;
         public DateTime Date { get; set; }
         public TimeSpan StartTime { get; set; }

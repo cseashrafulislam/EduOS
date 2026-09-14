@@ -9,7 +9,7 @@ namespace EduOS.Persistence.Repositories
     {
         public LeaveApplicationRepository(EduOSDbContext context) : base(context) { }
 
-        public async Task<List<LeaveApplication>> GetByUserAsync(int userId)
+        public async Task<List<LeaveApplication>> GetByUserAsync(long userId)
         {
             return await _dbSet
                 .Include(l => l.LeaveType)
@@ -18,7 +18,7 @@ namespace EduOS.Persistence.Repositories
                 .ToListAsync();
         }
 
-        public async Task<List<LeaveApplication>> GetPendingAsync(int tenantId)
+        public async Task<List<LeaveApplication>> GetPendingAsync(long tenantId)
         {
             return await _dbSet
                 .Include(l => l.LeaveType)
@@ -27,12 +27,12 @@ namespace EduOS.Persistence.Repositories
                 .ToListAsync();
         }
 
-        public async Task<int> GetUsedDaysAsync(int userId, int leaveTypeId, int year)
+        public async Task<int> GetUsedDaysAsync(long userId, long leaveTypeId, int year)
         {
             return await _dbSet
-                .Where(l => l.UserId == userId 
-                    && l.LeaveTypeId == leaveTypeId 
-                    && l.FromDate.Year == year 
+                .Where(l => l.UserId == userId
+                    && l.LeaveTypeId == leaveTypeId
+                    && l.FromDate.Year == year
                     && l.Status == "Approved")
                 .SumAsync(l => l.TotalDays);
         }

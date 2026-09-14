@@ -5,8 +5,8 @@ namespace EduOS.Core.Entities.Exams
 {
     public class OnlineExamAttempt : BaseEntity
     {
-        public int OnlineExamId { get; set; }
-        public int StudentId { get; set; }
+        public long OnlineExamId { get; set; }
+        public long StudentId { get; set; }
         public DateTime StartedAt { get; set; }
         public DateTime? SubmittedAt { get; set; }
         public decimal TotalScore { get; set; }

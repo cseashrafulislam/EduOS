@@ -5,7 +5,7 @@ namespace EduOS.Core.Entities.Payroll
 {
     public class Increment : BaseTenantEntity
     {
-        public int EmployeeId { get; set; }
+        public long EmployeeId { get; set; }
         public decimal OldSalary { get; set; }
         public decimal NewSalary { get; set; }
         public decimal IncrementAmount { get; set; }

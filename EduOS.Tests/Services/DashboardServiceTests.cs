@@ -1,5 +1,5 @@
 using EduOS.Core.Entities.SaaS;
-using EduOS.Core.Entities.Tenants;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Enums;
 using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
@@ -71,6 +71,7 @@ public class DashboardServiceTests
 
         result.Success.Should().BeTrue();
         result.Data!.PlanNameBangla.Should().Be("ফ্রি ট্রায়াল");
+        result.Data.OnboardingPercent.Should().Be(30);
         result.Data.ActiveFeatures.Should().BeGreaterThan(0);
         result.Data.Alerts.Select(x => x.Code).Should().Contain(
         [

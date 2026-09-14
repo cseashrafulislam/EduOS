@@ -1,4 +1,5 @@
 ﻿using EduOS.Core.Entities.Base;
+using EduOS.Core.Entities.Employees;
 
 namespace EduOS.Core.Entities.Academic
 {
@@ -17,6 +18,7 @@ namespace EduOS.Core.Entities.Academic
 
         public virtual AcademicBatch? AcademicBatch { get; set; }
         public virtual Subject? Subject { get; set; }
+        public virtual Employee? Employee { get; set; }
         public virtual AcademicYear? AcademicYear { get; set; }
         public virtual AcademicTerm? AcademicTerm { get; set; }
     }

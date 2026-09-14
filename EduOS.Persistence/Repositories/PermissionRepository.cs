@@ -9,7 +9,7 @@ namespace EduOS.Persistence.Repositories
     {
         public PermissionRepository(EduOSDbContext context) : base(context) { }
 
-        public async Task<List<Permission>> GetByRoleIdAsync(int roleId)
+        public async Task<List<Permission>> GetByRoleIdAsync(long roleId)
         {
             return await _context.RolePermissions
                 .Where(rp => rp.RoleId == roleId)

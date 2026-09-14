@@ -6,15 +6,15 @@ namespace EduOS.Core.Entities.Exams
 {
     public class MarkEntry : BaseTenantEntity
     {
-        public int ExamId { get; set; }
-        public int StudentId { get; set; }
-        public int SubjectId { get; set; }
+        public long ExamId { get; set; }
+        public long StudentId { get; set; }
+        public long SubjectId { get; set; }
         public decimal ObtainedMark { get; set; }
         public int FullMark { get; set; }
-        public bool IsAbsent { get; set; } = false;
+        public bool IsAbsent { get; set; }
         public string? Grade { get; set; }
         public decimal? GPA { get; set; }
-        public int EnteredBy { get; set; }
+        public long EnteredBy { get; set; }
         public DateTime EntryDate { get; set; }
 
         public virtual Exam? Exam { get; set; }

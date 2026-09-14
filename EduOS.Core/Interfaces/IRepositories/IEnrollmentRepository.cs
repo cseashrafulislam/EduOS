@@ -4,8 +4,8 @@ namespace EduOS.Core.Interfaces.IRepositories
 {
     public interface IEnrollmentRepository : IGenericRepository<Enrollment>
     {
-        Task<List<Enrollment>> GetByStudentIdAsync(int studentId);
-        Task<Enrollment?> GetCurrentAsync(int studentId, int academicYearId);
-        Task<List<Enrollment>> GetByClassSectionAsync(int classId, int sectionId, int academicYearId);
+        Task<List<Enrollment>> GetByStudentIdAsync(long studentId);
+        Task<Enrollment?> GetCurrentAsync(long studentId, long academicYearId);
+        Task<List<Enrollment>> GetByClassSectionAsync(long classId, long sectionId, long academicYearId);
     }
 }

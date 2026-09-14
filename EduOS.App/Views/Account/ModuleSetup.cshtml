@@ -1,0 +1,85 @@
+@{
+    ViewData["Title"] = "ModuleSetupTitle";
+    Layout = "_OnboardingLayout";
+
+    var pageStrings = new
+    {
+        culture = CultureInfo.CurrentUICulture.Name,
+        loading = T["LoadingModules"].Value,
+        loadFailed = T["ModuleLoadFailed"].Value,
+        retry = T["Retry"].Value,
+        required = T["RequiredModule"].Value,
+        core = T["CoreModule"].Value,
+        included = T["IncludedInPlan"].Value,
+        notIncluded = T["NotIncludedInPlan"].Value,
+        selected = T["Selected"].Value,
+        notSelected = T["NotSelected"].Value,
+        saving = T["Saving"].Value,
+        changeFailed = T["ModuleChangeFailed"].Value,
+        networkError = T["NetworkError"].Value,
+        continuing = T["Continuing"].Value,
+        continueLabel = T["Continue"].Value,
+        continueSetup = T["ContinueSetup"].Value,
+        dashboard = T["Dashboard"].Value,
+        stepFailed = T["StepCompletionFailed"].Value,
+        noModules = T["NoModulesConfigured"].Value,
+        selectedSummary = T["ModulesSelectedTemplate"].Value,
+        requiredUnavailable = T["RequiredModuleUnavailable"].Value,
+        moduleAvailable = T["ModuleAvailable"].Value,
+        moduleNotSelected = T["ModuleNotSelectedHelp"].Value,
+        moduleOutsidePeriod = T["ModuleOutsidePeriod"].Value,
+        moduleUpgradeRequired = T["ModuleUpgradeRequired"].Value,
+        categories = new Dictionary<string, string>
+        {
+            ["Core"] = T["ModuleCategoryCore"].Value,
+            ["Academic"] = T["ModuleCategoryAcademic"].Value,
+            ["Operations"] = T["ModuleCategoryOperations"].Value,
+            ["Learning"] = T["ModuleCategoryLearning"].Value,
+            ["Engagement"] = T["ModuleCategoryEngagement"].Value,
+            ["Platform"] = T["ModuleCategoryPlatform"].Value
+        }
+    };
+    var pageJson = System.Text.Json.JsonSerializer.Serialize(pageStrings);
+}
+
+<article class="setup-page" aria-labelledby="moduleSetupTitle">
+    <header class="setup-header">
+        <p class="dashboard-eyebrow">@T["Onboarding_ModuleSetup_Name"]</p>
+        <h2 id="moduleSetupTitle">@T["ModuleSetupTitle"]</h2>
+        <p>@T["ModuleSetupHelp"]</p>
+    </header>
+
+    <div id="alertContainer" class="d-none" role="alert" tabindex="-1"></div>
+
+    <section class="setup-section" aria-labelledby="moduleGuidanceTitle">
+        <div class="setup-section-heading">
+            <h3 id="moduleGuidanceTitle">@T["ChooseInstitutionModules"]</h3>
+            <p>@T["ModuleEntitlementHelp"]</p>
+        </div>
+        <div class="module-guidance" role="note">
+            <span class="module-guidance-icon" aria-hidden="true">✓</span>
+            <p>@T["RequiredModulesProtectedHelp"]</p>
+        </div>
+        <div class="module-summary" aria-live="polite">
+            <span id="moduleSummary">@T["LoadingModules"]</span>
+        </div>
+    </section>
+
+    <div id="moduleList" class="module-group-list" aria-live="polite" aria-busy="true">
+        <div class="setup-empty-state" role="status">
+            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+            <span>@T["LoadingModules"]</span>
+        </div>
+    </div>
+
+    <footer class="setup-actions">
+        <a asp-controller="Account" asp-action="AcademicSetup" class="btn btn-outline-secondary">@T["Back"]</a>
+        <button type="button" id="continueBtn" class="btn btn-success" disabled
+                data-idle-label="@T["Continue"]" data-loading-label="@T["Continuing"]">
+            @T["Continue"]
+        </button>
+    </footer>
+</article>
+
+<script id="moduleSetupStrings" type="application/json">@Html.Raw(pageJson)</script>
+<script src="~/js/account/module-setup.js" asp-append-version="true"></script>

@@ -15,6 +15,7 @@ namespace EduOS.Persistence.Configurations.SaaS
             builder.Property(s => s.Status).HasConversion<int>();
             builder.Property(s => s.Currency).HasMaxLength(10);
             builder.Property(s => s.CancellationReason).HasMaxLength(500);
+            builder.Property(s => s.RowVersion).IsRowVersion();
 
             builder.Property(s => s.Price).HasColumnType("decimal(18,2)");
             builder.Property(s => s.DiscountAmount).HasColumnType("decimal(18,2)");
@@ -23,6 +24,9 @@ namespace EduOS.Persistence.Configurations.SaaS
 
             // Indexes
             builder.HasIndex(s => new { s.TenantId, s.Status });
+            builder.HasIndex(s => s.TenantId)
+                .IsUnique()
+                .HasFilter("[IsDeleted] = 0 AND [Status] IN (1, 2, 3, 6)");
             builder.HasIndex(s => s.EndDate);
             builder.HasIndex(s => s.NextBillingDate);
 

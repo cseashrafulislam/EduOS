@@ -5,7 +5,7 @@ namespace EduOS.Core.Entities.Exams
 {
     public class Exam : BaseTenantEntity
     {
-        public int AcademicYearId { get; set; }
+        public long AcademicYearId { get; set; }
         public string Name { get; set; } = string.Empty;
         public string Type { get; set; } = string.Empty; // ClassTest/Mid/Final
         public DateTime StartDate { get; set; }

@@ -3,7 +3,6 @@ using EduOS.Persistence.Context;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using System.Security.Claims;
 
@@ -13,8 +12,6 @@ namespace EduOS.App.Middleware
     {
         private readonly RequestDelegate _next;
         private readonly ILogger<TenantContextMiddleware> _logger;
-
-        private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(30);
 
         public TenantContextMiddleware(
             RequestDelegate next,
@@ -27,18 +24,9 @@ namespace EduOS.App.Middleware
         public async Task InvokeAsync(
             HttpContext context,
             UserManager<ApplicationUser> userManager,
-            EduOSDbContext dbContext,
-            IMemoryCache cache)
+            EduOSDbContext dbContext)
         {
-            // Anonymous requests pass through
             if (context.User?.Identity?.IsAuthenticated != true)
-            {
-                await _next(context);
-                return;
-            }
-
-            // SuperAdmin doesn't need tenant context
-            if (context.User.IsInRole("SuperAdmin"))
             {
                 await _next(context);
                 return;
@@ -47,57 +35,87 @@ namespace EduOS.App.Middleware
             try
             {
                 var userIdStr = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
-                if (!long.TryParse(userIdStr, out var userId))
+                if (!long.TryParse(userIdStr, out var userId) || userId <= 0)
+                {
+                    _logger.LogWarning("Authenticated request has no valid user identifier.");
+                    await RejectAsync(context, StatusCodes.Status401Unauthorized, "Your session is invalid. Please sign in again.");
+                    return;
+                }
+
+                // Resolve canonical account state on every authenticated request. Tenant assignments,
+                // activation and authorization membership must not remain stale in an old cookie.
+                var user = await userManager.FindByIdAsync(userId.ToString());
+                if (user == null)
+                {
+                    _logger.LogWarning("Authenticated principal references missing user {UserId}.", userId);
+                    await RejectAsync(context, StatusCodes.Status401Unauthorized, "Your session is no longer valid. Please sign in again.");
+                    return;
+                }
+
+                if (!user.IsActive)
+                {
+                    _logger.LogWarning("Deactivated user {UserId} attempted to use an authenticated session.", userId);
+                    await RejectAsync(context, StatusCodes.Status403Forbidden, "Your account has been deactivated. Please contact support.");
+                    return;
+                }
+
+                var canonicalRoles = await userManager.GetRolesAsync(user);
+                var principalRoles = context.User.FindAll(ClaimTypes.Role)
+                    .Select(x => x.Value)
+                    .Where(x => !string.IsNullOrWhiteSpace(x));
+                var canonicalRoleSet = new HashSet<string>(canonicalRoles, StringComparer.OrdinalIgnoreCase);
+                if (!canonicalRoleSet.SetEquals(principalRoles))
+                {
+                    _logger.LogWarning("User {UserId} attempted to use a session with stale role claims.", userId);
+                    await RejectAsync(context, StatusCodes.Status401Unauthorized, "Your permissions changed. Please sign in again.");
+                    return;
+                }
+
+                // Platform administrators are intentionally tenantless, but only the canonical role
+                // membership resolved above may bypass tenant resolution.
+                if (canonicalRoleSet.Contains("SuperAdmin"))
                 {
                     await _next(context);
                     return;
                 }
 
-                var cacheKey = $"tenant:user:{userId}";
-
-                if (!cache.TryGetValue<long>(cacheKey, out var tenantId))
+                if (user.TenantId is not long tenantId || tenantId <= 0)
                 {
-                    var user = await userManager.FindByIdAsync(userId.ToString());
-                    if (user == null || user.TenantId == null)
-                    {
-                        await _next(context);
-                        return;
-                    }
+                    _logger.LogWarning("User {UserId} has no valid tenant assignment.", userId);
+                    await RejectAsync(context, StatusCodes.Status403Forbidden, "Your account is not assigned to an active institution.");
+                    return;
+                }
 
-                    tenantId = user.TenantId.Value;
+                // Tenant state is deliberately checked per request. A disabled/deleted tenant must stop
+                // receiving traffic immediately instead of remaining authorized through a stale cache.
+                var tenantActive = await dbContext.Tenants
+                    .AsNoTracking()
+                    .AnyAsync(t => t.Id == tenantId && t.IsActive && !t.IsDeleted);
 
-                    if (tenantId > 0)
-                    {
-                        var tenantActive = await dbContext.Tenants
-                            .AsNoTracking()
-                            .Where(t => t.Id == tenantId && t.IsActive && !t.IsDeleted)
-                            .AnyAsync();
-
-                        if (!tenantActive)
-                        {
-                            _logger.LogWarning("User {UserId} has inactive/deleted tenant {TenantId}",
-                                userId, tenantId);
-                            context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                            await context.Response.WriteAsJsonAsync(new
-                            {
-                                success = false,
-                                message = "Your institution account is currently inactive. Please contact support."
-                            });
-                            return;
-                        }
-
-                        cache.Set(cacheKey, tenantId, CacheDuration);
-                    }
+                if (!tenantActive)
+                {
+                    _logger.LogWarning("User {UserId} has inactive/deleted tenant {TenantId}.", userId, tenantId);
+                    await RejectAsync(context, StatusCodes.Status403Forbidden, "Your institution account is currently inactive. Please contact support.");
+                    return;
                 }
 
                 context.Items["TenantId"] = tenantId;
+                await _next(context);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Tenant context resolution failed");
+                // Tenant/account resolution is an authorization boundary. Never continue without trusted
+                // canonical state when an authenticated request cannot be resolved safely.
+                _logger.LogError(ex, "Authenticated account or tenant context resolution failed.");
+                if (!context.Response.HasStarted)
+                    await RejectAsync(context, StatusCodes.Status503ServiceUnavailable, "Unable to validate your account access right now. Please try again.");
             }
+        }
 
-            await _next(context);
+        private static async Task RejectAsync(HttpContext context, int statusCode, string message)
+        {
+            context.Response.StatusCode = statusCode;
+            await context.Response.WriteAsJsonAsync(new { success = false, message });
         }
     }
 

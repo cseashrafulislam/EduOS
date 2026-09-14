@@ -9,16 +9,16 @@ namespace EduOS.Persistence.Repositories
     {
         public ClassRepository(EduOSDbContext context) : base(context) { }
 
-        public async Task<bool> IsClassNameExistsAsync(string name, int tenantId, int? excludeId = null)
+        public async Task<bool> IsClassNameExistsAsync(string name, long tenantId, long? excludeId = null)
         {
-            var query = _dbSet.Where(c => 
+            var query = _dbSet.Where(c =>
                 c.Name.ToLower() == name.ToLower() && c.TenantId == tenantId);
             if (excludeId.HasValue)
                 query = query.Where(c => c.Id != excludeId.Value);
             return await query.AnyAsync();
         }
 
-        public async Task<List<Class>> GetActiveClassesAsync(int tenantId)
+        public async Task<List<Class>> GetActiveClassesAsync(long tenantId)
         {
             return await _dbSet
                 .Where(c => c.TenantId == tenantId && c.IsActive)
@@ -26,14 +26,14 @@ namespace EduOS.Persistence.Repositories
                 .ToListAsync();
         }
 
-        public async Task<Class?> GetWithSectionsAsync(int id)
+        public async Task<Class?> GetWithSectionsAsync(long id)
         {
             return await _dbSet
                 .Include(c => c.Sections)
                 .FirstOrDefaultAsync(c => c.Id == id);
         }
 
-        public async Task<Class?> GetWithSubjectsAsync(int id)
+        public async Task<Class?> GetWithSubjectsAsync(long id)
         {
             return await _dbSet
                 .Include(c => c.Subjects)

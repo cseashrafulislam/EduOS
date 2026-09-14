@@ -6,8 +6,8 @@ namespace EduOS.Core.Entities.Exams
     public class OnlineExam : BaseTenantEntity
     {
         public string Title { get; set; } = string.Empty;
-        public int ClassId { get; set; }
-        public int SubjectId { get; set; }
+        public long ClassId { get; set; }
+        public long SubjectId { get; set; }
         public DateTime StartTime { get; set; }
         public DateTime EndTime { get; set; }
         public int Duration { get; set; } // minutes

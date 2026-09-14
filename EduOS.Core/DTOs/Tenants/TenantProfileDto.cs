@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace EduOS.Core.DTOs.Tenants
 {
     /// <summary>
@@ -49,19 +51,32 @@ namespace EduOS.Core.DTOs.Tenants
     /// </summary>
     public class UpdateTenantProfileDto
     {
+        [Required, StringLength(200)]
         public string Name { get; set; } = string.Empty;
+        [StringLength(50)]
         public string? InstitutionType { get; set; }
+        [StringLength(20)]
         public string? Phone { get; set; }
+        [StringLength(200)]
         public string? Website { get; set; }
+        [StringLength(500)]
         public string? Address { get; set; }
+        [StringLength(100)]
         public string? City { get; set; }
+        [StringLength(100)]
         public string? State { get; set; }
+        [StringLength(100)]
         public string? Country { get; set; }
+        [StringLength(20)]
         public string? PostalCode { get; set; }
 
+        [Required, StringLength(150)]
         public string OwnerName { get; set; } = string.Empty;
+        [StringLength(20)]
         public string? OwnerPhone { get; set; }
+        [EmailAddress, StringLength(150)]
         public string? OwnerEmail { get; set; }
+        [StringLength(100)]
         public string? OwnerDesignation { get; set; }
     }
 
@@ -70,8 +85,11 @@ namespace EduOS.Core.DTOs.Tenants
     /// </summary>
     public class UpdateBrandingDto
     {
+        [StringLength(7)]
         public string? PrimaryColor { get; set; }
+        [StringLength(7)]
         public string? SecondaryColor { get; set; }
+        [StringLength(7)]
         public string? AccentColor { get; set; }
         // Logo and favicon uploaded as multipart/form-data
     }
@@ -81,6 +99,7 @@ namespace EduOS.Core.DTOs.Tenants
     /// </summary>
     public class UpdateSubdomainDto
     {
+        [Required, StringLength(50, MinimumLength = 3)]
         public string Subdomain { get; set; } = string.Empty;
     }
 
@@ -101,10 +120,15 @@ namespace EduOS.Core.DTOs.Tenants
     /// </summary>
     public class UpdateGeneralSettingsDto
     {
+        [Required, StringLength(10)]
         public string Currency { get; set; } = "BDT";
+        [Required, StringLength(10)]
         public string CurrencySymbol { get; set; } = "৳";
+        [Required, StringLength(50)]
         public string TimeZone { get; set; } = "Asia/Dhaka";
+        [Required, StringLength(10)]
         public string Language { get; set; } = "en";
+        [Required, StringLength(20)]
         public string DateFormat { get; set; } = "dd-MM-yyyy";
     }
 
@@ -113,9 +137,13 @@ namespace EduOS.Core.DTOs.Tenants
     /// </summary>
     public class SmsGatewaySettingsDto
     {
+        [StringLength(40)]
         public string? Provider { get; set; }      // BulkSMSBD, SslWireless, etc.
+        [StringLength(2048)]
         public string? ApiUrl { get; set; }
+        [StringLength(1000)]
         public string? ApiKey { get; set; }
+        [StringLength(20)]
         public string? SenderId { get; set; }
         public bool IsEnabled { get; set; }
     }
@@ -125,11 +153,17 @@ namespace EduOS.Core.DTOs.Tenants
     /// </summary>
     public class EmailGatewaySettingsDto
     {
+        [StringLength(253)]
         public string? SmtpHost { get; set; }
+        [Range(1, 65535)]
         public int? SmtpPort { get; set; }
+        [StringLength(320)]
         public string? SmtpUsername { get; set; }
+        [StringLength(1000)]
         public string? SmtpPassword { get; set; }
+        [EmailAddress, StringLength(320)]
         public string? FromEmail { get; set; }
+        [StringLength(150)]
         public string? FromName { get; set; }
         public bool UseSsl { get; set; } = true;
         public bool IsEnabled { get; set; }

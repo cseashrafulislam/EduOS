@@ -6,13 +6,13 @@ namespace EduOS.Core.DTOs.System
 {
     public class AuditLogDto
     {
-        public int Id { get; set; }
-        public int TenantId { get; set; }
-        public int? UserId { get; set; }
+        public long Id { get; set; }
+        public long? TenantId { get; set; }
+        public long? UserId { get; set; }
         public string UserName { get; set; } = string.Empty;
         public string Action { get; set; } = string.Empty; // Create, Update, Delete
         public string TableName { get; set; } = string.Empty;
-        public int? RecordId { get; set; }
+        public long? RecordId { get; set; }
         public string? OldValue { get; set; } // JSON
         public string? NewValue { get; set; } // JSON
         public string IpAddress { get; set; } = string.Empty;

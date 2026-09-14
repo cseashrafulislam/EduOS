@@ -4,7 +4,7 @@ namespace EduOS.Core.Entities.Hostel
 {
     public class HostelRoom : BaseTenantEntity
     {
-        public int HostelId { get; set; }
+        public long HostelId { get; set; }
         public string RoomNo { get; set; } = string.Empty;
         public int Capacity { get; set; }
         public int AvailableBeds { get; set; }

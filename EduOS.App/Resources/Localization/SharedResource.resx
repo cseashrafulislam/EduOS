@@ -413,4 +413,297 @@
   <data name="TermName" xml:space="preserve"><value>Term name</value></data>
   <data name="TermDateHelp" xml:space="preserve"><value>If dates are used, provide both and keep them within the academic year.</value></data>
   <data name="SaveTerm" xml:space="preserve"><value>Save term</value></data>
+  <data name="PlanSelectionTitle" xml:space="preserve"><value>Choose your plan</value></data>
+  <data name="PlanSelectionHelp" xml:space="preserve"><value>Select the capacity and billing period that fit your institution. Every charge is shown before you continue.</value></data>
+  <data name="BillingCycleLabel" xml:space="preserve"><value>Billing period</value></data>
+  <data name="QuarterlySaving" xml:space="preserve"><value>about 10% less</value></data>
+  <data name="HalfYearlySaving" xml:space="preserve"><value>about 15% less</value></data>
+  <data name="YearlySaving" xml:space="preserve"><value>about 22% less</value></data>
+  <data name="PerPeriodTemplate" xml:space="preserve"><value>per {period}</value></data>
+  <data name="SetupFeeTemplate" xml:space="preserve"><value>One-time setup fee: {amount}</value></data>
+  <data name="SelectPlanAriaTemplate" xml:space="preserve"><value>Select {name} plan</value></data>
+  <data name="Selected" xml:space="preserve"><value>Selected</value></data>
+  <data name="Processing" xml:space="preserve"><value>Processing…</value></data>
+  <data name="ContinueToPayment" xml:space="preserve"><value>Continue to payment</value></data>
+  <data name="SubscriptionCreateFailed" xml:space="preserve"><value>The subscription could not be created. Review the plan and try again.</value></data>
+  <data name="ExistingSubscriptionRedirecting" xml:space="preserve"><value>Your existing subscription was found. Taking you to the correct setup step…</value></data>
+  <data name="PlanSelectionSafeNote" xml:space="preserve"><value>Plan limits are shown here; any one-time setup fee is listed separately and included in the invoice.</value></data>
+  <data name="PaymentTitle" xml:space="preserve"><value>Complete payment</value></data>
+  <data name="PaymentHelp" xml:space="preserve"><value>Pay the verified invoice online or submit a bank receipt for review.</value></data>
+  <data name="PaymentMethod" xml:space="preserve"><value>Payment method</value></data>
+  <data name="OnlinePayment" xml:space="preserve"><value>Online payment</value></data>
+  <data name="OnlinePaymentHelp" xml:space="preserve"><value>Cards, mobile financial services, and internet banking through AamarPay</value></data>
+  <data name="BankTransfer" xml:space="preserve"><value>Bank transfer</value></data>
+  <data name="BankTransferHelp" xml:space="preserve"><value>Deposit the full invoice amount and upload the receipt</value></data>
+  <data name="SecureGatewayHelp" xml:space="preserve"><value>You will continue on AamarPay's secure checkout. EduOS verifies the transaction with the gateway before activation.</value></data>
+  <data name="PaySecurely" xml:space="preserve"><value>Pay securely</value></data>
+  <data name="PaySecurelyTemplate" xml:space="preserve"><value>Pay {amount} securely</value></data>
+  <data name="BankAccountHeading" xml:space="preserve"><value>Deposit to this account</value></data>
+  <data name="LoadingBankInfo" xml:space="preserve"><value>Loading verified bank details…</value></data>
+  <data name="PayerBankName" xml:space="preserve"><value>Your bank name</value></data>
+  <data name="PayerAccountNumber" xml:space="preserve"><value>Your account number</value></data>
+  <data name="DepositSlipNumber" xml:space="preserve"><value>Deposit or transaction reference</value></data>
+  <data name="DepositDate" xml:space="preserve"><value>Deposit date</value></data>
+  <data name="AmountPaid" xml:space="preserve"><value>Amount to pay</value></data>
+  <data name="NoteOptional" xml:space="preserve"><value>Note (optional)</value></data>
+  <data name="UploadDepositSlip" xml:space="preserve"><value>Upload deposit receipt</value></data>
+  <data name="UploadReceiptHelp" xml:space="preserve"><value>Choose a PDF, JPG, JPEG, or PNG file up to 5 MB</value></data>
+  <data name="SubmitForVerification" xml:space="preserve"><value>Submit for verification</value></data>
+  <data name="ManualVerificationTime" xml:space="preserve"><value>Access is activated only after a platform administrator verifies the full payment.</value></data>
+  <data name="OrderSummary" xml:space="preserve"><value>Invoice summary</value></data>
+  <data name="NoInvoiceSelected" xml:space="preserve"><value>No valid invoice was selected. Return to plan selection.</value></data>
+  <data name="InvoiceLoadFailed" xml:space="preserve"><value>The invoice could not be loaded. Check the link or try again.</value></data>
+  <data name="InvoiceLabelTemplate" xml:space="preserve"><value>Invoice {number}</value></data>
+  <data name="Discount" xml:space="preserve"><value>Discount</value></data>
+  <data name="Tax" xml:space="preserve"><value>Tax</value></data>
+  <data name="TotalDue" xml:space="preserve"><value>Total due</value></data>
+  <data name="BillingPeriodTemplate" xml:space="preserve"><value>Period: {start} – {end}</value></data>
+  <data name="PaymentInitiating" xml:space="preserve"><value>Opening secure checkout…</value></data>
+  <data name="PaymentGatewayFailed" xml:space="preserve"><value>Online checkout could not be started. Try again after checking the payment configuration.</value></data>
+  <data name="InvalidGatewayUrl" xml:space="preserve"><value>The payment gateway returned an invalid checkout address.</value></data>
+  <data name="ManualPaymentUnavailable" xml:space="preserve"><value>Bank transfer is not configured for this environment. Use an available verified method.</value></data>
+  <data name="BankLabel" xml:space="preserve"><value>Bank</value></data>
+  <data name="AccountNameLabel" xml:space="preserve"><value>Account name</value></data>
+  <data name="AccountNumberLabel" xml:space="preserve"><value>Account number</value></data>
+  <data name="RoutingNumberLabel" xml:space="preserve"><value>Routing number</value></data>
+  <data name="BranchLabel" xml:space="preserve"><value>Branch</value></data>
+  <data name="ReferenceLabel" xml:space="preserve"><value>Reference</value></data>
+  <data name="DepositSlipRequired" xml:space="preserve"><value>Select the deposit receipt before submitting.</value></data>
+  <data name="DepositSlipInvalid" xml:space="preserve"><value>The receipt must be a PDF, JPG, JPEG, or PNG file no larger than 5 MB.</value></data>
+  <data name="ManualPaymentFieldsRequired" xml:space="preserve"><value>Complete all required bank transfer fields.</value></data>
+  <data name="Submitting" xml:space="preserve"><value>Submitting…</value></data>
+  <data name="ManualPaymentSubmitFailed" xml:space="preserve"><value>The bank transfer could not be submitted. Review the information and try again.</value></data>
+  <data name="ManualPaymentSubmitted" xml:space="preserve"><value>Your receipt was submitted securely and is awaiting verification. Setup will unlock after approval.</value></data>
+  <data name="InvoiceAlreadyPaid" xml:space="preserve"><value>This invoice is paid and your subscription is active.</value></data>
+  <data name="PaymentAwaitingVerification" xml:space="preserve"><value>Your bank transfer is awaiting administrator verification. You cannot submit another payment for this invoice.</value></data>
+  <data name="PaymentProcessing" xml:space="preserve"><value>An online payment is being processed. Reload after completing or cancelling checkout.</value></data>
+  <data name="ReloadStatus" xml:space="preserve"><value>Reload payment status</value></data>
+  <data name="Onboarding_ModuleSetup_Name" xml:space="preserve"><value>Module selection</value></data>
+  <data name="Onboarding_ModuleSetup_Description" xml:space="preserve"><value>Choose the tools used by your institution</value></data>
+  <data name="ModuleSetupTitle" xml:space="preserve"><value>Choose your modules</value></data>
+  <data name="Modules" xml:space="preserve"><value>Modules</value></data>
+  <data name="ModuleSetupHelp" xml:space="preserve"><value>Start with the tools your institution needs. You can change optional modules later when your plan allows them.</value></data>
+  <data name="ChooseInstitutionModules" xml:space="preserve"><value>Institution workspace</value></data>
+  <data name="ModuleEntitlementHelp" xml:space="preserve"><value>Your institution preset recommends modules, while the active plan controls which paid capabilities can run.</value></data>
+  <data name="RequiredModulesProtectedHelp" xml:space="preserve"><value>Core and institution-required modules stay enabled so essential records and workflows remain available.</value></data>
+  <data name="LoadingModules" xml:space="preserve"><value>Loading modules…</value></data>
+  <data name="ModuleLoadFailed" xml:space="preserve"><value>Modules could not be loaded. Check your connection and try again.</value></data>
+  <data name="CoreModule" xml:space="preserve"><value>Core</value></data>
+  <data name="RequiredModule" xml:space="preserve"><value>Required</value></data>
+  <data name="NotIncludedInPlan" xml:space="preserve"><value>Plan upgrade needed</value></data>
+  <data name="NotSelected" xml:space="preserve"><value>Not selected</value></data>
+  <data name="ModuleChangeFailed" xml:space="preserve"><value>The module selection could not be changed. Reload and try again.</value></data>
+  <data name="NoModulesConfigured" xml:space="preserve"><value>No active product modules are configured. Contact the platform administrator.</value></data>
+  <data name="ModulesSelectedTemplate" xml:space="preserve"><value>{selected} of {total} modules selected and included in your plan.</value></data>
+  <data name="RequiredModuleUnavailable" xml:space="preserve"><value>A required module is unavailable in this plan. Contact support or choose a compatible plan.</value></data>
+  <data name="ModuleAvailable" xml:space="preserve"><value>Ready to use after onboarding.</value></data>
+  <data name="ModuleNotSelectedHelp" xml:space="preserve"><value>Optional module is currently turned off.</value></data>
+  <data name="ModuleOutsidePeriod" xml:space="preserve"><value>This scheduled module is outside its active period.</value></data>
+  <data name="ModuleUpgradeRequired" xml:space="preserve"><value>This module cannot run until the subscription includes it.</value></data>
+  <data name="ModuleCategoryCore" xml:space="preserve"><value>Core administration</value></data>
+  <data name="ModuleCategoryAcademic" xml:space="preserve"><value>Academic</value></data>
+  <data name="ModuleCategoryOperations" xml:space="preserve"><value>Operations</value></data>
+  <data name="ModuleCategoryLearning" xml:space="preserve"><value>Learning</value></data>
+  <data name="ModuleCategoryEngagement" xml:space="preserve"><value>Engagement</value></data>
+  <data name="ModuleCategoryPlatform" xml:space="preserve"><value>Platform and integrations</value></data>
+  <data name="BrandingSetupTitle" xml:space="preserve"><value>Branding and portal address</value></data>
+  <data name="BrandingSetupHelp" xml:space="preserve"><value>Choose a secure portal address and the visual identity your community will recognize.</value></data>
+  <data name="PortalAddress" xml:space="preserve"><value>Portal address</value></data>
+  <data name="PortalAddressHelp" xml:space="preserve"><value>This unique address is required before the institution workspace can open.</value></data>
+  <data name="PortalSubdomain" xml:space="preserve"><value>Subdomain</value></data>
+  <data name="SubdomainPlaceholder" xml:space="preserve"><value>your-institution</value></data>
+  <data name="SaveSubdomain" xml:space="preserve"><value>Save address</value></data>
+  <data name="CheckingAvailability" xml:space="preserve"><value>Checking availability…</value></data>
+  <data name="SubdomainAvailable" xml:space="preserve"><value>This portal address is available.</value></data>
+  <data name="SubdomainUnavailable" xml:space="preserve"><value>This portal address is unavailable. Try another name.</value></data>
+  <data name="SubdomainCheckFailed" xml:space="preserve"><value>The address could not be checked. Try again.</value></data>
+  <data name="SubdomainSaved" xml:space="preserve"><value>Portal address saved.</value></data>
+  <data name="SubdomainSaveFailed" xml:space="preserve"><value>The portal address could not be saved. Check it and try again.</value></data>
+  <data name="LogoAndFavicon" xml:space="preserve"><value>Logo and app icon</value></data>
+  <data name="BrandAssetsHelp" xml:space="preserve"><value>Use clear, trusted images that remain readable on phones and computers.</value></data>
+  <data name="Logo" xml:space="preserve"><value>Institution logo</value></data>
+  <data name="Favicon" xml:space="preserve"><value>Browser and app icon</value></data>
+  <data name="Upload" xml:space="preserve"><value>Upload</value></data>
+  <data name="Remove" xml:space="preserve"><value>Remove</value></data>
+  <data name="UploadLogo" xml:space="preserve"><value>Upload institution logo</value></data>
+  <data name="UploadFavicon" xml:space="preserve"><value>Upload browser and app icon</value></data>
+  <data name="LogoUploadHelp" xml:space="preserve"><value>JPG, PNG, or WEBP; maximum 5 MB.</value></data>
+  <data name="FaviconUploadHelp" xml:space="preserve"><value>PNG or JPG; maximum 5 MB.</value></data>
+  <data name="RemoveLogoConfirm" xml:space="preserve"><value>Remove the current institution logo?</value></data>
+  <data name="RemoveFaviconConfirm" xml:space="preserve"><value>Remove the current browser and app icon?</value></data>
+  <data name="LogoPreview" xml:space="preserve"><value>Institution logo preview</value></data>
+  <data name="FaviconPreview" xml:space="preserve"><value>Browser and app icon preview</value></data>
+  <data name="UploadedSuccessfully" xml:space="preserve"><value>Image uploaded securely.</value></data>
+  <data name="UploadFailed" xml:space="preserve"><value>The image could not be uploaded. Check its type and size.</value></data>
+  <data name="RemoveFailed" xml:space="preserve"><value>The image could not be removed. Try again.</value></data>
+  <data name="BrandColors" xml:space="preserve"><value>Brand colors</value></data>
+  <data name="BrandColorsHelp" xml:space="preserve"><value>These colors will identify your institution across the workspace.</value></data>
+  <data name="PrimaryColor" xml:space="preserve"><value>Primary color</value></data>
+  <data name="SecondaryColor" xml:space="preserve"><value>Secondary color</value></data>
+  <data name="AccentColor" xml:space="preserve"><value>Accent color</value></data>
+  <data name="BrandingRequiredNote" xml:space="preserve"><value>The portal address is required. Images and colors can be changed later by an administrator.</value></data>
+  <data name="BrandingSaveFailed" xml:space="preserve"><value>Branding could not be saved. Confirm the portal address and colors.</value></data>
+  <data name="GeneralSettingsTitle" xml:space="preserve"><value>Regional preferences</value></data>
+  <data name="GeneralSettingsHelp" xml:space="preserve"><value>Set the defaults used for money, dates, time, and language across your institution.</value></data>
+  <data name="RegionalPreferences" xml:space="preserve"><value>Institution defaults</value></data>
+  <data name="RegionalPreferencesHelp" xml:space="preserve"><value>Bangladesh-friendly defaults are selected, and an administrator can change them later.</value></data>
+  <data name="Currency" xml:space="preserve"><value>Currency</value></data>
+  <data name="CurrencySymbol" xml:space="preserve"><value>Currency symbol</value></data>
+  <data name="TimeZone" xml:space="preserve"><value>Time zone</value></data>
+  <data name="DateFormat" xml:space="preserve"><value>Date format</value></data>
+  <data name="CurrencyBDT" xml:space="preserve"><value>Bangladeshi taka (BDT)</value></data>
+  <data name="CurrencyUSD" xml:space="preserve"><value>US dollar (USD)</value></data>
+  <data name="CurrencyINR" xml:space="preserve"><value>Indian rupee (INR)</value></data>
+  <data name="CurrencyGBP" xml:space="preserve"><value>British pound (GBP)</value></data>
+  <data name="CurrencyEUR" xml:space="preserve"><value>Euro (EUR)</value></data>
+  <data name="CurrencyAED" xml:space="preserve"><value>UAE dirham (AED)</value></data>
+  <data name="RegionalDefaultsNote" xml:space="preserve"><value>These defaults affect future entries; existing financial records will not be converted.</value></data>
+  <data name="SkipForNow" xml:space="preserve"><value>Skip for now</value></data>
+  <data name="GeneralSettingsSaveFailed" xml:space="preserve"><value>The regional preferences could not be saved. Review the selected values.</value></data>
+  <data name="GatewaySetupTitle" xml:space="preserve"><value>SMS and email delivery</value></data>
+  <data name="GatewaySetupHelp" xml:space="preserve"><value>Connect your own messaging providers now, or safely finish setup and configure them later.</value></data>
+  <data name="GatewayLoadFailed" xml:space="preserve"><value>Gateway settings could not be loaded. Reload before changing them.</value></data>
+  <data name="SmsSettingsSaved" xml:space="preserve"><value>SMS settings saved securely.</value></data>
+  <data name="EmailSettingsSaved" xml:space="preserve"><value>Email settings saved securely.</value></data>
+  <data name="GatewaySaveFailed" xml:space="preserve"><value>The gateway settings were not saved. Use a public secure host and complete all enabled fields.</value></data>
+  <data name="FinishingSetup" xml:space="preserve"><value>Finishing setup…</value></data>
+  <data name="FinishSetup" xml:space="preserve"><value>Finish setup</value></data>
+  <data name="OnboardingCompletionFailed" xml:space="preserve"><value>Setup could not be completed. Review the required steps and try again.</value></data>
+  <data name="SmsGateway" xml:space="preserve"><value>SMS gateway</value></data>
+  <data name="SmsGatewayHelp" xml:space="preserve"><value>Send attendance, payment, and emergency messages through a supported provider.</value></data>
+  <data name="Enable" xml:space="preserve"><value>Enable</value></data>
+  <data name="Provider" xml:space="preserve"><value>Provider</value></data>
+  <data name="SelectProvider" xml:space="preserve"><value>Select a provider</value></data>
+  <data name="CustomProvider" xml:space="preserve"><value>Custom secure provider</value></data>
+  <data name="SenderId" xml:space="preserve"><value>Sender ID</value></data>
+  <data name="ApiUrl" xml:space="preserve"><value>Secure API URL</value></data>
+  <data name="ApiKey" xml:space="preserve"><value>API key</value></data>
+  <data name="SecretStoredHelp" xml:space="preserve"><value>Secrets are encrypted and are shown only as a mask after saving.</value></data>
+  <data name="SaveSmsSettings" xml:space="preserve"><value>Save SMS settings</value></data>
+  <data name="EmailGateway" xml:space="preserve"><value>Email gateway (SMTP)</value></data>
+  <data name="EmailGatewayHelp" xml:space="preserve"><value>Send official notices and account messages from your institution's address.</value></data>
+  <data name="SmtpHost" xml:space="preserve"><value>SMTP host</value></data>
+  <data name="SmtpPort" xml:space="preserve"><value>SMTP port</value></data>
+  <data name="Username" xml:space="preserve"><value>Username</value></data>
+  <data name="FromEmail" xml:space="preserve"><value>From email</value></data>
+  <data name="FromName" xml:space="preserve"><value>From name</value></data>
+  <data name="UseSsl" xml:space="preserve"><value>Use SSL/TLS encryption</value></data>
+  <data name="SaveEmailSettings" xml:space="preserve"><value>Save email settings</value></data>
+  <data name="GatewayOptionalNote" xml:space="preserve"><value>Gateway setup is optional. EduOS never displays a saved secret and blocks local or insecure endpoints.</value></data>
+  <data name="SkipAndFinish" xml:space="preserve"><value>Skip and finish</value></data>
+  <data name="MfaChallengeTitle" xml:space="preserve"><value>Verify your sign-in</value></data>
+  <data name="MfaChallengeHelp" xml:space="preserve"><value>Enter the current code from your authenticator app, or use one unused recovery code.</value></data>
+  <data name="MfaVerificationCode" xml:space="preserve"><value>Verification code</value></data>
+  <data name="UseRecoveryCode" xml:space="preserve"><value>Use a recovery code</value></data>
+  <data name="VerifyAndSignIn" xml:space="preserve"><value>Verify and sign in</value></data>
+  <data name="Verifying" xml:space="preserve"><value>Verifying…</value></data>
+  <data name="MfaCodeRequired" xml:space="preserve"><value>Enter a verification or recovery code.</value></data>
+  <data name="MfaCodeInvalid" xml:space="preserve"><value>The code is invalid. Check the time on your device and try again.</value></data>
+  <data name="MfaChallengeExpired" xml:space="preserve"><value>This sign-in request is missing or expired. Return to login and enter your password again.</value></data>
+  <data name="MfaSetupTitle" xml:space="preserve"><value>Protect your administrator account</value></data>
+  <data name="MfaSetupHelp" xml:space="preserve"><value>Administrator work is locked until an authenticator app is connected.</value></data>
+  <data name="MfaAlreadyEnabled" xml:space="preserve"><value>Multi-factor authentication is already enabled. Sign in again if this session still needs verification.</value></data>
+  <data name="ContinueToDashboard" xml:space="preserve"><value>Continue to dashboard</value></data>
+  <data name="SignInAgain" xml:space="preserve"><value>Sign in again</value></data>
+  <data name="CurrentPassword" xml:space="preserve"><value>Current password</value></data>
+  <data name="CurrentPasswordRequired" xml:space="preserve"><value>Enter your current password and verification code.</value></data>
+  <data name="CreateAuthenticatorKey" xml:space="preserve"><value>Connect authenticator app</value></data>
+  <data name="Preparing" xml:space="preserve"><value>Preparing…</value></data>
+  <data name="ConnectAuthenticatorApp" xml:space="preserve"><value>Connect your app</value></data>
+  <data name="MfaInstallAppStep" xml:space="preserve"><value>Install a trusted TOTP authenticator app on your own device.</value></data>
+  <data name="MfaEnterKeyStep" xml:space="preserve"><value>Add an account and enter the key below. Never share this key.</value></data>
+  <data name="MfaEnterCodeStep" xml:space="preserve"><value>Enter the six-digit code generated by the app.</value></data>
+  <data name="AuthenticatorSharedKey" xml:space="preserve"><value>Authenticator setup key</value></data>
+  <data name="OpenAuthenticatorApp" xml:space="preserve"><value>Open authenticator app</value></data>
+  <data name="EnableMfa" xml:space="preserve"><value>Verify and enable</value></data>
+  <data name="MfaSetupFailed" xml:space="preserve"><value>Setup could not start. Confirm your current password and try again.</value></data>
+  <data name="MfaEnableFailed" xml:space="preserve"><value>The code could not be verified. Check the app and try again.</value></data>
+  <data name="RecoveryCodesTitle" xml:space="preserve"><value>Save your recovery codes now</value></data>
+  <data name="RecoveryCodesHelp" xml:space="preserve"><value>Store these one-time codes offline in a secure place. They will not be shown again.</value></data>
+  <data name="RecoveryCodesWarning" xml:space="preserve"><value>Anyone with one of these codes can access your account. Never send them by message or email.</value></data>
+  <data name="SavedCodesContinue" xml:space="preserve"><value>I saved the codes — continue</value></data>
+  <data name="Admission" xml:space="preserve"><value>Admission</value></data>
+  <data name="AdmissionApplications" xml:space="preserve"><value>Admission applications</value></data>
+  <data name="AdmissionApplicationsHelp" xml:space="preserve"><value>Receive, review and track applications without exposing learner identity data across institutions.</value></data>
+  <data name="AdmissionPrivacyHelp" xml:space="preserve"><value>Enter only admission details here. NID and birth registration are handled through the protected identity workflow after enrollment.</value></data>
+  <data name="NewApplication" xml:space="preserve"><value>New application</value></data>
+  <data name="ApplicantName" xml:space="preserve"><value>Applicant name</value></data>
+  <data name="ApplicantNameBangla" xml:space="preserve"><value>Applicant name in Bangla</value></data>
+  <data name="DateOfBirth" xml:space="preserve"><value>Date of birth</value></data>
+  <data name="Gender" xml:space="preserve"><value>Gender</value></data>
+  <data name="Male" xml:space="preserve"><value>Male</value></data>
+  <data name="Female" xml:space="preserve"><value>Female</value></data>
+  <data name="Other" xml:space="preserve"><value>Other</value></data>
+  <data name="PrimaryMobile" xml:space="preserve"><value>Primary mobile</value></data>
+  <data name="GuardianInformation" xml:space="preserve"><value>Guardian information</value></data>
+  <data name="GuardianName" xml:space="preserve"><value>Guardian name</value></data>
+  <data name="GuardianRelation" xml:space="preserve"><value>Relationship</value></data>
+  <data name="GuardianMobile" xml:space="preserve"><value>Guardian mobile</value></data>
+  <data name="PresentAddress" xml:space="preserve"><value>Present address</value></data>
+  <data name="PermanentAddress" xml:space="preserve"><value>Permanent address</value></data>
+  <data name="PermanentAddressSame" xml:space="preserve"><value>Permanent address is the same</value></data>
+  <data name="PreviousInstitution" xml:space="preserve"><value>Previous institution</value></data>
+  <data name="PreferredLanguage" xml:space="preserve"><value>Preferred language</value></data>
+  <data name="SubmitApplication" xml:space="preserve"><value>Submit application</value></data>
+  <data name="ApplicationList" xml:space="preserve"><value>Application list</value></data>
+  <data name="SearchApplications" xml:space="preserve"><value>Search name or application number</value></data>
+  <data name="FilterStatus" xml:space="preserve"><value>Filter by status</value></data>
+  <data name="AllStatuses" xml:space="preserve"><value>All statuses</value></data>
+  <data name="Search" xml:space="preserve"><value>Search</value></data>
+  <data name="SelectOption" xml:space="preserve"><value>Select</value></data>
+  <data name="ApplicationNumber" xml:space="preserve"><value>Application number</value></data>
+  <data name="SubmittedAt" xml:space="preserve"><value>Submitted</value></data>
+  <data name="Status" xml:space="preserve"><value>Status</value></data>
+  <data name="Previous" xml:space="preserve"><value>Previous</value></data>
+  <data name="Next" xml:space="preserve"><value>Next</value></data>
+  <data name="Page" xml:space="preserve"><value>Page</value></data>
+  <data name="FullContact" xml:space="preserve"><value>Contact</value></data>
+  <data name="NewStatus" xml:space="preserve"><value>New status</value></data>
+  <data name="SaveDecision" xml:space="preserve"><value>Save decision</value></data>
+  <data name="DecisionNote" xml:space="preserve"><value>Decision note</value></data>
+  <data name="LoadingApplications" xml:space="preserve"><value>Loading applications…</value></data>
+  <data name="NoApplications" xml:space="preserve"><value>No applications match the current filters.</value></data>
+  <data name="ApplicationLoadFailed" xml:space="preserve"><value>Applications could not be loaded.</value></data>
+  <data name="AdmissionOptionsFailed" xml:space="preserve"><value>Admission options could not be loaded. Complete academic and campus setup first.</value></data>
+  <data name="ApplicationCreateFailed" xml:space="preserve"><value>The application could not be submitted.</value></data>
+  <data name="ApplicationCreated" xml:space="preserve"><value>Application submitted:</value></data>
+  <data name="ApplicationDetailsFailed" xml:space="preserve"><value>Application details could not be loaded.</value></data>
+  <data name="DecisionSaveFailed" xml:space="preserve"><value>The application decision could not be saved.</value></data>
+  <data name="DecisionSaved" xml:space="preserve"><value>Application decision saved.</value></data>
+  <data name="MinorGuardianRequired" xml:space="preserve"><value>Guardian name, relationship and mobile are required for an applicant under 18.</value></data>
+  <data name="ApplicationPagination" xml:space="preserve"><value>Application pages</value></data>
+  <data name="AdmissionReviewTitle" xml:space="preserve"><value>Review admission application</value></data>
+  <data name="AdmissionStatusSubmitted" xml:space="preserve"><value>Submitted</value></data>
+  <data name="AdmissionStatusUnderReview" xml:space="preserve"><value>Under review</value></data>
+  <data name="AdmissionStatusWaitlisted" xml:space="preserve"><value>Waitlisted</value></data>
+  <data name="AdmissionStatusApproved" xml:space="preserve"><value>Approved</value></data>
+  <data name="AdmissionStatusRejected" xml:space="preserve"><value>Rejected</value></data>
+  <data name="AdmissionStatusWithdrawn" xml:space="preserve"><value>Withdrawn</value></data>
+  <data name="AdmissionStatusAdmitted" xml:space="preserve"><value>Admitted</value></data>
+  <data name="AdmitApplicant" xml:space="preserve"><value>Admit applicant</value></data>
+  <data name="CompleteEnrollment" xml:space="preserve"><value>Complete enrollment</value></data>
+  <data name="EnrollmentFailed" xml:space="preserve"><value>Enrollment could not be completed.</value></data>
+  <data name="ApplicantAdmittedSuccess" xml:space="preserve"><value>Applicant admitted:</value></data>
+  <data name="Section" xml:space="preserve"><value>Section</value></data>
+  <data name="Group" xml:space="preserve"><value>Group</value></data>
+  <data name="Roll" xml:space="preserve"><value>Roll</value></data>
+  <data name="StudentDirectory" xml:space="preserve"><value>Student directory</value></data>
+  <data name="StudentDirectoryHelp" xml:space="preserve"><value>Find enrolled students and view their authorized profile, guardian and enrollment history.</value></data>
+  <data name="LoadingStudents" xml:space="preserve"><value>Loading students…</value></data>
+  <data name="NoStudents" xml:space="preserve"><value>No students match the current filters.</value></data>
+  <data name="StudentsLoadFailed" xml:space="preserve"><value>Students could not be loaded.</value></data>
+  <data name="StudentDetailsFailed" xml:space="preserve"><value>Student details could not be loaded.</value></data>
+  <data name="ViewDetails" xml:space="preserve"><value>View details</value></data>
+  <data name="StudentCode" xml:space="preserve"><value>Student code</value></data>
+  <data name="AdmissionDate" xml:space="preserve"><value>Admission date</value></data>
+  <data name="EnrollmentHistory" xml:space="preserve"><value>Enrollment history</value></data>
+  <data name="SearchStudents" xml:space="preserve"><value>Search by name, code or roll</value></data>
+  <data name="StudentPagination" xml:space="preserve"><value>Student pages</value></data>
+  <data name="StudentProfile" xml:space="preserve"><value>Student profile</value></data>
+  <data name="Active" xml:space="preserve"><value>Active</value></data>
+  <data name="Suspended" xml:space="preserve"><value>Suspended</value></data>
+  <data name="Transferred" xml:space="preserve"><value>Transferred</value></data>
+  <data name="Passed" xml:space="preserve"><value>Passed</value></data>
+  <data name="Dropout" xml:space="preserve"><value>Dropout</value></data>
+  <data name="Archived" xml:space="preserve"><value>Archived</value></data>
 </root>

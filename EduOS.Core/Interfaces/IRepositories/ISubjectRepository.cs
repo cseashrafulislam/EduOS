@@ -4,8 +4,8 @@ namespace EduOS.Core.Interfaces.IRepositories
 {
     public interface ISubjectRepository : IGenericRepository<Subject>
     {
-        Task<List<Subject>> GetByClassIdAsync(int classId);
-        Task<List<Subject>> GetByClassAndGroupAsync(int classId, int? groupId);
-        Task<bool> IsCodeExistsAsync(string code, int tenantId, int? excludeId = null);
+        Task<List<Subject>> GetByClassIdAsync(long classId);
+        Task<List<Subject>> GetByClassAndGroupAsync(long classId, long? groupId);
+        Task<bool> IsCodeExistsAsync(string code, long tenantId, long? excludeId = null);
     }
 }

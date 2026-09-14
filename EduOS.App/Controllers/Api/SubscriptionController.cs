@@ -9,7 +9,8 @@ namespace EduOS.App.Controllers.Api
     /// Tenant subscription management.
     /// Requires authenticated user with tenant context.
     /// </summary>
-    [Authorize]
+    [Authorize(Roles = "TenantAdmin")]
+    [AutoValidateAntiforgeryToken]
     [ApiController]
     [Route("api/subscription")]
     public class SubscriptionController : ControllerBase

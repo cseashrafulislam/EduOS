@@ -4,7 +4,7 @@ namespace EduOS.Core.Entities.Students
 {
     public class HealthRecord : BaseTenantEntity
     {
-        public int StudentId { get; set; }
+        public long StudentId { get; set; }
         public string? BloodGroup { get; set; }
         public decimal? Height { get; set; } // cm
         public decimal? Weight { get; set; } // kg
