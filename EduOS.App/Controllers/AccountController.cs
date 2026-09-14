@@ -24,9 +24,11 @@ namespace EduOS.App.Controllers
         }
         // ==================== Auth Pages ====================
 
+        [AllowAnonymous]
         [HttpGet]
         public IActionResult Login() => View();
 
+        [AllowAnonymous]
         [HttpGet]
         public IActionResult Signup(string? plan = null)
         {
@@ -34,21 +36,27 @@ namespace EduOS.App.Controllers
             return View();
         }
 
+        [AllowAnonymous]
         [HttpGet]
         public IActionResult SignupSuccess() => View();
 
+        [AllowAnonymous]
         [HttpGet]
         public IActionResult VerifyEmail() => View();
 
+        [AllowAnonymous]
         [HttpGet]
         public IActionResult VerifyEmailSuccess() => View();
 
+        [AllowAnonymous]
         [HttpGet]
         public IActionResult VerifyFailed() => View();
 
+        [AllowAnonymous]
         [HttpGet]
         public IActionResult ForgotPassword() => View();
 
+        [AllowAnonymous]
         [HttpGet]
         public IActionResult ResetPassword(string email, string token)
         {
@@ -125,12 +133,13 @@ namespace EduOS.App.Controllers
         [HttpGet]
         public IActionResult OnboardingComplete() => View();
 
-
+        [Authorize]
         [HttpGet]
         public IActionResult Profile()
         {
             return View();
         }
+
         // ==================== Logout ====================
         [Authorize]
         [HttpPost]
@@ -140,19 +149,17 @@ namespace EduOS.App.Controllers
             if (_currentUser.IsAuthenticated)
             {
                 var userId = _currentUser.UserId;
-
-                // remove tenant cache
                 _cache.Remove($"tenant:user:{userId}");
             }
 
             await _signInManager.SignOutAsync();
             return RedirectToAction("Login", "Account");
         }
-
     }
 
     // ==================== Public Pricing Page ====================
 
+    [AllowAnonymous]
     public class PricingController : Controller
     {
         [HttpGet]
