@@ -11,19 +11,25 @@ namespace EduOS.Persistence.Repositories
 
         public async Task<Tenant?> GetBySubdomainAsync(string subdomain)
         {
+            ArgumentException.ThrowIfNullOrWhiteSpace(subdomain);
+            var normalized = subdomain.Trim().ToLowerInvariant();
             return await _dbSet
-                .FirstOrDefaultAsync(t => t.Subdomain.ToLower() == subdomain.ToLower());
+                .FirstOrDefaultAsync(t => t.Subdomain != null && t.Subdomain.ToLower() == normalized);
         }
 
         public async Task<Tenant?> GetByCodeAsync(string code)
         {
+            ArgumentException.ThrowIfNullOrWhiteSpace(code);
+            var normalized = code.Trim().ToLowerInvariant();
             return await _dbSet
-                .FirstOrDefaultAsync(t => t.Code.ToLower() == code.ToLower());
+                .FirstOrDefaultAsync(t => t.Code != null && t.Code.ToLower() == normalized);
         }
 
         public async Task<bool> IsSubdomainExistsAsync(string subdomain, long? excludeId = null)
         {
-            var query = _dbSet.Where(t => t.Subdomain.ToLower() == subdomain.ToLower());
+            ArgumentException.ThrowIfNullOrWhiteSpace(subdomain);
+            var normalized = subdomain.Trim().ToLowerInvariant();
+            var query = _dbSet.Where(t => t.Subdomain != null && t.Subdomain.ToLower() == normalized);
             if (excludeId.HasValue)
                 query = query.Where(t => t.Id != excludeId.Value);
             return await query.AnyAsync();
@@ -31,7 +37,9 @@ namespace EduOS.Persistence.Repositories
 
         public async Task<bool> IsCodeExistsAsync(string code, long? excludeId = null)
         {
-            var query = _dbSet.Where(t => t.Code.ToLower() == code.ToLower());
+            ArgumentException.ThrowIfNullOrWhiteSpace(code);
+            var normalized = code.Trim().ToLowerInvariant();
+            var query = _dbSet.Where(t => t.Code != null && t.Code.ToLower() == normalized);
             if (excludeId.HasValue)
                 query = query.Where(t => t.Id != excludeId.Value);
             return await query.AnyAsync();
