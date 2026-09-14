@@ -33,5 +33,22 @@ jobs:
       - name: Build
         run: dotnet build EduOS.slnx --configuration Release --no-restore
 
+      - name: Generate EF snapshot probe
+        if: github.ref == 'refs/heads/codex/phase-0-security-foundation'
+        run: |
+          dotnet tool install --global dotnet-ef --version 10.0.10
+          dotnet ef migrations add SnapshotSyncProbe --project EduOS.Persistence --startup-project EduOS.App --context EduOSDbContext --no-build --output-dir Migrations/SnapshotSyncProbe
+
+      - name: Upload EF snapshot probe
+        if: always() && github.ref == 'refs/heads/codex/phase-0-security-foundation'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ef-snapshot-probe
+          path: |
+            EduOS.Persistence/Migrations/EduOSDbContextModelSnapshot.cs
+            EduOS.Persistence/Migrations/SnapshotSyncProbe
+          if-no-files-found: warn
+          retention-days: 1
+
       - name: Test
         run: dotnet test EduOS.slnx --configuration Release --no-build --logger "trx;LogFileName=tests.trx" --results-directory TestResults
