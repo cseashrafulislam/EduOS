@@ -510,20 +510,12 @@ namespace EduOS.Service.Helpers.Storage
             return true;
         }
 
-        private async Task<string?> GenerateThumbnailAsync(string filePath, string relativePath, string fileName)
+        private Task<string?> GenerateThumbnailAsync(string filePath, string relativePath, string fileName)
         {
-            try
-            {
-                var thumbFileName = $"thumb_{fileName}";
-                var thumbPath = Path.Combine(Path.GetDirectoryName(filePath)!, thumbFileName);
-                await Task.CompletedTask;
-                return $"{_settings.UrlPrefix}/{relativePath}/{thumbFileName}".Replace("\\", "/");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to generate thumbnail for {FileName}", fileName);
-                return null;
-            }
+            _logger.LogDebug(
+                "Thumbnail generation requested for {FileName}, but no image processor is configured. Returning no thumbnail URL.",
+                fileName);
+            return Task.FromResult<string?>(null);
         }
 
         private static bool IsImageFile(string extension)
