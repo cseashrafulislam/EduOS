@@ -34,7 +34,7 @@ public class AuthorizationContractTests
     }
 
     [Fact]
-    public void Public_account_and_catalog_routes_are_explicitly_anonymous()
+    public void Public_account_catalog_and_error_routes_are_explicitly_anonymous()
     {
         var publicAccountActions = new[]
         {
@@ -59,6 +59,8 @@ public class AuthorizationContractTests
         typeof(PricingController).GetCustomAttributes(typeof(AllowAnonymousAttribute), true)
             .Should().NotBeEmpty();
         typeof(PlatformCatalogController).GetCustomAttributes(typeof(AllowAnonymousAttribute), true)
+            .Should().NotBeEmpty();
+        typeof(ErrorController).GetCustomAttributes(typeof(AllowAnonymousAttribute), true)
             .Should().NotBeEmpty();
     }
 
