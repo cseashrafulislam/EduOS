@@ -24,7 +24,7 @@ namespace EduOS.Service.Helpers.Storage
         Task<bool> DeletePrivateAsync(string storageKey);
         Task<bool> DeleteAsync(string fileUrl);
         Task<bool> DeleteByPathAsync(string relativePath);
-        bool ValidateFile(IFormFile file);
+        bool ValidateFile(IFormFile? file);
         Task<byte[]> GetFileContentAsync(string fileUrl);
         Task<List<FileInfo>> GetFilesInFolderAsync(string folder);
         Task<long> GetFolderSizeAsync(string folder);
@@ -103,7 +103,6 @@ namespace EduOS.Service.Helpers.Storage
 
             try
             {
-                // Validation
                 if (!ValidateFile(file))
                 {
                     result.Success = false;
@@ -111,24 +110,19 @@ namespace EduOS.Service.Helpers.Storage
                     return result;
                 }
 
-                // Security: Scan for malicious content
                 if (_settings.EnableVirusScan && !await ScanForVirusAsync(file))
                 {
                     result.Success = false;
-                    result.ErrorMessage = "Virus scan detected potential threat.";
+                    result.ErrorMessage = "Virus scanning is enabled but the file could not be verified as clean.";
                     _logger.LogWarning("Virus scan failed for file: {FileName} uploaded by user: {UserId}",
                         file.FileName, _currentUser.UserId);
                     return result;
                 }
 
-                // Generate unique filename
                 var extension = Path.GetExtension(file.FileName).ToLower();
                 var fileName = GenerateSecureFileName(extension);
-
-                // Compute file hash for deduplication
                 result.FileHash = await ComputeFileHashAsync(file);
 
-                // Check if file already exists (optional deduplication)
                 var existingFile = await FindDuplicateFileAsync(result.FileHash, folder);
                 if (existingFile != null && _settings.GenerateThumbnails)
                 {
@@ -138,39 +132,26 @@ namespace EduOS.Service.Helpers.Storage
                     return result;
                 }
 
-                // Build folder structure: tenant-{tenantId}/{folder}/{year}/{month}/
                 var relativePath = BuildRelativePath(folder);
                 var fullPath = Path.Combine(_settings.BasePath, relativePath);
 
-                // Create directory if not exists
                 if (!Directory.Exists(fullPath))
-                {
                     Directory.CreateDirectory(fullPath);
-                }
 
-                // Check folder capacity
                 var fileCount = Directory.GetFiles(fullPath, "*", SearchOption.AllDirectories).Length;
                 if (fileCount >= _settings.MaxFilesPerFolder)
-                {
                     throw new InvalidOperationException($"Folder has reached maximum capacity of {_settings.MaxFilesPerFolder} files");
-                }
 
-                // Save file
                 var filePath = Path.Combine(fullPath, fileName);
-
                 using (var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, true))
                 {
                     await file.CopyToAsync(stream);
                     await stream.FlushAsync();
                 }
 
-                // Generate thumbnail for images
                 if (_settings.GenerateThumbnails && IsImageFile(extension))
-                {
                     result.ThumbnailUrl = await GenerateThumbnailAsync(filePath, relativePath, fileName);
-                }
 
-                // Build URL
                 result.Success = true;
                 result.FileUrl = $"{_settings.UrlPrefix}/{relativePath}/{fileName}".Replace("\\", "/");
 
@@ -221,7 +202,7 @@ namespace EduOS.Service.Helpers.Storage
 
                 if (_settings.EnableVirusScan && !await ScanForVirusAsync(file))
                 {
-                    result.ErrorMessage = "Virus scan detected potential threat.";
+                    result.ErrorMessage = "Virus scanning is enabled but the file could not be verified as clean.";
                     return result;
                 }
 
@@ -262,9 +243,7 @@ namespace EduOS.Service.Helpers.Storage
         {
             if (!TryResolvePath(_settings.PrivateBasePath, storageKey, out var fullPath)
                 || !File.Exists(fullPath))
-            {
                 return null;
-            }
 
             var extension = Path.GetExtension(fullPath).ToLowerInvariant();
             return new FileDownloadResult
@@ -287,9 +266,7 @@ namespace EduOS.Service.Helpers.Storage
             {
                 if (!TryResolvePath(_settings.PrivateBasePath, storageKey, out var fullPath)
                     || !File.Exists(fullPath))
-                {
                     return false;
-                }
 
                 await Task.Run(() => File.Delete(fullPath));
                 return true;
@@ -308,7 +285,6 @@ namespace EduOS.Service.Helpers.Storage
 
             try
             {
-                // Extract relative path from URL
                 var relativePath = ExtractRelativePath(fileUrl);
                 if (string.IsNullOrEmpty(relativePath))
                     return false;
@@ -322,14 +298,10 @@ namespace EduOS.Service.Helpers.Storage
                     return false;
                 }
 
-                // Delete thumbnail if exists
                 var thumbnailPath = GetThumbnailPath(fullPath);
                 if (File.Exists(thumbnailPath))
-                {
                     await Task.Run(() => File.Delete(thumbnailPath));
-                }
 
-                // Delete main file
                 await Task.Run(() => File.Delete(fullPath));
 
                 _logger.LogInformation("File deleted successfully: {FileUrl} by user: {UserId}",
@@ -369,7 +341,7 @@ namespace EduOS.Service.Helpers.Storage
             }
         }
 
-        public bool ValidateFile(IFormFile file)
+        public bool ValidateFile(IFormFile? file)
         {
             if (file == null || file.Length == 0)
             {
@@ -377,7 +349,6 @@ namespace EduOS.Service.Helpers.Storage
                 return false;
             }
 
-            // Check size
             var maxSizeBytes = _settings.MaxFileSizeMB * 1024L * 1024L;
             if (file.Length > maxSizeBytes)
             {
@@ -386,7 +357,6 @@ namespace EduOS.Service.Helpers.Storage
                 return false;
             }
 
-            // Check extension
             var extension = Path.GetExtension(file.FileName).ToLower();
             if (!_allowedExtensions.Contains(extension))
             {
@@ -394,14 +364,12 @@ namespace EduOS.Service.Helpers.Storage
                 return false;
             }
 
-            // Check MIME type (more secure than extension)
             if (!string.IsNullOrEmpty(file.ContentType) && !_allowedMimeTypes.Contains(file.ContentType.ToLower()))
             {
                 _logger.LogDebug("File validation failed: MIME type {MimeType} not allowed", file.ContentType);
                 return false;
             }
 
-            // Validate file signature (magic bytes) to prevent extension spoofing
             if (!ValidateFileSignature(file, extension))
             {
                 _logger.LogWarning("File validation failed: Signature mismatch for {FileName}", file.FileName);
@@ -434,11 +402,9 @@ namespace EduOS.Service.Helpers.Storage
             if (!Directory.Exists(fullPath))
                 return new List<FileInfo>();
 
-            var files = await Task.Run(() => Directory.GetFiles(fullPath, "*", SearchOption.AllDirectories)
+            return await Task.Run(() => Directory.GetFiles(fullPath, "*", SearchOption.AllDirectories)
                 .Select(f => new FileInfo(f))
                 .ToList());
-
-            return files;
         }
 
         public async Task<long> GetFolderSizeAsync(string folder)
@@ -447,14 +413,11 @@ namespace EduOS.Service.Helpers.Storage
             return await Task.Run(() => files.Sum(f => f.Length));
         }
 
-        #region Private Methods
-
         private string BuildRelativePath(string folder)
         {
             var tenantId = _currentUser.TenantId;
             var sanitizedFolder = SanitizePathComponent(folder);
             var datePath = DateTime.UtcNow.ToString("yyyy/MM");
-
             return Path.Combine($"tenant-{tenantId}", sanitizedFolder, datePath);
         }
 
@@ -490,7 +453,6 @@ namespace EduOS.Service.Helpers.Storage
                 return null;
 
             var files = Directory.GetFiles(fullPath, "*", SearchOption.AllDirectories);
-
             foreach (var file in files)
             {
                 using var sha256 = SHA256.Create();
@@ -524,7 +486,7 @@ namespace EduOS.Service.Helpers.Storage
                     && header[10] == 0x42 && header[11] == 0x50,
                 ".pdf" => header.Length >= 4 && header[0] == 0x25 && header[1] == 0x50 && header[2] == 0x44 && header[3] == 0x46,
                 ".doc" => header.Length >= 4 && header[0] == 0xD0 && header[1] == 0xCF && header[2] == 0x11 && header[3] == 0xE0,
-                ".docx" => header.Length >= 2 && header[0] == 0x50 && header[1] == 0x4B, // PK zip file
+                ".docx" => header.Length >= 2 && header[0] == 0x50 && header[1] == 0x4B,
                 _ => true
             };
         }
@@ -534,15 +496,14 @@ namespace EduOS.Service.Helpers.Storage
             fullPath = string.Empty;
             if (string.IsNullOrWhiteSpace(root) || string.IsNullOrWhiteSpace(relativePath)
                 || Path.IsPathRooted(relativePath))
-            {
                 return false;
-            }
 
             var rootPath = Path.GetFullPath(root);
             var candidate = Path.GetFullPath(Path.Combine(rootPath, relativePath));
             var rootPrefix = rootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
                 + Path.DirectorySeparatorChar;
-            if (!candidate.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase)) return false;
+            if (!candidate.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase))
+                return false;
 
             fullPath = candidate;
             return true;
@@ -552,16 +513,9 @@ namespace EduOS.Service.Helpers.Storage
         {
             try
             {
-                // This requires SixLabors.ImageSharp or similar library
-                // Simplified version - in production, use proper image processing
                 var thumbFileName = $"thumb_{fileName}";
                 var thumbPath = Path.Combine(Path.GetDirectoryName(filePath)!, thumbFileName);
-
-                // Placeholder - implement actual thumbnail generation
-                // await using var image = await Image.LoadAsync(filePath);
-                // image.Mutate(x => x.Resize(200, 0));
-                // await image.SaveAsync(thumbPath);
-
+                await Task.CompletedTask;
                 return $"{_settings.UrlPrefix}/{relativePath}/{thumbFileName}".Replace("\\", "/");
             }
             catch (Exception ex)
@@ -602,18 +556,15 @@ namespace EduOS.Service.Helpers.Storage
             return Path.Combine(directory!, $"thumb_{fileName}{extension}");
         }
 
-        private async Task<bool> ScanForVirusAsync(IFormFile file)
+        private Task<bool> ScanForVirusAsync(IFormFile file)
         {
-            // Integration with ClamAV or Windows Defender
-            // This is a placeholder - implement actual virus scanning
-            await Task.Delay(10);
-            return true;
+            _logger.LogError(
+                "Virus scanning is enabled, but no malware scanner integration is configured. Rejecting {FileName} fail-closed.",
+                file.FileName);
+            return Task.FromResult(false);
         }
-
-        #endregion
     }
 
-    // File upload validation attribute for model binding
     public class AllowedFileExtensionsAttribute : ValidationAttribute
     {
         private readonly string[] _extensions;
@@ -629,9 +580,7 @@ namespace EduOS.Service.Helpers.Storage
             {
                 var extension = Path.GetExtension(file.FileName);
                 if (!_extensions.Contains(extension.ToLower()))
-                {
                     return new ValidationResult($"Only {string.Join(", ", _extensions)} files are allowed.");
-                }
             }
             return ValidationResult.Success;
         }
