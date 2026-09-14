@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
@@ -24,7 +25,7 @@ namespace EduOS.Service.Helpers.Storage
         Task<bool> DeletePrivateAsync(string storageKey);
         Task<bool> DeleteAsync(string fileUrl);
         Task<bool> DeleteByPathAsync(string relativePath);
-        bool ValidateFile(IFormFile? file);
+        bool ValidateFile([NotNullWhen(true)] IFormFile? file);
         Task<byte[]> GetFileContentAsync(string fileUrl);
         Task<List<FileInfo>> GetFilesInFolderAsync(string folder);
         Task<long> GetFolderSizeAsync(string folder);
@@ -341,7 +342,7 @@ namespace EduOS.Service.Helpers.Storage
             }
         }
 
-        public bool ValidateFile(IFormFile? file)
+        public bool ValidateFile([NotNullWhen(true)] IFormFile? file)
         {
             if (file == null || file.Length == 0)
             {
