@@ -1,3 +1,4 @@
+using EduOS.App.Authorization;
 using EduOS.App.Controllers;
 using EduOS.App.Controllers.Api;
 using EduOS.App.Extensions;
@@ -71,5 +72,16 @@ public class AuthorizationContractTests
 
         profile.GetCustomAttributes(typeof(AuthorizeAttribute), true).Should().NotBeEmpty();
         profile.GetCustomAttributes(typeof(AllowAnonymousAttribute), true).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Employee_self_service_requires_hr_module_entitlement()
+    {
+        var module = typeof(EmployeeSelfServiceController)
+            .GetCustomAttributes(typeof(RequireModuleAttribute), true)
+            .Cast<RequireModuleAttribute>()
+            .Single();
+
+        module.Policy.Should().Be(RequireModuleAttribute.PolicyPrefix + "HR");
     }
 }
