@@ -38,3 +38,11 @@ public sealed class EmployeePortalLeaveDto
     public string Status { get; set; } = string.Empty;
     public string? Remarks { get; set; }
 }
+
+public sealed class EmployeePortalLeaveApplyDto
+{
+    public long LeaveTypeId { get; set; }
+    public DateTime FromDate { get; set; }
+    public DateTime ToDate { get; set; }
+    public string Reason { get; set; } = string.Empty;
+}
