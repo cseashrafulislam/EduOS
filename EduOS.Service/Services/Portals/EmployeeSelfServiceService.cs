@@ -14,13 +14,17 @@ public sealed class EmployeeSelfServiceService : IEmployeeSelfServiceService
 {
     private readonly IGenericRepository<Employee> _employees;
     private readonly IGenericRepository<EmployeeAttendance> _attendance;
+    private readonly IGenericRepository<LeaveApplication> _leaveApplications;
+    private readonly IGenericRepository<LeaveType> _leaveTypes;
     private readonly ICurrentUserService _currentUser;
     private readonly ILogger<EmployeeSelfServiceService> _logger;
 
-    public EmployeeSelfServiceService(IGenericRepository<Employee> employees, IGenericRepository<EmployeeAttendance> attendance, ICurrentUserService currentUser, ILogger<EmployeeSelfServiceService> logger)
+    public EmployeeSelfServiceService(IGenericRepository<Employee> employees, IGenericRepository<EmployeeAttendance> attendance, IGenericRepository<LeaveApplication> leaveApplications, IGenericRepository<LeaveType> leaveTypes, ICurrentUserService currentUser, ILogger<EmployeeSelfServiceService> logger)
     {
         _employees = employees;
         _attendance = attendance;
+        _leaveApplications = leaveApplications;
+        _leaveTypes = leaveTypes;
         _currentUser = currentUser;
         _logger = logger;
     }
@@ -84,6 +88,41 @@ public sealed class EmployeeSelfServiceService : IEmployeeSelfServiceService
         {
             _logger.LogError(ex, "Employee self-service attendance failed for user {UserId}", _currentUser.UserId);
             return ApiResponse<IReadOnlyList<EmployeePortalAttendanceDto>>.ErrorResponse("Employee attendance could not be loaded.", 500);
+        }
+    }
+
+    public async Task<ApiResponse<IReadOnlyList<EmployeePortalLeaveDto>>> GetLeaveHistoryAsync(CancellationToken cancellationToken = default)
+    {
+        if (!CanUsePortal()) return ApiResponse<IReadOnlyList<EmployeePortalLeaveDto>>.ErrorResponse("Employee self-service is not available for this account.", 403);
+        try
+        {
+            var hasActiveEmployee = await _employees.GetQueryable().AsNoTracking()
+                .AnyAsync(x => x.TenantId == _currentUser.TenantId && x.UserId == _currentUser.UserId && x.IsActive, cancellationToken);
+            if (!hasActiveEmployee) return ApiResponse<IReadOnlyList<EmployeePortalLeaveDto>>.ErrorResponse("No active employee profile is linked to this account.", 404);
+
+            var leaveTypes = _leaveTypes.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId);
+            IReadOnlyList<EmployeePortalLeaveDto> rows = await (
+                from leave in _leaveApplications.GetQueryable().AsNoTracking()
+                join leaveType in leaveTypes on leave.LeaveTypeId equals leaveType.Id
+                where leave.TenantId == _currentUser.TenantId && leave.UserId == _currentUser.UserId && leave.UserType == "Employee"
+                orderby leave.FromDate descending, leave.Id descending
+                select new EmployeePortalLeaveDto
+                {
+                    Id = leave.Id,
+                    LeaveType = leaveType.Name,
+                    FromDate = leave.FromDate,
+                    ToDate = leave.ToDate,
+                    TotalDays = leave.TotalDays,
+                    Reason = leave.Reason,
+                    Status = leave.Status,
+                    Remarks = leave.Remarks
+                }).ToListAsync(cancellationToken);
+            return ApiResponse<IReadOnlyList<EmployeePortalLeaveDto>>.SuccessResponse(rows);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Employee self-service leave history failed for user {UserId}", _currentUser.UserId);
+            return ApiResponse<IReadOnlyList<EmployeePortalLeaveDto>>.ErrorResponse("Employee leave history could not be loaded.", 500);
         }
     }
 
