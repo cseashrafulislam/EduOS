@@ -6,4 +6,5 @@ namespace EduOS.Core.Interfaces.IServices;
 public interface IEmployeeSelfServiceService
 {
     Task<ApiResponse<EmployeePortalProfileDto>> GetProfileAsync(CancellationToken cancellationToken = default);
+    Task<ApiResponse<IReadOnlyList<EmployeePortalAttendanceDto>>> GetAttendanceAsync(DateTime? fromDate = null, DateTime? toDate = null, CancellationToken cancellationToken = default);
 }
