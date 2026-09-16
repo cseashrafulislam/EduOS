@@ -28,4 +28,11 @@ public sealed class EmployeeSelfServiceController : ControllerBase
         var result = await _service.GetAttendanceAsync(fromDate, toDate, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
+
+    [HttpGet("leave")]
+    public async Task<IActionResult> Leave(CancellationToken cancellationToken)
+    {
+        var result = await _service.GetLeaveHistoryAsync(cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
 }
