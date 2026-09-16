@@ -78,3 +78,15 @@ public sealed class PortalTransportDto
     public decimal MonthlyFare { get; set; }
     public bool IsActive { get; set; }
 }
+
+public sealed class PortalHomeworkDto
+{
+    public long HomeworkId { get; set; }
+    public long SubjectId { get; set; }
+    public string SubjectName { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public DateTime AssignedDate { get; set; }
+    public DateTime DueDate { get; set; }
+    public string? AttachmentUrl { get; set; }
+}
