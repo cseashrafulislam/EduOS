@@ -1,3 +1,4 @@
+using EduOS.Core.DTOs.Portals;
 using EduOS.Core.Entities.Attendance;
 using EduOS.Core.Entities.Employees;
 using EduOS.Core.Interfaces;
@@ -90,6 +91,46 @@ public class EmployeeSelfServiceServiceTests
         result.Data.Should().ContainSingle();
         result.Data![0].LeaveType.Should().Be("Casual");
         result.Data[0].Reason.Should().Be("Own leave");
+    }
+
+    [Fact]
+    public async Task Apply_leave_rejects_when_annual_entitlement_is_exhausted()
+    {
+        await using var context = CreateContext(out var httpContextAccessor);
+        context.Set<Employee>().Add(Employee(10, 99, "ENTITLEMENT"));
+        var leaveType = new LeaveType { TenantId = 10, Name = "Casual", MaxDaysPerYear = 5, IsActive = true };
+        context.LeaveTypes.Add(leaveType);
+        await context.SaveChangesAsync();
+        var year = DateTime.UtcNow.Year;
+        context.LeaveApplications.Add(new LeaveApplication { TenantId = 10, UserId = 99, UserType = "Employee", LeaveTypeId = leaveType.Id, FromDate = new DateTime(year, 1, 10), ToDate = new DateTime(year, 1, 13), TotalDays = 4, Reason = "Existing approved leave", Status = "Approved" });
+        await context.SaveChangesAsync();
+        SetTenant(httpContextAccessor, 10);
+
+        var result = await CreateService(context, new TestCurrentUser(10, 99)).ApplyLeaveAsync(new EmployeePortalLeaveApplyDto { LeaveTypeId = leaveType.Id, FromDate = new DateTime(year, 2, 10), ToDate = new DateTime(year, 2, 11), Reason = "Need two more days" });
+
+        result.Success.Should().BeFalse();
+        result.StatusCode.Should().Be(400);
+        context.LeaveApplications.Count(x => x.TenantId == 10 && x.UserId == 99).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Apply_leave_rejects_overlapping_pending_leave()
+    {
+        await using var context = CreateContext(out var httpContextAccessor);
+        context.Set<Employee>().Add(Employee(10, 99, "OVERLAP"));
+        var leaveType = new LeaveType { TenantId = 10, Name = "Casual", MaxDaysPerYear = 20, IsActive = true };
+        context.LeaveTypes.Add(leaveType);
+        await context.SaveChangesAsync();
+        var year = DateTime.UtcNow.Year;
+        context.LeaveApplications.Add(new LeaveApplication { TenantId = 10, UserId = 99, UserType = "Employee", LeaveTypeId = leaveType.Id, FromDate = new DateTime(year, 3, 10), ToDate = new DateTime(year, 3, 12), TotalDays = 3, Reason = "Existing pending leave", Status = "Pending" });
+        await context.SaveChangesAsync();
+        SetTenant(httpContextAccessor, 10);
+
+        var result = await CreateService(context, new TestCurrentUser(10, 99)).ApplyLeaveAsync(new EmployeePortalLeaveApplyDto { LeaveTypeId = leaveType.Id, FromDate = new DateTime(year, 3, 12), ToDate = new DateTime(year, 3, 13), Reason = "Overlapping request" });
+
+        result.Success.Should().BeFalse();
+        result.StatusCode.Should().Be(409);
+        context.LeaveApplications.Count(x => x.TenantId == 10 && x.UserId == 99).Should().Be(1);
     }
 
     private static EduOSDbContext CreateContext(out HttpContextAccessor httpContextAccessor)
