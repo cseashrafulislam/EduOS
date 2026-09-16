@@ -21,4 +21,11 @@ public sealed class EmployeeSelfServiceController : ControllerBase
         var result = await _service.GetProfileAsync(cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
+
+    [HttpGet("attendance")]
+    public async Task<IActionResult> Attendance([FromQuery] DateTime? fromDate, [FromQuery] DateTime? toDate, CancellationToken cancellationToken)
+    {
+        var result = await _service.GetAttendanceAsync(fromDate, toDate, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
 }
