@@ -74,6 +74,33 @@ public class TransportServiceTests
         response.Data!.IsActive.Should().BeFalse();
     }
 
+    [Fact]
+    public async Task Close_cannot_mutate_assignment_from_another_tenant()
+    {
+        var options = CreateOptions();
+        Guid foreignReference;
+        await using (var seedContext = CreateContext(options, 202))
+        {
+            var foreign = await SeedAssignmentAsync(seedContext, 202, true, [1, 2, 3, 4, 5, 6, 7, 8]);
+            foreignReference = foreign.PublicId;
+        }
+
+        await using var context = CreateContext(options, 101);
+        var service = CreateService(context, 101);
+        var response = await service.CloseAsync(foreignReference, new CloseTransportDto
+        {
+            EndDate = DateTime.Today,
+            RowVersion = Convert.ToBase64String([1, 2, 3, 4, 5, 6, 7, 8])
+        });
+
+        response.Success.Should().BeFalse();
+        response.StatusCode.Should().Be(404);
+        var saved = await context.StudentTransports.IgnoreQueryFilters().SingleAsync(x => x.PublicId == foreignReference);
+        saved.TenantId.Should().Be(202);
+        saved.IsActive.Should().BeTrue();
+        saved.EndDate.Should().BeNull();
+    }
+
     private static TransportService CreateService(EduOSDbContext context, long tenantId) => new(
         new GenericRepository<TransportRoute>(context),
         new GenericRepository<Vehicle>(context),
