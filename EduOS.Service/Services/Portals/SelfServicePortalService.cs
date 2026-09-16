@@ -4,6 +4,7 @@ using EduOS.Core.Entities.Attendance;
 using EduOS.Core.Entities.Exams;
 using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.Students;
+using EduOS.Core.Entities.Transport;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
@@ -20,16 +21,17 @@ public sealed class SelfServicePortalService : ISelfServicePortalService
     private readonly IGenericRepository<ExamResult> _results;
     private readonly IGenericRepository<StudentInvoice> _invoices;
     private readonly IGenericRepository<Payment> _payments;
+    private readonly IGenericRepository<StudentTransport> _transport;
     private readonly ICurrentUserService _currentUser;
     private readonly ILogger<SelfServicePortalService> _logger;
 
     public SelfServicePortalService(IGenericRepository<Student> students, IGenericRepository<Guardian> guardians,
         IGenericRepository<StudentAttendance> attendance, IGenericRepository<ExamResult> results,
         IGenericRepository<StudentInvoice> invoices, IGenericRepository<Payment> payments,
-        ICurrentUserService currentUser, ILogger<SelfServicePortalService> logger)
+        IGenericRepository<StudentTransport> transport, ICurrentUserService currentUser, ILogger<SelfServicePortalService> logger)
     {
         _students = students; _guardians = guardians; _attendance = attendance; _results = results;
-        _invoices = invoices; _payments = payments; _currentUser = currentUser; _logger = logger;
+        _invoices = invoices; _payments = payments; _transport = transport; _currentUser = currentUser; _logger = logger;
     }
 
     public async Task<ApiResponse<IReadOnlyList<PortalStudentDto>>> GetLinkedStudentsAsync(CancellationToken cancellationToken = default)
@@ -89,6 +91,18 @@ public sealed class SelfServicePortalService : ISelfServicePortalService
             Invoices = invoices.Select(x => new PortalInvoiceDto { Reference = x.PublicId, InvoiceNo = x.InvoiceNo, Month = x.Month, Year = x.Year, BilledAmount = x.TotalAmount - (x.DiscountAmount ?? 0m) + (x.FineAmount ?? 0m), PaidAmount = x.PaidAmount, DueAmount = x.DueAmount, Status = x.Status, DueDate = x.DueDate }).ToList(),
             Payments = payments.Select(x => new PortalPaymentDto { Reference = x.PublicId, ReceiptNo = x.ReceiptNo, Amount = x.Amount, PaymentMethod = x.PaymentMethod, PaymentDate = x.PaymentDate }).ToList()
         });
+    }
+
+    public async Task<ApiResponse<IReadOnlyList<PortalTransportDto>>> GetTransportAsync(Guid studentReference, CancellationToken cancellationToken = default)
+    {
+        var student = await GetAuthorizedStudentAsync(studentReference, cancellationToken);
+        if (student == null) return Denied<IReadOnlyList<PortalTransportDto>>();
+        IReadOnlyList<PortalTransportDto> rows = await _transport.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == _currentUser.TenantId && x.StudentId == student.Id)
+            .OrderByDescending(x => x.IsActive).ThenByDescending(x => x.StartDate)
+            .Select(x => new PortalTransportDto { Reference = x.PublicId, RouteName = x.Route != null ? x.Route.Name : string.Empty, VehicleNo = x.Vehicle != null ? x.Vehicle.VehicleNo : string.Empty, PickupPoint = x.PickupPoint, DriverName = x.Vehicle != null ? x.Vehicle.DriverName : null, DriverPhone = x.Vehicle != null ? x.Vehicle.DriverPhone : null, StartDate = x.StartDate, EndDate = x.EndDate, MonthlyFare = x.MonthlyFare, IsActive = x.IsActive })
+            .ToListAsync(cancellationToken);
+        return ApiResponse<IReadOnlyList<PortalTransportDto>>.SuccessResponse(rows);
     }
 
     private async Task<Student?> GetAuthorizedStudentAsync(Guid reference, CancellationToken cancellationToken)
