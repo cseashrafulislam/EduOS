@@ -64,3 +64,17 @@ public sealed class PortalFeeLedgerDto
     public List<PortalInvoiceDto> Invoices { get; set; } = new();
     public List<PortalPaymentDto> Payments { get; set; } = new();
 }
+
+public sealed class PortalTransportDto
+{
+    public Guid Reference { get; set; }
+    public string RouteName { get; set; } = string.Empty;
+    public string VehicleNo { get; set; } = string.Empty;
+    public string? PickupPoint { get; set; }
+    public string? DriverName { get; set; }
+    public string? DriverPhone { get; set; }
+    public DateTime StartDate { get; set; }
+    public DateTime? EndDate { get; set; }
+    public decimal MonthlyFare { get; set; }
+    public bool IsActive { get; set; }
+}
