@@ -16,3 +16,13 @@ public sealed class EmployeePortalProfileDto
     public string? Experience { get; set; }
     public bool IsTeacher { get; set; }
 }
+
+public sealed class EmployeePortalAttendanceDto
+{
+    public DateTime Date { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public TimeSpan? InTime { get; set; }
+    public TimeSpan? OutTime { get; set; }
+    public decimal? OvertimeHours { get; set; }
+    public string? Remarks { get; set; }
+}
