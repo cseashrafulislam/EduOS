@@ -3,6 +3,7 @@ using EduOS.Core.DTOs.Portals;
 using EduOS.Core.Entities.Attendance;
 using EduOS.Core.Entities.Exams;
 using EduOS.Core.Entities.Finance;
+using EduOS.Core.Entities.LMS;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Entities.Transport;
 using EduOS.Core.Interfaces;
@@ -22,16 +23,18 @@ public sealed class SelfServicePortalService : ISelfServicePortalService
     private readonly IGenericRepository<StudentInvoice> _invoices;
     private readonly IGenericRepository<Payment> _payments;
     private readonly IGenericRepository<StudentTransport> _transport;
+    private readonly IGenericRepository<Homework> _homework;
     private readonly ICurrentUserService _currentUser;
     private readonly ILogger<SelfServicePortalService> _logger;
 
     public SelfServicePortalService(IGenericRepository<Student> students, IGenericRepository<Guardian> guardians,
         IGenericRepository<StudentAttendance> attendance, IGenericRepository<ExamResult> results,
         IGenericRepository<StudentInvoice> invoices, IGenericRepository<Payment> payments,
-        IGenericRepository<StudentTransport> transport, ICurrentUserService currentUser, ILogger<SelfServicePortalService> logger)
+        IGenericRepository<StudentTransport> transport, IGenericRepository<Homework> homework,
+        ICurrentUserService currentUser, ILogger<SelfServicePortalService> logger)
     {
         _students = students; _guardians = guardians; _attendance = attendance; _results = results;
-        _invoices = invoices; _payments = payments; _transport = transport; _currentUser = currentUser; _logger = logger;
+        _invoices = invoices; _payments = payments; _transport = transport; _homework = homework; _currentUser = currentUser; _logger = logger;
     }
 
     public async Task<ApiResponse<IReadOnlyList<PortalStudentDto>>> GetLinkedStudentsAsync(CancellationToken cancellationToken = default)
@@ -103,6 +106,18 @@ public sealed class SelfServicePortalService : ISelfServicePortalService
             .Select(x => new PortalTransportDto { Reference = x.PublicId, RouteName = x.Route != null ? x.Route.Name : string.Empty, VehicleNo = x.Vehicle != null ? x.Vehicle.VehicleNo : string.Empty, PickupPoint = x.PickupPoint, DriverName = x.Vehicle != null ? x.Vehicle.DriverName : null, DriverPhone = x.Vehicle != null ? x.Vehicle.DriverPhone : null, StartDate = x.StartDate, EndDate = x.EndDate, MonthlyFare = x.MonthlyFare, IsActive = x.IsActive })
             .ToListAsync(cancellationToken);
         return ApiResponse<IReadOnlyList<PortalTransportDto>>.SuccessResponse(rows);
+    }
+
+    public async Task<ApiResponse<IReadOnlyList<PortalHomeworkDto>>> GetHomeworkAsync(Guid studentReference, CancellationToken cancellationToken = default)
+    {
+        var student = await GetAuthorizedStudentAsync(studentReference, cancellationToken);
+        if (student == null) return Denied<IReadOnlyList<PortalHomeworkDto>>();
+        IReadOnlyList<PortalHomeworkDto> rows = await _homework.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == _currentUser.TenantId && x.ClassId == student.ClassId && x.SectionId == student.SectionId)
+            .OrderByDescending(x => x.AssignedDate).ThenByDescending(x => x.Id)
+            .Select(x => new PortalHomeworkDto { HomeworkId = x.Id, SubjectId = x.SubjectId, SubjectName = x.Subject != null ? x.Subject.Name : string.Empty, Title = x.Title, Description = x.Description, AssignedDate = x.AssignedDate, DueDate = x.DueDate, AttachmentUrl = x.AttachmentUrl })
+            .ToListAsync(cancellationToken);
+        return ApiResponse<IReadOnlyList<PortalHomeworkDto>>.SuccessResponse(rows);
     }
 
     private async Task<Student?> GetAuthorizedStudentAsync(Guid reference, CancellationToken cancellationToken)
