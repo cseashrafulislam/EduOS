@@ -27,6 +27,7 @@ public sealed class ReturnBookDto
 {
     [Range(typeof(decimal), "0", "999999999")] public decimal FineAmount { get; set; }
     [StringLength(20)] public string Action { get; set; } = "Returned";
+    [Required, StringLength(200)] public string RowVersion { get; set; } = string.Empty;
 }
 
 public sealed class LibraryIssueDto
