@@ -1,4 +1,5 @@
 using EduOS.App.Authorization;
+using EduOS.Core.DTOs.Portals;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -33,6 +34,13 @@ public sealed class EmployeeSelfServiceController : ControllerBase
     public async Task<IActionResult> Leave(CancellationToken cancellationToken)
     {
         var result = await _service.GetLeaveHistoryAsync(cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("leave")]
+    public async Task<IActionResult> ApplyLeave([FromBody] EmployeePortalLeaveApplyDto request, CancellationToken cancellationToken)
+    {
+        var result = await _service.ApplyLeaveAsync(request, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 }
