@@ -21,7 +21,7 @@ public class EmployeeSelfServiceServiceTests
         var own = Employee(10, 99, "OWN-1");
         var other = Employee(10, 100, "OTHER-1");
         var otherTenant = Employee(20, 99, "OTHER-TENANT");
-        context.Employees.AddRange(own, other, otherTenant);
+        context.Set<Employee>().AddRange(own, other, otherTenant);
         await context.SaveChangesAsync();
         context.EmployeeAttendances.AddRange(
             Attendance(10, own.Id, DateTime.UtcNow.Date.AddDays(-1), "Present"),
@@ -42,7 +42,7 @@ public class EmployeeSelfServiceServiceTests
         await using var context = CreateContext();
         var employee = Employee(10, 99, "INACTIVE");
         employee.IsActive = false;
-        context.Employees.Add(employee);
+        context.Set<Employee>().Add(employee);
         await context.SaveChangesAsync();
 
         var result = await CreateService(context, new TestCurrentUser(10, 99)).GetAttendanceAsync();
@@ -67,7 +67,7 @@ public class EmployeeSelfServiceServiceTests
     public async Task Leave_history_returns_only_current_employee_user_in_current_tenant()
     {
         await using var context = CreateContext();
-        context.Employees.Add(Employee(10, 99, "OWN-LEAVE"));
+        context.Set<Employee>().Add(Employee(10, 99, "OWN-LEAVE"));
         var ownType = new LeaveType { TenantId = 10, Name = "Casual", MaxDaysPerYear = 10 };
         var otherType = new LeaveType { TenantId = 20, Name = "Other tenant", MaxDaysPerYear = 10 };
         context.LeaveTypes.AddRange(ownType, otherType);
