@@ -100,6 +100,8 @@ public sealed class TransportService : ITransportService
             var assignment = await QueryAssignments().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.PublicId == reference, cancellationToken);
             if (assignment == null) return Error("Transport assignment not found.", 404);
             if (!assignment.IsActive) return ApiResponse<StudentTransportDto>.SuccessResponse(Map(assignment), "Transport assignment is already closed.");
+            if (!TryDecodeRowVersion(request.RowVersion, out var expectedRowVersion)) return Error("Row version is invalid.");
+            if (!assignment.RowVersion.AsSpan().SequenceEqual(expectedRowVersion)) return Error("The assignment changed by another user. Reload and try again.", 409);
             var endDate = request.EndDate?.Date ?? _clock.GetLocalNow().Date;
             if (endDate < assignment.StartDate.Date) return Error("End date cannot be before start date.");
             assignment.EndDate = endDate; assignment.IsActive = false; assignment.UpdatedAt = _clock.GetUtcNow().UtcDateTime; assignment.UpdatedBy = _currentUser.UserId;
@@ -116,6 +118,20 @@ public sealed class TransportService : ITransportService
     private IQueryable<StudentTransport> QueryAssignments() => _assignments.GetQueryable().Include(x => x.Student).Include(x => x.Vehicle).Include(x => x.Route);
     private bool CanRead() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0;
     private bool CanManage() => CanRead() && (_currentUser.IsTenantAdmin || _currentUser.IsInRole("Principal") || _currentUser.IsInRole("TransportManager"));
+    private static bool TryDecodeRowVersion(string? rowVersion, out byte[] value)
+    {
+        value = Array.Empty<byte>();
+        if (string.IsNullOrWhiteSpace(rowVersion)) return false;
+        try
+        {
+            value = Convert.FromBase64String(rowVersion);
+            return value.Length > 0;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+    }
     private static StudentTransportDto Map(StudentTransport x) => new() { Reference = x.PublicId, StudentReference = x.Student?.PublicId ?? Guid.Empty, StudentName = x.Student?.FullName ?? string.Empty, VehicleReference = x.Vehicle?.PublicId ?? Guid.Empty, VehicleNo = x.Vehicle?.VehicleNo ?? string.Empty, RouteReference = x.Route?.PublicId ?? Guid.Empty, RouteName = x.Route?.Name ?? string.Empty, PickupPoint = x.PickupPoint, StartDate = x.StartDate, EndDate = x.EndDate, MonthlyFare = x.MonthlyFare, IsActive = x.IsActive, RowVersion = Convert.ToBase64String(x.RowVersion) };
     private static ApiResponse<T> Denied<T>() => ApiResponse<T>.ErrorResponse("Transport access is required.", 403);
     private static ApiResponse<StudentTransportDto> Error(string message, int status = 400) => ApiResponse<StudentTransportDto>.ErrorResponse(message, status);
