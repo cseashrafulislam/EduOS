@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace EduOS.Core.DTOs.Transport;
 
 public sealed class TransportRouteDto
@@ -36,6 +38,7 @@ public sealed class AssignTransportDto
 public sealed class CloseTransportDto
 {
     public DateTime? EndDate { get; set; }
+    [Required, StringLength(200)] public string RowVersion { get; set; } = string.Empty;
 }
 
 public sealed class StudentTransportDto
