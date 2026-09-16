@@ -62,12 +62,38 @@ public class EmployeeSelfServiceServiceTests
         result.StatusCode.Should().Be(400);
     }
 
+    [Fact]
+    public async Task Leave_history_returns_only_current_employee_user_in_current_tenant()
+    {
+        await using var context = CreateContext();
+        context.Employees.Add(Employee(10, 99, "OWN-LEAVE"));
+        var ownType = new LeaveType { TenantId = 10, Name = "Casual", MaxDaysPerYear = 10 };
+        var otherType = new LeaveType { TenantId = 20, Name = "Other tenant", MaxDaysPerYear = 10 };
+        context.LeaveTypes.AddRange(ownType, otherType);
+        await context.SaveChangesAsync();
+        context.LeaveApplications.AddRange(
+            Leave(10, 99, ownType.Id, "Employee", "Own leave"),
+            Leave(10, 100, ownType.Id, "Employee", "Other user"),
+            Leave(10, 99, ownType.Id, "Student", "Student leave"),
+            Leave(20, 99, otherType.Id, "Employee", "Other tenant"));
+        await context.SaveChangesAsync();
+
+        var result = await CreateService(context, new TestCurrentUser(10, 99)).GetLeaveHistoryAsync();
+
+        result.Success.Should().BeTrue();
+        result.Data.Should().ContainSingle();
+        result.Data![0].LeaveType.Should().Be("Casual");
+        result.Data[0].Reason.Should().Be("Own leave");
+    }
+
     private static EduOSDbContext CreateContext() => new(new DbContextOptionsBuilder<EduOSDbContext>()
         .UseInMemoryDatabase($"employee-portal-{Guid.NewGuid():N}").Options);
 
     private static EmployeeSelfServiceService CreateService(EduOSDbContext context, ICurrentUserService currentUser) => new(
         new GenericRepository<Employee>(context),
         new GenericRepository<EmployeeAttendance>(context),
+        new GenericRepository<LeaveApplication>(context),
+        new GenericRepository<LeaveType>(context),
         currentUser,
         NullLogger<EmployeeSelfServiceService>.Instance);
 
@@ -89,6 +115,19 @@ public class EmployeeSelfServiceServiceTests
         EmployeeId = employeeId,
         Date = date,
         Status = status
+    };
+
+    private static LeaveApplication Leave(long tenantId, long userId, long leaveTypeId, string userType, string reason) => new()
+    {
+        TenantId = tenantId,
+        UserId = userId,
+        UserType = userType,
+        LeaveTypeId = leaveTypeId,
+        FromDate = DateTime.UtcNow.Date,
+        ToDate = DateTime.UtcNow.Date,
+        TotalDays = 1,
+        Reason = reason,
+        Status = "Pending"
     };
 
     private sealed class TestCurrentUser(long tenantId, long userId) : ICurrentUserService
