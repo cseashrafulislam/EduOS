@@ -6,6 +6,7 @@ using EduOS.Persistence.Context;
 using EduOS.Persistence.Repositories;
 using EduOS.Service.Services.Portals;
 using FluentAssertions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -17,7 +18,7 @@ public class EmployeeSelfServiceServiceTests
     [Fact]
     public async Task Attendance_returns_only_current_users_rows_in_current_tenant()
     {
-        await using var context = CreateContext();
+        await using var context = CreateContext(out var httpContextAccessor);
         var own = Employee(10, 99, "OWN-1");
         var other = Employee(10, 100, "OTHER-1");
         var otherTenant = Employee(20, 99, "OTHER-TENANT");
@@ -28,6 +29,7 @@ public class EmployeeSelfServiceServiceTests
             Attendance(10, other.Id, DateTime.UtcNow.Date.AddDays(-1), "Absent"),
             Attendance(20, otherTenant.Id, DateTime.UtcNow.Date.AddDays(-1), "Late"));
         await context.SaveChangesAsync();
+        SetTenant(httpContextAccessor, 10);
 
         var result = await CreateService(context, new TestCurrentUser(10, 99)).GetAttendanceAsync();
 
@@ -39,11 +41,12 @@ public class EmployeeSelfServiceServiceTests
     [Fact]
     public async Task Attendance_rejects_inactive_employee_link()
     {
-        await using var context = CreateContext();
+        await using var context = CreateContext(out var httpContextAccessor);
         var employee = Employee(10, 99, "INACTIVE");
         employee.IsActive = false;
         context.Set<Employee>().Add(employee);
         await context.SaveChangesAsync();
+        SetTenant(httpContextAccessor, 10);
 
         var result = await CreateService(context, new TestCurrentUser(10, 99)).GetAttendanceAsync();
 
@@ -54,7 +57,8 @@ public class EmployeeSelfServiceServiceTests
     [Fact]
     public async Task Attendance_rejects_ranges_longer_than_one_year()
     {
-        await using var context = CreateContext();
+        await using var context = CreateContext(out var httpContextAccessor);
+        SetTenant(httpContextAccessor, 10);
         var service = CreateService(context, new TestCurrentUser(10, 99));
 
         var result = await service.GetAttendanceAsync(DateTime.UtcNow.Date.AddDays(-367), DateTime.UtcNow.Date);
@@ -66,7 +70,7 @@ public class EmployeeSelfServiceServiceTests
     [Fact]
     public async Task Leave_history_returns_only_current_employee_user_in_current_tenant()
     {
-        await using var context = CreateContext();
+        await using var context = CreateContext(out var httpContextAccessor);
         context.Set<Employee>().Add(Employee(10, 99, "OWN-LEAVE"));
         var ownType = new LeaveType { TenantId = 10, Name = "Casual", MaxDaysPerYear = 10 };
         var otherType = new LeaveType { TenantId = 20, Name = "Other tenant", MaxDaysPerYear = 10 };
@@ -78,6 +82,7 @@ public class EmployeeSelfServiceServiceTests
             Leave(10, 99, ownType.Id, "Student", "Student leave"),
             Leave(20, 99, otherType.Id, "Employee", "Other tenant"));
         await context.SaveChangesAsync();
+        SetTenant(httpContextAccessor, 10);
 
         var result = await CreateService(context, new TestCurrentUser(10, 99)).GetLeaveHistoryAsync();
 
@@ -87,8 +92,14 @@ public class EmployeeSelfServiceServiceTests
         result.Data[0].Reason.Should().Be("Own leave");
     }
 
-    private static EduOSDbContext CreateContext() => new(new DbContextOptionsBuilder<EduOSDbContext>()
-        .UseInMemoryDatabase($"employee-portal-{Guid.NewGuid():N}").Options);
+    private static EduOSDbContext CreateContext(out HttpContextAccessor httpContextAccessor)
+    {
+        httpContextAccessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
+        return new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase($"employee-portal-{Guid.NewGuid():N}").Options, httpContextAccessor);
+    }
+
+    private static void SetTenant(HttpContextAccessor accessor, long tenantId) => accessor.HttpContext!.Items["TenantId"] = tenantId;
 
     private static EmployeeSelfServiceService CreateService(EduOSDbContext context, ICurrentUserService currentUser) => new(
         new GenericRepository<Employee>(context),
