@@ -1,3 +1,4 @@
+using EduOS.App.Authorization;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -5,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace EduOS.App.Controllers.Api;
 
 [Authorize(Roles = "Teacher,Staff")]
+[RequireModule("HR")]
 [ApiController]
 [Route("api/employee-portal")]
 public sealed class EmployeeSelfServiceController : ControllerBase
