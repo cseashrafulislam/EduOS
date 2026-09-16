@@ -1,5 +1,6 @@
 using EduOS.Core.Entities.Attendance;
 using EduOS.Core.Entities.Employees;
+using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IServices;
 using EduOS.Persistence.Context;
 using EduOS.Persistence.Repositories;
