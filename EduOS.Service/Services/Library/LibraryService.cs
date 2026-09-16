@@ -102,6 +102,8 @@ public sealed class LibraryService : ILibraryService
             var issue = await _issues.GetQueryable().Include(x => x.Book).Include(x => x.Student).Include(x => x.Employee).FirstOrDefaultAsync(x => x.TenantId == tenantId && x.PublicId == issueReference, cancellationToken);
             if (issue == null) return Error("Book issue not found.", 404);
             if (!string.Equals(issue.Status, "Issued", StringComparison.OrdinalIgnoreCase)) return ApiResponse<LibraryIssueDto>.SuccessResponse(Map(issue), "Book issue is already closed.");
+            if (!TryDecodeRowVersion(request.RowVersion, out var expectedRowVersion)) return Error("Row version is invalid.");
+            if (!issue.RowVersion.AsSpan().SequenceEqual(expectedRowVersion)) return Error("The issue changed by another user. Reload and try again.", 409);
             var now = _clock.GetUtcNow().UtcDateTime;
             issue.Status = string.Equals(action, "Lost", StringComparison.OrdinalIgnoreCase) ? "Lost" : "Returned";
             issue.ActualReturnDate = _clock.GetLocalNow().Date;
@@ -136,6 +138,20 @@ public sealed class LibraryService : ILibraryService
 
     private bool CanRead() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0;
     private bool CanManage() => CanRead() && (_currentUser.IsTenantAdmin || _currentUser.IsInRole("Principal") || _currentUser.IsInRole("Librarian"));
+    private static bool TryDecodeRowVersion(string? rowVersion, out byte[] value)
+    {
+        value = Array.Empty<byte>();
+        if (string.IsNullOrWhiteSpace(rowVersion)) return false;
+        try
+        {
+            value = Convert.FromBase64String(rowVersion);
+            return value.Length > 0;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+    }
     private static LibraryIssueDto Map(BookIssue x) => new() { Reference = x.PublicId, BookReference = x.Book?.PublicId ?? Guid.Empty, BookTitle = x.Book?.Title ?? string.Empty, BorrowerType = x.StudentId.HasValue ? "Student" : "Employee", BorrowerName = x.Student?.FullName ?? x.Employee?.FullName ?? string.Empty, IssueDate = x.IssueDate, DueDate = x.ReturnDate, ActualReturnDate = x.ActualReturnDate, FineAmount = x.FineAmount, Status = x.Status, RowVersion = Convert.ToBase64String(x.RowVersion) };
     private static ApiResponse<T> Denied<T>() => ApiResponse<T>.ErrorResponse("Library access is required.", 403);
     private static ApiResponse<LibraryIssueDto> Error(string message, int status = 400) => ApiResponse<LibraryIssueDto>.ErrorResponse(message, status);
