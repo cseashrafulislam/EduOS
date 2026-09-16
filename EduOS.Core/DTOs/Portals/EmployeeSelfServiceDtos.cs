@@ -26,3 +26,15 @@ public sealed class EmployeePortalAttendanceDto
     public decimal? OvertimeHours { get; set; }
     public string? Remarks { get; set; }
 }
+
+public sealed class EmployeePortalLeaveDto
+{
+    public long Id { get; set; }
+    public string LeaveType { get; set; } = string.Empty;
+    public DateTime FromDate { get; set; }
+    public DateTime ToDate { get; set; }
+    public int TotalDays { get; set; }
+    public string Reason { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public string? Remarks { get; set; }
+}
