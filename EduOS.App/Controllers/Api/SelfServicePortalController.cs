@@ -31,4 +31,8 @@ public sealed class SelfServicePortalController : ControllerBase
     [HttpGet("students/{reference:guid}/transport")]
     [RequireModule("TRANSPORT")]
     public async Task<IActionResult> Transport(Guid reference, CancellationToken cancellationToken) { var result = await _service.GetTransportAsync(reference, cancellationToken); return StatusCode(result.StatusCode, result); }
+
+    [HttpGet("students/{reference:guid}/homework")]
+    [RequireModule("LMS")]
+    public async Task<IActionResult> Homework(Guid reference, CancellationToken cancellationToken) { var result = await _service.GetHomeworkAsync(reference, cancellationToken); return StatusCode(result.StatusCode, result); }
 }
