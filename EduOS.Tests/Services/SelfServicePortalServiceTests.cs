@@ -1,3 +1,4 @@
+using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Attendance;
 using EduOS.Core.Entities.Exams;
 using EduOS.Core.Entities.Finance;
@@ -96,6 +97,7 @@ public class SelfServicePortalServiceTests
         SetTenant(accessor, 10);
         var own = Student(10, 99, "OWN");
         context.Students.Add(own);
+        context.Subjects.Add(new Subject { Id = 1, TenantId = 10, ClassId = 1, Name = "Mathematics", Code = "MATH" });
         await context.SaveChangesAsync();
         context.Homeworks.AddRange(Homework(10, 1, 1, "Visible"), Homework(10, 1, 2, "Other section"));
         await context.SaveChangesAsync();
@@ -105,6 +107,7 @@ public class SelfServicePortalServiceTests
         result.Success.Should().BeTrue();
         result.Data.Should().ContainSingle();
         result.Data![0].Title.Should().Be("Visible");
+        result.Data[0].SubjectName.Should().Be("Mathematics");
     }
 
     [Fact]
