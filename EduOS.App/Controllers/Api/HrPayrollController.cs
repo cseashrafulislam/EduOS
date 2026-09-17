@@ -9,7 +9,7 @@ namespace EduOS.App.Controllers.Api;
 public sealed class HrPayrollController:ControllerBase
 {
  private readonly IHrPayrollService _service;public HrPayrollController(IHrPayrollService service)=>_service=service;
- [HttpPut("salary-structure")][Authorize(Roles="TenantAdmin,Principal,HR,Accountant")][RequireModule("PAYROLL")]
+ [HttpPut("salary-structure")][Authorize(Roles="TenantAdmin,Principal,HR,Accountant")][RequireModule("PAYROLL")][EnableRateLimiting("ApiPolicy")]
  public async Task<IActionResult> Salary([FromBody]SaveSalaryStructureDto r,CancellationToken ct){if(!ModelState.IsValid)return ValidationProblem(ModelState);var x=await _service.SaveSalaryStructureAsync(r,ct);return StatusCode(x.StatusCode,x);}
  [HttpPost("attendance")][Authorize(Roles="TenantAdmin,Principal,HR")][RequireModule("HR")][EnableRateLimiting("ApiPolicy")]
  public async Task<IActionResult> Attendance([FromBody]SaveEmployeeAttendanceDto r,CancellationToken ct){if(!ModelState.IsValid)return ValidationProblem(ModelState);var x=await _service.SaveAttendanceAsync(r,ct);return StatusCode(x.StatusCode,x);}
