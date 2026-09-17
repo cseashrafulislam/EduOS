@@ -21,6 +21,7 @@ public sealed class FeeBillingController : ControllerBase
 
     [HttpPut("structure")]
     [Authorize(Roles = "TenantAdmin,Principal,Accountant")]
+    [EnableRateLimiting("ApiPolicy")]
     public async Task<IActionResult> SaveStructure([FromBody] SaveFeeStructureDto request, CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
@@ -40,6 +41,7 @@ public sealed class FeeBillingController : ControllerBase
 
     [HttpPut("invoices/fine")]
     [Authorize(Roles = "TenantAdmin,Principal,Accountant")]
+    [EnableRateLimiting("ApiPolicy")]
     public async Task<IActionResult> SetFine([FromBody] SetInvoiceFineDto request, CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
