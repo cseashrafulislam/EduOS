@@ -2,6 +2,7 @@ using EduOS.Core.DTOs.SaaS;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace EduOS.App.Controllers.Api
 {
@@ -30,6 +31,7 @@ namespace EduOS.App.Controllers.Api
         /// Subscribe to a plan (creates subscription + invoice)
         /// </summary>
         [HttpPost]
+        [EnableRateLimiting("ApiPolicy")]
         public async Task<IActionResult> Create([FromBody] CreateSubscriptionRequestDto dto)
         {
             if (dto == null || dto.SubscriptionPlanId <= 0)
@@ -63,6 +65,7 @@ namespace EduOS.App.Controllers.Api
         /// Cancel subscription
         /// </summary>
         [HttpPost("{id:long}/cancel")]
+        [EnableRateLimiting("ApiPolicy")]
         public async Task<IActionResult> Cancel(long id, [FromBody] CancelSubscriptionDto dto)
         {
             var result = await _subscriptionService.CancelAsync(
@@ -74,6 +77,7 @@ namespace EduOS.App.Controllers.Api
         /// Toggle auto-renew
         /// </summary>
         [HttpPost("{id:long}/auto-renew")]
+        [EnableRateLimiting("ApiPolicy")]
         public async Task<IActionResult> ToggleAutoRenew(long id, [FromBody] ToggleAutoRenewDto dto)
         {
             var result = await _subscriptionService.ToggleAutoRenewAsync(id, dto.AutoRenew);
