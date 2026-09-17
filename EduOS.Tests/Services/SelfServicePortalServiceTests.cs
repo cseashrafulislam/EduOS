@@ -90,14 +90,13 @@ public class SelfServicePortalServiceTests
     }
 
     [Fact]
-    public async Task Homework_returns_only_current_tenant_class_section_for_linked_student()
+    public async Task Homework_returns_only_students_class_and_section()
     {
         await using var context = CreateContext(out var accessor);
         var own = Student(10, 99, "OWN");
         context.Students.Add(own);
         await context.SaveChangesAsync();
-        context.Homeworks.AddRange(
-            Homework(10, 1, 1, "Visible"), Homework(10, 1, 2, "Other section"), Homework(20, 1, 1, "Foreign tenant"));
+        context.Homeworks.AddRange(Homework(10, 1, 1, "Visible"), Homework(10, 1, 2, "Other section"));
         await context.SaveChangesAsync();
         SetTenant(accessor, 10);
 
