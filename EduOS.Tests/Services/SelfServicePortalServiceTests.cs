@@ -93,12 +93,12 @@ public class SelfServicePortalServiceTests
     public async Task Homework_returns_only_students_class_and_section()
     {
         await using var context = CreateContext(out var accessor);
+        SetTenant(accessor, 10);
         var own = Student(10, 99, "OWN");
         context.Students.Add(own);
         await context.SaveChangesAsync();
         context.Homeworks.AddRange(Homework(10, 1, 1, "Visible"), Homework(10, 1, 2, "Other section"));
         await context.SaveChangesAsync();
-        SetTenant(accessor, 10);
 
         var result = await CreateService(context, new TestCurrentUser(10, 99, "Student")).GetHomeworkAsync(own.PublicId);
 
