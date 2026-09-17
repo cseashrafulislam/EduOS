@@ -2,10 +2,12 @@ using EduOS.App.Authorization;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace EduOS.App.Controllers.Api;
 
 [Authorize(Roles = "Student,Guardian,Parent")]
+[EnableRateLimiting("ApiPolicy")]
 [ApiController]
 [Route("api/portal")]
 public sealed class SelfServicePortalController : ControllerBase
