@@ -9,6 +9,7 @@ namespace EduOS.App.Controllers.Api;
 
 [Authorize(Roles = "Teacher,Staff")]
 [RequireModule("HR")]
+[AutoValidateAntiforgeryToken]
 [ApiController]
 [Route("api/employee-portal")]
 public sealed class EmployeeSelfServiceController : ControllerBase
