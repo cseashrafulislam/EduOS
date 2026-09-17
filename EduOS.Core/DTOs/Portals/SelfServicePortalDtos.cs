@@ -90,3 +90,15 @@ public sealed class PortalHomeworkDto
     public DateTime DueDate { get; set; }
     public string? AttachmentUrl { get; set; }
 }
+
+public sealed class PortalAssignmentDto
+{
+    public Guid Reference { get; set; }
+    public long CourseId { get; set; }
+    public string CourseTitle { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public int TotalMark { get; set; }
+    public DateTime DueDate { get; set; }
+    public string? AttachmentUrl { get; set; }
+}
