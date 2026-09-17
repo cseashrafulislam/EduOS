@@ -39,6 +39,16 @@ public sealed class EmployeePortalLeaveDto
     public string? Remarks { get; set; }
 }
 
+public sealed class EmployeePortalLeaveBalanceDto
+{
+    public long LeaveTypeId { get; set; }
+    public string LeaveType { get; set; } = string.Empty;
+    public int AnnualEntitlement { get; set; }
+    public int UsedDays { get; set; }
+    public int PendingDays { get; set; }
+    public int RemainingDays { get; set; }
+}
+
 public sealed class EmployeePortalLeaveApplyDto
 {
     public long LeaveTypeId { get; set; }
