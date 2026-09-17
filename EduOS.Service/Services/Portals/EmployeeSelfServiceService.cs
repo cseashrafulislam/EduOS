@@ -93,8 +93,16 @@ public sealed class EmployeeSelfServiceService : IEmployeeSelfServiceService
             if (!hasActiveEmployee) return ApiResponse<IReadOnlyList<EmployeePortalLeaveBalanceDto>>.ErrorResponse("No active employee profile is linked to this account.", 404);
             var yearStart = new DateTime(targetYear, 1, 1);
             var yearEnd = yearStart.AddYears(1);
-            var usage = _leaveApplications.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId && x.UserId == _currentUser.UserId && x.UserType == "Employee" && !x.IsDeleted && x.FromDate >= yearStart && x.FromDate < yearEnd).GroupBy(x => x.LeaveTypeId).Select(g => new { LeaveTypeId = g.Key, UsedDays = g.Where(x => x.Status == "Approved").Sum(x => (int?)x.TotalDays) ?? 0, PendingDays = g.Where(x => x.Status == "Pending").Sum(x => (int?)x.TotalDays) ?? 0 });
-            IReadOnlyList<EmployeePortalLeaveBalanceDto> rows = await (from leaveType in _leaveTypes.GetQueryable().AsNoTracking() join used in usage on leaveType.Id equals used.LeaveTypeId into usageRows from used in usageRows.DefaultIfEmpty() where leaveType.TenantId == _currentUser.TenantId && leaveType.IsActive && !leaveType.IsDeleted orderby leaveType.Name select new EmployeePortalLeaveBalanceDto { LeaveTypeId = leaveType.Id, LeaveType = leaveType.Name, AnnualEntitlement = leaveType.MaxDaysPerYear, UsedDays = used == null ? 0 : used.UsedDays, PendingDays = used == null ? 0 : used.PendingDays, RemainingDays = Math.Max(0, leaveType.MaxDaysPerYear - (used == null ? 0 : used.UsedDays) - (used == null ? 0 : used.PendingDays)) }).ToListAsync(cancellationToken);
+            var leaveTypes = await _leaveTypes.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId && x.IsActive && !x.IsDeleted).OrderBy(x => x.Name).Select(x => new { x.Id, x.Name, x.MaxDaysPerYear }).ToListAsync(cancellationToken);
+            var usage = await _leaveApplications.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId && x.UserId == _currentUser.UserId && x.UserType == "Employee" && !x.IsDeleted && x.FromDate >= yearStart && x.FromDate < yearEnd).GroupBy(x => x.LeaveTypeId).Select(g => new { LeaveTypeId = g.Key, UsedDays = g.Where(x => x.Status == "Approved").Sum(x => (int?)x.TotalDays) ?? 0, PendingDays = g.Where(x => x.Status == "Pending").Sum(x => (int?)x.TotalDays) ?? 0 }).ToListAsync(cancellationToken);
+            var usageByType = usage.ToDictionary(x => x.LeaveTypeId);
+            IReadOnlyList<EmployeePortalLeaveBalanceDto> rows = leaveTypes.Select(leaveType =>
+            {
+                usageByType.TryGetValue(leaveType.Id, out var used);
+                var usedDays = used?.UsedDays ?? 0;
+                var pendingDays = used?.PendingDays ?? 0;
+                return new EmployeePortalLeaveBalanceDto { LeaveTypeId = leaveType.Id, LeaveType = leaveType.Name, AnnualEntitlement = leaveType.MaxDaysPerYear, UsedDays = usedDays, PendingDays = pendingDays, RemainingDays = Math.Max(0, leaveType.MaxDaysPerYear - usedDays - pendingDays) };
+            }).ToList();
             return ApiResponse<IReadOnlyList<EmployeePortalLeaveBalanceDto>>.SuccessResponse(rows);
         }
         catch (Exception ex)
