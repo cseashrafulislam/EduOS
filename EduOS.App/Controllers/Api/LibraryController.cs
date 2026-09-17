@@ -24,10 +24,12 @@ public sealed class LibraryController : ControllerBase
     public async Task<IActionResult> MyIssues(CancellationToken ct) => ToAction(await _service.GetMyIssuesAsync(ct));
 
     [HttpPost("issues")]
+    [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
     [EnableRateLimiting("ApiPolicy")]
     public async Task<IActionResult> Issue([FromBody] IssueBookDto request, CancellationToken ct) => ToAction(await _service.IssueAsync(request, ct));
 
     [HttpPost("issues/{reference:guid}/close")]
+    [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
     [EnableRateLimiting("ApiPolicy")]
     public async Task<IActionResult> Close(Guid reference, [FromBody] ReturnBookDto request, CancellationToken ct) => ToAction(await _service.CloseAsync(reference, request, ct));
 
