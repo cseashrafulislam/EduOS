@@ -37,6 +37,13 @@ public sealed class EmployeeSelfServiceController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("leave/balances")]
+    public async Task<IActionResult> LeaveBalances([FromQuery] int? year, CancellationToken cancellationToken)
+    {
+        var result = await _service.GetLeaveBalancesAsync(year, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("leave")]
     public async Task<IActionResult> ApplyLeave([FromBody] EmployeePortalLeaveApplyDto request, CancellationToken cancellationToken)
     {
