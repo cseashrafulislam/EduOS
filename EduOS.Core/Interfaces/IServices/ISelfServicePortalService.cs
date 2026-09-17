@@ -11,4 +11,5 @@ public interface ISelfServicePortalService
     Task<ApiResponse<PortalFeeLedgerDto>> GetFeesAsync(Guid studentReference, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<PortalTransportDto>>> GetTransportAsync(Guid studentReference, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<PortalHomeworkDto>>> GetHomeworkAsync(Guid studentReference, CancellationToken cancellationToken = default);
+    Task<ApiResponse<IReadOnlyList<PortalAssignmentDto>>> GetAssignmentsAsync(Guid studentReference, CancellationToken cancellationToken = default);
 }
