@@ -24,6 +24,8 @@ public sealed class SelfServicePortalService : ISelfServicePortalService
     private readonly IGenericRepository<Payment> _payments;
     private readonly IGenericRepository<StudentTransport> _transport;
     private readonly IGenericRepository<Homework> _homework;
+    private readonly IGenericRepository<Assignment> _assignments;
+    private readonly IGenericRepository<CourseEnrollment> _enrollments;
     private readonly ICurrentUserService _currentUser;
     private readonly ILogger<SelfServicePortalService> _logger;
 
@@ -31,10 +33,12 @@ public sealed class SelfServicePortalService : ISelfServicePortalService
         IGenericRepository<StudentAttendance> attendance, IGenericRepository<ExamResult> results,
         IGenericRepository<StudentInvoice> invoices, IGenericRepository<Payment> payments,
         IGenericRepository<StudentTransport> transport, IGenericRepository<Homework> homework,
+        IGenericRepository<Assignment> assignments, IGenericRepository<CourseEnrollment> enrollments,
         ICurrentUserService currentUser, ILogger<SelfServicePortalService> logger)
     {
         _students = students; _guardians = guardians; _attendance = attendance; _results = results;
-        _invoices = invoices; _payments = payments; _transport = transport; _homework = homework; _currentUser = currentUser; _logger = logger;
+        _invoices = invoices; _payments = payments; _transport = transport; _homework = homework;
+        _assignments = assignments; _enrollments = enrollments; _currentUser = currentUser; _logger = logger;
     }
 
     public async Task<ApiResponse<IReadOnlyList<PortalStudentDto>>> GetLinkedStudentsAsync(CancellationToken cancellationToken = default)
@@ -118,6 +122,21 @@ public sealed class SelfServicePortalService : ISelfServicePortalService
             .Select(x => new PortalHomeworkDto { HomeworkId = x.Id, SubjectId = x.SubjectId, SubjectName = x.Subject != null ? x.Subject.Name : string.Empty, Title = x.Title, Description = x.Description, AssignedDate = x.AssignedDate, DueDate = x.DueDate, AttachmentUrl = x.AttachmentUrl })
             .ToListAsync(cancellationToken);
         return ApiResponse<IReadOnlyList<PortalHomeworkDto>>.SuccessResponse(rows);
+    }
+
+    public async Task<ApiResponse<IReadOnlyList<PortalAssignmentDto>>> GetAssignmentsAsync(Guid studentReference, CancellationToken cancellationToken = default)
+    {
+        var student = await GetAuthorizedStudentAsync(studentReference, cancellationToken);
+        if (student == null) return Denied<IReadOnlyList<PortalAssignmentDto>>();
+        var courseIds = _enrollments.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == _currentUser.TenantId && x.StudentId == student.Id && x.IsActive)
+            .Select(x => x.CourseId);
+        IReadOnlyList<PortalAssignmentDto> rows = await _assignments.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == _currentUser.TenantId && x.IsActive && courseIds.Contains(x.CourseId))
+            .OrderBy(x => x.DueDate).ThenBy(x => x.Id)
+            .Select(x => new PortalAssignmentDto { Reference = x.PublicId, CourseId = x.CourseId, CourseTitle = x.Course != null ? x.Course.Title : string.Empty, Title = x.Title, Description = x.Description, TotalMark = x.TotalMark, DueDate = x.DueDate, AttachmentUrl = x.AttachmentUrl })
+            .ToListAsync(cancellationToken);
+        return ApiResponse<IReadOnlyList<PortalAssignmentDto>>.SuccessResponse(rows);
     }
 
     private async Task<Student?> GetAuthorizedStudentAsync(Guid reference, CancellationToken cancellationToken)
