@@ -3,6 +3,7 @@ using EduOS.Core.DTOs.Portals;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace EduOS.App.Controllers.Api;
 
@@ -45,6 +46,7 @@ public sealed class EmployeeSelfServiceController : ControllerBase
     }
 
     [HttpPost("leave")]
+    [EnableRateLimiting("ApiPolicy")]
     public async Task<IActionResult> ApplyLeave([FromBody] EmployeePortalLeaveApplyDto request, CancellationToken cancellationToken)
     {
         var result = await _service.ApplyLeaveAsync(request, cancellationToken);
