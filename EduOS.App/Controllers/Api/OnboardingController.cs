@@ -2,6 +2,7 @@ using EduOS.Core.DTOs.Tenants;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace EduOS.App.Controllers.Api
 {
@@ -32,6 +33,7 @@ namespace EduOS.App.Controllers.Api
         /// Mark current step complete and advance to next
         /// </summary>
         [HttpPost("complete-step")]
+        [EnableRateLimiting("ApiPolicy")]
         public async Task<IActionResult> CompleteStep([FromBody] CompleteStepDto dto)
         {
             var result = await _onboardingService.CompleteStepAsync(dto);
@@ -42,6 +44,7 @@ namespace EduOS.App.Controllers.Api
         /// Finalize entire onboarding (validates all required steps)
         /// </summary>
         [HttpPost("complete")]
+        [EnableRateLimiting("ApiPolicy")]
         public async Task<IActionResult> CompleteOnboarding()
         {
             var result = await _onboardingService.CompleteOnboardingAsync();
