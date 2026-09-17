@@ -1,6 +1,7 @@
 using EduOS.Core.Entities.Attendance;
 using EduOS.Core.Entities.Exams;
 using EduOS.Core.Entities.Finance;
+using EduOS.Core.Entities.LMS;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Entities.Transport;
 using EduOS.Core.Interfaces;
@@ -88,6 +89,43 @@ public class SelfServicePortalServiceTests
         result.StatusCode.Should().Be(403);
     }
 
+    [Fact]
+    public async Task Homework_returns_only_current_tenant_class_section_for_linked_student()
+    {
+        await using var context = CreateContext(out var accessor);
+        var own = Student(10, 99, "OWN");
+        context.Students.Add(own);
+        await context.SaveChangesAsync();
+        context.Homeworks.AddRange(
+            Homework(10, 1, 1, "Visible"), Homework(10, 1, 2, "Other section"), Homework(20, 1, 1, "Foreign tenant"));
+        await context.SaveChangesAsync();
+        SetTenant(accessor, 10);
+
+        var result = await CreateService(context, new TestCurrentUser(10, 99, "Student")).GetHomeworkAsync(own.PublicId);
+
+        result.Success.Should().BeTrue();
+        result.Data.Should().ContainSingle();
+        result.Data![0].Title.Should().Be("Visible");
+    }
+
+    [Fact]
+    public async Task Homework_rejects_unlinked_student_for_guardian()
+    {
+        await using var context = CreateContext(out var accessor);
+        var linked = Student(10, null, "CHILD");
+        var unlinked = Student(10, null, "OTHER");
+        context.Students.AddRange(linked, unlinked);
+        await context.SaveChangesAsync();
+        context.Guardians.Add(new Guardian { TenantId = 10, StudentId = linked.Id, UserId = 99, Name = "Guardian", Relation = "Mother", Phone = "01700000000" });
+        await context.SaveChangesAsync();
+        SetTenant(accessor, 10);
+
+        var result = await CreateService(context, new TestCurrentUser(10, 99, "Guardian")).GetHomeworkAsync(unlinked.PublicId);
+
+        result.Success.Should().BeFalse();
+        result.StatusCode.Should().Be(403);
+    }
+
     private static EduOSDbContext CreateContext(out HttpContextAccessor accessor)
     {
         accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
@@ -99,7 +137,7 @@ public class SelfServicePortalServiceTests
     private static SelfServicePortalService CreateService(EduOSDbContext context, ICurrentUserService currentUser) => new(
         new GenericRepository<Student>(context), new GenericRepository<Guardian>(context), new GenericRepository<StudentAttendance>(context),
         new GenericRepository<ExamResult>(context), new GenericRepository<StudentInvoice>(context), new GenericRepository<Payment>(context),
-        new GenericRepository<StudentTransport>(context), currentUser, NullLogger<SelfServicePortalService>.Instance);
+        new GenericRepository<StudentTransport>(context), new GenericRepository<Homework>(context), currentUser, NullLogger<SelfServicePortalService>.Instance);
 
     private static Student Student(long tenantId, long? userId, string code) => new()
     {
@@ -112,6 +150,12 @@ public class SelfServicePortalServiceTests
     {
         TenantId = tenantId, ClientRequestId = Guid.NewGuid(), StudentId = studentId, VehicleId = vehicleId, RouteId = routeId,
         PickupPoint = pickup, StartDate = DateTime.UtcNow.Date, MonthlyFare = 500, IsActive = true
+    };
+
+    private static Homework Homework(long tenantId, long classId, long sectionId, string title) => new()
+    {
+        TenantId = tenantId, ClassId = classId, SectionId = sectionId, SubjectId = 1, TeacherId = 1, Title = title,
+        AssignedDate = DateTime.UtcNow.Date, DueDate = DateTime.UtcNow.Date.AddDays(2)
     };
 
     private sealed class TestCurrentUser(long tenantId, long userId, string role) : ICurrentUserService
