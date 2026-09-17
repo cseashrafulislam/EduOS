@@ -73,7 +73,7 @@ public class SelfServicePortalServiceTests
     {
         await using var context = CreateContext(out var accessor); SetTenant(accessor, 10); var own = Student(10, 99, "OWN"); context.Students.Add(own); await context.SaveChangesAsync();
         var enrolled = Course(10, "Enrolled"); var inactiveEnrollmentCourse = Course(10, "Inactive enrollment"); var foreignCourse = Course(20, "Foreign"); context.Courses.AddRange(enrolled, inactiveEnrollmentCourse, foreignCourse); await context.SaveChangesAsync();
-        context.CourseEnrollments.AddRange(Enrollment(10, enrolled.Id, own.Id, true), Enrollment(10, inactiveEnrollmentCourse.Id, own.Id, false), Enrollment(20, foreignCourse.Id, own.Id, true));
+        context.Set<CourseEnrollment>().AddRange(Enrollment(10, enrolled.Id, own.Id, true), Enrollment(10, inactiveEnrollmentCourse.Id, own.Id, false), Enrollment(20, foreignCourse.Id, own.Id, true));
         context.Assignments.AddRange(LmsAssignment(10, enrolled.Id, "Visible", true), LmsAssignment(10, enrolled.Id, "Inactive assignment", false), LmsAssignment(10, inactiveEnrollmentCourse.Id, "Inactive enrollment assignment", true), LmsAssignment(20, foreignCourse.Id, "Foreign assignment", true)); await context.SaveChangesAsync();
         var result = await CreateService(context, new TestCurrentUser(10, 99, "Student")).GetAssignmentsAsync(own.PublicId);
         result.Success.Should().BeTrue(); result.Data.Should().ContainSingle(); result.Data![0].Title.Should().Be("Visible"); result.Data[0].CourseTitle.Should().Be("Enrolled");
