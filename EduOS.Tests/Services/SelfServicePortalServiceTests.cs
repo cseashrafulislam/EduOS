@@ -68,6 +68,25 @@ public class SelfServicePortalServiceTests
         result.Success.Should().BeFalse(); result.StatusCode.Should().Be(403);
     }
 
+    [Fact]
+    public async Task Assignments_returns_only_active_assignments_for_students_active_enrollments()
+    {
+        await using var context = CreateContext(out var accessor); SetTenant(accessor, 10); var own = Student(10, 99, "OWN"); context.Students.Add(own); await context.SaveChangesAsync();
+        var enrolled = Course(10, "Enrolled"); var inactiveEnrollmentCourse = Course(10, "Inactive enrollment"); var foreignCourse = Course(20, "Foreign"); context.Courses.AddRange(enrolled, inactiveEnrollmentCourse, foreignCourse); await context.SaveChangesAsync();
+        context.CourseEnrollments.AddRange(Enrollment(10, enrolled.Id, own.Id, true), Enrollment(10, inactiveEnrollmentCourse.Id, own.Id, false), Enrollment(20, foreignCourse.Id, own.Id, true));
+        context.Assignments.AddRange(LmsAssignment(10, enrolled.Id, "Visible", true), LmsAssignment(10, enrolled.Id, "Inactive assignment", false), LmsAssignment(10, inactiveEnrollmentCourse.Id, "Inactive enrollment assignment", true), LmsAssignment(20, foreignCourse.Id, "Foreign assignment", true)); await context.SaveChangesAsync();
+        var result = await CreateService(context, new TestCurrentUser(10, 99, "Student")).GetAssignmentsAsync(own.PublicId);
+        result.Success.Should().BeTrue(); result.Data.Should().ContainSingle(); result.Data![0].Title.Should().Be("Visible"); result.Data[0].CourseTitle.Should().Be("Enrolled");
+    }
+
+    [Fact]
+    public async Task Assignments_allows_guardian_link_but_rejects_unlinked_student()
+    {
+        await using var context = CreateContext(out var accessor); var linked = Student(10, null, "CHILD"); var unlinked = Student(10, null, "OTHER"); context.Students.AddRange(linked, unlinked); await context.SaveChangesAsync(); context.Guardians.Add(new Guardian { TenantId = 10, StudentId = linked.Id, UserId = 99, Name = "Guardian", Relation = "Father", Phone = "01700000000" }); await context.SaveChangesAsync(); SetTenant(accessor, 10); var service = CreateService(context, new TestCurrentUser(10, 99, "Guardian"));
+        var linkedResult = await service.GetAssignmentsAsync(linked.PublicId); var unlinkedResult = await service.GetAssignmentsAsync(unlinked.PublicId);
+        linkedResult.Success.Should().BeTrue(); unlinkedResult.Success.Should().BeFalse(); unlinkedResult.StatusCode.Should().Be(403);
+    }
+
     private static EduOSDbContext CreateContext(out HttpContextAccessor accessor) { accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() }; return new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>().UseInMemoryDatabase($"self-service-{Guid.NewGuid():N}").Options, accessor); }
     private static void SetTenant(HttpContextAccessor accessor, long tenantId) => accessor.HttpContext!.Items["TenantId"] = tenantId;
     private static SelfServicePortalService CreateService(EduOSDbContext context, ICurrentUserService currentUser) => new(
@@ -76,6 +95,9 @@ public class SelfServicePortalServiceTests
     private static Student Student(long tenantId, long? userId, string code) => new() { TenantId = tenantId, UserId = userId, StudentCode = code, Roll = code, FullName = code, FatherName = "Father", MotherName = "Mother", DOB = DateTime.UtcNow.Date.AddYears(-10), Gender = "Male", ClassId = 1, SectionId = 1, AcademicYearId = 1, AdmissionDate = DateTime.UtcNow.Date, IsActive = true };
     private static StudentTransport Assignment(long tenantId, long studentId, long vehicleId, long routeId, string pickup) => new() { TenantId = tenantId, ClientRequestId = Guid.NewGuid(), StudentId = studentId, VehicleId = vehicleId, RouteId = routeId, PickupPoint = pickup, StartDate = DateTime.UtcNow.Date, MonthlyFare = 500, IsActive = true };
     private static Homework Homework(long tenantId, long classId, long sectionId, string title) => new() { TenantId = tenantId, ClassId = classId, SectionId = sectionId, SubjectId = 1, TeacherId = 1, Title = title, AssignedDate = DateTime.UtcNow.Date, DueDate = DateTime.UtcNow.Date.AddDays(2) };
+    private static Course Course(long tenantId, string title) => new() { TenantId = tenantId, AcademicYearId = 1, ClassId = 1, SectionId = 1, SubjectId = 1, TeacherId = 1, Title = title, IsActive = true };
+    private static CourseEnrollment Enrollment(long tenantId, long courseId, long studentId, bool active) => new() { TenantId = tenantId, CourseId = courseId, StudentId = studentId, EnrollDate = DateTime.UtcNow.Date, IsActive = active };
+    private static Assignment LmsAssignment(long tenantId, long courseId, string title, bool active) => new() { TenantId = tenantId, CourseId = courseId, Title = title, TotalMark = 100, DueDate = DateTime.UtcNow.AddDays(2), IsActive = active };
 
     private sealed class TestCurrentUser(long tenantId, long userId, string role) : ICurrentUserService
     {
