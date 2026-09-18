@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.RateLimiting;
 namespace EduOS.App.Controllers.Api
 {
     [Authorize(Roles = "TenantAdmin,Principal")]
+    [EnableRateLimiting("ApiPolicy")]
     [ApiController]
     [Route("api/v1/[controller]")]
     [Produces("application/json")]
@@ -41,7 +42,6 @@ namespace EduOS.App.Controllers.Api
         }
 
         [HttpGet("export")]
-        [EnableRateLimiting("ApiPolicy")]
         public async Task<IActionResult> Export([FromQuery] AuditLogFilterDto filter)
         {
             var result = await _auditLogService.ExportAsync(filter);
