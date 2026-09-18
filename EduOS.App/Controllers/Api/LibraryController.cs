@@ -12,6 +12,7 @@ namespace EduOS.App.Controllers.Api;
 [Authorize]
 [RequireModule("LIBRARY")]
 [AutoValidateAntiforgeryToken]
+[EnableRateLimiting("ApiPolicy")]
 public sealed class LibraryController : ControllerBase
 {
     private readonly ILibraryService _service;
@@ -25,12 +26,10 @@ public sealed class LibraryController : ControllerBase
 
     [HttpPost("issues")]
     [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
-    [EnableRateLimiting("ApiPolicy")]
     public async Task<IActionResult> Issue([FromBody] IssueBookDto request, CancellationToken ct) => ToAction(await _service.IssueAsync(request, ct));
 
     [HttpPost("issues/{reference:guid}/close")]
     [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
-    [EnableRateLimiting("ApiPolicy")]
     public async Task<IActionResult> Close(Guid reference, [FromBody] ReturnBookDto request, CancellationToken ct) => ToAction(await _service.CloseAsync(reference, request, ct));
 
     private IActionResult ToAction<T>(EduOS.Core.Common.ApiResponse<T> response) => StatusCode(response.StatusCode, response);
