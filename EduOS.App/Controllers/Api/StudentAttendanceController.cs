@@ -10,6 +10,7 @@ namespace EduOS.App.Controllers.Api;
 [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,Teacher")]
 [RequireModule("ATTENDANCE")]
 [AutoValidateAntiforgeryToken]
+[EnableRateLimiting("ApiPolicy")]
 [ApiController]
 [Route("api/student-attendance")]
 public sealed class StudentAttendanceController : ControllerBase
@@ -30,7 +31,6 @@ public sealed class StudentAttendanceController : ControllerBase
     }
 
     [HttpPost]
-    [EnableRateLimiting("ApiPolicy")]
     public async Task<IActionResult> Save([FromBody] SaveStudentAttendanceDto request, CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
