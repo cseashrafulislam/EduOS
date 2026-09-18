@@ -8,6 +8,7 @@ namespace EduOS.App.Controllers.Api;
 
 [AllowAnonymous]
 [IgnoreAntiforgeryToken]
+[EnableRateLimiting("AdmissionIntakePolicy")]
 [ApiController]
 [Route("api/public/admissions/{tenantKey}")]
 public sealed class PublicAdmissionsController : ControllerBase
@@ -20,7 +21,6 @@ public sealed class PublicAdmissionsController : ControllerBase
     }
 
     [HttpGet("options")]
-    [EnableRateLimiting("AdmissionIntakePolicy")]
     public async Task<IActionResult> GetOptions(string tenantKey, CancellationToken cancellationToken)
     {
         var result = await _service.GetOptionsAsync(tenantKey, cancellationToken);
@@ -28,7 +28,6 @@ public sealed class PublicAdmissionsController : ControllerBase
     }
 
     [HttpPost("applications")]
-    [EnableRateLimiting("AdmissionIntakePolicy")]
     public async Task<IActionResult> Create(string tenantKey, [FromBody] CreateAdmissionApplicationDto request, CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
@@ -37,7 +36,6 @@ public sealed class PublicAdmissionsController : ControllerBase
     }
 
     [HttpGet("applications/{reference:guid}/status")]
-    [EnableRateLimiting("AdmissionIntakePolicy")]
     public async Task<IActionResult> GetStatus(string tenantKey, Guid reference, [FromQuery] PublicAdmissionStatusQueryDto query, CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
