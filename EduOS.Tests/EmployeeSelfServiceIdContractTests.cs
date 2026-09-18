@@ -10,9 +10,11 @@ public sealed class EmployeeSelfServiceIdContractTests
     [InlineData(typeof(Employee), nameof(Employee.Id), typeof(long))]
     [InlineData(typeof(Employee), nameof(Employee.TenantId), typeof(long))]
     [InlineData(typeof(Employee), nameof(Employee.UserId), typeof(long?))]
-    [InlineData(typeof(EmployeeProfileDto), nameof(EmployeeProfileDto.EmployeeId), typeof(long))]
-    [InlineData(typeof(EmployeeLeaveApplicationDto), nameof(EmployeeLeaveApplicationDto.Id), typeof(long))]
-    [InlineData(typeof(EmployeePayslipDto), nameof(EmployeePayslipDto.PayrollRunId), typeof(long))]
+    [InlineData(typeof(EmployeePortalProfileDto), nameof(EmployeePortalProfileDto.DesignationId), typeof(long))]
+    [InlineData(typeof(EmployeePortalProfileDto), nameof(EmployeePortalProfileDto.DepartmentId), typeof(long?))]
+    [InlineData(typeof(EmployeePortalLeaveDto), nameof(EmployeePortalLeaveDto.Id), typeof(long))]
+    [InlineData(typeof(EmployeePortalLeaveBalanceDto), nameof(EmployeePortalLeaveBalanceDto.LeaveTypeId), typeof(long))]
+    [InlineData(typeof(EmployeePortalLeaveApplyDto), nameof(EmployeePortalLeaveApplyDto.LeaveTypeId), typeof(long))]
     public void Employee_self_service_identifiers_remain_long(Type type, string propertyName, Type expectedType)
     {
         var property = type.GetProperty(propertyName);
