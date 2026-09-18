@@ -8,6 +8,7 @@ namespace EduOS.App.Controllers.Api;
 
 [Authorize(Roles = "Student,Parent")]
 [AutoValidateAntiforgeryToken]
+[EnableRateLimiting("LearnerIdentityPolicy")]
 [ApiController]
 [Route("api/learner-consents")]
 public sealed class LearnerConsentsController : ControllerBase
@@ -34,7 +35,6 @@ public sealed class LearnerConsentsController : ControllerBase
     }
 
     [HttpPost("{requestReference:guid}/decision")]
-    [EnableRateLimiting("LearnerIdentityPolicy")]
     public async Task<IActionResult> Resolve(
         Guid requestReference,
         [FromBody] ResolveLearnerConsentRequestDto request,
@@ -48,7 +48,6 @@ public sealed class LearnerConsentsController : ControllerBase
     }
 
     [HttpPost("grants/{grantReference:guid}/revoke")]
-    [EnableRateLimiting("LearnerIdentityPolicy")]
     public async Task<IActionResult> Revoke(
         Guid grantReference,
         CancellationToken cancellationToken)
