@@ -10,6 +10,7 @@ namespace EduOS.App.Controllers.Api;
 [Authorize(Roles = "TenantAdmin,AdmissionOfficer")]
 [RequireModule("ADMISSION")]
 [AutoValidateAntiforgeryToken]
+[EnableRateLimiting("AdmissionIntakePolicy")]
 [ApiController]
 [Route("api/admission-applications")]
 public class AdmissionApplicationsController : ControllerBase
@@ -45,7 +46,6 @@ public class AdmissionApplicationsController : ControllerBase
     }
 
     [HttpPost]
-    [EnableRateLimiting("AdmissionIntakePolicy")]
     public async Task<IActionResult> Create([FromBody] CreateAdmissionApplicationDto request, CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
@@ -54,7 +54,6 @@ public class AdmissionApplicationsController : ControllerBase
     }
 
     [HttpPut("{reference:guid}/status")]
-    [EnableRateLimiting("AdmissionIntakePolicy")]
     public async Task<IActionResult> Review(Guid reference, [FromBody] ReviewAdmissionApplicationDto request, CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
@@ -70,7 +69,6 @@ public class AdmissionApplicationsController : ControllerBase
     }
 
     [HttpPost("{reference:guid}/admit")]
-    [EnableRateLimiting("AdmissionIntakePolicy")]
     public async Task<IActionResult> Admit(Guid reference, [FromBody] AdmitAdmissionApplicationDto request, CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
