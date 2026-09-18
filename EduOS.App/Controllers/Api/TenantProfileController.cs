@@ -3,11 +3,13 @@ using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace EduOS.App.Controllers.Api
 {
     [Authorize(Roles = "TenantAdmin,SuperAdmin")]
     [AutoValidateAntiforgeryToken]
+    [EnableRateLimiting("ApiPolicy")]
     [ApiController]
     [Route("api/tenant-profile")]
     public class TenantProfileController : ControllerBase
