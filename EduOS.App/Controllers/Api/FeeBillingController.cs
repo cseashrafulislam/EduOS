@@ -12,6 +12,7 @@ namespace EduOS.App.Controllers.Api;
 [Authorize(Roles = "TenantAdmin,Principal,Accountant,Cashier")]
 [RequireModule("FINANCE")]
 [AutoValidateAntiforgeryToken]
+[EnableRateLimiting("ApiPolicy")]
 [ApiController]
 [Route("api/finance/fees")]
 public sealed class FeeBillingController : ControllerBase
@@ -21,7 +22,6 @@ public sealed class FeeBillingController : ControllerBase
 
     [HttpPut("structure")]
     [Authorize(Roles = "TenantAdmin,Principal,Accountant")]
-    [EnableRateLimiting("ApiPolicy")]
     public async Task<IActionResult> SaveStructure([FromBody] SaveFeeStructureDto request, CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
@@ -32,16 +32,13 @@ public sealed class FeeBillingController : ControllerBase
 
     [HttpPost("invoices/generate")]
     [Authorize(Roles = "TenantAdmin,Principal,Accountant")]
-    [EnableRateLimiting("ApiPolicy")]
     public async Task<IActionResult> Generate([FromBody] GenerateStudentInvoicesDto request, CancellationToken cancellationToken) { if (!ModelState.IsValid) return ValidationProblem(ModelState); var result = await _service.GenerateInvoicesAsync(request, cancellationToken); return StatusCode(result.StatusCode, result); }
 
     [HttpPost("payments")]
-    [EnableRateLimiting("ApiPolicy")]
     public async Task<IActionResult> Collect([FromBody] CollectStudentPaymentDto request, CancellationToken cancellationToken) { if (!ModelState.IsValid) return ValidationProblem(ModelState); var result = await _service.CollectPaymentAsync(request, cancellationToken); return StatusCode(result.StatusCode, result); }
 
     [HttpPut("invoices/fine")]
     [Authorize(Roles = "TenantAdmin,Principal,Accountant")]
-    [EnableRateLimiting("ApiPolicy")]
     public async Task<IActionResult> SetFine([FromBody] SetInvoiceFineDto request, CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
