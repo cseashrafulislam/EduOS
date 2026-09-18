@@ -8,6 +8,7 @@ namespace EduOS.App.Controllers.Api
 {
     [Authorize(Roles = "TenantAdmin")]
     [AutoValidateAntiforgeryToken]
+    [EnableRateLimiting("ApiPolicy")]
     [ApiController]
     [Route("api/onboarding")]
     public class OnboardingController : ControllerBase
@@ -33,7 +34,6 @@ namespace EduOS.App.Controllers.Api
         /// Mark current step complete and advance to next
         /// </summary>
         [HttpPost("complete-step")]
-        [EnableRateLimiting("ApiPolicy")]
         public async Task<IActionResult> CompleteStep([FromBody] CompleteStepDto dto)
         {
             var result = await _onboardingService.CompleteStepAsync(dto);
@@ -44,7 +44,6 @@ namespace EduOS.App.Controllers.Api
         /// Finalize entire onboarding (validates all required steps)
         /// </summary>
         [HttpPost("complete")]
-        [EnableRateLimiting("ApiPolicy")]
         public async Task<IActionResult> CompleteOnboarding()
         {
             var result = await _onboardingService.CompleteOnboardingAsync();
