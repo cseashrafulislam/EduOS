@@ -8,6 +8,7 @@ namespace EduOS.App.Controllers.Api;
 
 [Authorize(Roles = "TenantAdmin,AdmissionOfficer")]
 [AutoValidateAntiforgeryToken]
+[EnableRateLimiting("LearnerIdentityPolicy")]
 [ApiController]
 [Route("api/learner-identities")]
 public class LearnerIdentityController : ControllerBase
@@ -24,7 +25,6 @@ public class LearnerIdentityController : ControllerBase
     /// existing identity, or creates a consent request without returning matched PII.
     /// </summary>
     [HttpPost("register-or-request")]
-    [EnableRateLimiting("LearnerIdentityPolicy")]
     public async Task<IActionResult> RegisterOrRequest(
         [FromBody] RegisterLearnerIdentityRequestDto request,
         CancellationToken cancellationToken)
