@@ -12,6 +12,7 @@ namespace EduOS.App.Controllers.Api;
 [Authorize]
 [RequireModule("TRANSPORT")]
 [AutoValidateAntiforgeryToken]
+[EnableRateLimiting("ApiPolicy")]
 public sealed class TransportController : ControllerBase
 {
     private readonly ITransportService _service;
@@ -28,12 +29,10 @@ public sealed class TransportController : ControllerBase
 
     [HttpPost("assignments")]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
-    [EnableRateLimiting("ApiPolicy")]
     public async Task<IActionResult> Assign([FromBody] AssignTransportDto request, CancellationToken ct) => ToAction(await _service.AssignAsync(request, ct));
 
     [HttpPost("assignments/{reference:guid}/close")]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
-    [EnableRateLimiting("ApiPolicy")]
     public async Task<IActionResult> Close(Guid reference, [FromBody] CloseTransportDto request, CancellationToken ct) => ToAction(await _service.CloseAsync(reference, request, ct));
 
     private IActionResult ToAction<T>(EduOS.Core.Common.ApiResponse<T> response) => StatusCode(response.StatusCode, response);
