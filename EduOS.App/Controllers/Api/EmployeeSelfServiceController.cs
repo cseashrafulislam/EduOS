@@ -10,6 +10,7 @@ namespace EduOS.App.Controllers.Api;
 [Authorize(Roles = "Teacher,Staff")]
 [RequireModule("HR")]
 [AutoValidateAntiforgeryToken]
+[EnableRateLimiting("ApiPolicy")]
 [ApiController]
 [Route("api/employee-portal")]
 public sealed class EmployeeSelfServiceController : ControllerBase
@@ -47,7 +48,6 @@ public sealed class EmployeeSelfServiceController : ControllerBase
     }
 
     [HttpPost("leave")]
-    [EnableRateLimiting("ApiPolicy")]
     public async Task<IActionResult> ApplyLeave([FromBody] EmployeePortalLeaveApplyDto request, CancellationToken cancellationToken)
     {
         var result = await _service.ApplyLeaveAsync(request, cancellationToken);
