@@ -9,6 +9,7 @@ namespace EduOS.App.Controllers.Api;
 
 [Authorize(Roles = "TenantAdmin,AdmissionOfficer")]
 [RequireModule("ADMISSION")]
+[EnableRateLimiting("AdmissionIntakePolicy")]
 [AutoValidateAntiforgeryToken]
 [ApiController]
 [Route("api/admission-assessments")]
@@ -29,7 +30,6 @@ public class AdmissionAssessmentsController : ControllerBase
     }
 
     [HttpPost("tests")]
-    [EnableRateLimiting("AdmissionIntakePolicy")]
     public async Task<IActionResult> CreateTest([FromBody] SaveAdmissionTestDto request, CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
@@ -38,7 +38,6 @@ public class AdmissionAssessmentsController : ControllerBase
     }
 
     [HttpPut("tests/{id:long}")]
-    [EnableRateLimiting("AdmissionIntakePolicy")]
     public async Task<IActionResult> UpdateTest(long id, [FromBody] SaveAdmissionTestDto request, CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
@@ -47,7 +46,6 @@ public class AdmissionAssessmentsController : ControllerBase
     }
 
     [HttpPut("tests/{testId:long}/results")]
-    [EnableRateLimiting("AdmissionIntakePolicy")]
     public async Task<IActionResult> SaveResults(long testId, [FromBody] SaveAdmissionResultsDto request, CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
@@ -63,7 +61,6 @@ public class AdmissionAssessmentsController : ControllerBase
     }
 
     [HttpPost("tests/{testId:long}/publish")]
-    [EnableRateLimiting("AdmissionIntakePolicy")]
     public async Task<IActionResult> PublishMeritList(long testId, CancellationToken cancellationToken)
     {
         var result = await _service.PublishMeritListAsync(testId, cancellationToken);
