@@ -10,6 +10,7 @@ namespace EduOS.App.Controllers.Api;
 [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,Teacher,ExamController")]
 [RequireModule("EXAM")]
 [AutoValidateAntiforgeryToken]
+[EnableRateLimiting("ApiPolicy")]
 [ApiController]
 [Route("api/exams/workflow")]
 public sealed class ExamWorkflowController : ControllerBase
@@ -26,7 +27,6 @@ public sealed class ExamWorkflowController : ControllerBase
     }
 
     [HttpPost("marks")]
-    [EnableRateLimiting("ApiPolicy")]
     public async Task<IActionResult> SaveMarks([FromBody] SaveExamMarksDto request, CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
@@ -35,7 +35,6 @@ public sealed class ExamWorkflowController : ControllerBase
     }
 
     [HttpPost("results/generate")]
-    [EnableRateLimiting("ApiPolicy")]
     public async Task<IActionResult> Generate([FromBody] ExamScopeDto request, CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
@@ -45,7 +44,6 @@ public sealed class ExamWorkflowController : ControllerBase
 
     [HttpPost("results/publish")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
-    [EnableRateLimiting("ApiPolicy")]
     public async Task<IActionResult> Publish([FromBody] ExamScopeDto request, CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
