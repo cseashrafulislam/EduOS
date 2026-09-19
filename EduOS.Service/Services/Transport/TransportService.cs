@@ -7,6 +7,7 @@ using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Transactions;
 using TransportRoute = EduOS.Core.Entities.Transport.Route;
 
 namespace EduOS.Service.Services.Transport;
@@ -61,6 +62,12 @@ public sealed class TransportService : ITransportService
         var tenantId = _currentUser.TenantId;
         try
         {
+            // Capacity and active-assignment checks are read-before-write invariants. Serializable
+            // isolation prevents concurrent requests (including other app instances) from both
+            // observing the same free seat and overbooking a vehicle.
+            using var scope = new TransactionScope(TransactionScopeOption.Required,
+                new TransactionOptions { IsolationLevel = IsolationLevel.Serializable },
+                TransactionScopeAsyncFlowOption.Enabled);
             var existing = await QueryAssignments().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.ClientRequestId == request.ClientRequestId, cancellationToken);
             if (existing != null) return ApiResponse<StudentTransportDto>.SuccessResponse(Map(existing), "Transport assignment was already processed.");
             var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.PublicId == request.StudentReference && x.IsActive, cancellationToken);
@@ -80,6 +87,7 @@ public sealed class TransportService : ITransportService
             var assignment = new StudentTransport { TenantId = tenantId, PublicId = Guid.NewGuid(), ClientRequestId = request.ClientRequestId, StudentId = student.Id, VehicleId = vehicle.Id, RouteId = route.Id, PickupPoint = string.IsNullOrWhiteSpace(request.PickupPoint) ? null : request.PickupPoint.Trim(), StartDate = startDate, MonthlyFare = request.MonthlyFare ?? route.Fare, IsActive = true, CreatedAt = now, CreatedBy = _currentUser.UserId };
             await _assignments.AddAsync(assignment);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+            scope.Complete();
             assignment.Student = student; assignment.Vehicle = vehicle; assignment.Route = route;
             return new ApiResponse<StudentTransportDto> { Success = true, StatusCode = 201, Message = "Transport assigned.", Data = Map(assignment) };
         }
