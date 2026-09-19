@@ -96,6 +96,11 @@ public sealed class TransportService : ITransportService
             _logger.LogWarning(ex, "Conflicting transport assignment for tenant {TenantId}", tenantId);
             return Error("Transport assignment conflicts with another update. Reload and try again.", 409);
         }
+        catch (TransactionAbortedException ex)
+        {
+            _logger.LogWarning(ex, "Serialized transport assignment transaction aborted for tenant {TenantId}", tenantId);
+            return Error("Transport assignment conflicts with another update. Reload and try again.", 409);
+        }
     }
 
     public async Task<ApiResponse<StudentTransportDto>> CloseAsync(Guid reference, CloseTransportDto request, CancellationToken cancellationToken = default)
