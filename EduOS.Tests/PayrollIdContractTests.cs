@@ -16,6 +16,7 @@ public sealed class PayrollIdContractTests
     [InlineData(typeof(Increment), nameof(Increment.Id), typeof(long))]
     [InlineData(typeof(Increment), nameof(Increment.TenantId), typeof(long))]
     [InlineData(typeof(Increment), nameof(Increment.EmployeeId), typeof(long))]
+    [InlineData(typeof(Increment), nameof(Increment.ApprovedBy), typeof(long))]
     [InlineData(typeof(LoanAdvance), nameof(LoanAdvance.Id), typeof(long))]
     [InlineData(typeof(LoanAdvance), nameof(LoanAdvance.TenantId), typeof(long))]
     [InlineData(typeof(LoanAdvance), nameof(LoanAdvance.EmployeeId), typeof(long))]
