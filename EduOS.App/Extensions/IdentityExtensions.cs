@@ -1,5 +1,6 @@
 using EduOS.Core.Entities.Auth;
 using EduOS.Persistence.Context;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
@@ -37,6 +38,14 @@ namespace EduOS.App.Extensions
             })
             .AddEntityFrameworkStores<EduOSDbContext>()
             .AddDefaultTokenProviders();
+
+            // Secure-by-default endpoint posture. Public routes must opt out explicitly.
+            services.AddAuthorization(options =>
+            {
+                options.FallbackPolicy = new AuthorizationPolicyBuilder()
+                    .RequireAuthenticatedUser()
+                    .Build();
+            });
 
             // Configure cookie
             services.ConfigureApplicationCookie(options =>

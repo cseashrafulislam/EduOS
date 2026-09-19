@@ -9,7 +9,7 @@ namespace EduOS.Persistence.Repositories
     {
         public SectionRepository(EduOSDbContext context) : base(context) { }
 
-        public async Task<List<Section>> GetByClassIdAsync(int classId)
+        public async Task<List<Section>> GetByClassIdAsync(long classId)
         {
             return await _dbSet
                 .Where(s => s.ClassId == classId && s.IsActive)
@@ -17,16 +17,16 @@ namespace EduOS.Persistence.Repositories
                 .ToListAsync();
         }
 
-        public async Task<bool> IsSectionNameExistsAsync(string name, int classId, int? excludeId = null)
+        public async Task<bool> IsSectionNameExistsAsync(string name, long classId, long? excludeId = null)
         {
-            var query = _dbSet.Where(s => 
+            var query = _dbSet.Where(s =>
                 s.Name.ToLower() == name.ToLower() && s.ClassId == classId);
             if (excludeId.HasValue)
                 query = query.Where(s => s.Id != excludeId.Value);
             return await query.AnyAsync();
         }
 
-        public async Task<int> GetTotalCapacityAsync(int classId)
+        public async Task<int> GetTotalCapacityAsync(long classId)
         {
             return await _dbSet
                 .Where(s => s.ClassId == classId && s.IsActive)

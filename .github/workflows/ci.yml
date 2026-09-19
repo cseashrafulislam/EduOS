@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [ master ]
   push:
-    branches: [ master ]
+    branches: [ master, codex/phase-0-security-foundation ]
 
 permissions:
   contents: read
@@ -32,6 +32,11 @@ jobs:
 
       - name: Build
         run: dotnet build EduOS.slnx --configuration Release --no-restore
+
+      - name: Validate EF model snapshot
+        run: |
+          dotnet tool install --global dotnet-ef --version 10.0.10
+          dotnet ef migrations has-pending-model-changes --project EduOS.Persistence --startup-project EduOS.App --context EduOSDbContext --configuration Release --no-build
 
       - name: Test
         run: dotnet test EduOS.slnx --configuration Release --no-build --logger "trx;LogFileName=tests.trx" --results-directory TestResults

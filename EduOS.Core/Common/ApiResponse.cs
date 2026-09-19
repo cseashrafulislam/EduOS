@@ -8,12 +8,12 @@ namespace EduOS.Core.Common
         public List<string>? Errors { get; set; }
         public int StatusCode { get; set; }
 
-        public static ApiResponse<T> SuccessResponse(T data, string message = "Success")
+        public static ApiResponse<T> SuccessResponse(T data, string? message = "Success")
         {
             return new ApiResponse<T>
             {
                 Success = true,
-                Message = message,
+                Message = message ?? "Success",
                 Data = data,
                 StatusCode = 200
             };

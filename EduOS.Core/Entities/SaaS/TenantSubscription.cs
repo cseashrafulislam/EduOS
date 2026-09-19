@@ -65,6 +65,10 @@ namespace EduOS.Core.Entities.SaaS
         public int MaxCampuses { get; set; }
         public int MaxStorageMb { get; set; }
 
+        // ==================== Concurrency ====================
+
+        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+
         // ==================== Navigation ====================
 
         public virtual Tenant? Tenant { get; set; }

@@ -4,7 +4,7 @@ namespace EduOS.Core.Interfaces.IRepositories
 {
     public interface IFeeStructureRepository : IGenericRepository<FeeStructure>
     {
-        Task<List<FeeStructure>> GetByClassAsync(int classId, int academicYearId);
-        Task<decimal> GetTotalMonthlyFeeAsync(int classId, int academicYearId);
+        Task<List<FeeStructure>> GetByClassAsync(long classId, long academicYearId);
+        Task<decimal> GetTotalMonthlyFeeAsync(long classId, long academicYearId);
     }
 }

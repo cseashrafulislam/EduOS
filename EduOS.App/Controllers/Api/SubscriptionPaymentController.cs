@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.RateLimiting;
 namespace EduOS.App.Controllers.Api
 {
     [ApiController]
+    [AutoValidateAntiforgeryToken]
     [Route("api/subscription-payment")]
     public class SubscriptionPaymentController : ControllerBase
     {
@@ -20,15 +21,14 @@ namespace EduOS.App.Controllers.Api
         // ============================================================
         // INITIATE ONLINE PAYMENT (AamarPay)
         // ============================================================
-        [Authorize]
+        [Authorize(Roles = "TenantAdmin")]
         [HttpPost("initiate")]
         public async Task<IActionResult> Initiate([FromBody] InitiatePaymentRequestDto dto)
         {
             if (dto == null || dto.InvoiceId <= 0)
                 return BadRequest(new { success = false, message = "Invoice is required" });
 
-            var baseUrl = $"{Request.Scheme}://{Request.Host}";
-            var result = await _paymentService.InitiateAamarPayAsync(dto, baseUrl);
+            var result = await _paymentService.InitiateAamarPayAsync(dto);
             return StatusCode(result.StatusCode, result);
         }
 
@@ -37,58 +37,72 @@ namespace EduOS.App.Controllers.Api
         // ============================================================
 
         /// <summary>
-        /// AamarPay POSTs success callback here
+        /// AamarPay POSTs success callback here. The service independently
+        /// verifies the transaction with AamarPay before applying payment state.
         /// </summary>
         [AllowAnonymous]
+        [IgnoreAntiforgeryToken]
         [EnableRateLimiting("PaymentCallbackPolicy")]
         [HttpPost("callback/success")]
         public async Task<IActionResult> SuccessCallback([FromForm] AamarPayCallbackDto dto)
         {
-            await _paymentService.HandleAamarPayCallbackAsync(dto);
-            // Redirect to success page in app
-            var baseUrl = $"{Request.Scheme}://{Request.Host}";
-            return Redirect($"{baseUrl}/Account/PaymentSuccess?txn={dto.MerTxnid}");
-        }
-
-        [AllowAnonymous]
-        [EnableRateLimiting("PaymentCallbackPolicy")]
-        [HttpPost("callback/fail")]
-        public async Task<IActionResult> FailCallback([FromForm] AamarPayCallbackDto dto)
-        {
-            dto.PayStatus = "Failed";
-            await _paymentService.HandleAamarPayCallbackAsync(dto);
-            var baseUrl = $"{Request.Scheme}://{Request.Host}";
-            return Redirect($"{baseUrl}/Account/PaymentFailed?txn={dto.MerTxnid}");
-        }
-
-        [AllowAnonymous]
-        [EnableRateLimiting("PaymentCallbackPolicy")]
-        [HttpPost("callback/cancel")]
-        public async Task<IActionResult> CancelCallback([FromForm] AamarPayCallbackDto dto)
-        {
-            dto.PayStatus = "Cancelled";
-            await _paymentService.HandleAamarPayCallbackAsync(dto);
-            var baseUrl = $"{Request.Scheme}://{Request.Host}";
-            return Redirect($"{baseUrl}/Account/PaymentCancelled?txn={dto.MerTxnid}");
+            var result = await _paymentService.HandleAamarPayCallbackAsync(dto);
+            var outcome = result.Success ? "PaymentSuccess" : "PaymentFailed";
+            return LocalRedirect($"/Account/{outcome}?txn={Uri.EscapeDataString(dto.MerTxnid ?? string.Empty)}");
         }
 
         /// <summary>
-        /// AamarPay IPN (server-to-server). Returns plain 200.
+        /// Browser-facing failure callbacks are intentionally informational only.
+        /// They are unauthenticated and therefore must not be allowed to mutate
+        /// a payment into a terminal state based only on caller-supplied fields.
+        /// Processing attempts expire through the normal stale-payment workflow.
         /// </summary>
         [AllowAnonymous]
+        [IgnoreAntiforgeryToken]
+        [EnableRateLimiting("PaymentCallbackPolicy")]
+        [HttpPost("callback/fail")]
+        public IActionResult FailCallback([FromForm] AamarPayCallbackDto dto)
+        {
+            return LocalRedirect($"/Account/PaymentFailed?txn={Uri.EscapeDataString(dto.MerTxnid ?? string.Empty)}");
+        }
+
+        /// <summary>
+        /// Cancellation redirects are informational only for the same reason as
+        /// failure callbacks: an anonymous caller cannot authoritatively change
+        /// persisted payment state.
+        /// </summary>
+        [AllowAnonymous]
+        [IgnoreAntiforgeryToken]
+        [EnableRateLimiting("PaymentCallbackPolicy")]
+        [HttpPost("callback/cancel")]
+        public IActionResult CancelCallback([FromForm] AamarPayCallbackDto dto)
+        {
+            return LocalRedirect($"/Account/PaymentCancelled?txn={Uri.EscapeDataString(dto.MerTxnid ?? string.Empty)}");
+        }
+
+        /// <summary>
+        /// AamarPay IPN (server-to-server). Only successful notifications are
+        /// processed because the service verifies successful transactions with
+        /// the provider. Unverified failure/cancel payloads cannot mutate state.
+        /// </summary>
+        [AllowAnonymous]
+        [IgnoreAntiforgeryToken]
         [EnableRateLimiting("PaymentCallbackPolicy")]
         [HttpPost("callback/ipn")]
         public async Task<IActionResult> IpnCallback([FromForm] AamarPayCallbackDto dto)
         {
-            await _paymentService.HandleAamarPayCallbackAsync(dto);
-            return Ok();
+            if (!string.Equals(dto.PayStatus, "Successful", StringComparison.OrdinalIgnoreCase))
+                return Ok(new { success = true, message = "Non-success notification acknowledged" });
+
+            var result = await _paymentService.HandleAamarPayCallbackAsync(dto);
+            return StatusCode(result.StatusCode, result);
         }
 
         // ============================================================
         // MANUAL PAYMENT (BANK TRANSFER)
         // ============================================================
 
-        [Authorize]
+        [Authorize(Roles = "TenantAdmin")]
         [HttpPost("manual")]
         [Consumes("multipart/form-data")]
         public async Task<IActionResult> SubmitManualPayment(
@@ -109,11 +123,19 @@ namespace EduOS.App.Controllers.Api
             return StatusCode(result.StatusCode, result);
         }
 
+        [Authorize(Roles = "TenantAdmin")]
+        [HttpGet("manual-instructions/{invoiceId:long}")]
+        public async Task<IActionResult> GetManualPaymentInstructions(long invoiceId)
+        {
+            var result = await _paymentService.GetManualPaymentInstructionsAsync(invoiceId);
+            return StatusCode(result.StatusCode, result);
+        }
+
         // ============================================================
         // PAYMENT HISTORY
         // ============================================================
 
-        [Authorize]
+        [Authorize(Roles = "TenantAdmin")]
         [HttpGet("invoice/{invoiceId:long}")]
         public async Task<IActionResult> GetByInvoice(long invoiceId)
         {
@@ -140,6 +162,18 @@ namespace EduOS.App.Controllers.Api
             var result = await _paymentService.VerifyManualPaymentAsync(dto);
             return StatusCode(result.StatusCode, result);
         }
+
+        [Authorize(Roles = "SuperAdmin")]
+        [HttpGet("admin/payments/{paymentId:long}/deposit-slip")]
+        public async Task<IActionResult> DownloadDepositSlip(long paymentId)
+        {
+            var result = await _paymentService.GetDepositSlipAsync(paymentId);
+            if (!result.Success || result.Data == null)
+                return StatusCode(result.StatusCode, result);
+
+            Response.Headers.CacheControl = "no-store, private";
+            return File(result.Data.Content, result.Data.ContentType, result.Data.FileName);
+        }
     }
 
     /// <summary>
@@ -147,12 +181,18 @@ namespace EduOS.App.Controllers.Api
     /// </summary>
     public class ManualPaymentSubmitFormDto
     {
+        [System.ComponentModel.DataAnnotations.Range(1, long.MaxValue)]
         public long InvoiceId { get; set; }
+        [System.ComponentModel.DataAnnotations.Required, System.ComponentModel.DataAnnotations.MaxLength(150)]
         public string PayerBankName { get; set; } = string.Empty;
+        [System.ComponentModel.DataAnnotations.Required, System.ComponentModel.DataAnnotations.MaxLength(100)]
         public string PayerAccountNumber { get; set; } = string.Empty;
+        [System.ComponentModel.DataAnnotations.Required, System.ComponentModel.DataAnnotations.MaxLength(100)]
         public string DepositSlipNumber { get; set; } = string.Empty;
         public DateTime DepositDate { get; set; }
+        [System.ComponentModel.DataAnnotations.Range(typeof(decimal), "0.01", "999999999999.99")]
         public decimal Amount { get; set; }
+        [System.ComponentModel.DataAnnotations.MaxLength(500)]
         public string? Note { get; set; }
         public IFormFile? DepositSlip { get; set; }
     }

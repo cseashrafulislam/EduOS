@@ -1,5 +1,5 @@
 using EduOS.Core.Entities.SaaS;
-using EduOS.Core.Entities.Tenants;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Enums;
 using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
@@ -88,6 +88,47 @@ public class TenantModuleServiceTests
         result.StatusCode.Should().Be(403);
     }
 
+    [Fact]
+    public async Task Existing_module_selection_requires_a_concurrency_token()
+    {
+        var setup = await CreateSetupAsync("PRO", SubscriptionStatus.Active);
+        await using var context = setup.Context;
+        var service = CreateService(context, setup.CurrentUser);
+        var library = await context.ProductModules.SingleAsync(x => x.Code == "LIBRARY");
+        context.TenantModules.Add(new TenantModule
+        {
+            TenantId = setup.Tenant.Id,
+            ProductModuleId = library.Id,
+            IsEnabled = true,
+            ActivationSource = TenantModuleActivationSource.InstitutionPreset,
+            EnabledAt = DateTime.UtcNow
+        });
+        await context.SaveChangesAsync();
+        (await context.TenantModules.CountAsync()).Should().Be(1);
+
+        var result = await service.UpdateCurrentTenantModuleAsync(
+            "library",
+            new() { IsEnabled = false });
+
+        result.Success.Should().BeFalse();
+        result.StatusCode.Should().Be(428);
+    }
+
+    [Fact]
+    public async Task Seeded_required_modules_form_a_valid_onboarding_selection()
+    {
+        var setup = await CreateSetupAsync("BASIC", SubscriptionStatus.Active);
+        await using var context = setup.Context;
+        var service = CreateService(context, setup.CurrentUser);
+        await service.ApplyInstitutionPresetAsync(
+            setup.Tenant.Id,
+            setup.Tenant.InstitutionTypeDefinitionId!.Value);
+
+        var result = await service.ValidateCurrentTenantSelectionAsync();
+
+        result.Success.Should().BeTrue();
+    }
+
     private static TenantModuleService CreateService(
         EduOSDbContext context,
         ICurrentUserService currentUser)
@@ -110,7 +151,9 @@ public class TenantModuleServiceTests
         SubscriptionStatus subscriptionStatus)
     {
         var httpContext = new DefaultHttpContext();
-        var accessor = new HttpContextAccessor { HttpContext = httpContext };
+        // HttpContextAccessor uses a shared AsyncLocal and is unsafe as a fixture
+        // when xUnit runs tenant-scoped test classes in parallel.
+        var accessor = new TestHttpContextAccessor { HttpContext = httpContext };
         var options = new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase($"tenant-module-{Guid.NewGuid():N}")
             .Options;
@@ -174,5 +217,10 @@ public class TenantModuleServiceTests
         public bool IsInRole(string role) => role == "TenantAdmin";
         public string? IpAddress => "127.0.0.1";
         public string? UserAgent => "Tests";
+    }
+
+    private sealed class TestHttpContextAccessor : IHttpContextAccessor
+    {
+        public HttpContext? HttpContext { get; set; }
     }
 }

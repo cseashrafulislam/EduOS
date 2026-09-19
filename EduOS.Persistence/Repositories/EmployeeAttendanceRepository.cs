@@ -9,7 +9,7 @@ namespace EduOS.Persistence.Repositories
     {
         public EmployeeAttendanceRepository(EduOSDbContext context) : base(context) { }
 
-        public async Task<List<EmployeeAttendance>> GetByDateAsync(DateTime date, int tenantId)
+        public async Task<List<EmployeeAttendance>> GetByDateAsync(DateTime date, long tenantId)
         {
             return await _dbSet
                 .Include(a => a.Employee)
@@ -17,27 +17,27 @@ namespace EduOS.Persistence.Repositories
                 .ToListAsync();
         }
 
-        public async Task<List<EmployeeAttendance>> GetByEmployeeRangeAsync(int employeeId, DateTime fromDate, DateTime toDate)
+        public async Task<List<EmployeeAttendance>> GetByEmployeeRangeAsync(long employeeId, DateTime fromDate, DateTime toDate)
         {
             return await _dbSet
-                .Where(a => a.EmployeeId == employeeId 
-                    && a.Date.Date >= fromDate.Date 
+                .Where(a => a.EmployeeId == employeeId
+                    && a.Date.Date >= fromDate.Date
                     && a.Date.Date <= toDate.Date)
                 .OrderBy(a => a.Date)
                 .ToListAsync();
         }
 
-        public async Task<EmployeeAttendance?> GetByEmployeeAndDateAsync(int employeeId, DateTime date)
+        public async Task<EmployeeAttendance?> GetByEmployeeAndDateAsync(long employeeId, DateTime date)
         {
             return await _dbSet
                 .FirstOrDefaultAsync(a => a.EmployeeId == employeeId && a.Date.Date == date.Date);
         }
 
-        public async Task<int> GetPresentCountAsync(int employeeId, int month, int year)
+        public async Task<int> GetPresentCountAsync(long employeeId, int month, int year)
         {
-            return await _dbSet.CountAsync(a => a.EmployeeId == employeeId 
-                && a.Date.Month == month 
-                && a.Date.Year == year 
+            return await _dbSet.CountAsync(a => a.EmployeeId == employeeId
+                && a.Date.Month == month
+                && a.Date.Year == year
                 && a.Status == "Present");
         }
     }

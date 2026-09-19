@@ -9,22 +9,22 @@ namespace EduOS.Persistence.Repositories
     {
         public NoticeRepository(EduOSDbContext context) : base(context) { }
 
-        public async Task<List<Notice>> GetActiveAsync(int tenantId)
+        public async Task<List<Notice>> GetActiveAsync(long tenantId)
         {
             return await _dbSet
                 .Include(n => n.Category)
-                .Where(n => n.TenantId == tenantId 
-                    && n.IsActive 
+                .Where(n => n.TenantId == tenantId
+                    && n.IsActive
                     && n.PublishDate <= DateTime.UtcNow
                     && (n.ExpireDate == null || n.ExpireDate >= DateTime.UtcNow))
                 .OrderByDescending(n => n.PublishDate)
                 .ToListAsync();
         }
 
-        public async Task<List<Notice>> GetByAudienceAsync(string audience, int tenantId)
+        public async Task<List<Notice>> GetByAudienceAsync(string audience, long tenantId)
         {
             return await _dbSet
-                .Where(n => n.TenantId == tenantId 
+                .Where(n => n.TenantId == tenantId
                     && n.IsActive
                     && (n.TargetAudience == "All" || n.TargetAudience == audience)
                     && n.PublishDate <= DateTime.UtcNow)
@@ -32,7 +32,7 @@ namespace EduOS.Persistence.Repositories
                 .ToListAsync();
         }
 
-        public async Task<List<Notice>> GetRecentAsync(int tenantId, int count = 10)
+        public async Task<List<Notice>> GetRecentAsync(long tenantId, int count = 10)
         {
             return await _dbSet
                 .Where(n => n.TenantId == tenantId && n.IsActive)

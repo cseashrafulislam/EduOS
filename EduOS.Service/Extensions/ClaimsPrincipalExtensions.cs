@@ -14,10 +14,10 @@ namespace EduOS.Service.Extensions
                    ?? "unknown";
         }
 
-        public static int? GetTenantId(this ClaimsPrincipal user)
+        public static long? GetTenantId(this ClaimsPrincipal user)
         {
             var tenantIdClaim = user.FindFirstValue("TenantId") ?? user.FindFirstValue("tenant_id");
-            if (int.TryParse(tenantIdClaim, out var tenantId))
+            if (long.TryParse(tenantIdClaim, out var tenantId))
                 return tenantId;
             return null;
         }

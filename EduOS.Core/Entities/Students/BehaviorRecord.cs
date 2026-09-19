@@ -4,7 +4,7 @@ namespace EduOS.Core.Entities.Students
 {
     public class BehaviorRecord : BaseTenantEntity
     {
-        public int StudentId { get; set; }
+        public long StudentId { get; set; }
         public DateTime Date { get; set; }
         public string Type { get; set; } = "Positive"; // Positive/Negative
         public string Title { get; set; } = string.Empty;

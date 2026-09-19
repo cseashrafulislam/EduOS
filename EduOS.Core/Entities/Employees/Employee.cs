@@ -1,11 +1,13 @@
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Base;
+using System.ComponentModel.DataAnnotations;
 
 namespace EduOS.Core.Entities.Employees
 {
     public class Employee : BaseTenantEntity
     {
+        public Guid PublicId { get; set; } = Guid.NewGuid();
         public long? UserId { get; set; }
         public string EmployeeCode { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
@@ -18,16 +20,16 @@ namespace EduOS.Core.Entities.Employees
         public string? Email { get; set; }
         public string? Address { get; set; }
         public string? NID { get; set; }
-        public int DesignationId { get; set; }
-        public int? DepartmentId { get; set; }
+        public long DesignationId { get; set; }
+        public long? DepartmentId { get; set; }
         public DateTime JoiningDate { get; set; }
         public decimal Salary { get; set; }
         public string? PhotoUrl { get; set; }
         public string? Qualification { get; set; }
         public string? Experience { get; set; }
-        public bool IsTeacher { get; set; } = false;
+        public bool IsTeacher { get; set; }
         public bool IsActive { get; set; } = true;
-
+        [Timestamp] public byte[] RowVersion { get; set; } = Array.Empty<byte>();
         public virtual ApplicationUser? User { get; set; }
         public virtual Designation? Designation { get; set; }
         public virtual Department? Department { get; set; }

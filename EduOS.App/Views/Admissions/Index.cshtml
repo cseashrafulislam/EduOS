@@ -1,0 +1,278 @@
+@{
+    ViewData["Title"] = "AdmissionApplications";
+    var pageStrings = new
+    {
+        culture = CultureInfo.CurrentUICulture.Name,
+        loading = T["LoadingApplications"].Value,
+        empty = T["NoApplications"].Value,
+        loadFailed = T["ApplicationLoadFailed"].Value,
+        optionsFailed = T["AdmissionOptionsFailed"].Value,
+        createFailed = T["ApplicationCreateFailed"].Value,
+        created = T["ApplicationCreated"].Value,
+        detailsFailed = T["ApplicationDetailsFailed"].Value,
+        decisionFailed = T["DecisionSaveFailed"].Value,
+        decisionSaved = T["DecisionSaved"].Value,
+        select = T["SelectOption"].Value,
+        applicationNo = T["ApplicationNumber"].Value,
+        applicant = T["ApplicantName"].Value,
+        academicUnit = T["AcademicUnit"].Value,
+        campus = T["Campus"].Value,
+        submittedAt = T["SubmittedAt"].Value,
+        status = T["Status"].Value,
+        review = T["Review"].Value,
+        submitted = T["AdmissionStatusSubmitted"].Value,
+        underReview = T["AdmissionStatusUnderReview"].Value,
+        waitlisted = T["AdmissionStatusWaitlisted"].Value,
+        approved = T["AdmissionStatusApproved"].Value,
+        rejected = T["AdmissionStatusRejected"].Value,
+        withdrawn = T["AdmissionStatusWithdrawn"].Value,
+        admitted = T["AdmissionStatusAdmitted"].Value,
+        retry = T["Retry"].Value,
+        networkError = T["NetworkError"].Value,
+        saving = T["Saving"].Value,
+        submitApplication = T["SubmitApplication"].Value,
+        saveDecision = T["SaveDecision"].Value,
+        minorGuardianRequired = T["MinorGuardianRequired"].Value,
+        previous = T["Previous"].Value,
+        next = T["Next"].Value,
+        pageLabel = T["Page"].Value,
+        fullContact = T["FullContact"].Value,
+        guardian = T["GuardianInformation"].Value,
+        academicTerm = T["AcademicTerm"].Value,
+        previousInstitution = T["PreviousInstitution"].Value,
+        decisionNote = T["DecisionNote"].Value,
+        dateOfBirth = T["DateOfBirth"].Value,
+        gender = T["Gender"].Value,
+        male = T["Male"].Value,
+        female = T["Female"].Value,
+        other = T["Other"].Value,
+        presentAddress = T["PresentAddress"].Value,
+        permanentAddress = T["PermanentAddress"].Value,
+        preferredLanguage = T["PreferredLanguage"].Value,
+        admitApplicant = T["AdmitApplicant"].Value,
+        enrollmentFailed = T["EnrollmentFailed"].Value,
+        admittedSuccess = T["ApplicantAdmittedSuccess"].Value,
+        section = T["Section"].Value,
+        group = T["Group"].Value,
+        roll = T["Roll"].Value
+    };
+    var pageJson = System.Text.Json.JsonSerializer.Serialize(pageStrings);
+    var maximumBirthDate = DateTime.UtcNow.ToString("yyyy-MM-dd");
+}
+
+<section class="admission-page" aria-labelledby="admissionTitle">
+    <header class="content-header-card">
+        <div>
+            <p class="dashboard-eyebrow">@T["Admission"]</p>
+            <h2 id="admissionTitle">@T["AdmissionApplications"]</h2>
+            <p>@T["AdmissionApplicationsHelp"]</p>
+        </div>
+    </header>
+
+    <div id="admissionAlert" class="d-none" role="alert" tabindex="-1"></div>
+
+    <div class="admission-grid">
+        <section class="content-card" aria-labelledby="newApplicationTitle">
+            <div class="content-card-heading">
+                <h3 id="newApplicationTitle">@T["NewApplication"]</h3>
+                <p>@T["AdmissionPrivacyHelp"]</p>
+            </div>
+
+            <form id="admissionForm" class="row g-3" novalidate>
+                <div class="col-md-6">
+                    <label class="form-label" for="academicYearId">@T["AcademicYear"] *</label>
+                    <select class="form-select" id="academicYearId" required></select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="academicTermId">@T["AcademicTerm"]</label>
+                    <select class="form-select" id="academicTermId"></select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="campusId">@T["Campus"] *</label>
+                    <select class="form-select" id="campusId" required></select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="academicUnitId">@T["AcademicUnit"] *</label>
+                    <select class="form-select" id="academicUnitId" required></select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="applicantName">@T["ApplicantName"] *</label>
+                    <input class="form-control" id="applicantName" maxlength="200" autocomplete="name" required />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="applicantNameBangla">@T["ApplicantNameBangla"]</label>
+                    <input class="form-control" id="applicantNameBangla" maxlength="200" lang="bn" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="dateOfBirth">@T["DateOfBirth"] *</label>
+                    <input class="form-control" id="dateOfBirth" type="date" max="@maximumBirthDate" required />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="gender">@T["Gender"] *</label>
+                    <select class="form-select" id="gender" required>
+                        <option value="">@T["SelectOption"]</option>
+                        <option value="1">@T["Male"]</option>
+                        <option value="2">@T["Female"]</option>
+                        <option value="3">@T["Other"]</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="primaryMobile">@T["PrimaryMobile"] *</label>
+                    <input class="form-control" id="primaryMobile" type="tel" maxlength="30" inputmode="tel" autocomplete="tel" required />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="email">@T["EmailAddress"]</label>
+                    <input class="form-control" id="email" type="email" maxlength="254" autocomplete="email" />
+                </div>
+
+                <div class="col-12"><h4 class="form-section-title">@T["GuardianInformation"]</h4></div>
+                <div class="col-md-4">
+                    <label class="form-label" for="guardianName">@T["GuardianName"]</label>
+                    <input class="form-control" id="guardianName" maxlength="200" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="guardianRelation">@T["GuardianRelation"]</label>
+                    <input class="form-control" id="guardianRelation" maxlength="50" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="guardianMobile">@T["GuardianMobile"]</label>
+                    <input class="form-control" id="guardianMobile" type="tel" maxlength="30" inputmode="tel" />
+                </div>
+
+                <div class="col-12">
+                    <label class="form-label" for="presentAddress">@T["PresentAddress"]</label>
+                    <textarea class="form-control" id="presentAddress" maxlength="1000" rows="2" autocomplete="street-address"></textarea>
+                </div>
+                <div class="col-12 form-check admission-same-address">
+                    <input class="form-check-input" id="sameAddress" type="checkbox" />
+                    <label class="form-check-label" for="sameAddress">@T["PermanentAddressSame"]</label>
+                </div>
+                <div class="col-12">
+                    <label class="form-label" for="permanentAddress">@T["PermanentAddress"]</label>
+                    <textarea class="form-control" id="permanentAddress" maxlength="1000" rows="2"></textarea>
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label" for="previousInstitution">@T["PreviousInstitution"]</label>
+                    <input class="form-control" id="previousInstitution" maxlength="200" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="preferredLanguage">@T["PreferredLanguage"]</label>
+                    <select class="form-select" id="preferredLanguage">
+                        <option value="bn-BD">@T["Bangla"]</option>
+                        <option value="en-BD">@T["English"]</option>
+                    </select>
+                </div>
+                <div class="col-12">
+                    <button id="submitApplicationButton" class="btn btn-primary" type="submit"
+                            data-idle-label="@T["SubmitApplication"]" data-loading-label="@T["Saving"]">
+                        @T["SubmitApplication"]
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        <section class="content-card admission-list-panel" aria-labelledby="applicationListTitle">
+            <div class="content-card-heading">
+                <h3 id="applicationListTitle">@T["ApplicationList"]</h3>
+            </div>
+            <form id="admissionFilters" class="admission-filters" role="search">
+                <label class="visually-hidden" for="applicationSearch">@T["SearchApplications"]</label>
+                <input class="form-control" id="applicationSearch" maxlength="100" placeholder="@T["SearchApplications"]" />
+                <label class="visually-hidden" for="statusFilter">@T["FilterStatus"]</label>
+                <select class="form-select" id="statusFilter">
+                    <option value="">@T["AllStatuses"]</option>
+                    <option value="1">@T["AdmissionStatusSubmitted"]</option>
+                    <option value="2">@T["AdmissionStatusUnderReview"]</option>
+                    <option value="3">@T["AdmissionStatusWaitlisted"]</option>
+                    <option value="4">@T["AdmissionStatusApproved"]</option>
+                    <option value="5">@T["AdmissionStatusRejected"]</option>
+                    <option value="6">@T["AdmissionStatusWithdrawn"]</option>
+                    <option value="7">@T["AdmissionStatusAdmitted"]</option>
+                </select>
+                <button class="btn btn-outline-primary" type="submit">@T["Search"]</button>
+            </form>
+            <div id="applicationList" class="admission-list" aria-live="polite" aria-busy="true"></div>
+            <nav class="admission-pagination" aria-label="@T["ApplicationPagination"]">
+                <button id="previousPage" class="btn btn-sm btn-outline-secondary" type="button">@T["Previous"]</button>
+                <span id="pageStatus"></span>
+                <button id="nextPage" class="btn btn-sm btn-outline-secondary" type="button">@T["Next"]</button>
+            </nav>
+        </section>
+    </div>
+</section>
+
+<div class="modal fade" id="reviewModal" tabindex="-1" aria-labelledby="reviewModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 rounded-4">
+            <div class="modal-header">
+                <h2 class="modal-title h5" id="reviewModalTitle">@T["AdmissionReviewTitle"]</h2>
+                <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
+            </div>
+            <div class="modal-body">
+                <dl id="applicationDetails" class="admission-details"></dl>
+                <form id="reviewForm" class="row g-3">
+                    <input id="reviewReference" type="hidden" />
+                    <input id="reviewRowVersion" type="hidden" />
+                    <div class="col-md-5">
+                        <label class="form-label" for="reviewStatus">@T["NewStatus"] *</label>
+                        <select class="form-select" id="reviewStatus" required></select>
+                    </div>
+                    <div class="col-md-7">
+                        <label class="form-label" for="decisionNote">@T["DecisionNote"]</label>
+                        <textarea class="form-control" id="decisionNote" maxlength="1000" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">@T["Cancel"]</button>
+                <button id="admitApplicantButton" class="btn btn-success d-none" type="button">@T["AdmitApplicant"]</button>
+                <button id="saveDecisionButton" class="btn btn-primary" type="submit" form="reviewForm"
+                        data-idle-label="@T["SaveDecision"]" data-loading-label="@T["Saving"]">
+                    @T["SaveDecision"]
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="enrollmentModal" tabindex="-1" aria-labelledby="enrollmentModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 rounded-4">
+            <div class="modal-header">
+                <h2 class="modal-title h5" id="enrollmentModalTitle">@T["CompleteEnrollment"]</h2>
+                <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
+            </div>
+            <form id="enrollmentForm">
+                <div class="modal-body row g-3">
+                    <input id="enrollmentReference" type="hidden" />
+                    <input id="enrollmentRowVersion" type="hidden" />
+                    <div class="col-md-6">
+                        <label class="form-label" for="enrollmentSectionId">@T["Section"] *</label>
+                        <select class="form-select" id="enrollmentSectionId" required></select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="enrollmentGroupId">@T["Group"]</label>
+                        <select class="form-select" id="enrollmentGroupId"></select>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label" for="enrollmentRoll">@T["Roll"] *</label>
+                        <input class="form-control" id="enrollmentRoll" maxlength="50" autocomplete="off" required />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">@T["Cancel"]</button>
+                    <button id="completeEnrollmentButton" class="btn btn-success" type="submit"
+                            data-idle-label="@T["CompleteEnrollment"]" data-loading-label="@T["Saving"]">
+                        @T["CompleteEnrollment"]
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script id="admissionStrings" type="application/json">@Html.Raw(pageJson)</script>
+
+@section Scripts {
+    <script src="~/js/admissions/index.js" asp-append-version="true"></script>
+}

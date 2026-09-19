@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
@@ -19,9 +20,12 @@ namespace EduOS.Service.Helpers.Storage
     public interface IFileUploadService
     {
         Task<FileUploadResult> UploadAsync(IFormFile file, string folder);
+        Task<FileUploadResult> UploadPrivateAsync(IFormFile file, string folder);
+        Task<FileDownloadResult?> GetPrivateFileAsync(string storageKey);
+        Task<bool> DeletePrivateAsync(string storageKey);
         Task<bool> DeleteAsync(string fileUrl);
         Task<bool> DeleteByPathAsync(string relativePath);
-        bool ValidateFile(IFormFile file);
+        bool ValidateFile([NotNullWhen(true)] IFormFile? file);
         Task<byte[]> GetFileContentAsync(string fileUrl);
         Task<List<FileInfo>> GetFilesInFolderAsync(string folder);
         Task<long> GetFolderSizeAsync(string folder);
@@ -30,11 +34,12 @@ namespace EduOS.Service.Helpers.Storage
     public class FileStorageSettings
     {
         public string BasePath { get; set; } = "wwwroot/uploads";
+        public string PrivateBasePath { get; set; } = "App_Data/private-uploads";
         public int MaxFileSizeMB { get; set; } = 5;
-        public List<string> AllowedExtensions { get; set; } = new() { ".jpg", ".jpeg", ".png", ".pdf", ".doc", ".docx" };
+        public List<string> AllowedExtensions { get; set; } = new() { ".jpg", ".jpeg", ".png", ".webp", ".pdf", ".doc", ".docx" };
         public List<string> AllowedMimeTypes { get; set; } = new()
         {
-            "image/jpeg", "image/png", "application/pdf",
+            "image/jpeg", "image/png", "image/webp", "application/pdf",
             "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         };
         public bool EnableVirusScan { get; set; } = false;
@@ -53,6 +58,13 @@ namespace EduOS.Service.Helpers.Storage
         public string? ErrorMessage { get; set; }
         public string? ThumbnailUrl { get; set; }
         public DateTime UploadedAt { get; set; }
+    }
+
+    public class FileDownloadResult
+    {
+        public byte[] Content { get; set; } = Array.Empty<byte>();
+        public string ContentType { get; set; } = "application/octet-stream";
+        public string FileName { get; set; } = "document";
     }
 
     public class FileUploadService : IFileUploadService
@@ -92,7 +104,6 @@ namespace EduOS.Service.Helpers.Storage
 
             try
             {
-                // Validation
                 if (!ValidateFile(file))
                 {
                     result.Success = false;
@@ -100,24 +111,19 @@ namespace EduOS.Service.Helpers.Storage
                     return result;
                 }
 
-                // Security: Scan for malicious content
                 if (_settings.EnableVirusScan && !await ScanForVirusAsync(file))
                 {
                     result.Success = false;
-                    result.ErrorMessage = "Virus scan detected potential threat.";
+                    result.ErrorMessage = "Virus scanning is enabled but the file could not be verified as clean.";
                     _logger.LogWarning("Virus scan failed for file: {FileName} uploaded by user: {UserId}",
                         file.FileName, _currentUser.UserId);
                     return result;
                 }
 
-                // Generate unique filename
                 var extension = Path.GetExtension(file.FileName).ToLower();
                 var fileName = GenerateSecureFileName(extension);
-
-                // Compute file hash for deduplication
                 result.FileHash = await ComputeFileHashAsync(file);
 
-                // Check if file already exists (optional deduplication)
                 var existingFile = await FindDuplicateFileAsync(result.FileHash, folder);
                 if (existingFile != null && _settings.GenerateThumbnails)
                 {
@@ -127,39 +133,26 @@ namespace EduOS.Service.Helpers.Storage
                     return result;
                 }
 
-                // Build folder structure: tenant-{tenantId}/{folder}/{year}/{month}/
                 var relativePath = BuildRelativePath(folder);
                 var fullPath = Path.Combine(_settings.BasePath, relativePath);
 
-                // Create directory if not exists
                 if (!Directory.Exists(fullPath))
-                {
                     Directory.CreateDirectory(fullPath);
-                }
 
-                // Check folder capacity
                 var fileCount = Directory.GetFiles(fullPath, "*", SearchOption.AllDirectories).Length;
                 if (fileCount >= _settings.MaxFilesPerFolder)
-                {
                     throw new InvalidOperationException($"Folder has reached maximum capacity of {_settings.MaxFilesPerFolder} files");
-                }
 
-                // Save file
                 var filePath = Path.Combine(fullPath, fileName);
-
                 using (var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, true))
                 {
                     await file.CopyToAsync(stream);
                     await stream.FlushAsync();
                 }
 
-                // Generate thumbnail for images
                 if (_settings.GenerateThumbnails && IsImageFile(extension))
-                {
                     result.ThumbnailUrl = await GenerateThumbnailAsync(filePath, relativePath, fileName);
-                }
 
-                // Build URL
                 result.Success = true;
                 result.FileUrl = $"{_settings.UrlPrefix}/{relativePath}/{fileName}".Replace("\\", "/");
 
@@ -191,6 +184,101 @@ namespace EduOS.Service.Helpers.Storage
             }
         }
 
+        public async Task<FileUploadResult> UploadPrivateAsync(IFormFile file, string folder)
+        {
+            var result = new FileUploadResult
+            {
+                UploadedAt = DateTime.UtcNow,
+                FileName = file?.FileName ?? string.Empty,
+                FileSize = file?.Length ?? 0
+            };
+
+            try
+            {
+                if (!ValidateFile(file))
+                {
+                    result.ErrorMessage = "File validation failed. Check file type, size, and format.";
+                    return result;
+                }
+
+                if (_settings.EnableVirusScan && !await ScanForVirusAsync(file))
+                {
+                    result.ErrorMessage = "Virus scanning is enabled but the file could not be verified as clean.";
+                    return result;
+                }
+
+                var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+                var relativePath = BuildRelativePath(folder);
+                var storageKey = Path.Combine(relativePath, GenerateSecureFileName(extension));
+                if (!TryResolvePath(_settings.PrivateBasePath, storageKey, out var filePath))
+                {
+                    result.ErrorMessage = "Invalid private storage path.";
+                    return result;
+                }
+
+                Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
+                await using (var stream = new FileStream(
+                    filePath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, true))
+                {
+                    await file.CopyToAsync(stream);
+                    await stream.FlushAsync();
+                }
+
+                result.FileHash = await ComputeFileHashAsync(file);
+                result.Success = true;
+                result.FileUrl = storageKey.Replace("\\", "/");
+                _logger.LogInformation(
+                    "Private file stored for tenant {TenantId} by user {UserId}, size: {Size} bytes",
+                    _currentUser.TenantId, _currentUser.UserId, file.Length);
+                return result;
+            }
+            catch (Exception ex)
+            {
+                result.ErrorMessage = "Private file upload failed.";
+                _logger.LogError(ex, "Private file upload failed for {FileName}", file?.FileName);
+                return result;
+            }
+        }
+
+        public async Task<FileDownloadResult?> GetPrivateFileAsync(string storageKey)
+        {
+            if (!TryResolvePath(_settings.PrivateBasePath, storageKey, out var fullPath)
+                || !File.Exists(fullPath))
+                return null;
+
+            var extension = Path.GetExtension(fullPath).ToLowerInvariant();
+            return new FileDownloadResult
+            {
+                Content = await File.ReadAllBytesAsync(fullPath),
+                ContentType = extension switch
+                {
+                    ".jpg" or ".jpeg" => "image/jpeg",
+                    ".png" => "image/png",
+                    ".pdf" => "application/pdf",
+                    _ => "application/octet-stream"
+                },
+                FileName = $"deposit-slip{extension}"
+            };
+        }
+
+        public async Task<bool> DeletePrivateAsync(string storageKey)
+        {
+            try
+            {
+                if (!TryResolvePath(_settings.PrivateBasePath, storageKey, out var fullPath)
+                    || !File.Exists(fullPath))
+                    return false;
+
+                await Task.Run(() => File.Delete(fullPath));
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to delete private file");
+                return false;
+            }
+        }
+
         public async Task<bool> DeleteAsync(string fileUrl)
         {
             if (string.IsNullOrWhiteSpace(fileUrl))
@@ -198,12 +286,12 @@ namespace EduOS.Service.Helpers.Storage
 
             try
             {
-                // Extract relative path from URL
                 var relativePath = ExtractRelativePath(fileUrl);
                 if (string.IsNullOrEmpty(relativePath))
                     return false;
 
-                var fullPath = Path.Combine(_settings.BasePath, relativePath);
+                if (!TryResolvePath(_settings.BasePath, relativePath, out var fullPath))
+                    return false;
 
                 if (!File.Exists(fullPath))
                 {
@@ -211,14 +299,10 @@ namespace EduOS.Service.Helpers.Storage
                     return false;
                 }
 
-                // Delete thumbnail if exists
                 var thumbnailPath = GetThumbnailPath(fullPath);
                 if (File.Exists(thumbnailPath))
-                {
                     await Task.Run(() => File.Delete(thumbnailPath));
-                }
 
-                // Delete main file
                 await Task.Run(() => File.Delete(fullPath));
 
                 _logger.LogInformation("File deleted successfully: {FileUrl} by user: {UserId}",
@@ -240,7 +324,8 @@ namespace EduOS.Service.Helpers.Storage
 
             try
             {
-                var fullPath = Path.Combine(_settings.BasePath, relativePath);
+                if (!TryResolvePath(_settings.BasePath, relativePath, out var fullPath))
+                    return false;
 
                 if (File.Exists(fullPath))
                 {
@@ -257,7 +342,7 @@ namespace EduOS.Service.Helpers.Storage
             }
         }
 
-        public bool ValidateFile(IFormFile file)
+        public bool ValidateFile([NotNullWhen(true)] IFormFile? file)
         {
             if (file == null || file.Length == 0)
             {
@@ -265,7 +350,6 @@ namespace EduOS.Service.Helpers.Storage
                 return false;
             }
 
-            // Check size
             var maxSizeBytes = _settings.MaxFileSizeMB * 1024L * 1024L;
             if (file.Length > maxSizeBytes)
             {
@@ -274,7 +358,6 @@ namespace EduOS.Service.Helpers.Storage
                 return false;
             }
 
-            // Check extension
             var extension = Path.GetExtension(file.FileName).ToLower();
             if (!_allowedExtensions.Contains(extension))
             {
@@ -282,14 +365,12 @@ namespace EduOS.Service.Helpers.Storage
                 return false;
             }
 
-            // Check MIME type (more secure than extension)
             if (!string.IsNullOrEmpty(file.ContentType) && !_allowedMimeTypes.Contains(file.ContentType.ToLower()))
             {
                 _logger.LogDebug("File validation failed: MIME type {MimeType} not allowed", file.ContentType);
                 return false;
             }
 
-            // Validate file signature (magic bytes) to prevent extension spoofing
             if (!ValidateFileSignature(file, extension))
             {
                 _logger.LogWarning("File validation failed: Signature mismatch for {FileName}", file.FileName);
@@ -305,7 +386,8 @@ namespace EduOS.Service.Helpers.Storage
             if (string.IsNullOrEmpty(relativePath))
                 throw new FileNotFoundException("Invalid file URL");
 
-            var fullPath = Path.Combine(_settings.BasePath, relativePath);
+            if (!TryResolvePath(_settings.BasePath, relativePath, out var fullPath))
+                throw new FileNotFoundException("Invalid file URL");
 
             if (!File.Exists(fullPath))
                 throw new FileNotFoundException($"File not found: {fileUrl}");
@@ -321,11 +403,9 @@ namespace EduOS.Service.Helpers.Storage
             if (!Directory.Exists(fullPath))
                 return new List<FileInfo>();
 
-            var files = await Task.Run(() => Directory.GetFiles(fullPath, "*", SearchOption.AllDirectories)
+            return await Task.Run(() => Directory.GetFiles(fullPath, "*", SearchOption.AllDirectories)
                 .Select(f => new FileInfo(f))
                 .ToList());
-
-            return files;
         }
 
         public async Task<long> GetFolderSizeAsync(string folder)
@@ -334,14 +414,11 @@ namespace EduOS.Service.Helpers.Storage
             return await Task.Run(() => files.Sum(f => f.Length));
         }
 
-        #region Private Methods
-
         private string BuildRelativePath(string folder)
         {
             var tenantId = _currentUser.TenantId;
             var sanitizedFolder = SanitizePathComponent(folder);
             var datePath = DateTime.UtcNow.ToString("yyyy/MM");
-
             return Path.Combine($"tenant-{tenantId}", sanitizedFolder, datePath);
         }
 
@@ -377,7 +454,6 @@ namespace EduOS.Service.Helpers.Storage
                 return null;
 
             var files = Directory.GetFiles(fullPath, "*", SearchOption.AllDirectories);
-
             foreach (var file in files)
             {
                 using var sha256 = SHA256.Create();
@@ -398,41 +474,48 @@ namespace EduOS.Service.Helpers.Storage
         private bool ValidateFileSignature(IFormFile file, string extension)
         {
             using var reader = new BinaryReader(file.OpenReadStream());
-            var header = reader.ReadBytes(8); // Read first 8 bytes
-            file.OpenReadStream().Position = 0; // Reset stream position
+            var header = reader.ReadBytes(12);
 
             return extension.ToLower() switch
             {
-                ".jpg" or ".jpeg" => header[0] == 0xFF && header[1] == 0xD8,
-                ".png" => header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47,
-                ".pdf" => header[0] == 0x25 && header[1] == 0x50 && header[2] == 0x44 && header[3] == 0x46,
-                ".doc" => header[0] == 0xD0 && header[1] == 0xCF && header[2] == 0x11 && header[3] == 0xE0,
-                ".docx" => header[0] == 0x50 && header[1] == 0x4B, // PK zip file
+                ".jpg" or ".jpeg" => header.Length >= 2 && header[0] == 0xFF && header[1] == 0xD8,
+                ".png" => header.Length >= 4 && header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47,
+                ".webp" => header.Length >= 12
+                    && header[0] == 0x52 && header[1] == 0x49
+                    && header[2] == 0x46 && header[3] == 0x46
+                    && header[8] == 0x57 && header[9] == 0x45
+                    && header[10] == 0x42 && header[11] == 0x50,
+                ".pdf" => header.Length >= 4 && header[0] == 0x25 && header[1] == 0x50 && header[2] == 0x44 && header[3] == 0x46,
+                ".doc" => header.Length >= 4 && header[0] == 0xD0 && header[1] == 0xCF && header[2] == 0x11 && header[3] == 0xE0,
+                ".docx" => header.Length >= 2 && header[0] == 0x50 && header[1] == 0x4B,
                 _ => true
             };
         }
 
-        private async Task<string?> GenerateThumbnailAsync(string filePath, string relativePath, string fileName)
+        private static bool TryResolvePath(string root, string relativePath, out string fullPath)
         {
-            try
-            {
-                // This requires SixLabors.ImageSharp or similar library
-                // Simplified version - in production, use proper image processing
-                var thumbFileName = $"thumb_{fileName}";
-                var thumbPath = Path.Combine(Path.GetDirectoryName(filePath)!, thumbFileName);
+            fullPath = string.Empty;
+            if (string.IsNullOrWhiteSpace(root) || string.IsNullOrWhiteSpace(relativePath)
+                || Path.IsPathRooted(relativePath))
+                return false;
 
-                // Placeholder - implement actual thumbnail generation
-                // await using var image = await Image.LoadAsync(filePath);
-                // image.Mutate(x => x.Resize(200, 0));
-                // await image.SaveAsync(thumbPath);
+            var rootPath = Path.GetFullPath(root);
+            var candidate = Path.GetFullPath(Path.Combine(rootPath, relativePath));
+            var rootPrefix = rootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                + Path.DirectorySeparatorChar;
+            if (!candidate.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase))
+                return false;
 
-                return $"{_settings.UrlPrefix}/{relativePath}/{thumbFileName}".Replace("\\", "/");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to generate thumbnail for {FileName}", fileName);
-                return null;
-            }
+            fullPath = candidate;
+            return true;
+        }
+
+        private Task<string?> GenerateThumbnailAsync(string filePath, string relativePath, string fileName)
+        {
+            _logger.LogDebug(
+                "Thumbnail generation requested for {FileName}, but no image processor is configured. Returning no thumbnail URL.",
+                fileName);
+            return Task.FromResult<string?>(null);
         }
 
         private static bool IsImageFile(string extension)
@@ -450,7 +533,12 @@ namespace EduOS.Service.Helpers.Storage
         private static string SanitizePathComponent(string component)
         {
             var invalidChars = Path.GetInvalidFileNameChars();
-            return string.Join("_", component.Split(invalidChars));
+            var sanitized = string.Join("_", (component ?? string.Empty).Split(invalidChars))
+                .Replace(Path.DirectorySeparatorChar, '_')
+                .Replace(Path.AltDirectorySeparatorChar, '_')
+                .Trim()
+                .Trim('.');
+            return string.IsNullOrWhiteSpace(sanitized) ? "files" : sanitized;
         }
 
         private static string GetThumbnailPath(string filePath)
@@ -461,18 +549,15 @@ namespace EduOS.Service.Helpers.Storage
             return Path.Combine(directory!, $"thumb_{fileName}{extension}");
         }
 
-        private async Task<bool> ScanForVirusAsync(IFormFile file)
+        private Task<bool> ScanForVirusAsync(IFormFile file)
         {
-            // Integration with ClamAV or Windows Defender
-            // This is a placeholder - implement actual virus scanning
-            await Task.Delay(10);
-            return true;
+            _logger.LogError(
+                "Virus scanning is enabled, but no malware scanner integration is configured. Rejecting {FileName} fail-closed.",
+                file.FileName);
+            return Task.FromResult(false);
         }
-
-        #endregion
     }
 
-    // File upload validation attribute for model binding
     public class AllowedFileExtensionsAttribute : ValidationAttribute
     {
         private readonly string[] _extensions;
@@ -488,9 +573,7 @@ namespace EduOS.Service.Helpers.Storage
             {
                 var extension = Path.GetExtension(file.FileName);
                 if (!_extensions.Contains(extension.ToLower()))
-                {
                     return new ValidationResult($"Only {string.Join(", ", _extensions)} files are allowed.");
-                }
             }
             return ValidationResult.Success;
         }

@@ -9,7 +9,7 @@ namespace EduOS.Persistence.Repositories
     {
         public GuardianRepository(EduOSDbContext context) : base(context) { }
 
-        public async Task<List<Guardian>> GetByStudentIdAsync(int studentId)
+        public async Task<List<Guardian>> GetByStudentIdAsync(long studentId)
         {
             return await _dbSet
                 .Where(g => g.StudentId == studentId)
@@ -17,7 +17,7 @@ namespace EduOS.Persistence.Repositories
                 .ToListAsync();
         }
 
-        public async Task<Guardian?> GetPrimaryByStudentIdAsync(int studentId)
+        public async Task<Guardian?> GetPrimaryByStudentIdAsync(long studentId)
         {
             return await _dbSet
                 .FirstOrDefaultAsync(g => g.StudentId == studentId && g.IsPrimary);

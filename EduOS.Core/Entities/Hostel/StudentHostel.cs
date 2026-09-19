@@ -5,9 +5,9 @@ namespace EduOS.Core.Entities.Hostel
 {
     public class StudentHostel : BaseTenantEntity
     {
-        public int StudentId { get; set; }
-        public int HostelId { get; set; }
-        public int HostelRoomId { get; set; }
+        public long StudentId { get; set; }
+        public long HostelId { get; set; }
+        public long HostelRoomId { get; set; }
         public string? BedNo { get; set; }
         public DateTime StartDate { get; set; }
         public DateTime? EndDate { get; set; }

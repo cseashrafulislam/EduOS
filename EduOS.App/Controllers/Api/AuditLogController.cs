@@ -1,14 +1,13 @@
-﻿using EduOS.App.Filters;
-using EduOS.Core.Constants;
 using EduOS.Core.DTOs.System;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace EduOS.App.Controllers.Api
 {
-    [Authorize]
+    [Authorize(Roles = "TenantAdmin,Principal")]
+    [EnableRateLimiting("ApiPolicy")]
     [ApiController]
     [Route("api/v1/[controller]")]
     [Produces("application/json")]
@@ -22,23 +21,20 @@ namespace EduOS.App.Controllers.Api
         }
 
         [HttpGet]
-        //[HasPermission(PermissionConstants.AuditLog.View)]
         public async Task<IActionResult> GetAll([FromQuery] AuditLogFilterDto filter)
         {
             var result = await _auditLogService.GetAllAsync(filter);
             return StatusCode(result.StatusCode, result);
         }
 
-        [HttpGet("record/{tableName}/{recordId}")]
-        //[HasPermission(PermissionConstants.AuditLog.View)]
-        public async Task<IActionResult> GetByRecord(string tableName, int recordId)
+        [HttpGet("record/{tableName}/{recordId:long}")]
+        public async Task<IActionResult> GetByRecord(string tableName, long recordId)
         {
             var result = await _auditLogService.GetByRecordAsync(tableName, recordId);
             return StatusCode(result.StatusCode, result);
         }
 
-        [HttpGet("user/{userId}")]
-        //[HasPermission(PermissionConstants.AuditLog.View)]
+        [HttpGet("user/{userId:long}")]
         public async Task<IActionResult> GetByUser(long userId)
         {
             var result = await _auditLogService.GetByUserAsync(userId);
@@ -46,11 +42,16 @@ namespace EduOS.App.Controllers.Api
         }
 
         [HttpGet("export")]
-        //[HasPermission(PermissionConstants.AuditLog.Export)]
         public async Task<IActionResult> Export([FromQuery] AuditLogFilterDto filter)
         {
-            // Export to Excel/CSV logic here
-            return Ok(new { message = "Export functionality coming soon" });
+            var result = await _auditLogService.ExportAsync(filter);
+            if (!result.Success || result.Data is null)
+                return StatusCode(result.StatusCode, result);
+
+            return File(
+                result.Data,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                $"audit-logs-{DateTime.UtcNow:yyyyMMdd-HHmmss}.xlsx");
         }
     }
 }

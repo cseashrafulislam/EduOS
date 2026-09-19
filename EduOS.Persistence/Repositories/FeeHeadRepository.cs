@@ -9,7 +9,7 @@ namespace EduOS.Persistence.Repositories
     {
         public FeeHeadRepository(EduOSDbContext context) : base(context) { }
 
-        public async Task<List<FeeHead>> GetActiveAsync(int tenantId)
+        public async Task<List<FeeHead>> GetActiveAsync(long tenantId)
         {
             return await _dbSet
                 .Where(f => f.TenantId == tenantId && f.IsActive)
@@ -17,7 +17,7 @@ namespace EduOS.Persistence.Repositories
                 .ToListAsync();
         }
 
-        public async Task<List<FeeHead>> GetByTypeAsync(string type, int tenantId)
+        public async Task<List<FeeHead>> GetByTypeAsync(string type, long tenantId)
         {
             return await _dbSet
                 .Where(f => f.Type == type && f.TenantId == tenantId && f.IsActive)

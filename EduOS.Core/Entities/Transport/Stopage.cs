@@ -1,11 +1,10 @@
-﻿using EduOS.Core.Entities.Base;
+using EduOS.Core.Entities.Base;
 
-namespace EduOS.Core.Entities.Transport
+namespace EduOS.Core.Entities.Transport;
+
+public class Stopage : BaseTenantEntity
 {
-    public class Stopage : BaseTenantEntity
-    {
-        public int RouteId { get; set; }
-        public string Name { get; set; }
-        public decimal Fare { get; set; }
-    }
+    public long RouteId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public decimal Fare { get; set; }
 }

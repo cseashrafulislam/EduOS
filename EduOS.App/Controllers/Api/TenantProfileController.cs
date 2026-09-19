@@ -3,10 +3,13 @@ using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace EduOS.App.Controllers.Api
 {
-    [Authorize]
+    [Authorize(Roles = "TenantAdmin,SuperAdmin")]
+    [AutoValidateAntiforgeryToken]
+    [EnableRateLimiting("ApiPolicy")]
     [ApiController]
     [Route("api/tenant-profile")]
     public class TenantProfileController : ControllerBase
@@ -29,6 +32,7 @@ namespace EduOS.App.Controllers.Api
         }
 
         [HttpPut]
+        [Authorize(Roles = "TenantAdmin,SuperAdmin")]
         public async Task<IActionResult> Update([FromBody] UpdateTenantProfileDto dto)
         {
             var result = await _profileService.UpdateProfileAsync(dto);
@@ -39,6 +43,7 @@ namespace EduOS.App.Controllers.Api
         // BRANDING
         // ============================================================
         [HttpPut("branding")]
+        [Authorize(Roles = "TenantAdmin,SuperAdmin")]
         public async Task<IActionResult> UpdateBranding([FromBody] UpdateBrandingDto dto)
         {
             var result = await _profileService.UpdateBrandingAsync(dto);
@@ -46,6 +51,7 @@ namespace EduOS.App.Controllers.Api
         }
 
         [HttpPost("logo")]
+        [Authorize(Roles = "TenantAdmin,SuperAdmin")]
         [Consumes("multipart/form-data")]
         public async Task<IActionResult> UploadLogo(IFormFile file)
         {
@@ -54,6 +60,7 @@ namespace EduOS.App.Controllers.Api
         }
 
         [HttpDelete("logo")]
+        [Authorize(Roles = "TenantAdmin,SuperAdmin")]
         public async Task<IActionResult> RemoveLogo()
         {
             var result = await _profileService.RemoveLogoAsync();
@@ -61,6 +68,7 @@ namespace EduOS.App.Controllers.Api
         }
 
         [HttpPost("favicon")]
+        [Authorize(Roles = "TenantAdmin,SuperAdmin")]
         [Consumes("multipart/form-data")]
         public async Task<IActionResult> UploadFavicon(IFormFile file)
         {
@@ -69,6 +77,7 @@ namespace EduOS.App.Controllers.Api
         }
 
         [HttpDelete("favicon")]
+        [Authorize(Roles = "TenantAdmin,SuperAdmin")]
         public async Task<IActionResult> RemoveFavicon()
         {
             var result = await _profileService.RemoveFaviconAsync();
@@ -86,6 +95,7 @@ namespace EduOS.App.Controllers.Api
         }
 
         [HttpPut("subdomain")]
+        [Authorize(Roles = "TenantAdmin,SuperAdmin")]
         public async Task<IActionResult> UpdateSubdomain([FromBody] UpdateSubdomainDto dto)
         {
             var result = await _profileService.UpdateSubdomainAsync(dto);
@@ -96,6 +106,7 @@ namespace EduOS.App.Controllers.Api
         // GENERAL SETTINGS
         // ============================================================
         [HttpPut("general-settings")]
+        [Authorize(Roles = "TenantAdmin,SuperAdmin")]
         public async Task<IActionResult> UpdateGeneralSettings([FromBody] UpdateGeneralSettingsDto dto)
         {
             var result = await _profileService.UpdateGeneralSettingsAsync(dto);

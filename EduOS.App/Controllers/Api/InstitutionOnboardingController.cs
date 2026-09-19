@@ -88,6 +88,7 @@ namespace EduOS.App.Controllers.Api
         /// Accepts multipart/form-data (for logo upload in same form if needed).
         /// </summary>
         [HttpPost("institution-profile")]
+        [EnableRateLimiting("ApiPolicy")]
         [Consumes("multipart/form-data", "application/json")]
         public async Task<IActionResult> SaveInstitutionProfile(
             [FromForm] InstitutionProfileSetupDto dto)
@@ -125,6 +126,7 @@ namespace EduOS.App.Controllers.Api
         /// Create or update a campus (Id = null → create, Id set → update).
         /// </summary>
         [HttpPost("campus")]
+        [EnableRateLimiting("ApiPolicy")]
         public async Task<IActionResult> SaveCampus([FromBody] CampusSetupDto dto)
         {
             if (dto == null || string.IsNullOrWhiteSpace(dto.Name))
@@ -138,6 +140,7 @@ namespace EduOS.App.Controllers.Api
         /// Soft-delete a campus.
         /// </summary>
         [HttpDelete("campus/{id:long}")]
+        [EnableRateLimiting("ApiPolicy")]
         public async Task<IActionResult> DeleteCampus(long id)
         {
             var result = await _service.DeleteCampusAsync(id);
@@ -161,6 +164,7 @@ namespace EduOS.App.Controllers.Api
         }
 
         [HttpPost("academic-year")]
+        [EnableRateLimiting("ApiPolicy")]
         public async Task<IActionResult> SaveAcademicYear([FromBody] AcademicYearSetupDto dto)
         {
             if (dto == null || string.IsNullOrWhiteSpace(dto.Name))
@@ -171,6 +175,7 @@ namespace EduOS.App.Controllers.Api
         }
 
         [HttpDelete("academic-year/{id:long}")]
+        [EnableRateLimiting("ApiPolicy")]
         public async Task<IActionResult> DeleteAcademicYear(long id)
         {
             var result = await _service.DeleteAcademicYearAsync(id);
@@ -194,6 +199,7 @@ namespace EduOS.App.Controllers.Api
         }
 
         [HttpPost("academic-term")]
+        [EnableRateLimiting("ApiPolicy")]
         public async Task<IActionResult> SaveAcademicTerm([FromBody] AcademicTermSetupDto dto)
         {
             if (dto == null || dto.AcademicYearId <= 0)
@@ -207,6 +213,7 @@ namespace EduOS.App.Controllers.Api
         }
 
         [HttpDelete("academic-term/{id:long}")]
+        [EnableRateLimiting("ApiPolicy")]
         public async Task<IActionResult> DeleteAcademicTerm(long id)
         {
             var result = await _service.DeleteAcademicTermAsync(id);
@@ -220,6 +227,7 @@ namespace EduOS.App.Controllers.Api
         /// Validates minimum requirements before allowing completion.
         /// </summary>
         [HttpPost("final-complete")]
+        [EnableRateLimiting("ApiPolicy")]
         public async Task<IActionResult> FinalComplete()
         {
             var result = await _service.FinalCompleteAsync();

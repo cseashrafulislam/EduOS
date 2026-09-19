@@ -7,7 +7,10 @@ using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.ComponentModel.DataAnnotations;
+using System.Net;
 using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 
 namespace EduOS.Service.Services.Tenants
 {
@@ -24,6 +27,15 @@ namespace EduOS.Service.Services.Tenants
         private const string CATEGORY_EMAIL = "Email";
         private const string PROTECTED_PREFIX = "dp:v1:";
         private const string SECRET_MASK = "********";
+
+        private static readonly IReadOnlySet<string> SmsProviders =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "BulkSMSBD", "SslWireless", "MimSms", "Twilio", "Custom"
+            };
+
+        private static readonly IReadOnlySet<int> SmtpPorts =
+            new HashSet<int> { 25, 465, 587, 2525 };
 
         public TenantSettingService(
             IGenericRepository<TenantSetting> settingRepo,
@@ -71,10 +83,17 @@ namespace EduOS.Service.Services.Tenants
         {
             try
             {
-                await UpsertSettingAsync(CATEGORY_SMS, "Provider", dto.Provider, false);
-                await UpsertSettingAsync(CATEGORY_SMS, "ApiUrl", dto.ApiUrl, false);
+                var provider = dto.Provider?.Trim();
+                var apiUrl = dto.ApiUrl?.Trim();
+                var senderId = dto.SenderId?.Trim();
+                var validation = await ValidateSmsGatewayAsync(
+                    provider, apiUrl, dto.ApiKey, senderId, dto.IsEnabled);
+                if (validation != null) return validation;
+
+                await UpsertSettingAsync(CATEGORY_SMS, "Provider", provider, false);
+                await UpsertSettingAsync(CATEGORY_SMS, "ApiUrl", apiUrl, false);
                 await UpsertSettingAsync(CATEGORY_SMS, "ApiKey", dto.ApiKey, true);
-                await UpsertSettingAsync(CATEGORY_SMS, "SenderId", dto.SenderId, false);
+                await UpsertSettingAsync(CATEGORY_SMS, "SenderId", senderId, false);
                 await UpsertSettingAsync(CATEGORY_SMS, "IsEnabled", dto.IsEnabled.ToString(), false);
 
                 await _unitOfWork.SaveChangesAsync();
@@ -123,12 +142,25 @@ namespace EduOS.Service.Services.Tenants
         {
             try
             {
-                await UpsertSettingAsync(CATEGORY_EMAIL, "SmtpHost", dto.SmtpHost, false);
+                var smtpHost = dto.SmtpHost?.Trim();
+                var smtpUsername = dto.SmtpUsername?.Trim();
+                var fromEmail = dto.FromEmail?.Trim();
+                var fromName = dto.FromName?.Trim();
+                var validation = await ValidateEmailGatewayAsync(
+                    smtpHost,
+                    dto.SmtpPort,
+                    smtpUsername,
+                    dto.SmtpPassword,
+                    fromEmail,
+                    dto.IsEnabled);
+                if (validation != null) return validation;
+
+                await UpsertSettingAsync(CATEGORY_EMAIL, "SmtpHost", smtpHost, false);
                 await UpsertSettingAsync(CATEGORY_EMAIL, "SmtpPort", dto.SmtpPort?.ToString(), false);
-                await UpsertSettingAsync(CATEGORY_EMAIL, "SmtpUsername", dto.SmtpUsername, false);
+                await UpsertSettingAsync(CATEGORY_EMAIL, "SmtpUsername", smtpUsername, false);
                 await UpsertSettingAsync(CATEGORY_EMAIL, "SmtpPassword", dto.SmtpPassword, true);
-                await UpsertSettingAsync(CATEGORY_EMAIL, "FromEmail", dto.FromEmail, false);
-                await UpsertSettingAsync(CATEGORY_EMAIL, "FromName", dto.FromName, false);
+                await UpsertSettingAsync(CATEGORY_EMAIL, "FromEmail", fromEmail, false);
+                await UpsertSettingAsync(CATEGORY_EMAIL, "FromName", fromName, false);
                 await UpsertSettingAsync(CATEGORY_EMAIL, "UseSsl", dto.UseSsl.ToString(), false);
                 await UpsertSettingAsync(CATEGORY_EMAIL, "IsEnabled", dto.IsEnabled.ToString(), false);
 
@@ -258,6 +290,157 @@ namespace EduOS.Service.Services.Tenants
         {
             return string.IsNullOrWhiteSpace(value)
                    || string.Equals(value, SECRET_MASK, StringComparison.Ordinal);
+        }
+
+        private async Task<ApiResponse<bool>?> ValidateSmsGatewayAsync(
+            string? provider,
+            string? apiUrl,
+            string? apiKey,
+            string? senderId,
+            bool isEnabled)
+        {
+            if (!string.IsNullOrWhiteSpace(provider) && !SmsProviders.Contains(provider))
+                return ApiResponse<bool>.ErrorResponse("Unsupported SMS provider", 400);
+
+            if (!string.IsNullOrWhiteSpace(apiUrl) && !IsSafePublicHttpsUrl(apiUrl))
+            {
+                return ApiResponse<bool>.ErrorResponse(
+                    "SMS API URL must be a public HTTPS address", 400);
+            }
+
+            if (!string.IsNullOrWhiteSpace(senderId)
+                && !Regex.IsMatch(senderId, @"^[\p{L}\p{N}._ -]{1,20}$"))
+            {
+                return ApiResponse<bool>.ErrorResponse("Invalid SMS sender ID", 400);
+            }
+
+            if (!isEnabled) return null;
+
+            if (string.IsNullOrWhiteSpace(provider)
+                || string.IsNullOrWhiteSpace(apiUrl)
+                || string.IsNullOrWhiteSpace(senderId))
+            {
+                return ApiResponse<bool>.ErrorResponse(
+                    "Provider, public HTTPS API URL, and sender ID are required to enable SMS", 400);
+            }
+
+            if (IsUnchangedSecret(apiKey)
+                && !await HasStoredSecretAsync(CATEGORY_SMS, "ApiKey"))
+            {
+                return ApiResponse<bool>.ErrorResponse(
+                    "API key is required to enable SMS", 400);
+            }
+
+            return null;
+        }
+
+        private async Task<ApiResponse<bool>?> ValidateEmailGatewayAsync(
+            string? smtpHost,
+            int? smtpPort,
+            string? smtpUsername,
+            string? smtpPassword,
+            string? fromEmail,
+            bool isEnabled)
+        {
+            if (!string.IsNullOrWhiteSpace(smtpHost) && !IsSafePublicHost(smtpHost))
+                return ApiResponse<bool>.ErrorResponse("SMTP host must be a public host", 400);
+
+            if (smtpPort.HasValue && !SmtpPorts.Contains(smtpPort.Value))
+            {
+                return ApiResponse<bool>.ErrorResponse(
+                    "SMTP port must be 25, 465, 587, or 2525", 400);
+            }
+
+            if (!string.IsNullOrWhiteSpace(fromEmail)
+                && !new EmailAddressAttribute().IsValid(fromEmail))
+            {
+                return ApiResponse<bool>.ErrorResponse("Invalid sender email", 400);
+            }
+
+            if (!isEnabled) return null;
+
+            if (string.IsNullOrWhiteSpace(smtpHost)
+                || !smtpPort.HasValue
+                || string.IsNullOrWhiteSpace(fromEmail))
+            {
+                return ApiResponse<bool>.ErrorResponse(
+                    "SMTP host, approved port, and sender email are required to enable email", 400);
+            }
+
+            if (!string.IsNullOrWhiteSpace(smtpUsername)
+                && IsUnchangedSecret(smtpPassword)
+                && !await HasStoredSecretAsync(CATEGORY_EMAIL, "SmtpPassword"))
+            {
+                return ApiResponse<bool>.ErrorResponse(
+                    "SMTP password is required when a username is used", 400);
+            }
+
+            return null;
+        }
+
+        private async Task<bool> HasStoredSecretAsync(string category, string key)
+        {
+            var existing = (await _settingRepo.FindAsync(s =>
+                s.TenantId == _currentUser.TenantId
+                && s.Category == category
+                && s.SettingKey == key)).FirstOrDefault();
+            return existing?.IsSensitive == true
+                   && !string.IsNullOrWhiteSpace(existing.SettingValue);
+        }
+
+        private static bool IsSafePublicHttpsUrl(string value)
+        {
+            return Uri.TryCreate(value, UriKind.Absolute, out var uri)
+                   && uri.Scheme == Uri.UriSchemeHttps
+                   && string.IsNullOrEmpty(uri.UserInfo)
+                   && IsSafePublicHost(uri.Host);
+        }
+
+        private static bool IsSafePublicHost(string host)
+        {
+            var normalized = host.Trim().TrimEnd('.');
+            if (string.IsNullOrWhiteSpace(normalized)
+                || normalized.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+                || normalized.EndsWith(".localhost", StringComparison.OrdinalIgnoreCase)
+                || normalized.EndsWith(".local", StringComparison.OrdinalIgnoreCase)
+                || normalized.EndsWith(".internal", StringComparison.OrdinalIgnoreCase)
+                || normalized.EndsWith(".test", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            if (IPAddress.TryParse(normalized, out var address))
+                return !IsPrivateAddress(address);
+
+            return normalized.Contains('.')
+                   && Uri.CheckHostName(normalized) == UriHostNameType.Dns;
+        }
+
+        private static bool IsPrivateAddress(IPAddress address)
+        {
+            if (IPAddress.IsLoopback(address)) return true;
+            if (address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
+            {
+                if (address.IsIPv4MappedToIPv6)
+                    return IsPrivateAddress(address.MapToIPv4());
+
+                return address.IsIPv6LinkLocal
+                       || address.IsIPv6SiteLocal
+                       || address.IsIPv6Multicast
+                       || address.Equals(IPAddress.IPv6Any)
+                       || (address.GetAddressBytes()[0] & 0xFE) == 0xFC;
+            }
+
+            var bytes = address.GetAddressBytes();
+            return bytes[0] == 0
+                   || bytes[0] == 10
+                   || bytes[0] == 127
+                   || (bytes[0] == 100 && bytes[1] is >= 64 and <= 127)
+                   || (bytes[0] == 169 && bytes[1] == 254)
+                   || (bytes[0] == 172 && bytes[1] is >= 16 and <= 31)
+                   || (bytes[0] == 192 && bytes[1] == 168)
+                   || (bytes[0] == 198 && bytes[1] is 18 or 19)
+                   || bytes[0] >= 224;
         }
 
         private string? ProtectSensitiveValue(string? value)

@@ -18,13 +18,12 @@ namespace EduOS.Persistence.Repositories
                 .FirstOrDefaultAsync(s => s.StudentCode == code);
         }
 
-        public async Task<Student?> GetByUserIdAsync(int userId)
+        public async Task<Student?> GetByUserIdAsync(long userId)
         {
-            return await _dbSet
-                .FirstOrDefaultAsync(s => s.UserId == userId);
+            return await _dbSet.FirstOrDefaultAsync(s => s.UserId == userId);
         }
 
-        public async Task<Student?> GetWithGuardiansAsync(int id)
+        public async Task<Student?> GetWithGuardiansAsync(long id)
         {
             return await _dbSet
                 .Include(s => s.Guardians)
@@ -33,72 +32,50 @@ namespace EduOS.Persistence.Repositories
                 .FirstOrDefaultAsync(s => s.Id == id);
         }
 
-        public async Task<List<Student>> GetByClassSectionAsync(int classId, int sectionId)
+        public async Task<List<Student>> GetByClassSectionAsync(long classId, long sectionId)
         {
             return await _dbSet
-                .Where(s => s.ClassId == classId 
-                    && s.SectionId == sectionId 
-                    && s.Status == "Active")
+                .Where(s => s.ClassId == classId && s.SectionId == sectionId && s.Status == "Active")
                 .OrderBy(s => s.Roll)
                 .ToListAsync();
         }
 
-        public async Task<List<Student>> GetByAcademicYearAsync(int academicYearId)
+        public async Task<List<Student>> GetByAcademicYearAsync(long academicYearId)
         {
-            return await _dbSet
-                .Where(s => s.AcademicYearId == academicYearId && s.IsActive)
-                .ToListAsync();
+            return await _dbSet.Where(s => s.AcademicYearId == academicYearId && s.IsActive).ToListAsync();
         }
 
-        public async Task<bool> IsCodeExistsAsync(string code, int tenantId, int? excludeId = null)
+        public async Task<bool> IsCodeExistsAsync(string code, long tenantId, long? excludeId = null)
         {
-            var query = _dbSet.Where(s => 
-                s.StudentCode == code && s.TenantId == tenantId);
+            var query = _dbSet.Where(s => s.StudentCode == code && s.TenantId == tenantId);
             if (excludeId.HasValue)
                 query = query.Where(s => s.Id != excludeId.Value);
             return await query.AnyAsync();
         }
 
-        public async Task<bool> IsRollExistsInSectionAsync(
-            string roll, int classId, int sectionId, int academicYearId, int? excludeId = null)
+        public async Task<bool> IsRollExistsInSectionAsync(string roll, long classId, long sectionId, long academicYearId, long? excludeId = null)
         {
-            var query = _dbSet.Where(s => s.Roll == roll 
-                && s.ClassId == classId 
-                && s.SectionId == sectionId 
-                && s.AcademicYearId == academicYearId);
+            var query = _dbSet.Where(s => s.Roll == roll && s.ClassId == classId && s.SectionId == sectionId && s.AcademicYearId == academicYearId);
             if (excludeId.HasValue)
                 query = query.Where(s => s.Id != excludeId.Value);
             return await query.AnyAsync();
         }
 
-        public async Task<string> GenerateStudentCodeAsync(int tenantId, int academicYearId)
+        public async Task<string> GenerateStudentCodeAsync(long tenantId, long academicYearId)
         {
-            var year = await _context.AcademicYears
-                .FirstOrDefaultAsync(y => y.Id == academicYearId);
+            var year = await _context.AcademicYears.FirstOrDefaultAsync(y => y.Id == academicYearId);
             var yearStr = year?.Name ?? DateTime.UtcNow.Year.ToString();
-
-            var lastStudent = await _dbSet
-                .Where(s => s.TenantId == tenantId && s.AcademicYearId == academicYearId)
-                .OrderByDescending(s => s.Id)
-                .FirstOrDefaultAsync();
-
+            var lastStudent = await _dbSet.Where(s => s.TenantId == tenantId && s.AcademicYearId == academicYearId).OrderByDescending(s => s.Id).FirstOrDefaultAsync();
             int nextNumber = 1;
             if (lastStudent != null && !string.IsNullOrEmpty(lastStudent.StudentCode))
             {
-                var numericPart = new string(lastStudent.StudentCode
-                    .SkipWhile(c => !char.IsDigit(c))
-                    .Where(char.IsDigit).ToArray());
+                var numericPart = new string(lastStudent.StudentCode.SkipWhile(c => !char.IsDigit(c)).Where(char.IsDigit).ToArray());
                 if (numericPart.Length > 4 && int.TryParse(numericPart.Substring(4), out int lastNumber))
                     nextNumber = lastNumber + 1;
             }
-
             return $"STD{yearStr}{nextNumber:D4}";
         }
 
-        public async Task<int> GetActiveCountAsync(int tenantId)
-        {
-            return await _dbSet
-                .CountAsync(s => s.TenantId == tenantId && s.IsActive && s.Status == "Active");
-        }
+        public async Task<int> GetActiveCountAsync(long tenantId) => await _dbSet.CountAsync(s => s.TenantId == tenantId && s.IsActive && s.Status == "Active");
     }
 }

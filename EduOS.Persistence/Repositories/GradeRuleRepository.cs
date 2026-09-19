@@ -9,7 +9,7 @@ namespace EduOS.Persistence.Repositories
     {
         public GradeRuleRepository(EduOSDbContext context) : base(context) { }
 
-        public async Task<List<GradeRule>> GetByTenantAsync(int tenantId)
+        public async Task<List<GradeRule>> GetByTenantAsync(long tenantId)
         {
             return await _dbSet
                 .Where(g => g.TenantId == tenantId)
@@ -17,11 +17,11 @@ namespace EduOS.Persistence.Repositories
                 .ToListAsync();
         }
 
-        public async Task<GradeRule?> GetByMarkAsync(decimal mark, int tenantId)
+        public async Task<GradeRule?> GetByMarkAsync(decimal mark, long tenantId)
         {
             return await _dbSet
-                .FirstOrDefaultAsync(g => g.TenantId == tenantId 
-                    && mark >= g.MinMark 
+                .FirstOrDefaultAsync(g => g.TenantId == tenantId
+                    && mark >= g.MinMark
                     && mark <= g.MaxMark);
         }
     }

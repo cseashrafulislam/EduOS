@@ -1,10 +1,10 @@
-﻿using EduOS.Core.Entities.Base;
+using EduOS.Core.Entities.Base;
 
 namespace EduOS.Core.Entities.HR
 {
     public class HRAttendanceLog : BaseTenantEntity
     {
-        public int EmployeeId { get; set; }
+        public long EmployeeId { get; set; }
         public DateTime AttendanceDate { get; set; }
         public TimeSpan? InTime { get; set; }
         public TimeSpan? OutTime { get; set; }

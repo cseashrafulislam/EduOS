@@ -39,6 +39,15 @@
                 });
                 const payload = await response.json().catch(() => null);
 
+                if (response.status === 202
+                    && payload?.success
+                    && payload.data?.requiresTwoFactor === true
+                    && typeof payload.data?.challengeToken === 'string') {
+                    sessionStorage.setItem('eduos.mfaChallenge', payload.data.challengeToken);
+                    window.location.assign('/Account/MfaChallenge');
+                    return;
+                }
+
                 if (response.ok && payload?.success) {
                     window.location.assign(getSafeRedirect(
                         payload.data?.redirectUrl,

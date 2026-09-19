@@ -5,9 +5,11 @@ namespace EduOS.Core.Entities.Students
 {
     public class Guardian : BaseTenantEntity
     {
+        public Guid PublicId { get; set; } = Guid.NewGuid();
         public long StudentId { get; set; }
         public long? UserId { get; set; }
         public string Name { get; set; } = string.Empty;
+        public string? NameBangla { get; set; }
         public string Relation { get; set; } = string.Empty; // Father/Mother/Other
         public string Phone { get; set; } = string.Empty;
         public string? Email { get; set; }
@@ -16,6 +18,7 @@ namespace EduOS.Core.Entities.Students
         public decimal? MonthlyIncome { get; set; }
         public string? Address { get; set; }
         public bool IsPrimary { get; set; } = false;
+        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
         public virtual Student? Student { get; set; }
         public virtual ApplicationUser? User { get; set; }
