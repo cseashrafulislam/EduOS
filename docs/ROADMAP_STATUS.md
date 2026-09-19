@@ -5,12 +5,13 @@ This file tracks remaining work on `codex/phase-0-security-foundation`. An item 
 ## Verified baseline
 
 - Branch: `codex/phase-0-security-foundation` (never `master`).
-- CI baseline: commit `9b6c089428586b34e8c55a80a2a26c593d5a37f5` passed GitHub Actions CI #733.
+- CI baseline: commit `c21053e1533f217fee3819c0a496d09f9ecd785e` passed GitHub Actions CI #739.
 - Library and Transport authorization boundaries have targeted regression coverage.
 - Transport assignment capacity/duplicate checks run inside a serializable transaction; database/transaction conflicts are mapped to HTTP 409, with targeted concurrency contract coverage.
 - Student/guardian and employee self-service authorization boundaries have targeted regression coverage.
 - Realtime notifications are authenticated and tenant-isolated, with regression coverage.
 - Legacy hostel student identifiers are normalized to `long`, with contract coverage.
+- Legacy LMS `Quiz`/`QuizResult` identifiers are normalized to `long`, with contract coverage. These classes are not currently exposed as mapped `DbSet`s, so no schema migration is required unless they are deliberately introduced into the EF model later.
 
 ## Roadmap
 
