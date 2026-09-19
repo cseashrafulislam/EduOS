@@ -5,8 +5,9 @@ This file tracks remaining work on `codex/phase-0-security-foundation`. An item 
 ## Verified baseline
 
 - Branch: `codex/phase-0-security-foundation` (never `master`).
-- CI baseline before this update: commit `3b46e6a3d562201cb37356b19b277c6bf08d3f9d` passed GitHub Actions CI.
+- CI baseline: commit `9b6c089428586b34e8c55a80a2a26c593d5a37f5` passed GitHub Actions CI #733.
 - Library and Transport authorization boundaries have targeted regression coverage.
+- Transport assignment capacity/duplicate checks run inside a serializable transaction; database/transaction conflicts are mapped to HTTP 409, with targeted concurrency contract coverage.
 - Student/guardian and employee self-service authorization boundaries have targeted regression coverage.
 - Realtime notifications are authenticated and tenant-isolated, with regression coverage.
 - Legacy hostel student identifiers are normalized to `long`, with contract coverage.
@@ -16,7 +17,7 @@ This file tracks remaining work on `codex/phase-0-security-foundation`. An item 
 | Area | Status | Exit criteria |
 | --- | --- | --- |
 | Library operational workflow | Implemented; hardening/tests present | Keep build/tests green and close concrete workflow defects found during final review. |
-| Transport operational workflow | Implemented; hardening/tests present | Protect route-capacity/duplicate-assignment checks from concurrent-request races, then keep build/tests green. |
+| Transport operational workflow | Implemented; concurrency hardening/tests present | Keep build/tests green and close only concrete workflow defects found during final review. |
 | Core education + self-service gaps | Substantially implemented | Audit remaining teacher/employee/student/guardian workflows and add only evidence-based fixes. |
 | Cross-module integrity / long-ID normalization | In progress | No mapped operational FK/ID contract remains on a legacy incompatible width; migrations remain safe. |
 | Security / tenant isolation / idempotency / concurrency | In progress | Mutations are authorized, tenant-scoped, replay-safe where required, and concurrency-sensitive writes are protected. |
@@ -24,9 +25,9 @@ This file tracks remaining work on `codex/phase-0-security-foundation`. An item 
 | Documentation cleanup | In progress | README/status accurately reflect implemented modules and operational requirements. |
 | Production-readiness review | Pending | Final branch CI green; no known critical/high-severity correctness, isolation, migration, or authorization blocker remains. |
 
-## Confirmed hardening item
+## Closed hardening item
 
-Transport assignment currently follows a read/check/write workflow for duplicate assignment and route capacity. Before production readiness is declared, concurrent requests must not be able to both pass those checks and overbook a route or create duplicate active assignments. Resolve this with an appropriate transaction/isolation strategy and/or a database invariant, preserving tenant scoping and existing operational behavior, and add a targeted regression test.
+Transport assignment's duplicate-assignment and vehicle-capacity read/check/write flow is protected by a serializable transaction. Async transaction flow is enabled, successful writes complete the scope explicitly, and database/transaction serialization conflicts return HTTP 409 so callers can reload/retry. Targeted contract tests guard these invariants. This item is closed unless final review finds a concrete defect in the implementation.
 
 ## Review discipline
 
