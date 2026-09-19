@@ -11,7 +11,7 @@ namespace EduOS.Core.Entities.Payroll
         public decimal IncrementAmount { get; set; }
         public DateTime EffectiveDate { get; set; }
         public string? Reason { get; set; }
-        public int ApprovedBy { get; set; }
+        public long ApprovedBy { get; set; }
 
         public virtual Employee? Employee { get; set; }
     }
