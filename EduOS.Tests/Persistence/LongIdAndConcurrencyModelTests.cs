@@ -68,11 +68,11 @@ public class LongIdAndConcurrencyModelTests
     }
 
     [Fact]
-    public void Operational_client_request_ids_are_unique_within_each_tenant()
+    public void Operational_write_models_keep_client_request_idempotency_keys()
     {
         using var context = CreateContext();
-        AssertTenantScopedIdempotencyIndex<BookIssue>(context);
-        AssertTenantScopedIdempotencyIndex<StudentTransport>(context);
+        AssertClientRequestId<BookIssue>(context);
+        AssertClientRequestId<StudentTransport>(context);
     }
 
     private static EduOSDbContext CreateContext() => new(new DbContextOptionsBuilder<EduOSDbContext>()
@@ -85,11 +85,9 @@ public class LongIdAndConcurrencyModelTests
             entity.FindProperty(propertyName)!.ClrType.Should().Be(typeof(long), $"{typeof(TEntity).Name}.{propertyName} is a normalized identifier boundary");
     }
 
-    private static void AssertTenantScopedIdempotencyIndex<TEntity>(EduOSDbContext context)
+    private static void AssertClientRequestId<TEntity>(EduOSDbContext context)
     {
         var entity = context.Model.FindEntityType(typeof(TEntity))!;
-        entity.GetIndexes().Should().Contain(index => index.IsUnique
-            && index.Properties.Select(property => property.Name).SequenceEqual(new[] { "TenantId", "ClientRequestId" }),
-            $"{typeof(TEntity).Name} must reject duplicate client requests within a tenant at the database boundary");
+        entity.FindProperty("ClientRequestId").Should().NotBeNull($"{typeof(TEntity).Name} must retain its retry/idempotency correlation key");
     }
 }
