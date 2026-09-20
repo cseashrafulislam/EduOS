@@ -40,3 +40,6 @@ jobs:
 
       - name: Test
         run: dotnet test EduOS.slnx --configuration Release --no-build --logger "trx;LogFileName=tests.trx" --results-directory TestResults
+
+      - name: Validate application publish
+        run: dotnet publish EduOS.App/EduOS.App.csproj --configuration Release --no-build --output /tmp/eduos-publish
