@@ -29,6 +29,24 @@ public class LongIdBoundaryTests
     }
 
     [Fact]
+    public void Core_student_identifier_properties_do_not_regress_to_32_bit()
+    {
+        var offenders = typeof(ITenantSubscriptionRepository).Assembly.GetTypes()
+            .Where(t => t.IsClass && t.Namespace?.StartsWith("EduOS.Core.Entities", StringComparison.Ordinal) == true)
+            .SelectMany(t => t.GetProperties()
+                .Where(p => p.Name.Equals("StudentId", StringComparison.Ordinal))
+                .Select(p => new { Type = t, Property = p }))
+            .Where(x => x.Property.PropertyType == typeof(int) || x.Property.PropertyType == typeof(int?))
+            .Select(x => $"{x.Type.FullName}.{x.Property.Name}: {x.Property.PropertyType.Name}")
+            .Distinct()
+            .OrderBy(x => x)
+            .ToList();
+
+        Assert.True(offenders.Count == 0,
+            "32-bit StudentId properties remain in core entity models:\n" + string.Join("\n", offenders));
+    }
+
+    [Fact]
     public void Repository_identifier_parameters_do_not_use_32_bit_identifiers()
     {
         var offenders = typeof(ITenantSubscriptionRepository).Assembly.GetTypes()
