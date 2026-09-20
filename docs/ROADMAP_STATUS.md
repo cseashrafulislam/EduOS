@@ -5,9 +5,12 @@ This file tracks remaining work on `codex/phase-0-security-foundation`. An item 
 ## Verified baseline
 
 - Branch: `codex/phase-0-security-foundation` (never `master`).
-- CI baseline: commit `a04e14dcfbb02c4a59af99f97a1ce6819ecddbe4` passed GitHub Actions CI #757.
-- Library and Transport authorization boundaries have targeted regression coverage.
+- CI baseline: commit `713a43c770b47a228f69e75b99e2059725e008f5` passed GitHub Actions CI #775 on 2026-09-20.
+- Library and Transport authorization boundaries have targeted regression coverage, including authenticated read surfaces and privileged mutation boundaries.
+- Library stock and issue lifecycle concurrency tokens are mapped and guarded by persistence contract tests.
 - Transport assignment capacity/duplicate checks run inside a serializable transaction; database/transaction conflicts are mapped to HTTP 409, with targeted concurrency contract coverage.
+- Library/Transport tenant-owned operational entities are guarded by model/query-filter isolation regression coverage.
+- `BookIssue.ClientRequestId` and `StudentTransport.ClientRequestId` remain mapped retry/idempotency correlation keys. Tests intentionally guard the persisted contract without inventing a database uniqueness constraint that is absent from the current schema.
 - Student/guardian and employee self-service authorization boundaries have targeted regression coverage.
 - Realtime notifications are authenticated and tenant-isolated, with regression coverage.
 - Legacy hostel student identifiers are normalized to `long`, with contract coverage.
@@ -28,12 +31,14 @@ This file tracks remaining work on `codex/phase-0-security-foundation`. An item 
 | Documentation cleanup | In progress | README/status accurately reflect implemented modules and operational requirements. |
 | Production-readiness review | Pending | Final branch CI green; no known critical/high-severity correctness, isolation, migration, or authorization blocker remains. |
 
-## Closed hardening item
+## Closed hardening items
 
 Transport assignment's duplicate-assignment and vehicle-capacity read/check/write flow is protected by a serializable transaction. Async transaction flow is enabled, successful writes complete the scope explicitly, and database/transaction serialization conflicts return HTTP 409 so callers can reload/retry. Targeted contract tests guard these invariants. This item is closed unless final review finds a concrete defect in the implementation.
 
+Library stock mutation and issue close/return flows have explicit optimistic-concurrency model contracts. Operational Library/Transport read endpoints inherit authenticated controller boundaries, while privileged mutations retain role restrictions. Tenant query-filter regressions for the critical operational entities are covered by tests.
+
 ## Review discipline
 
-Before changing a schema or relationship, inspect the mapped entity, EF configuration, current migration/snapshot, API/service consumers, and existing tests. Do not introduce a migration merely to normalize an orphan/unmapped legacy class. Prefer targeted regression tests for every security or integrity defect fixed.
+Before changing a schema or relationship, inspect the mapped entity, EF configuration, current migration/snapshot, API/service consumers, and existing tests. Do not introduce a migration merely to normalize an orphan/unmapped legacy class. Prefer targeted regression tests for every security or integrity defect fixed. Do not promote an application retry/correlation key into a database uniqueness constraint without verifying existing production data and migration compatibility.
 
 The branch is **not yet declared production-ready**. The remaining integrity and hardening audit, migration validation, documentation cleanup, and final review must complete before this status can be changed to complete.
