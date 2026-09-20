@@ -28,11 +28,14 @@ public sealed class OperationalModuleAuthorizationContractTests
     [InlineData(typeof(LibraryController), nameof(LibraryController.Close), "TenantAdmin,Principal,Librarian")]
     [InlineData(typeof(TransportController), nameof(TransportController.Assign), "TenantAdmin,Principal,TransportManager")]
     [InlineData(typeof(TransportController), nameof(TransportController.Close), "TenantAdmin,Principal,TransportManager")]
-    public void Operational_mutations_keep_privileged_role_boundary(Type controllerType, string actionName, string expectedRoles)
+    public void Operational_mutations_keep_privileged_role_and_post_only_boundary(Type controllerType, string actionName, string expectedRoles)
     {
         var method = controllerType.GetMethods().Single(x => x.Name == actionName);
         var authorize = Assert.Single(method.GetCustomAttributes(typeof(AuthorizeAttribute), true).Cast<AuthorizeAttribute>());
+        var post = Assert.Single(method.GetCustomAttributes(typeof(HttpPostAttribute), true).Cast<HttpPostAttribute>());
 
         Assert.Equal(expectedRoles, authorize.Roles);
+        Assert.False(string.IsNullOrWhiteSpace(post.Template));
+        Assert.Empty(method.GetCustomAttributes(typeof(AllowAnonymousAttribute), true));
     }
 }
