@@ -5,7 +5,8 @@ This file tracks remaining work on `codex/phase-0-security-foundation`. An item 
 ## Verified baseline
 
 - Branch: `codex/phase-0-security-foundation` (never `master`).
-- CI baseline: commit `713a43c770b47a228f69e75b99e2059725e008f5` passed GitHub Actions CI #775 on 2026-09-20.
+- CI baseline: commit `85b1d7a883ac276578a9d8134f751572d0027897` passed GitHub Actions CI #779 on 2026-09-20.
+- CI now validates a Release production publish of `EduOS.App` in addition to build, EF pending-model-change validation, and the automated test suite.
 - Library and Transport authorization boundaries have targeted regression coverage, including authenticated read surfaces and privileged mutation boundaries.
 - Library stock and issue lifecycle concurrency tokens are mapped and guarded by persistence contract tests.
 - Transport assignment capacity/duplicate checks run inside a serializable transaction; database/transaction conflicts are mapped to HTTP 409, with targeted concurrency contract coverage.
@@ -27,15 +28,17 @@ This file tracks remaining work on `codex/phase-0-security-foundation`. An item 
 | Core education + self-service gaps | Substantially implemented | Audit remaining teacher/employee/student/guardian workflows and add only evidence-based fixes. |
 | Cross-module integrity / long-ID normalization | In progress | No mapped operational FK/ID contract remains on a legacy incompatible width; migrations remain safe. |
 | Security / tenant isolation / idempotency / concurrency | In progress | Mutations are authorized, tenant-scoped, replay-safe where required, and concurrency-sensitive writes are protected. |
-| Automated tests / migration validation | In progress | Targeted regressions cover fixes; build, tests, and EF migration/snapshot validation are green. |
+| Automated tests / migration validation | In progress | Targeted regressions cover fixes; build, tests, EF migration/snapshot validation, and production publish validation are green. |
 | Documentation cleanup | In progress | README/status accurately reflect implemented modules and operational requirements. |
-| Production-readiness review | Pending | Final branch CI green; no known critical/high-severity correctness, isolation, migration, or authorization blocker remains. |
+| Production-readiness review | Pending | Final branch CI green; no known critical/high-severity correctness, isolation, migration, authorization, or publish blocker remains. |
 
 ## Closed hardening items
 
 Transport assignment's duplicate-assignment and vehicle-capacity read/check/write flow is protected by a serializable transaction. Async transaction flow is enabled, successful writes complete the scope explicitly, and database/transaction serialization conflicts return HTTP 409 so callers can reload/retry. Targeted contract tests guard these invariants. This item is closed unless final review finds a concrete defect in the implementation.
 
 Library stock mutation and issue close/return flows have explicit optimistic-concurrency model contracts. Operational Library/Transport read endpoints inherit authenticated controller boundaries, while privileged mutations retain role restrictions. Tenant query-filter regressions for the critical operational entities are covered by tests.
+
+The deployable application now has a CI Release-publish gate. A green branch baseline therefore covers compilation, EF model/snapshot drift detection, automated regression tests, and generation of the production publish artifact; environment-specific deployment configuration and external infrastructure remain deployment-time concerns.
 
 ## Review discipline
 
