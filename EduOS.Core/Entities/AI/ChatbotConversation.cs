@@ -5,7 +5,7 @@ namespace EduOS.Core.Entities.AI
 {
     public class ChatbotConversation : BaseTenantEntity
     {
-        public int? StudentId { get; set; }
+        public long? StudentId { get; set; }
         public string UserMessage { get; set; }
         public string BotReply { get; set; }
         public DateTime MessageTime { get; set; } = DateTime.UtcNow;
