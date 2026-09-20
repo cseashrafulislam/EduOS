@@ -5,14 +5,14 @@ This file tracks remaining work on `codex/phase-0-security-foundation`. An item 
 ## Verified baseline
 
 - Branch: `codex/phase-0-security-foundation` (never `master`).
-- CI baseline: commit `85b1d7a883ac276578a9d8134f751572d0027897` passed GitHub Actions CI #779 on 2026-09-20.
-- CI now validates a Release production publish of `EduOS.App` in addition to build, EF pending-model-change validation, and the automated test suite.
-- Library and Transport authorization boundaries have targeted regression coverage, including authenticated read surfaces and privileged mutation boundaries.
+- CI baseline: commit `2be08831b96bd7008cd588fa499fdd8d08ca3e8b` passed GitHub Actions CI #785 on 2026-09-20.
+- CI validates a Release production publish of `EduOS.App` in addition to build, EF pending-model-change validation, and the automated test suite.
+- Library and Transport authorization boundaries have targeted regression coverage, including authenticated read surfaces, privileged mutation boundaries, POST-only mutation transport semantics, and protection against accidental action-level anonymous bypass.
 - Library stock and issue lifecycle concurrency tokens are mapped and guarded by persistence contract tests.
 - Transport assignment capacity/duplicate checks run inside a serializable transaction; database/transaction conflicts are mapped to HTTP 409, with targeted concurrency contract coverage.
 - Library/Transport tenant-owned operational entities are guarded by model/query-filter isolation regression coverage.
 - `BookIssue.ClientRequestId` and `StudentTransport.ClientRequestId` remain mapped retry/idempotency correlation keys. Tests intentionally guard the persisted contract without inventing a database uniqueness constraint that is absent from the current schema.
-- Student/guardian and employee self-service authorization boundaries have targeted regression coverage.
+- Student/guardian and employee self-service authorization boundaries have targeted regression coverage, including module-entitlement checks and HTTP transport semantics for employee leave mutation.
 - Realtime notifications are authenticated and tenant-isolated, with regression coverage.
 - Legacy hostel student identifiers are normalized to `long`, with contract coverage.
 - Legacy LMS `Quiz`/`QuizResult` identifiers are normalized to `long`, with contract coverage. These classes are not currently exposed as mapped `DbSet`s, so no schema migration is required unless they are deliberately introduced into the EF model later.
@@ -36,9 +36,11 @@ This file tracks remaining work on `codex/phase-0-security-foundation`. An item 
 
 Transport assignment's duplicate-assignment and vehicle-capacity read/check/write flow is protected by a serializable transaction. Async transaction flow is enabled, successful writes complete the scope explicitly, and database/transaction serialization conflicts return HTTP 409 so callers can reload/retry. Targeted contract tests guard these invariants. This item is closed unless final review finds a concrete defect in the implementation.
 
-Library stock mutation and issue close/return flows have explicit optimistic-concurrency model contracts. Operational Library/Transport read endpoints inherit authenticated controller boundaries, while privileged mutations retain role restrictions. Tenant query-filter regressions for the critical operational entities are covered by tests.
+Library stock mutation and issue close/return flows have explicit optimistic-concurrency model contracts. Operational Library/Transport read endpoints inherit authenticated controller boundaries, while privileged mutations retain role restrictions. Critical mutations are regression-guarded as POST-only and against accidental action-level anonymous authorization bypass. Tenant query-filter regressions for the critical operational entities are covered by tests.
 
-The deployable application now has a CI Release-publish gate. A green branch baseline therefore covers compilation, EF model/snapshot drift detection, automated regression tests, and generation of the production publish artifact; environment-specific deployment configuration and external infrastructure remain deployment-time concerns.
+Student/guardian and employee self-service controllers now have regression coverage for role boundaries, required module entitlements, accidental anonymous bypass, and the expected GET/POST semantics of self-service operations. Employee leave application remains a protected POST mutation.
+
+The deployable application has a CI Release-publish gate. A green branch baseline therefore covers compilation, EF model/snapshot drift detection, automated regression tests, and generation of the production publish artifact; environment-specific deployment configuration and external infrastructure remain deployment-time concerns.
 
 ## Review discipline
 
