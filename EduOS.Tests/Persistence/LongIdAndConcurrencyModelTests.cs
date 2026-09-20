@@ -53,16 +53,18 @@ public class LongIdAndConcurrencyModelTests
     }
 
     [Fact]
-    public void Subscription_transport_and_library_stock_write_models_keep_optimistic_concurrency_tokens()
+    public void Subscription_transport_and_library_write_models_keep_optimistic_concurrency_tokens()
     {
         using var context = CreateContext();
         var subscription = context.Model.FindEntityType(typeof(TenantSubscription))!;
         var transport = context.Model.FindEntityType(typeof(StudentTransport))!;
         var book = context.Model.FindEntityType(typeof(Book))!;
+        var bookIssue = context.Model.FindEntityType(typeof(BookIssue))!;
 
         subscription.FindProperty(nameof(TenantSubscription.RowVersion))!.IsConcurrencyToken.Should().BeTrue();
         transport.FindProperty(nameof(StudentTransport.RowVersion))!.IsConcurrencyToken.Should().BeTrue();
         book.FindProperty(nameof(Book.RowVersion))!.IsConcurrencyToken.Should().BeTrue();
+        bookIssue.FindProperty(nameof(BookIssue.RowVersion))!.IsConcurrencyToken.Should().BeTrue();
     }
 
     private static EduOSDbContext CreateContext() => new(new DbContextOptionsBuilder<EduOSDbContext>()
