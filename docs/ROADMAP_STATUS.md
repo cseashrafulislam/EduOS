@@ -5,13 +5,15 @@ This file tracks remaining work on `codex/phase-0-security-foundation`. An item 
 ## Verified baseline
 
 - Branch: `codex/phase-0-security-foundation` (never `master`).
-- CI baseline: commit `c21053e1533f217fee3819c0a496d09f9ecd785e` passed GitHub Actions CI #739.
+- CI baseline: commit `a04e14dcfbb02c4a59af99f97a1ce6819ecddbe4` passed GitHub Actions CI #757.
 - Library and Transport authorization boundaries have targeted regression coverage.
 - Transport assignment capacity/duplicate checks run inside a serializable transaction; database/transaction conflicts are mapped to HTTP 409, with targeted concurrency contract coverage.
 - Student/guardian and employee self-service authorization boundaries have targeted regression coverage.
 - Realtime notifications are authenticated and tenant-isolated, with regression coverage.
 - Legacy hostel student identifiers are normalized to `long`, with contract coverage.
 - Legacy LMS `Quiz`/`QuizResult` identifiers are normalized to `long`, with contract coverage. These classes are not currently exposed as mapped `DbSet`s, so no schema migration is required unless they are deliberately introduced into the EF model later.
+- Mapped Inventory and Finance identifier/FK contracts have targeted long-ID regression coverage.
+- Mapped Payroll employee/user identity relations have targeted long-ID regression coverage. `Increment.ApprovedBy` remains snapshot-compatible legacy approval metadata rather than being treated as a proven FK; the earlier speculative width change was reverted after EF snapshot validation caught the mismatch.
 
 ## Roadmap
 
