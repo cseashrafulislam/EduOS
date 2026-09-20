@@ -5,7 +5,7 @@ This file tracks remaining work on `codex/phase-0-security-foundation`. An item 
 ## Verified baseline
 
 - Branch: `codex/phase-0-security-foundation` (never `master`).
-- CI baseline: commit `2be08831b96bd7008cd588fa499fdd8d08ca3e8b` passed GitHub Actions CI #785 on 2026-09-20.
+- CI baseline: commit `eefb6cec4804d2afdc03f9dc4da594830a048314` passed GitHub Actions CI #789 on 2026-09-20.
 - CI validates a Release production publish of `EduOS.App` in addition to build, EF pending-model-change validation, and the automated test suite.
 - Library and Transport authorization boundaries have targeted regression coverage, including authenticated read surfaces, privileged mutation boundaries, POST-only mutation transport semantics, and protection against accidental action-level anonymous bypass.
 - Library stock and issue lifecycle concurrency tokens are mapped and guarded by persistence contract tests.
@@ -16,7 +16,7 @@ This file tracks remaining work on `codex/phase-0-security-foundation`. An item 
 - Realtime notifications are authenticated and tenant-isolated, with regression coverage.
 - Legacy hostel student identifiers are normalized to `long`, with contract coverage.
 - Legacy LMS `Quiz`/`QuizResult` identifiers are normalized to `long`, with contract coverage. These classes are not currently exposed as mapped `DbSet`s, so no schema migration is required unless they are deliberately introduced into the EF model later.
-- Mapped Inventory and Finance identifier/FK contracts have targeted long-ID regression coverage.
+- Mapped Inventory and Finance identifier/FK contracts have targeted long-ID regression coverage. The legacy/unmapped `Finance.Invoice.StudentId` model is also normalized to `long`; because it is not part of the current EF model, this correction deliberately does not introduce a speculative migration.
 - Mapped Payroll employee/user identity relations have targeted long-ID regression coverage. `Increment.ApprovedBy` remains snapshot-compatible legacy approval metadata rather than being treated as a proven FK; the earlier speculative width change was reverted after EF snapshot validation caught the mismatch.
 
 ## Roadmap
