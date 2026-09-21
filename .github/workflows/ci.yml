@@ -36,11 +36,7 @@ jobs:
       - name: Validate EF model snapshot
         run: |
           dotnet tool install --global dotnet-ef --version 10.0.10
-          if ! dotnet ef migrations has-pending-model-changes --project EduOS.Persistence --startup-project EduOS.App --context EduOSDbContext --configuration Release --no-build; then
-            dotnet ef migrations add PendingModelDiagnostic --project EduOS.Persistence --startup-project EduOS.App --context EduOSDbContext --configuration Release --no-build
-            git diff -- EduOS.Persistence/Migrations/EduOSDbContextModelSnapshot.cs
-            exit 1
-          fi
+          dotnet ef migrations has-pending-model-changes --project EduOS.Persistence --startup-project EduOS.App --context EduOSDbContext --configuration Release --no-build
 
       - name: Test
         run: dotnet test EduOS.slnx --configuration Release --no-build --logger "trx;LogFileName=tests.trx" --results-directory TestResults
