@@ -11,6 +11,7 @@ namespace EduOS.App.Controllers.Api;
 [RequireModule("ADMISSION")]
 [EnableRateLimiting("AdmissionIntakePolicy")]
 [AutoValidateAntiforgeryToken]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 [ApiController]
 [Route("api/admission-assessments")]
 public class AdmissionAssessmentsController : ControllerBase
