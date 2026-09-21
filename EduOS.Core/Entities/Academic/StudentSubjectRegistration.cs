@@ -5,7 +5,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EduOS.Core.Entities.Academic;
 
-public sealed class StudentSubjectRegistration : BaseTenantEntity
+public class StudentSubjectRegistration : BaseTenantEntity
 {
     public Guid? ClientRequestId { get; set; }
     public long StudentEnrollmentId { get; set; }
