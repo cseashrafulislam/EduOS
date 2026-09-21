@@ -9,6 +9,7 @@ using EduOS.Core.Interfaces.IServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
+using System.Transactions;
 
 namespace EduOS.Service.Services.Students;
 
@@ -79,6 +80,14 @@ public sealed class StudentPromotionService : IStudentPromotionService
 
         try
         {
+            // Promotion performs read-before-write uniqueness and section-capacity checks.
+            // Serializable isolation prevents concurrent promotions from both observing the
+            // same free roll/seat and committing an invalid placement.
+            using var scope = new TransactionScope(
+                TransactionScopeOption.Required,
+                new TransactionOptions { IsolationLevel = IsolationLevel.Serializable },
+                TransactionScopeAsyncFlowOption.Enabled);
+
             var student = await _students.GetQueryable()
                 .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.PublicId == studentReference,
                     cancellationToken);
@@ -240,6 +249,7 @@ public sealed class StudentPromotionService : IStudentPromotionService
             };
             await _records.AddAsync(record);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+            scope.Complete();
 
             return new ApiResponse<StudentPromotionResultDto>
             {
@@ -262,6 +272,12 @@ public sealed class StudentPromotionService : IStudentPromotionService
             _logger.LogWarning(ex, "Conflicting promotion for student {Reference} in tenant {TenantId}",
                 studentReference, tenantId);
             return Error("The promotion conflicts with an existing enrollment or request.", 409);
+        }
+        catch (TransactionAbortedException ex)
+        {
+            _logger.LogWarning(ex, "Serialized promotion transaction aborted for student {Reference} in tenant {TenantId}",
+                studentReference, tenantId);
+            return Error("The promotion conflicts with another update. Reload and try again.", 409);
         }
         catch (Exception ex)
         {
