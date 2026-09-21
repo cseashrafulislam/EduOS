@@ -19,6 +19,7 @@ This file tracks the production-readiness hardening work on `codex/phase-0-secur
 - Canonical academic enrollment now links students to programme/level/batch/curriculum history, snapshots subject rules, enforces capacity/current-student/roll/idempotency invariants, supports learner/guardian elective approval, and filters owned timetables to approved subjects.
 - Academic calendar management now supports campus-fallback weekend policy, year/term-bounded public and private events, privacy-safe working-day projection, idempotency, stale-write rejection and database-backed duplicate protection.
 - Academic setup now includes tenant-safe global/programme track creation with retry-safe code identity and a database-enforced single active default per scope.
+- Routine substitution now validates exact routine/date ownership and substitute availability; lesson planning supports teacher-owned draft/edit/submit, manager review and monotonic completion with optimistic concurrency.
 
 ## Roadmap closeout
 
@@ -28,7 +29,7 @@ This file tracks the production-readiness hardening work on `codex/phase-0-secur
 | Transport operational workflow | Complete for implemented scope | Serializable capacity/duplicate protection and targeted tests covered. |
 | Core education + self-service hardening | Complete for implemented scope | Student/guardian/employee boundaries and evidence-based defects found in review are closed. |
 | Cross-module integrity / long-ID normalization | Complete for mapped scope | EF mapping/snapshot validation is authoritative; no speculative migrations for unmapped legacy classes. |
-| Canonical academic setup, enrollment, calendar + routine foundation | Complete for implemented scope | Programme/level/track-to-batch setup, curriculum/learner subject registration, ownership-scoped timetable reads, instructor assignment, collision-safe routine writes and calendar policy/event/working-day operations are tenant/module/role guarded and regression-covered; later academic workflows remain in README scope. |
+| Canonical academic setup, enrollment, calendar + routine foundation | Complete for implemented scope | Programme/level/track-to-batch setup, curriculum/learner subject registration, ownership-scoped timetable reads, instructor assignment, collision-safe routines/substitutions, lesson-plan approval/progress and calendar policy/event/working-day operations are tenant/module/role guarded and regression-covered; later academic workflows remain in README scope. |
 | Security / tenant isolation / idempotency / concurrency | Complete for reviewed implemented scope | Critical mutation/read boundaries and discovered high-risk races are protected. |
 | Automated tests / migration validation | Complete | CI gates Release build, EF model/snapshot validation, full tests and production publish. |
 | Repository/runtime data hygiene | Complete | Runtime tenant upload content removed from tracking and ignored. |
