@@ -9,6 +9,7 @@ This document is the concise implementation status for the `codex/phase-0-securi
 - Institution signup/onboarding, plan or trial selection, payment progression, campus/academic/module/branding/general/gateway setup.
 - Admission intake/review and approved applicant conversion into student, guardian and enrolment records.
 - Annual student promotion/repeat and student transfer/completion foundations.
+- Canonical academic routine API slice: time-slot setup, curriculum-validated instructor assignment, collision-safe schedule creation/deactivation, and tenant-safe batch/teacher timetable reads. The additive schema bridge creates the canonical academic tables that were previously present only in the EF snapshot.
 - Library operational workflow, including catalogue/copy circulation paths, issue/return/reservation/fine handling and tenant-safe operations.
 - Transport operational workflow, including vehicles/routes/stops/student assignments, operational state and tenant-safe write paths.
 - Core student, guardian, teacher and employee self-service slices delivered on the branch, with authorization and tenant context enforced at the application boundary.

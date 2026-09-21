@@ -249,6 +249,8 @@ Current/next-generation models include AcademicYear, AcademicTerm, Medium, Shift
 | Routine | Time slots, rooms, instructor collision and substitution | 🟡 Foundation |
 | Lesson plan | Syllabus coverage, resources, progress, approval | 🟡 Foundation |
 
+The first operational routine slice is implemented on the canonical programme/level/batch model. Authorized academic managers can create time slots, assign an active instructor only to a subject in the batch's active curriculum, create or deactivate routine entries, and read batch/teacher timetables. Teacher, batch and room overlap checks run inside a serializable retry-aware transaction; room campus/capacity, academic year/term, tenant and teacher ownership are validated server-side. Exact create retries return the existing assignment/entry instead of writing duplicates. Student/guardian timetable projection, substitution and lesson-plan workflows remain incomplete, so the overall academic area remains Foundation rather than fully implemented.
+
 Must support:
 
 - Annual school classes, university credits/semesters, and coaching/training batches using one configurable model.
@@ -576,6 +578,7 @@ These are the meaningful API areas currently present:
 | /api/learner-identities | Rate-limited privacy-safe identity creation, reuse and neutral consent request |
 | /api/learner-consents | Student/parent pending requests, approve/deny, active grants and revocation |
 | /api/students/{studentReference}/promotions | TenantAdmin/Principal promotion or repeat and immutable progression history |
+| /api/academic-routines | Curriculum-validated instructor assignment, time slots, collision-safe routine entry, batch/teacher timetable and auditable deactivation |
 | /api/v1/auditlog | Filter, record/user history and export |
 
 Every new module must add a complete vertical slice: request/response contract, validation, authorization, service, repository/query, migration, UI if required, tests, audit, documentation, and operational monitoring.
@@ -1000,6 +1003,8 @@ Acceptance:
 - Every cross-institution action is consented/authorized and audited.
 
 ### Phase 3 — Academic operations
+
+Progress: the canonical academic schema now has an additive migration path, and the first protected routine workflow is operational with curriculum-bound instructor assignment, retry-aware serializable collision checks, tenant/role/module enforcement, room capacity/campus validation, teacher ownership and batch/teacher timetable reads. Academic structure administration UI, student/guardian timetable projection, substitution, lesson plans and the remaining Phase 3 workflows are still pending.
 
 Deliver:
 
