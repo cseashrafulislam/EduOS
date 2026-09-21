@@ -13,7 +13,7 @@ public sealed class AcademicInstructionAuthorizationContractTests
     public void Instruction_controller_keeps_auth_module_antiforgery_rate_limit_and_no_store_boundaries()
     {
         var controller = typeof(AcademicInstructionController);
-        var roleBoundary = Assert.Single(controller.GetCustomAttributes(typeof(AuthorizeAttribute), true).Cast<AuthorizeAttribute>().Where(x => !string.IsNullOrWhiteSpace(x.Roles)));
+        var roleBoundary = Assert.Single(controller.GetCustomAttributes(typeof(AuthorizeAttribute), true).Cast<AuthorizeAttribute>(), x => !string.IsNullOrWhiteSpace(x.Roles));
         var module = Assert.Single(controller.GetCustomAttributes(typeof(RequireModuleAttribute), true).Cast<RequireModuleAttribute>());
         var limiter = Assert.Single(controller.GetCustomAttributes(typeof(EnableRateLimitingAttribute), true).Cast<EnableRateLimitingAttribute>());
         var cache = Assert.Single(controller.GetCustomAttributes(typeof(ResponseCacheAttribute), true).Cast<ResponseCacheAttribute>());

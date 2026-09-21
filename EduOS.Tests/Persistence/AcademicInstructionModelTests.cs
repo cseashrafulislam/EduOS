@@ -2,6 +2,7 @@ using EduOS.Core.Entities.Academic;
 using EduOS.Persistence.Context;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Xunit;
 
@@ -13,8 +14,9 @@ public class AcademicInstructionModelTests
     public void Instruction_models_preserve_legacy_links_and_add_canonical_integrity_guards()
     {
         using var context = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>().UseInMemoryDatabase($"instruction-model-{Guid.NewGuid():N}").Options);
-        var substitution = context.Model.FindEntityType(typeof(Substitution))!;
-        var lesson = context.Model.FindEntityType(typeof(LessonPlan))!;
+        var model = context.GetService<IDesignTimeModel>().Model;
+        var substitution = model.FindEntityType(typeof(Substitution))!;
+        var lesson = model.FindEntityType(typeof(LessonPlan))!;
 
         substitution.FindProperty(nameof(Substitution.ClassId))!.IsNullable.Should().BeTrue();
         lesson.FindProperty(nameof(LessonPlan.ClassId))!.IsNullable.Should().BeTrue();
