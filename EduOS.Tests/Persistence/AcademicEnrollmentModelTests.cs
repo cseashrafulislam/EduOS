@@ -17,8 +17,8 @@ public class AcademicEnrollmentModelTests
         var enrollment = context.Model.FindEntityType(typeof(StudentEnrollment))!;
         var registration = context.Model.FindEntityType(typeof(StudentSubjectRegistration))!;
 
-        enrollment.GetQueryFilter().Should().NotBeNull();
-        registration.GetQueryFilter().Should().NotBeNull();
+        enrollment.GetDeclaredQueryFilters().Should().NotBeEmpty();
+        registration.GetDeclaredQueryFilters().Should().NotBeEmpty();
         enrollment.FindProperty(nameof(StudentEnrollment.RowVersion))!.IsConcurrencyToken.Should().BeTrue();
         registration.FindProperty(nameof(StudentSubjectRegistration.RowVersion))!.IsConcurrencyToken.Should().BeTrue();
         AssertUniqueIndex(enrollment, "UX_StudentEnrollments_Tenant_Request");
