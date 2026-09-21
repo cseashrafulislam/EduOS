@@ -2951,8 +2951,6 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("StudentId");
 
-                    b.HasIndex("TenantId");
-
                     b.HasIndex("TenantId", "ClassId", "SectionId", "Date")
                         .HasDatabaseName("IX_StudentAttendances_Tenant_Roster_Date");
 

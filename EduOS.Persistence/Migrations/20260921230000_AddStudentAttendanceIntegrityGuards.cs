@@ -27,6 +27,7 @@ IF EXISTS (
         migrationBuilder.AlterColumn<DateTime>(name: "Date", table: "StudentAttendances", type: "date", nullable: false, oldClrType: typeof(DateTime), oldType: "datetime2");
         migrationBuilder.AlterColumn<string>(name: "Status", table: "StudentAttendances", type: "nvarchar(20)", maxLength: 20, nullable: false, oldClrType: typeof(string), oldType: "nvarchar(500)", oldMaxLength: 500);
 
+        migrationBuilder.DropIndex(name: "IX_StudentAttendances_TenantId", table: "StudentAttendances");
         migrationBuilder.CreateIndex(name: "IX_StudentAttendances_Tenant_Roster_Date", table: "StudentAttendances", columns: new[] { "TenantId", "ClassId", "SectionId", "Date" });
         migrationBuilder.CreateIndex(name: "UX_StudentAttendances_Tenant_Student_Date", table: "StudentAttendances", columns: new[] { "TenantId", "StudentId", "Date" }, unique: true, filter: "[IsDeleted] = 0");
         migrationBuilder.AddCheckConstraint(name: "CK_StudentAttendances_Status", table: "StudentAttendances", sql: "[Status] IN ('Present','Absent','Late','Leave')");
@@ -39,6 +40,7 @@ IF EXISTS (
         migrationBuilder.DropCheckConstraint(name: "CK_StudentAttendances_TimeRange", table: "StudentAttendances");
         migrationBuilder.DropIndex(name: "IX_StudentAttendances_Tenant_Roster_Date", table: "StudentAttendances");
         migrationBuilder.DropIndex(name: "UX_StudentAttendances_Tenant_Student_Date", table: "StudentAttendances");
+        migrationBuilder.CreateIndex(name: "IX_StudentAttendances_TenantId", table: "StudentAttendances", column: "TenantId");
         migrationBuilder.AlterColumn<DateTime>(name: "Date", table: "StudentAttendances", type: "datetime2", nullable: false, oldClrType: typeof(DateTime), oldType: "date");
         migrationBuilder.AlterColumn<string>(name: "Status", table: "StudentAttendances", type: "nvarchar(500)", maxLength: 500, nullable: false, oldClrType: typeof(string), oldType: "nvarchar(20)", oldMaxLength: 20);
     }
