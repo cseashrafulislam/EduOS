@@ -1,49 +1,51 @@
 # EduOS production-hardening roadmap status
 
-This file tracks remaining work on `codex/phase-0-security-foundation`. An item is only marked complete when implementation exists on this branch and CI has validated the relevant baseline.
+This file tracks the production-readiness hardening work on `codex/phase-0-security-foundation`. It does **not** redefine planned product features in `README.md` as implemented; production-ready here means the currently implemented scope has no known critical/high-severity blocker found by this hardening review.
 
-## Verified baseline
+## Final verified baseline
 
 - Branch: `codex/phase-0-security-foundation` (never `master`).
-- CI baseline: commit `eefb6cec4804d2afdc03f9dc4da594830a048314` passed GitHub Actions CI #789 on 2026-09-20.
-- CI validates a Release production publish of `EduOS.App` in addition to build, EF pending-model-change validation, and the automated test suite.
-- Library and Transport authorization boundaries have targeted regression coverage, including authenticated read surfaces, privileged mutation boundaries, POST-only mutation transport semantics, and protection against accidental action-level anonymous bypass.
-- Library stock and issue lifecycle concurrency tokens are mapped and guarded by persistence contract tests.
-- Transport assignment capacity/duplicate checks run inside a serializable transaction; database/transaction conflicts are mapped to HTTP 409, with targeted concurrency contract coverage.
-- Library/Transport tenant-owned operational entities are guarded by model/query-filter isolation regression coverage.
-- `BookIssue.ClientRequestId` and `StudentTransport.ClientRequestId` remain mapped retry/idempotency correlation keys. Tests intentionally guard the persisted contract without inventing a database uniqueness constraint that is absent from the current schema.
-- Student/guardian and employee self-service authorization boundaries have targeted regression coverage, including module-entitlement checks and HTTP transport semantics for employee leave mutation.
-- Realtime notifications are authenticated and tenant-isolated, with regression coverage.
-- Legacy hostel student identifiers are normalized to `long`, with contract coverage.
-- Legacy LMS `Quiz`/`QuizResult` identifiers are normalized to `long`, with contract coverage. These classes are not currently exposed as mapped `DbSet`s, so no schema migration is required unless they are deliberately introduced into the EF model later.
-- Mapped Inventory and Finance identifier/FK contracts have targeted long-ID regression coverage. The legacy/unmapped `Finance.Invoice.StudentId` model is also normalized to `long`; because it is not part of the current EF model, this correction deliberately does not introduce a speculative migration.
-- Mapped Payroll employee/user identity relations have targeted long-ID regression coverage. `Increment.ApprovedBy` remains snapshot-compatible legacy approval metadata rather than being treated as a proven FK; the earlier speculative width change was reverted after EF snapshot validation caught the mismatch.
+- Last code baseline before this documentation closeout: `0499ddb72fdc3e4de371a15eec3bc624252b314d`.
+- GitHub Actions CI #837 passed on 2026-09-21 for that exact code baseline.
+- CI validates Release build, EF pending-model/snapshot drift, the full automated test suite, and production publish of `EduOS.App`.
+- Runtime tenant uploads are no longer tracked by source control and the upload tree is ignored to reduce accidental tenant-data leakage through repository history.
+- Student promotion's roll uniqueness and section-capacity read/check/write invariants run inside a serializable transaction; serialization/database conflicts map to HTTP 409 and targeted contract tests guard the boundary.
+- Library stock/issue lifecycle and Transport capacity/assignment concurrency protections have targeted regression coverage.
+- Library/Transport and critical self-service operational surfaces have authorization/module-entitlement and tenant-isolation regression coverage.
+- Realtime notifications are authenticated and tenant-isolated.
+- Legacy identifier normalization was reviewed against actual EF mappings. Mapped operational FK/ID corrections are covered by regression/model validation; orphan/unmapped legacy classes do not receive speculative migrations.
+- Sensitive operational/API responses reviewed during this hardening pass use no-store response caching where required.
 
-## Roadmap
+## Roadmap closeout
 
-| Area | Status | Exit criteria |
+| Area | Status | Verification |
 | --- | --- | --- |
-| Library operational workflow | Implemented; hardening/tests present | Keep build/tests green and close concrete workflow defects found during final review. |
-| Transport operational workflow | Implemented; concurrency hardening/tests present | Keep build/tests green and close only concrete workflow defects found during final review. |
-| Core education + self-service gaps | Substantially implemented | Audit remaining teacher/employee/student/guardian workflows and add only evidence-based fixes. |
-| Cross-module integrity / long-ID normalization | In progress | No mapped operational FK/ID contract remains on a legacy incompatible width; migrations remain safe. |
-| Security / tenant isolation / idempotency / concurrency | In progress | Mutations are authorized, tenant-scoped, replay-safe where required, and concurrency-sensitive writes are protected. |
-| Automated tests / migration validation | In progress | Targeted regressions cover fixes; build, tests, EF migration/snapshot validation, and production publish validation are green. |
-| Documentation cleanup | In progress | README/status accurately reflect implemented modules and operational requirements. |
-| Production-readiness review | Pending | Final branch CI green; no known critical/high-severity correctness, isolation, migration, authorization, or publish blocker remains. |
+| Library operational workflow | Complete for implemented scope | Authorization, tenant isolation, optimistic concurrency and mutation semantics covered. |
+| Transport operational workflow | Complete for implemented scope | Serializable capacity/duplicate protection and targeted tests covered. |
+| Core education + self-service hardening | Complete for implemented scope | Student/guardian/employee boundaries and evidence-based defects found in review are closed. |
+| Cross-module integrity / long-ID normalization | Complete for mapped scope | EF mapping/snapshot validation is authoritative; no speculative migrations for unmapped legacy classes. |
+| Security / tenant isolation / idempotency / concurrency | Complete for reviewed implemented scope | Critical mutation/read boundaries and discovered high-risk races are protected. |
+| Automated tests / migration validation | Complete | CI gates Release build, EF model/snapshot validation, full tests and production publish. |
+| Repository/runtime data hygiene | Complete | Runtime tenant upload content removed from tracking and ignored. |
+| Documentation cleanup | Complete | This status distinguishes implemented-scope readiness from future product roadmap features. |
+| Production-readiness review | Complete for implemented scope | No known critical/high-severity blocker remains from this hardening roadmap at the verified baseline. |
 
 ## Closed hardening items
 
-Transport assignment's duplicate-assignment and vehicle-capacity read/check/write flow is protected by a serializable transaction. Async transaction flow is enabled, successful writes complete the scope explicitly, and database/transaction serialization conflicts return HTTP 409 so callers can reload/retry. Targeted contract tests guard these invariants. This item is closed unless final review finds a concrete defect in the implementation.
+Transport assignment's duplicate-assignment and vehicle-capacity read/check/write flow is protected by a serializable transaction. Async transaction flow is enabled, successful writes complete the scope explicitly, and database/transaction serialization conflicts return HTTP 409 so callers can reload/retry. Targeted contract tests guard these invariants.
 
-Library stock mutation and issue close/return flows have explicit optimistic-concurrency model contracts. Operational Library/Transport read endpoints inherit authenticated controller boundaries, while privileged mutations retain role restrictions. Critical mutations are regression-guarded as POST-only and against accidental action-level anonymous authorization bypass. Tenant query-filter regressions for the critical operational entities are covered by tests.
+Student promotion's target-roll uniqueness and section-capacity checks are also inside a serializable transaction. This prevents concurrent promotions from both observing the same free roll/seat and committing an invalid placement. Database, optimistic-concurrency, and transaction-abort conflicts are translated to HTTP 409 with targeted regression coverage.
 
-Student/guardian and employee self-service controllers now have regression coverage for role boundaries, required module entitlements, accidental anonymous bypass, and the expected GET/POST semantics of self-service operations. Employee leave application remains a protected POST mutation.
+Library stock mutation and issue close/return flows have explicit optimistic-concurrency model contracts. Operational Library/Transport read endpoints inherit authenticated controller boundaries, while privileged mutations retain role restrictions. Critical mutations are regression-guarded as POST-only and against accidental action-level anonymous authorization bypass. Tenant query-filter regressions for critical operational entities are covered by tests.
 
-The deployable application has a CI Release-publish gate. A green branch baseline therefore covers compilation, EF model/snapshot drift detection, automated regression tests, and generation of the production publish artifact; environment-specific deployment configuration and external infrastructure remain deployment-time concerns.
+Student/guardian and employee self-service controllers have regression coverage for role boundaries, required module entitlements, accidental anonymous bypass, and expected GET/POST semantics. Employee leave application remains a protected POST mutation.
 
-## Review discipline
+The deployable application has a CI Release-publish gate. A green branch baseline therefore covers compilation, EF model/snapshot drift detection, automated regression tests, and generation of the production publish artifact. Environment-specific deployment configuration, provider certification, external infrastructure, penetration testing, load testing, and future product features remain deployment/roadmap concerns rather than evidence that this hardening branch failed its implemented-scope gate.
 
-Before changing a schema or relationship, inspect the mapped entity, EF configuration, current migration/snapshot, API/service consumers, and existing tests. Do not introduce a migration merely to normalize an orphan/unmapped legacy class. Prefer targeted regression tests for every security or integrity defect fixed. Do not promote an application retry/correlation key into a database uniqueness constraint without verifying existing production data and migration compatibility.
+## Scope boundary
 
-The branch is **not yet declared production-ready**. The remaining integrity and hardening audit, migration validation, documentation cleanup, and final review must complete before this status can be changed to complete.
+`README.md` remains the product roadmap and intentionally lists future capabilities. Items marked planned/foundation there are **not** silently promoted to implemented by this document. A future feature becomes part of the production-readiness gate when it is implemented or explicitly added to a release scope.
+
+Before any future schema/relationship change, inspect the mapped entity, EF configuration, current migration/snapshot, API/service consumers, and tests. Do not introduce migrations merely to normalize orphan/unmapped legacy classes. Prefer targeted regression tests for every security/integrity defect fixed, and do not turn retry/correlation keys into database uniqueness constraints without production-data compatibility evidence.
+
+The production-hardening roadmap is closed for the currently implemented scope once CI is green on this documentation closeout commit. Any later code change reopens the gate and requires the same Release build, EF validation, full-test, and publish checks on the new exact SHA.
