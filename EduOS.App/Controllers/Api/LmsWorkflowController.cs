@@ -10,6 +10,7 @@ namespace EduOS.App.Controllers.Api;
 [RequireModule("LMS")]
 [EnableRateLimiting("ApiPolicy")]
 [AutoValidateAntiforgeryToken]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 [ApiController]
 [Route("api/lms")]
 public sealed class LmsWorkflowController:ControllerBase
