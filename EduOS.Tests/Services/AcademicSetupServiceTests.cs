@@ -26,12 +26,15 @@ public class AcademicSetupServiceTests
 
         var program = await service.CreateProgramAsync(new CreateAcademicProgramDto { CampusId = seed.CampusId, Name = "Secondary", Code = " sec ", DurationInMonths = 60 });
         var level = await service.CreateLevelAsync(program.Data!.Id, new CreateAcademicLevelDto { Name = "Grade Nine", Code = "g9", LevelNo = 9 });
+        var trackRequest = new CreateAcademicTrackDto { AcademicProgramId = program.Data.Id, Name = "Science", Code = " sci ", IsDefault = true };
+        var track = await service.CreateTrackAsync(trackRequest);
+        var trackReplay = await service.CreateTrackAsync(trackRequest);
         var subjectRequest = new CreateAcademicSubjectDto { Name = "Mathematics", Code = " math ", DefaultFullMarks = 100, DefaultPassMarks = 33, DefaultCreditHours = 4 };
         var subject = await service.CreateSubjectAsync(subjectRequest);
         var subjectReplay = await service.CreateSubjectAsync(subjectRequest);
         var curriculum = await service.CreateCurriculumAsync(new CreateAcademicCurriculumDto { AcademicProgramId = program.Data.Id, Name = "Secondary 2026", Code = "sec-2026", EffectiveFromAcademicYearId = seed.YearId, IsCurrent = true });
-        var registration = await service.RegisterCurriculumSubjectAsync(curriculum.Data!.Id, new RegisterCurriculumSubjectDto { AcademicLevelId = level.Data!.Id, SubjectId = subject.Data!.Id, FullMarks = 100, PassMarks = 33, CreditHours = 4 });
-        var batchRequest = new CreateAcademicBatchDto { CampusId = seed.CampusId, AcademicYearId = seed.YearId, AcademicProgramId = program.Data.Id, AcademicLevelId = level.Data.Id, Name = "Grade Nine A", Code = "g9-a", Capacity = 40, StartDate = new DateTime(2026, 1, 10), EndDate = new DateTime(2026, 12, 10) };
+        var registration = await service.RegisterCurriculumSubjectAsync(curriculum.Data!.Id, new RegisterCurriculumSubjectDto { AcademicLevelId = level.Data!.Id, SubjectId = subject.Data!.Id, AcademicTrackId = track.Data!.Id, FullMarks = 100, PassMarks = 33, CreditHours = 4 });
+        var batchRequest = new CreateAcademicBatchDto { CampusId = seed.CampusId, AcademicYearId = seed.YearId, AcademicProgramId = program.Data.Id, AcademicLevelId = level.Data.Id, AcademicTrackId = track.Data.Id, Name = "Grade Nine A", Code = "g9-a", Capacity = 40, StartDate = new DateTime(2026, 1, 10), EndDate = new DateTime(2026, 12, 10) };
         var batch = await service.CreateBatchAsync(batchRequest);
         var batchReplay = await service.CreateBatchAsync(batchRequest);
         var room = await service.CreateRoomAsync(new CreateAcademicRoomDto { CampusId = seed.CampusId, Name = "Room 101", Code = "r101", Capacity = 45 });
@@ -42,6 +45,8 @@ public class AcademicSetupServiceTests
         subject.Data!.Code.Should().Be("MATH");
         subjectReplay.Success.Should().BeTrue();
         subjectReplay.Data!.Id.Should().Be(subject.Data.Id);
+        track.StatusCode.Should().Be(201);
+        trackReplay.Data!.Id.Should().Be(track.Data.Id);
         registration.StatusCode.Should().Be(201);
         batch.StatusCode.Should().Be(201);
         batchReplay.Data!.Id.Should().Be(batch.Data!.Id);
@@ -49,11 +54,38 @@ public class AcademicSetupServiceTests
         catalog.Success.Should().BeTrue();
         catalog.Data!.Programs.Should().ContainSingle();
         catalog.Data.Levels.Should().ContainSingle();
+        catalog.Data.Tracks.Should().ContainSingle();
         catalog.Data.Subjects.Should().ContainSingle();
         catalog.Data.CurriculumSubjects.Should().ContainSingle();
         catalog.Data.Batches.Should().ContainSingle();
         (await context.Subjects.SingleAsync()).ClassId.Should().BeNull();
         (await context.ProgramCampuses.CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Track_rejects_foreign_programme_and_second_default_in_same_scope()
+    {
+        var options = CreateOptions();
+        var own = await SeedReferenceDataAsync(options, 101);
+        var foreign = await SeedReferenceDataAsync(options, 202);
+        long foreignProgramId;
+        await using (var foreignContext = CreateContext(options, 202, 8, "TenantAdmin"))
+        {
+            var foreignService = CreateService(foreignContext, new TestCurrentUser(202, 8, "TenantAdmin"));
+            foreignProgramId = (await foreignService.CreateProgramAsync(new CreateAcademicProgramDto { CampusId = foreign.CampusId, Name = "Foreign Programme", Code = "FOREIGN", DurationInMonths = 12 })).Data!.Id;
+        }
+        await using var context = CreateContext(options, 101, 7, "TenantAdmin");
+        var service = CreateService(context, new TestCurrentUser(101, 7, "TenantAdmin"));
+        var program = (await service.CreateProgramAsync(new CreateAcademicProgramDto { CampusId = own.CampusId, Name = "Secondary", Code = "SEC", DurationInMonths = 60 })).Data!;
+
+        var first = await service.CreateTrackAsync(new CreateAcademicTrackDto { AcademicProgramId = program.Id, Name = "Science", Code = "SCI", IsDefault = true });
+        var duplicateDefault = await service.CreateTrackAsync(new CreateAcademicTrackDto { AcademicProgramId = program.Id, Name = "Business", Code = "BUS", IsDefault = true });
+        var foreignProgramme = await service.CreateTrackAsync(new CreateAcademicTrackDto { AcademicProgramId = foreignProgramId, Name = "Foreign", Code = "FOR" });
+
+        first.Success.Should().BeTrue();
+        duplicateDefault.StatusCode.Should().Be(409);
+        foreignProgramme.StatusCode.Should().Be(404);
+        (await context.AcademicTracks.CountAsync()).Should().Be(1);
     }
 
     [Fact]

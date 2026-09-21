@@ -28,6 +28,21 @@ public sealed class AcademicLevelConfiguration : IEntityTypeConfiguration<Academ
     }
 }
 
+public sealed class AcademicTrackConfiguration : IEntityTypeConfiguration<AcademicTrack>
+{
+    public void Configure(EntityTypeBuilder<AcademicTrack> builder)
+    {
+        builder.HasIndex(x => x.TenantId);
+        builder.HasIndex(x => new { x.TenantId, x.Code })
+            .IsUnique().HasDatabaseName("UX_AcademicTracks_Tenant_Code")
+            .HasFilter("[IsDeleted] = 0");
+        builder.HasIndex(x => new { x.TenantId, x.AcademicProgramId })
+            .IsUnique().HasDatabaseName("UX_AcademicTracks_Tenant_DefaultScope")
+            .HasFilter("[IsDeleted] = 0 AND [IsActive] = 1 AND [IsDefault] = 1");
+        builder.HasOne(x => x.AcademicProgram).WithMany().HasForeignKey(x => x.AcademicProgramId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
 public sealed class CanonicalSubjectConfiguration : IEntityTypeConfiguration<Subject>
 {
     public void Configure(EntityTypeBuilder<Subject> builder)

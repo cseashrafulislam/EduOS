@@ -650,6 +650,16 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId");
 
+                    b.HasIndex("TenantId", "AcademicProgramId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AcademicTracks_Tenant_DefaultScope")
+                        .HasFilter("[IsDeleted] = 0 AND [IsActive] = 1 AND [IsDefault] = 1");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AcademicTracks_Tenant_Code")
+                        .HasFilter("[IsDeleted] = 0");
+
                     b.ToTable("AcademicTracks");
                 });
 

@@ -35,6 +35,11 @@ public sealed class AcademicSetupController : ControllerBase
     public async Task<IActionResult> CreateLevel(long academicProgramId, [FromBody] CreateAcademicLevelDto request, CancellationToken cancellationToken) =>
         ToAction(await _service.CreateLevelAsync(academicProgramId, request, cancellationToken));
 
+    [HttpPost("tracks")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
+    public async Task<IActionResult> CreateTrack([FromBody] CreateAcademicTrackDto request, CancellationToken cancellationToken) =>
+        ToAction(await _service.CreateTrackAsync(request, cancellationToken));
+
     [HttpPost("subjects")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
     public async Task<IActionResult> CreateSubject([FromBody] CreateAcademicSubjectDto request, CancellationToken cancellationToken) =>

@@ -28,6 +28,7 @@ public class AcademicSetupWorkflowContractTests
         source.Should().Contain("Programme already exists.");
         source.Should().Contain("Subject already exists.");
         source.Should().Contain("Academic batch already exists.");
+        source.Should().Contain("Academic track already exists.");
         source.Should().Contain("catch (DbUpdateException ex)");
         source.Should().Contain("Reload and try again.\", 409");
     }

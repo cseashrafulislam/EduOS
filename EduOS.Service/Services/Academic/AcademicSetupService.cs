@@ -90,6 +90,11 @@ public sealed class AcademicSetupService : IAcademicSetupService
             .OrderBy(x => x.AcademicProgramId).ThenBy(x => x.LevelNo).ThenBy(x => x.DisplayOrder)
             .ToListAsync(cancellationToken);
         var levels = levelRows.Select(MapLevel).ToList();
+        var trackRows = await _tracks.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenantId && x.IsActive)
+            .OrderBy(x => x.AcademicProgramId).ThenByDescending(x => x.IsDefault).ThenBy(x => x.DisplayOrder).ThenBy(x => x.Name)
+            .ToListAsync(cancellationToken);
+        var tracks = trackRows.Select(MapTrack).ToList();
         var subjectRows = await _subjects.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == tenantId && x.ClassId == null && x.IsActive)
             .OrderBy(x => x.DisplayOrder).ThenBy(x => x.Name)
@@ -121,11 +126,54 @@ public sealed class AcademicSetupService : IAcademicSetupService
         {
             Programs = programs,
             Levels = levels,
+            Tracks = tracks,
             Subjects = subjects,
             Curricula = curricula,
             CurriculumSubjects = curriculumSubjects,
             Batches = batches,
             Rooms = rooms
+        });
+    }
+
+    public Task<ApiResponse<AcademicTrackDto>> CreateTrackAsync(CreateAcademicTrackDto request, CancellationToken cancellationToken = default)
+    {
+        if (!CanManage()) return Task.FromResult(Denied<AcademicTrackDto>());
+        if (request == null || string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Code) || request.DisplayOrder <= 0 || request.DisplayOrder > 10000 || (request.AcademicProgramId.HasValue && request.AcademicProgramId.Value <= 0))
+            return Task.FromResult(Error<AcademicTrackDto>("Track name, code, display order and optional programme are invalid."));
+        return ExecuteWriteAsync("create academic track", async () =>
+        {
+            var tenantId = _currentUser.TenantId;
+            AcademicProgram? program = null;
+            if (request.AcademicProgramId.HasValue)
+            {
+                program = await _programs.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.AcademicProgramId.Value && x.IsActive, cancellationToken);
+                if (program == null) return Error<AcademicTrackDto>("Programme not found.", 404);
+            }
+            var name = request.Name.Trim();
+            var code = NormalizeCode(request.Code);
+            var existing = await _tracks.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Code == code, cancellationToken);
+            if (existing != null)
+            {
+                if (existing.Name != name || existing.AcademicProgramId != request.AcademicProgramId || existing.IsDefault != request.IsDefault || existing.DisplayOrder != request.DisplayOrder)
+                    return Error<AcademicTrackDto>("Track code is already in use with different settings.", 409);
+                return ApiResponse<AcademicTrackDto>.SuccessResponse(MapTrack(existing), "Academic track already exists.");
+            }
+            if (request.IsDefault && await _tracks.GetQueryable().AnyAsync(x => x.TenantId == tenantId && x.AcademicProgramId == request.AcademicProgramId && x.IsDefault && x.IsActive, cancellationToken))
+                return Error<AcademicTrackDto>("A default track already exists for this programme scope.", 409);
+            var row = new AcademicTrack
+            {
+                TenantId = tenantId,
+                AcademicProgramId = program?.Id,
+                Name = name,
+                Code = code,
+                Description = Trim(request.Description),
+                IsDefault = request.IsDefault,
+                DisplayOrder = request.DisplayOrder,
+                IsActive = true
+            };
+            await _tracks.AddAsync(row);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            return Created(MapTrack(row), "Academic track created.");
         });
     }
 
@@ -481,6 +529,7 @@ public sealed class AcademicSetupService : IAcademicSetupService
 
     private static AcademicProgramDto MapProgram(AcademicProgram x) => new() { Id = x.Id, CampusId = x.CampusId, DepartmentId = x.DepartmentId, Name = x.Name, Code = x.Code, ShortName = x.ShortName, DurationInMonths = x.DurationInMonths, AwardTitle = x.AwardTitle, IsAdmissionOpen = x.IsAdmissionOpen, IsActive = x.IsActive };
     private static AcademicLevelDto MapLevel(AcademicLevel x) => new() { Id = x.Id, AcademicProgramId = x.AcademicProgramId, Name = x.Name, Code = x.Code, LevelNo = x.LevelNo, IsPromotable = x.IsPromotable, IsTerminalLevel = x.IsTerminalLevel, IsActive = x.IsActive };
+    private static AcademicTrackDto MapTrack(AcademicTrack x) => new() { Id = x.Id, AcademicProgramId = x.AcademicProgramId, Name = x.Name, Code = x.Code, Description = x.Description, IsDefault = x.IsDefault, DisplayOrder = x.DisplayOrder, IsActive = x.IsActive };
     private static AcademicSubjectDto MapSubject(Subject x) => new() { Id = x.Id, Name = x.Name, Code = x.Code, ShortName = x.ShortName, SubjectType = x.SubjectType, DefaultCreditHours = x.DefaultCreditHours, DefaultFullMarks = x.DefaultFullMarks, DefaultPassMarks = x.DefaultPassMarks, HasPractical = x.HasPractical, IsActive = x.IsActive };
     private static AcademicCurriculumDto MapCurriculum(AcademicCurriculum x) => new() { Id = x.Id, AcademicProgramId = x.AcademicProgramId, Name = x.Name, Code = x.Code, EffectiveFromAcademicYearId = x.EffectiveFromAcademicYearId, EffectiveToAcademicYearId = x.EffectiveToAcademicYearId, IsCurrent = x.IsCurrent, IsActive = x.IsActive };
     private static CurriculumSubjectDto MapCurriculumSubject(CurriculumSubject x) => new() { Id = x.Id, AcademicCurriculumId = x.AcademicCurriculumId, AcademicLevelId = x.AcademicLevelId, SubjectId = x.SubjectId, AcademicTrackId = x.AcademicTrackId, MediumId = x.MediumId, FullMarks = x.FullMarks, PassMarks = x.PassMarks, CreditHours = x.CreditHours, IsOptional = x.IsOptional, HasPractical = x.HasPractical, IsActive = x.IsActive };

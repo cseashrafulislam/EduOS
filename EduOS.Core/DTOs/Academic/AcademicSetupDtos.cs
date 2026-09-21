@@ -7,11 +7,34 @@ public sealed class AcademicSetupCatalogDto
 {
     public IReadOnlyList<AcademicProgramDto> Programs { get; set; } = [];
     public IReadOnlyList<AcademicLevelDto> Levels { get; set; } = [];
+    public IReadOnlyList<AcademicTrackDto> Tracks { get; set; } = [];
     public IReadOnlyList<AcademicSubjectDto> Subjects { get; set; } = [];
     public IReadOnlyList<AcademicCurriculumDto> Curricula { get; set; } = [];
     public IReadOnlyList<CurriculumSubjectDto> CurriculumSubjects { get; set; } = [];
     public IReadOnlyList<AcademicBatchDto> Batches { get; set; } = [];
     public IReadOnlyList<AcademicRoomDto> Rooms { get; set; } = [];
+}
+
+public sealed class AcademicTrackDto
+{
+    public long Id { get; set; }
+    public long? AcademicProgramId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public bool IsDefault { get; set; }
+    public int DisplayOrder { get; set; }
+    public bool IsActive { get; set; }
+}
+
+public sealed class CreateAcademicTrackDto
+{
+    public long? AcademicProgramId { get; set; }
+    [Required, StringLength(150)] public string Name { get; set; } = string.Empty;
+    [Required, StringLength(50)] public string Code { get; set; } = string.Empty;
+    [StringLength(500)] public string? Description { get; set; }
+    public bool IsDefault { get; set; }
+    [Range(1, 10000)] public int DisplayOrder { get; set; } = 1;
 }
 
 public sealed class AcademicProgramDto
