@@ -25,6 +25,7 @@ public sealed class SelfServicePortalAuthorizationContractTests
     [InlineData(nameof(SelfServicePortalController.Transport), "TRANSPORT")]
     [InlineData(nameof(SelfServicePortalController.Homework), "LMS")]
     [InlineData(nameof(SelfServicePortalController.Assignments), "LMS")]
+    [InlineData(nameof(SelfServicePortalController.Timetable), "ACADEMIC")]
     public void StudentDataEndpoints_RequireExpectedModule(string action, string module)
     {
         var method = typeof(SelfServicePortalController).GetMethod(action);

@@ -11,6 +11,18 @@ public sealed class PortalStudentDto
     public long SectionId { get; set; }
 }
 
+public sealed class PortalTimetableEntryDto
+{
+    public long RoutineId { get; set; }
+    public string DayOfWeek { get; set; } = string.Empty;
+    public TimeSpan StartTime { get; set; }
+    public TimeSpan EndTime { get; set; }
+    public long SubjectId { get; set; }
+    public string SubjectName { get; set; } = string.Empty;
+    public string TeacherName { get; set; } = string.Empty;
+    public string? RoomNo { get; set; }
+}
+
 public sealed class PortalAttendanceDto
 {
     public DateTime Date { get; set; }

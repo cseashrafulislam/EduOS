@@ -20,6 +20,33 @@ namespace EduOS.Tests.Services;
 public class SelfServicePortalServiceTests
 {
     [Fact]
+    public async Task Timetable_uses_latest_active_enrollment_and_orders_bangladesh_school_week()
+    {
+        await using var context = CreateContext(out var accessor); SetTenant(accessor, 10); var own = Student(10, 99, "OWN"); context.Students.Add(own); await context.SaveChangesAsync();
+        context.Enrollments.AddRange(StudentEnrollment(10, own.Id, 1, 1, 1, false, DateTime.UtcNow.AddYears(-1)), StudentEnrollment(10, own.Id, 2, 2, 3, true, DateTime.UtcNow));
+        context.Subjects.AddRange(new Subject { Id = 11, TenantId = 10, ClassId = 2, Name = "Bangla", Code = "BAN" }, new Subject { Id = 12, TenantId = 10, ClassId = 2, Name = "Math", Code = "MATH" });
+        context.Set<EduOS.Core.Entities.Employees.Employee>().Add(new EduOS.Core.Entities.Employees.Employee { Id = 21, TenantId = 10, EmployeeCode = "T-1", FullName = "Teacher One", Phone = "01700000000", DesignationId = 1, JoiningDate = DateTime.UtcNow.Date, Salary = 1, IsActive = true, IsTeacher = true });
+        await context.SaveChangesAsync();
+        context.ClassRoutines.AddRange(Routine(10, 2, 2, 3, 11, 21, "Sunday", new TimeSpan(9, 0, 0)), Routine(10, 2, 2, 3, 12, 21, "Saturday", new TimeSpan(10, 0, 0)), Routine(10, 1, 1, 1, 11, 21, "Saturday", new TimeSpan(8, 0, 0)));
+        await context.SaveChangesAsync();
+
+        var result = await CreateService(context, new TestCurrentUser(10, 99, "Student")).GetTimetableAsync(own.PublicId);
+
+        result.Success.Should().BeTrue(); result.Data.Should().HaveCount(2); result.Data!.Select(x => x.DayOfWeek).Should().ContainInOrder("Saturday", "Sunday"); result.Data[0].SubjectName.Should().Be("Math"); result.Data[0].TeacherName.Should().Be("Teacher One");
+    }
+
+    [Fact]
+    public async Task Timetable_allows_linked_guardian_and_rejects_unlinked_or_cross_tenant_students()
+    {
+        await using var context = CreateContext(out var accessor); var linked = Student(10, null, "CHILD"); var unlinked = Student(10, null, "OTHER"); var foreign = Student(20, 99, "FOREIGN"); context.Students.AddRange(linked, unlinked, foreign); await context.SaveChangesAsync();
+        context.Guardians.Add(new Guardian { TenantId = 10, StudentId = linked.Id, UserId = 99, Name = "Guardian", Relation = "Father", Phone = "01700000000" }); await context.SaveChangesAsync(); SetTenant(accessor, 10); var service = CreateService(context, new TestCurrentUser(10, 99, "Guardian"));
+
+        (await service.GetTimetableAsync(linked.PublicId)).Success.Should().BeTrue();
+        (await service.GetTimetableAsync(unlinked.PublicId)).StatusCode.Should().Be(403);
+        (await service.GetTimetableAsync(foreign.PublicId)).StatusCode.Should().Be(403);
+    }
+
+    [Fact]
     public async Task Transport_returns_only_assignment_for_directly_linked_student_in_current_tenant()
     {
         await using var context = CreateContext(out var accessor);
@@ -90,7 +117,7 @@ public class SelfServicePortalServiceTests
     private static EduOSDbContext CreateContext(out HttpContextAccessor accessor) { accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() }; return new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>().UseInMemoryDatabase($"self-service-{Guid.NewGuid():N}").Options, accessor); }
     private static void SetTenant(HttpContextAccessor accessor, long tenantId) => accessor.HttpContext!.Items["TenantId"] = tenantId;
     private static SelfServicePortalService CreateService(EduOSDbContext context, ICurrentUserService currentUser) => new(
-        new GenericRepository<Student>(context), new GenericRepository<Guardian>(context), new GenericRepository<StudentAttendance>(context), new GenericRepository<ExamResult>(context), new GenericRepository<StudentInvoice>(context), new GenericRepository<Payment>(context),
+        new GenericRepository<Student>(context), new GenericRepository<Guardian>(context), new GenericRepository<EduOS.Core.Entities.Students.Enrollment>(context), new GenericRepository<ClassRoutine>(context), new GenericRepository<StudentAttendance>(context), new GenericRepository<ExamResult>(context), new GenericRepository<StudentInvoice>(context), new GenericRepository<Payment>(context),
         new GenericRepository<StudentTransport>(context), new GenericRepository<Homework>(context), new GenericRepository<EduOS.Core.Entities.LMS.Assignment>(context), new GenericRepository<CourseEnrollment>(context), currentUser, NullLogger<SelfServicePortalService>.Instance);
     private static Student Student(long tenantId, long? userId, string code) => new() { TenantId = tenantId, UserId = userId, StudentCode = code, Roll = code, FullName = code, FatherName = "Father", MotherName = "Mother", DOB = DateTime.UtcNow.Date.AddYears(-10), Gender = "Male", ClassId = 1, SectionId = 1, AcademicYearId = 1, AdmissionDate = DateTime.UtcNow.Date, IsActive = true };
     private static StudentTransport TransportAssignment(long tenantId, long studentId, long vehicleId, long routeId, string pickup) => new() { TenantId = tenantId, ClientRequestId = Guid.NewGuid(), StudentId = studentId, VehicleId = vehicleId, RouteId = routeId, PickupPoint = pickup, StartDate = DateTime.UtcNow.Date, MonthlyFare = 500, IsActive = true };
@@ -98,6 +125,8 @@ public class SelfServicePortalServiceTests
     private static Course Course(long tenantId, string title) => new() { TenantId = tenantId, AcademicYearId = 1, ClassId = 1, SectionId = 1, SubjectId = 1, TeacherId = 1, Title = title, IsActive = true };
     private static CourseEnrollment Enrollment(long tenantId, long courseId, long studentId, bool active) => new() { TenantId = tenantId, CourseId = courseId, StudentId = studentId, EnrollDate = DateTime.UtcNow.Date, IsActive = active };
     private static EduOS.Core.Entities.LMS.Assignment LmsAssignment(long tenantId, long courseId, string title, bool active) => new() { TenantId = tenantId, CourseId = courseId, Title = title, TotalMark = 100, DueDate = DateTime.UtcNow.AddDays(2), IsActive = active };
+    private static EduOS.Core.Entities.Students.Enrollment StudentEnrollment(long tenantId, long studentId, long academicYearId, long classId, long sectionId, bool active, DateTime date) => new() { TenantId = tenantId, StudentId = studentId, AcademicYearId = academicYearId, ClassId = classId, SectionId = sectionId, Roll = "1", IsActive = active, EnrollmentDate = date };
+    private static ClassRoutine Routine(long tenantId, long academicYearId, long classId, long sectionId, long subjectId, long teacherId, string day, TimeSpan start) => new() { TenantId = tenantId, AcademicYearId = academicYearId, ClassId = classId, SectionId = sectionId, SubjectId = subjectId, TeacherId = teacherId, DayOfWeek = day, StartTime = start, EndTime = start.Add(TimeSpan.FromMinutes(45)), RoomNo = "R-1" };
 
     private sealed class TestCurrentUser(long tenantId, long userId, string role) : ICurrentUserService
     {

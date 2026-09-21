@@ -19,6 +19,10 @@ public sealed class SelfServicePortalController : ControllerBase
     [HttpGet("students")]
     public async Task<IActionResult> Students(CancellationToken cancellationToken) { var result = await _service.GetLinkedStudentsAsync(cancellationToken); return StatusCode(result.StatusCode, result); }
 
+    [HttpGet("students/{reference:guid}/timetable")]
+    [RequireModule("ACADEMIC")]
+    public async Task<IActionResult> Timetable(Guid reference, CancellationToken cancellationToken) { var result = await _service.GetTimetableAsync(reference, cancellationToken); return StatusCode(result.StatusCode, result); }
+
     [HttpGet("students/{reference:guid}/attendance")]
     [RequireModule("ATTENDANCE")]
     public async Task<IActionResult> Attendance(Guid reference, [FromQuery] DateTime fromDate, [FromQuery] DateTime toDate, CancellationToken cancellationToken) { var result = await _service.GetAttendanceAsync(reference, fromDate, toDate, cancellationToken); return StatusCode(result.StatusCode, result); }

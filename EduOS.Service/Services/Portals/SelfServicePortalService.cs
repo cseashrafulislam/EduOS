@@ -1,5 +1,6 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Portals;
+using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Attendance;
 using EduOS.Core.Entities.Exams;
 using EduOS.Core.Entities.Finance;
@@ -18,6 +19,8 @@ public sealed class SelfServicePortalService : ISelfServicePortalService
 {
     private readonly IGenericRepository<Student> _students;
     private readonly IGenericRepository<Guardian> _guardians;
+    private readonly IGenericRepository<Enrollment> _studentEnrollments;
+    private readonly IGenericRepository<ClassRoutine> _classRoutines;
     private readonly IGenericRepository<StudentAttendance> _attendance;
     private readonly IGenericRepository<ExamResult> _results;
     private readonly IGenericRepository<StudentInvoice> _invoices;
@@ -30,15 +33,51 @@ public sealed class SelfServicePortalService : ISelfServicePortalService
     private readonly ILogger<SelfServicePortalService> _logger;
 
     public SelfServicePortalService(IGenericRepository<Student> students, IGenericRepository<Guardian> guardians,
+        IGenericRepository<Enrollment> studentEnrollments, IGenericRepository<ClassRoutine> classRoutines,
         IGenericRepository<StudentAttendance> attendance, IGenericRepository<ExamResult> results,
         IGenericRepository<StudentInvoice> invoices, IGenericRepository<Payment> payments,
         IGenericRepository<StudentTransport> transport, IGenericRepository<Homework> homework,
         IGenericRepository<Assignment> assignments, IGenericRepository<CourseEnrollment> enrollments,
         ICurrentUserService currentUser, ILogger<SelfServicePortalService> logger)
     {
-        _students = students; _guardians = guardians; _attendance = attendance; _results = results;
+        _students = students; _guardians = guardians; _studentEnrollments = studentEnrollments; _classRoutines = classRoutines; _attendance = attendance; _results = results;
         _invoices = invoices; _payments = payments; _transport = transport; _homework = homework;
         _assignments = assignments; _enrollments = enrollments; _currentUser = currentUser; _logger = logger;
+    }
+
+    public async Task<ApiResponse<IReadOnlyList<PortalTimetableEntryDto>>> GetTimetableAsync(Guid studentReference, CancellationToken cancellationToken = default)
+    {
+        var student = await GetAuthorizedStudentAsync(studentReference, cancellationToken);
+        if (student == null) return Denied<IReadOnlyList<PortalTimetableEntryDto>>();
+
+        var placement = await _studentEnrollments.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == _currentUser.TenantId && x.StudentId == student.Id && x.IsActive)
+            .OrderByDescending(x => x.EnrollmentDate).ThenByDescending(x => x.Id)
+            .Select(x => new { x.AcademicYearId, x.ClassId, x.SectionId })
+            .FirstOrDefaultAsync(cancellationToken);
+        var academicYearId = placement?.AcademicYearId ?? student.AcademicYearId;
+        var classId = placement?.ClassId ?? student.ClassId;
+        var sectionId = placement?.SectionId ?? student.SectionId;
+
+        var rows = await _classRoutines.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == _currentUser.TenantId && x.AcademicYearId == academicYearId && x.ClassId == classId && x.SectionId == sectionId)
+            .Select(x => new PortalTimetableEntryDto
+            {
+                RoutineId = x.Id,
+                DayOfWeek = x.DayOfWeek,
+                StartTime = x.StartTime,
+                EndTime = x.EndTime,
+                SubjectId = x.SubjectId,
+                SubjectName = x.Subject != null ? x.Subject.Name : string.Empty,
+                TeacherName = x.Teacher != null ? x.Teacher.FullName : string.Empty,
+                RoomNo = x.RoomNo
+            })
+            .ToListAsync(cancellationToken);
+
+        IReadOnlyList<PortalTimetableEntryDto> ordered = rows
+            .OrderBy(x => DayOrder(x.DayOfWeek)).ThenBy(x => x.StartTime).ThenBy(x => x.RoutineId)
+            .ToList();
+        return ApiResponse<IReadOnlyList<PortalTimetableEntryDto>>.SuccessResponse(ordered);
     }
 
     public async Task<ApiResponse<IReadOnlyList<PortalStudentDto>>> GetLinkedStudentsAsync(CancellationToken cancellationToken = default)
@@ -155,5 +194,16 @@ public sealed class SelfServicePortalService : ISelfServicePortalService
     }
 
     private bool CanUsePortal() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0 && (_currentUser.IsInRole("Student") || _currentUser.IsInRole("Guardian") || _currentUser.IsInRole("Parent"));
+    private static int DayOrder(string? day) => day?.Trim().ToLowerInvariant() switch
+    {
+        "saturday" => 0,
+        "sunday" => 1,
+        "monday" => 2,
+        "tuesday" => 3,
+        "wednesday" => 4,
+        "thursday" => 5,
+        "friday" => 6,
+        _ => 7
+    };
     private static ApiResponse<T> Denied<T>() => ApiResponse<T>.ErrorResponse("The requested student is not linked to this account.", 403);
 }
