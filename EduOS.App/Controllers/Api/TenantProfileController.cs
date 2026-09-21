@@ -10,6 +10,7 @@ namespace EduOS.App.Controllers.Api
     [Authorize(Roles = "TenantAdmin,SuperAdmin")]
     [AutoValidateAntiforgeryToken]
     [EnableRateLimiting("ApiPolicy")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     [ApiController]
     [Route("api/tenant-profile")]
     public class TenantProfileController : ControllerBase
@@ -21,9 +22,6 @@ namespace EduOS.App.Controllers.Api
             _profileService = profileService;
         }
 
-        // ============================================================
-        // PROFILE
-        // ============================================================
         [HttpGet]
         public async Task<IActionResult> Get()
         {
@@ -39,9 +37,6 @@ namespace EduOS.App.Controllers.Api
             return StatusCode(result.StatusCode, result);
         }
 
-        // ============================================================
-        // BRANDING
-        // ============================================================
         [HttpPut("branding")]
         [Authorize(Roles = "TenantAdmin,SuperAdmin")]
         public async Task<IActionResult> UpdateBranding([FromBody] UpdateBrandingDto dto)
@@ -84,9 +79,6 @@ namespace EduOS.App.Controllers.Api
             return StatusCode(result.StatusCode, result);
         }
 
-        // ============================================================
-        // SUBDOMAIN
-        // ============================================================
         [HttpGet("subdomain/check")]
         public async Task<IActionResult> CheckSubdomain([FromQuery] string subdomain)
         {
@@ -102,9 +94,6 @@ namespace EduOS.App.Controllers.Api
             return StatusCode(result.StatusCode, result);
         }
 
-        // ============================================================
-        // GENERAL SETTINGS
-        // ============================================================
         [HttpPut("general-settings")]
         [Authorize(Roles = "TenantAdmin,SuperAdmin")]
         public async Task<IActionResult> UpdateGeneralSettings([FromBody] UpdateGeneralSettingsDto dto)

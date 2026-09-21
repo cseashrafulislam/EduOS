@@ -23,6 +23,23 @@ public sealed class OperationalModuleAuthorizationContractTests
         Assert.NotEmpty(controllerType.GetCustomAttributes(typeof(AutoValidateAntiforgeryTokenAttribute), true));
     }
 
+    [Fact]
+    public void Student_exit_keeps_student_module_and_mutation_protection_boundary()
+    {
+        var controllerType = typeof(StudentExitController);
+        Assert.NotEmpty(controllerType.GetCustomAttributes(typeof(AuthorizeAttribute), true));
+        var module = Assert.Single(controllerType.GetCustomAttributes(typeof(RequireModuleAttribute), true).Cast<RequireModuleAttribute>());
+        Assert.Equal(RequireModuleAttribute.PolicyPrefix + "STUDENT", module.Policy);
+        Assert.NotEmpty(controllerType.GetCustomAttributes(typeof(AutoValidateAntiforgeryTokenAttribute), true));
+
+        var process = controllerType.GetMethod(nameof(StudentExitController.Process))!;
+        var post = Assert.Single(process.GetCustomAttributes(typeof(HttpPostAttribute), true).Cast<HttpPostAttribute>());
+        var limiter = Assert.Single(process.GetCustomAttributes(typeof(EnableRateLimitingAttribute), true).Cast<EnableRateLimitingAttribute>());
+        Assert.Null(post.Template);
+        Assert.Equal("ApiPolicy", limiter.PolicyName);
+        Assert.Empty(process.GetCustomAttributes(typeof(AllowAnonymousAttribute), true));
+    }
+
     [Theory]
     [InlineData(typeof(LibraryController), nameof(LibraryController.Issue), "TenantAdmin,Principal,Librarian")]
     [InlineData(typeof(LibraryController), nameof(LibraryController.Close), "TenantAdmin,Principal,Librarian")]

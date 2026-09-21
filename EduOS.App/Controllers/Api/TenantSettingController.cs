@@ -9,6 +9,7 @@ namespace EduOS.App.Controllers.Api
     [Authorize(Roles = "TenantAdmin,SuperAdmin")]
     [AutoValidateAntiforgeryToken]
     [EnableRateLimiting("ApiPolicy")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     [ApiController]
     [Route("api/tenant-settings")]
     public class TenantSettingController : ControllerBase
@@ -20,9 +21,6 @@ namespace EduOS.App.Controllers.Api
             _settingService = settingService;
         }
 
-        // ============================================================
-        // SMS GATEWAY
-        // ============================================================
         [HttpGet("sms-gateway")]
         public async Task<IActionResult> GetSmsGateway()
         {
@@ -37,9 +35,6 @@ namespace EduOS.App.Controllers.Api
             return StatusCode(result.StatusCode, result);
         }
 
-        // ============================================================
-        // EMAIL GATEWAY
-        // ============================================================
         [HttpGet("email-gateway")]
         public async Task<IActionResult> GetEmailGateway()
         {
@@ -54,9 +49,6 @@ namespace EduOS.App.Controllers.Api
             return StatusCode(result.StatusCode, result);
         }
 
-        // ============================================================
-        // GENERIC KEY-VALUE
-        // ============================================================
         [HttpGet("category/{category}")]
         public async Task<IActionResult> GetByCategory(string category)
         {

@@ -9,6 +9,7 @@ namespace EduOS.App.Controllers.Api;
 [Authorize(Roles = "TenantAdmin,AdmissionOfficer")]
 [AutoValidateAntiforgeryToken]
 [EnableRateLimiting("LearnerIdentityPolicy")]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 [ApiController]
 [Route("api/learner-identities")]
 public class LearnerIdentityController : ControllerBase

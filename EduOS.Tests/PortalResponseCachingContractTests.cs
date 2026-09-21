@@ -10,7 +10,13 @@ public sealed class PortalResponseCachingContractTests
     [Theory]
     [InlineData(typeof(SelfServicePortalController))]
     [InlineData(typeof(EmployeeSelfServiceController))]
-    public void Sensitive_self_service_controllers_disable_client_and_proxy_caching(Type controllerType)
+    [InlineData(typeof(StudentExitController))]
+    [InlineData(typeof(LearnerIdentityController))]
+    [InlineData(typeof(LearnerConsentsController))]
+    [InlineData(typeof(AuditLogController))]
+    [InlineData(typeof(TenantSettingController))]
+    [InlineData(typeof(TenantProfileController))]
+    public void Sensitive_controllers_disable_client_and_proxy_caching(Type controllerType)
     {
         var attribute = controllerType.GetCustomAttributes(typeof(ResponseCacheAttribute), true)
             .Cast<ResponseCacheAttribute>()

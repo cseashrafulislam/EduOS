@@ -9,6 +9,7 @@ namespace EduOS.App.Controllers.Api;
 [Authorize(Roles = "Student,Parent")]
 [AutoValidateAntiforgeryToken]
 [EnableRateLimiting("LearnerIdentityPolicy")]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 [ApiController]
 [Route("api/learner-consents")]
 public sealed class LearnerConsentsController : ControllerBase

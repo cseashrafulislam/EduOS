@@ -8,6 +8,7 @@ namespace EduOS.App.Controllers.Api
 {
     [Authorize(Roles = "TenantAdmin,Principal")]
     [EnableRateLimiting("ApiPolicy")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     [ApiController]
     [Route("api/v1/[controller]")]
     [Produces("application/json")]
