@@ -11,6 +11,7 @@ namespace EduOS.App.Controllers.Api;
 [RequireModule("HR")]
 [AutoValidateAntiforgeryToken]
 [EnableRateLimiting("ApiPolicy")]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 [ApiController]
 [Route("api/employee-portal")]
 public sealed class EmployeeSelfServiceController : ControllerBase
