@@ -8,6 +8,7 @@ namespace EduOS.App.Controllers.Api;
 
 [Authorize(Roles = "Student,Guardian,Parent")]
 [EnableRateLimiting("ApiPolicy")]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 [ApiController]
 [Route("api/portal")]
 public sealed class SelfServicePortalController : ControllerBase
