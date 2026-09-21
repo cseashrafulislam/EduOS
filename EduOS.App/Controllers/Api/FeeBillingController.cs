@@ -13,6 +13,7 @@ namespace EduOS.App.Controllers.Api;
 [RequireModule("FINANCE")]
 [AutoValidateAntiforgeryToken]
 [EnableRateLimiting("ApiPolicy")]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 [ApiController]
 [Route("api/finance/fees")]
 public sealed class FeeBillingController : ControllerBase
