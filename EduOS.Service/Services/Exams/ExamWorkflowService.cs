@@ -1,6 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Exams;
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Employees;
 using EduOS.Core.Entities.Exams;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Interfaces;
@@ -20,6 +21,8 @@ public sealed class ExamWorkflowService : IExamWorkflowService
     private readonly IGenericRepository<GradeRule> _gradeRules;
     private readonly IGenericRepository<Enrollment> _enrollments;
     private readonly IGenericRepository<Section> _sections;
+    private readonly IGenericRepository<Employee> _employees;
+    private readonly IGenericRepository<SubjectTeacher> _subjectTeachers;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUser;
     private readonly TimeProvider _clock;
@@ -27,11 +30,13 @@ public sealed class ExamWorkflowService : IExamWorkflowService
 
     public ExamWorkflowService(IGenericRepository<Exam> exams, IGenericRepository<ExamSchedule> schedules,
         IGenericRepository<MarkEntry> marks, IGenericRepository<ExamResult> results, IGenericRepository<GradeRule> gradeRules,
-        IGenericRepository<Enrollment> enrollments, IGenericRepository<Section> sections, IUnitOfWork unitOfWork,
+        IGenericRepository<Enrollment> enrollments, IGenericRepository<Section> sections,
+        IGenericRepository<Employee> employees, IGenericRepository<SubjectTeacher> subjectTeachers, IUnitOfWork unitOfWork,
         ICurrentUserService currentUser, TimeProvider clock, ILogger<ExamWorkflowService> logger)
     {
         _exams = exams; _schedules = schedules; _marks = marks; _results = results; _gradeRules = gradeRules;
-        _enrollments = enrollments; _sections = sections; _unitOfWork = unitOfWork; _currentUser = currentUser;
+        _enrollments = enrollments; _sections = sections; _employees = employees; _subjectTeachers = subjectTeachers;
+        _unitOfWork = unitOfWork; _currentUser = currentUser;
         _clock = clock; _logger = logger;
     }
 
@@ -140,6 +145,11 @@ public sealed class ExamWorkflowService : IExamWorkflowService
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             return await GetResultsInternalAsync(exam, request, schedules.Count, cancellationToken, "Results generated for review.");
         }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Concurrent result generation for tenant {TenantId}, exam {ExamId}, class {ClassId}, section {SectionId}", _currentUser.TenantId, request.ExamId, request.ClassId, request.SectionId);
+            return ApiResponse<ExamResultSheetDto>.ErrorResponse("Results conflict with another update. Reload and try again.", 409);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Result generation failed for tenant {TenantId}, exam {ExamId}, class {ClassId}, section {SectionId}", _currentUser.TenantId, request.ExamId, request.ClassId, request.SectionId);
@@ -153,19 +163,43 @@ public sealed class ExamWorkflowService : IExamWorkflowService
         var scope = await LoadResultScopeAsync(request, cancellationToken);
         if (scope.Error != null) return ApiResponse<ExamResultSheetDto>.ErrorResponse(scope.Error, scope.StatusCode);
         var exam = scope.Exam!; var schedules = scope.Schedules!; var enrollments = scope.Enrollments!;
-        var studentIds = enrollments.Select(x => x.StudentId).Distinct().ToArray();
-        var results = await _results.GetQueryable().Where(x => x.TenantId == _currentUser.TenantId && x.ExamId == request.ExamId && x.ClassId == request.ClassId && x.SectionId == request.SectionId && studentIds.Contains(x.StudentId)).ToListAsync(cancellationToken);
-        if (results.Count != studentIds.Length) return ApiResponse<ExamResultSheetDto>.ErrorResponse("Generate complete results before publishing.", 409);
-        var now = _clock.GetUtcNow().UtcDateTime;
-        foreach (var result in results) { result.IsPublished = true; result.PublishedAtUtc = now; result.PublishedByUserId = _currentUser.UserId; result.UpdatedAt = now; result.UpdatedBy = _currentUser.UserId; }
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        try
+        {
+            var strategy = _unitOfWork.CreateExecutionStrategy();
+            return await strategy.ExecuteAsync(async () =>
+            {
+                await _unitOfWork.BeginTransactionAsync();
+                try
+                {
+                    var studentIds = enrollments.Select(x => x.StudentId).Distinct().ToArray();
+                    if (studentIds.Length == 0) { await _unitOfWork.RollbackTransactionAsync(); return ApiResponse<ExamResultSheetDto>.ErrorResponse("No active students were found for this section.", 409); }
+                    var results = await _results.GetQueryable().Where(x => x.TenantId == _currentUser.TenantId && x.ExamId == request.ExamId && x.ClassId == request.ClassId && x.SectionId == request.SectionId && studentIds.Contains(x.StudentId)).ToListAsync(cancellationToken);
+                    if (results.Count != studentIds.Length) { await _unitOfWork.RollbackTransactionAsync(); return ApiResponse<ExamResultSheetDto>.ErrorResponse("Generate complete results before publishing.", 409); }
+                    if (results.All(x => x.IsPublished)) { await _unitOfWork.CommitTransactionAsync(); return await GetResultsInternalAsync(exam, request, schedules.Count, cancellationToken, "Results were already published."); }
+                    var now = _clock.GetUtcNow().UtcDateTime;
+                    foreach (var result in results) { result.IsPublished = true; result.PublishedAtUtc = now; result.PublishedByUserId = _currentUser.UserId; result.UpdatedAt = now; result.UpdatedBy = _currentUser.UserId; }
 
-        var scheduledClassIds = await _schedules.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId && x.ExamId == request.ExamId).Select(x => x.ClassId).Distinct().ToListAsync(cancellationToken);
-        var expectedIds = await _enrollments.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId && x.IsActive && x.AcademicYearId == exam.AcademicYearId && scheduledClassIds.Contains(x.ClassId) && x.Student != null && x.Student.IsActive).Select(x => x.StudentId).Distinct().ToListAsync(cancellationToken);
-        var publishedIds = await _results.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId && x.ExamId == request.ExamId && x.IsPublished).Select(x => x.StudentId).Distinct().ToListAsync(cancellationToken);
-        exam.IsPublished = expectedIds.Count > 0 && expectedIds.All(x => publishedIds.Contains(x)); exam.UpdatedAt = now; exam.UpdatedBy = _currentUser.UserId;
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-        return await GetResultsInternalAsync(exam, request, schedules.Count, cancellationToken, "Results published successfully.");
+                    var scheduledClassIds = await _schedules.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId && x.ExamId == request.ExamId).Select(x => x.ClassId).Distinct().ToListAsync(cancellationToken);
+                    var expectedIds = await _enrollments.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId && x.IsActive && x.AcademicYearId == exam.AcademicYearId && scheduledClassIds.Contains(x.ClassId) && x.Student != null && x.Student.IsActive).Select(x => x.StudentId).Distinct().ToListAsync(cancellationToken);
+                    var publishedElsewhere = await _results.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId && x.ExamId == request.ExamId && x.IsPublished && !studentIds.Contains(x.StudentId)).Select(x => x.StudentId).Distinct().ToListAsync(cancellationToken);
+                    exam.IsPublished = expectedIds.Count > 0 && expectedIds.All(x => studentIds.Contains(x) || publishedElsewhere.Contains(x)); exam.UpdatedAt = now; exam.UpdatedBy = _currentUser.UserId;
+                    await _unitOfWork.SaveChangesAsync(cancellationToken);
+                    await _unitOfWork.CommitTransactionAsync();
+                    return await GetResultsInternalAsync(exam, request, schedules.Count, cancellationToken, "Results published successfully.");
+                }
+                catch { await _unitOfWork.RollbackTransactionAsync(); throw; }
+            });
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Concurrent result publication for tenant {TenantId}, exam {ExamId}, class {ClassId}, section {SectionId}", _currentUser.TenantId, request.ExamId, request.ClassId, request.SectionId);
+            return ApiResponse<ExamResultSheetDto>.ErrorResponse("Results conflict with another publication. Reload and try again.", 409);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Result publication failed for tenant {TenantId}, exam {ExamId}, class {ClassId}, section {SectionId}", _currentUser.TenantId, request.ExamId, request.ClassId, request.SectionId);
+            return ApiResponse<ExamResultSheetDto>.ErrorResponse("Results could not be published.", 500);
+        }
     }
 
     public async Task<ApiResponse<ExamResultSheetDto>> GetResultsAsync(ExamScopeDto request, CancellationToken cancellationToken = default)
@@ -173,6 +207,7 @@ public sealed class ExamWorkflowService : IExamWorkflowService
         if (!CanMark()) return ApiResponse<ExamResultSheetDto>.ErrorResponse("Exam access is required.", 403);
         var scope = await LoadResultScopeAsync(request, cancellationToken);
         if (scope.Error != null) return ApiResponse<ExamResultSheetDto>.ErrorResponse(scope.Error, scope.StatusCode);
+        if (!await CanViewResultScopeAsync(scope.Exam!.AcademicYearId, request.ClassId, request.SectionId, cancellationToken)) return ApiResponse<ExamResultSheetDto>.ErrorResponse("Exam result access is required.", 403);
         return await GetResultsInternalAsync(scope.Exam!, request, scope.Schedules!.Count, cancellationToken);
     }
 
@@ -183,6 +218,7 @@ public sealed class ExamWorkflowService : IExamWorkflowService
         if (!await _sections.AnyAsync(x => x.TenantId == _currentUser.TenantId && x.Id == request.SectionId && x.ClassId == request.ClassId && x.IsActive)) return (null, null, null, "Section is unavailable for the selected class.", 409);
         var schedule = await _schedules.GetQueryable().AsNoTracking().Include(x => x.Subject).FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.ExamId == request.ExamId && x.ClassId == request.ClassId && x.SubjectId == request.SubjectId, cancellationToken);
         if (schedule == null) return (null, null, null, "Subject is not scheduled for this exam and class.", 409);
+        if (!await CanAccessMarkScopeAsync(exam.AcademicYearId, request.ClassId, request.SectionId, request.SubjectId, cancellationToken)) return (null, null, null, "Exam mark-entry access is required.", 403);
         var enrollments = await _enrollments.GetQueryable().AsNoTracking().Include(x => x.Student).Where(x => x.TenantId == _currentUser.TenantId && x.IsActive && x.AcademicYearId == exam.AcademicYearId && x.ClassId == request.ClassId && x.SectionId == request.SectionId && x.Student != null && x.Student.IsActive).OrderBy(x => x.Roll).ToListAsync(cancellationToken);
         return (exam, schedule, enrollments, null, 200);
     }
@@ -220,5 +256,19 @@ public sealed class ExamWorkflowService : IExamWorkflowService
 
     private bool CanMark() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0 && (_currentUser.IsTenantAdmin || _currentUser.IsInRole("Principal") || _currentUser.IsInRole("VicePrincipal") || _currentUser.IsInRole("Teacher") || _currentUser.IsInRole("ExamController"));
     private bool CanPublish() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0 && (_currentUser.IsTenantAdmin || _currentUser.IsInRole("Principal") || _currentUser.IsInRole("VicePrincipal") || _currentUser.IsInRole("ExamController"));
+    private bool IsManager() => _currentUser.IsTenantAdmin || _currentUser.IsInRole("Principal") || _currentUser.IsInRole("VicePrincipal") || _currentUser.IsInRole("ExamController");
+    private async Task<bool> CanAccessMarkScopeAsync(long academicYearId, long classId, long sectionId, long subjectId, CancellationToken cancellationToken)
+    {
+        if (IsManager()) return true;
+        var employeeId = await GetLinkedTeacherIdAsync(cancellationToken);
+        return employeeId.HasValue && await _subjectTeachers.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == _currentUser.TenantId && x.AcademicYearId == academicYearId && x.ClassId == classId && x.SectionId == sectionId && x.SubjectId == subjectId && x.TeacherId == employeeId.Value, cancellationToken);
+    }
+    private async Task<bool> CanViewResultScopeAsync(long academicYearId, long classId, long sectionId, CancellationToken cancellationToken)
+    {
+        if (IsManager()) return true;
+        var employeeId = await GetLinkedTeacherIdAsync(cancellationToken);
+        return employeeId.HasValue && await _subjectTeachers.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == _currentUser.TenantId && x.AcademicYearId == academicYearId && x.ClassId == classId && x.SectionId == sectionId && x.TeacherId == employeeId.Value && x.IsClassTeacher, cancellationToken);
+    }
+    private async Task<long?> GetLinkedTeacherIdAsync(CancellationToken cancellationToken) => await _employees.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId && x.UserId == _currentUser.UserId && x.IsActive && x.IsTeacher).Select(x => (long?)x.Id).FirstOrDefaultAsync(cancellationToken);
     private static GradeRule? FindGrade(IEnumerable<GradeRule> rules, decimal percentage) => rules.FirstOrDefault(x => percentage >= x.MinMark && percentage <= x.MaxMark);
 }

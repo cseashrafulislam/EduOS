@@ -400,7 +400,7 @@ Required functions:
 - Tabulation, report card, transcript, certificate, QR verification, and revocation.
 - Result publication must never overwrite the historical grading/curriculum snapshot.
 
-Status: 🟡 extensive entities exist; complete guarded workflow is incomplete.
+Status: 🟡 guarded mark-entry, deterministic section result generation and publication are implemented. Teachers can access only their exact year/class/section/subject assignments, only class teachers can read the complete section result sheet, and exam managers retain controlled oversight. Publication is retry-aware, atomic across student rows and the exam-level flag, and idempotent for an already-published section; published marks cannot be edited or regenerated. Exam setup/routine, component weighting, reviewer lock/approval, corrections/re-scrutiny, historical result versions, admit cards, tabulation, transcripts and certificate verification remain incomplete.
 
 ### 6.10 Fees, accounting, and institutional finance
 
