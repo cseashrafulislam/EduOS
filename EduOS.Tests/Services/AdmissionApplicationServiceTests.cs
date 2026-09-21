@@ -157,8 +157,61 @@ public class AdmissionApplicationServiceTests
         result.StatusCode.Should().Be(403);
     }
 
+    [Fact]
+    public async Task Approval_requires_every_configured_required_document_to_be_verified()
+    {
+        var options = CreateOptions();
+        await using var context = CreateContext(options, 101);
+        var references = await SeedReferencesAsync(context, 101);
+        var form = new AdmissionIntakeForm
+        {
+            TenantId = 101, PublicId = Guid.NewGuid(), ClientRequestId = Guid.NewGuid(), Code = "DOC-GATE", Title = "Document Gate",
+            AcademicYearId = references.YearId, CampusId = references.CampusId, AcademicUnitId = references.UnitId,
+            OpensAtUtc = Now.UtcDateTime.AddDays(-1), ClosesAtUtc = Now.UtcDateTime.AddDays(10), Currency = "BDT", FieldsJson = "[]",
+            DocumentRequirementsJson = System.Text.Json.JsonSerializer.Serialize(new[]
+            {
+                new AdmissionDocumentRequirementDto { DocumentType = "birth-certificate", Label = "Birth certificate", IsRequired = true, MaxFileSizeMb = 5, AllowedExtensions = [".pdf"] }
+            }, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)),
+            Status = AdmissionIntakeFormStatus.Published, PublishedAtUtc = Now.UtcDateTime
+        };
+        context.Add(form);
+        await context.SaveChangesAsync();
+        var service = CreateService(context, new TestCurrentUser(101));
+        var request = CreateRequest(references);
+        request.AdmissionFormReference = form.PublicId;
+        var created = await service.CreateAsync(request);
+        var underReview = await service.ReviewAsync(created.Data!.Reference, new ReviewAdmissionApplicationDto
+        {
+            Status = AdmissionApplicationStatus.UnderReview, RowVersion = created.Data.RowVersion
+        });
+        var blocked = await service.ReviewAsync(created.Data.Reference, new ReviewAdmissionApplicationDto
+        {
+            Status = AdmissionApplicationStatus.Approved, RowVersion = underReview.Data!.RowVersion
+        });
+
+        var applicant = await context.AdmissionApplicants.SingleAsync();
+        context.Add(new AdmissionApplicantDocument
+        {
+            TenantId = 101, PublicId = Guid.NewGuid(), ClientRequestId = Guid.NewGuid(), ApplicantId = applicant.Id,
+            AdmissionIntakeFormId = form.Id, DocumentType = "birth-certificate", OriginalFileName = "birth.pdf",
+            StorageKey = "tenant-101/admissions/birth.pdf", ContentType = "application/pdf", FileSizeBytes = 10,
+            Sha256 = Convert.ToBase64String(new byte[32]), VerificationStatus = AdmissionDocumentVerificationStatus.Verified,
+            IsCurrent = true, UploadedAtUtc = Now.UtcDateTime, ReviewedAtUtc = Now.UtcDateTime, ReviewedByUserId = 7
+        });
+        await context.SaveChangesAsync();
+        var approved = await service.ReviewAsync(created.Data.Reference, new ReviewAdmissionApplicationDto
+        {
+            Status = AdmissionApplicationStatus.Approved, RowVersion = underReview.Data.RowVersion
+        });
+
+        blocked.StatusCode.Should().Be(409);
+        approved.Data!.Status.Should().Be(AdmissionApplicationStatus.Approved);
+    }
+
     private static AdmissionApplicationService CreateService(EduOSDbContext context, ICurrentUserService user) => new(
         new GenericRepository<AdmissionApplicant>(context),
+        new GenericRepository<AdmissionIntakeForm>(context),
+        new GenericRepository<AdmissionApplicantDocument>(context),
         new GenericRepository<AcademicYear>(context),
         new GenericRepository<AcademicTerm>(context),
         new GenericRepository<Campus>(context),

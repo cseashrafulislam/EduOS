@@ -14,6 +14,8 @@ public class AdmissionApplicant : BaseTenantEntity
     public Guid PublicId { get; set; } = Guid.NewGuid();
     public Guid ClientRequestId { get; set; }
     public string ApplicationNumber { get; set; } = string.Empty;
+    public long? AdmissionIntakeFormId { get; set; }
+    public string? CustomResponsesJson { get; set; }
     public long AcademicYearId { get; set; }
     public long? AcademicTermId { get; set; }
     public long CampusId { get; set; }
@@ -42,4 +44,5 @@ public class AdmissionApplicant : BaseTenantEntity
     public virtual AcademicTerm? AcademicTerm { get; set; }
     public virtual Campus? Campus { get; set; }
     public virtual Class? AcademicUnit { get; set; }
+    public virtual AdmissionIntakeForm? AdmissionIntakeForm { get; set; }
 }

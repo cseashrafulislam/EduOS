@@ -22,6 +22,7 @@ This file tracks the production-readiness hardening work on `codex/phase-0-secur
 - Routine substitution now validates exact routine/date ownership and substitute availability; lesson planning supports teacher-owned draft/edit/submit, manager review and monotonic completion with optimistic concurrency.
 - Daily student attendance now validates tenant-owned year/class/section membership and active enrolments; database constraints prevent duplicate daily rows and invalid status/time values while indexed roster reads and conflict responses cover concurrent writers.
 - Exam marks and section results now enforce teacher assignment ownership, class-teacher full-sheet visibility, active-enrolment membership, completeness checks, deterministic ranking and atomic/idempotent manager publication; advanced assessment/versioning/certification remains roadmap scope.
+- Configurable admission forms now have draft/publish/close lifecycle, bounded public availability, server-validated custom responses and private, checksum-backed applicant documents. Admission officers can review documents, required-document gates protect approval, and the existing assessment/merit workflow is exposed in applicant status without weakening tenant or ownership boundaries.
 
 ## Roadmap closeout
 

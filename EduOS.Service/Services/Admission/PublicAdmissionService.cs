@@ -7,10 +7,14 @@ using EduOS.Core.Enums;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
+using EduOS.Service.Helpers.Storage;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.IO;
 using System.Net.Mail;
+using System.Security.Cryptography;
+using System.Transactions;
 
 namespace EduOS.Service.Services.Admission;
 
@@ -21,11 +25,14 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
     private readonly IGenericRepository<AdmissionApplicant> _applications;
     private readonly IGenericRepository<AdmissionTest> _tests;
     private readonly IGenericRepository<AdmissionResult> _results;
+    private readonly IGenericRepository<AdmissionIntakeForm> _forms;
+    private readonly IGenericRepository<AdmissionApplicantDocument> _documents;
     private readonly IGenericRepository<AcademicYear> _academicYears;
     private readonly IGenericRepository<AcademicTerm> _academicTerms;
     private readonly IGenericRepository<Campus> _campuses;
     private readonly IGenericRepository<Class> _academicUnits;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IFileUploadService _storage;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly TimeProvider _clock;
     private readonly ILogger<PublicAdmissionService> _logger;
@@ -36,11 +43,14 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
         IGenericRepository<AdmissionApplicant> applications,
         IGenericRepository<AdmissionTest> tests,
         IGenericRepository<AdmissionResult> results,
+        IGenericRepository<AdmissionIntakeForm> forms,
+        IGenericRepository<AdmissionApplicantDocument> documents,
         IGenericRepository<AcademicYear> academicYears,
         IGenericRepository<AcademicTerm> academicTerms,
         IGenericRepository<Campus> campuses,
         IGenericRepository<Class> academicUnits,
         IUnitOfWork unitOfWork,
+        IFileUploadService storage,
         IHttpContextAccessor httpContextAccessor,
         TimeProvider clock,
         ILogger<PublicAdmissionService> logger)
@@ -50,14 +60,42 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
         _applications = applications;
         _tests = tests;
         _results = results;
+        _forms = forms;
+        _documents = documents;
         _academicYears = academicYears;
         _academicTerms = academicTerms;
         _campuses = campuses;
         _academicUnits = academicUnits;
         _unitOfWork = unitOfWork;
+        _storage = storage;
         _httpContextAccessor = httpContextAccessor;
         _clock = clock;
         _logger = logger;
+    }
+
+    public async Task<ApiResponse<IReadOnlyList<PublicAdmissionIntakeFormDto>>> GetFormsAsync(string tenantKey, CancellationToken cancellationToken = default)
+    {
+        var tenant = await ResolveTenantAsync(tenantKey, cancellationToken);
+        if (tenant == null) return ApiResponse<IReadOnlyList<PublicAdmissionIntakeFormDto>>.ErrorResponse("Admission portal is unavailable.", 404);
+        SetTenantContext(tenant.Id);
+        if (!await AdmissionModuleEnabledAsync(tenant.Id, cancellationToken)) return ApiResponse<IReadOnlyList<PublicAdmissionIntakeFormDto>>.ErrorResponse("Admission portal is unavailable.", 404);
+        var now = _clock.GetUtcNow().UtcDateTime;
+        IReadOnlyList<PublicAdmissionIntakeFormDto> forms = (await _forms.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant.Id && x.Status == AdmissionIntakeFormStatus.Published && x.OpensAtUtc <= now && x.ClosesAtUtc >= now)
+            .OrderBy(x => x.ClosesAtUtc).ThenBy(x => x.Title).ToListAsync(cancellationToken)).Select(MapPublicForm).ToList();
+        return ApiResponse<IReadOnlyList<PublicAdmissionIntakeFormDto>>.SuccessResponse(forms);
+    }
+
+    public async Task<ApiResponse<PublicAdmissionIntakeFormDto>> GetFormAsync(string tenantKey, Guid formReference, CancellationToken cancellationToken = default)
+    {
+        var tenant = await ResolveTenantAsync(tenantKey, cancellationToken);
+        if (tenant == null || formReference == Guid.Empty) return ApiResponse<PublicAdmissionIntakeFormDto>.ErrorResponse("Admission form is unavailable.", 404);
+        SetTenantContext(tenant.Id);
+        if (!await AdmissionModuleEnabledAsync(tenant.Id, cancellationToken)) return ApiResponse<PublicAdmissionIntakeFormDto>.ErrorResponse("Admission form is unavailable.", 404);
+        var form = await FindOpenFormAsync(tenant.Id, formReference, cancellationToken);
+        return form == null
+            ? ApiResponse<PublicAdmissionIntakeFormDto>.ErrorResponse("Admission form is unavailable.", 404)
+            : ApiResponse<PublicAdmissionIntakeFormDto>.SuccessResponse(MapPublicForm(form));
     }
 
     public async Task<ApiResponse<AdmissionApplicationOptionsDto>> GetOptionsAsync(string tenantKey, CancellationToken cancellationToken = default)
@@ -91,13 +129,18 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
                 .OrderBy(x => x.NumericValue).ThenBy(x => x.Name)
                 .Select(x => new AdmissionReferenceOptionDto { Id = x.Id, Name = x.Name })
                 .ToListAsync(cancellationToken);
+            var now = _clock.GetUtcNow().UtcDateTime;
+            var forms = await _forms.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenant.Id && x.Status == AdmissionIntakeFormStatus.Published && x.OpensAtUtc <= now && x.ClosesAtUtc >= now)
+                .OrderBy(x => x.ClosesAtUtc).ThenBy(x => x.Title).ToListAsync(cancellationToken);
 
             return ApiResponse<AdmissionApplicationOptionsDto>.SuccessResponse(new AdmissionApplicationOptionsDto
             {
                 AcademicYears = years,
                 AcademicTerms = terms,
                 Campuses = campuses,
-                AcademicUnits = units
+                AcademicUnits = units,
+                OpenForms = forms.Select(MapPublicForm).ToList()
             });
         }
         catch (Exception ex)
@@ -146,12 +189,42 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
 
         try
         {
-            var existing = await _applications.FirstOrDefaultAsync(x => x.TenantId == tenant.Id && x.ClientRequestId == request.ClientRequestId);
+            var existing = await _applications.GetQueryable().Include(x => x.AdmissionIntakeForm)
+                .FirstOrDefaultAsync(x => x.TenantId == tenant.Id && x.ClientRequestId == request.ClientRequestId, cancellationToken);
             if (existing != null)
             {
-                if (!IsSameRequest(existing, request, applicantName, primaryMobile))
+                var replayResponses = "{}";
+                if (request.AdmissionFormReference.HasValue)
+                {
+                    if (existing.AdmissionIntakeForm?.PublicId != request.AdmissionFormReference.Value)
+                        return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Client request reference was already used for different data.", 409);
+                    var responseError = AdmissionIntakeRules.ValidateResponses(AdmissionIntakeRules.ReadFields(existing.AdmissionIntakeForm.FieldsJson), request.CustomResponses, out replayResponses);
+                    if (responseError != null) return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse(responseError);
+                }
+                else if (existing.AdmissionIntakeFormId.HasValue || request.CustomResponses?.Count > 0)
+                {
+                    return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Client request reference was already used for different data.", 409);
+                }
+                if (!IsSameRequest(existing, request, applicantName, primaryMobile, guardianMobile, email?.ToLowerInvariant(), language, replayResponses))
                     return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Client request reference was already used for different data.", 409);
                 return ApiResponse<AdmissionApplicationCreatedDto>.SuccessResponse(MapCreated(existing), "Application already received.");
+            }
+
+            AdmissionIntakeForm? form = null;
+            string? customResponsesJson = null;
+            if (request.AdmissionFormReference.HasValue)
+            {
+                form = await FindOpenFormAsync(tenant.Id, request.AdmissionFormReference.Value, cancellationToken);
+                if (form == null) return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Admission form is unavailable.", 404);
+                if (form.AcademicYearId != request.AcademicYearId || form.AcademicTermId != request.AcademicTermId || form.CampusId != request.CampusId || form.AcademicUnitId != request.AcademicUnitId)
+                    return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Application academic choices do not match the selected admission form.", 409);
+                var responseError = AdmissionIntakeRules.ValidateResponses(AdmissionIntakeRules.ReadFields(form.FieldsJson), request.CustomResponses, out var responses);
+                if (responseError != null) return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse(responseError);
+                customResponsesJson = responses;
+            }
+            else if (request.CustomResponses?.Count > 0)
+            {
+                return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("A configured admission form is required for custom responses.");
             }
 
             var referenceError = await ValidateReferencesAsync(request, tenant.Id);
@@ -164,6 +237,8 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
                 PublicId = publicId,
                 ClientRequestId = request.ClientRequestId,
                 ApplicationNumber = $"APP-{now:yyyy}-{publicId:N}"[..17].ToUpperInvariant(),
+                AdmissionIntakeFormId = form?.Id,
+                CustomResponsesJson = customResponsesJson,
                 AcademicYearId = request.AcademicYearId,
                 AcademicTermId = request.AcademicTermId,
                 CampusId = request.CampusId,
@@ -208,6 +283,128 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
         }
     }
 
+    public async Task<ApiResponse<AdmissionApplicantDocumentDto>> UploadDocumentAsync(string tenantKey, Guid reference, AdmissionDocumentUploadDto request, CancellationToken cancellationToken = default)
+    {
+        var tenant = await ResolveTenantAsync(tenantKey, cancellationToken);
+        var file = request?.File;
+        if (tenant == null || reference == Guid.Empty || request == null || request.ClientRequestId == Guid.Empty || file == null || !TryNormalizeMobile(request.Mobile, out var mobile))
+            return ApiResponse<AdmissionApplicantDocumentDto>.ErrorResponse("Applicant document request is invalid.", 400);
+        SetTenantContext(tenant.Id);
+        if (!await AdmissionModuleEnabledAsync(tenant.Id, cancellationToken)) return ApiResponse<AdmissionApplicantDocumentDto>.ErrorResponse("Admission portal is unavailable.", 404);
+
+        var documentType = TrimToNull(request.DocumentType);
+        var originalName = Path.GetFileName(file.FileName.Replace('\\', '/'));
+        var contentType = string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType.Trim().ToLowerInvariant();
+        if (documentType == null || documentType.Length > 50 || string.IsNullOrWhiteSpace(originalName) || originalName.Length > 255 || originalName.Any(char.IsControl) || contentType.Length > 100)
+            return ApiResponse<AdmissionApplicantDocumentDto>.ErrorResponse("Applicant document metadata is invalid.");
+
+        var application = await _applications.GetQueryable().AsNoTracking().Include(x => x.AdmissionIntakeForm)
+            .FirstOrDefaultAsync(x => x.TenantId == tenant.Id && x.PublicId == reference && x.PrimaryMobile == mobile, cancellationToken);
+        if (application?.AdmissionIntakeForm == null) return ApiResponse<AdmissionApplicantDocumentDto>.ErrorResponse("Application could not be verified.", 404);
+        if (application.Status is AdmissionApplicationStatus.Approved or AdmissionApplicationStatus.Rejected or AdmissionApplicationStatus.Withdrawn or AdmissionApplicationStatus.Admitted)
+            return ApiResponse<AdmissionApplicantDocumentDto>.ErrorResponse("Documents cannot be changed after the application decision.", 409);
+
+        var requirement = AdmissionIntakeRules.ReadRequirements(application.AdmissionIntakeForm.DocumentRequirementsJson)
+            .FirstOrDefault(x => string.Equals(x.DocumentType, documentType, StringComparison.OrdinalIgnoreCase));
+        if (requirement == null) return ApiResponse<AdmissionApplicantDocumentDto>.ErrorResponse("This document type is not accepted for the selected admission form.", 409);
+        var extension = AdmissionIntakeRules.NormalizeExtension(Path.GetExtension(originalName));
+        if (!requirement.AllowedExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase)) return ApiResponse<AdmissionApplicantDocumentDto>.ErrorResponse("The document file type is not allowed.");
+        if (file.Length <= 0 || file.Length > requirement.MaxFileSizeMb * 1024L * 1024L) return ApiResponse<AdmissionApplicantDocumentDto>.ErrorResponse("The document file size is outside the configured limit.");
+
+        string hash;
+        await using (var stream = file.OpenReadStream()) hash = Convert.ToBase64String(await SHA256.HashDataAsync(stream, cancellationToken));
+        var replay = await _documents.GetQueryable().AsNoTracking()
+            .FirstOrDefaultAsync(x => x.TenantId == tenant.Id && x.ClientRequestId == request.ClientRequestId, cancellationToken);
+        if (replay != null)
+        {
+            if (replay.ApplicantId != application.Id || !string.Equals(replay.DocumentType, requirement.DocumentType, StringComparison.Ordinal) || replay.Sha256 != hash || replay.FileSizeBytes != file.Length)
+                return ApiResponse<AdmissionApplicantDocumentDto>.ErrorResponse("Client request ID was already used for a different document.", 409);
+            return ApiResponse<AdmissionApplicantDocumentDto>.SuccessResponse(AdmissionIntakeService.MapDocument(replay), "Document already received.");
+        }
+
+        var upload = await _storage.UploadPrivateForTenantAsync(file, $"admissions/{application.PublicId:N}", tenant.Id);
+        if (!upload.Success || string.IsNullOrWhiteSpace(upload.FileUrl)) return ApiResponse<AdmissionApplicantDocumentDto>.ErrorResponse(upload.ErrorMessage ?? "Document upload failed.");
+        var storageKey = upload.FileUrl;
+        try
+        {
+            using var scope = new TransactionScope(TransactionScopeOption.Required, new TransactionOptions { IsolationLevel = IsolationLevel.Serializable }, TransactionScopeAsyncFlowOption.Enabled);
+            var currentApplicationStatus = await _applications.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenant.Id && x.Id == application.Id)
+                .Select(x => (AdmissionApplicationStatus?)x.Status)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (!currentApplicationStatus.HasValue || currentApplicationStatus.Value is AdmissionApplicationStatus.Approved or AdmissionApplicationStatus.Rejected or AdmissionApplicationStatus.Withdrawn or AdmissionApplicationStatus.Admitted)
+            {
+                await _storage.DeletePrivateAsync(storageKey);
+                return ApiResponse<AdmissionApplicantDocumentDto>.ErrorResponse("Documents cannot be changed after the application decision.", 409);
+            }
+            var concurrentReplay = await _documents.GetQueryable().AsNoTracking()
+                .FirstOrDefaultAsync(x => x.TenantId == tenant.Id && x.ClientRequestId == request.ClientRequestId, cancellationToken);
+            if (concurrentReplay != null)
+            {
+                scope.Complete();
+                await _storage.DeletePrivateAsync(storageKey);
+                if (concurrentReplay.ApplicantId != application.Id || concurrentReplay.Sha256 != hash || concurrentReplay.FileSizeBytes != file.Length || !string.Equals(concurrentReplay.DocumentType, requirement.DocumentType, StringComparison.Ordinal))
+                    return ApiResponse<AdmissionApplicantDocumentDto>.ErrorResponse("Client request ID was already used for a different document.", 409);
+                return ApiResponse<AdmissionApplicantDocumentDto>.SuccessResponse(AdmissionIntakeService.MapDocument(concurrentReplay), "Document already received.");
+            }
+
+            var current = await _documents.GetQueryable()
+                .FirstOrDefaultAsync(x => x.TenantId == tenant.Id && x.ApplicantId == application.Id && x.DocumentType == requirement.DocumentType && x.IsCurrent, cancellationToken);
+            if (current?.VerificationStatus == AdmissionDocumentVerificationStatus.Verified)
+            {
+                await _storage.DeletePrivateAsync(storageKey);
+                return ApiResponse<AdmissionApplicantDocumentDto>.ErrorResponse("A verified document of this type already exists.", 409);
+            }
+            var now = _clock.GetUtcNow().UtcDateTime;
+            if (current != null)
+            {
+                current.IsCurrent = false;
+                current.UpdatedAt = now;
+            }
+            var row = new AdmissionApplicantDocument
+            {
+                TenantId = tenant.Id,
+                PublicId = Guid.NewGuid(),
+                ClientRequestId = request.ClientRequestId,
+                ApplicantId = application.Id,
+                AdmissionIntakeFormId = application.AdmissionIntakeForm.Id,
+                DocumentType = requirement.DocumentType,
+                OriginalFileName = originalName,
+                StorageKey = storageKey,
+                ContentType = contentType,
+                FileSizeBytes = file.Length,
+                Sha256 = hash,
+                VerificationStatus = AdmissionDocumentVerificationStatus.Pending,
+                IsCurrent = true,
+                UploadedAtUtc = now,
+                CreatedAt = now,
+                CreatedBy = null
+            };
+            await _documents.AddAsync(row);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            scope.Complete();
+            return new ApiResponse<AdmissionApplicantDocumentDto> { Success = true, StatusCode = 201, Message = "Document uploaded for verification.", Data = AdmissionIntakeService.MapDocument(row) };
+        }
+        catch (DbUpdateException ex)
+        {
+            await _storage.DeletePrivateAsync(storageKey);
+            _logger.LogWarning(ex, "Conflicting applicant document upload for tenant {TenantId}", tenant.Id);
+            return ApiResponse<AdmissionApplicantDocumentDto>.ErrorResponse("Document upload conflicts with another update. Reload and try again.", 409);
+        }
+        catch (TransactionAbortedException ex)
+        {
+            await _storage.DeletePrivateAsync(storageKey);
+            _logger.LogWarning(ex, "Serialized applicant document upload aborted for tenant {TenantId}", tenant.Id);
+            return ApiResponse<AdmissionApplicantDocumentDto>.ErrorResponse("Document upload conflicts with another update. Reload and try again.", 409);
+        }
+        catch (Exception ex)
+        {
+            await _storage.DeletePrivateAsync(storageKey);
+            _logger.LogError(ex, "Applicant document upload failed for tenant {TenantId}", tenant.Id);
+            return ApiResponse<AdmissionApplicantDocumentDto>.ErrorResponse("Document could not be uploaded.", 500);
+        }
+    }
+
     public async Task<ApiResponse<PublicAdmissionStatusDto>> GetStatusAsync(string tenantKey, Guid reference, string mobile, CancellationToken cancellationToken = default)
     {
         var tenant = await ResolveTenantAsync(tenantKey, cancellationToken);
@@ -241,6 +438,9 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
                 ResultStatus = x.ResultStatus
             })
             .FirstOrDefaultAsync(cancellationToken);
+        var documents = await _documents.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant.Id && x.ApplicantId == application.Id && x.IsCurrent)
+            .OrderBy(x => x.DocumentType).ToListAsync(cancellationToken);
 
         return ApiResponse<PublicAdmissionStatusDto>.SuccessResponse(new PublicAdmissionStatusDto
         {
@@ -253,7 +453,8 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
             DecisionNote = application.Status is AdmissionApplicationStatus.Approved or AdmissionApplicationStatus.Rejected or AdmissionApplicationStatus.Waitlisted
                 ? application.DecisionNote
                 : null,
-            Assessment = assessment
+            Assessment = assessment,
+            Documents = documents.Select(AdmissionIntakeService.MapDocument).ToList()
         });
     }
 
@@ -294,11 +495,47 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
         return null;
     }
 
-    private static bool IsSameRequest(AdmissionApplicant existing, CreateAdmissionApplicationDto request, string name, string mobile) =>
-        existing.AcademicYearId == request.AcademicYearId && existing.CampusId == request.CampusId
+    private async Task<AdmissionIntakeForm?> FindOpenFormAsync(long tenantId, Guid reference, CancellationToken cancellationToken)
+    {
+        var now = _clock.GetUtcNow().UtcDateTime;
+        return await _forms.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.PublicId == reference
+            && x.Status == AdmissionIntakeFormStatus.Published && x.OpensAtUtc <= now && x.ClosesAtUtc >= now, cancellationToken);
+    }
+
+    private static bool IsSameRequest(AdmissionApplicant existing, CreateAdmissionApplicationDto request, string name, string mobile, string? guardianMobile, string? email, string language, string customResponsesJson) =>
+        existing.AcademicYearId == request.AcademicYearId && existing.AcademicTermId == request.AcademicTermId && existing.CampusId == request.CampusId
         && existing.AcademicUnitId == request.AcademicUnitId && existing.DateOfBirth.Date == request.DateOfBirth.Date
+        && existing.Gender == request.Gender
         && string.Equals(existing.ApplicantName, name, StringComparison.Ordinal)
-        && string.Equals(existing.PrimaryMobile, mobile, StringComparison.Ordinal);
+        && string.Equals(existing.ApplicantNameBangla, TrimToNull(request.ApplicantNameBangla), StringComparison.Ordinal)
+        && string.Equals(existing.PrimaryMobile, mobile, StringComparison.Ordinal)
+        && string.Equals(existing.Email, email, StringComparison.Ordinal)
+        && string.Equals(existing.GuardianName, TrimToNull(request.GuardianName), StringComparison.Ordinal)
+        && string.Equals(existing.GuardianRelation, TrimToNull(request.GuardianRelation), StringComparison.Ordinal)
+        && string.Equals(existing.GuardianMobile, guardianMobile, StringComparison.Ordinal)
+        && string.Equals(existing.PresentAddress, TrimToNull(request.PresentAddress), StringComparison.Ordinal)
+        && string.Equals(existing.PermanentAddress, TrimToNull(request.PermanentAddress), StringComparison.Ordinal)
+        && string.Equals(existing.PreviousInstitution, TrimToNull(request.PreviousInstitution), StringComparison.Ordinal)
+        && existing.PreferredLanguage == language
+        && string.Equals(existing.CustomResponsesJson ?? "{}", customResponsesJson, StringComparison.Ordinal);
+
+    private static PublicAdmissionIntakeFormDto MapPublicForm(AdmissionIntakeForm x) => new()
+    {
+        Reference = x.PublicId,
+        Code = x.Code,
+        Title = x.Title,
+        Description = x.Description,
+        AcademicYearId = x.AcademicYearId,
+        AcademicTermId = x.AcademicTermId,
+        CampusId = x.CampusId,
+        AcademicUnitId = x.AcademicUnitId,
+        OpensAtUtc = x.OpensAtUtc,
+        ClosesAtUtc = x.ClosesAtUtc,
+        ApplicationFee = x.ApplicationFee,
+        Currency = x.Currency,
+        Fields = AdmissionIntakeRules.ReadFields(x.FieldsJson),
+        DocumentRequirements = AdmissionIntakeRules.ReadRequirements(x.DocumentRequirementsJson)
+    };
 
     private static AdmissionApplicationCreatedDto MapCreated(AdmissionApplicant x) => new()
     {

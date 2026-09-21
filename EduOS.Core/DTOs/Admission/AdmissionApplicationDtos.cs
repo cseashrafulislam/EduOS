@@ -7,6 +7,8 @@ namespace EduOS.Core.DTOs.Admission;
 public class CreateAdmissionApplicationDto
 {
     public Guid ClientRequestId { get; set; }
+    public Guid? AdmissionFormReference { get; set; }
+    public Dictionary<string, string?>? CustomResponses { get; set; }
 
     [Range(1, long.MaxValue)]
     public long AcademicYearId { get; set; }
@@ -118,6 +120,9 @@ public class AdmissionApplicationListItemDto
 
 public class AdmissionApplicationDetailsDto : AdmissionApplicationListItemDto
 {
+    public Guid? AdmissionFormReference { get; set; }
+    public string? AdmissionFormTitle { get; set; }
+    public Dictionary<string, string?> CustomResponses { get; set; } = new();
     public string? ApplicantNameBangla { get; set; }
     public DateTime DateOfBirth { get; set; }
     public Gender Gender { get; set; }
@@ -149,6 +154,7 @@ public class AdmissionApplicationOptionsDto
     public List<AdmissionReferenceOptionDto> AcademicTerms { get; set; } = new();
     public List<AdmissionReferenceOptionDto> Campuses { get; set; } = new();
     public List<AdmissionReferenceOptionDto> AcademicUnits { get; set; } = new();
+    public List<PublicAdmissionIntakeFormDto> OpenForms { get; set; } = new();
 }
 
 public class AdmitAdmissionApplicationDto

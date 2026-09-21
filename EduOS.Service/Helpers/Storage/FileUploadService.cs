@@ -21,6 +21,7 @@ namespace EduOS.Service.Helpers.Storage
     {
         Task<FileUploadResult> UploadAsync(IFormFile file, string folder);
         Task<FileUploadResult> UploadPrivateAsync(IFormFile file, string folder);
+        Task<FileUploadResult> UploadPrivateForTenantAsync(IFormFile file, string folder, long tenantId);
         Task<FileDownloadResult?> GetPrivateFileAsync(string storageKey);
         Task<bool> DeletePrivateAsync(string storageKey);
         Task<bool> DeleteAsync(string fileUrl);
@@ -184,7 +185,10 @@ namespace EduOS.Service.Helpers.Storage
             }
         }
 
-        public async Task<FileUploadResult> UploadPrivateAsync(IFormFile file, string folder)
+        public Task<FileUploadResult> UploadPrivateAsync(IFormFile file, string folder) =>
+            UploadPrivateForTenantAsync(file, folder, _currentUser.TenantId);
+
+        public async Task<FileUploadResult> UploadPrivateForTenantAsync(IFormFile file, string folder, long tenantId)
         {
             var result = new FileUploadResult
             {
@@ -195,6 +199,11 @@ namespace EduOS.Service.Helpers.Storage
 
             try
             {
+                if (tenantId <= 0)
+                {
+                    result.ErrorMessage = "A valid tenant is required for private storage.";
+                    return result;
+                }
                 if (!ValidateFile(file))
                 {
                     result.ErrorMessage = "File validation failed. Check file type, size, and format.";
@@ -208,7 +217,7 @@ namespace EduOS.Service.Helpers.Storage
                 }
 
                 var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
-                var relativePath = BuildRelativePath(folder);
+                var relativePath = BuildRelativePath(folder, tenantId);
                 var storageKey = Path.Combine(relativePath, GenerateSecureFileName(extension));
                 if (!TryResolvePath(_settings.PrivateBasePath, storageKey, out var filePath))
                 {
@@ -229,7 +238,7 @@ namespace EduOS.Service.Helpers.Storage
                 result.FileUrl = storageKey.Replace("\\", "/");
                 _logger.LogInformation(
                     "Private file stored for tenant {TenantId} by user {UserId}, size: {Size} bytes",
-                    _currentUser.TenantId, _currentUser.UserId, file.Length);
+                    tenantId, _currentUser.UserId, file.Length);
                 return result;
             }
             catch (Exception ex)
@@ -414,9 +423,10 @@ namespace EduOS.Service.Helpers.Storage
             return await Task.Run(() => files.Sum(f => f.Length));
         }
 
-        private string BuildRelativePath(string folder)
+        private string BuildRelativePath(string folder) => BuildRelativePath(folder, _currentUser.TenantId);
+
+        private static string BuildRelativePath(string folder, long tenantId)
         {
-            var tenantId = _currentUser.TenantId;
             var sanitizedFolder = SanitizePathComponent(folder);
             var datePath = DateTime.UtcNow.ToString("yyyy/MM");
             return Path.Combine($"tenant-{tenantId}", sanitizedFolder, datePath);

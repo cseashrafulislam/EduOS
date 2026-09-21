@@ -34,6 +34,10 @@ public class AdmissionApplicationContractTests
         view.Should().NotContain("style=\"");
         script.Should().Contain("clientRequestId");
         script.Should().Contain("/admit");
+        script.Should().Contain("/api/admission-intake/forms");
+        script.Should().Contain("dataset.documentId");
+        view.Should().Contain("id=\"intakeFormEditor\"");
+        view.Should().Contain("id=\"applicantDocumentList\"");
         script.Should().Contain("credentials: 'same-origin'");
         script.Should().Contain("textContent");
         script.Should().NotContain("innerHTML");

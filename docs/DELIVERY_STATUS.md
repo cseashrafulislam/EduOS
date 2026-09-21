@@ -8,6 +8,7 @@ This document is the concise implementation status for the `codex/phase-0-securi
 
 - Institution signup/onboarding, plan or trial selection, payment progression, campus/academic/module/branding/general/gateway setup.
 - Admission intake/review and approved applicant conversion into student, guardian and enrolment records.
+- Configurable public admission forms with validated custom responses, private applicant-document versioning and officer verification, required-document approval gates, and assessment/merit publication.
 - Annual student promotion/repeat and student transfer/completion foundations.
 - Canonical academic routine API slice: time-slot setup, curriculum-validated instructor assignment, collision-safe schedule creation/deactivation, and tenant-safe batch/teacher timetable reads. The additive schema bridge creates the canonical academic tables that were previously present only in the EF snapshot.
 - Canonical student academic enrollment: capacity/current-student/roll invariants, retry-safe required-subject snapshots, linked learner/guardian elective requests with manager approval, and ownership-scoped timetable reads.

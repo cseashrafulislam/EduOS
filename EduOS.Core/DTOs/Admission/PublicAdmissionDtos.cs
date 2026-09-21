@@ -19,6 +19,7 @@ public sealed class PublicAdmissionStatusDto
     public DateTime SubmittedAtUtc { get; set; }
     public string? DecisionNote { get; set; }
     public PublicAdmissionAssessmentStatusDto? Assessment { get; set; }
+    public List<AdmissionApplicantDocumentDto> Documents { get; set; } = new();
 }
 
 public sealed class PublicAdmissionAssessmentStatusDto

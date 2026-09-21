@@ -71,6 +71,17 @@
 
     <div id="admissionAlert" class="d-none" role="alert" tabindex="-1"></div>
 
+    <section class="content-card" aria-labelledby="intakeFormsTitle">
+        <div class="content-card-heading admission-heading-actions">
+            <div>
+                <h3 id="intakeFormsTitle">Public Admission Forms / পাবলিক ভর্তি ফরম</h3>
+                <p>Configure form windows, custom questions and private document requirements.</p>
+            </div>
+            <button id="newIntakeFormButton" class="btn btn-outline-primary" type="button">New Form / নতুন ফরম</button>
+        </div>
+        <div id="intakeFormList" class="intake-form-list" aria-live="polite" aria-busy="true"></div>
+    </section>
+
     <div class="admission-grid">
         <section class="content-card" aria-labelledby="newApplicationTitle">
             <div class="content-card-heading">
@@ -210,6 +221,10 @@
             </div>
             <div class="modal-body">
                 <dl id="applicationDetails" class="admission-details"></dl>
+                <section class="applicant-documents" aria-labelledby="applicantDocumentsTitle">
+                    <h3 id="applicantDocumentsTitle" class="h6">Applicant Documents / আবেদনকারীর কাগজপত্র</h3>
+                    <div id="applicantDocumentList" class="applicant-document-list" aria-live="polite"></div>
+                </section>
                 <form id="reviewForm" class="row g-3">
                     <input id="reviewReference" type="hidden" />
                     <input id="reviewRowVersion" type="hidden" />
@@ -231,6 +246,52 @@
                     @T["SaveDecision"]
                 </button>
             </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="intakeFormModal" tabindex="-1" aria-labelledby="intakeFormModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 rounded-4">
+            <div class="modal-header">
+                <h2 class="modal-title h5" id="intakeFormModalTitle">Admission Form / ভর্তি ফরম</h2>
+                <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
+            </div>
+            <form id="intakeFormEditor">
+                <div class="modal-body">
+                    <input id="intakeFormId" type="hidden" />
+                    <input id="intakeFormRowVersion" type="hidden" />
+                    <input id="intakeFormRequestId" type="hidden" />
+                    <div class="row g-3">
+                        <div class="col-md-4"><label class="form-label" for="intakeCode">Code *</label><input id="intakeCode" class="form-control" maxlength="50" pattern="[A-Za-z][A-Za-z0-9_-]*" required /></div>
+                        <div class="col-md-8"><label class="form-label" for="intakeTitle">Title / শিরোনাম *</label><input id="intakeTitle" class="form-control" maxlength="200" required /></div>
+                        <div class="col-12"><label class="form-label" for="intakeDescription">Description / বিবরণ</label><textarea id="intakeDescription" class="form-control" maxlength="2000" rows="2"></textarea></div>
+                        <div class="col-md-3"><label class="form-label" for="intakeYearId">Academic Year *</label><select id="intakeYearId" class="form-select" required></select></div>
+                        <div class="col-md-3"><label class="form-label" for="intakeTermId">Term</label><select id="intakeTermId" class="form-select"></select></div>
+                        <div class="col-md-3"><label class="form-label" for="intakeCampusId">Campus *</label><select id="intakeCampusId" class="form-select" required></select></div>
+                        <div class="col-md-3"><label class="form-label" for="intakeUnitId">Class / Level *</label><select id="intakeUnitId" class="form-select" required></select></div>
+                        <div class="col-md-3"><label class="form-label" for="intakeOpensAt">Opens *</label><input id="intakeOpensAt" class="form-control" type="datetime-local" required /></div>
+                        <div class="col-md-3"><label class="form-label" for="intakeClosesAt">Closes *</label><input id="intakeClosesAt" class="form-control" type="datetime-local" required /></div>
+                        <div class="col-md-3"><label class="form-label" for="intakeFee">Application Fee</label><input id="intakeFee" class="form-control" type="number" min="0" max="1000000" step="0.01" value="0" required /></div>
+                        <div class="col-md-3"><label class="form-label" for="intakeCurrency">Currency</label><input id="intakeCurrency" class="form-control" maxlength="3" pattern="[A-Za-z]{3}" value="BDT" required /></div>
+                    </div>
+
+                    <div class="intake-builder-section">
+                        <div class="admission-heading-actions"><h3 class="h6 mb-0">Custom Fields / অতিরিক্ত প্রশ্ন</h3><button id="addIntakeFieldButton" class="btn btn-sm btn-outline-secondary" type="button">Add field</button></div>
+                        <div id="intakeFieldRows" class="intake-builder-rows"></div>
+                    </div>
+
+                    <div class="intake-builder-section">
+                        <div class="admission-heading-actions"><h3 class="h6 mb-0">Document Requirements / প্রয়োজনীয় কাগজপত্র</h3><button id="addDocumentRequirementButton" class="btn btn-sm btn-outline-secondary" type="button">Add document</button></div>
+                        <div id="documentRequirementRows" class="intake-builder-rows"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">@T["Cancel"]</button>
+                    <button id="saveIntakeFormButton" class="btn btn-primary" type="submit"
+                            data-idle-label="Save Draft / খসড়া সংরক্ষণ" data-loading-label="Saving...">Save Draft / খসড়া সংরক্ষণ</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>

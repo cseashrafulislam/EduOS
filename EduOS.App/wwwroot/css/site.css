@@ -2961,6 +2961,100 @@ select,
     align-items: start;
 }
 
+.admission-heading-actions,
+.intake-form-card,
+.applicant-document-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+}
+
+.intake-form-list,
+.applicant-document-list,
+.intake-builder-rows {
+    display: grid;
+    gap: .75rem;
+}
+
+.intake-form-card,
+.applicant-document-card,
+.intake-builder-row {
+    padding: .9rem;
+    border: 1px solid #e2e8f0;
+    border-radius: .8rem;
+    background: #f8fafc;
+}
+
+.intake-form-card h4,
+.intake-form-card p {
+    margin: 0 0 .25rem;
+}
+
+.intake-form-card p,
+.applicant-document-card span {
+    color: #64748b;
+    font-size: .85rem;
+}
+
+.intake-form-actions {
+    display: flex;
+    flex: none;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: .4rem;
+}
+
+.intake-builder-section,
+.applicant-documents {
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e2e8f0;
+}
+
+.intake-builder-section > .admission-heading-actions,
+.applicant-documents > h3 {
+    margin-bottom: .75rem;
+}
+
+.intake-builder-row {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    align-items: end;
+    gap: .65rem;
+}
+
+.intake-field-row .intake-builder-control:nth-child(1),
+.intake-field-row .intake-builder-control:nth-child(2),
+.intake-field-row .intake-builder-control:nth-child(5),
+.intake-document-row .intake-builder-control:nth-child(1),
+.intake-document-row .intake-builder-control:nth-child(2),
+.intake-document-row .intake-builder-control:nth-child(4) {
+    grid-column: span 3;
+}
+
+.intake-field-row .intake-builder-control:nth-child(3),
+.intake-field-row .intake-builder-control:nth-child(4),
+.intake-document-row .intake-builder-control:nth-child(3) {
+    grid-column: span 2;
+}
+
+.intake-builder-check {
+    grid-column: span 1;
+    align-self: center;
+    margin: 0;
+}
+
+.intake-remove-row {
+    grid-column: span 1;
+}
+
+.applicant-document-card > div:first-child {
+    display: grid;
+    gap: .2rem;
+}
+
 .content-card {
     padding: 1.25rem;
 }
@@ -3121,5 +3215,22 @@ select,
 
     .admission-details dd {
         margin-bottom: .45rem;
+    }
+
+    .admission-heading-actions,
+    .intake-form-card,
+    .applicant-document-card {
+        flex-direction: column;
+    }
+
+    .intake-builder-row {
+        grid-template-columns: 1fr;
+    }
+
+    .intake-field-row .intake-builder-control,
+    .intake-document-row .intake-builder-control,
+    .intake-builder-check,
+    .intake-remove-row {
+        grid-column: auto !important;
     }
 }

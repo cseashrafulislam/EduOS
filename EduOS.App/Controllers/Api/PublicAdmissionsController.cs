@@ -21,6 +21,20 @@ public sealed class PublicAdmissionsController : ControllerBase
         _service = service;
     }
 
+    [HttpGet("forms")]
+    public async Task<IActionResult> GetForms(string tenantKey, CancellationToken cancellationToken)
+    {
+        var result = await _service.GetFormsAsync(tenantKey, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("forms/{formReference:guid}")]
+    public async Task<IActionResult> GetForm(string tenantKey, Guid formReference, CancellationToken cancellationToken)
+    {
+        var result = await _service.GetFormAsync(tenantKey, formReference, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet("options")]
     public async Task<IActionResult> GetOptions(string tenantKey, CancellationToken cancellationToken)
     {
@@ -33,6 +47,15 @@ public sealed class PublicAdmissionsController : ControllerBase
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         var result = await _service.CreateAsync(tenantKey, request, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("applications/{reference:guid}/documents")]
+    [RequestSizeLimit(10 * 1024 * 1024 + 64 * 1024)]
+    public async Task<IActionResult> UploadDocument(string tenantKey, Guid reference, [FromForm] AdmissionDocumentUploadDto request, CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await _service.UploadDocumentAsync(tenantKey, reference, request, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 

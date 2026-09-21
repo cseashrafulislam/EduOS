@@ -6,7 +6,7 @@ EduOS is a configurable, multi-tenant SaaS platform for the Bangladesh education
 
 একটি প্রতিষ্ঠান signup করবে, plan/trial বেছে নেবে, payment করবে, নিজের campus, academic structure, branding, terminology, workflow ও enabled modules configure করবে এবং ব্যবহার শুরু করবে। কোনো নির্দিষ্ট প্রতিষ্ঠানের নাম, class structure, fee rule, grading rule বা approval flow shared code-এ hard-code করা যাবে না।
 
-> **Current status:** foundation under active development. Phase 0 security work, institution/module entitlement, privacy-safe learner identity, canonical programme/level/track/curriculum/batch setup, canonical student batch enrolment and subject registration, collision-safe academic routines with owned student/guardian timetable projection, configurable academic calendar policy/events/working days, date-specific instructor substitution, lesson-plan approval/progress, admission intake/review, approved applicant-to-student/guardian/enrolment conversion, and annual student promotion/repeat are implemented and tested. The implemented write workflows are tenant-scoped, transactional, retry-safe and concurrency-protected. Public admission forms, documents, assessment/merit, offer/payment, scoped learner-history projection, legacy identifier migration, student transfer/completion, and many other module workflows remain planned and must not be treated as production-complete.
+> **Current status:** foundation under active development. Phase 0 security work, institution/module entitlement, privacy-safe learner identity, canonical programme/level/track/curriculum/batch setup, canonical student batch enrolment and subject registration, collision-safe academic routines with owned student/guardian timetable projection, configurable academic calendar policy/events/working days, date-specific instructor substitution, lesson-plan approval/progress, configurable public admission forms and private document verification, admission assessment/merit publication, intake/review, approved applicant-to-student/guardian/enrolment conversion, and annual student promotion/repeat are implemented and tested. The implemented write workflows are tenant-scoped, transactional, retry-safe and concurrency-protected. Admission eligibility/quota, applicant accounts, offer/payment, bulk import, scoped learner-history projection, legacy identifier migration, student transfer/completion, and many other module workflows remain planned and must not be treated as production-complete.
 
 Privileged cookie sessions now require TOTP MFA: password login produces a short-lived encrypted challenge when MFA is enabled, first-time TenantAdmin/SuperAdmin/AdmissionOfficer sessions are restricted to bilingual MFA setup, and recovery codes are displayed once. This is a working security control, not a substitute for production key custody, administrator recovery operations, or penetration testing.
 
@@ -290,14 +290,18 @@ Required functions:
 
 Implemented intake slice:
 
+- Draft/publish/close lifecycle for tenant-owned admission forms with opening/closing windows, academic scope, fee metadata, validated custom fields and document checklists. Form creation is request-idempotent; updates and lifecycle transitions reject stale row versions.
+- The anonymous, rate-limited, no-store admission portal discovers only currently open forms, renders configured fields safely, validates submitted responses server-side and binds academic choices to the selected form.
+- Applicant documents use signature-validated tenant-private storage, checksums, immutable request IDs, one-current-version database guards and admission-officer verification/rejection. Required documents must be verified before application approval; document payloads are redacted from general audit values.
 - Tenant-owned `AdmissionApplicant` with stable public reference, readable application number, campus/year/term/academic-unit linkage, guardian/contact fields, preferred language, decision state, indexes and optimistic concurrency.
 - TenantAdmin/AdmissionOfficer-only responsive English/Bangla page and API for options, paged/searchable list, details, submission and guarded review transitions.
 - A client request UUID makes submission retries idempotent; replaying the UUID with different core data returns a conflict.
 - Applicant list responses mask mobile numbers. Full contact is limited to authorized details access, and applicant PII is excluded from general audit payloads.
 - Applicants under 18 require guardian name, relationship and valid mobile. Common Bangladesh numbers and Bangla digits normalize to E.164; international intake requires E.164 input.
 - Government identifiers are intentionally absent from the intake row and must use the protected learner-identity workflow after a student is created.
+- Admission officers can configure tests, enter bounded marks, produce deterministic merit positions and publish immutable merit results; applicants see their published assessment status through ownership-checked status lookup.
 
-Status: 🟡 staff intake/review and transactional approved-applicant conversion to Student + Guardian + Enrollment + Person link are implemented. Configurable public forms, documents, assessment/merit and offer/payment remain incomplete.
+Status: 🟡 configurable public intake, private document verification, assessment/merit, staff review and transactional approved-applicant conversion to Student + Guardian + Enrollment + Person link are implemented. Eligibility/quota rules, applicant accounts, offer/acceptance/expiry, admission payment and bulk import remain incomplete.
 
 ### 6.6 Global learner identity and institution enrolment
 

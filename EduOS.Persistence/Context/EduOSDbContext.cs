@@ -220,6 +220,8 @@ namespace EduOS.Persistence.Context
 
         // Students
         public DbSet<AdmissionApplicant> AdmissionApplicants => Set<AdmissionApplicant>();
+        public DbSet<AdmissionIntakeForm> AdmissionIntakeForms => Set<AdmissionIntakeForm>();
+        public DbSet<AdmissionApplicantDocument> AdmissionApplicantDocuments => Set<AdmissionApplicantDocument>();
         public DbSet<Admission> Admissions => Set<Admission>();
         public DbSet<Student> Students => Set<Student>();
         public DbSet<Guardian> Guardians => Set<Guardian>();
@@ -710,6 +712,7 @@ namespace EduOS.Persistence.Context
                 };
 
                 if (entry.Entity is AdmissionApplicant
+                    or AdmissionApplicantDocument
                     or Student
                     or Guardian
                     or Enrollment
