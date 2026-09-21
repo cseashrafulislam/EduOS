@@ -20,6 +20,7 @@ This file tracks the production-readiness hardening work on `codex/phase-0-secur
 - Academic calendar management now supports campus-fallback weekend policy, year/term-bounded public and private events, privacy-safe working-day projection, idempotency, stale-write rejection and database-backed duplicate protection.
 - Academic setup now includes tenant-safe global/programme track creation with retry-safe code identity and a database-enforced single active default per scope.
 - Routine substitution now validates exact routine/date ownership and substitute availability; lesson planning supports teacher-owned draft/edit/submit, manager review and monotonic completion with optimistic concurrency.
+- Daily student attendance now validates tenant-owned year/class/section membership and active enrolments; database constraints prevent duplicate daily rows and invalid status/time values while indexed roster reads and conflict responses cover concurrent writers.
 
 ## Roadmap closeout
 

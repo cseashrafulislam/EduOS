@@ -14,6 +14,7 @@ This document is the concise implementation status for the `codex/phase-0-securi
 - Academic calendar workflow: tenant-wide/campus weekend policy, bounded events and holidays, private-reason-safe working-day projection, retry-safe writes, optimistic concurrency and database duplicate protection.
 - Academic track setup: tenant/programme-scoped catalogue and creation, retry-safe natural keys, one active default per scope, and database duplicate protection.
 - Academic instruction workflow: date-specific substitute scheduling with overlap protection and participant views; teacher-owned lesson-plan drafting, manager review and monotonic progress/completion with legacy-compatible schema bridges.
+- Daily student attendance roster: tenant-owned academic context and active-enrolment validation, atomic bulk writes, database daily-identity/status/time guards, indexed reads and conflict-safe responses.
 - Library operational workflow, including catalogue/copy circulation paths, issue/return/reservation/fine handling and tenant-safe operations.
 - Transport operational workflow, including vehicles/routes/stops/student assignments, operational state and tenant-safe write paths.
 - Core student, guardian, teacher and employee self-service slices delivered on the branch, with authorization and tenant context enforced at the application boundary.

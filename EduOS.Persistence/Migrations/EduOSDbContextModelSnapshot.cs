@@ -2905,7 +2905,7 @@ namespace EduOS.Persistence.Migrations
                         .HasColumnType("bigint");
 
                     b.Property<DateTime>("Date")
-                        .HasColumnType("datetime2");
+                        .HasColumnType("date");
 
                     b.Property<TimeSpan?>("InTime")
                         .HasColumnType("time");
@@ -2928,8 +2928,8 @@ namespace EduOS.Persistence.Migrations
 
                     b.Property<string>("Status")
                         .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<long>("StudentId")
                         .HasColumnType("bigint");
@@ -2953,7 +2953,20 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId");
 
-                    b.ToTable("StudentAttendances");
+                    b.HasIndex("TenantId", "ClassId", "SectionId", "Date")
+                        .HasDatabaseName("IX_StudentAttendances_Tenant_Roster_Date");
+
+                    b.HasIndex("TenantId", "StudentId", "Date")
+                        .IsUnique()
+                        .HasDatabaseName("UX_StudentAttendances_Tenant_Student_Date")
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.ToTable("StudentAttendances", t =>
+                        {
+                            t.HasCheckConstraint("CK_StudentAttendances_Status", "[Status] IN ('Present','Absent','Late','Leave')");
+
+                            t.HasCheckConstraint("CK_StudentAttendances_TimeRange", "[OutTime] IS NULL OR [InTime] IS NULL OR [OutTime] >= [InTime]");
+                        });
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.Auth.ApplicationRole", b =>

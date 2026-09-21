@@ -157,6 +157,12 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                 tenantId, request.ClassId, request.SectionId, date);
             return ApiResponse<StudentAttendanceRosterDto>.ErrorResponse("Attendance changed by another user. Reload and try again.", 409);
         }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Attendance integrity conflict for tenant {TenantId}, class {ClassId}, section {SectionId}, date {Date}",
+                tenantId, request.ClassId, request.SectionId, date);
+            return ApiResponse<StudentAttendanceRosterDto>.ErrorResponse("Attendance conflicts with an existing daily record. Reload and try again.", 409);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Attendance save failed for tenant {TenantId}, class {ClassId}, section {SectionId}, date {Date}",

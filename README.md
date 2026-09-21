@@ -384,7 +384,7 @@ Required functions:
 - Eligibility alerts and institution-configured thresholds.
 - Employee shift, roster, overtime, leave and payroll integration.
 
-Status: 🟡 entity foundation.
+Status: 🟡 daily student roster read/write is implemented with tenant-owned academic context validation, active-enrolment membership checks, atomic bulk saves, database-enforced one-row-per-student/day identity, constrained statuses/time ranges, and indexed roster reads. Period/course sessions, correction approval and locking, device imports, notifications, thresholds, and employee attendance/payroll integration remain incomplete.
 
 ### 6.9 Examination, assessment, result, and certification
 
