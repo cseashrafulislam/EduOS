@@ -11,6 +11,7 @@ namespace EduOS.App.Controllers.Api;
 [RequireModule("ATTENDANCE")]
 [AutoValidateAntiforgeryToken]
 [EnableRateLimiting("ApiPolicy")]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 [ApiController]
 [Route("api/student-attendance")]
 public sealed class StudentAttendanceController : ControllerBase
