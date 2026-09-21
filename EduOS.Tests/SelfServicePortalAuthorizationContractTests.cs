@@ -31,7 +31,7 @@ public sealed class SelfServicePortalAuthorizationContractTests
         Assert.NotNull(method);
         var requirement = method!.GetCustomAttribute<RequireModuleAttribute>();
         Assert.NotNull(requirement);
-        Assert.Equal(module, requirement!.ModuleCode);
+        Assert.Equal(RequireModuleAttribute.PolicyPrefix + module, requirement!.Policy);
     }
 
     [Fact]
