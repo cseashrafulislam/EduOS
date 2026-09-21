@@ -6,7 +6,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace EduOS.Core.Entities.Admission;
 
-public sealed class AdmissionIntakeForm : BaseTenantEntity
+public class AdmissionIntakeForm : BaseTenantEntity
 {
     public Guid PublicId { get; set; } = Guid.NewGuid();
     public Guid ClientRequestId { get; set; }
