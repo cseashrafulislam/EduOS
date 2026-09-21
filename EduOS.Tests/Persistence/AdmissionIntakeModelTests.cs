@@ -22,7 +22,7 @@ public sealed class AdmissionIntakeModelTests
         applicant.FindProperty(nameof(AdmissionApplicant.AdmissionIntakeFormId))!.ClrType.Should().Be(typeof(long?));
         form.FindProperty(nameof(AdmissionIntakeForm.RowVersion))!.IsConcurrencyToken.Should().BeTrue();
         document.FindProperty(nameof(AdmissionApplicantDocument.RowVersion))!.IsConcurrencyToken.Should().BeTrue();
-        form.GetIndexes().Should().Contain(x => x.IsUnique && x.Properties.Select(p => p.Name).SequenceEqual([nameof(AdmissionIntakeForm.TenantId), nameof(AdmissionIntakeForm.Code)]));
+        form.GetIndexes().Should().Contain(x => x.IsUnique && x.Properties.Select(p => p.Name).SequenceEqual(new[] { nameof(AdmissionIntakeForm.TenantId), nameof(AdmissionIntakeForm.Code) }));
         document.GetIndexes().Single(x => x.GetDatabaseName() == "UX_AdmissionApplicantDocuments_CurrentType").IsUnique.Should().BeTrue();
         form.GetCheckConstraints().Should().Contain(x => x.Name == "CK_AdmissionIntakeForms_DateRange");
         document.GetCheckConstraints().Should().Contain(x => x.Name == "CK_AdmissionApplicantDocuments_FileSize");

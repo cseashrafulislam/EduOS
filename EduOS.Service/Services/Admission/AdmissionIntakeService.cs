@@ -71,8 +71,9 @@ public sealed class AdmissionIntakeService : IAdmissionIntakeService
     public Task<ApiResponse<AdmissionIntakeFormDto>> CreateFormAsync(CreateAdmissionIntakeFormDto request, CancellationToken cancellationToken = default)
     {
         if (!CanManage()) return Task.FromResult(Denied<AdmissionIntakeFormDto>());
+        if (request == null) return Task.FromResult(Error<AdmissionIntakeFormDto>("Admission form is required."));
         var validation = AdmissionIntakeRules.ValidateForm(request);
-        if (request == null || request.ClientRequestId == Guid.Empty || validation != null)
+        if (request.ClientRequestId == Guid.Empty || validation != null)
             return Task.FromResult(Error<AdmissionIntakeFormDto>(validation ?? "Client request ID is required."));
 
         return ExecuteWriteAsync("create intake form", async () =>
@@ -122,8 +123,10 @@ public sealed class AdmissionIntakeService : IAdmissionIntakeService
     public Task<ApiResponse<AdmissionIntakeFormDto>> UpdateFormAsync(long id, UpdateAdmissionIntakeFormDto request, CancellationToken cancellationToken = default)
     {
         if (!CanManage()) return Task.FromResult(Denied<AdmissionIntakeFormDto>());
+        if (id <= 0 || request == null)
+            return Task.FromResult(Error<AdmissionIntakeFormDto>("A valid form and row version are required."));
         var validation = AdmissionIntakeRules.ValidateForm(request);
-        if (id <= 0 || request == null || validation != null || !TryVersion(request?.RowVersion, out var version))
+        if (validation != null || !TryVersion(request.RowVersion, out var version))
             return Task.FromResult(Error<AdmissionIntakeFormDto>(validation ?? "A valid form and row version are required."));
 
         return ExecuteWriteAsync("update intake form", async () =>
