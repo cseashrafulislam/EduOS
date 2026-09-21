@@ -125,7 +125,12 @@
             const data = body.data;
             const status = statusNames[data.status] || `Status ${data.status}`;
             const note = data.decisionNote ? ` — ${data.decisionNote}` : '';
-            setMessage(statusMessage, `${data.applicationNumber}: ${status}${note}`, true);
+            const assessment = data.assessment;
+            const merit = assessment?.meritPosition ? `, Merit #${assessment.meritPosition}` : '';
+            const assessmentText = assessment
+                ? ` — ${assessment.testName}: ${assessment.resultStatus} (${assessment.obtainedMarks}/${assessment.totalMarks}${merit})`
+                : '';
+            setMessage(statusMessage, `${data.applicationNumber}: ${status}${note}${assessmentText}`, true);
         } catch (error) {
             setMessage(statusMessage, error.message);
         } finally {

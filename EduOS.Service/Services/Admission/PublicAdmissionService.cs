@@ -19,6 +19,8 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
     private readonly IGenericRepository<Tenant> _tenants;
     private readonly IGenericRepository<TenantModule> _tenantModules;
     private readonly IGenericRepository<AdmissionApplicant> _applications;
+    private readonly IGenericRepository<AdmissionTest> _tests;
+    private readonly IGenericRepository<AdmissionResult> _results;
     private readonly IGenericRepository<AcademicYear> _academicYears;
     private readonly IGenericRepository<AcademicTerm> _academicTerms;
     private readonly IGenericRepository<Campus> _campuses;
@@ -32,6 +34,8 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
         IGenericRepository<Tenant> tenants,
         IGenericRepository<TenantModule> tenantModules,
         IGenericRepository<AdmissionApplicant> applications,
+        IGenericRepository<AdmissionTest> tests,
+        IGenericRepository<AdmissionResult> results,
         IGenericRepository<AcademicYear> academicYears,
         IGenericRepository<AcademicTerm> academicTerms,
         IGenericRepository<Campus> campuses,
@@ -44,6 +48,8 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
         _tenants = tenants;
         _tenantModules = tenantModules;
         _applications = applications;
+        _tests = tests;
+        _results = results;
         _academicYears = academicYears;
         _academicTerms = academicTerms;
         _campuses = campuses;
@@ -215,6 +221,27 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
             .FirstOrDefaultAsync(x => x.TenantId == tenant.Id && x.PublicId == reference && x.PrimaryMobile == normalizedMobile, cancellationToken);
         if (application == null) return ApiResponse<PublicAdmissionStatusDto>.ErrorResponse("Application could not be verified.", 404);
 
+        var assessment = await _results.GetQueryable().AsNoTracking()
+            .Include(x => x.AdmissionTest)
+            .Where(x => x.TenantId == tenant.Id
+                        && x.ApplicantId == application.Id
+                        && x.AdmissionTest != null
+                        && x.AdmissionTest.IsPublished)
+            .OrderByDescending(x => x.AdmissionTest!.PublishedAtUtc)
+            .ThenByDescending(x => x.AdmissionTestId)
+            .Select(x => new PublicAdmissionAssessmentStatusDto
+            {
+                TestName = x.AdmissionTest!.Name,
+                TestDate = x.AdmissionTest.TestDate,
+                PublishedAtUtc = x.AdmissionTest.PublishedAtUtc,
+                ObtainedMarks = x.ObtainedMarks,
+                TotalMarks = x.AdmissionTest.TotalMarks,
+                IsPassed = x.IsPassed,
+                MeritPosition = x.MeritPosition,
+                ResultStatus = x.ResultStatus
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
         return ApiResponse<PublicAdmissionStatusDto>.SuccessResponse(new PublicAdmissionStatusDto
         {
             Reference = application.PublicId,
@@ -225,7 +252,8 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
             SubmittedAtUtc = application.SubmittedAtUtc,
             DecisionNote = application.Status is AdmissionApplicationStatus.Approved or AdmissionApplicationStatus.Rejected or AdmissionApplicationStatus.Waitlisted
                 ? application.DecisionNote
-                : null
+                : null,
+            Assessment = assessment
         });
     }
 

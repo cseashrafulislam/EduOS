@@ -9,6 +9,7 @@ namespace EduOS.App.Controllers.Api;
 [AllowAnonymous]
 [IgnoreAntiforgeryToken]
 [EnableRateLimiting("AdmissionIntakePolicy")]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 [ApiController]
 [Route("api/public/admissions/{tenantKey}")]
 public sealed class PublicAdmissionsController : ControllerBase

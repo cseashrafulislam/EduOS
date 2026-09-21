@@ -18,4 +18,17 @@ public sealed class PublicAdmissionStatusDto
     public AdmissionApplicationStatus Status { get; set; }
     public DateTime SubmittedAtUtc { get; set; }
     public string? DecisionNote { get; set; }
+    public PublicAdmissionAssessmentStatusDto? Assessment { get; set; }
+}
+
+public sealed class PublicAdmissionAssessmentStatusDto
+{
+    public string TestName { get; set; } = string.Empty;
+    public DateTime TestDate { get; set; }
+    public DateTime? PublishedAtUtc { get; set; }
+    public decimal ObtainedMarks { get; set; }
+    public decimal TotalMarks { get; set; }
+    public bool IsPassed { get; set; }
+    public int? MeritPosition { get; set; }
+    public string ResultStatus { get; set; } = string.Empty;
 }

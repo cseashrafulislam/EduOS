@@ -16,6 +16,7 @@ public sealed class PortalResponseCachingContractTests
     [InlineData(typeof(AuditLogController))]
     [InlineData(typeof(TenantSettingController))]
     [InlineData(typeof(TenantProfileController))]
+    [InlineData(typeof(PublicAdmissionsController))]
     public void Sensitive_controllers_disable_client_and_proxy_caching(Type controllerType)
     {
         var attribute = controllerType.GetCustomAttributes(typeof(ResponseCacheAttribute), true)
