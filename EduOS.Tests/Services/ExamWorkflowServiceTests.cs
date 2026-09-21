@@ -54,7 +54,7 @@ public sealed class ExamWorkflowServiceTests
     {
         var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
         accessor.HttpContext.Items["TenantId"] = 10L;
-        var context = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>().UseInMemoryDatabase($"exam-workflow-{Guid.NewGuid():N}").Options, accessor);
+        var context = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>().UseInMemoryDatabase($"exam-workflow-{Guid.NewGuid():N}").EnableServiceProviderCaching(false).Options, accessor);
         var year = new AcademicYear { TenantId = 10, Name = "2026", StartDate = new DateTime(2026, 1, 1), EndDate = new DateTime(2026, 12, 31), IsActive = true };
         var academicClass = new Class { TenantId = 10, Name = "Class 8", IsActive = true };
         context.AddRange(year, academicClass); await context.SaveChangesAsync();
