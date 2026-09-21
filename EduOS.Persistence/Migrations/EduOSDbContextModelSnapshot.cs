@@ -1866,6 +1866,271 @@ namespace EduOS.Persistence.Migrations
                     b.ToTable("Substitutions");
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.Academic.StudentEnrollment", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("AcademicBatchId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("AcademicCurriculumId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("AcademicLevelId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("AcademicProgramId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("AcademicTermId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("AcademicTrackId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("AcademicYearId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("CampusId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("EnrollmentDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("EnrollmentStatus")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsCurrent")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<long?>("MediumId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Remarks")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("RollNo")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<long?>("ShiftId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("StudentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AcademicBatchId");
+
+                    b.HasIndex("AcademicCurriculumId");
+
+                    b.HasIndex("AcademicLevelId");
+
+                    b.HasIndex("AcademicProgramId");
+
+                    b.HasIndex("AcademicTermId");
+
+                    b.HasIndex("AcademicTrackId");
+
+                    b.HasIndex("AcademicYearId");
+
+                    b.HasIndex("CampusId");
+
+                    b.HasIndex("MediumId");
+
+                    b.HasIndex("ShiftId");
+
+                    b.HasIndex("StudentId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "AcademicBatchId", "RollNo")
+                        .IsUnique()
+                        .HasDatabaseName("UX_StudentEnrollments_Tenant_Batch_Roll")
+                        .HasFilter("[IsDeleted] = 0 AND [IsActive] = 1 AND [IsCurrent] = 1");
+
+                    b.HasIndex("TenantId", "ClientRequestId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_StudentEnrollments_Tenant_Request")
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.HasIndex("TenantId", "StudentId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_StudentEnrollments_Tenant_CurrentStudent")
+                        .HasFilter("[IsDeleted] = 0 AND [IsActive] = 1 AND [IsCurrent] = 1");
+
+                    b.ToTable("StudentEnrollments");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Academic.StudentSubjectRegistration", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("AcademicBatchId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("AcademicCurriculumId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("AcademicTermId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("AcademicYearId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid?>("ClientRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("CreditHoursSnapshot")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<long>("CurriculumSubjectId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DecidedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DecidedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("FullMarksSnapshot")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsRequired")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("PassMarksSnapshot")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Remarks")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("RequestedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<long>("StudentEnrollmentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("StudentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("SubjectCodeSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<long>("SubjectId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("SubjectNameSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AcademicBatchId");
+
+                    b.HasIndex("AcademicCurriculumId");
+
+                    b.HasIndex("AcademicTermId");
+
+                    b.HasIndex("AcademicYearId");
+
+                    b.HasIndex("CurriculumSubjectId");
+
+                    b.HasIndex("StudentEnrollmentId");
+
+                    b.HasIndex("StudentId");
+
+                    b.HasIndex("SubjectId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "ClientRequestId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_StudentSubjectRegistrations_Tenant_Request")
+                        .HasFilter("[IsDeleted] = 0 AND [ClientRequestId] IS NOT NULL");
+
+                    b.HasIndex("TenantId", "StudentEnrollmentId", "SubjectId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_StudentSubjectRegistrations_Tenant_Enrollment_Subject")
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.HasIndex("TenantId", "StudentId", "Status");
+
+                    b.ToTable("StudentSubjectRegistrations");
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.Admission.AdmissionApplicant", b =>
                 {
                     b.Property<long>("Id")
@@ -12048,6 +12313,175 @@ namespace EduOS.Persistence.Migrations
                     b.Navigation("Tenant");
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.Academic.StudentEnrollment", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.Academic.AcademicBatch", "AcademicBatch")
+                        .WithMany()
+                        .HasForeignKey("AcademicBatchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Academic.AcademicCurriculum", "AcademicCurriculum")
+                        .WithMany()
+                        .HasForeignKey("AcademicCurriculumId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Academic.AcademicLevel", "AcademicLevel")
+                        .WithMany()
+                        .HasForeignKey("AcademicLevelId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Academic.AcademicProgram", "AcademicProgram")
+                        .WithMany()
+                        .HasForeignKey("AcademicProgramId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Academic.AcademicTerm", "AcademicTerm")
+                        .WithMany()
+                        .HasForeignKey("AcademicTermId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.Academic.AcademicTrack", "AcademicTrack")
+                        .WithMany()
+                        .HasForeignKey("AcademicTrackId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.Academic.AcademicYear", "AcademicYear")
+                        .WithMany()
+                        .HasForeignKey("AcademicYearId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.SaaS.Campus", "Campus")
+                        .WithMany()
+                        .HasForeignKey("CampusId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Academic.Medium", "Medium")
+                        .WithMany()
+                        .HasForeignKey("MediumId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.Academic.Shift", "Shift")
+                        .WithMany()
+                        .HasForeignKey("ShiftId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.Students.Student", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AcademicBatch");
+
+                    b.Navigation("AcademicCurriculum");
+
+                    b.Navigation("AcademicLevel");
+
+                    b.Navigation("AcademicProgram");
+
+                    b.Navigation("AcademicTerm");
+
+                    b.Navigation("AcademicTrack");
+
+                    b.Navigation("AcademicYear");
+
+                    b.Navigation("Campus");
+
+                    b.Navigation("Medium");
+
+                    b.Navigation("Shift");
+
+                    b.Navigation("Student");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Academic.StudentSubjectRegistration", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.Academic.AcademicBatch", "AcademicBatch")
+                        .WithMany()
+                        .HasForeignKey("AcademicBatchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Academic.AcademicCurriculum", "AcademicCurriculum")
+                        .WithMany()
+                        .HasForeignKey("AcademicCurriculumId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Academic.AcademicTerm", "AcademicTerm")
+                        .WithMany()
+                        .HasForeignKey("AcademicTermId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.Academic.AcademicYear", "AcademicYear")
+                        .WithMany()
+                        .HasForeignKey("AcademicYearId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Academic.CurriculumSubject", "CurriculumSubject")
+                        .WithMany()
+                        .HasForeignKey("CurriculumSubjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Students.Student", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Academic.StudentEnrollment", "StudentEnrollment")
+                        .WithMany("SubjectRegistrations")
+                        .HasForeignKey("StudentEnrollmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Academic.Subject", "Subject")
+                        .WithMany()
+                        .HasForeignKey("SubjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AcademicBatch");
+
+                    b.Navigation("AcademicCurriculum");
+
+                    b.Navigation("AcademicTerm");
+
+                    b.Navigation("AcademicYear");
+
+                    b.Navigation("CurriculumSubject");
+
+                    b.Navigation("Student");
+
+                    b.Navigation("StudentEnrollment");
+
+                    b.Navigation("Subject");
+
+                    b.Navigation("Tenant");
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.Admission.AdmissionApplicant", b =>
                 {
                     b.HasOne("EduOS.Core.Entities.Academic.AcademicTerm", "AcademicTerm")
@@ -14808,6 +15242,11 @@ namespace EduOS.Persistence.Migrations
                     b.Navigation("Sections");
 
                     b.Navigation("Subjects");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Academic.StudentEnrollment", b =>
+                {
+                    b.Navigation("SubjectRegistrations");
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.Auth.Permission", b =>

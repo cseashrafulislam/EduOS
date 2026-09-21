@@ -202,6 +202,9 @@ namespace EduOS.Persistence.Context
 
         public DbSet<AcademicBatch> AcademicBatches => Set<AcademicBatch>();
 
+        public DbSet<StudentEnrollment> StudentEnrollments => Set<StudentEnrollment>();
+        public DbSet<StudentSubjectRegistration> StudentSubjectRegistrations => Set<StudentSubjectRegistration>();
+
         public DbSet<InstructorAssignment> InstructorAssignments => Set<InstructorAssignment>();
 
         public DbSet<RoutineTimeSlot> RoutineTimeSlots => Set<RoutineTimeSlot>();
