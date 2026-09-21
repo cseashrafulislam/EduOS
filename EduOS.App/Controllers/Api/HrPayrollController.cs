@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 namespace EduOS.App.Controllers.Api;
-[Authorize][ApiController][Route("api/hr-payroll")][AutoValidateAntiforgeryToken][EnableRateLimiting("ApiPolicy")]
+[Authorize][ApiController][Route("api/hr-payroll")][AutoValidateAntiforgeryToken][EnableRateLimiting("ApiPolicy")][ResponseCache(NoStore=true,Location=ResponseCacheLocation.None)]
 public sealed class HrPayrollController:ControllerBase
 {
  private readonly IHrPayrollService _service;public HrPayrollController(IHrPayrollService service)=>_service=service;
