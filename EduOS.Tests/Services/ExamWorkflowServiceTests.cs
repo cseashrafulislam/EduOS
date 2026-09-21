@@ -27,7 +27,8 @@ public sealed class ExamWorkflowServiceTests
     public void Whole_section_results_require_class_teacher_ownership_for_teacher_accounts()
     {
         Source.Should().Contain("x.TeacherId == employeeId.Value && x.IsClassTeacher");
-        Source.Should().Contain("You are not assigned as this section's class teacher.");
+        Source.Should().Contain("if (!await CanViewResultScopeAsync");
+        Source.Should().Contain("Exam result access is required.");
     }
 
     [Fact]

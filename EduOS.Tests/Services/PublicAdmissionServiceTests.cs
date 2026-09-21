@@ -295,7 +295,9 @@ public class PublicAdmissionServiceTests
         created.StatusCode.Should().Be(201);
         replay.Data!.Reference.Should().Be(created.Data!.Reference);
         conflict.StatusCode.Should().Be(409);
-        (await context.AdmissionApplicants.SingleAsync()).CustomResponsesJson.Should().Contain("A+");
+        var storedResponses = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string?>>(
+            (await context.AdmissionApplicants.SingleAsync()).CustomResponsesJson!);
+        storedResponses.Should().ContainKey("blood_group").WhoseValue.Should().Be("A+");
     }
 
     [Fact]

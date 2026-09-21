@@ -136,7 +136,7 @@ public sealed class AdmissionIntakeServiceTests
 
     internal static CreateAdmissionIntakeFormDto FormRequest(References refs) => new()
     {
-        ClientRequestId = Guid.NewGuid(), Code = "2027-main-six", Title = "Class Six Admission",
+        ClientRequestId = Guid.NewGuid(), Code = "admission-2027-main-six", Title = "Class Six Admission",
         AcademicYearId = refs.YearId, CampusId = refs.CampusId, AcademicUnitId = refs.UnitId,
         OpensAtUtc = Now.UtcDateTime.AddDays(-1), ClosesAtUtc = Now.UtcDateTime.AddDays(30), Currency = "BDT",
         Fields = [new AdmissionFormFieldDto { Key = "blood_group", Label = "Blood group", Type = AdmissionFormFieldType.Text, IsRequired = true, MaxLength = 5 }],

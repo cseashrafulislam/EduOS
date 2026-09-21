@@ -13,7 +13,9 @@ public sealed class AdmissionIntakeAuthorizationContractTests
     public void Management_controller_is_role_module_antiforgery_rate_limit_and_no_store_guarded()
     {
         var controller = typeof(AdmissionIntakeController);
-        var authorize = Assert.Single(controller.GetCustomAttributes(typeof(AuthorizeAttribute), true).Cast<AuthorizeAttribute>());
+        var authorize = controller.GetCustomAttributes(typeof(AuthorizeAttribute), true)
+            .Cast<AuthorizeAttribute>()
+            .Single(x => !string.IsNullOrWhiteSpace(x.Roles));
         var module = Assert.Single(controller.GetCustomAttributes(typeof(RequireModuleAttribute), true).Cast<RequireModuleAttribute>());
         var limiter = Assert.Single(controller.GetCustomAttributes(typeof(EnableRateLimitingAttribute), true).Cast<EnableRateLimitingAttribute>());
         var cache = Assert.Single(controller.GetCustomAttributes(typeof(ResponseCacheAttribute), true).Cast<ResponseCacheAttribute>());

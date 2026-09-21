@@ -23,7 +23,7 @@ public class AdmissionApplicantModelTests
             .FindAnnotation(RelationalAnnotationNames.ColumnType)!
             .Value.Should().Be("date");
         entity.FindProperty(nameof(AdmissionApplicant.RowVersion))!.IsConcurrencyToken.Should().BeTrue();
-        entity.GetForeignKeys().Should().HaveCount(5);
+        entity.GetForeignKeys().Should().HaveCount(6);
         entity.GetForeignKeys().Should().OnlyContain(x => x.DeleteBehavior == DeleteBehavior.Restrict);
         var clientRequestIndex = new[] { nameof(AdmissionApplicant.TenantId), nameof(AdmissionApplicant.ClientRequestId) };
         var applicationNumberIndex = new[] { nameof(AdmissionApplicant.TenantId), nameof(AdmissionApplicant.ApplicationNumber) };
