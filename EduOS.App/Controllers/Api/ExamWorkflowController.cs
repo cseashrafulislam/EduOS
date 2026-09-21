@@ -11,6 +11,7 @@ namespace EduOS.App.Controllers.Api;
 [RequireModule("EXAM")]
 [AutoValidateAntiforgeryToken]
 [EnableRateLimiting("ApiPolicy")]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 [ApiController]
 [Route("api/exams/workflow")]
 public sealed class ExamWorkflowController : ControllerBase
