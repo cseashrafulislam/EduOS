@@ -6,7 +6,7 @@ EduOS is a configurable, multi-tenant SaaS platform for the Bangladesh education
 
 একটি প্রতিষ্ঠান signup করবে, plan/trial বেছে নেবে, payment করবে, নিজের campus, academic structure, branding, terminology, workflow ও enabled modules configure করবে এবং ব্যবহার শুরু করবে। কোনো নির্দিষ্ট প্রতিষ্ঠানের নাম, class structure, fee rule, grading rule বা approval flow shared code-এ hard-code করা যাবে না।
 
-> **Current status:** foundation under active development. Phase 0 security work, institution/module entitlement, privacy-safe learner identity, account-linked student/parent consent decisions, revocable time-bound data grants, admission intake/review, approved applicant-to-student/guardian/enrolment conversion, and annual student promotion/repeat are implemented and tested. Admission conversion and progression are tenant-scoped, transactional, retry-safe and concurrency-protected; consent approval grants only the requested scopes and creates no unrestricted cross-institution access. Public admission forms, documents, assessment/merit, offer/payment, scoped history projection, legacy identifier migration, transfer/completion, and many education-module workflows remain planned and must not be treated as production-complete.
+> **Current status:** foundation under active development. Phase 0 security work, institution/module entitlement, privacy-safe learner identity, canonical programme/level/curriculum/batch setup, collision-safe academic routines, admission intake/review, approved applicant-to-student/guardian/enrolment conversion, and annual student promotion/repeat are implemented and tested. The implemented write workflows are tenant-scoped, transactional, retry-safe and concurrency-protected. Public admission forms, documents, assessment/merit, offer/payment, scoped learner-history projection, legacy identifier migration, student transfer/completion, academic substitution/lesson planning, and many other module workflows remain planned and must not be treated as production-complete.
 
 Privileged cookie sessions now require TOTP MFA: password login produces a short-lived encrypted challenge when MFA is enabled, first-time TenantAdmin/SuperAdmin/AdmissionOfficer sessions are restricted to bilingual MFA setup, and recovery codes are displayed once. This is a working security control, not a substitute for production key custody, administrator recovery operations, or penetration testing.
 
@@ -249,7 +249,9 @@ Current/next-generation models include AcademicYear, AcademicTerm, Medium, Shift
 | Routine | Time slots, rooms, instructor collision and substitution | 🟡 Foundation |
 | Lesson plan | Syllabus coverage, resources, progress, approval | 🟡 Foundation |
 
-The first operational routine slice is implemented on the canonical programme/level/batch model. Authorized academic managers can create time slots, assign an active instructor only to a subject in the batch's active curriculum, create or deactivate routine entries, and read batch/teacher timetables. Teacher, batch and room overlap checks run inside a serializable retry-aware transaction; room campus/capacity, academic year/term, tenant and teacher ownership are validated server-side. Exact create retries return the existing assignment/entry instead of writing duplicates. Student/guardian timetable projection, substitution and lesson-plan workflows remain incomplete, so the overall academic area remains Foundation rather than fully implemented.
+The canonical academic setup and first operational routine slices are implemented. Authorized academic managers can create tenant-owned programmes, levels, class-independent subjects, effective/current curricula, curriculum subject registrations, campus/year-bound batches and rooms through a protected setup API. Natural keys and the single-current-curriculum invariant are database-enforced; setup writes use retry-aware serializable transactions and exact retries return the existing resource. Server validation covers campus/department/year/term/programme/level/track/medium/shift ownership, academic-year date bounds, curriculum membership and mark rules. The legacy `Subject.ClassId` link remains available but is optional for canonical subjects, with a migration and regression coverage preserving its `bigint` identity boundary.
+
+Authorized managers can also create time slots, assign an active instructor only to a subject in the batch's active curriculum, create or deactivate routine entries, and read batch/teacher timetables. Teacher, batch and room overlap checks run inside a serializable retry-aware transaction; room campus/capacity, academic year/term, tenant and teacher ownership are validated server-side. Student/guardian timetable projection, substitution, lesson-plan and student elective-registration workflows remain incomplete, so the overall academic area remains Foundation rather than fully implemented.
 
 Must support:
 
@@ -578,6 +580,7 @@ These are the meaningful API areas currently present:
 | /api/learner-identities | Rate-limited privacy-safe identity creation, reuse and neutral consent request |
 | /api/learner-consents | Student/parent pending requests, approve/deny, active grants and revocation |
 | /api/students/{studentReference}/promotions | TenantAdmin/Principal promotion or repeat and immutable progression history |
+| /api/academic-setup | Tenant-scoped programme, level, canonical subject, curriculum registration, batch and room setup with retry-safe writes |
 | /api/academic-routines | Curriculum-validated instructor assignment, time slots, collision-safe routine entry, batch/teacher timetable and auditable deactivation |
 | /api/v1/auditlog | Filter, record/user history and export |
 
@@ -1004,7 +1007,7 @@ Acceptance:
 
 ### Phase 3 — Academic operations
 
-Progress: the canonical academic schema now has an additive migration path, and the first protected routine workflow is operational with curriculum-bound instructor assignment, retry-aware serializable collision checks, tenant/role/module enforcement, room capacity/campus validation, teacher ownership and batch/teacher timetable reads. Academic structure administration UI, student/guardian timetable projection, substitution, lesson plans and the remaining Phase 3 workflows are still pending.
+Progress: the canonical academic schema now has an additive migration path and a protected setup API for programme, level, canonical subject, versioned curriculum registration, campus/year batch and room creation. Natural keys, campus/year relationships and one-current-curriculum rules are database-backed; writes are tenant/role/module guarded, serializable and retry-safe. The routine workflow is operational with curriculum-bound instructor assignment, collision checks, room capacity/campus validation, teacher ownership and batch/teacher timetable reads. Academic structure administration UI, track creation, student elective registration, student/guardian timetable projection, substitution, lesson plans and the remaining Phase 3 workflows are still pending.
 
 Deliver:
 

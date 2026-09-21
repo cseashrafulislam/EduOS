@@ -119,11 +119,18 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("AcademicYearId");
 
+                    b.HasIndex("CampusId");
+
                     b.HasIndex("MediumId");
 
                     b.HasIndex("ShiftId");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "AcademicYearId", "Code")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AcademicBatches_Tenant_Year_Code")
+                        .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("AcademicBatches");
                 });
@@ -264,7 +271,21 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("AcademicProgramId");
 
+                    b.HasIndex("EffectiveFromAcademicYearId");
+
+                    b.HasIndex("EffectiveToAcademicYearId");
+
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "AcademicProgramId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AcademicCurriculums_Tenant_CurrentProgram")
+                        .HasFilter("[IsDeleted] = 0 AND [IsActive] = 1 AND [IsCurrent] = 1");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AcademicCurriculums_Tenant_Code")
+                        .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("AcademicCurriculums");
                 });
@@ -328,6 +349,11 @@ namespace EduOS.Persistence.Migrations
                     b.HasIndex("AcademicProgramId");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "AcademicProgramId", "Code")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AcademicLevels_Tenant_Program_Code")
+                        .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("AcademicLevels");
                 });
@@ -402,7 +428,14 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("DepartmentId");
 
+                    b.HasIndex("CampusId");
+
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AcademicPrograms_Tenant_Code")
+                        .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("AcademicPrograms");
                 });
@@ -774,6 +807,11 @@ namespace EduOS.Persistence.Migrations
                     b.HasIndex("SubjectId");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "AcademicCurriculumId", "AcademicLevelId", "SubjectId", "AcademicTrackId", "MediumId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_CurriculumSubjects_Tenant_Scope")
+                        .HasFilter("[IsDeleted] = 0 AND [IsActive] = 1");
 
                     b.ToTable("CurriculumSubjects");
                 });
@@ -1251,7 +1289,14 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("AcademicProgramId");
 
+                    b.HasIndex("CampusId");
+
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "AcademicProgramId", "CampusId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ProgramCampuses_Tenant_Program_Campus")
+                        .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("ProgramCampuses");
                 });
@@ -1314,7 +1359,14 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CampusId");
+
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Rooms_Tenant_Code")
+                        .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("Rooms");
                 });
@@ -1455,7 +1507,7 @@ namespace EduOS.Persistence.Migrations
                     b.Property<int>("Capacity")
                         .HasColumnType("int");
 
-                    b.Property<long>("ClassId")
+                    b.Property<long?>("ClassId")
                         .HasColumnType("bigint");
 
                     b.Property<DateTime>("CreatedAt")
@@ -1634,6 +1686,11 @@ namespace EduOS.Persistence.Migrations
                     b.HasIndex("GroupId");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Subjects_Tenant_CanonicalCode")
+                        .HasFilter("[IsDeleted] = 0 AND [ClassId] IS NULL");
 
                     b.ToTable("Subjects");
                 });
@@ -11278,6 +11335,12 @@ namespace EduOS.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("EduOS.Core.Entities.SaaS.Campus", null)
+                        .WithMany()
+                        .HasForeignKey("CampusId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("EduOS.Core.Entities.Academic.Medium", "Medium")
                         .WithMany()
                         .HasForeignKey("MediumId")
@@ -11338,6 +11401,16 @@ namespace EduOS.Persistence.Migrations
 
             modelBuilder.Entity("EduOS.Core.Entities.Academic.AcademicCurriculum", b =>
                 {
+                    b.HasOne("EduOS.Core.Entities.Academic.AcademicYear", null)
+                        .WithMany()
+                        .HasForeignKey("EffectiveFromAcademicYearId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.Academic.AcademicYear", null)
+                        .WithMany()
+                        .HasForeignKey("EffectiveToAcademicYearId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("EduOS.Core.Entities.Academic.AcademicProgram", "AcademicProgram")
                         .WithMany()
                         .HasForeignKey("AcademicProgramId")
@@ -11379,6 +11452,11 @@ namespace EduOS.Persistence.Migrations
                     b.HasOne("EduOS.Core.Entities.Academic.Department", "Department")
                         .WithMany()
                         .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.SaaS.Campus", null)
+                        .WithMany()
+                        .HasForeignKey("CampusId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
@@ -11707,6 +11785,12 @@ namespace EduOS.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("EduOS.Core.Entities.SaaS.Campus", null)
+                        .WithMany()
+                        .HasForeignKey("CampusId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
                         .WithMany()
                         .HasForeignKey("TenantId")
@@ -11720,6 +11804,11 @@ namespace EduOS.Persistence.Migrations
 
             modelBuilder.Entity("EduOS.Core.Entities.Academic.Room", b =>
                 {
+                    b.HasOne("EduOS.Core.Entities.SaaS.Campus", null)
+                        .WithMany()
+                        .HasForeignKey("CampusId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
                         .WithMany()
                         .HasForeignKey("TenantId")
@@ -11818,8 +11907,7 @@ namespace EduOS.Persistence.Migrations
                     b.HasOne("EduOS.Core.Entities.Academic.Class", "Class")
                         .WithMany("Subjects")
                         .HasForeignKey("ClassId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("EduOS.Core.Entities.Academic.Group", "Group")
                         .WithMany()

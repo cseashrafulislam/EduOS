@@ -7,7 +7,7 @@ namespace EduOS.Core.Entities.Academic
     public class Subject : BaseTenantEntity
     {
         // Temporary compatibility scope while legacy Class/Group workflows migrate to CurriculumSubject.
-        public long ClassId { get; set; }
+        public long? ClassId { get; set; }
         public long? GroupId { get; set; }
 
         [Required, MaxLength(200)]

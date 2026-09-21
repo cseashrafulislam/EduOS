@@ -15,6 +15,7 @@ This file tracks the production-readiness hardening work on `codex/phase-0-secur
 - Realtime notifications are authenticated and tenant-isolated.
 - Legacy identifier normalization was reviewed against actual EF mappings. Mapped operational FK/ID corrections are covered by regression/model validation; orphan/unmapped legacy classes do not receive speculative migrations.
 - Sensitive operational/API responses reviewed during this hardening pass use no-store response caching where required.
+- Canonical academic setup now has protected programme, level, subject, curriculum registration, batch and room write paths with tenant-owned reference validation, serializable retry handling, database natural-key constraints and targeted behavioral/model coverage.
 
 ## Roadmap closeout
 
@@ -24,6 +25,7 @@ This file tracks the production-readiness hardening work on `codex/phase-0-secur
 | Transport operational workflow | Complete for implemented scope | Serializable capacity/duplicate protection and targeted tests covered. |
 | Core education + self-service hardening | Complete for implemented scope | Student/guardian/employee boundaries and evidence-based defects found in review are closed. |
 | Cross-module integrity / long-ID normalization | Complete for mapped scope | EF mapping/snapshot validation is authoritative; no speculative migrations for unmapped legacy classes. |
+| Canonical academic setup + routine foundation | Complete for implemented scope | Programme-to-batch setup, curriculum registration, instructor assignment and collision-safe routine writes are tenant/module/role guarded and regression-covered; later academic workflows remain in README scope. |
 | Security / tenant isolation / idempotency / concurrency | Complete for reviewed implemented scope | Critical mutation/read boundaries and discovered high-risk races are protected. |
 | Automated tests / migration validation | Complete | CI gates Release build, EF model/snapshot validation, full tests and production publish. |
 | Repository/runtime data hygiene | Complete | Runtime tenant upload content removed from tracking and ignored. |
