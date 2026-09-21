@@ -23,6 +23,7 @@ This file tracks the production-readiness hardening work on `codex/phase-0-secur
 - Daily student attendance now validates tenant-owned year/class/section membership and active enrolments; database constraints prevent duplicate daily rows and invalid status/time values while indexed roster reads and conflict responses cover concurrent writers.
 - Exam marks and section results now enforce teacher assignment ownership, class-teacher full-sheet visibility, active-enrolment membership, completeness checks, deterministic ranking and atomic/idempotent manager publication; advanced assessment/versioning/certification remains roadmap scope.
 - Configurable admission forms now have draft/publish/close lifecycle, bounded public availability, server-validated custom responses and private, checksum-backed applicant documents. Admission officers can review documents, required-document gates protect approval, and the existing assessment/merit workflow is exposed in applicant status without weakening tenant or ownership boundaries.
+- Manager-controlled student transfer/completion/dropout finalization now runs under serializable isolation, replays idempotent requests, enforces dues clearance for transfer/completion, closes legacy and canonical current enrolments together, and maps concurrency/serialization conflicts to reloadable HTTP 409 responses.
 
 ## Roadmap closeout
 

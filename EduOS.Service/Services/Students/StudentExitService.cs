@@ -1,13 +1,16 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Student;
+using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.Students;
+using EduOS.Core.Enums.Academics;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
+using System.Transactions;
 
 namespace EduOS.Service.Services.Students;
 
@@ -15,6 +18,7 @@ public sealed class StudentExitService : IStudentExitService
 {
     private readonly IGenericRepository<Student> _students;
     private readonly IGenericRepository<Enrollment> _enrollments;
+    private readonly IGenericRepository<StudentEnrollment> _academicEnrollments;
     private readonly IGenericRepository<StudentExitRecord> _exits;
     private readonly IGenericRepository<TransferCertificate> _certificates;
     private readonly IGenericRepository<StudentInvoice> _invoices;
@@ -24,11 +28,12 @@ public sealed class StudentExitService : IStudentExitService
     private readonly ILogger<StudentExitService> _logger;
 
     public StudentExitService(IGenericRepository<Student> students, IGenericRepository<Enrollment> enrollments,
+        IGenericRepository<StudentEnrollment> academicEnrollments,
         IGenericRepository<StudentExitRecord> exits, IGenericRepository<TransferCertificate> certificates,
         IGenericRepository<StudentInvoice> invoices, IUnitOfWork unitOfWork, ICurrentUserService currentUser,
         TimeProvider clock, ILogger<StudentExitService> logger)
     {
-        _students = students; _enrollments = enrollments; _exits = exits; _certificates = certificates;
+        _students = students; _enrollments = enrollments; _academicEnrollments = academicEnrollments; _exits = exits; _certificates = certificates;
         _invoices = invoices; _unitOfWork = unitOfWork; _currentUser = currentUser; _clock = clock; _logger = logger;
     }
 
@@ -48,17 +53,28 @@ public sealed class StudentExitService : IStudentExitService
         }
         try
         {
-            await _unitOfWork.BeginTransactionAsync();
+            using var scope = new TransactionScope(TransactionScopeOption.Required,
+                new TransactionOptions { IsolationLevel = IsolationLevel.Serializable },
+                TransactionScopeAsyncFlowOption.Enabled);
+            var concurrentReplay = await _exits.GetQueryable().AsNoTracking().Include(x => x.Student)
+                .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.ClientRequestId == request.ClientRequestId, cancellationToken);
+            if (concurrentReplay != null)
+            {
+                if (concurrentReplay.Student?.PublicId != request.StudentReference || !string.Equals(concurrentReplay.ExitType, exitType, StringComparison.OrdinalIgnoreCase))
+                    return ApiResponse<StudentExitResultDto>.ErrorResponse("Client request reference was already used for a different exit.", 409);
+                return ApiResponse<StudentExitResultDto>.SuccessResponse(Map(concurrentReplay, concurrentReplay.Student!), "Student exit was already processed.");
+            }
             var student = await _students.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.PublicId == request.StudentReference, cancellationToken);
-            if (student == null) return await RollbackError("Student not found.", 404);
-            if (!student.IsActive || !string.Equals(student.Status, "Active", StringComparison.OrdinalIgnoreCase)) return await RollbackError("Only an active student can be processed.", 409);
-            if (!VersionsMatch(student.RowVersion, version)) return await RollbackError("Student changed by another user. Reload and try again.", 409);
-            if (await _exits.AnyAsync(x => x.TenantId == tenantId && x.StudentId == student.Id)) return await RollbackError("Student already has a final exit record.", 409);
+            if (student == null) return ApiResponse<StudentExitResultDto>.ErrorResponse("Student not found.", 404);
+            if (!student.IsActive || !string.Equals(student.Status, "Active", StringComparison.OrdinalIgnoreCase)) return ApiResponse<StudentExitResultDto>.ErrorResponse("Only an active student can be processed.", 409);
+            if (!VersionsMatch(student.RowVersion, version)) return ApiResponse<StudentExitResultDto>.ErrorResponse("Student changed by another user. Reload and try again.", 409);
+            if (await _exits.AnyAsync(x => x.TenantId == tenantId && x.StudentId == student.Id)) return ApiResponse<StudentExitResultDto>.ErrorResponse("Student already has a final exit record.", 409);
             var active = await _enrollments.GetQueryable().Where(x => x.TenantId == tenantId && x.StudentId == student.Id && x.IsActive).OrderByDescending(x => x.EnrollmentDate).ToListAsync(cancellationToken);
+            var canonical = await _academicEnrollments.GetQueryable().Where(x => x.TenantId == tenantId && x.StudentId == student.Id && x.IsCurrent && x.IsActive).ToListAsync(cancellationToken);
             var placement = active.FirstOrDefault();
             var due = await _invoices.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenantId && x.StudentId == student.Id).SumAsync(x => (decimal?)x.DueAmount, cancellationToken) ?? 0m;
             var feesCleared = due <= 0m;
-            if (exitType is "Transfer" or "Completed" && !feesCleared) return await RollbackError("Outstanding fees must be cleared before transfer or completion.", 409);
+            if (exitType is "Transfer" or "Completed" && !feesCleared) return ApiResponse<StudentExitResultDto>.ErrorResponse("Outstanding fees must be cleared before transfer or completion.", 409);
             var now = _clock.GetUtcNow().UtcDateTime;
             var publicId = Guid.NewGuid();
             var certificateNo = exitType == "Dropout" ? null : $"{(exitType == "Transfer" ? "TC" : "COMP")}-{now:yyyy}-{publicId:N}"[..18].ToUpperInvariant();
@@ -83,21 +99,27 @@ public sealed class StudentExitService : IStudentExitService
                 });
             }
             foreach (var enrollment in active) { enrollment.IsActive = false; enrollment.UpdatedAt = now; enrollment.UpdatedBy = _currentUser.UserId; }
+            var canonicalStatus = exitType switch { "Transfer" => EnrollmentStatus.Transferred, "Completed" => EnrollmentStatus.Completed, _ => EnrollmentStatus.Dropped };
+            foreach (var enrollment in canonical) { enrollment.IsCurrent = false; enrollment.IsActive = false; enrollment.EnrollmentStatus = canonicalStatus; enrollment.UpdatedAt = now; enrollment.UpdatedBy = _currentUser.UserId; }
             student.IsActive = false; student.Status = exitType switch { "Transfer" => "TC", "Completed" => "Passed", _ => "Dropout" }; student.UpdatedAt = now; student.UpdatedBy = _currentUser.UserId;
-            await _unitOfWork.SaveChangesAsync(cancellationToken); await _unitOfWork.CommitTransactionAsync();
+            await _unitOfWork.SaveChangesAsync(cancellationToken); scope.Complete();
             return new ApiResponse<StudentExitResultDto> { Success = true, StatusCode = 201, Message = "Student exit processed.", Data = Map(record, student) };
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            await SafeRollbackAsync(); _logger.LogWarning(ex, "Concurrent student exit {Reference}", request.StudentReference); return ApiResponse<StudentExitResultDto>.ErrorResponse("Student changed by another user. Reload and try again.", 409);
+            _logger.LogWarning(ex, "Concurrent student exit {Reference}", request.StudentReference); return ApiResponse<StudentExitResultDto>.ErrorResponse("Student changed by another user. Reload and try again.", 409);
         }
         catch (DbUpdateException ex)
         {
-            await SafeRollbackAsync(); _logger.LogWarning(ex, "Student exit conflict {Reference}", request.StudentReference); return ApiResponse<StudentExitResultDto>.ErrorResponse("Student exit conflicts with an existing record.", 409);
+            _logger.LogWarning(ex, "Student exit conflict {Reference}", request.StudentReference); return ApiResponse<StudentExitResultDto>.ErrorResponse("Student exit conflicts with an existing record.", 409);
+        }
+        catch (TransactionAbortedException ex)
+        {
+            _logger.LogWarning(ex, "Serialized student exit conflict {Reference}", request.StudentReference); return ApiResponse<StudentExitResultDto>.ErrorResponse("Student exit conflicts with another update. Reload and try again.", 409);
         }
         catch (Exception ex)
         {
-            await SafeRollbackAsync(); _logger.LogError(ex, "Student exit failed {Reference}", request.StudentReference); return ApiResponse<StudentExitResultDto>.ErrorResponse("Student exit could not be processed.", 500);
+            _logger.LogError(ex, "Student exit failed {Reference}", request.StudentReference); return ApiResponse<StudentExitResultDto>.ErrorResponse("Student exit could not be processed.", 500);
         }
     }
 
@@ -116,6 +138,4 @@ public sealed class StudentExitService : IStudentExitService
     private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     private static bool TryVersion(string? value, out byte[] version) { try { version = Convert.FromBase64String(value ?? string.Empty); return version.Length > 0; } catch (FormatException) { version = []; return false; } }
     private static bool VersionsMatch(byte[] a, byte[] b) => a.Length == b.Length && CryptographicOperations.FixedTimeEquals(a, b);
-    private async Task<ApiResponse<StudentExitResultDto>> RollbackError(string message, int code) { await SafeRollbackAsync(); return ApiResponse<StudentExitResultDto>.ErrorResponse(message, code); }
-    private async Task SafeRollbackAsync() { try { await _unitOfWork.RollbackTransactionAsync(); } catch (Exception ex) { _logger.LogError(ex, "Student exit rollback failed."); } }
 }
