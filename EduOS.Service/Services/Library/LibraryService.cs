@@ -44,7 +44,7 @@ public sealed class LibraryService : ILibraryService
     public async Task<ApiResponse<LibraryIssueDto>> IssueAsync(IssueBookDto request, CancellationToken cancellationToken = default)
     {
         if (!CanManage()) return Denied<LibraryIssueDto>();
-        if (request == null || request.ClientRequestId == Guid.Empty || request.BookReference == Guid.Empty || (request.StudentReference.HasValue == request.EmployeeId.HasValue)) return Error("Exactly one borrower and a valid request reference are required.");
+        if (request == null || request.ClientRequestId == Guid.Empty || request.BookReference == Guid.Empty || (request.StudentReference.HasValue == request.EmployeeReference.HasValue)) return Error("Exactly one borrower and a valid request reference are required.");
         var today = _clock.GetLocalNow().Date;
         if (request.DueDate.Date < today) return Error("Due date cannot be before today.");
         var tenantId = _currentUser.TenantId;
@@ -64,7 +64,7 @@ public sealed class LibraryService : ILibraryService
             }
             else
             {
-                var employee = await _employees.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.EmployeeId && x.IsActive, cancellationToken);
+                var employee = await _employees.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.PublicId == request.EmployeeReference!.Value && x.IsActive, cancellationToken);
                 if (employee == null) return Error("Employee borrower not found.", 404);
                 employeeId = employee.Id;
             }
@@ -74,8 +74,8 @@ public sealed class LibraryService : ILibraryService
             await _issues.AddAsync(issue);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             issue.Book = book;
-            if (studentId.HasValue) issue.Student = await _students.GetQueryable().AsNoTracking().FirstAsync(x => x.Id == studentId.Value, cancellationToken);
-            if (employeeId.HasValue) issue.Employee = await _employees.GetQueryable().AsNoTracking().FirstAsync(x => x.Id == employeeId.Value, cancellationToken);
+            if (studentId.HasValue) issue.Student = await _students.GetQueryable().AsNoTracking().FirstAsync(x => x.TenantId == tenantId && x.Id == studentId.Value, cancellationToken);
+            if (employeeId.HasValue) issue.Employee = await _employees.GetQueryable().AsNoTracking().FirstAsync(x => x.TenantId == tenantId && x.Id == employeeId.Value, cancellationToken);
             return new ApiResponse<LibraryIssueDto> { Success = true, StatusCode = 201, Message = "Book issued.", Data = Map(issue) };
         }
         catch (DbUpdateConcurrencyException ex)
