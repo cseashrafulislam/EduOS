@@ -19,7 +19,7 @@ public sealed class IssueBookDto
     public Guid ClientRequestId { get; set; }
     public Guid BookReference { get; set; }
     public Guid? StudentReference { get; set; }
-    public long? EmployeeId { get; set; }
+    public Guid? EmployeeReference { get; set; }
     public DateTime DueDate { get; set; }
 }
 
