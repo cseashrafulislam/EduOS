@@ -231,7 +231,7 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
         if (query.AcademicYearId <= 0 || query.ClassId <= 0 || query.SectionId <= 0) return "Academic year, class and section are required.";
         var date = query.Date.Date;
         var today = _clock.GetLocalNow().Date;
-        if (date < new DateTime(2000, 1, 1) || date > today.AddDays(1)) return "Attendance date is invalid.";
+        if (date < new DateTime(2000, 1, 1) || date > today) return "Attendance date is invalid.";
 
         var tenantId = _currentUser.TenantId;
         var year = await _academicYears.GetQueryable().AsNoTracking()
