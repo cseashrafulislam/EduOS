@@ -13,7 +13,6 @@ public class StudentAttendanceRosterQueryDto
 public sealed class SaveStudentAttendanceItemDto
 {
     public Guid StudentReference { get; set; }
-    [Range(1, long.MaxValue)] public long StudentId { get; set; }
     [Required, RegularExpression("^(Present|Absent|Late|Leave)$")] public string Status { get; set; } = "Present";
     public TimeSpan? InTime { get; set; }
     public TimeSpan? OutTime { get; set; }
@@ -27,7 +26,6 @@ public sealed class SaveStudentAttendanceDto : StudentAttendanceRosterQueryDto
 
 public sealed class StudentAttendanceRosterItemDto
 {
-    public long StudentId { get; set; }
     public Guid StudentReference { get; set; }
     public string StudentCode { get; set; } = string.Empty;
     public string Roll { get; set; } = string.Empty;
