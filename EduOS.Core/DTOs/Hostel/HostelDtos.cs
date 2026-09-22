@@ -17,7 +17,7 @@ public sealed class HostelRoomDto
 public sealed class StudentHostelDto
 {
     public long Id { get; set; }
-    public long StudentId { get; set; }
+    public Guid StudentReference { get; set; }
     public string StudentName { get; set; } = string.Empty;
     public long HostelId { get; set; }
     public string HostelName { get; set; } = string.Empty;
@@ -32,7 +32,7 @@ public sealed class StudentHostelDto
 
 public sealed class AllocateHostelDto
 {
-    [Range(1, long.MaxValue)] public long StudentId { get; set; }
+    public Guid StudentReference { get; set; }
     [Range(1, long.MaxValue)] public long HostelRoomId { get; set; }
     [StringLength(50)] public string? BedNo { get; set; }
     public DateTime StartDate { get; set; }
