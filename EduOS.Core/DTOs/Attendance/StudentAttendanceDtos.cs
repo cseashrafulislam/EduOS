@@ -12,6 +12,7 @@ public class StudentAttendanceRosterQueryDto
 
 public sealed class SaveStudentAttendanceItemDto
 {
+    public Guid StudentReference { get; set; }
     [Range(1, long.MaxValue)] public long StudentId { get; set; }
     [Required, RegularExpression("^(Present|Absent|Late|Leave)$")] public string Status { get; set; } = "Present";
     public TimeSpan? InTime { get; set; }
