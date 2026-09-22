@@ -47,12 +47,12 @@ public sealed class HostelService : IHostelService
     public async Task<ApiResponse<StudentHostelDto>> AllocateAsync(AllocateHostelDto request, CancellationToken cancellationToken = default)
     {
         if (!CanManage()) return Denied<StudentHostelDto>();
-        if (request == null || request.StudentId <= 0 || request.HostelRoomId <= 0) return Error("Student and room are required.");
+        if (request == null || request.StudentReference == Guid.Empty || request.HostelRoomId <= 0) return Error("Student and room are required.");
         var tenantId = _currentUser.TenantId;
         try
         {
             using var scope = new TransactionScope(TransactionScopeOption.Required, new TransactionOptions { IsolationLevel = IsolationLevel.Serializable }, TransactionScopeAsyncFlowOption.Enabled);
-            var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.StudentId && x.IsActive, cancellationToken);
+            var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.PublicId == request.StudentReference && x.IsActive, cancellationToken);
             if (student == null) return Error("Student not found.", 404);
             var room = await _rooms.GetQueryable().Include(x => x.Hostel).FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.HostelRoomId && x.IsActive && x.Hostel != null && x.Hostel.IsActive, cancellationToken);
             if (room == null) return Error("Hostel room not found.", 404);
@@ -87,7 +87,7 @@ public sealed class HostelService : IHostelService
     private IQueryable<StudentHostel> Query() => _allocations.GetQueryable().Include(x => x.Student).Include(x => x.Hostel).Include(x => x.HostelRoom);
     private bool CanRead() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0;
     private bool CanManage() => CanRead() && (_currentUser.IsTenantAdmin || _currentUser.IsInRole("Principal") || _currentUser.IsInRole("HostelWarden"));
-    private static StudentHostelDto Map(StudentHostel x) => new() { Id = x.Id, StudentId = x.StudentId, StudentName = x.Student?.FullName ?? string.Empty, HostelId = x.HostelId, HostelName = x.Hostel?.Name ?? string.Empty, HostelRoomId = x.HostelRoomId, RoomNo = x.HostelRoom?.RoomNo ?? string.Empty, BedNo = x.BedNo, StartDate = x.StartDate, EndDate = x.EndDate, MonthlyRent = x.MonthlyRent, IsActive = x.IsActive };
+    private static StudentHostelDto Map(StudentHostel x) => new() { Id = x.Id, StudentReference = x.Student?.PublicId ?? Guid.Empty, StudentName = x.Student?.FullName ?? string.Empty, HostelId = x.HostelId, HostelName = x.Hostel?.Name ?? string.Empty, HostelRoomId = x.HostelRoomId, RoomNo = x.HostelRoom?.RoomNo ?? string.Empty, BedNo = x.BedNo, StartDate = x.StartDate, EndDate = x.EndDate, MonthlyRent = x.MonthlyRent, IsActive = x.IsActive };
     private static ApiResponse<T> Denied<T>() => ApiResponse<T>.ErrorResponse("Hostel access is required.", 403);
     private static ApiResponse<StudentHostelDto> Error(string message, int status = 400) => ApiResponse<StudentHostelDto>.ErrorResponse(message, status);
 }
