@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace EduOS.Core.DTOs.Exams;
 
@@ -28,7 +29,8 @@ public sealed class SaveExamMarksDto : ExamMarkRosterQueryDto
 
 public sealed class ExamMarkRosterItemDto
 {
-    public long StudentId { get; set; }
+    // Internal persistence identity is retained for in-process mapping only. API consumers use StudentReference.
+    [JsonIgnore] public long StudentId { get; set; }
     public Guid StudentReference { get; set; }
     public string StudentCode { get; set; } = string.Empty;
     public string Roll { get; set; } = string.Empty;
@@ -55,7 +57,8 @@ public sealed class ExamMarkRosterDto
 
 public sealed class ExamResultItemDto
 {
-    public long StudentId { get; set; }
+    // Never expose the sequential student database key in result payloads.
+    [JsonIgnore] public long StudentId { get; set; }
     public Guid StudentReference { get; set; }
     public string StudentCode { get; set; } = string.Empty;
     public string Roll { get; set; } = string.Empty;
