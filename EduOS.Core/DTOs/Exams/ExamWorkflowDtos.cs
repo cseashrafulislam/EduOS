@@ -17,7 +17,7 @@ public class ExamMarkRosterQueryDto : ExamScopeDto
 
 public sealed class SaveExamMarkItemDto
 {
-    [Range(1, long.MaxValue)] public long StudentId { get; set; }
+    public Guid StudentReference { get; set; }
     [Range(typeof(decimal), "0", "1000000")] public decimal ObtainedMark { get; set; }
     public bool IsAbsent { get; set; }
 }
