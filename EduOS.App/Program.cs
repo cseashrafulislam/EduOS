@@ -12,14 +12,29 @@ using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.OpenApi;
 using System.Globalization;
 
-
 var builder = WebApplication.CreateBuilder(args);
 
 // =============================================================================
 // 1. CONFIGURATION
 // =============================================================================
-builder.Services.Configure<EmailSettings>(
-    builder.Configuration.GetSection("EmailSettings"));
+builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
+
+// Production nodes must share durable data-protection keys. Without this, restarts or
+// multi-node deployments can invalidate auth/antiforgery cookies and encrypted payloads.
+var dataProtectionKeysPath = builder.Configuration["DataProtection:KeysPath"];
+if (builder.Environment.IsProduction() && string.IsNullOrWhiteSpace(dataProtectionKeysPath))
+{
+    throw new InvalidOperationException("DataProtection:KeysPath is required in Production and must point to durable protected storage.");
+}
+
+// Production schema changes are an explicit release step. Never mutate a real customer
+// database implicitly while the web process is starting.
+if (builder.Environment.IsProduction() &&
+    (builder.Configuration.GetValue<bool>("DatabaseInitialization:Enabled") ||
+     builder.Configuration.GetValue<bool>("DatabaseInitialization:ApplyMigrations")))
+{
+    throw new InvalidOperationException("Automatic database initialization/migration must be disabled in Production. Apply reviewed migrations before starting the application.");
+}
 
 // =============================================================================
 // 2. CORE INFRASTRUCTURE
@@ -33,20 +48,14 @@ builder.Services.AddControllersWithViews(options =>
 .AddViewLocalization()
 .AddDataAnnotationsLocalization(options =>
 {
-    options.DataAnnotationLocalizerProvider = (_, factory) =>
-        factory.Create(typeof(SharedResource));
+    options.DataAnnotationLocalizerProvider = (_, factory) => factory.Create(typeof(SharedResource));
 })
 .AddJsonOptions(opts =>
 {
-    opts.JsonSerializerOptions.PropertyNamingPolicy =
-        System.Text.Json.JsonNamingPolicy.CamelCase;
+    opts.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
 });
 
-var supportedCultures = new[]
-{
-    new CultureInfo("en-BD"),
-    new CultureInfo("bn-BD")
-};
+var supportedCultures = new[] { new CultureInfo("en-BD"), new CultureInfo("bn-BD") };
 
 builder.Services.Configure<RequestLocalizationOptions>(options =>
 {
@@ -62,13 +71,12 @@ builder.Services.Configure<RequestLocalizationOptions>(options =>
 
 builder.Services.AddRazorPages();
 builder.Services.AddHttpContextAccessor();
-var dataProtection = builder.Services.AddDataProtection()
-    .SetApplicationName("EduOS");
-var dataProtectionKeysPath = builder.Configuration["DataProtection:KeysPath"];
+var dataProtection = builder.Services.AddDataProtection().SetApplicationName("EduOS");
 if (!string.IsNullOrWhiteSpace(dataProtectionKeysPath))
 {
-    dataProtection.PersistKeysToFileSystem(
-        new DirectoryInfo(dataProtectionKeysPath));
+    var keyDirectory = new DirectoryInfo(dataProtectionKeysPath);
+    if (!keyDirectory.Exists) keyDirectory.Create();
+    dataProtection.PersistKeysToFileSystem(keyDirectory);
 }
 
 // =============================================================================
@@ -130,35 +138,24 @@ builder.Services.AddSwaggerGen(c =>
 
     c.AddSecurityRequirement(document => new OpenApiSecurityRequirement
     {
-        {
-            new OpenApiSecuritySchemeReference("Bearer", document),
-            new List<string>()
-        }
+        { new OpenApiSecuritySchemeReference("Bearer", document), new List<string>() }
     });
 });
 
-// =============================================================================
-// BUILD APP
-// =============================================================================
 var app = builder.Build();
 
 // =============================================================================
 // 11. DATABASE INITIALIZATION
 // =============================================================================
-// Production deployments must run reviewed migrations as a separate release step.
-// Development can opt in through appsettings.Development.json.
 var initializeDatabase = app.Configuration.GetValue<bool>("DatabaseInitialization:Enabled");
 if (initializeDatabase)
 {
-    var applyMigrations = app.Configuration.GetValue<bool>(
-        "DatabaseInitialization:ApplyMigrations");
-
+    var applyMigrations = app.Configuration.GetValue<bool>("DatabaseInitialization:ApplyMigrations");
     await DatabaseInitializer.InitializeAsync(app.Services, applyMigrations);
 }
 else
 {
-    app.Logger.LogInformation(
-        "Automatic database initialization is disabled. Run controlled migrations before deployment.");
+    app.Logger.LogInformation("Automatic database initialization is disabled. Run controlled migrations before deployment.");
 }
 
 // =============================================================================
@@ -167,7 +164,6 @@ else
 if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
-
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
@@ -180,19 +176,11 @@ else
     app.UseHsts();
 }
 
-// HTTPS redirection should be outside environment block
 app.UseHttpsRedirection();
-
-// Security headers should be early
 app.UseSecurityHeaders();
-
-// Global exception handler
 app.UseCustomExceptionMiddleware();
-
-// Status code pages
 app.UseStatusCodePagesWithReExecute("/Error/{0}");
 
-// Static files. Keep the service worker fresh so security/cache changes activate promptly.
 var staticFileContentTypes = new FileExtensionContentTypeProvider();
 staticFileContentTypes.Mappings[".webmanifest"] = "application/manifest+json";
 app.UseStaticFiles(new StaticFileOptions
@@ -209,31 +197,14 @@ app.UseStaticFiles(new StaticFileOptions
     }
 });
 
-// UI culture comes from an allow-listed cookie or the Accept-Language header.
 app.UseRequestLocalization();
-
-// Routing
 app.UseRouting();
-
-// CORS must be after routing and before auth
 app.UseCors(CorsExtensions.DefaultPolicy);
-
-// Rate limiting
 app.UseRateLimiter();
-
-// Authentication first
 app.UseAuthentication();
-
-// Tenant context should come after authentication
 app.UseTenantContext();
-
-// Privileged cookie sessions must complete MFA before any tenant/platform work.
 app.UsePrivilegedMfa();
-
-// Onboarding guard depends on tenant context
 app.UseOnboardingGuard();
-
-// Authorization after tenant/onboarding context
 app.UseAuthorization();
 
 // =============================================================================
@@ -250,11 +221,7 @@ app.UseHangfireDashboard("/hangfire", new DashboardOptions
 // 14. ENDPOINTS
 // =============================================================================
 app.MapHealthChecks("/health").AllowAnonymous();
-
-app.MapControllerRoute(
-    name: "default",
-    pattern: "{controller=Account}/{action=Login}/{id?}");
-
+app.MapControllerRoute(name: "default", pattern: "{controller=Account}/{action=Login}/{id?}");
 app.MapRazorPages();
 
 // =============================================================================
