@@ -1,5 +1,6 @@
 using EduOS.App.Extensions;
 using EduOS.App.Filters;
+using EduOS.App.Health;
 using EduOS.App.Localization;
 using EduOS.App.Middleware;
 using EduOS.Core.Configurations;
@@ -9,6 +10,7 @@ using Hangfire;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.StaticFiles;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.OpenApi;
 using System.Globalization;
 
@@ -112,7 +114,8 @@ builder.Services.AddHangfireConfiguration(builder.Configuration);
 // =============================================================================
 // 9. HEALTH CHECKS
 // =============================================================================
-builder.Services.AddHealthChecks();
+builder.Services.AddHealthChecks()
+    .AddCheck<DatabaseReadinessHealthCheck>("database", tags: new[] { "ready" });
 
 // =============================================================================
 // 10. SWAGGER
@@ -220,7 +223,16 @@ app.UseHangfireDashboard("/hangfire", new DashboardOptions
 // =============================================================================
 // 14. ENDPOINTS
 // =============================================================================
-app.MapHealthChecks("/health").AllowAnonymous();
+// Liveness proves the process can answer requests. Readiness additionally proves that
+// the primary database is reachable before a load balancer sends real users here.
+app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = _ => false
+}).AllowAnonymous();
+app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = registration => registration.Tags.Contains("ready")
+}).AllowAnonymous();
 app.MapControllerRoute(name: "default", pattern: "{controller=Account}/{action=Login}/{id?}");
 app.MapRazorPages();
 
