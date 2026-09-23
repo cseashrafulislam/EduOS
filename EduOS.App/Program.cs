@@ -29,6 +29,35 @@ if (builder.Environment.IsProduction() && string.IsNullOrWhiteSpace(dataProtecti
     throw new InvalidOperationException("DataProtection:KeysPath is required in Production and must point to durable protected storage.");
 }
 
+// Fail closed when production is accidentally started with development/default host,
+// database, JWT or CORS settings. Real tenant data must never be served under an
+// unbounded Host header or with local-development credentials/origins.
+if (builder.Environment.IsProduction())
+{
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+    if (string.IsNullOrWhiteSpace(connectionString))
+        throw new InvalidOperationException("ConnectionStrings:DefaultConnection is required in Production.");
+
+    var jwtSecret = builder.Configuration["JwtSettings:Secret"];
+    if (string.IsNullOrWhiteSpace(jwtSecret) || jwtSecret.Length < 32)
+        throw new InvalidOperationException("JwtSettings:Secret must be configured with at least 32 characters in Production.");
+
+    var allowedHosts = builder.Configuration["AllowedHosts"];
+    if (string.IsNullOrWhiteSpace(allowedHosts) || allowedHosts.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Any(x => x == "*"))
+        throw new InvalidOperationException("AllowedHosts must explicitly list trusted production hosts; wildcard hosts are not allowed in Production.");
+
+    var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
+    if (corsOrigins.Length == 0 || corsOrigins.Any(origin =>
+            string.IsNullOrWhiteSpace(origin) ||
+            origin.Contains("localhost", StringComparison.OrdinalIgnoreCase) ||
+            origin.Contains("127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
+            !Uri.TryCreate(origin, UriKind.Absolute, out var uri) ||
+            !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)))
+    {
+        throw new InvalidOperationException("Cors:AllowedOrigins must contain only explicit HTTPS production origins in Production.");
+    }
+}
+
 // Production schema changes are an explicit release step. Never mutate a real customer
 // database implicitly while the web process is starting.
 if (builder.Environment.IsProduction() &&
