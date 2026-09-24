@@ -1,10 +1,12 @@
 ﻿using EduOS.Core.Entities.Base;
+using EduOS.Core.Entities.SaaS;
 using System.ComponentModel.DataAnnotations;
 
 namespace EduOS.Core.Entities.Academic
 {
     public class AcademicCalendarEvent : BaseTenantEntity
     {
+        public Guid? ClientRequestId { get; set; }
         public long? CampusId { get; set; }
 
         public long? AcademicYearId { get; set; }
@@ -28,6 +30,10 @@ namespace EduOS.Core.Entities.Academic
         public bool IsPublicVisible { get; set; } = true;
         public bool IsActive { get; set; } = true;
 
+        [Timestamp]
+        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+
+        public virtual Campus? Campus { get; set; }
         public virtual AcademicYear? AcademicYear { get; set; }
         public virtual AcademicTerm? AcademicTerm { get; set; }
     }

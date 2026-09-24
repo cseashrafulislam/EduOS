@@ -1,6 +1,7 @@
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace EduOS.App.Controllers.Api;
 
@@ -10,6 +11,7 @@ namespace EduOS.App.Controllers.Api;
 [ApiController]
 [Route("api/platform-catalog")]
 [AllowAnonymous]
+[EnableRateLimiting("ApiPolicy")]
 public class PlatformCatalogController : ControllerBase
 {
     private readonly IPlatformCatalogService _catalogService;

@@ -3,10 +3,10 @@ using Microsoft.AspNetCore.Http;
 namespace EduOS.App.Middleware
 {
     /// <summary>
-    /// Adds security-related HTTP headers to all responses.
-    /// Helps protect against XSS, clickjacking, MIME-sniffing, etc.
+    /// Adds browser and transport-adjacent response hardening without changing application payloads.
+    /// Keep policy here conservative: EduOS still has legacy pages that may use inline script/style.
     /// </summary>
-    public class SecurityHeadersMiddleware
+    public sealed class SecurityHeadersMiddleware
     {
         private readonly RequestDelegate _next;
 
@@ -19,24 +19,24 @@ namespace EduOS.App.Middleware
         {
             var headers = context.Response.Headers;
 
-            // Prevent MIME-type sniffing
             headers["X-Content-Type-Options"] = "nosniff";
-
-            // Prevent clickjacking - allow same-origin only
             headers["X-Frame-Options"] = "SAMEORIGIN";
-
-            // XSS protection (legacy browsers)
-            headers["X-XSS-Protection"] = "1; mode=block";
-
-            // Referrer policy
             headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+            headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=(), usb=()";
+            headers["Cross-Origin-Opener-Policy"] = "same-origin";
+            headers["X-Permitted-Cross-Domain-Policies"] = "none";
 
-            // Permissions policy - lock down unused features
-            headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
+            // Do not emit the obsolete X-XSS-Protection parser switch. Modern browsers ignore it,
+            // and old implementations have historically introduced their own XSS edge cases.
+            headers["X-XSS-Protection"] = "0";
 
-            // Remove server header for security
-            headers.Remove("Server");
-            headers.Remove("X-Powered-By");
+            // Hosting layers can append identifying headers after middleware has run, so strip the
+            // application-level variants at the last possible point in the response lifecycle.
+            context.Response.OnStarting(() =>
+            {
+                context.Response.Headers.Remove("X-Powered-By");
+                return Task.CompletedTask;
+            });
 
             await _next(context);
         }

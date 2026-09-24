@@ -4,7 +4,7 @@ namespace EduOS.Core.Entities.Inventory
 {
     public class AssetMaintenance : BaseTenantEntity
     {
-        public int AssetId { get; set; }
+        public long AssetId { get; set; }
         public DateTime MaintenanceDate { get; set; }
         public string MaintenanceType { get; set; } = "Repair"; // Repair/Service
         public decimal Cost { get; set; }

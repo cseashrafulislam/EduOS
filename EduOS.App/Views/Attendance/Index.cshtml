@@ -1,0 +1,47 @@
+@{
+    ViewData["Title"] = "Student Attendance";
+}
+
+<section class="admission-page" aria-labelledby="attendanceTitle">
+    <header class="content-header-card">
+        <div>
+            <p class="dashboard-eyebrow">Academic Operations</p>
+            <h2 id="attendanceTitle">Student Attendance</h2>
+            <p>Load a class roster, mark attendance and save the complete daily register.</p>
+        </div>
+    </header>
+
+    <div id="attendanceAlert" class="d-none" role="alert" tabindex="-1"></div>
+
+    <section class="content-card" aria-labelledby="attendanceFilterTitle">
+        <div class="content-card-heading"><h3 id="attendanceFilterTitle">Attendance register</h3></div>
+        <form id="attendanceFilters" class="row g-3 align-items-end">
+            <div class="col-md-3"><label class="form-label" for="attendanceDate">Date</label><input id="attendanceDate" class="form-control" type="date" required /></div>
+            <div class="col-md-3"><label class="form-label" for="academicYearId">Academic Year ID</label><input id="academicYearId" class="form-control" type="number" min="1" required /></div>
+            <div class="col-md-3"><label class="form-label" for="classId">Class ID</label><input id="classId" class="form-control" type="number" min="1" required /></div>
+            <div class="col-md-3"><label class="form-label" for="sectionId">Section ID</label><input id="sectionId" class="form-control" type="number" min="1" required /></div>
+            <div class="col-12 d-flex gap-2 flex-wrap">
+                <button class="btn btn-primary" type="submit">Load roster</button>
+                <button id="markAllPresent" class="btn btn-outline-success" type="button" disabled>Mark all present</button>
+                <button id="saveAttendance" class="btn btn-success" type="button" disabled>Save attendance</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="content-card mt-3" aria-labelledby="attendanceRosterTitle">
+        <div class="content-card-heading d-flex justify-content-between align-items-center gap-3 flex-wrap">
+            <h3 id="attendanceRosterTitle">Roster</h3>
+            <div id="attendanceSummary" class="small text-muted" aria-live="polite"></div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead><tr><th>Roll</th><th>Student</th><th>Status</th><th>In</th><th>Out</th><th>Remarks</th></tr></thead>
+                <tbody id="attendanceRows"><tr><td colspan="6" class="text-center text-muted py-4">Select a date, academic year, class and section to load the roster.</td></tr></tbody>
+            </table>
+        </div>
+    </section>
+</section>
+
+@section Scripts {
+    <script src="~/js/attendance/index.js" asp-append-version="true"></script>
+}

@@ -9,7 +9,7 @@ namespace EduOS.Persistence.Repositories
     {
         public DesignationRepository(EduOSDbContext context) : base(context) { }
 
-        public async Task<List<Designation>> GetActiveAsync(int tenantId)
+        public async Task<List<Designation>> GetActiveAsync(long tenantId)
         {
             return await _dbSet
                 .Where(d => d.TenantId == tenantId && d.IsActive)

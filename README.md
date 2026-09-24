@@ -6,7 +6,9 @@ EduOS is a configurable, multi-tenant SaaS platform for the Bangladesh education
 
 একটি প্রতিষ্ঠান signup করবে, plan/trial বেছে নেবে, payment করবে, নিজের campus, academic structure, branding, terminology, workflow ও enabled modules configure করবে এবং ব্যবহার শুরু করবে। কোনো নির্দিষ্ট প্রতিষ্ঠানের নাম, class structure, fee rule, grading rule বা approval flow shared code-এ hard-code করা যাবে না।
 
-> **Current status:** foundation under active development. Phase 0 security work and the Phase 1 institution/module entitlement catalogue are implemented and tested. The shared/public shells, account pages, public pricing, tenant dashboard, SuperAdmin operations landing page, and onboarding progress support responsive desktop/mobile use, installable PWA behaviour, and English/Bangla UI resources. Institution profile, campus/branch, and academic year/term setup now have bilingual responsive workflows, tenant-admin authorization, anti-forgery protection, plan-limit enforcement, and tested date/ownership invariants. Subscription, payment, tenant profile, gateway settings, authentication, dashboard, and audit APIs also exist. Many education modules currently have domain entities only; their complete service, API, UI, permission, report, and test workflows are still planned.
+> **Current status:** foundation under active development. Phase 0 security work, institution/module entitlement, privacy-safe learner identity, canonical programme/level/track/curriculum/batch setup, canonical student batch enrolment and subject registration, collision-safe academic routines with owned student/guardian timetable projection, configurable academic calendar policy/events/working days, date-specific instructor substitution, lesson-plan approval/progress, configurable public admission forms and private document verification, admission assessment/merit publication, intake/review, approved applicant-to-student/guardian/enrolment conversion, annual student promotion/repeat, and manager-controlled student transfer/completion/dropout finalization are implemented and tested. The implemented write workflows are tenant-scoped, transactional, retry-safe and concurrency-protected. Admission eligibility/quota, applicant accounts, offer/payment, bulk import, scoped learner-history projection, legacy identifier migration, transfer request/approval/destination acceptance, readmission, and many other module workflows remain planned and must not be treated as production-complete.
+
+Privileged cookie sessions now require TOTP MFA: password login produces a short-lived encrypted challenge when MFA is enabled, first-time TenantAdmin/SuperAdmin/AdmissionOfficer sessions are restricted to bilingual MFA setup, and recovery codes are displayed once. This is a working security control, not a substitute for production key custody, administrator recovery operations, or penetration testing.
 
 ---
 
@@ -139,22 +141,21 @@ The current OnboardingStep lifecycle is:
 4. **Payment** — online payment, manual payment, or free trial.
 5. **CampusSetup** — head office and additional campus setup.
 6. **AcademicSetup** — academic year and optional terms.
-7. **BrandingSetup** — logo, favicon, colours, subdomain.
-8. **GeneralSettings** — currency, timezone, language, date format.
-9. **GatewaySetup** — optional tenant email/SMS gateway.
-10. **Completed** — dashboard access unlocked.
+7. **ModuleSetup** — preset-aware, plan-entitled module selection.
+8. **BrandingSetup** — logo, favicon, colours, subdomain.
+9. **GeneralSettings** — currency, timezone, language, date format.
+10. **GatewaySetup** — optional tenant email/SMS gateway.
+11. **Completed** — dashboard access unlocked.
 
-The profile, campus/branch, and academic year/term screens are implemented as mobile-first bilingual forms. Institution types come from the platform catalogue; campus codes are tenant-unique; the first campus becomes head office; deleting a head office promotes a remaining campus; active plan campus capacity is enforced; and term dates cannot escape their academic year. Onboarding pages and APIs are restricted to TenantAdmin, while same-origin browser writes carry anti-forgery tokens.
+All listed onboarding screens are implemented as mobile-first bilingual forms and can resume from server-owned state. Institution types come from the platform catalogue; campus codes are tenant-unique; the first campus becomes head office; deleting a head office promotes a remaining campus; active plan campus capacity is enforced; and term dates cannot escape their academic year. Plan/payment progress is advanced from verified server state: trials move directly to campus setup, paid plans wait for gateway verification or manual review, and a submitted receipt cannot unlock setup. Module selection combines institution presets with active-plan entitlements, protects required modules, uses optimistic concurrency, and cannot be used to unlock paid features. Branding requires a unique configurable-domain subdomain; logo/favicon uploads accept images only and replace an existing asset only after the new database reference is committed. Regional settings use a server allow-list. SMS and SMTP secrets are encrypted, returned only as masks, and enabled gateways require complete public endpoints; localhost, private addresses, insecure SMS URLs, and unexpected SMTP ports are rejected. Onboarding completion accepts only the current step, validates campus, academic year, required modules, subscription, and subdomain on the server, and clears the guard cache after state changes. Onboarding mutation APIs are restricted to TenantAdmin (or an explicitly tenant-scoped SuperAdmin operation), while same-origin browser writes carry anti-forgery tokens.
 
 ### Onboarding requirements still to build
 
-- Complete module selection UI; server-side plan-entitlement validation is implemented.
-- Full resumable recovery, expiry handling and idempotent completion around the existing wizard/status API.
 - Terms/privacy-policy version acceptance.
 - Domain verification and custom-domain workflow.
 - Guided sample data, checklist, contextual help, and first-run tours.
-- Owner MFA setup and recovery codes.
-- Idempotent signup/payment completion.
+- Identity-verified administrator MFA reset and emergency-access operations.
+- Idempotent signup completion and provider-side payment reconciliation jobs.
 
 ---
 
@@ -183,7 +184,7 @@ Required completed behaviour:
 - Feature entitlement check in API, menu, job, import, and report paths.
 - Student, teacher, campus, admin, storage, SMS, and email quota enforcement.
 - Upgrade, downgrade, prorating, grace period, renewal, cancellation, refund, and tax/VAT rules.
-- AamarPay implemented first; SSLCommerz, bKash/Nagad merchant, bank transfer, and international gateway adapters planned.
+- AamarPay initiation and verified callback handling plus manual bank-transfer review are implemented; production merchant certification, reconciliation/refund operations, SSLCommerz, direct bKash/Nagad merchant, and international adapters remain planned.
 - Every callback must validate provider authenticity, tenant, invoice, amount, currency, duplicate event, and final state.
 
 ### 6.2 Authentication, authorization, and accounts
@@ -197,7 +198,7 @@ Required completed behaviour:
 | AppPage / RolePagePermission / UserPagePermission | Page/menu authorization | 🟡 Foundation |
 | LoginHistory | Successful/failed login and logout audit | ✅ Auth workflow |
 | RefreshToken | API token lifecycle | 🟡 Foundation |
-| TwoFactorAuth | MFA setup and verification data | 🟡 Foundation |
+| TwoFactorAuth / Identity token store | Legacy model plus active TOTP setup, encrypted login challenge, recovery-code and privileged-session enforcement | ✅ Core MFA workflow |
 
 Target capabilities:
 
@@ -235,18 +236,26 @@ Configuration rules:
 
 ### 6.4 Academic structure and curriculum
 
-Current/next-generation models include AcademicYear, AcademicTerm, Medium, Shift, AcademicProgram, AcademicLevel, AcademicTrack, Subject, AcademicBatch, CurriculumSubject, StudentSubjectRegistration, Department, Group, Class, Section, SubjectTeacher, Instructor, InstructorAssignment, RoutineTimeSlot, RoutineEntry, ClassRoutine, Substitution, LessonPlan, AcademicCalendarEvent, Holiday, and Event.
+Current/next-generation models include AcademicYear, AcademicTerm, Medium, Shift, AcademicProgram, AcademicLevel, AcademicTrack, Subject, AcademicBatch, CurriculumSubject, StudentEnrollment, StudentSubjectRegistration, Department, Group, Class, Section, SubjectTeacher, Instructor, InstructorAssignment, RoutineTimeSlot, RoutineEntry, ClassRoutine, Substitution, LessonPlan, AcademicCalendarEvent, Holiday, and Event.
 
 | Function | Expected behaviour | Status |
 |---|---|---|
-| Academic calendar | Year, term/semester, holidays, events, working days | 🟡 Foundation |
+| Academic calendar | Year, term/semester, holidays, events, working days | ✅ Implemented API workflow |
 | Programme structure | Department → programme → level/semester/module | 🟡 Foundation |
 | Batch structure | Campus, programme, level, medium, shift, track, batch/section | 🟡 Foundation |
 | Curriculum | Subjects/courses, credits, full/pass marks, optional/practical rules | 🟡 Foundation |
 | Subject registration | Compulsory/elective registration with approval | 🟡 Foundation |
 | Instructor assignment | Subject/batch/campus/term assignment | 🟡 Foundation |
-| Routine | Time slots, rooms, instructor collision and substitution | 🟡 Foundation |
-| Lesson plan | Syllabus coverage, resources, progress, approval | 🟡 Foundation |
+| Routine | Time slots, rooms, instructor collision and substitution | ✅ Implemented API workflow |
+| Lesson plan | Syllabus coverage, resources, progress, approval | ✅ Implemented API workflow |
+
+The canonical academic setup and first operational routine slices are implemented. Authorized academic managers can create tenant-owned programmes, levels, class-independent subjects, effective/current curricula, curriculum subject registrations, campus/year-bound batches and rooms through a protected setup API. Natural keys and the single-current-curriculum invariant are database-enforced; setup writes use retry-aware serializable transactions and exact retries return the existing resource. Server validation covers campus/department/year/term/programme/level/track/medium/shift ownership, academic-year date bounds, curriculum membership and mark rules. The legacy `Subject.ClassId` link remains available but is optional for canonical subjects, with a migration and regression coverage preserving its `bigint` identity boundary.
+
+Authorized managers can also create time slots, assign an active instructor only to a subject in the batch's active curriculum, create or deactivate routine entries, and read batch/teacher timetables. Teacher, batch and room overlap checks run inside a serializable retry-aware transaction; room campus/capacity, academic year/term, tenant and teacher ownership are validated server-side. Students and linked guardians can read the learner's latest active legacy-enrolment timetable through the existing tenant-scoped, module-entitled, no-store portal endpoint. The canonical enrollment workflow additionally capacity-checks a batch, snapshots required curriculum subjects, prevents duplicate current students and rolls, and makes request retries idempotent. Account-linked students/guardians can request curriculum electives for manager approval and can read only their own canonical timetable; pending/rejected electives never leak into that timetable. Database constraints, serializable writes, optimistic concurrency and historical mark/credit/name snapshots protect the workflow.
+
+The academic calendar API now supports tenant-wide or campus-specific weekend policies, academic-year/term-bounded events and holidays, public/private visibility, and working-day projection for managers, teachers, students and guardians. Writes are manager-only, idempotent and serializable; event and policy row versions reject stale changes, while database constraints protect request keys and active scoped event uniqueness. Private holiday reasons remain hidden from non-managers without incorrectly treating the affected day as a working day.
+
+Academic managers can schedule a substitute against an exact routine/date, with year/term/day validation and collision checks against the substitute's routine and other coverage. Original and substitute teachers receive ownership-filtered views; cancellation is audited and concurrency-protected. Assigned teachers and managers can draft and edit lesson plans with objectives and resources, submit them for manager approval/rejection, and record monotonic progress through completion. Immutable request keys, natural-key hashes, serializable transitions, row versions and filtered unique indexes protect retries and races while nullable canonical bridges retain existing legacy substitution/lesson-plan rows. The broader academic area remains Foundation until its remaining structure UI and downstream assessment/attendance workflows are complete.
 
 Must support:
 
@@ -279,7 +288,20 @@ Required functions:
 - Online and counter admission workflows.
 - No applicant/student record should be created twice because a request was retried.
 
-Status: 🟡 entities exist; full end-to-end admission workflow is incomplete.
+Implemented intake slice:
+
+- Draft/publish/close lifecycle for tenant-owned admission forms with opening/closing windows, academic scope, fee metadata, validated custom fields and document checklists. Form creation is request-idempotent; updates and lifecycle transitions reject stale row versions.
+- The anonymous, rate-limited, no-store admission portal discovers only currently open forms, renders configured fields safely, validates submitted responses server-side and binds academic choices to the selected form.
+- Applicant documents use signature-validated tenant-private storage, checksums, immutable request IDs, one-current-version database guards and admission-officer verification/rejection. Required documents must be verified before application approval; document payloads are redacted from general audit values.
+- Tenant-owned `AdmissionApplicant` with stable public reference, readable application number, campus/year/term/academic-unit linkage, guardian/contact fields, preferred language, decision state, indexes and optimistic concurrency.
+- TenantAdmin/AdmissionOfficer-only responsive English/Bangla page and API for options, paged/searchable list, details, submission and guarded review transitions.
+- A client request UUID makes submission retries idempotent; replaying the UUID with different core data returns a conflict.
+- Applicant list responses mask mobile numbers. Full contact is limited to authorized details access, and applicant PII is excluded from general audit payloads.
+- Applicants under 18 require guardian name, relationship and valid mobile. Common Bangladesh numbers and Bangla digits normalize to E.164; international intake requires E.164 input.
+- Government identifiers are intentionally absent from the intake row and must use the protected learner-identity workflow after a student is created.
+- Admission officers can configure tests, enter bounded marks, produce deterministic merit positions and publish immutable merit results; applicants see their published assessment status through ownership-checked status lookup.
+
+Status: 🟡 configurable public intake, private document verification, assessment/merit, staff review and transactional approved-applicant conversion to Student + Guardian + Enrollment + Person link are implemented. Eligibility/quota rules, applicant accounts, offer/acceptance/expiry, admission payment and bulk import remain incomplete.
 
 ### 6.6 Global learner identity and institution enrolment
 
@@ -333,7 +355,7 @@ erDiagram
 
 Birth/NID দিয়ে search করলেই অন্য school-এর student name, photo, guardian, result বা history দেখানো হবে না। Minor student-এর public profile defaultভাবে বন্ধ থাকবে।
 
-Status: 🧭 target architecture. Existing Student.BirthCertNo and Guardian.NID fields require encrypted migration/replacement before production.
+Status: 🟡 privacy and consent foundation implemented. `Person`, protected `PersonIdentifier`, tenant-owned `StudentPersonLink`, expiring `LearnerConsentRequest`, revocable `LearnerDataGrant`, and append-only `LearnerIdentityAccessLog` are wired through rate-limited APIs. Only an identifier verified by an approved workflow may produce a neutral cross-tenant request reference. A signed-in student or account-linked parent can see requests only for a person they control, approve or deny idempotently, and revoke the exact-scope, time-bound grant; unauthorized references return a neutral not-found response. Scoped history delivery, verified contacts and richer guardian relationships, break-glass review, and safe backfill/removal of existing `Student.BirthCertNo` and `Guardian.NID` values are still required before production use.
 
 ### 6.7 Student lifecycle
 
@@ -350,7 +372,7 @@ Required functions:
 - Student/guardian self-service profile corrections with approval.
 - Record retention, legal hold, correction, export, and deletion/anonymization policy.
 
-Status: 🟡 basic entities and StudentService exist; complete lifecycle API/UI is incomplete.
+Status: 🟡 tenant-safe responsive bilingual student directory, authorized profile/guardian/enrollment details, admission conversion, annual promotion/repeat, and manager-controlled transfer/completion/dropout finalization are implemented. Progression is atomic, idempotent, concurrency-protected and tenant-scoped. Final exit requires dues clearance for transfer/completion, issues the transfer certificate snapshot where applicable, closes both legacy and canonical current enrolments, updates student status, and preserves an immutable exit record in one serializable transaction. Profile correction, suspension/readmission, transfer request/approval/verification/destination acceptance, completion-certificate delivery, and self-service lifecycle workflows remain incomplete.
 
 ### 6.8 Attendance
 
@@ -366,7 +388,7 @@ Required functions:
 - Eligibility alerts and institution-configured thresholds.
 - Employee shift, roster, overtime, leave and payroll integration.
 
-Status: 🟡 entity foundation.
+Status: 🟡 daily student roster read/write is implemented with tenant-owned academic context validation, active-enrolment membership checks, atomic bulk saves, database-enforced one-row-per-student/day identity, constrained statuses/time ranges, and indexed roster reads. Period/course sessions, correction approval and locking, device imports, notifications, thresholds, and employee attendance/payroll integration remain incomplete.
 
 ### 6.9 Examination, assessment, result, and certification
 
@@ -382,7 +404,7 @@ Required functions:
 - Tabulation, report card, transcript, certificate, QR verification, and revocation.
 - Result publication must never overwrite the historical grading/curriculum snapshot.
 
-Status: 🟡 extensive entities exist; complete guarded workflow is incomplete.
+Status: 🟡 guarded mark-entry, deterministic section result generation and publication are implemented. Teachers can access only their exact year/class/section/subject assignments, only class teachers can read the complete section result sheet, and exam managers retain controlled oversight. Publication is retry-aware, atomic across student rows and the exam-level flag, and idempotent for an already-published section; published marks cannot be edited or regenerated. Exam setup/routine, component weighting, reviewer lock/approval, corrections/re-scrutiny, historical result versions, admit cards, tabulation, transcripts and certificate verification remain incomplete.
 
 ### 6.10 Fees, accounting, and institutional finance
 
@@ -559,10 +581,18 @@ These are the meaningful API areas currently present:
 | /api/onboarding | Status and step completion |
 | /api/subscription-plans | Public plan list, plan detail, code lookup, comparison |
 | /api/subscription | Create/current/history, cancellation, auto-renew, invoices |
-| /api/subscription-payment | AamarPay initiation/callback/IPN, manual payment, SuperAdmin verification |
+| /api/subscription-payment | AamarPay initiation/callback/IPN, configured manual payment, private SuperAdmin receipt download and verification |
 | /api/tenant-profile | Profile, branding, logo/favicon, subdomain, general settings |
 | /api/tenant-settings | TenantAdmin SMS/email gateway settings and categories |
 | /api/dashboard | Authenticated dashboard data |
+| /api/learner-identities | Rate-limited privacy-safe identity creation, reuse and neutral consent request |
+| /api/learner-consents | Student/parent pending requests, approve/deny, active grants and revocation |
+| /api/students/{studentReference}/promotions | TenantAdmin/Principal promotion or repeat and immutable progression history |
+| /api/academic-setup | Tenant-scoped programme, level, canonical subject, curriculum registration, batch and room setup with retry-safe writes |
+| /api/academic-routines | Curriculum-validated instructor assignment, time slots, collision-safe routine entry, batch/teacher timetable and auditable deactivation |
+| /api/academic-enrollments | Capacity-safe canonical batch enrollment, required/elective subject registration and ownership-scoped student/guardian timetable |
+| /api/academic-calendars | Campus-aware weekend policy, public/private events and holidays, optimistic updates and working-day projection |
+| /api/academic-instruction | Date-specific collision-safe substitution plus teacher-owned lesson-plan draft/review/progress lifecycle |
 | /api/v1/auditlog | Filter, record/user history and export |
 
 Every new module must add a complete vertical slice: request/response contract, validation, authorization, service, repository/query, migration, UI if required, tests, audit, documentation, and operational monitoring.
@@ -755,14 +785,16 @@ Implemented Phase 0 controls:
 - Production automatic database migration disabled by default.
 - Secrets removed from current public configuration.
 - Tenant-isolation and tenant-secret automated tests.
+- Encrypted government identifiers, keyed lookup digest, neutral cross-tenant match response, strict identity rate limit, and append-only learner identity access records.
+- TOTP setup/login, one-time recovery codes, encrypted five-minute challenge, anti-forgery protected auth writes, and mandatory MFA claim for TenantAdmin/SuperAdmin routes.
 - GitHub Actions CI, Dependabot, SECURITY.md and AGENTS.md.
 
 Still required before production:
 
 - Rotate/revoke every credential previously committed to Git history.
 - Migrate existing BirthCertNo and Guardian NID data to the protected identity model.
-- MFA and break-glass workflow for privileged platform operations.
-- Key management strategy for encryption and keyed identifier lookup.
+- Reviewed administrator MFA reset/recovery operations and break-glass approval workflow.
+- Managed production key custody and rehearsed rotation for encryption and keyed identifier lookup.
 - CSRF/secure-cookie/API token threat review for each client mode.
 - File signature validation, malware scanning and external object storage.
 - Dependency/code/secret scanning and penetration testing.
@@ -811,6 +843,7 @@ Configure local secrets outside source control:
 ~~~bash
 dotnet user-secrets --project EduOS.App set "ConnectionStrings:DefaultConnection" "Server=localhost;Database=EduOS;Trusted_Connection=true;TrustServerCertificate=true;"
 dotnet user-secrets --project EduOS.App set "JwtSettings:Secret" "replace-with-at-least-32-random-characters"
+dotnet user-secrets --project EduOS.App set "LearnerIdentity:LookupKeyBase64" "replace-with-a-base64-encoded-random-32-byte-key"
 ~~~
 
 Optional email, SMS, and payment key names are documented in [.env.example](.env.example). The sample file is documentation only; ASP.NET Core does not automatically load it.
@@ -840,6 +873,9 @@ ASP.NET Core environment-variable nesting uses double underscores:
 ~~~text
 ConnectionStrings__DefaultConnection
 DataProtection__KeysPath
+LearnerIdentity__LookupKeyBase64
+SuperAdmin__Email
+SuperAdmin__Password
 JwtSettings__Secret
 EmailSettings__SenderEmail
 EmailSettings__Password
@@ -847,6 +883,14 @@ SmsSettings__ApiKey
 SmsSettings__ApiSecret
 Payments__AamarPay__StoreId
 Payments__AamarPay__SignatureKey
+Payments__AamarPay__CallbackBaseUrl
+ManualPayment__BankName
+ManualPayment__AccountName
+ManualPayment__AccountNumber
+ManualPayment__RoutingNumber
+ManualPayment__BranchName
+ManualPayment__Instructions
+FileStorage__PrivateBasePath
 SSLCommerz__StoreId
 SSLCommerz__StorePassword
 ~~~
@@ -856,6 +900,11 @@ Production requirements:
 - Use deployment environment variables or a managed secret store.
 - Never commit credentials, tokens, private keys or production personal data.
 - All application instances share a protected, durable Data Protection key ring.
+- All instances use the same secret `LearnerIdentity__LookupKeyBase64`; generate at least 32 random bytes, store it outside source control, and rotate it only through a reviewed digest-reindex migration.
+- SuperAdmin bootstrap is disabled unless `SuperAdmin__Email` is configured; first creation additionally requires a secret-managed `SuperAdmin__Password`. Remove that bootstrap password after creation and require MFA before production administration.
+- `Payments__AamarPay__CallbackBaseUrl` is the trusted public HTTPS origin; online checkout is disabled when it is missing or invalid.
+- Manual bank details must come from reviewed deployment configuration. Placeholder account details are not rendered.
+- `FileStorage__PrivateBasePath` must be durable, backed up, access-controlled, and outside every static web root. Production receipt uploads also require an operational malware scanner or quarantined object-storage pipeline.
 - Secret rotation must support old/new overlap where provider behaviour requires it.
 - Removing a value from the latest Git file does not remove it from Git history.
 
@@ -951,6 +1000,8 @@ Acceptance:
 
 ### Phase 2 — Global identity and student lifecycle
 
+Progress: the privacy-safe identity registration/match boundary, first consent/access slice, annual promotion/repeat workflow, and manager-controlled final exit are implemented. They include a global person, encrypted identifier, keyed lookup, tenant-owned student link, neutral expiring request, account-linked student/parent authorization, idempotent approval/denial, exact-scope time-bound grants, revocation, optimistic concurrency, append-only access audit, Bangladesh/ASCII digit normalization, and security tests. Promotion/repeat is tenant-scoped, atomic and retry-safe, validates the target academic structure and capacity, and records immutable progression history. Transfer/completion/dropout finalization is dues-aware, retry-safe and closes canonical current enrolment state atomically. A pending or denied consent request grants no access. Scoped history projection, verified contact and richer guardian authority, break-glass approval, legacy-field backfill, transfer request/approval/verification/destination acceptance, and readmission are the next Phase 2 slices.
+
 Deliver:
 
 - Person, encrypted PersonIdentifier and keyed lookup.
@@ -966,6 +1017,8 @@ Acceptance:
 - Every cross-institution action is consented/authorized and audited.
 
 ### Phase 3 — Academic operations
+
+Progress: the canonical academic schema now has an additive migration path and protected APIs for programme, level, programme/global track, canonical subject, versioned curriculum registration, campus/year batch and room creation. Track codes and one active default per programme scope are database-protected. Natural keys, campus/year relationships and one-current-curriculum rules are database-backed; writes are tenant/role/module guarded, serializable and retry-safe. The routine workflow is operational with curriculum-bound instructor assignment, collision checks, room capacity/campus validation, teacher ownership and batch/teacher timetable reads. The self-service portal projects the current legacy-enrolment timetable to the linked student/guardian account. Canonical student enrollment adds capacity and roll/current-enrollment guards, immutable curriculum-subject snapshots, linked student/guardian elective requests, manager approval with optimistic concurrency, and ownership-scoped timetables. Academic calendar policy, event/holiday management and working-day projection are operational with campus fallback, visibility controls, idempotency and optimistic concurrency. Date-specific substitution and teacher-owned lesson-plan draft/review/progress workflows are also operational with collision, ownership and stale-write protection. Academic structure administration UI and the remaining Phase 3 assessment/attendance workflows are still pending.
 
 Deliver:
 

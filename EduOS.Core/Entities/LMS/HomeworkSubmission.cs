@@ -5,8 +5,8 @@ namespace EduOS.Core.Entities.LMS
 {
     public class HomeworkSubmission : BaseTenantEntity
     {
-        public int HomeworkId { get; set; }
-        public int StudentId { get; set; }
+        public long HomeworkId { get; set; }
+        public long StudentId { get; set; }
         public DateTime? SubmittedDate { get; set; }
         public string? FileUrl { get; set; }
         public string? Description { get; set; }

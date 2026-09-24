@@ -2,11 +2,13 @@ using EduOS.Core.DTOs.Tenants;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace EduOS.App.Controllers.Api
 {
     [Authorize(Roles = "TenantAdmin")]
     [AutoValidateAntiforgeryToken]
+    [EnableRateLimiting("ApiPolicy")]
     [ApiController]
     [Route("api/onboarding")]
     public class OnboardingController : ControllerBase

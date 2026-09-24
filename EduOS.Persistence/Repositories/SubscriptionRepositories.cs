@@ -111,11 +111,21 @@ namespace EduOS.Persistence.Repositories.SaaS
     {
         public SubscriptionInvoiceRepository(EduOSDbContext context) : base(context) { }
 
+        public override async Task<SubscriptionInvoice?> GetByIdAsync(long id)
+        {
+            return await _context.SubscriptionInvoices
+                .Include(i => i.Subscription)
+                    .ThenInclude(s => s!.SubscriptionPlan)
+                .FirstOrDefaultAsync(i => i.Id == id);
+        }
+
         public async Task<SubscriptionInvoice?> GetByIdForSystemAsync(
             long id, long tenantId, CancellationToken ct = default)
         {
             return await _context.SubscriptionInvoices
                 .IgnoreQueryFilters()
+                .Include(i => i.Subscription)
+                    .ThenInclude(s => s!.SubscriptionPlan)
                 .FirstOrDefaultAsync(
                     i => !i.IsDeleted && i.Id == id && i.TenantId == tenantId,
                     ct);
@@ -126,6 +136,8 @@ namespace EduOS.Persistence.Repositories.SaaS
         {
             return await _context.SubscriptionInvoices
                 .IgnoreQueryFilters()
+                .Include(i => i.Subscription)
+                    .ThenInclude(s => s!.SubscriptionPlan)
                 .FirstOrDefaultAsync(i => !i.IsDeleted && i.Id == id, ct);
         }
 
@@ -139,6 +151,8 @@ namespace EduOS.Persistence.Repositories.SaaS
         {
             return await _context.SubscriptionInvoices
                 .IgnoreQueryFilters()
+                .Include(i => i.Subscription)
+                    .ThenInclude(s => s!.SubscriptionPlan)
                 .Where(i => !i.IsDeleted && i.TenantId == tenantId)
                 .OrderByDescending(i => i.IssueDate)
                 .ToListAsync(ct);
@@ -148,6 +162,8 @@ namespace EduOS.Persistence.Repositories.SaaS
         {
             return await _context.SubscriptionInvoices
                 .IgnoreQueryFilters()
+                .Include(i => i.Subscription)
+                    .ThenInclude(s => s!.SubscriptionPlan)
                 .Where(i => !i.IsDeleted &&
                            i.TenantId == tenantId &&
                            (i.PaymentStatus == PaymentStatus.Pending ||
@@ -156,27 +172,15 @@ namespace EduOS.Persistence.Repositories.SaaS
                 .ToListAsync(ct);
         }
 
-        public async Task<string> GenerateNextInvoiceNumberAsync(CancellationToken ct = default)
+        public Task<string> GenerateNextInvoiceNumberAsync(CancellationToken ct = default)
         {
-            // Format: INV-YYYYMM-NNNNN  (e.g. INV-202605-00001)
-            var prefix = $"INV-{DateTime.UtcNow:yyyyMM}-";
+            ct.ThrowIfCancellationRequested();
 
-            var lastNumber = await _context.SubscriptionInvoices
-                .IgnoreQueryFilters()
-                .Where(i => !i.IsDeleted && i.InvoiceNumber.StartsWith(prefix))
-                .OrderByDescending(i => i.InvoiceNumber)
-                .Select(i => i.InvoiceNumber)
-                .FirstOrDefaultAsync(ct);
-
-            int nextSeq = 1;
-            if (!string.IsNullOrEmpty(lastNumber))
-            {
-                var seqPart = lastNumber.Substring(prefix.Length);
-                if (int.TryParse(seqPart, out var lastSeq))
-                    nextSeq = lastSeq + 1;
-            }
-
-            return $"{prefix}{nextSeq:D5}";
+            // The former "last sequence + 1" allocator could issue the same number
+            // on concurrent app instances. Keep the business prefix while using a
+            // collision-resistant suffix that is safe without a database sequence.
+            var invoiceNumber = $"INV-{DateTime.UtcNow:yyyyMM}-{Guid.NewGuid():N}";
+            return Task.FromResult(invoiceNumber);
         }
     }
 

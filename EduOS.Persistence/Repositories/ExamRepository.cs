@@ -9,24 +9,28 @@ namespace EduOS.Persistence.Repositories
     {
         public ExamRepository(EduOSDbContext context) : base(context) { }
 
-        public async Task<List<Exam>> GetByYearAsync(int academicYearId)
+        public async Task<List<Exam>> GetByYearAsync(long academicYearId)
         {
             return await _dbSet
+                .AsNoTracking()
                 .Where(e => e.AcademicYearId == academicYearId && e.IsActive)
                 .OrderByDescending(e => e.StartDate)
                 .ToListAsync();
         }
 
-        public async Task<List<Exam>> GetPublishedAsync(int academicYearId)
+        public async Task<List<Exam>> GetPublishedAsync(long academicYearId)
         {
             return await _dbSet
+                .AsNoTracking()
                 .Where(e => e.AcademicYearId == academicYearId && e.IsPublished)
+                .OrderByDescending(e => e.StartDate)
                 .ToListAsync();
         }
 
-        public async Task<Exam?> GetWithSchedulesAsync(int id)
+        public async Task<Exam?> GetWithSchedulesAsync(long id)
         {
             return await _context.ExamSchedules
+                .AsNoTracking()
                 .Where(s => s.ExamId == id)
                 .Include(s => s.Subject)
                 .Include(s => s.Class)

@@ -1,0 +1,49 @@
+using EduOS.App.Authorization;
+using EduOS.Core.Interfaces.IServices;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+
+namespace EduOS.App.Controllers.Api;
+
+[Authorize(Roles = "Student,Guardian,Parent")]
+[EnableRateLimiting("ApiPolicy")]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+[ApiController]
+[Route("api/portal")]
+public sealed class SelfServicePortalController : ControllerBase
+{
+    private readonly ISelfServicePortalService _service;
+    public SelfServicePortalController(ISelfServicePortalService service) => _service = service;
+
+    [HttpGet("students")]
+    public async Task<IActionResult> Students(CancellationToken cancellationToken) { var result = await _service.GetLinkedStudentsAsync(cancellationToken); return StatusCode(result.StatusCode, result); }
+
+    [HttpGet("students/{reference:guid}/timetable")]
+    [RequireModule("ACADEMIC")]
+    public async Task<IActionResult> Timetable(Guid reference, CancellationToken cancellationToken) { var result = await _service.GetTimetableAsync(reference, cancellationToken); return StatusCode(result.StatusCode, result); }
+
+    [HttpGet("students/{reference:guid}/attendance")]
+    [RequireModule("ATTENDANCE")]
+    public async Task<IActionResult> Attendance(Guid reference, [FromQuery] DateTime fromDate, [FromQuery] DateTime toDate, CancellationToken cancellationToken) { var result = await _service.GetAttendanceAsync(reference, fromDate, toDate, cancellationToken); return StatusCode(result.StatusCode, result); }
+
+    [HttpGet("students/{reference:guid}/results")]
+    [RequireModule("EXAM")]
+    public async Task<IActionResult> Results(Guid reference, CancellationToken cancellationToken) { var result = await _service.GetResultsAsync(reference, cancellationToken); return StatusCode(result.StatusCode, result); }
+
+    [HttpGet("students/{reference:guid}/fees")]
+    [RequireModule("FINANCE")]
+    public async Task<IActionResult> Fees(Guid reference, CancellationToken cancellationToken) { var result = await _service.GetFeesAsync(reference, cancellationToken); return StatusCode(result.StatusCode, result); }
+
+    [HttpGet("students/{reference:guid}/transport")]
+    [RequireModule("TRANSPORT")]
+    public async Task<IActionResult> Transport(Guid reference, CancellationToken cancellationToken) { var result = await _service.GetTransportAsync(reference, cancellationToken); return StatusCode(result.StatusCode, result); }
+
+    [HttpGet("students/{reference:guid}/homework")]
+    [RequireModule("LMS")]
+    public async Task<IActionResult> Homework(Guid reference, CancellationToken cancellationToken) { var result = await _service.GetHomeworkAsync(reference, cancellationToken); return StatusCode(result.StatusCode, result); }
+
+    [HttpGet("students/{reference:guid}/assignments")]
+    [RequireModule("LMS")]
+    public async Task<IActionResult> Assignments(Guid reference, CancellationToken cancellationToken) { var result = await _service.GetAssignmentsAsync(reference, cancellationToken); return StatusCode(result.StatusCode, result); }
+}

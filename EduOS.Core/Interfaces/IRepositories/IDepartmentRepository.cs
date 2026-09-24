@@ -4,6 +4,6 @@ namespace EduOS.Core.Interfaces.IRepositories
 {
     public interface IDepartmentRepository : IGenericRepository<Department>
     {
-        Task<bool> IsCodeExistsAsync(string code, int tenantId, int? excludeId = null);
+        Task<bool> IsCodeExistsAsync(string code, long tenantId, long? excludeId = null);
     }
 }

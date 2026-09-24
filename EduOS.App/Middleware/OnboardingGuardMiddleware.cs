@@ -2,7 +2,6 @@ using EduOS.Core.Enums;
 using EduOS.Persistence.Context;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
 namespace EduOS.App.Middleware
@@ -16,7 +15,6 @@ namespace EduOS.App.Middleware
         private readonly RequestDelegate _next;
         private readonly ILogger<OnboardingGuardMiddleware> _logger;
 
-        // Paths that bypass the onboarding check
         private static readonly string[] _allowedPathPrefixes = new[]
         {
             "/Account/",
@@ -30,6 +28,7 @@ namespace EduOS.App.Middleware
             "/api/subscription-plans",
             "/api/subscription-payment",
             "/api/institution-onboarding",
+            "/api/tenant-modules",
             "/uploads/",
             "/css/",
             "/js/",
@@ -48,19 +47,14 @@ namespace EduOS.App.Middleware
             _logger = logger;
         }
 
-        public async Task InvokeAsync(
-            HttpContext context,
-            EduOSDbContext dbContext,
-            IMemoryCache cache)
+        public async Task InvokeAsync(HttpContext context, EduOSDbContext dbContext)
         {
-            // Skip if not authenticated
             if (context.User?.Identity?.IsAuthenticated != true)
             {
                 await _next(context);
                 return;
             }
 
-            // Skip for SuperAdmin
             if (context.User.IsInRole("SuperAdmin"))
             {
                 await _next(context);
@@ -68,8 +62,6 @@ namespace EduOS.App.Middleware
             }
 
             var path = context.Request.Path.Value ?? "";
-
-            // Pass through allowed paths
             foreach (var prefix in _allowedPathPrefixes)
             {
                 if (path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
@@ -81,49 +73,39 @@ namespace EduOS.App.Middleware
 
             try
             {
-                // Get tenant ID from HttpContext (set by TenantContextMiddleware)
-                long tenantId = 0;
-                if (context.Items["TenantId"] is long id)
-                    tenantId = id;
-
-                if (tenantId <= 0)
+                if (context.Items["TenantId"] is not long tenantId || tenantId <= 0)
                 {
-                    await _next(context);
+                    _logger.LogWarning("Onboarding guard received authenticated request without trusted tenant context for path {Path}.", path);
+                    await RejectAsync(context, StatusCodes.Status403Forbidden, "A valid institution context is required.");
                     return;
                 }
 
-                // Check onboarding status - cached for performance
-                var cacheKey = $"onboarding:tenant:{tenantId}";
-
-                OnboardingState? state;
-                if (!cache.TryGetValue(cacheKey, out state) || state == null)
-                {
-                    state = await dbContext.Tenants
-                        .AsNoTracking()
-                        .Where(t => t.Id == tenantId)
-                        .Select(t => new OnboardingState
-                        {
-                            IsComplete = t.IsOnboardingComplete,
-                            Step = t.OnboardingStep
-                        })
-                        .FirstOrDefaultAsync();
-
-                    if (state != null)
+                // Onboarding state participates in access control. Resolve it from canonical storage on
+                // every guarded request so a reset or newly incomplete setup cannot remain stale in cache.
+                var state = await dbContext.Tenants
+                    .AsNoTracking()
+                    .Where(t => t.Id == tenantId && t.IsActive && !t.IsDeleted)
+                    .Select(t => new OnboardingState
                     {
-                        // Cache for 2 min - short TTL because onboarding state changes often
-                        cache.Set(cacheKey, state, TimeSpan.FromMinutes(2));
-                    }
+                        IsComplete = t.IsOnboardingComplete,
+                        Step = t.OnboardingStep
+                    })
+                    .FirstOrDefaultAsync();
+
+                if (state == null)
+                {
+                    _logger.LogWarning("Onboarding guard could not resolve active tenant {TenantId} for path {Path}.", tenantId, path);
+                    await RejectAsync(context, StatusCodes.Status403Forbidden, "Your institution account is not available.");
+                    return;
                 }
 
-                if (state == null || state.IsComplete)
+                if (state.IsComplete)
                 {
                     await _next(context);
                     return;
                 }
 
-                // Onboarding incomplete - redirect or block
                 var redirectUrl = GetRedirectUrlForStep(state.Step);
-
                 if (path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase))
                 {
                     context.Response.StatusCode = StatusCodes.Status403Forbidden;
@@ -138,17 +120,21 @@ namespace EduOS.App.Middleware
                     return;
                 }
 
-                _logger.LogDebug("Redirecting tenant {TenantId} to onboarding step {Step}",
-                    tenantId, state.Step);
+                _logger.LogDebug("Redirecting tenant {TenantId} to onboarding step {Step}", tenantId, state.Step);
                 context.Response.Redirect(redirectUrl);
-                return;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Onboarding guard failed for path {Path}", path);
+                if (!context.Response.HasStarted)
+                    await RejectAsync(context, StatusCodes.Status503ServiceUnavailable, "Unable to validate onboarding status right now. Please try again.");
             }
+        }
 
-            await _next(context);
+        private static async Task RejectAsync(HttpContext context, int statusCode, string message)
+        {
+            context.Response.StatusCode = statusCode;
+            await context.Response.WriteAsJsonAsync(new { success = false, message });
         }
 
         private static string GetRedirectUrlForStep(OnboardingStep step) => step switch
@@ -159,6 +145,7 @@ namespace EduOS.App.Middleware
             OnboardingStep.Payment => "/Account/Payment",
             OnboardingStep.CampusSetup => "/Account/CampusSetup",
             OnboardingStep.AcademicSetup => "/Account/AcademicSetup",
+            OnboardingStep.ModuleSetup => "/Account/ModuleSetup",
             OnboardingStep.BrandingSetup => "/Account/BrandingSetup",
             OnboardingStep.GeneralSettings => "/Account/GeneralSettings",
             OnboardingStep.GatewaySetup => "/Account/GatewaySetup",

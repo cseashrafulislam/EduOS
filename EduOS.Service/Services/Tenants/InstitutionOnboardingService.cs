@@ -3,7 +3,7 @@ using EduOS.Core.DTOs.SaaS;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.SaaS;
-using EduOS.Core.Entities.Tenants;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Enums;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
@@ -852,6 +852,20 @@ namespace EduOS.Service.Services.Tenants
 
                 if (!hasYear)
                     return Fail<bool>("Please add at least one academic year before completing setup");
+
+                if (tenant.OnboardingStep != OnboardingStep.GatewaySetup)
+                    return Fail<bool>("Complete each onboarding step before finishing setup", 409);
+
+                var moduleValidation = await _tenantModuleService.ValidateCurrentTenantSelectionAsync();
+                if (!moduleValidation.Success)
+                {
+                    return Fail<bool>(
+                        moduleValidation.Message ?? "Please review the required modules",
+                        moduleValidation.StatusCode);
+                }
+
+                if (string.IsNullOrWhiteSpace(tenant.Subdomain))
+                    return Fail<bool>("Please set your institution subdomain before completing setup", 409);
 
                 tenant.IsOnboardingComplete = true;
                 tenant.OnboardingStep = OnboardingStep.Completed;

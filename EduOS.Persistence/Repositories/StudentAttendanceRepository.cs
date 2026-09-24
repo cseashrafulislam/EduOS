@@ -9,61 +9,81 @@ namespace EduOS.Persistence.Repositories
     {
         public StudentAttendanceRepository(EduOSDbContext context) : base(context) { }
 
-        public async Task<List<StudentAttendance>> GetByDateAsync(DateTime date, int classId, int sectionId)
+        public async Task<List<StudentAttendance>> GetByDateAsync(DateTime date, long classId, long sectionId)
         {
+            var dayStart = date.Date;
+            var dayEnd = dayStart.AddDays(1);
+
             return await _dbSet
+                .AsNoTracking()
                 .Include(a => a.Student)
-                .Where(a => a.Date.Date == date.Date 
-                    && a.ClassId == classId 
-                    && a.SectionId == sectionId)
+                .Where(a => a.Date >= dayStart && a.Date < dayEnd && a.ClassId == classId && a.SectionId == sectionId)
                 .OrderBy(a => a.Student!.Roll)
                 .ToListAsync();
         }
 
-        public async Task<List<StudentAttendance>> GetByStudentRangeAsync(int studentId, DateTime fromDate, DateTime toDate)
+        public async Task<List<StudentAttendance>> GetByStudentRangeAsync(long studentId, DateTime fromDate, DateTime toDate)
         {
+            var rangeStart = fromDate.Date;
+            var rangeEndExclusive = toDate.Date.AddDays(1);
+
             return await _dbSet
-                .Where(a => a.StudentId == studentId 
-                    && a.Date.Date >= fromDate.Date 
-                    && a.Date.Date <= toDate.Date)
+                .AsNoTracking()
+                .Where(a => a.StudentId == studentId && a.Date >= rangeStart && a.Date < rangeEndExclusive)
                 .OrderBy(a => a.Date)
                 .ToListAsync();
         }
 
-        public async Task<StudentAttendance?> GetByStudentAndDateAsync(int studentId, DateTime date)
+        public async Task<StudentAttendance?> GetByStudentAndDateAsync(long studentId, DateTime date)
         {
+            var dayStart = date.Date;
+            var dayEnd = dayStart.AddDays(1);
+
             return await _dbSet
-                .FirstOrDefaultAsync(a => a.StudentId == studentId && a.Date.Date == date.Date);
+                .AsNoTracking()
+                .FirstOrDefaultAsync(a => a.StudentId == studentId && a.Date >= dayStart && a.Date < dayEnd);
         }
 
-        public async Task<bool> IsAlreadyMarkedAsync(int studentId, DateTime date)
+        public async Task<bool> IsAlreadyMarkedAsync(long studentId, DateTime date)
         {
-            return await _dbSet
-                .AnyAsync(a => a.StudentId == studentId && a.Date.Date == date.Date);
+            var dayStart = date.Date;
+            var dayEnd = dayStart.AddDays(1);
+
+            return await _dbSet.AnyAsync(a => a.StudentId == studentId && a.Date >= dayStart && a.Date < dayEnd);
         }
 
-        public async Task<int> GetPresentCountAsync(int studentId, DateTime fromDate, DateTime toDate)
+        public async Task<int> GetPresentCountAsync(long studentId, DateTime fromDate, DateTime toDate)
         {
-            return await _dbSet.CountAsync(a => a.StudentId == studentId 
-                && a.Date.Date >= fromDate.Date 
-                && a.Date.Date <= toDate.Date 
-                && a.Status == "Present");
+            var rangeStart = fromDate.Date;
+            var rangeEndExclusive = toDate.Date.AddDays(1);
+
+            return await _dbSet.CountAsync(a =>
+                a.StudentId == studentId &&
+                a.Date >= rangeStart &&
+                a.Date < rangeEndExclusive &&
+                a.Status == "Present");
         }
 
-        public async Task<int> GetAbsentCountAsync(int studentId, DateTime fromDate, DateTime toDate)
+        public async Task<int> GetAbsentCountAsync(long studentId, DateTime fromDate, DateTime toDate)
         {
-            return await _dbSet.CountAsync(a => a.StudentId == studentId 
-                && a.Date.Date >= fromDate.Date 
-                && a.Date.Date <= toDate.Date 
-                && a.Status == "Absent");
+            var rangeStart = fromDate.Date;
+            var rangeEndExclusive = toDate.Date.AddDays(1);
+
+            return await _dbSet.CountAsync(a =>
+                a.StudentId == studentId &&
+                a.Date >= rangeStart &&
+                a.Date < rangeEndExclusive &&
+                a.Status == "Absent");
         }
 
-        public async Task<Dictionary<string, int>> GetMonthlyStatsAsync(int studentId, int month, int year)
+        public async Task<Dictionary<string, int>> GetMonthlyStatsAsync(long studentId, int month, int year)
         {
+            var monthStart = new DateTime(year, month, 1);
+            var monthEndExclusive = monthStart.AddMonths(1);
+
             var stats = await _dbSet
-                .Where(a => a.StudentId == studentId 
-                    && a.Date.Month == month 
-                    && a.Date.Year == year)
+                .AsNoTracking()
+                .Where(a => a.StudentId == studentId && a.Date >= monthStart && a.Date < monthEndExclusive)
                 .GroupBy(a => a.Status)
                 .Select(g => new { Status = g.Key, Count = g.Count() })
                 .ToListAsync();

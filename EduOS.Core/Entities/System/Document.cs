@@ -4,7 +4,7 @@ namespace EduOS.Core.Entities.System
 {
     public class Document : BaseTenantEntity
     {
-        public int OwnerId { get; set; }
+        public long OwnerId { get; set; }
         public string OwnerType { get; set; } = string.Empty; // Student/Employee
         public string DocumentType { get; set; } = string.Empty; // BirthCert/NID/Photo
         public string FileName { get; set; } = string.Empty;

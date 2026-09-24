@@ -5,13 +5,13 @@ namespace EduOS.Core.Interfaces.IRepositories
     public interface IStudentRepository : IGenericRepository<Student>
     {
         Task<Student?> GetByCodeAsync(string code);
-        Task<Student?> GetByUserIdAsync(int userId);
-        Task<Student?> GetWithGuardiansAsync(int id);
-        Task<List<Student>> GetByClassSectionAsync(int classId, int sectionId);
-        Task<List<Student>> GetByAcademicYearAsync(int academicYearId);
-        Task<bool> IsCodeExistsAsync(string code, int tenantId, int? excludeId = null);
-        Task<bool> IsRollExistsInSectionAsync(string roll, int classId, int sectionId, int academicYearId, int? excludeId = null);
-        Task<string> GenerateStudentCodeAsync(int tenantId, int academicYearId);
-        Task<int> GetActiveCountAsync(int tenantId);
+        Task<Student?> GetByUserIdAsync(long userId);
+        Task<Student?> GetWithGuardiansAsync(long id);
+        Task<List<Student>> GetByClassSectionAsync(long classId, long sectionId);
+        Task<List<Student>> GetByAcademicYearAsync(long academicYearId);
+        Task<bool> IsCodeExistsAsync(string code, long tenantId, long? excludeId = null);
+        Task<bool> IsRollExistsInSectionAsync(string roll, long classId, long sectionId, long academicYearId, long? excludeId = null);
+        Task<string> GenerateStudentCodeAsync(long tenantId, long academicYearId);
+        Task<int> GetActiveCountAsync(long tenantId);
     }
 }

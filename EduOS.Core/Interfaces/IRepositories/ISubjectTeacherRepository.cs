@@ -4,8 +4,8 @@ namespace EduOS.Core.Interfaces.IRepositories
 {
     public interface IInstructorAssignmentRepository : IGenericRepository<InstructorAssignment>
     {
-        Task<List<InstructorAssignment>> GetByTeacherAsync(int teacherId, int academicYearId);
-        Task<List<InstructorAssignment>> GetByClassSectionAsync(int classId, int sectionId);
-        Task<InstructorAssignment?> GetClassTeacherAsync(int classId, int sectionId, int academicYearId);
+        Task<List<InstructorAssignment>> GetByEmployeeAsync(long employeeId, long academicYearId);
+        Task<List<InstructorAssignment>> GetByBatchAsync(long academicBatchId);
+        Task<InstructorAssignment?> GetAdvisorAsync(long academicBatchId, long academicYearId);
     }
 }

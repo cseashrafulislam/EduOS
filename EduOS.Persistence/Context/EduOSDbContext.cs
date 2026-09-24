@@ -1,5 +1,6 @@
 using EduOS.Core.Common;
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Admission;
 using EduOS.Core.Entities.Attendance;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Base;
@@ -10,6 +11,7 @@ using EduOS.Core.Entities.Hostel;
 using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.Inventory;
 using EduOS.Core.Entities.Library;
+using EduOS.Core.Entities.Learners;
 using EduOS.Core.Entities.LMS;
 using EduOS.Core.Entities.Payroll;
 using EduOS.Core.Entities.SaaS;
@@ -49,12 +51,20 @@ namespace EduOS.Persistence.Context
         private readonly DateTime _startTime = DateTime.UtcNow;
         private IDbContextTransaction? _transaction;
         private bool _isAuditing;
+        private LearnerConsentWriteScope? _learnerConsentWriteScope;
 
         // Lazily resolved user metadata. Tenant context stays request-dynamic because
         // middleware may resolve it after the DbContext has been constructed.
         private long? _userId;
         private string? _userName;
         private bool _contextResolved;
+
+        private sealed record LearnerConsentWriteScope(
+            long ConsentRequestId,
+            long TenantId,
+            long PersonId,
+            long StudentId,
+            long UserId);
 
         #endregion
 
@@ -90,41 +100,26 @@ namespace EduOS.Persistence.Context
                         ?? "System";
         }
 
-        // Tenant resolution accepts the canonical cookie claim, JWT claim variants,
-        // and the trusted value populated by TenantContextMiddleware.
+        // TenantContextMiddleware resolves canonical membership from ApplicationUser
+        // and stores the trusted tenant ID in HttpContext.Items. Cookie/JWT tenant
+        // claims are intentionally ignored because they can remain stale after an
+        // administrator moves a user to another tenant.
         private long? TenantId
         {
             get
             {
                 var httpContext = _httpContextAccessor?.HttpContext;
-
-                if (httpContext?.Items.TryGetValue("TenantId", out var itemValue) == true)
-                {
-                    if (itemValue is long itemTenantId && itemTenantId > 0)
-                        return itemTenantId;
-
-                    if (long.TryParse(itemValue?.ToString(), out var parsedItemTenantId)
-                        && parsedItemTenantId > 0)
-                        return parsedItemTenantId;
-                }
-
-                var user = httpContext?.User;
-                if (user?.Identity?.IsAuthenticated != true)
-                    return null;
-
-                var claimValue = user.FindFirstValue("TenantId")
-                                 ?? user.FindFirstValue("tenantId")
-                                 ?? user.FindFirstValue("tenant_id");
-
-                return long.TryParse(claimValue, out var claimTenantId) && claimTenantId > 0
-                    ? claimTenantId
-                    : null;
+                return httpContext?.Items.TryGetValue("TenantId", out var itemValue) == true
+                    && itemValue is long itemTenantId
+                    && itemTenantId > 0
+                        ? itemTenantId
+                        : null;
             }
         }
 
         /// <summary>
         /// Used by EF Core's parameterized global query filters. Zero deliberately
-        /// matches no valid tenant when a request has no tenant context.
+        /// matches no valid tenant when a request has no trusted tenant context.
         /// </summary>
         public long CurrentTenantId => TenantId ?? 0;
 
@@ -183,6 +178,17 @@ namespace EduOS.Persistence.Context
         public DbSet<AcademicYear> AcademicYears => Set<AcademicYear>();
         public DbSet<AcademicTerm> AcademicTerms => Set<AcademicTerm>();
 
+        // Legacy academic records remain mapped until their data is migrated to the configurable programme/level/batch model.
+        public DbSet<Class> Classes => Set<Class>();
+        public DbSet<Section> Sections => Set<Section>();
+        public DbSet<Group> Groups => Set<Group>();
+        public DbSet<SubjectTeacher> SubjectTeachers => Set<SubjectTeacher>();
+        public DbSet<ClassRoutine> ClassRoutines => Set<ClassRoutine>();
+        public DbSet<Substitution> Substitutions => Set<Substitution>();
+        public DbSet<LessonPlan> LessonPlans => Set<LessonPlan>();
+        public DbSet<Holiday> Holidays => Set<Holiday>();
+        public DbSet<Event> Events => Set<Event>();
+
         public DbSet<Department> Departments => Set<Department>();
         public DbSet<Medium> Mediums => Set<Medium>();
         public DbSet<Shift> Shifts => Set<Shift>();
@@ -196,6 +202,11 @@ namespace EduOS.Persistence.Context
 
         public DbSet<AcademicBatch> AcademicBatches => Set<AcademicBatch>();
 
+        public DbSet<AcademicCalendarPolicy> AcademicCalendarPolicies => Set<AcademicCalendarPolicy>();
+
+        public DbSet<StudentEnrollment> StudentEnrollments => Set<StudentEnrollment>();
+        public DbSet<StudentSubjectRegistration> StudentSubjectRegistrations => Set<StudentSubjectRegistration>();
+
         public DbSet<InstructorAssignment> InstructorAssignments => Set<InstructorAssignment>();
 
         public DbSet<RoutineTimeSlot> RoutineTimeSlots => Set<RoutineTimeSlot>();
@@ -208,14 +219,24 @@ namespace EduOS.Persistence.Context
         public DbSet<SubjectPrerequisite> SubjectPrerequisites => Set<SubjectPrerequisite>();
 
         // Students
+        public DbSet<AdmissionApplicant> AdmissionApplicants => Set<AdmissionApplicant>();
+        public DbSet<AdmissionIntakeForm> AdmissionIntakeForms => Set<AdmissionIntakeForm>();
+        public DbSet<AdmissionApplicantDocument> AdmissionApplicantDocuments => Set<AdmissionApplicantDocument>();
         public DbSet<Admission> Admissions => Set<Admission>();
         public DbSet<Student> Students => Set<Student>();
         public DbSet<Guardian> Guardians => Set<Guardian>();
         public DbSet<Enrollment> Enrollments => Set<Enrollment>();
         public DbSet<Promotion> Promotions => Set<Promotion>();
+        public DbSet<StudentPromotionRecord> StudentPromotionRecords => Set<StudentPromotionRecord>();
         public DbSet<TransferCertificate> TransferCertificates => Set<TransferCertificate>();
         public DbSet<HealthRecord> HealthRecords => Set<HealthRecord>();
         public DbSet<BehaviorRecord> BehaviorRecords => Set<BehaviorRecord>();
+        public DbSet<Person> Persons => Set<Person>();
+        public DbSet<PersonIdentifier> PersonIdentifiers => Set<PersonIdentifier>();
+        public DbSet<StudentPersonLink> StudentPersonLinks => Set<StudentPersonLink>();
+        public DbSet<LearnerConsentRequest> LearnerConsentRequests => Set<LearnerConsentRequest>();
+        public DbSet<LearnerDataGrant> LearnerDataGrants => Set<LearnerDataGrant>();
+        public DbSet<LearnerIdentityAccessLog> LearnerIdentityAccessLogs => Set<LearnerIdentityAccessLog>();
 
         // Employees
         public DbSet<HRDesignation> HRDesignations => Set<HRDesignation>();
@@ -395,7 +416,8 @@ namespace EduOS.Persistence.Context
             foreach (var entityType in modelBuilder.Model.GetEntityTypes())
                 foreach (var prop in entityType.GetProperties())
                 {
-                    if (prop.ClrType == typeof(DateTime) || prop.ClrType == typeof(DateTime?))
+                    if ((prop.ClrType == typeof(DateTime) || prop.ClrType == typeof(DateTime?))
+                        && prop.GetColumnType() == null)
                         prop.SetColumnType("datetime2");
                     else if (prop.ClrType == typeof(string)
                              && prop.GetMaxLength() == null
@@ -448,7 +470,7 @@ namespace EduOS.Persistence.Context
 
                 foreach (var entry in entries)
                 {
-                    if (entry.Entity is AuditLog) continue;
+                    if (entry.Entity is AuditLog or LearnerIdentityAccessLog) continue;
 
                     switch (entry.State)
                     {
@@ -492,6 +514,51 @@ namespace EduOS.Persistence.Context
             }
         }
 
+        /// <summary>
+        /// Narrow persistence escape hatch for an authenticated learner/guardian
+        /// resolving a request created by another tenant. The repository proves
+        /// ownership first; this scope then permits only the exact request, grant,
+        /// link and append-only log involved in that decision.
+        /// </summary>
+        internal async Task<int> SaveLearnerConsentDecisionAsync(
+            long consentRequestId,
+            long tenantId,
+            long personId,
+            long studentId,
+            long userId,
+            CancellationToken cancellationToken)
+        {
+            ResolveContext();
+            if (consentRequestId <= 0
+                || tenantId <= 0
+                || personId <= 0
+                || studentId <= 0
+                || userId <= 0
+                || UserId != userId)
+            {
+                throw new UnauthorizedAccessException(
+                    "A valid authenticated learner consent scope is required.");
+            }
+
+            if (_learnerConsentWriteScope != null)
+                throw new InvalidOperationException("A learner consent write is already in progress.");
+
+            _learnerConsentWriteScope = new LearnerConsentWriteScope(
+                consentRequestId,
+                tenantId,
+                personId,
+                studentId,
+                userId);
+            try
+            {
+                return await SaveChangesAsync(cancellationToken);
+            }
+            finally
+            {
+                _learnerConsentWriteScope = null;
+            }
+        }
+
         private void SetAuditFields(EntityEntry entry, DateTime now, EntityState state)
         {
             if (entry.Entity is not BaseEntity entity) return;
@@ -522,7 +589,24 @@ namespace EduOS.Persistence.Context
             foreach (var entry in entries.Where(e =>
                          e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted))
             {
+                if (entry.Entity is LearnerIdentityAccessLog
+                    && entry.State is EntityState.Modified or EntityState.Deleted)
+                {
+                    throw new InvalidOperationException(
+                        "Learner identity access logs are append-only.");
+                }
+
+                if (entry.Entity is StudentPromotionRecord
+                    && entry.State is EntityState.Modified or EntityState.Deleted)
+                {
+                    throw new InvalidOperationException(
+                        "Student promotion records are append-only.");
+                }
+
                 if (entry.Entity is not ITenantScopedEntity tenantEntity)
+                    continue;
+
+                if (IsAuthorizedLearnerConsentWrite(entry, tenantEntity))
                     continue;
 
                 if (requestTenantId.HasValue)
@@ -549,6 +633,60 @@ namespace EduOS.Persistence.Context
             }
         }
 
+        private bool IsAuthorizedLearnerConsentWrite(
+            EntityEntry<BaseEntity> entry,
+            ITenantScopedEntity tenantEntity)
+        {
+            var scope = _learnerConsentWriteScope;
+            if (scope == null
+                || tenantEntity.TenantId != scope.TenantId
+                || UserId != scope.UserId)
+            {
+                return false;
+            }
+
+            return entry.Entity switch
+            {
+                LearnerConsentRequest request =>
+                    entry.State == EntityState.Modified
+                    && request.Id == scope.ConsentRequestId
+                    && request.PersonId == scope.PersonId
+                    && request.RequestedStudentId == scope.StudentId
+                    && HasOnlyModifiedProperties(entry,
+                        nameof(LearnerConsentRequest.Status),
+                        nameof(LearnerConsentRequest.ResolvedAt),
+                        nameof(LearnerConsentRequest.ResolvedByUserId)),
+                LearnerDataGrant grant =>
+                    (entry.State is EntityState.Added or EntityState.Modified)
+                    && grant.ConsentRequestId == scope.ConsentRequestId
+                    && grant.PersonId == scope.PersonId
+                    && grant.StudentId == scope.StudentId
+                    && (entry.State == EntityState.Added
+                        || HasOnlyModifiedProperties(entry,
+                            nameof(LearnerDataGrant.Status),
+                            nameof(LearnerDataGrant.RevokedAt),
+                            nameof(LearnerDataGrant.RevokedByUserId))),
+                StudentPersonLink link =>
+                    entry.State == EntityState.Added
+                    && link.PersonId == scope.PersonId
+                    && link.StudentId == scope.StudentId,
+                LearnerIdentityAccessLog log =>
+                    entry.State == EntityState.Added
+                    && log.ConsentRequestId == scope.ConsentRequestId
+                    && log.PersonId == scope.PersonId
+                    && log.StudentId == scope.StudentId
+                    && log.UserId == scope.UserId,
+                _ => false
+            };
+        }
+
+        private static bool HasOnlyModifiedProperties(
+            EntityEntry<BaseEntity> entry,
+            params string[] allowedProperties) =>
+            entry.Properties
+                .Where(property => property.IsModified)
+                .All(property => allowedProperties.Contains(property.Metadata.Name));
+
         private AuditLog? CreateAuditLog(EntityEntry entry, string action, DateTime now)
         {
             try
@@ -572,6 +710,22 @@ namespace EduOS.Persistence.Context
                     IsSuccess = true,
                     CreatedAt = now
                 };
+
+                if (entry.Entity is AdmissionApplicant
+                    or AdmissionApplicantDocument
+                    or Student
+                    or Guardian
+                    or Enrollment
+                    or StudentPromotionRecord
+                    or Person
+                    or PersonIdentifier
+                    or StudentPersonLink
+                    or LearnerConsentRequest
+                    or LearnerDataGrant
+                    or LearnerIdentityAccessLog)
+                {
+                    return log;
+                }
 
                 switch (action)
                 {
@@ -619,7 +773,8 @@ namespace EduOS.Persistence.Context
             new[] { "Password", "PasswordHash", "Secret", "Token", "ApiKey",
                     "ApiSecret", "CreditCard", "BankAccount", "AccountNumber",
                     "NID", "NationalId", "BirthCert", "Passport", "RefreshToken",
-                    "SettingValue", "GatewayResponse" }
+                    "SettingValue", "GatewayResponse", "Identifier",
+                    "LookupDigest", "ProtectedValue", "BackupCode" }
             .Any(f => name.Contains(f, StringComparison.OrdinalIgnoreCase));
 
         private async Task AddAuditLogsAsync(List<AuditLog> logs, CancellationToken ct)

@@ -1,187 +1,386 @@
-// ============================================================
-// PLAN-SELECTION.JS - Onboarding Step 2
-// ============================================================
+(() => {
+    'use strict';
 
-document.addEventListener('DOMContentLoaded', function () {
-
+    const configElement = document.getElementById('planSelectionStrings');
+    const i18n = configElement ? JSON.parse(configElement.textContent || '{}') : {};
+    const plansGrid = document.getElementById('plansGrid');
+    const billingToggle = document.getElementById('billingToggle');
+    const continueButton = document.getElementById('continueBtn');
     let plans = [];
     let selectedPlanId = null;
     let selectedCycle = 1;
 
-    const continueBtn = document.getElementById('continueBtn');
-    const plansGrid = document.getElementById('plansGrid');
-    const billingToggle = document.getElementById('billingToggle');
+    document.addEventListener('DOMContentLoaded', initialize, { once: true });
 
-    // ── Load plans ────────────────────────────────────────────
-    async function loadPlans() {
+    async function initialize() {
+        if (!plansGrid || !continueButton) return;
+        const recovered = await recoverExistingSubscription();
+        if (!recovered) await loadPlans();
+        billingToggle?.addEventListener('click', changeBillingCycle);
+        continueButton.addEventListener('click', createSubscription);
+    }
+
+    async function recoverExistingSubscription() {
         try {
-            const res = await fetch('/api/subscription-plans', { credentials: 'include' });
-            const json = await res.json();
-            if (json.success) {
-                plans = json.data;
-                renderPlans();
-            } else {
-                plansGrid.innerHTML = '<div class="col-12 text-center text-danger py-4">Failed to load plans.</div>';
+            const response = await fetch('/api/subscription/current', {
+                cache: 'no-store',
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json' }
+            });
+            if (response.status === 404) return false;
+
+            const payload = await response.json().catch(() => null);
+            if (!response.ok || !payload?.success || !payload.data) {
+                renderLoadError();
+                return true;
             }
+
+            showAlert('info', i18n.recovering);
+            if (Number(payload.data.status) === 1) {
+                const invoiceId = await findPendingInvoice();
+                if (invoiceId) {
+                    window.location.assign(`/Account/Payment?invoiceId=${encodeURIComponent(invoiceId)}`);
+                    return true;
+                }
+            }
+
+            await redirectToCurrentSetup('/Account/CampusSetup');
+            return true;
         } catch {
-            plansGrid.innerHTML = '<div class="col-12 text-center text-danger py-4">Network error loading plans.</div>';
+            renderLoadError();
+            return true;
         }
     }
 
-    // ── Render plan cards ─────────────────────────────────────
-    function renderPlans() {
-        plansGrid.innerHTML = '';
-
-        plans.forEach(plan => {
-            const { price, period } = getPriceForCycle(plan, selectedCycle);
-            const isFree = plan.isFreeTrial;
-            const features = plan.features || [];
-            const visible = features.slice(0, 6);
-            const more = features.length - 6;
-
-            const col = document.createElement('div');
-            col.className = 'col-md-6 col-lg-3';
-            col.innerHTML = `
-                <div class="plan-card ${plan.isRecommended ? 'recommended' : ''} ${selectedPlanId === plan.id ? 'selected' : ''}"
-                     data-plan-id="${plan.id}" role="button" tabindex="0"
-                     aria-label="Select ${escHtml(plan.name)} plan">
-                    ${plan.isRecommended ? '<span class="recommended-badge">Recommended</span>' : ''}
-                    <div class="plan-name">${escHtml(plan.name)}</div>
-                    <div class="plan-desc">${escHtml(plan.shortDescription || '')}</div>
-                    ${isFree
-                        ? `<div class="plan-price">Free</div>
-                           <div class="plan-price-period">${plan.trialDays}-day trial, no card needed</div>`
-                        : `<div class="plan-price">৳${fmtPrice(price)}</div>
-                           <div class="plan-price-period">per ${period}</div>`
-                    }
-                    <div class="mt-2 small text-muted">
-                        <i class="bi bi-people"></i> Up to ${plan.maxStudents.toLocaleString()} students &nbsp;·&nbsp;
-                        <i class="bi bi-person-badge"></i> ${plan.maxTeachers} teachers
-                    </div>
-                    <ul class="plan-features">
-                        ${visible.map(f => `<li><i class="bi bi-check-circle-fill"></i>${escHtml(f.featureName)}</li>`).join('')}
-                        ${more > 0 ? `<li class="text-muted">+ ${more} more features</li>` : ''}
-                    </ul>
-                </div>`;
-
-            const card = col.querySelector('.plan-card');
-            card.addEventListener('click', () => selectPlan(plan.id));
-            card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') selectPlan(plan.id); });
-            plansGrid.appendChild(col);
+    async function findPendingInvoice() {
+        const response = await fetch('/api/subscription/invoices/unpaid', {
+            cache: 'no-store',
+            credentials: 'same-origin',
+            headers: { 'Accept': 'application/json' }
         });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || !payload?.success || !Array.isArray(payload.data)) return null;
+        const invoice = payload.data.find(item => positiveInteger(item.id) && Number(item.dueAmount) > 0);
+        return positiveInteger(invoice?.id);
     }
 
-    // ── Select plan ───────────────────────────────────────────
-    function selectPlan(planId) {
-        selectedPlanId = planId;
-        document.querySelectorAll('.plan-card').forEach(c => c.classList.remove('selected'));
-        document.querySelector(`[data-plan-id="${planId}"]`)?.classList.add('selected');
-        if (continueBtn) continueBtn.disabled = false;
+    async function redirectToCurrentSetup(fallback) {
+        try {
+            const response = await fetch('/api/onboarding/status', {
+                cache: 'no-store',
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json' }
+            });
+            const payload = await response.json().catch(() => null);
+            const nextUrl = localUrl(payload?.data?.nextStepUrl);
+            window.location.assign(nextUrl || fallback);
+        } catch {
+            window.location.assign(fallback);
+        }
     }
 
-    // ── Billing cycle toggle ──────────────────────────────────
-    if (billingToggle) {
-        billingToggle.addEventListener('click', function (e) {
-            const btn = e.target.closest('button[data-cycle]');
-            if (!btn) return;
-            billingToggle.querySelectorAll('button').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            selectedCycle = parseInt(btn.dataset.cycle, 10);
+    async function loadPlans() {
+        setGridBusy(true);
+        try {
+            const response = await fetch('/api/subscription-plans', {
+                cache: 'no-store',
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json' }
+            });
+            const payload = await response.json().catch(() => null);
+            if (!response.ok || !payload?.success || !Array.isArray(payload.data)) {
+                throw new Error('Invalid plan response');
+            }
+            plans = payload.data.filter(plan => positiveInteger(plan.id));
             renderPlans();
-            if (selectedPlanId) selectPlan(selectedPlanId); // re-apply selection
-        });
+        } catch (error) {
+            console.warn('EduOS plans were unavailable.', error);
+            renderLoadError();
+        } finally {
+            setGridBusy(false);
+        }
     }
 
-    // ── Continue button ───────────────────────────────────────
-    if (continueBtn) {
-        continueBtn.addEventListener('click', async function () {
-            if (!selectedPlanId) return;
+    function renderPlans() {
+        if (!plansGrid) return;
+        if (!plans.length) {
+            plansGrid.replaceChildren(createEmptyState(i18n.noPlans));
+            return;
+        }
 
-            setLoading(continueBtn, true, 'Processing...');
+        const cards = plans.map(plan => {
+            const article = document.createElement('article');
+            article.className = 'plan-selection-card';
+            if (plan.isRecommended) article.classList.add('recommended');
+            if (Number(plan.id) === selectedPlanId) article.classList.add('selected');
 
-            try {
-                const res = await fetch('/api/subscription', {
-                    method: 'POST',
-                    credentials: 'include',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        subscriptionPlanId: selectedPlanId,
-                        billingCycle: selectedCycle,
-                        paymentMethod: 1,  // default, user picks on next page
-                        autoRenew: true
-                    })
+            const localizedName = localized(plan.name, plan.nameBangla);
+            const content = document.createElement('div');
+            content.className = 'plan-card-content';
+
+            const choose = document.createElement('button');
+            choose.type = 'button';
+            choose.className = 'btn btn-outline-primary plan-select-button';
+            choose.dataset.planId = String(plan.id);
+            choose.dataset.planName = localizedName;
+            choose.setAttribute('aria-pressed', String(Number(plan.id) === selectedPlanId));
+            choose.setAttribute('aria-label', template(i18n.selectPlanTemplate, { name: localizedName }));
+            choose.textContent = Number(plan.id) === selectedPlanId
+                ? i18n.selected || ''
+                : template(i18n.selectPlanTemplate, { name: localizedName });
+
+            if (plan.isRecommended) {
+                const badge = document.createElement('span');
+                badge.className = 'plan-recommended-badge';
+                badge.textContent = i18n.recommended || '';
+                content.append(badge);
+            }
+
+            const heading = document.createElement('span');
+            heading.className = 'plan-card-heading';
+            const name = document.createElement('strong');
+            name.textContent = localizedName;
+            heading.append(name);
+
+            const description = document.createElement('span');
+            description.className = 'plan-card-description';
+            description.textContent = localized(plan.shortDescription, plan.shortDescriptionBangla);
+
+            const price = document.createElement('span');
+            price.className = 'plan-card-price';
+            const priceValue = document.createElement('strong');
+            const period = document.createElement('small');
+            if (plan.isFreeTrial) {
+                priceValue.textContent = i18n.free || '';
+                period.textContent = template(i18n.daysTrialTemplate, {
+                    count: formatNumber(plan.trialDays || 0)
                 });
-
-                const json = await res.json();
-
-                if (!json.success) {
-                    showAlert('danger', json.message || 'Subscription failed.');
-                    setLoading(continueBtn, false, 'Continue to payment <i class="bi bi-arrow-right ms-1"></i>');
-                    return;
-                }
-
-                const data = json.data;
-
-                // Advance onboarding step 2 (PlanSelection)
-                await fetch('/api/onboarding/complete-step', {
-                    method: 'POST',
-                    credentials: 'include',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ step: 2, skipped: false })
+            } else {
+                priceValue.textContent = formatMoney(priceForCycle(plan, selectedCycle), plan.currency);
+                period.textContent = template(i18n.perPeriodTemplate, {
+                    period: i18n.periods?.[String(selectedCycle)] || ''
                 });
+            }
+            price.append(priceValue, period);
 
-                if (data.isTrialActivated) {
-                    // Trial → skip payment, go to next step
-                    await fetch('/api/onboarding/complete-step', {
-                        method: 'POST',
-                        credentials: 'include',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ step: 3, skipped: true })
-                    });
-                    window.location.href = '/Account/CampusSetup';
-                } else {
-                    window.location.href = `/Account/Payment?invoiceId=${data.invoiceId}`;
-                }
-            } catch {
-                showAlert('danger', 'Network error. Please try again.');
-                setLoading(continueBtn, false, 'Continue to payment <i class="bi bi-arrow-right ms-1"></i>');
+            const limits = document.createElement('ul');
+            limits.className = 'plan-card-limits';
+            limits.append(
+                listItem(template(i18n.studentsTemplate, { count: formatNumber(plan.maxStudents) })),
+                listItem(template(i18n.teachersTemplate, { count: formatNumber(plan.maxTeachers) })),
+                listItem(template(i18n.campusesTemplate, { count: formatNumber(plan.maxCampuses) }))
+            );
+
+            const features = document.createElement('ul');
+            features.className = 'plan-card-features';
+            const enabledFeatures = Array.isArray(plan.features) ? plan.features.slice(0, 6) : [];
+            enabledFeatures.forEach(feature => {
+                features.append(listItem(`✓ ${localized(feature.featureName, feature.featureNameBangla)}`));
+            });
+            const remaining = (Array.isArray(plan.features) ? plan.features.length : 0) - enabledFeatures.length;
+            if (remaining > 0) {
+                const more = listItem(template(i18n.moreFeaturesTemplate, { count: formatNumber(remaining) }));
+                more.className = 'text-muted';
+                features.append(more);
+            }
+
+            content.append(heading, description, price, limits, features);
+            if (!plan.isFreeTrial && Number(plan.setupFee) > 0) {
+                const fee = document.createElement('span');
+                fee.className = 'plan-setup-fee';
+                fee.textContent = template(i18n.setupFeeTemplate, {
+                    amount: formatMoney(plan.setupFee, plan.currency)
+                });
+                content.append(fee);
+            }
+            choose.addEventListener('click', () => selectPlan(Number(plan.id)));
+            article.append(content, choose);
+            return article;
+        });
+        plansGrid.replaceChildren(...cards);
+    }
+
+    function selectPlan(planId) {
+        if (!positiveInteger(planId)) return;
+        selectedPlanId = planId;
+        continueButton.disabled = false;
+        plansGrid.querySelectorAll('.plan-selection-card').forEach(card => {
+            const button = card.querySelector('button[data-plan-id]');
+            const selected = Number(button?.dataset.planId) === planId;
+            card.classList.toggle('selected', selected);
+            button?.setAttribute('aria-pressed', String(selected));
+            if (button) {
+                button.textContent = selected
+                    ? i18n.selected || ''
+                    : template(i18n.selectPlanTemplate, { name: button.dataset.planName || '' });
             }
         });
     }
 
-    // ── Helpers ───────────────────────────────────────────────
-    function getPriceForCycle(plan, cycle) {
-        const map = {
-            1: { price: plan.monthlyPrice,     period: 'month' },
-            2: { price: plan.quarterlyPrice,    period: '3 months' },
-            3: { price: plan.halfYearlyPrice,   period: '6 months' },
-            4: { price: plan.yearlyPrice,       period: 'year' }
-        };
-        return map[cycle] || map[1];
+    function changeBillingCycle(event) {
+        const button = event.target.closest('button[data-cycle]');
+        const cycle = positiveInteger(button?.dataset.cycle);
+        if (!button || !cycle || cycle > 4) return;
+        selectedCycle = cycle;
+        billingToggle.querySelectorAll('button[data-cycle]').forEach(item => {
+            const active = item === button;
+            item.classList.toggle('active', active);
+            item.setAttribute('aria-pressed', String(active));
+        });
+        renderPlans();
     }
 
-    function fmtPrice(p) { return Number(p || 0).toLocaleString('en-IN', { minimumFractionDigits: 0 }); }
+    async function createSubscription() {
+        if (!selectedPlanId) return;
+        setLoading(continueButton, true);
+        try {
+            const response = await fetch('/api/subscription', {
+                method: 'POST',
+                cache: 'no-store',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify({
+                    subscriptionPlanId: selectedPlanId,
+                    billingCycle: selectedCycle,
+                    paymentMethod: 1,
+                    autoRenew: true
+                })
+            });
+            const payload = await response.json().catch(() => null);
+            if (response.status === 409) {
+                const recovered = await recoverExistingSubscription();
+                if (!recovered) showAlert('danger', i18n.createFailed);
+                return;
+            }
+            if (!response.ok || !payload?.success || !payload.data) {
+                showAlert('danger', i18n.createFailed);
+                return;
+            }
 
-    function escHtml(s) {
-        return (s || '').replace(/[&<>"']/g, c =>
-            ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+            if (payload.data.isTrialActivated) {
+                window.location.assign('/Account/CampusSetup');
+                return;
+            }
+            const invoiceId = positiveInteger(payload.data.invoiceId);
+            if (!invoiceId) {
+                showAlert('danger', i18n.createFailed);
+                return;
+            }
+            window.location.assign(`/Account/Payment?invoiceId=${encodeURIComponent(invoiceId)}`);
+        } catch {
+            showAlert('danger', i18n.networkError);
+        } finally {
+            setLoading(continueButton, false);
+        }
     }
 
-    function showAlert(type, msg) {
-        const c = document.getElementById('alertContainer');
-        if (c) c.innerHTML = `<div class="alert alert-${type} alert-dismissible">
-            ${msg}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
+    function renderLoadError() {
+        if (!plansGrid) return;
+        const state = createEmptyState(i18n.loadFailed);
+        const retry = document.createElement('button');
+        retry.type = 'button';
+        retry.className = 'btn btn-sm btn-outline-primary';
+        retry.textContent = i18n.retry || '';
+        retry.addEventListener('click', initialize, { once: true });
+        state.append(retry);
+        plansGrid.replaceChildren(state);
+        setGridBusy(false);
     }
 
-    function setLoading(btn, loading, label) {
-        if (!btn) return;
-        btn.disabled = loading;
-        btn.innerHTML = loading
-            ? `<span class="spinner-border spinner-border-sm me-2"></span>${label}`
-            : label;
+    function createEmptyState(message) {
+        const state = document.createElement('div');
+        state.className = 'setup-empty-state plan-grid-message';
+        const text = document.createElement('p');
+        text.textContent = message || '';
+        state.append(text);
+        return state;
     }
 
-    // ── Init ──────────────────────────────────────────────────
-    loadPlans();
-    loadOnboardingStatus(); // sidebar (from _OnboardingLayout)
-});
+    function listItem(text) {
+        const item = document.createElement('li');
+        item.textContent = text || '';
+        return item;
+    }
+
+    function localized(english, bangla) {
+        return i18n.isBangla && String(bangla || '').trim()
+            ? String(bangla).trim()
+            : String(english || '').trim();
+    }
+
+    function priceForCycle(plan, cycle) {
+        return Number({
+            1: plan.monthlyPrice,
+            2: plan.quarterlyPrice,
+            3: plan.halfYearlyPrice,
+            4: plan.yearlyPrice
+        }[cycle] || 0);
+    }
+
+    function formatMoney(value, currency) {
+        const amount = Number(value || 0);
+        if (String(currency || 'BDT').toUpperCase() === 'BDT') {
+            return `৳${amount.toLocaleString(i18n.culture || 'en-BD', { maximumFractionDigits: 2 })}`;
+        }
+        try {
+            return new Intl.NumberFormat(i18n.culture || 'en', {
+                style: 'currency', currency: String(currency), maximumFractionDigits: 2
+            }).format(amount);
+        } catch {
+            return `${amount.toLocaleString(i18n.culture || 'en')} ${String(currency || '')}`.trim();
+        }
+    }
+
+    function formatNumber(value) {
+        return Number(value || 0).toLocaleString(i18n.culture || 'en-BD');
+    }
+
+    function template(value, replacements) {
+        let result = String(value || '');
+        Object.entries(replacements).forEach(([key, replacement]) => {
+            result = result.replaceAll(`{${key}}`, String(replacement));
+        });
+        return result;
+    }
+
+    function positiveInteger(value) {
+        const number = Number(value);
+        return Number.isSafeInteger(number) && number > 0 ? number : null;
+    }
+
+    function localUrl(value) {
+        if (!value) return null;
+        try {
+            const url = new URL(String(value), window.location.origin);
+            return url.origin === window.location.origin ? `${url.pathname}${url.search}${url.hash}` : null;
+        } catch {
+            return null;
+        }
+    }
+
+    function setGridBusy(busy) {
+        plansGrid?.setAttribute('aria-busy', String(Boolean(busy)));
+    }
+
+    function showAlert(type, message) {
+        const container = document.getElementById('alertContainer');
+        if (!container) return;
+        container.className = `alert alert-${type === 'info' ? 'info' : 'danger'}`;
+        container.textContent = message || '';
+        container.focus();
+    }
+
+    function setLoading(button, loading) {
+        if (!button) return;
+        button.disabled = loading || !selectedPlanId;
+        button.replaceChildren();
+        if (loading) {
+            const spinner = document.createElement('span');
+            spinner.className = 'spinner-border spinner-border-sm me-2';
+            spinner.setAttribute('aria-hidden', 'true');
+            button.append(spinner, button.dataset.loadingLabel || i18n.processing || '');
+        } else {
+            button.textContent = button.dataset.idleLabel || i18n.continueLabel || '';
+        }
+    }
+})();

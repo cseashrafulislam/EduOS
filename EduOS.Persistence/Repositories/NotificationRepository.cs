@@ -9,7 +9,7 @@ namespace EduOS.Persistence.Repositories
     {
         public NotificationRepository(EduOSDbContext context) : base(context) { }
 
-        public async Task<List<Notification>> GetByUserAsync(int userId)
+        public async Task<List<Notification>> GetByUserAsync(long userId)
         {
             return await _dbSet
                 .Where(n => n.RecipientUserId == userId)
@@ -18,7 +18,7 @@ namespace EduOS.Persistence.Repositories
                 .ToListAsync();
         }
 
-        public async Task<List<Notification>> GetUnreadAsync(int userId)
+        public async Task<List<Notification>> GetUnreadAsync(long userId)
         {
             return await _dbSet
                 .Where(n => n.RecipientUserId == userId && !n.IsRead)
@@ -26,12 +26,12 @@ namespace EduOS.Persistence.Repositories
                 .ToListAsync();
         }
 
-        public async Task<int> GetUnreadCountAsync(int userId)
+        public async Task<int> GetUnreadCountAsync(long userId)
         {
             return await _dbSet.CountAsync(n => n.RecipientUserId == userId && !n.IsRead);
         }
 
-        public async Task MarkAsReadAsync(int notificationId)
+        public async Task MarkAsReadAsync(long notificationId)
         {
             var notification = await _dbSet.FindAsync(notificationId);
             if (notification != null)
@@ -41,7 +41,7 @@ namespace EduOS.Persistence.Repositories
             }
         }
 
-        public async Task MarkAllAsReadAsync(int userId)
+        public async Task MarkAllAsReadAsync(long userId)
         {
             var notifications = await _dbSet
                 .Where(n => n.RecipientUserId == userId && !n.IsRead)

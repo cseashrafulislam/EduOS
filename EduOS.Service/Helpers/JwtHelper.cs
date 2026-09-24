@@ -46,7 +46,7 @@ namespace EduOS.Service.Helpers
         public string Id { get; set; }
         public string FullName { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
-        public int TenantId { get; set; }
+        public long TenantId { get; set; }
         public string UserType { get; set; } = string.Empty;
         public string? PhoneNumber { get; set; }
         public bool IsActive { get; set; } = true;
@@ -97,6 +97,7 @@ namespace EduOS.Service.Helpers
             {
                 ValidateIssuerSigningKey = true,
                 IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_settings.Secret)),
+                ValidAlgorithms = new[] { SecurityAlgorithms.HmacSha256 },
                 ValidateIssuer = _settings.ValidateIssuer,
                 ValidIssuer = _settings.Issuer,
                 ValidateAudience = _settings.ValidateAudience,
@@ -112,6 +113,7 @@ namespace EduOS.Service.Helpers
             {
                 ValidateIssuerSigningKey = true,
                 IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_settings.Secret)),
+                ValidAlgorithms = new[] { SecurityAlgorithms.HmacSha256 },
                 ValidateIssuer = _settings.ValidateIssuer,
                 ValidIssuer = _settings.Issuer,
                 ValidateAudience = _settings.ValidateAudience,
@@ -463,18 +465,18 @@ namespace EduOS.Service.Helpers
     // Extension methods for ClaimsPrincipal
     public static class ClaimsPrincipalExtensions
     {
-        public static int? GetUserId(this ClaimsPrincipal principal)
+        public static long? GetUserId(this ClaimsPrincipal principal)
         {
             var userIdClaim = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (int.TryParse(userIdClaim, out var userId))
+            if (long.TryParse(userIdClaim, out var userId))
                 return userId;
             return null;
         }
 
-        public static int? GetTenantId(this ClaimsPrincipal principal)
+        public static long? GetTenantId(this ClaimsPrincipal principal)
         {
             var tenantIdClaim = principal.FindFirst("tenantId")?.Value;
-            if (int.TryParse(tenantIdClaim, out var tenantId))
+            if (long.TryParse(tenantIdClaim, out var tenantId))
                 return tenantId;
             return null;
         }

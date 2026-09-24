@@ -87,7 +87,7 @@ namespace EduOS.Service.Services
             }
         }
 
-        public async Task<ApiResponse<List<AuditLogDto>>> GetByRecordAsync(string tableName, int recordId)
+        public async Task<ApiResponse<List<AuditLogDto>>> GetByRecordAsync(string tableName, long recordId)
         {
             try
             {

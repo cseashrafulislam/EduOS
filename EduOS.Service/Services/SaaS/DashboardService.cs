@@ -173,15 +173,26 @@ namespace EduOS.Service.Services.SaaS
         // ── Onboarding percent ────────────────────────────────────────────
         private static int CalculateOnboardingPercent(Tenant tenant)
         {
-            // 9 total onboarding steps (0–8), Completed = 99
             if (tenant.IsOnboardingComplete) return 100;
 
-            var step = (int)tenant.OnboardingStep;
-            const int totalSteps = 9; // EmailVerification(0) → GatewaySetup(8)
+            const int totalSteps = 10;
+            var completedSteps = tenant.OnboardingStep switch
+            {
+                OnboardingStep.EmailVerification => 0,
+                OnboardingStep.InstitutionProfile => 1,
+                OnboardingStep.PlanSelection => 2,
+                OnboardingStep.Payment => 3,
+                OnboardingStep.CampusSetup => 4,
+                OnboardingStep.AcademicSetup => 5,
+                OnboardingStep.ModuleSetup => 6,
+                OnboardingStep.BrandingSetup => 7,
+                OnboardingStep.GeneralSettings => 8,
+                OnboardingStep.GatewaySetup => 9,
+                OnboardingStep.Completed => totalSteps,
+                _ => 0
+            };
 
-            if (step >= 99) return 100;
-
-            return (int)Math.Round((double)step / totalSteps * 100);
+            return (int)Math.Round(completedSteps * 100.0 / totalSteps);
         }
 
         // ── Smart alerts builder ──────────────────────────────────────────

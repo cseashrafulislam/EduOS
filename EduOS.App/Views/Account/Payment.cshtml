@@ -1,377 +1,160 @@
 @{
-    ViewData["Title"] = "Payment";
+    ViewData["Title"] = T["PaymentTitle"];
     Layout = "_OnboardingLayout";
+
+    var bangladeshToday = DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(6)).ToString("yyyy-MM-dd");
+    var pageStrings = new
+    {
+        culture = CultureInfo.CurrentUICulture.Name,
+        isBangla = CultureInfo.CurrentUICulture.Name.StartsWith("bn", StringComparison.OrdinalIgnoreCase),
+        noInvoice = T["NoInvoiceSelected"].Value,
+        invoiceLoadFailed = T["InvoiceLoadFailed"].Value,
+        invoiceTemplate = T["InvoiceLabelTemplate"].Value,
+        subscription = T["Subscription"].Value,
+        discount = T["Discount"].Value,
+        tax = T["Tax"].Value,
+        totalDue = T["TotalDue"].Value,
+        periodTemplate = T["BillingPeriodTemplate"].Value,
+        loading = T["Loading"].Value,
+        retry = T["Retry"].Value,
+        networkError = T["NetworkError"].Value,
+        initiating = T["PaymentInitiating"].Value,
+        payTemplate = T["PaySecurelyTemplate"].Value,
+        gatewayFailed = T["PaymentGatewayFailed"].Value,
+        invalidGatewayUrl = T["InvalidGatewayUrl"].Value,
+        bankUnavailable = T["ManualPaymentUnavailable"].Value,
+        bank = T["BankLabel"].Value,
+        accountName = T["AccountNameLabel"].Value,
+        accountNumber = T["AccountNumberLabel"].Value,
+        routingNumber = T["RoutingNumberLabel"].Value,
+        branch = T["BranchLabel"].Value,
+        reference = T["ReferenceLabel"].Value,
+        receiptRequired = T["DepositSlipRequired"].Value,
+        receiptInvalid = T["DepositSlipInvalid"].Value,
+        requiredFields = T["ManualPaymentFieldsRequired"].Value,
+        submitting = T["Submitting"].Value,
+        submitLabel = T["SubmitForVerification"].Value,
+        submitFailed = T["ManualPaymentSubmitFailed"].Value,
+        submitted = T["ManualPaymentSubmitted"].Value,
+        alreadyPaid = T["InvoiceAlreadyPaid"].Value,
+        awaiting = T["PaymentAwaitingVerification"].Value,
+        processing = T["PaymentProcessing"].Value,
+        continueSetup = T["ContinueSetup"].Value,
+        reload = T["ReloadStatus"].Value
+    };
+    var pageJson = System.Text.Json.JsonSerializer.Serialize(pageStrings);
 }
 
-<style>
-    .payment-method-card {
-        border: 2px solid #e5e7eb;
-        border-radius: 10px;
-        padding: 1.25rem;
-        cursor: pointer;
-        transition: all 0.2s;
-        background: #fff;
-    }
-
-    .payment-method-card:hover {
-        border-color: #93c5fd;
-    }
-
-    .payment-method-card.selected {
-        border-color: #2563eb;
-        background: #eff6ff;
-    }
-
-    .payment-method-icon {
-        width: 48px;
-        height: 48px;
-        border-radius: 8px;
-        background: #eff6ff;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 22px;
-        color: #1e40af;
-    }
-
-    .invoice-summary {
-        background: #f8fafc;
-        border-radius: 10px;
-        padding: 1.5rem;
-        position: sticky;
-        top: 20px;
-    }
-
-    .invoice-row {
-        display: flex;
-        justify-content: space-between;
-        padding: 6px 0;
-        font-size: 14px;
-    }
-
-    .invoice-total {
-        border-top: 1px solid #cbd5e1;
-        padding-top: 12px;
-        margin-top: 8px;
-        font-size: 16px;
-        font-weight: 600;
-    }
-
-    .bank-info {
-        background: #f0f9ff;
-        border-left: 3px solid #2563eb;
-        padding: 1rem;
-        border-radius: 6px;
-        font-size: 13px;
-        margin-bottom: 1rem;
-    }
-
-    .bank-info-row {
-        display: flex;
-        padding: 4px 0;
-    }
-
-    .bank-info-label {
-        font-weight: 500;
-        min-width: 130px;
-        color: #475569;
-    }
-
-    .upload-zone {
-        border: 2px dashed #cbd5e1;
-        border-radius: 8px;
-        padding: 1.5rem;
-        text-align: center;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-
-    .upload-zone:hover {
-        border-color: #93c5fd;
-        background: #f8fafc;
-    }
-
-    .upload-zone.has-file {
-        border-color: #10b981;
-        background: #f0fdf4;
-    }
-</style>
-
-<h2 class="mb-2">Complete payment</h2>
-<p class="text-muted mb-4">Choose how you want to pay your subscription invoice.</p>
-
-<div class="row">
-    <!-- Payment methods + form -->
-    <div class="col-lg-8">
-        <h6 class="mb-3">Payment method</h6>
-
-        <div class="payment-method-card mb-3" data-method="aamarpay">
-            <div class="d-flex align-items-center">
-                <div class="payment-method-icon me-3">
-                    <i class="bi bi-credit-card-2-front"></i>
-                </div>
-                <div class="flex-grow-1">
-                    <div class="fw-bold">Online payment</div>
-                    <div class="small text-muted">Cards, mobile banking (bKash, Nagad), internet banking</div>
-                </div>
-                <i class="bi bi-chevron-right text-muted"></i>
-            </div>
+<article class="setup-page payment-page" aria-labelledby="paymentTitle">
+    <header class="setup-header">
+        <div>
+            <p class="dashboard-eyebrow">@T["Onboarding_Payment_Name"]</p>
+            <h2 id="paymentTitle">@T["PaymentTitle"]</h2>
+            <p>@T["PaymentHelp"]</p>
         </div>
+    </header>
 
-        <div class="payment-method-card mb-3" data-method="manual">
-            <div class="d-flex align-items-center">
-                <div class="payment-method-icon me-3">
-                    <i class="bi bi-bank"></i>
-                </div>
-                <div class="flex-grow-1">
-                    <div class="fw-bold">Bank transfer</div>
-                    <div class="small text-muted">Deposit at any bank branch & upload receipt</div>
-                </div>
-                <i class="bi bi-chevron-right text-muted"></i>
-            </div>
-        </div>
+    <div id="alertContainer" class="d-none" role="alert" tabindex="-1"></div>
+    <div id="paymentStatus" class="d-none payment-status-panel" role="status" aria-live="polite"></div>
 
-        <!-- AamarPay section -->
-        <div id="aamarpaySection" style="display: none;">
-            <div class="alert alert-info">
-                <i class="bi bi-info-circle me-2"></i>
-                You'll be redirected to AamarPay's secure payment page to complete the transaction.
-            </div>
-            <button type="button" class="btn btn-primary btn-lg w-100" id="payOnlineBtn">
-                <i class="bi bi-credit-card me-2"></i>
-                Pay <span id="onlineAmount">৳0</span> securely
-            </button>
-        </div>
-
-        <!-- Manual section -->
-        <div id="manualSection" style="display: none;">
-            <div class="bank-info">
-                <div class="fw-bold mb-2">
-                    <i class="bi bi-bank2 me-1"></i> Deposit to this account
-                </div>
-                <div id="bankDetails">
-                    <div class="text-muted small">Loading bank info...</div>
-                </div>
+    <div class="payment-layout">
+        <section class="payment-methods" aria-labelledby="paymentMethodTitle">
+            <div class="setup-section-heading">
+                <h3 id="paymentMethodTitle">@T["PaymentMethod"]</h3>
             </div>
 
-            <form id="manualForm" enctype="multipart/form-data">
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label small fw-bold">Your bank name *</label>
-                        <input type="text" name="payerBankName" class="form-control" required />
+            <div class="payment-method-grid" id="paymentMethods">
+                <button type="button" class="payment-method-card" data-method="aamarpay" aria-pressed="false">
+                    <span class="payment-method-icon" aria-hidden="true">⌁</span>
+                    <span>
+                        <strong>@T["OnlinePayment"]</strong>
+                        <small>@T["OnlinePaymentHelp"]</small>
+                    </span>
+                    <span aria-hidden="true">›</span>
+                </button>
+
+                <button type="button" class="payment-method-card" data-method="manual" aria-pressed="false">
+                    <span class="payment-method-icon" aria-hidden="true">৳</span>
+                    <span>
+                        <strong>@T["BankTransfer"]</strong>
+                        <small>@T["BankTransferHelp"]</small>
+                    </span>
+                    <span aria-hidden="true">›</span>
+                </button>
+            </div>
+
+            <div id="aamarpaySection" class="payment-method-section" hidden>
+                <p class="setup-info-note">@T["SecureGatewayHelp"]</p>
+                <button type="button" class="btn btn-primary btn-lg w-100" id="payOnlineBtn"
+                        data-loading-label="@T["PaymentInitiating"]">
+                    @T["PaySecurely"] <span id="onlineAmountLabel">৳0</span>
+                </button>
+            </div>
+
+            <div id="manualSection" class="payment-method-section" hidden>
+                <section class="bank-information" aria-labelledby="bankInformationTitle">
+                    <h3 id="bankInformationTitle">@T["BankAccountHeading"]</h3>
+                    <div id="bankDetails" aria-live="polite">
+                        <p class="text-muted mb-0">@T["LoadingBankInfo"]</p>
                     </div>
-                    <div class="col-md-6">
-                        <label class="form-label small fw-bold">Your account number *</label>
-                        <input type="text" name="payerAccountNumber" class="form-control" required />
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label small fw-bold">Deposit slip number *</label>
-                        <input type="text" name="depositSlipNumber" class="form-control" required />
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label small fw-bold">Deposit date *</label>
-                        <input type="date" name="depositDate" class="form-control" required />
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label small fw-bold">Amount paid *</label>
-                        <input type="number" step="0.01" name="amount" class="form-control" id="manualAmount" required />
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label small fw-bold">Note (optional)</label>
-                        <input type="text" name="note" class="form-control" />
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label small fw-bold">Upload deposit slip *</label>
-                        <div class="upload-zone" id="uploadZone">
-                            <input type="file" name="depositSlip" id="depositSlipFile" accept=".pdf,.jpg,.jpeg,.png" hidden />
-                            <i class="bi bi-cloud-upload" style="font-size: 28px; color: #94a3b8;"></i>
-                            <div class="mt-2 small">
-                                <span id="uploadText">Click to upload PDF or image (max 5MB)</span>
-                            </div>
+                </section>
+
+                <form id="manualForm" enctype="multipart/form-data" novalidate>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="payerBankName" class="form-label">@T["PayerBankName"] <span class="required-mark">*</span></label>
+                            <input type="text" id="payerBankName" name="payerBankName" class="form-control" maxlength="150" required autocomplete="organization" />
+                        </div>
+                        <div class="col-md-6">
+                            <label for="payerAccountNumber" class="form-label">@T["PayerAccountNumber"] <span class="required-mark">*</span></label>
+                            <input type="text" id="payerAccountNumber" name="payerAccountNumber" class="form-control" maxlength="100" required inputmode="numeric" autocomplete="off" />
+                        </div>
+                        <div class="col-md-6">
+                            <label for="depositSlipNumber" class="form-label">@T["DepositSlipNumber"] <span class="required-mark">*</span></label>
+                            <input type="text" id="depositSlipNumber" name="depositSlipNumber" class="form-control" maxlength="100" required autocomplete="off" />
+                        </div>
+                        <div class="col-md-6">
+                            <label for="depositDate" class="form-label">@T["DepositDate"] <span class="required-mark">*</span></label>
+                            <input type="date" id="depositDate" name="depositDate" class="form-control" max="@bangladeshToday" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label for="manualAmount" class="form-label">@T["AmountPaid"]</label>
+                            <input type="number" id="manualAmount" name="amount" class="form-control" step="0.01" readonly aria-readonly="true" />
+                        </div>
+                        <div class="col-md-6">
+                            <label for="paymentNote" class="form-label">@T["NoteOptional"]</label>
+                            <input type="text" id="paymentNote" name="note" class="form-control" maxlength="500" />
+                        </div>
+                        <div class="col-12">
+                            <label for="depositSlipFile" class="form-label">@T["UploadDepositSlip"] <span class="required-mark">*</span></label>
+                            <label class="receipt-upload" id="uploadZone" for="depositSlipFile">
+                                <input type="file" name="depositSlip" id="depositSlipFile" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required />
+                                <span class="receipt-upload-icon" aria-hidden="true">⇧</span>
+                                <span id="uploadText">@T["UploadReceiptHelp"]</span>
+                            </label>
                         </div>
                     </div>
-                </div>
 
-                <button type="submit" class="btn btn-primary btn-lg w-100 mt-3" id="submitManualBtn">
-                    <i class="bi bi-send me-2"></i>
-                    Submit for verification
-                </button>
-                <div class="text-muted small text-center mt-2">
-                    <i class="bi bi-clock-history"></i>
-                    Manual payments are verified within 24 hours
+                    <button type="submit" class="btn btn-primary btn-lg w-100 mt-3" id="submitManualBtn"
+                            data-idle-label="@T["SubmitForVerification"]" data-loading-label="@T["Submitting"]">
+                        @T["SubmitForVerification"]
+                    </button>
+                    <p class="payment-verification-note">@T["ManualVerificationTime"]</p>
+                </form>
+            </div>
+        </section>
+
+        <aside class="invoice-summary" aria-labelledby="orderSummaryTitle">
+            <h3 id="orderSummaryTitle">@T["OrderSummary"]</h3>
+            <div id="invoiceDetails" aria-live="polite" aria-busy="true">
+                <div class="setup-empty-state" role="status">
+                    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                    <span>@T["Loading"]</span>
                 </div>
-            </form>
-        </div>
+            </div>
+        </aside>
     </div>
+</article>
 
-    <!-- Invoice summary -->
-    <div class="col-lg-4">
-        <div class="invoice-summary">
-            <h6 class="mb-3">Order summary</h6>
-            <div id="invoiceDetails">
-                <div class="text-center py-3 text-muted small">Loading...</div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script>
-    const invoiceId = new URLSearchParams(window.location.search).get('invoiceId');
-    let invoice = null;
-
-    async function loadInvoice() {
-        if (!invoiceId) {
-            document.getElementById('invoiceDetails').innerHTML =
-                '<div class="text-danger small">No invoice selected</div>';
-            return;
-        }
-
-        try {
-            const res = await fetch(`/api/subscription/invoices/${invoiceId}`, { credentials: 'include' });
-            const data = await res.json();
-            if (data.success) {
-                invoice = data.data;
-                renderInvoice();
-            }
-        } catch (e) {
-            console.error(e);
-        }
-    }
-
-    function renderInvoice() {
-        const html = `
-            <div class="small text-muted mb-2">Invoice ${escapeHtml(invoice.invoiceNumber)}</div>
-            <div class="invoice-row">
-                <span>${escapeHtml(invoice.planName || invoice.description)}</span>
-                <span>৳${formatPrice(invoice.subtotal)}</span>
-            </div>
-            ${invoice.discountAmount > 0 ? `
-                <div class="invoice-row text-success">
-                    <span>Discount</span>
-                    <span>− ৳${formatPrice(invoice.discountAmount)}</span>
-                </div>
-            ` : ''}
-            ${invoice.taxAmount > 0 ? `
-                <div class="invoice-row">
-                    <span>Tax</span>
-                    <span>৳${formatPrice(invoice.taxAmount)}</span>
-                </div>
-            ` : ''}
-            <div class="invoice-row invoice-total">
-                <span>Total due</span>
-                <span class="text-primary">৳${formatPrice(invoice.dueAmount)}</span>
-            </div>
-            <div class="small text-muted mt-2">
-                Period: ${formatDate(invoice.periodStart)} → ${formatDate(invoice.periodEnd)}
-            </div>
-        `;
-        document.getElementById('invoiceDetails').innerHTML = html;
-        document.getElementById('onlineAmount').textContent = '৳' + formatPrice(invoice.dueAmount);
-        document.getElementById('manualAmount').value = invoice.dueAmount;
-    }
-
-    // Method selection
-    document.querySelectorAll('.payment-method-card').forEach(card => {
-        card.addEventListener('click', () => {
-            document.querySelectorAll('.payment-method-card').forEach(c => c.classList.remove('selected'));
-            card.classList.add('selected');
-            const method = card.dataset.method;
-            document.getElementById('aamarpaySection').style.display = method === 'aamarpay' ? 'block' : 'none';
-            document.getElementById('manualSection').style.display = method === 'manual' ? 'block' : 'none';
-            if (method === 'manual') loadBankDetails();
-        });
-    });
-
-    async function loadBankDetails() {
-        // Read manual payment instructions from CreateSubscription response (cached) or hard-code
-        // For simplicity, fetch from subscription endpoint
-        try {
-            const res = await fetch(`/api/subscription/invoices/${invoiceId}`, { credentials: 'include' });
-            // Bank details aren't in invoice; we'll fetch from a config endpoint or hardcode in view
-            // For now, use static rendering from server-side config
-            document.getElementById('bankDetails').innerHTML = `
-                <div class="bank-info-row"><span class="bank-info-label">Bank:</span> Dutch Bangla Bank Limited</div>
-                <div class="bank-info-row"><span class="bank-info-label">Account name:</span> EduOS Technology Ltd.</div>
-                <div class="bank-info-row"><span class="bank-info-label">Account number:</span> <code>1234567890123</code></div>
-                <div class="bank-info-row"><span class="bank-info-label">Branch:</span> Dhanmondi</div>
-                <div class="bank-info-row"><span class="bank-info-label">Reference:</span> <code>${escapeHtml(invoice?.invoiceNumber || '')}</code></div>
-                <div class="mt-2 small text-muted">Mention the invoice number on the deposit slip.</div>
-            `;
-        } catch (e) { }
-    }
-
-    // AamarPay flow
-    document.getElementById('payOnlineBtn').addEventListener('click', async () => {
-        const btn = document.getElementById('payOnlineBtn');
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Initiating...';
-
-        try {
-            const res = await fetch('/api/subscription-payment/initiate', {
-                method: 'POST',
-                credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ invoiceId: parseInt(invoiceId), paymentMethod: 2 }) // AamarPay = 2
-            });
-            const data = await res.json();
-            if (data.success && data.data.paymentUrl) {
-                window.location.href = data.data.paymentUrl;
-            } else {
-                alert(data.message || 'Failed to initiate payment');
-                btn.disabled = false;
-                btn.innerHTML = '<i class="bi bi-credit-card me-2"></i>Pay securely';
-            }
-        } catch (e) {
-            alert('Network error');
-            btn.disabled = false;
-        }
-    });
-
-    // Upload zone
-    const uploadZone = document.getElementById('uploadZone');
-    const fileInput = document.getElementById('depositSlipFile');
-    uploadZone.addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', () => {
-        if (fileInput.files.length) {
-            uploadZone.classList.add('has-file');
-            document.getElementById('uploadText').textContent = fileInput.files[0].name;
-        }
-    });
-
-    // Manual form submit
-    document.getElementById('manualForm').addEventListener('submit', async e => {
-        e.preventDefault();
-        const btn = document.getElementById('submitManualBtn');
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting...';
-
-        const fd = new FormData(e.target);
-        fd.append('invoiceId', invoiceId);
-
-        try {
-            const res = await fetch('/api/subscription-payment/manual', {
-                method: 'POST',
-                credentials: 'include',
-                body: fd
-            });
-            const data = await res.json();
-            if (data.success) {
-                alert('Payment submitted! Our team will verify within 24 hours. You can continue setup; access will activate after verification.');
-                window.location.href = '/Account/CampusSetup';
-            } else {
-                alert(data.message || 'Submission failed');
-                btn.disabled = false;
-                btn.innerHTML = '<i class="bi bi-send me-2"></i>Submit for verification';
-            }
-        } catch (e) {
-            alert('Network error');
-            btn.disabled = false;
-        }
-    });
-
-    function formatPrice(p) { return Number(p || 0).toLocaleString('en-IN', { minimumFractionDigits: 0 }); }
-    function formatDate(d) { return new Date(d).toLocaleDateString('en-GB'); }
-    function escapeHtml(s) { return (s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
-
-    document.addEventListener('DOMContentLoaded', loadInvoice);
-</script>
+<script id="paymentStrings" type="application/json">@Html.Raw(pageJson)</script>
+<script src="~/js/account/payment.js" asp-append-version="true"></script>

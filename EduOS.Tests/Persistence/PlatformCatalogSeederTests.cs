@@ -1,4 +1,4 @@
-using EduOS.Core.Entities.Tenants;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Persistence.Context;
 using EduOS.Persistence.Seed;
 using FluentAssertions;

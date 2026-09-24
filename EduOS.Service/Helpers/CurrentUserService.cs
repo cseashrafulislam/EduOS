@@ -53,22 +53,24 @@ namespace EduOS.Service.Helpers
             if (_resolved) return;
             _resolved = true;
 
-            var user = _httpContextAccessor.HttpContext?.User;
+            var context = _httpContextAccessor.HttpContext;
+            var user = context?.User;
             if (user?.Identity?.IsAuthenticated != true) return;
 
-            // UserId from NameIdentifier
             var idStr = user.FindFirstValue(ClaimTypes.NameIdentifier);
             if (long.TryParse(idStr, out var id)) _userId = id;
 
-            // TenantId may be resolved by middleware or supplied by cookie/JWT.
-            var itemValue = _httpContextAccessor.HttpContext?.Items["TenantId"];
-            var tidStr = itemValue?.ToString()
-                         ?? user.FindFirstValue("TenantId")
-                         ?? user.FindFirstValue("tenantId")
-                         ?? user.FindFirstValue("tenant_id");
-            if (long.TryParse(tidStr, out var tid)) _tenantId = tid;
+            // TenantContextMiddleware resolves the canonical membership from the current
+            // ApplicationUser and only sets this item after validating tenant state.
+            // Never fall back to cookie/JWT tenant claims here: those claims can remain
+            // stale after an administrator moves a user to another tenant.
+            if (context?.Items.TryGetValue("TenantId", out var tenantValue) == true
+                && tenantValue is long tenantId
+                && tenantId > 0)
+            {
+                _tenantId = tenantId;
+            }
 
-            // Other claims
             _email = user.FindFirstValue(ClaimTypes.Email);
             _fullName = user.FindFirstValue("FullName") ?? user.Identity.Name;
 

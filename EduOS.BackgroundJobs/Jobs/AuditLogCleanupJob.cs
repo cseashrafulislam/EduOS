@@ -9,19 +9,24 @@ namespace EduOS.BackgroundJobs.Jobs
         private readonly EduOSDbContext _context;
         private readonly ILogger<AuditLogCleanupJob> _logger;
 
-        public async Task CleanupAsync()
+        public AuditLogCleanupJob(
+            EduOSDbContext context,
+            ILogger<AuditLogCleanupJob> logger)
         {
-            var cutoffDate = DateTime.UtcNow.AddYears(-2); // Keep 2 years
+            _context = context ?? throw new ArgumentNullException(nameof(context));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        }
 
-            var oldLogs = await _context.AuditLogs
+        public async Task CleanupAsync(CancellationToken cancellationToken = default)
+        {
+            var cutoffDate = DateTime.UtcNow.AddYears(-2);
+
+            var deleted = await _context.AuditLogs
+                .IgnoreQueryFilters()
                 .Where(a => a.CreatedAt < cutoffDate)
-                .ToListAsync();
+                .ExecuteDeleteAsync(cancellationToken);
 
-            _context.AuditLogs.RemoveRange(oldLogs);
-            await _context.SaveChangesAsync();
-
-            _logger.LogInformation("Cleaned up {Count} old audit logs", oldLogs.Count);
+            _logger.LogInformation("Cleaned up {Count} old audit logs", deleted);
         }
     }
-
 }

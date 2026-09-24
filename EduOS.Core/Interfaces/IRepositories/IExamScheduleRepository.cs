@@ -4,7 +4,7 @@ namespace EduOS.Core.Interfaces.IRepositories
 {
     public interface IExamScheduleRepository : IGenericRepository<ExamSchedule>
     {
-        Task<List<ExamSchedule>> GetByExamAndClassAsync(int examId, int classId);
-        Task<List<ExamSchedule>> GetByDateAsync(DateTime date, int tenantId);
+        Task<List<ExamSchedule>> GetByExamAndClassAsync(long examId, long classId);
+        Task<List<ExamSchedule>> GetByDateAsync(DateTime date, long tenantId);
     }
 }

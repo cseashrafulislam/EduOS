@@ -174,6 +174,173 @@ public class LocalizationAndPwaContractTests
         onboardingController.Should().Contain("[AutoValidateAntiforgeryToken]");
     }
 
+    [Fact]
+    public void Plan_and_payment_onboarding_are_bilingual_safe_and_server_state_driven()
+    {
+        var planView = File.ReadAllText(Asset("PlanSelection.cshtml"));
+        var paymentView = File.ReadAllText(Asset("Payment.cshtml"));
+        var planScript = File.ReadAllText(Asset("plan-selection.js"));
+        var paymentScript = File.ReadAllText(Asset("payment.js"));
+
+        new[] { planView, paymentView }.Should().AllSatisfy(view =>
+        {
+            view.Should().Contain("Layout = \"_OnboardingLayout\"");
+            view.Should().Contain("@T[");
+            view.Should().NotContain("<style>");
+            view.Should().NotContain("onclick=");
+        });
+
+        new[] { planScript, paymentScript }.Should().AllSatisfy(script =>
+        {
+            script.Should().Contain("replaceChildren");
+            script.Should().Contain("credentials: 'same-origin'");
+            script.Should().NotContain(".innerHTML");
+            script.Should().NotContain("Dutch Bangla");
+            script.Should().NotContain("1234567890123");
+        });
+
+        planScript.Should().Contain("/api/subscription/current");
+        planScript.Should().Contain("/api/subscription/invoices/unpaid");
+        planScript.Should().NotContain("/api/onboarding/complete-step");
+        paymentScript.Should().Contain("manual-instructions");
+        paymentScript.Should().Contain("trustedGatewayUrl");
+        paymentScript.Should().NotContain("/api/onboarding/complete-step");
+    }
+
+    [Fact]
+    public void Module_setup_is_bilingual_safe_plan_aware_and_tenant_admin_controlled()
+    {
+        var view = File.ReadAllText(Asset("ModuleSetup.cshtml"));
+        var script = File.ReadAllText(Asset("module-setup.js"));
+        var controller = File.ReadAllText(Asset("TenantModuleController.cs"));
+        var academicScript = File.ReadAllText(Asset("academic-setup.js"));
+
+        view.Should().Contain("Layout = \"_OnboardingLayout\"");
+        view.Should().Contain("@T[");
+        view.Should().NotContain("<style>");
+        view.Should().NotContain("onclick=");
+        script.Should().Contain("/api/tenant-modules");
+        script.Should().Contain("rowVersion");
+        script.Should().Contain("replaceChildren");
+        script.Should().Contain("credentials: 'same-origin'");
+        script.Should().NotContain(".innerHTML");
+        script.Should().NotContain("onclick=");
+        academicScript.Should().Contain("/Account/ModuleSetup");
+        controller.Should().Contain("[AutoValidateAntiforgeryToken]");
+        controller.Should().Contain("[Authorize(Roles = \"TenantAdmin,SuperAdmin\")]");
+    }
+
+    [Fact]
+    public void Final_onboarding_views_are_bilingual_responsive_and_use_safe_dom_updates()
+    {
+        var brandingView = File.ReadAllText(Asset("BrandingSetup.cshtml"));
+        var generalView = File.ReadAllText(Asset("GeneralSettings.cshtml"));
+        var gatewayView = File.ReadAllText(Asset("GatewaySetup.cshtml"));
+        var brandingScript = File.ReadAllText(Asset("branding-setup.js"));
+        var generalScript = File.ReadAllText(Asset("general-settings.js"));
+        var gatewayScript = File.ReadAllText(Asset("gateway-setup.js"));
+        var profileController = File.ReadAllText(Asset("TenantProfileController.cs"));
+        var settingController = File.ReadAllText(Asset("TenantSettingController.cs"));
+
+        new[] { brandingView, generalView, gatewayView }.Should().AllSatisfy(view =>
+        {
+            view.Should().Contain("Layout = \"_OnboardingLayout\"");
+            view.Should().Contain("@T[");
+            view.Should().Contain("setup-page");
+            view.Should().NotContain("<style>");
+            view.Should().NotContain("onclick=");
+        });
+
+        new[] { brandingScript, generalScript, gatewayScript }.Should().AllSatisfy(script =>
+        {
+            script.Should().Contain("credentials: 'same-origin'");
+            script.Should().Contain("textContent");
+            script.Should().Contain("safeLocalUrl");
+            script.Should().NotContain(".innerHTML");
+            script.Should().NotContain("onclick=");
+        });
+
+        brandingScript.Should().Contain("replaceChildren");
+        brandingScript.Should().Contain("safeAssetUrl");
+        gatewayScript.Should().NotContain("/api/onboarding/complete'");
+        profileController.Should().Contain("[AutoValidateAntiforgeryToken]");
+        profileController.Should().Contain("[Authorize(Roles = \"TenantAdmin,SuperAdmin\")]");
+        settingController.Should().Contain("[AutoValidateAntiforgeryToken]");
+        settingController.Should().Contain("[Authorize(Roles = \"TenantAdmin,SuperAdmin\")]");
+    }
+
+    [Fact]
+    public void Subscription_and_payment_writes_require_tenant_admin_and_callback_exemptions_are_explicit()
+    {
+        var subscriptionController = File.ReadAllText(Asset("SubscriptionController.cs"));
+        var paymentController = File.ReadAllText(Asset("SubscriptionPaymentController.cs"));
+
+        subscriptionController.Should().Contain("[Authorize(Roles = \"TenantAdmin\")]");
+        subscriptionController.Should().Contain("[AutoValidateAntiforgeryToken]");
+        paymentController.Should().Contain("[Authorize(Roles = \"TenantAdmin\")]");
+        paymentController.Should().Contain("[Authorize(Roles = \"SuperAdmin\")]");
+        paymentController.Should().Contain("[AutoValidateAntiforgeryToken]");
+        paymentController.Should().Contain("[IgnoreAntiforgeryToken]");
+        paymentController.Should().Contain("LocalRedirect");
+        paymentController.Should().NotContain("Request.Host");
+    }
+
+    [Fact]
+    public void Super_admin_bootstrap_has_no_fallback_credentials()
+    {
+        var seeder = File.ReadAllText(Asset("SuperAdminSeeder.cs"));
+
+        seeder.Should().Contain("SuperAdmin:Email");
+        seeder.Should().Contain("SuperAdmin:Password");
+        seeder.Should().Contain("bootstrap skipped");
+        seeder.Should().NotContain("superadmin@eduos.com");
+        seeder.Should().NotContain("Admin@123");
+        seeder.Should().NotContain("?? \"superadmin");
+    }
+
+    [Fact]
+    public void Privileged_mfa_flow_is_antiforgery_protected_localized_and_avoids_dom_injection()
+    {
+        var authController = File.ReadAllText(Asset("AuthController.cs"));
+        var middleware = File.ReadAllText(Asset("PrivilegedMfaMiddleware.cs"));
+        var program = File.ReadAllText(Asset("Program.cs"));
+        var loginScript = File.ReadAllText(Asset("login.js"));
+        var challengeView = File.ReadAllText(Asset("MfaChallenge.cshtml"));
+        var setupView = File.ReadAllText(Asset("MfaSetup.cshtml"));
+        var challengeScript = File.ReadAllText(Asset("mfa-challenge.js"));
+        var setupScript = File.ReadAllText(Asset("mfa-setup.js"));
+
+        authController.Should().Contain("[AutoValidateAntiforgeryToken]");
+        authController.Should().Contain("user.TwoFactorEnabled");
+        authController.Should().Contain("VerifyTwoFactorTokenAsync");
+        authController.Should().Contain("RedeemTwoFactorRecoveryCodeAsync");
+        authController.Should().Contain("Response.Headers.CacheControl = \"no-store\"");
+        authController.Should().NotContain("Request.Headers[\"X-Forwarded-For\"]");
+
+        middleware.Should().Contain("SuperAdmin");
+        middleware.Should().Contain("TenantAdmin");
+        middleware.Should().Contain("x.Type == \"amr\" && x.Value == \"mfa\"");
+        middleware.Should().Contain("MFA_REQUIRED");
+        program.Should().Contain("app.UsePrivilegedMfa()");
+        loginScript.Should().Contain("sessionStorage.setItem('eduos.mfaChallenge'");
+
+        new[] { challengeView, setupView }.Should().AllSatisfy(view =>
+        {
+            view.Should().Contain("Layout = \"_PublicLayout\"");
+            view.Should().Contain("@T[");
+            view.Should().NotContain("<style>");
+            view.Should().NotContain("onclick=");
+        });
+
+        new[] { challengeScript, setupScript }.Should().AllSatisfy(script =>
+        {
+            script.Should().Contain("credentials: 'same-origin'");
+            script.Should().Contain("textContent");
+            script.Should().NotContain(".innerHTML");
+            script.Should().NotContain("onclick=");
+        });
+    }
+
     private static Dictionary<string, string> ReadResource(string fileName)
     {
         return XDocument.Load(Asset(fileName))

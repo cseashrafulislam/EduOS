@@ -4,8 +4,8 @@ namespace EduOS.Core.Entities.Exams
 {
     public class OnlineExamQuestion : BaseEntity
     {
-        public int OnlineExamId { get; set; }
-        public int QuestionId { get; set; }
+        public long OnlineExamId { get; set; }
+        public long QuestionId { get; set; }
         public int QuestionOrder { get; set; }
 
         public virtual OnlineExam? OnlineExam { get; set; }

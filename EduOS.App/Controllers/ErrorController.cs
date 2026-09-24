@@ -1,9 +1,10 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace EduOS.App.Controllers
 {
     [ApiExplorerSettings(IgnoreApi = true)]
-
+    [AllowAnonymous]
     public class ErrorController : Controller
     {
         [Route("Error/404")]

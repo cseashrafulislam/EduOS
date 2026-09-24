@@ -5,9 +5,9 @@ namespace EduOS.Core.Entities.Exams
 {
     public class SeatPlan : BaseTenantEntity
     {
-        public int ExamScheduleId { get; set; }
-        public int StudentId { get; set; }
-        public int HallId { get; set; }
+        public long ExamScheduleId { get; set; }
+        public long StudentId { get; set; }
+        public long HallId { get; set; }
         public string SeatNo { get; set; } = string.Empty;
 
         public virtual ExamSchedule? ExamSchedule { get; set; }
