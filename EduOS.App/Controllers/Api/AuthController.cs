@@ -1,6 +1,5 @@
 using EduOS.Core.DTOs.Auth;
 using EduOS.Core.Entities.Auth;
-using EduOS.Core.Enums;
 using EduOS.Core.Interfaces.Jobs;
 using EduOS.Core.Interfaces.IServices;
 using EduOS.Core.Settings;
@@ -11,8 +10,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
-using System.Security.Cryptography;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace EduOS.App.Controllers.Api
@@ -28,13 +27,8 @@ namespace EduOS.App.Controllers.Api
         private readonly EduOSDbContext _db;
         private readonly IMfaChallengeService _mfaChallengeService;
         private readonly MfaSettings _mfaSettings;
-        public AuthController(
-            UserManager<ApplicationUser> userManager,
-            SignInManager<ApplicationUser> signInManager,
-            ILogger<AuthController> logger,
-            EduOSDbContext db,
-            IMfaChallengeService mfaChallengeService,
-            IOptions<MfaSettings> mfaSettings)
+
+        public AuthController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, ILogger<AuthController> logger, EduOSDbContext db, IMfaChallengeService mfaChallengeService, IOptions<MfaSettings> mfaSettings)
         {
             _userManager = userManager;
             _signInManager = signInManager;
@@ -44,92 +38,62 @@ namespace EduOS.App.Controllers.Api
             _mfaSettings = mfaSettings.Value;
         }
 
-        // ============================================================
-        // LOGIN
-        // ============================================================
+        // ==================== Login ====================
+
         [AllowAnonymous]
         [EnableRateLimiting("LoginPolicy")]
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequestDto dto)
         {
-            // ── 1. Basic Validation ───────────────────────────────
-            if (dto == null
-                || string.IsNullOrWhiteSpace(dto.Email)
-                || string.IsNullOrWhiteSpace(dto.Password))
-            {
+            if (dto == null || string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Password))
                 return BadRequest(new { success = false, message = "Email and password are required." });
-            }
 
+            var email = dto.Email.Trim().ToLowerInvariant();
             var ip = GetClientIp();
             var userAgent = Truncate(HttpContext.Request.Headers["User-Agent"].FirstOrDefault(), 500);
-
-            // ── 2. Find user ──────────────────────────────────────
-            var user = await _userManager.FindByEmailAsync(dto.Email.Trim().ToLower());
+            var user = await _userManager.FindByEmailAsync(email);
 
             if (user == null)
             {
-                await SaveLoginHistoryAsync(null, dto.Email, ip, userAgent, false, "User not found");
+                await SaveLoginHistoryAsync(null, email, ip, userAgent, false, "User not found");
                 return BadRequest(new { success = false, message = "Invalid email or password." });
             }
 
-            // ── 3. Security checks ────────────────────────────────
             if (!user.IsActive)
             {
                 await SaveLoginHistoryAsync(user, ip, userAgent, false, "Account deactivated");
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "Your account has been deactivated. Please contact support."
-                });
+                return BadRequest(new { success = false, message = "Your account has been deactivated. Please contact support." });
             }
 
             if (!user.EmailConfirmed)
             {
                 await SaveLoginHistoryAsync(user, ip, userAgent, false, "Email not verified");
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "Please verify your email before signing in."
-                });
+                return BadRequest(new { success = false, message = "Please verify your email before signing in." });
             }
 
             if (await _userManager.IsLockedOutAsync(user))
             {
-                _logger.LogWarning("Locked out login attempt: {Email}", dto.Email);
+                _logger.LogWarning("Locked out login attempt: {Email}", email);
                 await SaveLoginHistoryAsync(user, ip, userAgent, false, "Account locked out");
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "Account temporarily locked due to multiple failed attempts. Please try again in 15 minutes."
-                });
+                return BadRequest(new { success = false, message = "Account temporarily locked due to multiple failed attempts. Please try again in 15 minutes." });
             }
 
-            // ── 4. Password check ─────────────────────────────────
-            var isPasswordValid = await _userManager.CheckPasswordAsync(user, dto.Password);
-
-            if (!isPasswordValid)
+            if (!await _userManager.CheckPasswordAsync(user, dto.Password))
             {
                 await _userManager.AccessFailedAsync(user);
-                _logger.LogWarning("Failed login attempt: {Email}", dto.Email);
+                _logger.LogWarning("Failed login attempt: {Email}", email);
                 await SaveLoginHistoryAsync(user, ip, userAgent, false, "Wrong password");
                 return BadRequest(new { success = false, message = "Invalid email or password." });
             }
 
-            // Reset failed count on successful auth
             await _userManager.ResetAccessFailedCountAsync(user);
-
-            var roles = await _userManager.GetRolesAsync(user);
-            var isPrivileged = IsPrivileged(roles);
 
             if (user.TwoFactorEnabled)
             {
                 var securityStamp = await _userManager.GetSecurityStampAsync(user);
-                var challengeToken = _mfaChallengeService.Create(
-                    user.Id,
-                    securityStamp,
-                    dto.RememberMe);
-
+                var challengeToken = _mfaChallengeService.Create(user.Id, securityStamp, dto.RememberMe);
                 Response.Headers.CacheControl = "no-store";
+
                 return StatusCode(StatusCodes.Status202Accepted, new
                 {
                     success = true,
@@ -143,24 +107,24 @@ namespace EduOS.App.Controllers.Api
                 });
             }
 
-            // ── 5. Build claims ───────────────────────────────────
-            var claims = BuildSessionClaims(user, "pwd");
+            await _signInManager.SignInWithClaimsAsync(user, dto.RememberMe, BuildSessionClaims(user, "pwd"));
 
-            // ── 6. Sign in with claims ────────────────────────────
-            await _signInManager.SignInWithClaimsAsync(user, dto.RememberMe, claims);
-
-            // ── 7. Update user metadata ───────────────────────────
             user.LastLogin = DateTime.UtcNow;
             user.LastLoginIp = ip;
             user.LastActivityAt = DateTime.UtcNow;
             user.UpdatedAt = DateTime.UtcNow;
-            await _userManager.UpdateAsync(user);
 
-            // ── 8. Log success ────────────────────────────────────
+            var updateResult = await _userManager.UpdateAsync(user);
+            if (!updateResult.Succeeded)
+            {
+                await _signInManager.SignOutAsync();
+                _logger.LogError("Failed to update login metadata for user {UserId}: {Errors}", user.Id, string.Join(" | ", updateResult.Errors.Select(x => x.Description)));
+                return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Unable to complete sign in. Please try again." });
+            }
+
             await SaveLoginHistoryAsync(user, ip, userAgent, true, null);
-            _logger.LogInformation("Login successful: {Email} from {Ip}", dto.Email, ip);
+            _logger.LogInformation("Login successful: {Email} from {Ip}", email, ip);
 
-            // ── 9. Response ───────────────────────────────────────
             return Ok(new
             {
                 success = true,
@@ -172,22 +136,20 @@ namespace EduOS.App.Controllers.Api
                     fullName = user.FullName,
                     userType = user.UserType,
                     tenantId = user.TenantId,
-                    redirectUrl = isPrivileged
-                        ? "/Account/MfaSetup"
-                        : await GetRedirectUrlAsync(user.UserType,user.TenantId)
+                    redirectUrl = GetRedirectUrl(user.UserType, user.TenantId)
                 }
             });
         }
 
-        // ============================================================
-        // MULTI-FACTOR AUTHENTICATION
-        // ============================================================
+        // ==================== MFA Status ====================
+
         [Authorize]
         [HttpGet("mfa/status")]
         public async Task<IActionResult> MfaStatus()
         {
             Response.Headers.CacheControl = "no-store";
             var user = await GetCurrentUserAsync();
+
             if (user == null)
                 return Unauthorized(new { success = false, message = "Invalid session." });
 
@@ -202,16 +164,20 @@ namespace EduOS.App.Controllers.Api
             });
         }
 
+        // ==================== MFA Setup ====================
+
         [Authorize]
         [EnableRateLimiting("MfaPolicy")]
         [HttpPost("mfa/setup")]
         public async Task<IActionResult> SetupMfa([FromBody] MfaSetupRequestDto dto)
         {
             Response.Headers.CacheControl = "no-store";
+
             if (dto == null || string.IsNullOrWhiteSpace(dto.CurrentPassword))
                 return BadRequest(new { success = false, message = "Current password is required." });
 
             var user = await GetCurrentUserAsync();
+
             if (user == null)
                 return Unauthorized(new { success = false, message = "Invalid session." });
 
@@ -222,34 +188,30 @@ namespace EduOS.App.Controllers.Api
                 return BadRequest(new { success = false, message = "Current password is incorrect." });
 
             var sharedKey = await _userManager.GetAuthenticatorKeyAsync(user);
+
             if (string.IsNullOrWhiteSpace(sharedKey))
             {
                 var reset = await _userManager.ResetAuthenticatorKeyAsync(user);
                 if (!reset.Succeeded)
-                    return StatusCode(500, new { success = false, message = "Authenticator setup failed." });
+                    return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Authenticator setup failed." });
+
                 sharedKey = await _userManager.GetAuthenticatorKeyAsync(user);
             }
 
             if (string.IsNullOrWhiteSpace(sharedKey))
-                return StatusCode(500, new { success = false, message = "Authenticator setup failed." });
+                return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Authenticator setup failed." });
 
             var accountLabel = $"EduOS:{user.Email ?? user.UserName ?? user.Id.ToString()}";
-            var authenticatorUri = "otpauth://totp/"
-                + Uri.EscapeDataString(accountLabel)
-                + "?secret=" + Uri.EscapeDataString(sharedKey)
-                + "&issuer=" + Uri.EscapeDataString("EduOS")
-                + "&digits=6";
+            var authenticatorUri = "otpauth://totp/" + Uri.EscapeDataString(accountLabel) + "?secret=" + Uri.EscapeDataString(sharedKey) + "&issuer=" + Uri.EscapeDataString("EduOS") + "&digits=6";
 
             return Ok(new
             {
                 success = true,
-                data = new
-                {
-                    sharedKey,
-                    authenticatorUri
-                }
+                data = new { sharedKey, authenticatorUri }
             });
         }
+
+        // ==================== MFA Enable ====================
 
         [Authorize]
         [EnableRateLimiting("MfaPolicy")]
@@ -257,14 +219,12 @@ namespace EduOS.App.Controllers.Api
         public async Task<IActionResult> EnableMfa([FromBody] MfaEnableRequestDto dto)
         {
             Response.Headers.CacheControl = "no-store";
-            if (dto == null
-                || string.IsNullOrWhiteSpace(dto.CurrentPassword)
-                || string.IsNullOrWhiteSpace(dto.Code))
-            {
+
+            if (dto == null || string.IsNullOrWhiteSpace(dto.CurrentPassword) || string.IsNullOrWhiteSpace(dto.Code))
                 return BadRequest(new { success = false, message = "Password and verification code are required." });
-            }
 
             var user = await GetCurrentUserAsync();
+
             if (user == null)
                 return Unauthorized(new { success = false, message = "Invalid session." });
 
@@ -275,31 +235,26 @@ namespace EduOS.App.Controllers.Api
                 return BadRequest(new { success = false, message = "Password or verification code is invalid." });
 
             var code = NormalizeMfaCode(dto.Code);
-            var valid = await _userManager.VerifyTwoFactorTokenAsync(
-                user,
-                TokenOptions.DefaultAuthenticatorProvider,
-                code);
+            var valid = await _userManager.VerifyTwoFactorTokenAsync(user, TokenOptions.DefaultAuthenticatorProvider, code);
+
             if (!valid)
                 return BadRequest(new { success = false, message = "Password or verification code is invalid." });
 
             if (_mfaSettings.RecoveryCodeCount is < 5 or > 20)
-                return StatusCode(500, new { success = false, message = "Recovery-code configuration is invalid." });
+                return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Recovery-code configuration is invalid." });
 
-            var recoveryCodes = (await _userManager.GenerateNewTwoFactorRecoveryCodesAsync(
-                    user,
-                    _mfaSettings.RecoveryCodeCount))
-                ?.ToArray() ?? [];
+            var recoveryCodes = (await _userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, _mfaSettings.RecoveryCodeCount))?.ToArray() ?? [];
+
             if (recoveryCodes.Length != _mfaSettings.RecoveryCodeCount)
-                return StatusCode(500, new { success = false, message = "Recovery codes could not be generated." });
+                return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Recovery codes could not be generated." });
 
             var enabled = await _userManager.SetTwoFactorEnabledAsync(user, true);
-            if (!enabled.Succeeded)
-                return StatusCode(500, new { success = false, message = "Multi-factor authentication could not be enabled." });
 
-            await _signInManager.SignInWithClaimsAsync(
-                user,
-                isPersistent: false,
-                BuildSessionClaims(user, "mfa"));
+            if (!enabled.Succeeded)
+                return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Multi-factor authentication could not be enabled." });
+
+            await _signInManager.SignInWithClaimsAsync(user, isPersistent: false, BuildSessionClaims(user, "mfa"));
+            _logger.LogInformation("MFA enabled for user {UserId}", user.Id);
 
             return Ok(new
             {
@@ -309,21 +264,20 @@ namespace EduOS.App.Controllers.Api
             });
         }
 
+        // ==================== MFA Login ====================
+
         [AllowAnonymous]
         [EnableRateLimiting("MfaPolicy")]
         [HttpPost("mfa/login")]
         public async Task<IActionResult> CompleteMfaLogin([FromBody] MfaLoginRequestDto dto)
         {
             Response.Headers.CacheControl = "no-store";
-            if (dto == null
-                || string.IsNullOrWhiteSpace(dto.ChallengeToken)
-                || string.IsNullOrWhiteSpace(dto.Code)
-                || !_mfaChallengeService.TryRead(dto.ChallengeToken, out var challenge))
-            {
+
+            if (dto == null || string.IsNullOrWhiteSpace(dto.ChallengeToken) || string.IsNullOrWhiteSpace(dto.Code) || !_mfaChallengeService.TryRead(dto.ChallengeToken, out var challenge))
                 return BadRequest(new { success = false, message = "The verification request is invalid or expired." });
-            }
 
             var user = await _userManager.FindByIdAsync(challenge.UserId.ToString());
+
             if (user == null || !user.IsActive || !user.EmailConfirmed || !user.TwoFactorEnabled)
                 return BadRequest(new { success = false, message = "The verification request is invalid or expired." });
 
@@ -331,21 +285,18 @@ namespace EduOS.App.Controllers.Api
                 return BadRequest(new { success = false, message = "Account temporarily locked." });
 
             var currentStamp = await _userManager.GetSecurityStampAsync(user);
+
             if (!FixedTimeEquals(challenge.SecurityStamp, currentStamp))
                 return BadRequest(new { success = false, message = "The verification request is invalid or expired." });
 
-            var code = dto.UseRecoveryCode
-                ? dto.Code.Trim()
-                : NormalizeMfaCode(dto.Code);
+            var code = dto.UseRecoveryCode ? dto.Code.Trim() : NormalizeMfaCode(dto.Code);
             var valid = dto.UseRecoveryCode
                 ? (await _userManager.RedeemTwoFactorRecoveryCodeAsync(user, code)).Succeeded
-                : await _userManager.VerifyTwoFactorTokenAsync(
-                    user,
-                    TokenOptions.DefaultAuthenticatorProvider,
-                    code);
+                : await _userManager.VerifyTwoFactorTokenAsync(user, TokenOptions.DefaultAuthenticatorProvider, code);
 
             var ip = GetClientIp();
             var userAgent = Truncate(HttpContext.Request.Headers["User-Agent"].FirstOrDefault(), 500);
+
             if (!valid)
             {
                 await _userManager.AccessFailedAsync(user);
@@ -354,73 +305,75 @@ namespace EduOS.App.Controllers.Api
             }
 
             await _userManager.ResetAccessFailedCountAsync(user);
-            await _signInManager.SignInWithClaimsAsync(
-                user,
-                challenge.RememberMe,
-                BuildSessionClaims(user, "mfa"));
+            await _signInManager.SignInWithClaimsAsync(user, challenge.RememberMe, BuildSessionClaims(user, "mfa"));
 
             user.LastLogin = DateTime.UtcNow;
             user.LastLoginIp = ip;
             user.LastActivityAt = DateTime.UtcNow;
             user.UpdatedAt = DateTime.UtcNow;
-            await _userManager.UpdateAsync(user);
+
+            var updateResult = await _userManager.UpdateAsync(user);
+
+            if (!updateResult.Succeeded)
+            {
+                await _signInManager.SignOutAsync();
+                _logger.LogError("Failed to update MFA login metadata for user {UserId}: {Errors}", user.Id, string.Join(" | ", updateResult.Errors.Select(x => x.Description)));
+                return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Unable to complete sign in. Please try again." });
+            }
+
             await SaveLoginHistoryAsync(user, ip, userAgent, true, null);
+            _logger.LogInformation("MFA login successful for user {UserId} from {Ip}", user.Id, ip);
 
             return Ok(new
             {
                 success = true,
                 message = "Login successful",
-                data = new
-                {
-                    redirectUrl = await GetRedirectUrlAsync(user.UserType, user.TenantId)
-                }
+                data = new { redirectUrl = GetRedirectUrl(user.UserType, user.TenantId) }
             });
         }
 
-        // ============================================================
-        // FORGOT PASSWORD
-        // ============================================================
+        // ==================== Forgot Password ====================
+
+        [AllowAnonymous]
         [EnableRateLimiting("ForgotPasswordPolicy")]
         [HttpPost("forgot-password")]
-        public async Task<IActionResult> ForgotPassword(ForgotPasswordRequestDto dto)
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequestDto dto)
         {
-            // Always return success - don't reveal if email exists
-            var user = await _userManager.FindByEmailAsync(dto.Email);
+            const string message = "If an account exists with that email, a password reset link has been sent.";
+
+            if (dto == null || string.IsNullOrWhiteSpace(dto.Email))
+                return Ok(new { success = true, message });
+
+            var email = dto.Email.Trim();
+            var user = await _userManager.FindByEmailAsync(email);
 
             if (user != null && user.IsActive && user.EmailConfirmed)
             {
                 var token = await _userManager.GeneratePasswordResetTokenAsync(user);
                 var baseUrl = $"{Request.Scheme}://{Request.Host}";
+                var resetUrl = $"{baseUrl}/Account/ResetPassword?email={Uri.EscapeDataString(user.Email!)}&token={Uri.EscapeDataString(token)}";
 
-                var resetUrl = $"{baseUrl}/Account/ResetPassword" +
-                              $"?email={Uri.EscapeDataString(user.Email!)}" +
-                              $"&token={Uri.EscapeDataString(token)}";
-
-                BackgroundJob.Enqueue<IEmailJob>(x =>
-                    x.SendPasswordResetEmailAsync(user.Email!, user.FullName, resetUrl));
-
-                _logger.LogInformation("Password reset email sent: {Email}", dto.Email);
+                BackgroundJob.Enqueue<IEmailJob>(x => x.SendPasswordResetEmailAsync(user.Email!, user.FullName, resetUrl));
+                _logger.LogInformation("Password reset email queued: {Email}", email);
             }
 
-            return Ok(new
-            {
-                success = true,
-                message = "If an account exists with that email, a password reset link has been sent."
-            });
+            return Ok(new { success = true, message });
         }
 
-        // ============================================================
-        // RESET PASSWORD
-        // ============================================================
+        // ==================== Reset Password ====================
+
+        [AllowAnonymous]
         [HttpPost("reset-password")]
-        public async Task<IActionResult> ResetPassword(ResetPasswordRequestDto dto)
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequestDto dto)
         {
+            if (dto == null || string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Token) || string.IsNullOrWhiteSpace(dto.NewPassword) || string.IsNullOrWhiteSpace(dto.ConfirmPassword))
+                return BadRequest(new { success = false, message = "Invalid request." });
+
             if (dto.NewPassword != dto.ConfirmPassword)
                 return BadRequest(new { success = false, message = "Passwords do not match." });
 
-            var user = await _userManager.FindByEmailAsync(dto.Email);
+            var user = await _userManager.FindByEmailAsync(dto.Email.Trim());
 
-            // Generic message for security
             if (user == null)
                 return BadRequest(new { success = false, message = "Invalid request." });
 
@@ -433,23 +386,20 @@ namespace EduOS.App.Controllers.Api
                 return BadRequest(new { success = false, message = "Password reset failed. The link may have expired." });
             }
 
-            _logger.LogInformation("Password reset: {Email}", dto.Email);
-
+            _logger.LogInformation("Password reset successfully for user {UserId}", user.Id);
             return Ok(new { success = true, message = "Password reset successful." });
         }
 
-        
-        // ============================================================
-        // LOGOUT
-        // ============================================================
+        // ==================== Logout ====================
+
         [Authorize]
         [HttpPost("logout")]
         public async Task<IActionResult> Logout()
         {
             try
             {
-                // Update latest login history with logout time
                 var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
                 if (long.TryParse(userIdStr, out var userId))
                 {
                     var history = _db.LoginHistories
@@ -471,13 +421,10 @@ namespace EduOS.App.Controllers.Api
             }
 
             await _signInManager.SignOutAsync();
-
             return Ok(new { success = true, message = "Logged out successfully." });
         }
 
-        // ============================================================
-        // GET PROFILE
-        // ============================================================
+        // ==================== Profile ====================
 
         [Authorize]
         [HttpGet("profile")]
@@ -486,13 +433,7 @@ namespace EduOS.App.Controllers.Api
             var user = await _userManager.GetUserAsync(User);
 
             if (user == null)
-            {
-                return Unauthorized(new
-                {
-                    success = false,
-                    message = "User session not found."
-                });
-            }
+                return Unauthorized(new { success = false, message = "User session not found." });
 
             var dto = new UserProfileDto
             {
@@ -503,16 +444,8 @@ namespace EduOS.App.Controllers.Api
                 Address = user.Address
             };
 
-            return Ok(new
-            {
-                success = true,
-                data = dto
-            });
+            return Ok(new { success = true, data = dto });
         }
-
-        // ============================================================
-        // UPDATE PROFILE
-        // ============================================================
 
         [Authorize]
         [HttpPut("profile")]
@@ -520,46 +453,22 @@ namespace EduOS.App.Controllers.Api
         public async Task<IActionResult> UpdateProfile([FromBody] UpdateUserProfileDto dto)
         {
             if (!ModelState.IsValid)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = GetModelStateError()
-                });
-            }
+                return BadRequest(new { success = false, message = GetModelStateError() });
 
             var user = await _userManager.GetUserAsync(User);
 
             if (user == null)
-            {
-                return Unauthorized(new
-                {
-                    success = false,
-                    message = "User session not found."
-                });
-            }
+                return Unauthorized(new { success = false, message = "User session not found." });
 
             user.FullName = dto.FullName.Trim();
-            user.PhoneNumber = string.IsNullOrWhiteSpace(dto.PhoneNumber)
-                ? null
-                : dto.PhoneNumber.Trim();
-
-            user.Address = string.IsNullOrWhiteSpace(dto.Address)
-                ? null
-                : dto.Address.Trim();
-
+            user.PhoneNumber = string.IsNullOrWhiteSpace(dto.PhoneNumber) ? null : dto.PhoneNumber.Trim();
+            user.Address = string.IsNullOrWhiteSpace(dto.Address) ? null : dto.Address.Trim();
             user.UpdatedAt = DateTime.UtcNow;
 
             var result = await _userManager.UpdateAsync(user);
 
             if (!result.Succeeded)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = string.Join(" | ", result.Errors.Select(x => x.Description))
-                });
-            }
+                return BadRequest(new { success = false, message = string.Join(" | ", result.Errors.Select(x => x.Description)) });
 
             return Ok(new
             {
@@ -576,9 +485,7 @@ namespace EduOS.App.Controllers.Api
             });
         }
 
-        // ============================================================
-        // CHANGE PASSWORD
-        // ============================================================
+        // ==================== Change Password ====================
 
         [Authorize]
         [HttpPost("change-password")]
@@ -586,102 +493,41 @@ namespace EduOS.App.Controllers.Api
         public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
         {
             if (!ModelState.IsValid)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = GetModelStateError()
-                });
-            }
+                return BadRequest(new { success = false, message = GetModelStateError() });
 
             if (dto.NewPassword != dto.ConfirmPassword)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "New password and confirm password do not match."
-                });
-            }
+                return BadRequest(new { success = false, message = "New password and confirm password do not match." });
 
             var user = await _userManager.GetUserAsync(User);
 
             if (user == null)
-            {
-                return Unauthorized(new
-                {
-                    success = false,
-                    message = "User session not found."
-                });
-            }
+                return Unauthorized(new { success = false, message = "User session not found." });
 
-            var isCurrentPasswordValid = await _userManager.CheckPasswordAsync(
-                user,
-                dto.CurrentPassword);
+            if (!await _userManager.CheckPasswordAsync(user, dto.CurrentPassword))
+                return BadRequest(new { success = false, message = "Current password is incorrect." });
 
-            if (!isCurrentPasswordValid)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "Current password is incorrect."
-                });
-            }
-
-            var result = await _userManager.ChangePasswordAsync(
-                user,
-                dto.CurrentPassword,
-                dto.NewPassword);
+            var result = await _userManager.ChangePasswordAsync(user, dto.CurrentPassword, dto.NewPassword);
 
             if (!result.Succeeded)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = string.Join(" | ", result.Errors.Select(x => x.Description))
-                });
-            }
+                return BadRequest(new { success = false, message = string.Join(" | ", result.Errors.Select(x => x.Description)) });
 
             user.UpdatedAt = DateTime.UtcNow;
             await _userManager.UpdateAsync(user);
-
-            // Password change updates the security stamp.
-            // Refresh current cookie so the user remains logged in.
             await _signInManager.RefreshSignInAsync(user);
 
-            _logger.LogInformation(
-                "Password changed successfully for user {UserId}",
-                user.Id);
-
-            return Ok(new
-            {
-                success = true,
-                message = "Password changed successfully."
-            });
+            _logger.LogInformation("Password changed successfully for user {UserId}", user.Id);
+            return Ok(new { success = true, message = "Password changed successfully." });
         }
 
-        // ============================================================
-        // MODEL STATE ERROR
-        // ============================================================
+        // ==================== Helpers ====================
 
-        private string GetModelStateError()
-        {
-            return string.Join(
-                " | ",
-                ModelState.Values
-                    .SelectMany(x => x.Errors)
-                    .Select(x => x.ErrorMessage)
-                    .Where(x => !string.IsNullOrWhiteSpace(x)));
-        }
+        private string GetModelStateError() =>
+            string.Join(" | ", ModelState.Values.SelectMany(x => x.Errors).Select(x => x.ErrorMessage).Where(x => !string.IsNullOrWhiteSpace(x)));
 
-        // ============================================================
-        // PRIVATE HELPERS
-        // ============================================================
         private async Task<ApplicationUser?> GetCurrentUserAsync()
         {
             var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            return long.TryParse(value, out var userId)
-                ? await _userManager.FindByIdAsync(userId.ToString())
-                : null;
+            return long.TryParse(value, out var userId) ? await _userManager.FindByIdAsync(userId.ToString()) : null;
         }
 
         private static List<Claim> BuildSessionClaims(ApplicationUser user, string authenticationMethod)
@@ -704,21 +550,17 @@ namespace EduOS.App.Controllers.Api
             return claims;
         }
 
-        private static bool IsPrivileged(IEnumerable<string> roles) =>
-            roles.Any(role => role is "SuperAdmin" or "TenantAdmin" or "AdmissionOfficer");
-
         private static string NormalizeMfaCode(string code) =>
-            code.Replace(" ", string.Empty, StringComparison.Ordinal)
-                .Replace("-", string.Empty, StringComparison.Ordinal);
+            code.Replace(" ", string.Empty, StringComparison.Ordinal).Replace("-", string.Empty, StringComparison.Ordinal);
 
         private static bool FixedTimeEquals(string first, string second)
         {
             var firstBytes = Encoding.UTF8.GetBytes(first);
             var secondBytes = Encoding.UTF8.GetBytes(second);
+
             try
             {
-                return firstBytes.Length == secondBytes.Length
-                    && CryptographicOperations.FixedTimeEquals(firstBytes, secondBytes);
+                return firstBytes.Length == secondBytes.Length && CryptographicOperations.FixedTimeEquals(firstBytes, secondBytes);
             }
             finally
             {
@@ -727,29 +569,10 @@ namespace EduOS.App.Controllers.Api
             }
         }
 
-        private async Task SaveLoginHistoryAsync(
-            ApplicationUser user,
-            string ip,
-            string userAgent,
-            bool isSuccess,
-            string? failReason)
-        {
-            await SaveLoginHistoryAsync(
-                user,
-                null,
-                ip,
-                userAgent,
-                isSuccess,
-                failReason);
-        }
+        private async Task SaveLoginHistoryAsync(ApplicationUser user, string ip, string userAgent, bool isSuccess, string? failReason) =>
+            await SaveLoginHistoryAsync(user, null, ip, userAgent, isSuccess, failReason);
 
-        private async Task SaveLoginHistoryAsync(
-            ApplicationUser? user,
-            string? attemptedEmail,
-            string ip,
-            string userAgent,
-            bool isSuccess,
-            string? failReason)
+        private async Task SaveLoginHistoryAsync(ApplicationUser? user, string? attemptedEmail, string ip, string userAgent, bool isSuccess, string? failReason)
         {
             try
             {
@@ -773,47 +596,37 @@ namespace EduOS.App.Controllers.Api
             }
             catch (Exception ex)
             {
-                _logger.LogError(
-                    ex,
-                    "Failed to save login history for {Email}",
-                    user?.Email ?? attemptedEmail ?? "unknown");
+                _logger.LogError(ex, "Failed to save login history for {Email}", user?.Email ?? attemptedEmail ?? "unknown");
             }
         }
 
-        private Task<string> GetRedirectUrlAsync(string userType, long? tenantId)
+        private static string GetRedirectUrl(string userType, long? tenantId)
         {
-            if (userType == "SuperAdmin")
-            {
-                return Task.FromResult("/Dashboard/Admin");
-            }
+            if (string.Equals(userType, "SuperAdmin", StringComparison.Ordinal))
+                return "/Dashboard/Admin";
 
             if (!tenantId.HasValue)
-            {
-                return Task.FromResult("/Account/Login?error=no_tenant");
-            }
+                return "/Account/Login?error=no_tenant";
 
-            return Task.FromResult("/Dashboard/Index");
+            return "/Dashboard/Index";
         }
 
-        private string GetClientIp()
+        private string GetClientIp() =>
+            Truncate(HttpContext.Connection.RemoteIpAddress?.ToString(), 64);
+
+        private static string Truncate(string? value, int maxLength)
         {
-            // RemoteIpAddress is authoritative after ASP.NET Forwarded Headers is
-            // configured with trusted proxies. Never trust a raw client-supplied
-            // X-Forwarded-For value here.
-            return Truncate(HttpContext.Connection.RemoteIpAddress?.ToString(), 64);
-        }
+            if (string.IsNullOrWhiteSpace(value))
+                return string.Empty;
 
-        private static string Truncate(string? value, int maxLength) =>
-            string.IsNullOrWhiteSpace(value)
-                ? string.Empty
-                : value.Trim()[..Math.Min(value.Trim().Length, maxLength)];
+            var trimmed = value.Trim();
+            return trimmed[..Math.Min(trimmed.Length, maxLength)];
+        }
 
         private static (string browser, string device) ParseUserAgent(string ua)
         {
             if (string.IsNullOrWhiteSpace(ua))
-            {
                 return ("Unknown", "Unknown");
-            }
 
             var browser = ua switch
             {

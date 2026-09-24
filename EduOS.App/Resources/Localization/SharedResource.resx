@@ -706,4 +706,49 @@
   <data name="Passed" xml:space="preserve"><value>Passed</value></data>
   <data name="Dropout" xml:space="preserve"><value>Dropout</value></data>
   <data name="Archived" xml:space="preserve"><value>Archived</value></data>
+
+	<data name="ManualPaymentVerification" xml:space="preserve"><value>Manual Payment Verification</value></data>
+	<data name="SubscriptionPayment" xml:space="preserve"><value>Subscription Payment</value></data>
+	<data name="ManualPaymentVerificationHelp" xml:space="preserve"><value>Review submitted bank transfers and approve or reject verified subscription payments.</value></data>
+	<data name="Refresh" xml:space="preserve"><value>Refresh</value></data>
+	<data name="PendingVerifications" xml:space="preserve"><value>Pending Verifications</value></data>
+	<data name="PaymentsWaitingVerification" xml:space="preserve"><value>{count} payment(s) waiting for verification</value></data>
+	<data name="SearchPaymentPlaceholder" xml:space="preserve"><value>Search invoice, transaction, bank or slip number...</value></data>
+	<data name="LoadingPendingPayments" xml:space="preserve"><value>Loading pending payments...</value></data>
+	<data name="NoPendingPaymentFound" xml:space="preserve"><value>No pending payment found</value></data>
+	<data name="NoPendingPaymentHelp" xml:space="preserve"><value>There are no manual payments waiting for verification.</value></data>
+	<data name="SelectPayment" xml:space="preserve"><value>Select a payment</value></data>
+	<data name="SelectPaymentHelp" xml:space="preserve"><value>Select a pending payment from the list to review and verify it.</value></data>
+	<data name="PaymentReview" xml:space="preserve"><value>Payment Review</value></data>
+	<data name="VerifyPayment" xml:space="preserve"><value>Verify Payment</value></data>
+	<data name="Invoice" xml:space="preserve"><value>Invoice</value></data>
+	<data name="Amount" xml:space="preserve"><value>Amount</value></data>
+	<data name="TransactionId" xml:space="preserve"><value>Transaction ID</value></data>
+	<data name="PayerBank" xml:space="preserve"><value>Payer Bank</value></data>
+	<data name="PayerAccount" xml:space="preserve"><value>Payer Account</value></data>
+	<data name="DepositSlipNo" xml:space="preserve"><value>Deposit Slip No.</value></data>
+	<data name="DepositDate" xml:space="preserve"><value>Deposit Date</value></data>
+	<data name="SubmittedAt" xml:space="preserve"><value>Submitted At</value></data>
+	<data name="ViewDepositSlip" xml:space="preserve"><value>View Deposit Slip</value></data>
+	<data name="PaymentVerificationWarning" xml:space="preserve"><value>Verify the bank transfer and deposit slip before approval. Approval updates the invoice payment balance and may activate the subscription.</value></data>
+	<data name="VerificationNote" xml:space="preserve"><value>Verification Note</value></data>
+	<data name="VerificationNotePlaceholder" xml:space="preserve"><value>Optional for approval. Required when rejecting.</value></data>
+	<data name="VerificationNoteHelp" xml:space="preserve"><value>For rejection, enter a clear reason for audit history.</value></data>
+	<data name="RejectPayment" xml:space="preserve"><value>Reject Payment</value></data>
+	<data name="ApprovePayment" xml:space="preserve"><value>Approve Payment</value></data>
+	<data name="PaymentLoadFailed" xml:space="preserve"><value>Failed to load pending payments.</value></data>
+	<data name="PaymentLoadNetworkError" xml:space="preserve"><value>Unable to load pending payments. Please try again.</value></data>
+	<data name="PaymentNotFound" xml:space="preserve"><value>Payment information was not found.</value></data>
+	<data name="SelectPaymentFirst" xml:space="preserve"><value>Select a payment first.</value></data>
+	<data name="RejectionReasonRequired" xml:space="preserve"><value>Verification note is required when rejecting a payment.</value></data>
+	<data name="ConfirmApprovePayment" xml:space="preserve"><value>Are you sure you want to approve this payment?</value></data>
+	<data name="ConfirmRejectPayment" xml:space="preserve"><value>Are you sure you want to reject this payment?</value></data>
+	<data name="PaymentVerificationFailed" xml:space="preserve"><value>Payment verification failed.</value></data>
+	<data name="PaymentVerificationNetworkError" xml:space="preserve"><value>Unable to verify payment. Please try again.</value></data>
+	<data name="PaymentApprovedSuccessfully" xml:space="preserve"><value>Payment approved successfully.</value></data>
+	<data name="PaymentRejectedSuccessfully" xml:space="preserve"><value>Payment rejected successfully.</value></data>
+	<data name="Processing" xml:space="preserve"><value>Processing...</value></data>
+	<data name="Bank" xml:space="preserve"><value>Bank</value></data>
+	<data name="SlipNumber" xml:space="preserve"><value>Slip No.</value></data>
+	<data name="Submitted" xml:space="preserve"><value>Submitted</value></data>	
 </root>

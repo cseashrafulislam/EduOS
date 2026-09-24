@@ -157,22 +157,36 @@
     async function loadManualInstructions(card) {
         const bankDetails = document.getElementById('bankDetails');
         if (!bankDetails) return;
+
         bankDetails.replaceChildren(paragraph(i18n.loading, 'text-muted mb-0'));
+
         try {
-            const response = await fetch(
-                `/api/subscription-payment/manual-instructions/${encodeURIComponent(invoiceId)}`,
-                { cache: 'no-store', credentials: 'same-origin', headers: { 'Accept': 'application/json' } }
-            );
+            const response = await fetch(`/api/subscription-payment/manual-instructions/${encodeURIComponent(invoiceId)}`, {
+                cache: 'no-store',
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json' }
+            });
+
             const payload = await response.json().catch(() => null);
-            if (!response.ok || !payload?.success || !payload.data) throw new Error('Manual payment unavailable');
+
+            if (!response.ok || !payload?.success || !payload?.data) {
+                const message = payload?.message || i18n.bankUnavailable || 'Bank transfer information is unavailable.';
+                throw new Error(message);
+            }
+
             renderBankDetails(payload.data);
             manualInstructionsLoaded = true;
-        } catch {
+        } catch (error) {
+            console.error('Manual payment instructions failed:', error);
+
             card.disabled = true;
             card.setAttribute('aria-disabled', 'true');
-            bankDetails.replaceChildren(paragraph(i18n.bankUnavailable, 'text-danger mb-0'));
+
+            const message = error?.message || i18n.bankUnavailable || 'Bank transfer information is unavailable.';
+            bankDetails.replaceChildren(paragraph(message, 'text-danger mb-0'));
+
             document.getElementById('submitManualBtn')?.setAttribute('disabled', 'disabled');
-            showAlert('danger', i18n.bankUnavailable);
+            showAlert('danger', message);
         }
     }
 

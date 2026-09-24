@@ -363,7 +363,7 @@ namespace EduOS.Service.Services.SaaS
                 var extension = Path.GetExtension(depositSlip.FileName).ToLowerInvariant();
                 var allowedReceiptTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
                 {
-                    ".pdf", ".jpg", ".jpeg", ".png"
+                    ".pdf", ".jpg", ".jpeg", ".png",".jfif"
                 };
                 var allowedReceiptMimeTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
                 {
@@ -439,45 +439,48 @@ namespace EduOS.Service.Services.SaaS
                 return ApiResponse<SubscriptionPaymentDto>.ErrorResponse("Submission failed", 500);
             }
         }
-
-        public async Task<ApiResponse<ManualPaymentInstructionsDto>> GetManualPaymentInstructionsAsync(
-            long invoiceId)
+        public async Task<ApiResponse<ManualPaymentInstructionsDto>> GetManualPaymentInstructionsAsync(long invoiceId)
         {
             var tenantId = _currentUser.TenantId;
+
             try
             {
                 if (tenantId <= 0)
                     return ApiResponse<ManualPaymentInstructionsDto>.ErrorResponse("Tenant context required", 401);
 
+                if (invoiceId <= 0)
+                    return ApiResponse<ManualPaymentInstructionsDto>.ErrorResponse("Invalid invoice", 400);
+
                 var invoice = await _invoiceRepo.GetByIdAsync(invoiceId);
                 if (invoice == null || invoice.TenantId != tenantId)
                     return ApiResponse<ManualPaymentInstructionsDto>.ErrorResponse("Invoice not found", 404);
 
-                if (string.IsNullOrWhiteSpace(_manualSettings.BankName)
-                    || string.IsNullOrWhiteSpace(_manualSettings.AccountName)
-                    || string.IsNullOrWhiteSpace(_manualSettings.AccountNumber))
+                if (!_manualSettings.Enabled)
+                    return ApiResponse<ManualPaymentInstructionsDto>.ErrorResponse("Manual payment is currently unavailable", 503);
+
+                if (string.IsNullOrWhiteSpace(_manualSettings.BankName) ||
+                    string.IsNullOrWhiteSpace(_manualSettings.AccountName) ||
+                    string.IsNullOrWhiteSpace(_manualSettings.AccountNumber))
                 {
-                    return ApiResponse<ManualPaymentInstructionsDto>.ErrorResponse(
-                        "Manual payment is not configured", 503);
+                    _logger.LogError("Manual payment is enabled but required bank configuration is incomplete.");
+                    return ApiResponse<ManualPaymentInstructionsDto>.ErrorResponse("Manual payment configuration is incomplete", 503);
                 }
 
-                return ApiResponse<ManualPaymentInstructionsDto>.SuccessResponse(
-                    new ManualPaymentInstructionsDto
-                    {
-                        BankName = _manualSettings.BankName,
-                        AccountName = _manualSettings.AccountName,
-                        AccountNumber = _manualSettings.AccountNumber,
-                        RoutingNumber = _manualSettings.RoutingNumber,
-                        BranchName = _manualSettings.BranchName,
-                        Reference = invoice.InvoiceNumber,
-                        Instructions = _manualSettings.Instructions
-                    });
+                return ApiResponse<ManualPaymentInstructionsDto>.SuccessResponse(new ManualPaymentInstructionsDto
+                {
+                    BankName = _manualSettings.BankName.Trim(),
+                    AccountName = _manualSettings.AccountName.Trim(),
+                    AccountNumber = _manualSettings.AccountNumber.Trim(),
+                    RoutingNumber = _manualSettings.RoutingNumber?.Trim(),
+                    BranchName = _manualSettings.BranchName?.Trim(),
+                    Reference = invoice.InvoiceNumber,
+                    Instructions = _manualSettings.Instructions?.Trim()
+                });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to load manual payment instructions for invoice {InvoiceId}", invoiceId);
-                return ApiResponse<ManualPaymentInstructionsDto>.ErrorResponse(
-                    "Failed to load manual payment instructions", 500);
+                return ApiResponse<ManualPaymentInstructionsDto>.ErrorResponse("Failed to load manual payment instructions", 500);
             }
         }
 
@@ -515,99 +518,137 @@ namespace EduOS.Service.Services.SaaS
         // ============================================================
         public async Task<ApiResponse<bool>> VerifyManualPaymentAsync(VerifyManualPaymentDto dto)
         {
+            if (!_currentUser.IsSuperAdmin)
+                return ApiResponse<bool>.ErrorResponse("Forbidden", 403);
+
+            if (dto == null || dto.PaymentId <= 0)
+                return ApiResponse<bool>.ErrorResponse("Invalid payment", 400);
+
+            var strategy = _unitOfWork.CreateExecutionStrategy();
+
             try
             {
-                if (!_currentUser.IsSuperAdmin)
-                    return ApiResponse<bool>.ErrorResponse("Forbidden", 403);
-
-                var payment = await _paymentRepo.GetByIdForPlatformAsync(dto.PaymentId);
-                if (payment == null)
-                    return ApiResponse<bool>.ErrorResponse("Payment not found", 404);
-
-                if (payment.Status != PaymentStatus.AwaitingVerification)
-                    return ApiResponse<bool>.ErrorResponse("Payment is not awaiting verification", 400);
-
-                await _unitOfWork.BeginTransactionAsync();
-
-                payment.VerifiedByUserId = _currentUser.UserId;
-                payment.VerifiedAt = DateTime.UtcNow;
-                payment.VerificationNote = dto.VerificationNote;
-
-                var invoice = await _invoiceRepo.GetByIdForSystemAsync(
-                    payment.SubscriptionInvoiceId, payment.TenantId);
-
-                if (dto.Approve)
+                return await strategy.ExecuteAsync(async () =>
                 {
-                    payment.Status = PaymentStatus.Successful;
-                    payment.CompletedAt = DateTime.UtcNow;
+                    await _unitOfWork.BeginTransactionAsync();
 
-                    // Claim this review before mutating the invoice or activating the
-                    // subscription. A competing admin action will fail RowVersion.
-                    _paymentRepo.Update(payment);
-                    await _unitOfWork.SaveChangesAsync();
-
-                    if (invoice != null)
+                    try
                     {
-                        invoice.PaidAmount += payment.Amount;
-                        invoice.DueAmount = invoice.TotalAmount - invoice.PaidAmount;
-                        if (invoice.DueAmount <= 0)
+                        var payment = await _paymentRepo.GetByIdForPlatformAsync(dto.PaymentId);
+                        if (payment == null)
+                            return await RollbackErrorAsync("Payment not found", 404);
+
+                        if (payment.PaymentMethod != PaymentMethod.ManualBankTransfer)
+                            return await RollbackErrorAsync("Only manual bank transfer payments can be verified", 400);
+
+                        if (payment.Status != PaymentStatus.AwaitingVerification)
+                            return await RollbackErrorAsync("Payment is not awaiting verification", 400);
+
+                        var invoice = await _invoiceRepo.GetByIdForSystemAsync(payment.SubscriptionInvoiceId, payment.TenantId);
+                        if (invoice == null)
+                            return await RollbackErrorAsync("Payment invoice not found", 404);
+
+                        var note = string.IsNullOrWhiteSpace(dto.VerificationNote)
+                            ? null
+                            : dto.VerificationNote.Trim();
+
+                        if (!dto.Approve && string.IsNullOrWhiteSpace(note))
+                            return await RollbackErrorAsync("Verification note is required when rejecting a payment", 400);
+
+                        var now = DateTime.UtcNow;
+
+                        payment.VerifiedByUserId = _currentUser.UserId;
+                        payment.VerifiedAt = now;
+                        payment.VerificationNote = note;
+
+                        if (dto.Approve)
                         {
-                            invoice.PaymentStatus = PaymentStatus.Successful;
-                            invoice.PaidAt = DateTime.UtcNow;
+                            if (payment.Amount <= 0)
+                                return await RollbackErrorAsync("Invalid payment amount", 400);
+
+                            if (invoice.PaymentStatus == PaymentStatus.Successful || invoice.DueAmount <= 0)
+                                return await RollbackErrorAsync("Invoice is already paid", 400);
+
+                            if (payment.Amount > invoice.DueAmount)
+                                return await RollbackErrorAsync("Payment amount exceeds invoice due amount", 400);
+
+                            payment.Status = PaymentStatus.Successful;
+                            payment.CompletedAt = now;
+                            payment.FailedAt = null;
+                            payment.FailureReason = null;
+
+                            invoice.PaidAmount += payment.Amount;
+                            invoice.DueAmount = invoice.TotalAmount - invoice.PaidAmount;
+
+                            if (invoice.DueAmount <= 0)
+                            {
+                                invoice.DueAmount = 0;
+                                invoice.PaymentStatus = PaymentStatus.Successful;
+                                invoice.PaidAt = now;
+                            }
+                            else
+                            {
+                                invoice.PaymentStatus = PaymentStatus.Pending;
+                            }
                         }
                         else
                         {
-                            invoice.PaymentStatus = PaymentStatus.Pending;
+                            payment.Status = PaymentStatus.Failed;
+                            payment.FailedAt = now;
+                            payment.CompletedAt = null;
+                            payment.FailureReason = note;
+
+                            if (invoice.PaymentStatus == PaymentStatus.AwaitingVerification)
+                                invoice.PaymentStatus = PaymentStatus.Pending;
                         }
+
+                        _paymentRepo.Update(payment);
                         _invoiceRepo.Update(invoice);
 
-                        if (invoice.PaymentStatus == PaymentStatus.Successful)
+                        await _unitOfWork.SaveChangesAsync();
+
+                        if (dto.Approve && invoice.PaymentStatus == PaymentStatus.Successful)
                         {
                             var activation = await _subscriptionService.ActivateAfterPaymentAsync(
-                                invoice.TenantSubscriptionId, payment.TenantId);
+                                invoice.TenantSubscriptionId,
+                                payment.TenantId);
+
                             if (!activation.Success)
-                                throw new InvalidOperationException("Subscription activation failed after manual verification.");
+                                throw new InvalidOperationException(
+                                    activation.Message ?? "Subscription activation failed.");
                         }
-                    }
-                }
-                else
-                {
-                    payment.Status = PaymentStatus.Failed;
-                    payment.FailedAt = DateTime.UtcNow;
-                    payment.FailureReason = dto.VerificationNote ?? "Rejected by admin";
 
-                    // Revert invoice status to Pending if no other successful payment
-                    if (invoice != null && invoice.PaymentStatus == PaymentStatus.AwaitingVerification)
+                        await _unitOfWork.CommitTransactionAsync();
+
+                        _logger.LogInformation(
+                            "Manual payment {PaymentId} {Action} by SuperAdmin {UserId}",
+                            payment.Id,
+                            dto.Approve ? "approved" : "rejected",
+                            _currentUser.UserId);
+
+                        return ApiResponse<bool>.SuccessResponse(
+                            true,
+                            dto.Approve ? "Payment approved" : "Payment rejected");
+                    }
+                    catch
                     {
-                        invoice.PaymentStatus = PaymentStatus.Pending;
-                        _invoiceRepo.Update(invoice);
+                        await _unitOfWork.RollbackTransactionAsync();
+                        throw;
                     }
-                }
-
-                _paymentRepo.Update(payment);
-                await _unitOfWork.SaveChangesAsync();
-                await _unitOfWork.CommitTransactionAsync();
-
-                _logger.LogInformation("Manual payment {Id} {Action} by user {UserId}",
-                    payment.Id, dto.Approve ? "approved" : "rejected", _currentUser.UserId);
-
-                return ApiResponse<bool>.SuccessResponse(true,
-                    dto.Approve ? "Payment approved" : "Payment rejected");
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                await _unitOfWork.RollbackTransactionAsync();
-                _logger.LogWarning(ex, "Concurrent manual payment review blocked for {Id}", dto.PaymentId);
-                return ApiResponse<bool>.ErrorResponse("Payment was already reviewed", 409);
+                });
             }
             catch (Exception ex)
             {
-                await _unitOfWork.RollbackTransactionAsync();
-                _logger.LogError(ex, "Failed to verify manual payment {Id}", dto.PaymentId);
-                return ApiResponse<bool>.ErrorResponse("Verification failed", 500);
+                _logger.LogError(ex, "Failed to verify manual payment {PaymentId}", dto.PaymentId);
+                return ApiResponse<bool>.ErrorResponse("Payment verification failed", 500);
             }
         }
 
+        private async Task<ApiResponse<bool>> RollbackErrorAsync(string message, int statusCode)
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            return ApiResponse<bool>.ErrorResponse(message, statusCode);
+        }
         // ============================================================
         // GET PAYMENTS BY INVOICE
         // ============================================================

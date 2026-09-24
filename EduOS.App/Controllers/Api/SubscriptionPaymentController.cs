@@ -127,6 +127,9 @@ namespace EduOS.App.Controllers.Api
         [HttpGet("manual-instructions/{invoiceId:long}")]
         public async Task<IActionResult> GetManualPaymentInstructions(long invoiceId)
         {
+            if (invoiceId <= 0)
+                return BadRequest(new { success = false, message = "Invalid invoice." });
+
             var result = await _paymentService.GetManualPaymentInstructionsAsync(invoiceId);
             return StatusCode(result.StatusCode, result);
         }

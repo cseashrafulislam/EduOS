@@ -1,0 +1,315 @@
+﻿@using System.Globalization
+
+@{
+    ViewData["Title"] = T["ManualPaymentVerification"];
+    Layout = "_Layout";
+
+    var pageStrings = new
+    {
+        culture = CultureInfo.CurrentUICulture.Name,
+        waitingTemplate = T["PaymentsWaitingVerification"].Value,
+        paymentLoadFailed = T["PaymentLoadFailed"].Value,
+        paymentLoadNetworkError = T["PaymentLoadNetworkError"].Value,
+        paymentNotFound = T["PaymentNotFound"].Value,
+        selectPaymentFirst = T["SelectPaymentFirst"].Value,
+        rejectionReasonRequired = T["RejectionReasonRequired"].Value,
+        confirmApprove = T["ConfirmApprovePayment"].Value,
+        confirmReject = T["ConfirmRejectPayment"].Value,
+        verificationFailed = T["PaymentVerificationFailed"].Value,
+        verificationNetworkError = T["PaymentVerificationNetworkError"].Value,
+        approved = T["PaymentApprovedSuccessfully"].Value,
+        rejected = T["PaymentRejectedSuccessfully"].Value,
+        processing = T["Processing"].Value,
+        bank = T["Bank"].Value,
+        slipNumber = T["SlipNumber"].Value,
+        depositDate = T["DepositDate"].Value,
+        submitted = T["Submitted"].Value,
+        invoice = T["Invoice"].Value
+    };
+
+    var pageJson = System.Text.Json.JsonSerializer.Serialize(pageStrings);
+}
+
+@Html.AntiForgeryToken()
+
+<article class="setup-page payment-page" aria-labelledby="verificationTitle">
+    <header class="setup-header">
+        <div>
+            <p class="dashboard-eyebrow">@T["SubscriptionPayment"]</p>
+            <h2 id="verificationTitle">@T["ManualPaymentVerification"]</h2>
+            <p>@T["ManualPaymentVerificationHelp"]</p>
+        </div>
+
+        <button type="button" class="btn btn-outline-primary" id="btnRefresh">
+            @T["Refresh"]
+        </button>
+    </header>
+
+    <div id="alertContainer" class="d-none" role="alert" tabindex="-1"></div>
+
+    <div class="payment-layout">
+        <section class="payment-methods" aria-labelledby="pendingTitle">
+            <div class="setup-section-heading">
+                <div>
+                    <h3 id="pendingTitle">@T["PendingVerifications"]</h3>
+                    <p class="text-muted mb-0" id="pendingText">
+                        @T["PaymentsWaitingVerification"].Value.Replace("{count}", "0")
+                    </p>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <input type="search"
+                       id="searchInput"
+                       class="form-control"
+                       placeholder="@T["SearchPaymentPlaceholder"]"
+                       autocomplete="off" />
+            </div>
+
+            <div id="loadingPanel" class="setup-empty-state" role="status">
+                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                <span>@T["LoadingPendingPayments"]</span>
+            </div>
+
+            <div id="emptyPanel" class="setup-empty-state d-none">
+                <strong>@T["NoPendingPaymentFound"]</strong>
+                <span>@T["NoPendingPaymentHelp"]</span>
+            </div>
+
+            <div id="paymentList" class="verification-list d-none"></div>
+        </section>
+
+        <aside class="invoice-summary verification-summary" aria-labelledby="reviewTitle">
+            <div id="reviewEmpty" class="setup-empty-state">
+                <strong>@T["SelectPayment"]</strong>
+                <span>@T["SelectPaymentHelp"]</span>
+            </div>
+
+            <div id="reviewPanel" class="d-none">
+                <div class="setup-section-heading">
+                    <div>
+                        <p class="dashboard-eyebrow mb-1">@T["PaymentReview"]</p>
+                        <h3 id="reviewTitle">@T["VerifyPayment"]</h3>
+                    </div>
+                </div>
+
+                <input type="hidden" id="selectedPaymentId" />
+
+                <div class="verification-detail-grid">
+                    <div class="verification-detail">
+                        <span>@T["Invoice"]</span>
+                        <strong id="reviewInvoice">-</strong>
+                    </div>
+
+                    <div class="verification-detail">
+                        <span>@T["Amount"]</span>
+                        <strong id="reviewAmount">-</strong>
+                    </div>
+
+                    <div class="verification-detail verification-detail-full">
+                        <span>@T["TransactionId"]</span>
+                        <strong id="reviewTransaction" class="text-break">-</strong>
+                    </div>
+
+                    <div class="verification-detail">
+                        <span>@T["PayerBank"]</span>
+                        <strong id="reviewBank">-</strong>
+                    </div>
+
+                    <div class="verification-detail">
+                        <span>@T["PayerAccount"]</span>
+                        <strong id="reviewAccount" class="text-break">-</strong>
+                    </div>
+
+                    <div class="verification-detail">
+                        <span>@T["DepositSlipNo"]</span>
+                        <strong id="reviewSlip">-</strong>
+                    </div>
+
+                    <div class="verification-detail">
+                        <span>@T["DepositDate"]</span>
+                        <strong id="reviewDepositDate">-</strong>
+                    </div>
+
+                    <div class="verification-detail verification-detail-full">
+                        <span>@T["SubmittedAt"]</span>
+                        <strong id="reviewSubmittedAt">-</strong>
+                    </div>
+                </div>
+
+                <button type="button"
+                        class="btn btn-outline-primary w-100 mt-3"
+                        id="btnViewSlip">
+                    @T["ViewDepositSlip"]
+                </button>
+
+                <div class="setup-info-note mt-3">
+                    @T["PaymentVerificationWarning"]
+                </div>
+
+                <div class="mt-3">
+                    <label for="verificationNote" class="form-label">
+                        @T["VerificationNote"]
+                    </label>
+
+                    <textarea id="verificationNote"
+                              class="form-control"
+                              rows="4"
+                              maxlength="500"
+                              placeholder="@T["VerificationNotePlaceholder"]"></textarea>
+
+                    <div class="form-text">
+                        @T["VerificationNoteHelp"]
+                    </div>
+                </div>
+
+                <div class="row g-2 mt-2">
+                    <div class="col-md-6">
+                        <button type="button"
+                                class="btn btn-outline-danger btn-lg w-100"
+                                id="btnReject"
+                                data-idle-label="@T["RejectPayment"]">
+                            @T["RejectPayment"]
+                        </button>
+                    </div>
+
+                    <div class="col-md-6">
+                        <button type="button"
+                                class="btn btn-primary btn-lg w-100"
+                                id="btnApprove"
+                                data-idle-label="@T["ApprovePayment"]">
+                            @T["ApprovePayment"]
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+</article>
+
+<script id="verificationStrings" type="application/json">@Html.Raw(pageJson)</script>
+
+<style>
+    .verification-list {
+        display: grid;
+        gap: 12px;
+    }
+
+    .verification-card {
+        width: 100%;
+        padding: 16px;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        background: #fff;
+        text-align: left;
+        transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+    }
+
+    .verification-card:hover {
+        border-color: #94a3b8;
+        box-shadow: 0 8px 22px rgba(15, 23, 42, .06);
+        transform: translateY(-1px);
+    }
+
+    .verification-card.selected {
+        border-color: #2563eb;
+        box-shadow: 0 0 0 2px rgba(37, 99, 235, .08);
+    }
+
+    .verification-card-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .verification-card-title {
+        color: #0f172a;
+        font-weight: 700;
+    }
+
+    .verification-card-subtitle {
+        margin-top: 3px;
+        color: #64748b;
+        font-size: .875rem;
+        word-break: break-word;
+    }
+
+    .verification-card-amount {
+        color: #0f172a;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .verification-card-meta {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 14px;
+    }
+
+    .verification-card-meta span {
+        display: block;
+        margin-bottom: 2px;
+        color: #64748b;
+        font-size: .75rem;
+    }
+
+    .verification-card-meta strong {
+        display: block;
+        color: #334155;
+        font-size: .875rem;
+        font-weight: 600;
+        word-break: break-word;
+    }
+
+    .verification-detail-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .verification-detail {
+        padding: 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        background: #f8fafc;
+    }
+
+    .verification-detail-full {
+        grid-column: 1 / -1;
+    }
+
+    .verification-detail span {
+        display: block;
+        margin-bottom: 4px;
+        color: #64748b;
+        font-size: .78rem;
+    }
+
+    .verification-detail strong {
+        display: block;
+        color: #0f172a;
+        font-size: .92rem;
+        word-break: break-word;
+    }
+
+    @@media (max-width: 767.98px) {
+        .verification-card-meta,
+        .verification-detail-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .verification-detail-full {
+            grid-column: auto;
+        }
+
+        .verification-card-top {
+            flex-direction: column;
+        }
+    }
+</style>
+
+@section Scripts {
+    <script src="~/js/account/payment-verification.js" asp-append-version="true"></script>
+}

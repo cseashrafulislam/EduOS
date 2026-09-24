@@ -53,14 +53,13 @@ namespace EduOS.Core.Settings
     public class ManualPaymentSettings
     {
         public const string SectionName = "ManualPayment";
-
+        public bool Enabled { get; set; }
         public string BankName { get; set; } = string.Empty;
         public string AccountName { get; set; } = string.Empty;
         public string AccountNumber { get; set; } = string.Empty;
-        public string? RoutingNumber { get; set; }
-        public string? BranchName { get; set; }
-        public string Instructions { get; set; } =
-            "Please deposit the amount to the bank account above and submit the deposit slip with your payment reference.";
+        public string RoutingNumber { get; set; } = string.Empty;
+        public string BranchName { get; set; } = string.Empty;
+        public string Instructions { get; set; } = string.Empty;
     }
 
     /// <summary>

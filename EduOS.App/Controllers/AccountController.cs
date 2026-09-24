@@ -13,15 +13,13 @@ namespace EduOS.App.Controllers
         private readonly IMemoryCache _cache;
         private readonly SignInManager<ApplicationUser> _signInManager;
 
-        public AccountController(
-            ICurrentUserService currentUser,
-            IMemoryCache cache,
-            SignInManager<ApplicationUser> signInManager)
+        public AccountController(ICurrentUserService currentUser, IMemoryCache cache, SignInManager<ApplicationUser> signInManager)
         {
             _currentUser = currentUser;
             _cache = cache;
             _signInManager = signInManager;
         }
+
         // ==================== Auth Pages ====================
 
         [AllowAnonymous]
@@ -65,17 +63,19 @@ namespace EduOS.App.Controllers
             return View();
         }
 
+        // ==================== MFA ====================
+
         [AllowAnonymous]
         [HttpGet]
         [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
         public IActionResult MfaChallenge() => View();
 
-        [Authorize(Roles = "SuperAdmin,TenantAdmin,AdmissionOfficer")]
+        [Authorize]
         [HttpGet]
         [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
         public IActionResult MfaSetup() => View();
 
-        // ==================== Onboarding Wizard ====================
+        // ==================== Onboarding ====================
 
         [Authorize(Roles = "TenantAdmin")]
         [HttpGet]
@@ -105,6 +105,12 @@ namespace EduOS.App.Controllers
         [HttpGet]
         public IActionResult PaymentCancelled(string? txn) => View();
 
+        [Authorize(Roles = "SuperAdmin")]
+        [HttpGet]
+        public IActionResult PaymentVerification()
+        {
+            return View();
+        }
         [Authorize(Roles = "TenantAdmin")]
         [HttpGet]
         public IActionResult CampusSetup() => View();
@@ -133,31 +139,26 @@ namespace EduOS.App.Controllers
         [HttpGet]
         public IActionResult OnboardingComplete() => View();
 
+        // ==================== Profile ====================
+
         [Authorize]
         [HttpGet]
-        public IActionResult Profile()
-        {
-            return View();
-        }
+        public IActionResult Profile() => View();
 
         // ==================== Logout ====================
+
         [Authorize]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Logout()
         {
             if (_currentUser.IsAuthenticated)
-            {
-                var userId = _currentUser.UserId;
-                _cache.Remove($"tenant:user:{userId}");
-            }
+                _cache.Remove($"tenant:user:{_currentUser.UserId}");
 
             await _signInManager.SignOutAsync();
-            return RedirectToAction("Login", "Account");
+            return RedirectToAction(nameof(Login), "Account");
         }
     }
-
-    // ==================== Public Pricing Page ====================
 
     [AllowAnonymous]
     public class PricingController : Controller

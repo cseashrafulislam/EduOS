@@ -6,20 +6,17 @@ using Microsoft.Extensions.Logging;
 
 namespace EduOS.App.Middleware
 {
-    /// <summary>
-    /// Redirects authenticated tenant users to the onboarding wizard
-    /// if they haven't completed it yet. Allows specific paths through.
-    /// </summary>
     public class OnboardingGuardMiddleware
     {
         private readonly RequestDelegate _next;
         private readonly ILogger<OnboardingGuardMiddleware> _logger;
 
-        private static readonly string[] _allowedPathPrefixes = new[]
-        {
-            "/Account/",
+        private static readonly PathString[] AllowedPathPrefixes =
+        [
+            "/Account",
+            "/Dashboard",
             "/Pricing",
-            "/Error/",
+            "/Error",
             "/api/auth",
             "/api/onboarding",
             "/api/tenant-profile",
@@ -29,19 +26,20 @@ namespace EduOS.App.Middleware
             "/api/subscription-payment",
             "/api/institution-onboarding",
             "/api/tenant-modules",
-            "/uploads/",
-            "/css/",
-            "/js/",
-            "/lib/",
-            "/images/",
-            "/img/",
+            "/uploads",
+            "/css",
+            "/js",
+            "/lib",
+            "/images",
+            "/img",
             "/favicon.ico",
+            "/manifest.webmanifest",
+            "/service-worker.js",
+            "/health",
             "/hangfire"
-        };
+        ];
 
-        public OnboardingGuardMiddleware(
-            RequestDelegate next,
-            ILogger<OnboardingGuardMiddleware> logger)
+        public OnboardingGuardMiddleware(RequestDelegate next, ILogger<OnboardingGuardMiddleware> logger)
         {
             _next = next;
             _logger = logger;
@@ -61,14 +59,12 @@ namespace EduOS.App.Middleware
                 return;
             }
 
-            var path = context.Request.Path.Value ?? "";
-            foreach (var prefix in _allowedPathPrefixes)
+            var path = context.Request.Path;
+
+            if (IsAllowed(path))
             {
-                if (path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                {
-                    await _next(context);
-                    return;
-                }
+                await _next(context);
+                return;
             }
 
             try
@@ -80,16 +76,9 @@ namespace EduOS.App.Middleware
                     return;
                 }
 
-                // Onboarding state participates in access control. Resolve it from canonical storage on
-                // every guarded request so a reset or newly incomplete setup cannot remain stale in cache.
-                var state = await dbContext.Tenants
-                    .AsNoTracking()
+                var state = await dbContext.Tenants.AsNoTracking()
                     .Where(t => t.Id == tenantId && t.IsActive && !t.IsDeleted)
-                    .Select(t => new OnboardingState
-                    {
-                        IsComplete = t.IsOnboardingComplete,
-                        Step = t.OnboardingStep
-                    })
+                    .Select(t => new OnboardingState { IsComplete = t.IsOnboardingComplete, Step = t.OnboardingStep })
                     .FirstOrDefaultAsync();
 
                 if (state == null)
@@ -106,17 +95,13 @@ namespace EduOS.App.Middleware
                 }
 
                 var redirectUrl = GetRedirectUrlForStep(state.Step);
-                if (path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase))
+
+                if (path.StartsWithSegments("/api"))
                 {
                     context.Response.StatusCode = StatusCodes.Status403Forbidden;
                     context.Response.Headers["X-Onboarding-Required"] = "true";
                     context.Response.Headers["X-Onboarding-Step"] = ((int)state.Step).ToString();
-                    await context.Response.WriteAsJsonAsync(new
-                    {
-                        success = false,
-                        message = "Please complete onboarding first",
-                        redirectUrl
-                    });
+                    await context.Response.WriteAsJsonAsync(new { success = false, message = "Please complete onboarding first", redirectUrl });
                     return;
                 }
 
@@ -130,6 +115,8 @@ namespace EduOS.App.Middleware
                     await RejectAsync(context, StatusCodes.Status503ServiceUnavailable, "Unable to validate onboarding status right now. Please try again.");
             }
         }
+
+        private static bool IsAllowed(PathString path) => AllowedPathPrefixes.Any(prefix => path.StartsWithSegments(prefix));
 
         private static async Task RejectAsync(HttpContext context, int statusCode, string message)
         {
@@ -152,7 +139,7 @@ namespace EduOS.App.Middleware
             _ => "/Account/InstitutionProfile"
         };
 
-        private class OnboardingState
+        private sealed class OnboardingState
         {
             public bool IsComplete { get; set; }
             public OnboardingStep Step { get; set; }
@@ -161,9 +148,6 @@ namespace EduOS.App.Middleware
 
     public static class OnboardingGuardMiddlewareExtensions
     {
-        public static IApplicationBuilder UseOnboardingGuard(this IApplicationBuilder app)
-        {
-            return app.UseMiddleware<OnboardingGuardMiddleware>();
-        }
+        public static IApplicationBuilder UseOnboardingGuard(this IApplicationBuilder app) => app.UseMiddleware<OnboardingGuardMiddleware>();
     }
 }

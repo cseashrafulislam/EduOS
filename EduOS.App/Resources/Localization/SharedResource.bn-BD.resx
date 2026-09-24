@@ -706,4 +706,48 @@
   <data name="Passed" xml:space="preserve"><value>উত্তীর্ণ</value></data>
   <data name="Dropout" xml:space="preserve"><value>পড়াশোনা ছেড়েছে</value></data>
   <data name="Archived" xml:space="preserve"><value>আর্কাইভ</value></data>
+	<data name="ManualPaymentVerification" xml:space="preserve"><value>ম্যানুয়াল পেমেন্ট যাচাই</value></data>
+	<data name="SubscriptionPayment" xml:space="preserve"><value>সাবস্ক্রিপশন পেমেন্ট</value></data>
+	<data name="ManualPaymentVerificationHelp" xml:space="preserve"><value>জমা দেওয়া ব্যাংক ট্রান্সফার যাচাই করে অনুমোদন বা বাতিল করুন।</value></data>
+	<data name="Refresh" xml:space="preserve"><value>রিফ্রেশ</value></data>
+	<data name="PendingVerifications" xml:space="preserve"><value>অপেক্ষমাণ যাচাই</value></data>
+	<data name="PaymentsWaitingVerification" xml:space="preserve"><value>{count}টি পেমেন্ট যাচাইয়ের অপেক্ষায় আছে</value></data>
+	<data name="SearchPaymentPlaceholder" xml:space="preserve"><value>ইনভয়েস, ট্রানজেকশন, ব্যাংক বা স্লিপ নম্বর দিয়ে খুঁজুন...</value></data>
+	<data name="LoadingPendingPayments" xml:space="preserve"><value>অপেক্ষমাণ পেমেন্ট লোড হচ্ছে...</value></data>
+	<data name="NoPendingPaymentFound" xml:space="preserve"><value>কোনো অপেক্ষমাণ পেমেন্ট পাওয়া যায়নি</value></data>
+	<data name="NoPendingPaymentHelp" xml:space="preserve"><value>বর্তমানে যাচাইয়ের অপেক্ষায় কোনো ম্যানুয়াল পেমেন্ট নেই।</value></data>
+	<data name="SelectPayment" xml:space="preserve"><value>একটি পেমেন্ট নির্বাচন করুন</value></data>
+	<data name="SelectPaymentHelp" xml:space="preserve"><value>পর্যালোচনা ও যাচাই করার জন্য তালিকা থেকে একটি অপেক্ষমাণ পেমেন্ট নির্বাচন করুন।</value></data>
+	<data name="PaymentReview" xml:space="preserve"><value>পেমেন্ট পর্যালোচনা</value></data>
+	<data name="VerifyPayment" xml:space="preserve"><value>পেমেন্ট যাচাই</value></data>
+	<data name="Invoice" xml:space="preserve"><value>ইনভয়েস</value></data>
+	<data name="Amount" xml:space="preserve"><value>পরিমাণ</value></data>
+	<data name="TransactionId" xml:space="preserve"><value>ট্রানজেকশন আইডি</value></data>
+	<data name="PayerBank" xml:space="preserve"><value>প্রদানকারীর ব্যাংক</value></data>
+	<data name="PayerAccount" xml:space="preserve"><value>প্রদানকারীর অ্যাকাউন্ট</value></data>
+	<data name="DepositSlipNo" xml:space="preserve"><value>ডিপোজিট স্লিপ নম্বর</value></data>
+	<data name="DepositDate" xml:space="preserve"><value>জমার তারিখ</value></data>
+	<data name="SubmittedAt" xml:space="preserve"><value>জমা দেওয়ার সময়</value></data>
+	<data name="ViewDepositSlip" xml:space="preserve"><value>ডিপোজিট স্লিপ দেখুন</value></data>
+	<data name="PaymentVerificationWarning" xml:space="preserve"><value>অনুমোদনের আগে ব্যাংক ট্রান্সফার ও ডিপোজিট স্লিপ যাচাই করুন। অনুমোদনের ফলে ইনভয়েসের পেমেন্ট ব্যালেন্স আপডেট হতে পারে এবং সাবস্ক্রিপশন সক্রিয় হতে পারে।</value></data>
+	<data name="VerificationNote" xml:space="preserve"><value>যাচাই নোট</value></data>
+	<data name="VerificationNotePlaceholder" xml:space="preserve"><value>অনুমোদনের ক্ষেত্রে ঐচ্ছিক। বাতিল করলে কারণ লিখতে হবে।</value></data>
+	<data name="VerificationNoteHelp" xml:space="preserve"><value>বাতিল করলে অডিট ইতিহাসের জন্য পরিষ্কার কারণ লিখুন।</value></data>
+	<data name="RejectPayment" xml:space="preserve"><value>পেমেন্ট বাতিল</value></data>
+	<data name="ApprovePayment" xml:space="preserve"><value>পেমেন্ট অনুমোদন</value></data>
+	<data name="PaymentLoadFailed" xml:space="preserve"><value>অপেক্ষমাণ পেমেন্ট লোড করা যায়নি।</value></data>
+	<data name="PaymentLoadNetworkError" xml:space="preserve"><value>পেমেন্ট লোড করা যাচ্ছে না। আবার চেষ্টা করুন।</value></data>
+	<data name="PaymentNotFound" xml:space="preserve"><value>পেমেন্টের তথ্য পাওয়া যায়নি।</value></data>
+	<data name="SelectPaymentFirst" xml:space="preserve"><value>প্রথমে একটি পেমেন্ট নির্বাচন করুন।</value></data>
+	<data name="RejectionReasonRequired" xml:space="preserve"><value>পেমেন্ট বাতিল করতে যাচাই নোট আবশ্যক।</value></data>
+	<data name="ConfirmApprovePayment" xml:space="preserve"><value>আপনি কি এই পেমেন্টটি অনুমোদন করতে নিশ্চিত?</value></data>
+	<data name="ConfirmRejectPayment" xml:space="preserve"><value>আপনি কি এই পেমেন্টটি বাতিল করতে নিশ্চিত?</value></data>
+	<data name="PaymentVerificationFailed" xml:space="preserve"><value>পেমেন্ট যাচাই ব্যর্থ হয়েছে।</value></data>
+	<data name="PaymentVerificationNetworkError" xml:space="preserve"><value>পেমেন্ট যাচাই করা যাচ্ছে না। আবার চেষ্টা করুন।</value></data>
+	<data name="PaymentApprovedSuccessfully" xml:space="preserve"><value>পেমেন্ট সফলভাবে অনুমোদিত হয়েছে।</value></data>
+	<data name="PaymentRejectedSuccessfully" xml:space="preserve"><value>পেমেন্ট সফলভাবে বাতিল হয়েছে।</value></data>
+	<data name="Processing" xml:space="preserve"><value>প্রক্রিয়াধীন...</value></data>
+	<data name="Bank" xml:space="preserve"><value>ব্যাংক</value></data>
+	<data name="SlipNumber" xml:space="preserve"><value>স্লিপ নম্বর</value></data>
+	<data name="Submitted" xml:space="preserve"><value>জমা দেওয়া</value></data>
 </root>
