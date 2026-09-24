@@ -34,15 +34,14 @@ public class AcademicSetupWorkflowContractTests
     }
 
     [Fact]
-    public void Canonical_subject_migration_is_discoverable_and_preserves_legacy_fk_width()
+    public void Canonical_subject_schema_is_present_in_the_squashed_baseline()
     {
-        var source = File.ReadAllText(FindRepositoryFile("EduOS.Persistence", "Migrations", "20260921170000_EnableCanonicalAcademicSetup.cs"));
-        source.Should().Contain("[Migration(\"20260921170000_EnableCanonicalAcademicSetup\")]");
-        source.Should().Contain("migrationBuilder.AlterColumn<long>");
+        var source = File.ReadAllText(FindRepositoryFile("EduOS.Persistence", "Migrations", "20260924114506_InitialCreate.cs"));
+        source.Should().Contain("name: \"Subjects\"");
+        source.Should().Contain("ClassId = table.Column<long>");
         source.Should().Contain("nullable: true");
         source.Should().Contain("UX_Subjects_Tenant_CanonicalCode");
-        source.Should().Contain("Cannot restore required Subjects.ClassId while canonical subjects exist.");
-        source.Should().NotContain("AlterColumn<int>");
+        source.Should().NotContain("ClassId = table.Column<int>");
     }
 
     private static string FindRepositoryFile(params string[] segments)
