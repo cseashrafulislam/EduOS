@@ -19,9 +19,14 @@ public class MigrationSnapshotContractTests
 
         Assert.NotEmpty(migrationTypes);
 
+        // EF places Migration/DbContext attributes on the generated partial declaration
+        // (the *.Designer.cs side). Reflection over the merged runtime type still exposes
+        // those attributes; do not require AttributeUsage inheritance semantics here.
         var missingMetadata = migrationTypes
-            .Where(type => type.GetCustomAttribute<MigrationAttribute>() == null ||
-                           type.GetCustomAttribute<DbContextAttribute>()?.ContextType != contextType)
+            .Where(type => type.GetCustomAttributes(typeof(MigrationAttribute), inherit: false).Length == 0 ||
+                           type.GetCustomAttributes(typeof(DbContextAttribute), inherit: false)
+                               .Cast<DbContextAttribute>()
+                               .All(attribute => attribute.ContextType != contextType))
             .Select(type => type.FullName)
             .ToList();
 
@@ -30,7 +35,9 @@ public class MigrationSnapshotContractTests
             string.Join("\n", missingMetadata));
 
         var duplicateIds = migrationTypes
-            .Select(type => type.GetCustomAttribute<MigrationAttribute>()!.Id)
+            .Select(type => type.GetCustomAttributes(typeof(MigrationAttribute), inherit: false)
+                .Cast<MigrationAttribute>()
+                .Single().Id)
             .GroupBy(id => id, StringComparer.Ordinal)
             .Where(group => group.Count() > 1)
             .Select(group => group.Key)
