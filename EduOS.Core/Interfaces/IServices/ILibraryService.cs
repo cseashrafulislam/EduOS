@@ -6,6 +6,8 @@ namespace EduOS.Core.Interfaces.IServices;
 public interface ILibraryService
 {
     Task<ApiResponse<IReadOnlyList<LibraryBookDto>>> GetCatalogAsync(string? search, CancellationToken cancellationToken = default);
+    Task<ApiResponse<LibraryBookDto>> SaveBookAsync(SaveLibraryBookDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<bool>> ArchiveBookAsync(Guid reference, string rowVersion, CancellationToken cancellationToken = default);
     Task<ApiResponse<LibraryIssueDto>> IssueAsync(IssueBookDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<LibraryIssueDto>> CloseAsync(Guid issueReference, ReturnBookDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<LibraryIssueDto>>> GetMyIssuesAsync(CancellationToken cancellationToken = default);
