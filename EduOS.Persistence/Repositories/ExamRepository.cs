@@ -29,14 +29,12 @@ namespace EduOS.Persistence.Repositories
 
         public async Task<Exam?> GetWithSchedulesAsync(long id)
         {
-            return await _dbSet
+            return await _context.ExamSchedules
                 .AsNoTracking()
-                .Where(e => e.Id == id)
-                .Include(e => e.Schedules)
-                    .ThenInclude(s => s.Subject)
-                .Include(e => e.Schedules)
-                    .ThenInclude(s => s.Class)
-                .AsSplitQuery()
+                .Where(s => s.ExamId == id)
+                .Include(s => s.Subject)
+                .Include(s => s.Class)
+                .Select(s => s.Exam)
                 .FirstOrDefaultAsync();
         }
     }
