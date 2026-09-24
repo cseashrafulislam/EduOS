@@ -47,6 +47,7 @@ namespace EduOS.App.Controllers.Api
         // ============================================================
         // LOGIN
         // ============================================================
+        [AllowAnonymous]
         [EnableRateLimiting("LoginPolicy")]
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequestDto dto)
