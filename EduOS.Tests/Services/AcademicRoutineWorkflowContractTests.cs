@@ -33,14 +33,14 @@ public class AcademicRoutineWorkflowContractTests
     }
 
     [Fact]
-    public void Academic_schema_bridge_creates_snapshot_only_tables_and_collision_indexes()
+    public void Academic_baseline_contains_canonical_operations_schema_and_collision_indexes()
     {
-        var source = File.ReadAllText(FindRepositoryFile("EduOS.Persistence", "Migrations", "20260921153000_AddCanonicalAcademicOperationsSchema.cs"));
+        var source = File.ReadAllText(FindRepositoryFile("EduOS.Persistence", "Migrations", "20260924114506_InitialCreate.cs"));
         foreach (var table in new[] { "AcademicPrograms", "AcademicLevels", "AcademicTracks", "AcademicBatches", "AcademicCurriculums", "CurriculumSubjects", "InstructorAssignments", "RoutineTimeSlots", "RoutineEntries", "AcademicCalendarEvents", "Rooms", "ProgramCampuses", "SubjectPrerequisites" }) source.Should().Contain($"name: \"{table}\"");
         source.Should().Contain("IX_RoutineEntries_Tenant_Batch_Day");
         source.Should().Contain("IX_RoutineEntries_Tenant_Employee_Day");
         source.Should().Contain("IX_RoutineEntries_Tenant_Room_Day");
-        source.Should().Contain("[Migration(\"20260921153000_AddCanonicalAcademicOperationsSchema\")]");
+        source.Should().Contain("partial class InitialCreate : Migration");
     }
 
     private static string FindRepositoryFile(params string[] segments)
