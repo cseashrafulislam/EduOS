@@ -12,6 +12,7 @@ namespace EduOS.Persistence.Repositories
         public async Task<List<Exam>> GetByYearAsync(long academicYearId)
         {
             return await _dbSet
+                .AsNoTracking()
                 .Where(e => e.AcademicYearId == academicYearId && e.IsActive)
                 .OrderByDescending(e => e.StartDate)
                 .ToListAsync();
@@ -20,17 +21,22 @@ namespace EduOS.Persistence.Repositories
         public async Task<List<Exam>> GetPublishedAsync(long academicYearId)
         {
             return await _dbSet
+                .AsNoTracking()
                 .Where(e => e.AcademicYearId == academicYearId && e.IsPublished)
+                .OrderByDescending(e => e.StartDate)
                 .ToListAsync();
         }
 
         public async Task<Exam?> GetWithSchedulesAsync(long id)
         {
-            return await _context.ExamSchedules
-                .Where(s => s.ExamId == id)
-                .Include(s => s.Subject)
-                .Include(s => s.Class)
-                .Select(s => s.Exam)
+            return await _dbSet
+                .AsNoTracking()
+                .Where(e => e.Id == id)
+                .Include(e => e.Schedules)
+                    .ThenInclude(s => s.Subject)
+                .Include(e => e.Schedules)
+                    .ThenInclude(s => s.Class)
+                .AsSplitQuery()
                 .FirstOrDefaultAsync();
         }
     }
