@@ -20,6 +20,8 @@ public sealed class PrivilegedMfaMiddleware
         "/api/auth/reset-password",
         "/Localization/",
         "/Error/",
+        "/health/",
+        "/hangfire",
         "/css/",
         "/js/",
         "/lib/",
