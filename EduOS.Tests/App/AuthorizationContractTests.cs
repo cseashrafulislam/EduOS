@@ -11,6 +11,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
+using ApiLibraryController = EduOS.App.Controllers.Api.LibraryController;
+using ApiTransportController = EduOS.App.Controllers.Api.TransportController;
 
 namespace EduOS.Tests.App;
 
@@ -62,8 +64,8 @@ public class AuthorizationContractTests
     }
 
     [Theory]
-    [InlineData(typeof(LibraryController), "LIBRARY")]
-    [InlineData(typeof(TransportController), "TRANSPORT")]
+    [InlineData(typeof(ApiLibraryController), "LIBRARY")]
+    [InlineData(typeof(ApiTransportController), "TRANSPORT")]
     public void Operational_controllers_require_authentication_module_entitlement_and_antiforgery(Type controllerType, string moduleCode)
     {
         controllerType.GetCustomAttributes(typeof(AuthorizeAttribute), true).Should().NotBeEmpty();
@@ -73,10 +75,10 @@ public class AuthorizationContractTests
     }
 
     [Theory]
-    [InlineData(typeof(LibraryController), nameof(LibraryController.Issue), "Librarian")]
-    [InlineData(typeof(LibraryController), nameof(LibraryController.Close), "Librarian")]
-    [InlineData(typeof(TransportController), nameof(TransportController.Assign), "TransportManager")]
-    [InlineData(typeof(TransportController), nameof(TransportController.Close), "TransportManager")]
+    [InlineData(typeof(ApiLibraryController), nameof(ApiLibraryController.Issue), "Librarian")]
+    [InlineData(typeof(ApiLibraryController), nameof(ApiLibraryController.Close), "Librarian")]
+    [InlineData(typeof(ApiTransportController), nameof(ApiTransportController.Assign), "TransportManager")]
+    [InlineData(typeof(ApiTransportController), nameof(ApiTransportController.Close), "TransportManager")]
     public void Operational_mutations_require_privileged_roles(Type controllerType, string actionName, string operationalRole)
     {
         var authorize = controllerType.GetMethod(actionName)!.GetCustomAttributes(typeof(AuthorizeAttribute), true).Cast<AuthorizeAttribute>().Single();
