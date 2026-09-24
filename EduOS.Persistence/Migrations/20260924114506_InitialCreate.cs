@@ -94,8 +94,10 @@ namespace EduOS.Persistence.Migrations
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     Name = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    NameBangla = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: true),
                     Code = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     Description = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    DescriptionBangla = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
                     Category = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
                     IconName = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
                     DisplayOrder = table.Column<int>(type: "int", nullable: false),
@@ -110,6 +112,33 @@ namespace EduOS.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Features", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "InstitutionTypeDefinitions",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Code = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: false),
+                    NameBangla = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: true),
+                    Description = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    AcademicCycleType = table.Column<int>(type: "int", nullable: false),
+                    TerminologyJson = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    DefaultSettingsJson = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    IsPubliclyVisible = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_InstitutionTypeDefinitions", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -154,15 +183,67 @@ namespace EduOS.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "Persons",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    PublicId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    FullName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    FullNameBangla = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    DateOfBirth = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    Gender = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Persons", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ProductModules",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Code = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: false),
+                    NameBangla = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: true),
+                    Category = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    IconName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    RoutePrefix = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
+                    IsCore = table.Column<bool>(type: "bit", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ProductModules", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "SubscriptionPlans",
                 columns: table => new
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     Name = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    NameBangla = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: true),
                     Code = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
                     Description = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
+                    DescriptionBangla = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
                     ShortDescription = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    ShortDescriptionBangla = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     IconUrl = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     DisplayOrder = table.Column<int>(type: "int", nullable: false),
                     IsRecommended = table.Column<bool>(type: "bit", nullable: false),
@@ -195,6 +276,27 @@ namespace EduOS.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "AspNetRoleClaims",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    RoleId = table.Column<long>(type: "bigint", nullable: false),
+                    ClaimType = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    ClaimValue = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AspNetRoleClaims", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_AspNetRoleClaims_AspNetRoles_RoleId",
+                        column: x => x.RoleId,
+                        principalTable: "AspNetRoles",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Tenants",
                 columns: table => new
                 {
@@ -205,6 +307,7 @@ namespace EduOS.Persistence.Migrations
                     Subdomain = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     CustomDomain = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
                     InstitutionType = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    InstitutionTypeDefinitionId = table.Column<long>(type: "bigint", nullable: true),
                     Email = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: false),
                     Phone = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
                     Website = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
@@ -259,25 +362,10 @@ namespace EduOS.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Tenants", x => x.Id);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "AspNetRoleClaims",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    RoleId = table.Column<long>(type: "bigint", nullable: false),
-                    ClaimType = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    ClaimValue = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_AspNetRoleClaims", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_AspNetRoleClaims_AspNetRoles_RoleId",
-                        column: x => x.RoleId,
-                        principalTable: "AspNetRoles",
+                        name: "FK_Tenants_InstitutionTypeDefinitions_InstitutionTypeDefinitionId",
+                        column: x => x.InstitutionTypeDefinitionId,
+                        principalTable: "InstitutionTypeDefinitions",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
@@ -309,6 +397,103 @@ namespace EduOS.Persistence.Migrations
                         name: "FK_RolePermissions_Permissions_PermissionId",
                         column: x => x.PermissionId,
                         principalTable: "Permissions",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "PersonIdentifiers",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    PersonId = table.Column<long>(type: "bigint", nullable: false),
+                    Type = table.Column<int>(type: "int", nullable: false),
+                    ProtectedValue = table.Column<string>(type: "nvarchar(2048)", maxLength: 2048, nullable: false),
+                    LookupDigest = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
+                    VerificationStatus = table.Column<int>(type: "int", nullable: false),
+                    VerifiedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    VerificationProvider = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_PersonIdentifiers", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_PersonIdentifiers_Persons_PersonId",
+                        column: x => x.PersonId,
+                        principalTable: "Persons",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "InstitutionTypeModules",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    InstitutionTypeDefinitionId = table.Column<long>(type: "bigint", nullable: false),
+                    ProductModuleId = table.Column<long>(type: "bigint", nullable: false),
+                    IsRequired = table.Column<bool>(type: "bit", nullable: false),
+                    IsEnabledByDefault = table.Column<bool>(type: "bit", nullable: false),
+                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_InstitutionTypeModules", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_InstitutionTypeModules_InstitutionTypeDefinitions_InstitutionTypeDefinitionId",
+                        column: x => x.InstitutionTypeDefinitionId,
+                        principalTable: "InstitutionTypeDefinitions",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_InstitutionTypeModules_ProductModules_ProductModuleId",
+                        column: x => x.ProductModuleId,
+                        principalTable: "ProductModules",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ProductModuleFeatures",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    ProductModuleId = table.Column<long>(type: "bigint", nullable: false),
+                    FeatureId = table.Column<long>(type: "bigint", nullable: false),
+                    IsPrimary = table.Column<bool>(type: "bit", nullable: false),
+                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ProductModuleFeatures", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ProductModuleFeatures_Features_FeatureId",
+                        column: x => x.FeatureId,
+                        principalTable: "Features",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_ProductModuleFeatures_ProductModules_ProductModuleId",
+                        column: x => x.ProductModuleId,
+                        principalTable: "ProductModules",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
@@ -353,7 +538,7 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    Name = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     StartDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     EndDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     IsCurrent = table.Column<bool>(type: "bit", nullable: false),
@@ -385,10 +570,9 @@ namespace EduOS.Persistence.Migrations
                     Code = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Name = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     AccountType = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    ParentAccountId = table.Column<int>(type: "int", nullable: true),
+                    ParentAccountId = table.Column<long>(type: "bigint", nullable: true),
                     OpeningBalance = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    ParentAccountId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -400,8 +584,8 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_Accounts", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Accounts_Accounts_ParentAccountId1",
-                        column: x => x.ParentAccountId1,
+                        name: "FK_Accounts_Accounts_ParentAccountId",
+                        column: x => x.ParentAccountId,
                         principalTable: "Accounts",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -624,6 +808,7 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
+                    PublicId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     Title = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Author = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     Publisher = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
@@ -635,6 +820,8 @@ namespace EduOS.Persistence.Migrations
                     ShelfNo = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     Price = table.Column<decimal>(type: "decimal(18,2)", nullable: true),
                     CoverImageUrl = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -718,12 +905,12 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    SubmittedBy = table.Column<int>(type: "int", nullable: true),
+                    SubmittedBy = table.Column<long>(type: "bigint", nullable: true),
                     Type = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Subject = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Status = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    AssignedTo = table.Column<int>(type: "int", nullable: true),
+                    AssignedTo = table.Column<long>(type: "bigint", nullable: true),
                     Resolution = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     SubmittedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
@@ -781,10 +968,15 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    Name = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    Code = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    HeadOfDepartment = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    CampusId = table.Column<long>(type: "bigint", nullable: true),
+                    Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    Code = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    ShortName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    HeadEmployeeId = table.Column<long>(type: "bigint", nullable: true),
+                    HeadOfDepartment = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -836,7 +1028,7 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    OwnerId = table.Column<int>(type: "int", nullable: false),
+                    OwnerId = table.Column<long>(type: "bigint", nullable: false),
                     OwnerType = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     DocumentType = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     FileName = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
@@ -902,7 +1094,7 @@ namespace EduOS.Persistence.Migrations
                     StartDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     EndDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     Location = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    OrganizerId = table.Column<int>(type: "int", nullable: true),
+                    OrganizerId = table.Column<long>(type: "bigint", nullable: true),
                     Type = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Status = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
@@ -1124,7 +1316,7 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    EmployeeId = table.Column<int>(type: "int", nullable: false),
+                    EmployeeId = table.Column<long>(type: "bigint", nullable: false),
                     AttendanceDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     InTime = table.Column<TimeSpan>(type: "time", nullable: true),
                     OutTime = table.Column<TimeSpan>(type: "time", nullable: true),
@@ -1184,8 +1376,8 @@ namespace EduOS.Persistence.Migrations
                     FullName = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Phone = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Email = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    DepartmentId = table.Column<int>(type: "int", nullable: true),
-                    DesignationId = table.Column<int>(type: "int", nullable: true),
+                    DepartmentId = table.Column<long>(type: "bigint", nullable: true),
+                    DesignationId = table.Column<long>(type: "bigint", nullable: true),
                     JoinDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
@@ -1218,7 +1410,7 @@ namespace EduOS.Persistence.Migrations
                     SuccessRows = table.Column<int>(type: "int", nullable: false),
                     FailedRows = table.Column<int>(type: "int", nullable: false),
                     ErrorLog = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    ImportedBy = table.Column<int>(type: "int", nullable: false),
+                    ImportedBy = table.Column<long>(type: "bigint", nullable: false),
                     ImportedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
@@ -1298,9 +1490,12 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    Name = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    Code = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    Code = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(300)", maxLength: 300, nullable: true),
+                    IsDefault = table.Column<bool>(type: "bit", nullable: false),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -1445,6 +1640,7 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
+                    PublicId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     Name = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Distance = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     Fare = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
@@ -1462,6 +1658,36 @@ namespace EduOS.Persistence.Migrations
                     table.PrimaryKey("PK_Routes", x => x.Id);
                     table.ForeignKey(
                         name: "FK_Routes_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "RoutineTimeSlots",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Name = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    StartTime = table.Column<TimeSpan>(type: "time", nullable: false),
+                    EndTime = table.Column<TimeSpan>(type: "time", nullable: false),
+                    IsBreak = table.Column<bool>(type: "bit", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_RoutineTimeSlots", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_RoutineTimeSlots_Tenants_TenantId",
                         column: x => x.TenantId,
                         principalTable: "Tenants",
                         principalColumn: "Id",
@@ -1506,10 +1732,13 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    Name = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    StartTime = table.Column<TimeSpan>(type: "time", nullable: false),
-                    EndTime = table.Column<TimeSpan>(type: "time", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    Code = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: false),
+                    StartTime = table.Column<TimeSpan>(type: "time", nullable: true),
+                    EndTime = table.Column<TimeSpan>(type: "time", nullable: true),
+                    IsDefault = table.Column<bool>(type: "bit", nullable: false),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -1590,6 +1819,47 @@ namespace EduOS.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "TenantModules",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    ProductModuleId = table.Column<long>(type: "bigint", nullable: false),
+                    IsEnabled = table.Column<bool>(type: "bit", nullable: false),
+                    ActivationSource = table.Column<int>(type: "int", nullable: false),
+                    EnabledAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    DisabledAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    EffectiveFromUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    EffectiveUntilUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    DisabledReason = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    ConfigurationJson = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    ConfigurationVersion = table.Column<int>(type: "int", nullable: false),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TenantModules", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_TenantModules_ProductModules_ProductModuleId",
+                        column: x => x.ProductModuleId,
+                        principalTable: "ProductModules",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_TenantModules_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "TenantSettings",
                 columns: table => new
                 {
@@ -1598,7 +1868,7 @@ namespace EduOS.Persistence.Migrations
                     TenantId = table.Column<long>(type: "bigint", nullable: false),
                     Category = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
                     SettingKey = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    SettingValue = table.Column<string>(type: "nvarchar(max)", maxLength: 500, nullable: true),
+                    SettingValue = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     DataType = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
                     Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     IsSensitive = table.Column<bool>(type: "bit", nullable: false),
@@ -1649,6 +1919,7 @@ namespace EduOS.Persistence.Migrations
                     MaxTeachers = table.Column<int>(type: "int", nullable: false),
                     MaxCampuses = table.Column<int>(type: "int", nullable: false),
                     MaxStorageMb = table.Column<int>(type: "int", nullable: false),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -1705,14 +1976,13 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    TenantId = table.Column<int>(type: "int", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false),
                     TrialStartDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     TrialEndDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     TrialDays = table.Column<int>(type: "int", nullable: false),
                     IsConverted = table.Column<bool>(type: "bit", nullable: false),
                     ConvertedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    ConvertedToPlanId = table.Column<int>(type: "int", nullable: true),
-                    TenantId1 = table.Column<long>(type: "bigint", nullable: true),
+                    ConvertedToPlanId = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -1723,8 +1993,14 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_TrialAccounts", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_TrialAccounts_Tenants_TenantId1",
-                        column: x => x.TenantId1,
+                        name: "FK_TrialAccounts_SubscriptionPlans_ConvertedToPlanId",
+                        column: x => x.ConvertedToPlanId,
+                        principalTable: "SubscriptionPlans",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_TrialAccounts_Tenants_TenantId",
+                        column: x => x.TenantId,
                         principalTable: "Tenants",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -1768,7 +2044,7 @@ namespace EduOS.Persistence.Migrations
                     NID = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     Purpose = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     ToMeet = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    MeetingPersonId = table.Column<int>(type: "int", nullable: true),
+                    MeetingPersonId = table.Column<long>(type: "bigint", nullable: true),
                     InTime = table.Column<DateTime>(type: "datetime2", nullable: false),
                     OutTime = table.Column<DateTime>(type: "datetime2", nullable: true),
                     PhotoUrl = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
@@ -1855,9 +2131,11 @@ namespace EduOS.Persistence.Migrations
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     AcademicYearId = table.Column<long>(type: "bigint", nullable: false),
-                    Name = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    Code = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
                     StartDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     EndDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    IsCurrent = table.Column<bool>(type: "bit", nullable: false),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
                     DisplayOrder = table.Column<int>(type: "int", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
@@ -1890,7 +2168,7 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    AcademicYearId = table.Column<int>(type: "int", nullable: false),
+                    AcademicYearId = table.Column<long>(type: "bigint", nullable: false),
                     Name = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Type = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     StartDate = table.Column<DateTime>(type: "datetime2", nullable: false),
@@ -1898,7 +2176,6 @@ namespace EduOS.Persistence.Migrations
                     WeightPercentage = table.Column<int>(type: "int", nullable: false),
                     IsPublished = table.Column<bool>(type: "bit", nullable: false),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    AcademicYearId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -1910,8 +2187,8 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_Exams", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Exams_AcademicYears_AcademicYearId1",
-                        column: x => x.AcademicYearId1,
+                        name: "FK_Exams_AcademicYears_AcademicYearId",
+                        column: x => x.AcademicYearId,
                         principalTable: "AcademicYears",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -1929,13 +2206,12 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    AcademicYearId = table.Column<int>(type: "int", nullable: false),
+                    AcademicYearId = table.Column<long>(type: "bigint", nullable: false),
                     Title = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     StartDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     EndDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     Type = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    AcademicYearId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -1947,8 +2223,8 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_Holidays", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Holidays_AcademicYears_AcademicYearId1",
-                        column: x => x.AcademicYearId1,
+                        name: "FK_Holidays_AcademicYears_AcademicYearId",
+                        column: x => x.AcademicYearId,
                         principalTable: "AcademicYears",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -1966,11 +2242,10 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    AlbumId = table.Column<int>(type: "int", nullable: false),
+                    AlbumId = table.Column<long>(type: "bigint", nullable: false),
                     ImageUrl = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Caption = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     UploadedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    AlbumId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -1981,8 +2256,8 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_AlbumPhotos", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_AlbumPhotos_Albums_AlbumId1",
-                        column: x => x.AlbumId1,
+                        name: "FK_AlbumPhotos_Albums_AlbumId",
+                        column: x => x.AlbumId,
                         principalTable: "Albums",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -2319,14 +2594,13 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    AssetId = table.Column<int>(type: "int", nullable: false),
+                    AssetId = table.Column<long>(type: "bigint", nullable: false),
                     MaintenanceDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     MaintenanceType = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Cost = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     PerformedBy = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     NextDueDate = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    AssetId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -2338,8 +2612,8 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_AssetMaintenances", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_AssetMaintenances_Assets_AssetId1",
-                        column: x => x.AssetId1,
+                        name: "FK_AssetMaintenances_Assets_AssetId",
+                        column: x => x.AssetId,
                         principalTable: "Assets",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -2352,31 +2626,17 @@ namespace EduOS.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "Admissions",
+                name: "AcademicCalendarPolicies",
                 columns: table => new
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    AcademicYearId = table.Column<int>(type: "int", nullable: false),
-                    ClassId = table.Column<int>(type: "int", nullable: false),
-                    ApplicationNo = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    StudentName = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    FatherName = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    MotherName = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    DOB = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    Gender = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    Religion = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    BloodGroup = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    Phone = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    Email = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    Address = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    PhotoUrl = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    ApplicationDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    Status = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    AdmissionFee = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    Remarks = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    AcademicYearId1 = table.Column<long>(type: "bigint", nullable: true),
-                    ClassId1 = table.Column<long>(type: "bigint", nullable: true),
+                    ClientRequestId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    AcademicYearId = table.Column<long>(type: "bigint", nullable: false),
+                    CampusId = table.Column<long>(type: "bigint", nullable: true),
+                    WeekendDaysMask = table.Column<int>(type: "int", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -2386,21 +2646,114 @@ namespace EduOS.Persistence.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_Admissions", x => x.Id);
+                    table.PrimaryKey("PK_AcademicCalendarPolicies", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Admissions_AcademicYears_AcademicYearId1",
-                        column: x => x.AcademicYearId1,
+                        name: "FK_AcademicCalendarPolicies_AcademicYears_AcademicYearId",
+                        column: x => x.AcademicYearId,
                         principalTable: "AcademicYears",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Admissions_Classes_ClassId1",
-                        column: x => x.ClassId1,
+                        name: "FK_AcademicCalendarPolicies_Campuses_CampusId",
+                        column: x => x.CampusId,
+                        principalTable: "Campuses",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AcademicCalendarPolicies_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Rooms",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    CampusId = table.Column<long>(type: "bigint", nullable: true),
+                    Name = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    Code = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    BuildingName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    Floor = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    Capacity = table.Column<int>(type: "int", nullable: false),
+                    IsLab = table.Column<bool>(type: "bit", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Rooms", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Rooms_Campuses_CampusId",
+                        column: x => x.CampusId,
+                        principalTable: "Campuses",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Rooms_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AdmissionTests",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    AcademicYearId = table.Column<long>(type: "bigint", nullable: false),
+                    CampusId = table.Column<long>(type: "bigint", nullable: false),
+                    AcademicUnitId = table.Column<long>(type: "bigint", nullable: false),
+                    TestDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    TotalMarks = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    PassMarks = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    Venue = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    DurationMinutes = table.Column<int>(type: "int", nullable: false),
+                    IsPublished = table.Column<bool>(type: "bit", nullable: false),
+                    PublishedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    PublishedByUserId = table.Column<long>(type: "bigint", nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AdmissionTests", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_AdmissionTests_AcademicYears_AcademicYearId",
+                        column: x => x.AcademicYearId,
+                        principalTable: "AcademicYears",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AdmissionTests_Campuses_CampusId",
+                        column: x => x.CampusId,
+                        principalTable: "Campuses",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AdmissionTests_Classes_AcademicUnitId",
+                        column: x => x.AcademicUnitId,
                         principalTable: "Classes",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Admissions_Tenants_TenantId",
+                        name: "FK_AdmissionTests_Tenants_TenantId",
                         column: x => x.TenantId,
                         principalTable: "Tenants",
                         principalColumn: "Id",
@@ -2413,11 +2766,10 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    ClassId = table.Column<int>(type: "int", nullable: false),
+                    ClassId = table.Column<long>(type: "bigint", nullable: false),
                     Name = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Capacity = table.Column<int>(type: "int", nullable: false),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    ClassId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -2429,8 +2781,8 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_Sections", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Sections_Classes_ClassId1",
-                        column: x => x.ClassId1,
+                        name: "FK_Sections_Classes_ClassId",
+                        column: x => x.ClassId,
                         principalTable: "Classes",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -2448,10 +2800,9 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    CustomFieldId = table.Column<int>(type: "int", nullable: false),
-                    EntityId = table.Column<int>(type: "int", nullable: false),
+                    CustomFieldId = table.Column<long>(type: "bigint", nullable: false),
+                    EntityId = table.Column<long>(type: "bigint", nullable: false),
                     Value = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    CustomFieldId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -2462,9 +2813,56 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_CustomFieldValues", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_CustomFieldValues_CustomFields_CustomFieldId1",
-                        column: x => x.CustomFieldId1,
+                        name: "FK_CustomFieldValues_CustomFields_CustomFieldId",
+                        column: x => x.CustomFieldId,
                         principalTable: "CustomFields",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AcademicPrograms",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    CampusId = table.Column<long>(type: "bigint", nullable: true),
+                    DepartmentId = table.Column<long>(type: "bigint", nullable: true),
+                    Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    Code = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    ShortName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    DurationInMonths = table.Column<int>(type: "int", nullable: false),
+                    AwardTitle = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: true),
+                    Description = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    IsAdmissionOpen = table.Column<bool>(type: "bit", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AcademicPrograms", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_AcademicPrograms_Campuses_CampusId",
+                        column: x => x.CampusId,
+                        principalTable: "Campuses",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AcademicPrograms_Departments_DepartmentId",
+                        column: x => x.DepartmentId,
+                        principalTable: "Departments",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AcademicPrograms_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
@@ -2475,6 +2873,7 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
+                    PublicId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     UserId = table.Column<long>(type: "bigint", nullable: true),
                     EmployeeCode = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     FullName = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
@@ -2487,8 +2886,8 @@ namespace EduOS.Persistence.Migrations
                     Email = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     Address = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     NID = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    DesignationId = table.Column<int>(type: "int", nullable: false),
-                    DepartmentId = table.Column<int>(type: "int", nullable: true),
+                    DesignationId = table.Column<long>(type: "bigint", nullable: false),
+                    DepartmentId = table.Column<long>(type: "bigint", nullable: true),
                     JoiningDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     Salary = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     PhotoUrl = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
@@ -2496,8 +2895,7 @@ namespace EduOS.Persistence.Migrations
                     Experience = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     IsTeacher = table.Column<bool>(type: "bit", nullable: false),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    DesignationId1 = table.Column<long>(type: "bigint", nullable: true),
-                    DepartmentId1 = table.Column<long>(type: "bigint", nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -2515,14 +2913,14 @@ namespace EduOS.Persistence.Migrations
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Employee_Departments_DepartmentId1",
-                        column: x => x.DepartmentId1,
+                        name: "FK_Employee_Departments_DepartmentId",
+                        column: x => x.DepartmentId,
                         principalTable: "Departments",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Employee_Designation_DesignationId1",
-                        column: x => x.DesignationId1,
+                        name: "FK_Employee_Designation_DesignationId",
+                        column: x => x.DesignationId,
                         principalTable: "Designation",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -2540,16 +2938,14 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    CategoryId = table.Column<int>(type: "int", nullable: false),
-                    BankAccountId = table.Column<int>(type: "int", nullable: false),
+                    CategoryId = table.Column<long>(type: "bigint", nullable: false),
+                    BankAccountId = table.Column<long>(type: "bigint", nullable: false),
                     Amount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     Date = table.Column<DateTime>(type: "datetime2", nullable: false),
                     Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     VoucherNo = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     PaidTo = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    AddedBy = table.Column<int>(type: "int", nullable: false),
-                    CategoryId1 = table.Column<long>(type: "bigint", nullable: true),
-                    BankAccountId1 = table.Column<long>(type: "bigint", nullable: true),
+                    AddedBy = table.Column<long>(type: "bigint", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -2561,14 +2957,14 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_Expenses", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Expenses_BankAccounts_BankAccountId1",
-                        column: x => x.BankAccountId1,
+                        name: "FK_Expenses_BankAccounts_BankAccountId",
+                        column: x => x.BankAccountId,
                         principalTable: "BankAccounts",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Expenses_ExpenseCategories_CategoryId1",
-                        column: x => x.CategoryId1,
+                        name: "FK_Expenses_ExpenseCategories_CategoryId",
+                        column: x => x.CategoryId,
                         principalTable: "ExpenseCategories",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -2589,9 +2985,8 @@ namespace EduOS.Persistence.Migrations
                     Name = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Type = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Value = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    FeeHeadId = table.Column<int>(type: "int", nullable: true),
+                    FeeHeadId = table.Column<long>(type: "bigint", nullable: true),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    FeeHeadId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -2603,8 +2998,8 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_Discounts", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Discounts_FeeHeads_FeeHeadId1",
-                        column: x => x.FeeHeadId1,
+                        name: "FK_Discounts_FeeHeads_FeeHeadId",
+                        column: x => x.FeeHeadId,
                         principalTable: "FeeHeads",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -2622,13 +3017,10 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    AcademicYearId = table.Column<int>(type: "int", nullable: false),
-                    ClassId = table.Column<int>(type: "int", nullable: false),
-                    FeeHeadId = table.Column<int>(type: "int", nullable: false),
+                    AcademicYearId = table.Column<long>(type: "bigint", nullable: false),
+                    ClassId = table.Column<long>(type: "bigint", nullable: false),
+                    FeeHeadId = table.Column<long>(type: "bigint", nullable: false),
                     Amount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    AcademicYearId1 = table.Column<long>(type: "bigint", nullable: true),
-                    ClassId1 = table.Column<long>(type: "bigint", nullable: true),
-                    FeeHeadId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -2640,20 +3032,20 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_FeeStructures", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_FeeStructures_AcademicYears_AcademicYearId1",
-                        column: x => x.AcademicYearId1,
+                        name: "FK_FeeStructures_AcademicYears_AcademicYearId",
+                        column: x => x.AcademicYearId,
                         principalTable: "AcademicYears",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_FeeStructures_Classes_ClassId1",
-                        column: x => x.ClassId1,
+                        name: "FK_FeeStructures_Classes_ClassId",
+                        column: x => x.ClassId,
                         principalTable: "Classes",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_FeeStructures_FeeHeads_FeeHeadId1",
-                        column: x => x.FeeHeadId1,
+                        name: "FK_FeeStructures_FeeHeads_FeeHeadId",
+                        column: x => x.FeeHeadId,
                         principalTable: "FeeHeads",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -2671,16 +3063,21 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    ClassId = table.Column<int>(type: "int", nullable: false),
-                    GroupId = table.Column<int>(type: "int", nullable: true),
-                    Name = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    Code = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    ClassId = table.Column<long>(type: "bigint", nullable: true),
+                    GroupId = table.Column<long>(type: "bigint", nullable: true),
+                    Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    Code = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    ShortName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    SubjectType = table.Column<int>(type: "int", nullable: false),
+                    DefaultCreditHours = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    DefaultFullMarks = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    DefaultPassMarks = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     FullMark = table.Column<int>(type: "int", nullable: false),
                     PassMark = table.Column<int>(type: "int", nullable: false),
                     IsOptional = table.Column<bool>(type: "bit", nullable: false),
+                    HasPractical = table.Column<bool>(type: "bit", nullable: false),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    ClassId1 = table.Column<long>(type: "bigint", nullable: true),
-                    GroupId1 = table.Column<long>(type: "bigint", nullable: true),
+                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -2692,14 +3089,14 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_Subjects", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Subjects_Classes_ClassId1",
-                        column: x => x.ClassId1,
+                        name: "FK_Subjects_Classes_ClassId",
+                        column: x => x.ClassId,
                         principalTable: "Classes",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Subjects_Groups_GroupId1",
-                        column: x => x.GroupId1,
+                        name: "FK_Subjects_Groups_GroupId",
+                        column: x => x.GroupId,
                         principalTable: "Groups",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -2717,13 +3114,12 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    HostelId = table.Column<int>(type: "int", nullable: false),
+                    HostelId = table.Column<long>(type: "bigint", nullable: false),
                     RoomNo = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Capacity = table.Column<int>(type: "int", nullable: false),
                     AvailableBeds = table.Column<int>(type: "int", nullable: false),
                     RentPerBed = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    HostelId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -2735,8 +3131,8 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_HostelRooms", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_HostelRooms_Hostels_HostelId1",
-                        column: x => x.HostelId1,
+                        name: "FK_HostelRooms_Hostels_HostelId",
+                        column: x => x.HostelId,
                         principalTable: "Hostels",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -2754,16 +3150,14 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    CategoryId = table.Column<int>(type: "int", nullable: false),
-                    BankAccountId = table.Column<int>(type: "int", nullable: false),
+                    CategoryId = table.Column<long>(type: "bigint", nullable: false),
+                    BankAccountId = table.Column<long>(type: "bigint", nullable: false),
                     Amount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     Date = table.Column<DateTime>(type: "datetime2", nullable: false),
                     Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     ReceiptNo = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     ReceivedFrom = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    AddedBy = table.Column<int>(type: "int", nullable: false),
-                    CategoryId1 = table.Column<long>(type: "bigint", nullable: true),
-                    BankAccountId1 = table.Column<long>(type: "bigint", nullable: true),
+                    AddedBy = table.Column<long>(type: "bigint", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -2775,14 +3169,14 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_Incomes", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Incomes_BankAccounts_BankAccountId1",
-                        column: x => x.BankAccountId1,
+                        name: "FK_Incomes_BankAccounts_BankAccountId",
+                        column: x => x.BankAccountId,
                         principalTable: "BankAccounts",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Incomes_IncomeCategories_CategoryId1",
-                        column: x => x.CategoryId1,
+                        name: "FK_Incomes_IncomeCategories_CategoryId",
+                        column: x => x.CategoryId,
                         principalTable: "IncomeCategories",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -2800,19 +3194,18 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    UserId = table.Column<int>(type: "int", nullable: false),
+                    UserId = table.Column<long>(type: "bigint", nullable: false),
                     UserType = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    LeaveTypeId = table.Column<int>(type: "int", nullable: false),
+                    LeaveTypeId = table.Column<long>(type: "bigint", nullable: false),
                     FromDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     ToDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     TotalDays = table.Column<int>(type: "int", nullable: false),
                     Reason = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     AttachmentUrl = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     Status = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    ApprovedBy = table.Column<int>(type: "int", nullable: true),
+                    ApprovedBy = table.Column<long>(type: "bigint", nullable: true),
                     ApprovedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     Remarks = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    LeaveTypeId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -2824,8 +3217,8 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_LeaveApplications", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_LeaveApplications_LeaveTypes_LeaveTypeId1",
-                        column: x => x.LeaveTypeId1,
+                        name: "FK_LeaveApplications_LeaveTypes_LeaveTypeId",
+                        column: x => x.LeaveTypeId,
                         principalTable: "LeaveTypes",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -2846,9 +3239,8 @@ namespace EduOS.Persistence.Migrations
                     ReminderType = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     DaysBeforeDue = table.Column<int>(type: "int", nullable: false),
                     DaysAfterDue = table.Column<int>(type: "int", nullable: false),
-                    TemplateId = table.Column<int>(type: "int", nullable: true),
+                    TemplateId = table.Column<long>(type: "bigint", nullable: true),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    TemplateId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -2860,8 +3252,8 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_FeeReminders", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_FeeReminders_MessageTemplates_TemplateId1",
-                        column: x => x.TemplateId1,
+                        name: "FK_FeeReminders_MessageTemplates_TemplateId",
+                        column: x => x.TemplateId,
                         principalTable: "MessageTemplates",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -2879,17 +3271,15 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    CategoryId = table.Column<int>(type: "int", nullable: true),
+                    CategoryId = table.Column<long>(type: "bigint", nullable: true),
                     Title = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     TargetAudience = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    ClassId = table.Column<int>(type: "int", nullable: true),
+                    ClassId = table.Column<long>(type: "bigint", nullable: true),
                     AttachmentUrl = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     PublishDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     ExpireDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    CategoryId1 = table.Column<long>(type: "bigint", nullable: true),
-                    ClassId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -2901,14 +3291,14 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_Notices", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Notices_Classes_ClassId1",
-                        column: x => x.ClassId1,
+                        name: "FK_Notices_Classes_ClassId",
+                        column: x => x.ClassId,
                         principalTable: "Classes",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Notices_NoticeCategories_CategoryId1",
-                        column: x => x.CategoryId1,
+                        name: "FK_Notices_NoticeCategories_CategoryId",
+                        column: x => x.CategoryId,
                         principalTable: "NoticeCategories",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -2926,14 +3316,14 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
+                    PublicId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     VehicleNo = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Type = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Capacity = table.Column<int>(type: "int", nullable: false),
                     DriverName = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     DriverPhone = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    RouteId = table.Column<int>(type: "int", nullable: true),
+                    RouteId = table.Column<long>(type: "bigint", nullable: true),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    RouteId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -2945,8 +3335,8 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_Vehicles", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Vehicles_Routes_RouteId1",
-                        column: x => x.RouteId1,
+                        name: "FK_Vehicles_Routes_RouteId",
+                        column: x => x.RouteId,
                         principalTable: "Routes",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -2964,13 +3354,12 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    SurveyId = table.Column<int>(type: "int", nullable: false),
+                    SurveyId = table.Column<long>(type: "bigint", nullable: false),
                     Question = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     QuestionType = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Options = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     IsRequired = table.Column<bool>(type: "bit", nullable: false),
                     OrderNo = table.Column<int>(type: "int", nullable: false),
-                    SurveyId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -2981,8 +3370,8 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_SurveyQuestions", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_SurveyQuestions_Surveys_SurveyId1",
-                        column: x => x.SurveyId1,
+                        name: "FK_SurveyQuestions_Surveys_SurveyId",
+                        column: x => x.SurveyId,
                         principalTable: "Surveys",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -3045,13 +3434,11 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    VoucherId = table.Column<int>(type: "int", nullable: false),
-                    AccountId = table.Column<int>(type: "int", nullable: false),
+                    VoucherId = table.Column<long>(type: "bigint", nullable: false),
+                    AccountId = table.Column<long>(type: "bigint", nullable: false),
                     DebitAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     CreditAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    VoucherId1 = table.Column<long>(type: "bigint", nullable: true),
-                    AccountId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -3062,52 +3449,39 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_VoucherDetails", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_VoucherDetails_Accounts_AccountId1",
-                        column: x => x.AccountId1,
+                        name: "FK_VoucherDetails_Accounts_AccountId",
+                        column: x => x.AccountId,
                         principalTable: "Accounts",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_VoucherDetails_Vouchers_VoucherId1",
-                        column: x => x.VoucherId1,
+                        name: "FK_VoucherDetails_Vouchers_VoucherId",
+                        column: x => x.VoucherId,
                         principalTable: "Vouchers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
-                name: "Students",
+                name: "AcademicCalendarEvents",
                 columns: table => new
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    UserId = table.Column<long>(type: "bigint", nullable: true),
-                    AdmissionId = table.Column<long>(type: "bigint", nullable: true),
-                    StudentCode = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    Roll = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    FullName = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    FatherName = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    MotherName = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    DOB = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    Gender = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    BloodGroup = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    Religion = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    Phone = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    Email = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    Address = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    BirthCertNo = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    ClassId = table.Column<int>(type: "int", nullable: false),
-                    SectionId = table.Column<int>(type: "int", nullable: false),
-                    GroupId = table.Column<int>(type: "int", nullable: true),
-                    AcademicYearId = table.Column<int>(type: "int", nullable: false),
-                    AdmissionDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    PhotoUrl = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    Status = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    ClientRequestId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    CampusId = table.Column<long>(type: "bigint", nullable: true),
+                    AcademicYearId = table.Column<long>(type: "bigint", nullable: true),
+                    AcademicTermId = table.Column<long>(type: "bigint", nullable: true),
+                    EventType = table.Column<int>(type: "int", nullable: false),
+                    Title = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    StartDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    EndDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    Location = table.Column<string>(type: "nvarchar(300)", maxLength: 300, nullable: true),
+                    IsHoliday = table.Column<bool>(type: "bit", nullable: false),
+                    IsPublicVisible = table.Column<bool>(type: "bit", nullable: false),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    ClassId1 = table.Column<long>(type: "bigint", nullable: true),
-                    SectionId1 = table.Column<long>(type: "bigint", nullable: true),
-                    GroupId1 = table.Column<long>(type: "bigint", nullable: true),
-                    AcademicYearId1 = table.Column<long>(type: "bigint", nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -3117,45 +3491,264 @@ namespace EduOS.Persistence.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_Students", x => x.Id);
+                    table.PrimaryKey("PK_AcademicCalendarEvents", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Students_AcademicYears_AcademicYearId1",
-                        column: x => x.AcademicYearId1,
+                        name: "FK_AcademicCalendarEvents_AcademicTerms_AcademicTermId",
+                        column: x => x.AcademicTermId,
+                        principalTable: "AcademicTerms",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AcademicCalendarEvents_AcademicYears_AcademicYearId",
+                        column: x => x.AcademicYearId,
                         principalTable: "AcademicYears",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Students_Admissions_AdmissionId",
-                        column: x => x.AdmissionId,
-                        principalTable: "Admissions",
+                        name: "FK_AcademicCalendarEvents_Campuses_CampusId",
+                        column: x => x.CampusId,
+                        principalTable: "Campuses",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Students_AspNetUsers_UserId",
-                        column: x => x.UserId,
-                        principalTable: "AspNetUsers",
+                        name: "FK_AcademicCalendarEvents_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AdmissionIntakeForms",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    PublicId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ClientRequestId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Code = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    Title = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
+                    AcademicYearId = table.Column<long>(type: "bigint", nullable: false),
+                    AcademicTermId = table.Column<long>(type: "bigint", nullable: true),
+                    CampusId = table.Column<long>(type: "bigint", nullable: false),
+                    AcademicUnitId = table.Column<long>(type: "bigint", nullable: false),
+                    OpensAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ClosesAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ApplicationFee = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    Currency = table.Column<string>(type: "nvarchar(3)", maxLength: 3, nullable: false),
+                    FieldsJson = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    DocumentRequirementsJson = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Status = table.Column<int>(type: "int", nullable: false),
+                    PublishedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    PublishedByUserId = table.Column<long>(type: "bigint", nullable: true),
+                    ClosedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    ClosedByUserId = table.Column<long>(type: "bigint", nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AdmissionIntakeForms", x => x.Id);
+                    table.CheckConstraint("CK_AdmissionIntakeForms_DateRange", "[ClosesAtUtc] > [OpensAtUtc]");
+                    table.CheckConstraint("CK_AdmissionIntakeForms_Fee", "[ApplicationFee] >= 0");
+                    table.CheckConstraint("CK_AdmissionIntakeForms_Status", "[Status] >= 1 AND [Status] <= 4");
+                    table.ForeignKey(
+                        name: "FK_AdmissionIntakeForms_AcademicTerms_AcademicTermId",
+                        column: x => x.AcademicTermId,
+                        principalTable: "AcademicTerms",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Students_Classes_ClassId1",
-                        column: x => x.ClassId1,
+                        name: "FK_AdmissionIntakeForms_AcademicYears_AcademicYearId",
+                        column: x => x.AcademicYearId,
+                        principalTable: "AcademicYears",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AdmissionIntakeForms_Campuses_CampusId",
+                        column: x => x.CampusId,
+                        principalTable: "Campuses",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AdmissionIntakeForms_Classes_AcademicUnitId",
+                        column: x => x.AcademicUnitId,
                         principalTable: "Classes",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Students_Groups_GroupId1",
-                        column: x => x.GroupId1,
-                        principalTable: "Groups",
+                        name: "FK_AdmissionIntakeForms_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AcademicCurriculums",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    AcademicProgramId = table.Column<long>(type: "bigint", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: false),
+                    Code = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    EffectiveFromAcademicYearId = table.Column<long>(type: "bigint", nullable: true),
+                    EffectiveToAcademicYearId = table.Column<long>(type: "bigint", nullable: true),
+                    IsCurrent = table.Column<bool>(type: "bit", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    Remarks = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AcademicCurriculums", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_AcademicCurriculums_AcademicPrograms_AcademicProgramId",
+                        column: x => x.AcademicProgramId,
+                        principalTable: "AcademicPrograms",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Students_Sections_SectionId1",
-                        column: x => x.SectionId1,
-                        principalTable: "Sections",
+                        name: "FK_AcademicCurriculums_AcademicYears_EffectiveFromAcademicYearId",
+                        column: x => x.EffectiveFromAcademicYearId,
+                        principalTable: "AcademicYears",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Students_Tenants_TenantId",
+                        name: "FK_AcademicCurriculums_AcademicYears_EffectiveToAcademicYearId",
+                        column: x => x.EffectiveToAcademicYearId,
+                        principalTable: "AcademicYears",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AcademicCurriculums_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AcademicLevels",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    AcademicProgramId = table.Column<long>(type: "bigint", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: false),
+                    Code = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    LevelNo = table.Column<int>(type: "int", nullable: false),
+                    IsPromotable = table.Column<bool>(type: "bit", nullable: false),
+                    IsTerminalLevel = table.Column<bool>(type: "bit", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AcademicLevels", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_AcademicLevels_AcademicPrograms_AcademicProgramId",
+                        column: x => x.AcademicProgramId,
+                        principalTable: "AcademicPrograms",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AcademicLevels_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AcademicTracks",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    AcademicProgramId = table.Column<long>(type: "bigint", nullable: true),
+                    Name = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: false),
+                    Code = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    IsDefault = table.Column<bool>(type: "bit", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AcademicTracks", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_AcademicTracks_AcademicPrograms_AcademicProgramId",
+                        column: x => x.AcademicProgramId,
+                        principalTable: "AcademicPrograms",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AcademicTracks_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ProgramCampuses",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    AcademicProgramId = table.Column<long>(type: "bigint", nullable: false),
+                    CampusId = table.Column<long>(type: "bigint", nullable: false),
+                    IsAdmissionOpen = table.Column<bool>(type: "bit", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ProgramCampuses", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ProgramCampuses_AcademicPrograms_AcademicProgramId",
+                        column: x => x.AcademicProgramId,
+                        principalTable: "AcademicPrograms",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_ProgramCampuses_Campuses_CampusId",
+                        column: x => x.CampusId,
+                        principalTable: "Campuses",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_ProgramCampuses_Tenants_TenantId",
                         column: x => x.TenantId,
                         principalTable: "Tenants",
                         principalColumn: "Id",
@@ -3168,14 +3761,13 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    EmployeeId = table.Column<int>(type: "int", nullable: false),
+                    EmployeeId = table.Column<long>(type: "bigint", nullable: false),
                     BonusType = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Amount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     BonusMonth = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     BonusYear = table.Column<int>(type: "int", nullable: false),
                     Reason = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     PaidDate = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    EmployeeId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -3187,8 +3779,8 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_Bonuses", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Bonuses_Employee_EmployeeId1",
-                        column: x => x.EmployeeId1,
+                        name: "FK_Bonuses_Employee_EmployeeId",
+                        column: x => x.EmployeeId,
                         principalTable: "Employee",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -3206,14 +3798,13 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    EmployeeId = table.Column<int>(type: "int", nullable: false),
+                    EmployeeId = table.Column<long>(type: "bigint", nullable: false),
                     Date = table.Column<DateTime>(type: "datetime2", nullable: false),
                     Status = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     InTime = table.Column<TimeSpan>(type: "time", nullable: true),
                     OutTime = table.Column<TimeSpan>(type: "time", nullable: true),
                     OvertimeHours = table.Column<decimal>(type: "decimal(18,2)", nullable: true),
                     Remarks = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    EmployeeId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -3225,8 +3816,8 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_EmployeeAttendances", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_EmployeeAttendances_Employee_EmployeeId1",
-                        column: x => x.EmployeeId1,
+                        name: "FK_EmployeeAttendances_Employee_EmployeeId",
+                        column: x => x.EmployeeId,
                         principalTable: "Employee",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -3244,14 +3835,13 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    EmployeeId = table.Column<int>(type: "int", nullable: false),
+                    EmployeeId = table.Column<long>(type: "bigint", nullable: false),
                     OldSalary = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     NewSalary = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     IncrementAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     EffectiveDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     Reason = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     ApprovedBy = table.Column<int>(type: "int", nullable: false),
-                    EmployeeId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -3263,8 +3853,8 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_Increments", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Increments_Employee_EmployeeId1",
-                        column: x => x.EmployeeId1,
+                        name: "FK_Increments_Employee_EmployeeId",
+                        column: x => x.EmployeeId,
                         principalTable: "Employee",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -3282,7 +3872,7 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    EmployeeId = table.Column<int>(type: "int", nullable: false),
+                    EmployeeId = table.Column<long>(type: "bigint", nullable: false),
                     Type = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Amount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     RequestDate = table.Column<DateTime>(type: "datetime2", nullable: false),
@@ -3292,7 +3882,6 @@ namespace EduOS.Persistence.Migrations
                     MonthlyDeduction = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     TotalDeducted = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     RemainingAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    EmployeeId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -3304,8 +3893,8 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_LoanAdvances", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_LoanAdvances_Employee_EmployeeId1",
-                        column: x => x.EmployeeId1,
+                        name: "FK_LoanAdvances_Employee_EmployeeId",
+                        column: x => x.EmployeeId,
                         principalTable: "Employee",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -3323,10 +3912,16 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    EmployeeId = table.Column<int>(type: "int", nullable: false),
+                    PublicId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    GenerationRequestId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    BillingKey = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    EmployeeId = table.Column<long>(type: "bigint", nullable: false),
                     Month = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Year = table.Column<int>(type: "int", nullable: false),
                     GrossSalary = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    AbsentDays = table.Column<int>(type: "int", nullable: false),
+                    AttendanceDeduction = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    LoanDeduction = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     Deductions = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     Bonus = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     NetSalary = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
@@ -3334,7 +3929,8 @@ namespace EduOS.Persistence.Migrations
                     Status = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     PaymentMethod = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     Note = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    EmployeeId1 = table.Column<long>(type: "bigint", nullable: true),
+                    PaidByUserId = table.Column<long>(type: "bigint", nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -3346,8 +3942,8 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_Payrolls", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Payrolls_Employee_EmployeeId1",
-                        column: x => x.EmployeeId1,
+                        name: "FK_Payrolls_Employee_EmployeeId",
+                        column: x => x.EmployeeId,
                         principalTable: "Employee",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -3365,7 +3961,7 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    EmployeeId = table.Column<int>(type: "int", nullable: false),
+                    EmployeeId = table.Column<long>(type: "bigint", nullable: false),
                     BasicSalary = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     HouseRent = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     Medical = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
@@ -3374,7 +3970,6 @@ namespace EduOS.Persistence.Migrations
                     GrossSalary = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     EffectiveFrom = table.Column<DateTime>(type: "datetime2", nullable: false),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    EmployeeId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -3386,8 +3981,8 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_SalaryStructures", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_SalaryStructures_Employee_EmployeeId1",
-                        column: x => x.EmployeeId1,
+                        name: "FK_SalaryStructures_Employee_EmployeeId",
+                        column: x => x.EmployeeId,
                         principalTable: "Employee",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -3405,20 +4000,15 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    AcademicYearId = table.Column<int>(type: "int", nullable: false),
-                    ClassId = table.Column<int>(type: "int", nullable: false),
-                    SectionId = table.Column<int>(type: "int", nullable: false),
-                    SubjectId = table.Column<int>(type: "int", nullable: false),
-                    TeacherId = table.Column<int>(type: "int", nullable: false),
+                    AcademicYearId = table.Column<long>(type: "bigint", nullable: false),
+                    ClassId = table.Column<long>(type: "bigint", nullable: false),
+                    SectionId = table.Column<long>(type: "bigint", nullable: false),
+                    SubjectId = table.Column<long>(type: "bigint", nullable: false),
+                    TeacherId = table.Column<long>(type: "bigint", nullable: false),
                     DayOfWeek = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     StartTime = table.Column<TimeSpan>(type: "time", nullable: false),
                     EndTime = table.Column<TimeSpan>(type: "time", nullable: false),
                     RoomNo = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    AcademicYearId1 = table.Column<long>(type: "bigint", nullable: true),
-                    ClassId1 = table.Column<long>(type: "bigint", nullable: true),
-                    SectionId1 = table.Column<long>(type: "bigint", nullable: true),
-                    SubjectId1 = table.Column<long>(type: "bigint", nullable: true),
-                    TeacherId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -3430,32 +4020,32 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_ClassRoutines", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_ClassRoutines_AcademicYears_AcademicYearId1",
-                        column: x => x.AcademicYearId1,
+                        name: "FK_ClassRoutines_AcademicYears_AcademicYearId",
+                        column: x => x.AcademicYearId,
                         principalTable: "AcademicYears",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_ClassRoutines_Classes_ClassId1",
-                        column: x => x.ClassId1,
+                        name: "FK_ClassRoutines_Classes_ClassId",
+                        column: x => x.ClassId,
                         principalTable: "Classes",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_ClassRoutines_Employee_TeacherId1",
-                        column: x => x.TeacherId1,
+                        name: "FK_ClassRoutines_Employee_TeacherId",
+                        column: x => x.TeacherId,
                         principalTable: "Employee",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_ClassRoutines_Sections_SectionId1",
-                        column: x => x.SectionId1,
+                        name: "FK_ClassRoutines_Sections_SectionId",
+                        column: x => x.SectionId,
                         principalTable: "Sections",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_ClassRoutines_Subjects_SubjectId1",
-                        column: x => x.SubjectId1,
+                        name: "FK_ClassRoutines_Subjects_SubjectId",
+                        column: x => x.SubjectId,
                         principalTable: "Subjects",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -3473,16 +4063,16 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    ClassId = table.Column<int>(type: "int", nullable: false),
-                    SubjectId = table.Column<int>(type: "int", nullable: false),
+                    PublicId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    AcademicYearId = table.Column<long>(type: "bigint", nullable: false),
+                    ClassId = table.Column<long>(type: "bigint", nullable: false),
+                    SectionId = table.Column<long>(type: "bigint", nullable: true),
+                    SubjectId = table.Column<long>(type: "bigint", nullable: false),
                     Title = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    TeacherId = table.Column<int>(type: "int", nullable: false),
+                    TeacherId = table.Column<long>(type: "bigint", nullable: false),
                     ThumbnailUrl = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    ClassId1 = table.Column<long>(type: "bigint", nullable: true),
-                    SubjectId1 = table.Column<long>(type: "bigint", nullable: true),
-                    TeacherId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -3494,20 +4084,32 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_Courses", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Courses_Classes_ClassId1",
-                        column: x => x.ClassId1,
+                        name: "FK_Courses_AcademicYears_AcademicYearId",
+                        column: x => x.AcademicYearId,
+                        principalTable: "AcademicYears",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Courses_Classes_ClassId",
+                        column: x => x.ClassId,
                         principalTable: "Classes",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Courses_Employee_TeacherId1",
-                        column: x => x.TeacherId1,
+                        name: "FK_Courses_Employee_TeacherId",
+                        column: x => x.TeacherId,
                         principalTable: "Employee",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Courses_Subjects_SubjectId1",
-                        column: x => x.SubjectId1,
+                        name: "FK_Courses_Sections_SectionId",
+                        column: x => x.SectionId,
+                        principalTable: "Sections",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Courses_Subjects_SubjectId",
+                        column: x => x.SubjectId,
                         principalTable: "Subjects",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -3525,18 +4127,15 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    ExamId = table.Column<int>(type: "int", nullable: false),
-                    ClassId = table.Column<int>(type: "int", nullable: false),
-                    SubjectId = table.Column<int>(type: "int", nullable: false),
+                    ExamId = table.Column<long>(type: "bigint", nullable: false),
+                    ClassId = table.Column<long>(type: "bigint", nullable: false),
+                    SubjectId = table.Column<long>(type: "bigint", nullable: false),
                     ExamDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     StartTime = table.Column<TimeSpan>(type: "time", nullable: false),
                     EndTime = table.Column<TimeSpan>(type: "time", nullable: false),
                     FullMark = table.Column<int>(type: "int", nullable: false),
                     PassMark = table.Column<int>(type: "int", nullable: false),
                     RoomNo = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    ExamId1 = table.Column<long>(type: "bigint", nullable: true),
-                    ClassId1 = table.Column<long>(type: "bigint", nullable: true),
-                    SubjectId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -3548,20 +4147,20 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_ExamSchedules", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_ExamSchedules_Classes_ClassId1",
-                        column: x => x.ClassId1,
+                        name: "FK_ExamSchedules_Classes_ClassId",
+                        column: x => x.ClassId,
                         principalTable: "Classes",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_ExamSchedules_Exams_ExamId1",
-                        column: x => x.ExamId1,
+                        name: "FK_ExamSchedules_Exams_ExamId",
+                        column: x => x.ExamId,
                         principalTable: "Exams",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_ExamSchedules_Subjects_SubjectId1",
-                        column: x => x.SubjectId1,
+                        name: "FK_ExamSchedules_Subjects_SubjectId",
+                        column: x => x.SubjectId,
                         principalTable: "Subjects",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -3579,19 +4178,15 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    ClassId = table.Column<int>(type: "int", nullable: false),
-                    SectionId = table.Column<int>(type: "int", nullable: false),
-                    SubjectId = table.Column<int>(type: "int", nullable: false),
-                    TeacherId = table.Column<int>(type: "int", nullable: false),
+                    ClassId = table.Column<long>(type: "bigint", nullable: false),
+                    SectionId = table.Column<long>(type: "bigint", nullable: false),
+                    SubjectId = table.Column<long>(type: "bigint", nullable: false),
+                    TeacherId = table.Column<long>(type: "bigint", nullable: false),
                     Title = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     AssignedDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     DueDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     AttachmentUrl = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    ClassId1 = table.Column<long>(type: "bigint", nullable: true),
-                    SectionId1 = table.Column<long>(type: "bigint", nullable: true),
-                    SubjectId1 = table.Column<long>(type: "bigint", nullable: true),
-                    TeacherId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -3603,26 +4198,26 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_Homeworks", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Homeworks_Classes_ClassId1",
-                        column: x => x.ClassId1,
+                        name: "FK_Homeworks_Classes_ClassId",
+                        column: x => x.ClassId,
                         principalTable: "Classes",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Homeworks_Employee_TeacherId1",
-                        column: x => x.TeacherId1,
+                        name: "FK_Homeworks_Employee_TeacherId",
+                        column: x => x.TeacherId,
                         principalTable: "Employee",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Homeworks_Sections_SectionId1",
-                        column: x => x.SectionId1,
+                        name: "FK_Homeworks_Sections_SectionId",
+                        column: x => x.SectionId,
                         principalTable: "Sections",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Homeworks_Subjects_SubjectId1",
-                        column: x => x.SubjectId1,
+                        name: "FK_Homeworks_Subjects_SubjectId",
+                        column: x => x.SubjectId,
                         principalTable: "Subjects",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -3635,69 +4230,15 @@ namespace EduOS.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "LessonPlans",
-                columns: table => new
-                {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    ClassId = table.Column<int>(type: "int", nullable: false),
-                    SubjectId = table.Column<int>(type: "int", nullable: false),
-                    TeacherId = table.Column<int>(type: "int", nullable: false),
-                    ChapterName = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    Topic = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    StartDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    EndDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    Status = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    ClassId1 = table.Column<long>(type: "bigint", nullable: true),
-                    SubjectId1 = table.Column<long>(type: "bigint", nullable: true),
-                    TeacherId1 = table.Column<long>(type: "bigint", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
-                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
-                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
-                    TenantId = table.Column<long>(type: "bigint", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_LessonPlans", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_LessonPlans_Classes_ClassId1",
-                        column: x => x.ClassId1,
-                        principalTable: "Classes",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_LessonPlans_Employee_TeacherId1",
-                        column: x => x.TeacherId1,
-                        principalTable: "Employee",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_LessonPlans_Subjects_SubjectId1",
-                        column: x => x.SubjectId1,
-                        principalTable: "Subjects",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_LessonPlans_Tenants_TenantId",
-                        column: x => x.TenantId,
-                        principalTable: "Tenants",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                });
-
-            migrationBuilder.CreateTable(
                 name: "LiveClasses",
                 columns: table => new
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    ClassId = table.Column<int>(type: "int", nullable: false),
-                    SectionId = table.Column<int>(type: "int", nullable: false),
-                    SubjectId = table.Column<int>(type: "int", nullable: false),
-                    TeacherId = table.Column<int>(type: "int", nullable: false),
+                    ClassId = table.Column<long>(type: "bigint", nullable: false),
+                    SectionId = table.Column<long>(type: "bigint", nullable: false),
+                    SubjectId = table.Column<long>(type: "bigint", nullable: false),
+                    TeacherId = table.Column<long>(type: "bigint", nullable: false),
                     Title = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Date = table.Column<DateTime>(type: "datetime2", nullable: false),
                     StartTime = table.Column<TimeSpan>(type: "time", nullable: false),
@@ -3705,10 +4246,6 @@ namespace EduOS.Persistence.Migrations
                     MeetingUrl = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     Platform = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Status = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    ClassId1 = table.Column<long>(type: "bigint", nullable: true),
-                    SectionId1 = table.Column<long>(type: "bigint", nullable: true),
-                    SubjectId1 = table.Column<long>(type: "bigint", nullable: true),
-                    TeacherId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -3720,26 +4257,26 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_LiveClasses", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_LiveClasses_Classes_ClassId1",
-                        column: x => x.ClassId1,
+                        name: "FK_LiveClasses_Classes_ClassId",
+                        column: x => x.ClassId,
                         principalTable: "Classes",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_LiveClasses_Employee_TeacherId1",
-                        column: x => x.TeacherId1,
+                        name: "FK_LiveClasses_Employee_TeacherId",
+                        column: x => x.TeacherId,
                         principalTable: "Employee",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_LiveClasses_Sections_SectionId1",
-                        column: x => x.SectionId1,
+                        name: "FK_LiveClasses_Sections_SectionId",
+                        column: x => x.SectionId,
                         principalTable: "Sections",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_LiveClasses_Subjects_SubjectId1",
-                        column: x => x.SubjectId1,
+                        name: "FK_LiveClasses_Subjects_SubjectId",
+                        column: x => x.SubjectId,
                         principalTable: "Subjects",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -3758,16 +4295,14 @@ namespace EduOS.Persistence.Migrations
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     Title = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    ClassId = table.Column<int>(type: "int", nullable: false),
-                    SubjectId = table.Column<int>(type: "int", nullable: false),
+                    ClassId = table.Column<long>(type: "bigint", nullable: false),
+                    SubjectId = table.Column<long>(type: "bigint", nullable: false),
                     StartTime = table.Column<DateTime>(type: "datetime2", nullable: false),
                     EndTime = table.Column<DateTime>(type: "datetime2", nullable: false),
                     Duration = table.Column<int>(type: "int", nullable: false),
                     TotalMark = table.Column<int>(type: "int", nullable: false),
                     PassMark = table.Column<int>(type: "int", nullable: false),
                     Status = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    ClassId1 = table.Column<long>(type: "bigint", nullable: true),
-                    SubjectId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -3779,14 +4314,14 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_OnlineExams", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_OnlineExams_Classes_ClassId1",
-                        column: x => x.ClassId1,
+                        name: "FK_OnlineExams_Classes_ClassId",
+                        column: x => x.ClassId,
                         principalTable: "Classes",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_OnlineExams_Subjects_SubjectId1",
-                        column: x => x.SubjectId1,
+                        name: "FK_OnlineExams_Subjects_SubjectId",
+                        column: x => x.SubjectId,
                         principalTable: "Subjects",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -3804,15 +4339,14 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    SubjectId = table.Column<int>(type: "int", nullable: false),
-                    ChapterId = table.Column<int>(type: "int", nullable: true),
+                    SubjectId = table.Column<long>(type: "bigint", nullable: false),
+                    ChapterId = table.Column<long>(type: "bigint", nullable: true),
                     Type = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     QuestionText = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Mark = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     Difficulty = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     CorrectAnswer = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     Options = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    SubjectId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -3824,8 +4358,8 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_Questions", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Questions_Subjects_SubjectId1",
-                        column: x => x.SubjectId1,
+                        name: "FK_Questions_Subjects_SubjectId",
+                        column: x => x.SubjectId,
                         principalTable: "Subjects",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -3838,22 +4372,56 @@ namespace EduOS.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "SubjectPrerequisites",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    SubjectId = table.Column<long>(type: "bigint", nullable: false),
+                    PrerequisiteSubjectId = table.Column<long>(type: "bigint", nullable: false),
+                    IsMandatory = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SubjectPrerequisites", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_SubjectPrerequisites_Subjects_PrerequisiteSubjectId",
+                        column: x => x.PrerequisiteSubjectId,
+                        principalTable: "Subjects",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_SubjectPrerequisites_Subjects_SubjectId",
+                        column: x => x.SubjectId,
+                        principalTable: "Subjects",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_SubjectPrerequisites_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "SubjectTeachers",
                 columns: table => new
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    AcademicYearId = table.Column<int>(type: "int", nullable: false),
-                    ClassId = table.Column<int>(type: "int", nullable: false),
-                    SectionId = table.Column<int>(type: "int", nullable: false),
-                    SubjectId = table.Column<int>(type: "int", nullable: false),
-                    TeacherId = table.Column<int>(type: "int", nullable: false),
+                    AcademicYearId = table.Column<long>(type: "bigint", nullable: false),
+                    ClassId = table.Column<long>(type: "bigint", nullable: false),
+                    SectionId = table.Column<long>(type: "bigint", nullable: false),
+                    SubjectId = table.Column<long>(type: "bigint", nullable: false),
+                    TeacherId = table.Column<long>(type: "bigint", nullable: false),
                     IsClassTeacher = table.Column<bool>(type: "bit", nullable: false),
-                    AcademicYearId1 = table.Column<long>(type: "bigint", nullable: true),
-                    ClassId1 = table.Column<long>(type: "bigint", nullable: true),
-                    SectionId1 = table.Column<long>(type: "bigint", nullable: true),
-                    SubjectId1 = table.Column<long>(type: "bigint", nullable: true),
-                    TeacherId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -3865,32 +4433,32 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_SubjectTeachers", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_SubjectTeachers_AcademicYears_AcademicYearId1",
-                        column: x => x.AcademicYearId1,
+                        name: "FK_SubjectTeachers_AcademicYears_AcademicYearId",
+                        column: x => x.AcademicYearId,
                         principalTable: "AcademicYears",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_SubjectTeachers_Classes_ClassId1",
-                        column: x => x.ClassId1,
+                        name: "FK_SubjectTeachers_Classes_ClassId",
+                        column: x => x.ClassId,
                         principalTable: "Classes",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_SubjectTeachers_Employee_TeacherId1",
-                        column: x => x.TeacherId1,
+                        name: "FK_SubjectTeachers_Employee_TeacherId",
+                        column: x => x.TeacherId,
                         principalTable: "Employee",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_SubjectTeachers_Sections_SectionId1",
-                        column: x => x.SectionId1,
+                        name: "FK_SubjectTeachers_Sections_SectionId",
+                        column: x => x.SectionId,
                         principalTable: "Sections",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_SubjectTeachers_Subjects_SubjectId1",
-                        column: x => x.SubjectId1,
+                        name: "FK_SubjectTeachers_Subjects_SubjectId",
+                        column: x => x.SubjectId,
                         principalTable: "Subjects",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -3903,77 +4471,16 @@ namespace EduOS.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "Substitutions",
-                columns: table => new
-                {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    Date = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    OriginalTeacherId = table.Column<int>(type: "int", nullable: false),
-                    SubstituteTeacherId = table.Column<int>(type: "int", nullable: false),
-                    ClassId = table.Column<int>(type: "int", nullable: false),
-                    SubjectId = table.Column<int>(type: "int", nullable: false),
-                    Period = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    Reason = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    OriginalTeacherId1 = table.Column<long>(type: "bigint", nullable: true),
-                    SubstituteTeacherId1 = table.Column<long>(type: "bigint", nullable: true),
-                    ClassId1 = table.Column<long>(type: "bigint", nullable: true),
-                    SubjectId1 = table.Column<long>(type: "bigint", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
-                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
-                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
-                    TenantId = table.Column<long>(type: "bigint", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_Substitutions", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_Substitutions_Classes_ClassId1",
-                        column: x => x.ClassId1,
-                        principalTable: "Classes",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_Substitutions_Employee_OriginalTeacherId1",
-                        column: x => x.OriginalTeacherId1,
-                        principalTable: "Employee",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_Substitutions_Employee_SubstituteTeacherId1",
-                        column: x => x.SubstituteTeacherId1,
-                        principalTable: "Employee",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_Substitutions_Subjects_SubjectId1",
-                        column: x => x.SubjectId1,
-                        principalTable: "Subjects",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_Substitutions_Tenants_TenantId",
-                        column: x => x.TenantId,
-                        principalTable: "Tenants",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                });
-
-            migrationBuilder.CreateTable(
                 name: "SurveyResponses",
                 columns: table => new
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    SurveyId = table.Column<int>(type: "int", nullable: false),
-                    QuestionId = table.Column<int>(type: "int", nullable: false),
-                    RespondentId = table.Column<int>(type: "int", nullable: true),
+                    SurveyId = table.Column<long>(type: "bigint", nullable: false),
+                    QuestionId = table.Column<long>(type: "bigint", nullable: false),
+                    RespondentId = table.Column<long>(type: "bigint", nullable: true),
                     Response = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     SubmittedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    SurveyId1 = table.Column<long>(type: "bigint", nullable: true),
-                    QuestionId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -3984,14 +4491,14 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_SurveyResponses", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_SurveyResponses_SurveyQuestions_QuestionId1",
-                        column: x => x.QuestionId1,
+                        name: "FK_SurveyResponses_SurveyQuestions_QuestionId",
+                        column: x => x.QuestionId,
                         principalTable: "SurveyQuestions",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_SurveyResponses_Surveys_SurveyId1",
-                        column: x => x.SurveyId1,
+                        name: "FK_SurveyResponses_Surveys_SurveyId",
+                        column: x => x.SurveyId,
                         principalTable: "Surveys",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -4023,8 +4530,9 @@ namespace EduOS.Persistence.Migrations
                     VerifiedByUserId = table.Column<long>(type: "bigint", nullable: true),
                     VerifiedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     VerificationNote = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
-                    GatewayResponse = table.Column<string>(type: "nvarchar(max)", maxLength: 500, nullable: true),
+                    GatewayResponse = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     FailureReason = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -4049,18 +4557,731 @@ namespace EduOS.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "AdmissionApplicants",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    PublicId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ClientRequestId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ApplicationNumber = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: false),
+                    AdmissionIntakeFormId = table.Column<long>(type: "bigint", nullable: true),
+                    CustomResponsesJson = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    AcademicYearId = table.Column<long>(type: "bigint", nullable: false),
+                    AcademicTermId = table.Column<long>(type: "bigint", nullable: true),
+                    CampusId = table.Column<long>(type: "bigint", nullable: false),
+                    AcademicUnitId = table.Column<long>(type: "bigint", nullable: false),
+                    ApplicantName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    ApplicantNameBangla = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    DateOfBirth = table.Column<DateTime>(type: "date", nullable: false),
+                    Gender = table.Column<int>(type: "int", nullable: false),
+                    PrimaryMobile = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
+                    Email = table.Column<string>(type: "nvarchar(254)", maxLength: 254, nullable: true),
+                    GuardianName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    GuardianRelation = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    GuardianMobile = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
+                    PresentAddress = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    PermanentAddress = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    PreviousInstitution = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    PreferredLanguage = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
+                    Status = table.Column<int>(type: "int", nullable: false),
+                    SubmittedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ReviewedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    ReviewedByUserId = table.Column<long>(type: "bigint", nullable: true),
+                    DecisionNote = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AdmissionApplicants", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_AdmissionApplicants_AcademicTerms_AcademicTermId",
+                        column: x => x.AcademicTermId,
+                        principalTable: "AcademicTerms",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AdmissionApplicants_AcademicYears_AcademicYearId",
+                        column: x => x.AcademicYearId,
+                        principalTable: "AcademicYears",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AdmissionApplicants_AdmissionIntakeForms_AdmissionIntakeFormId",
+                        column: x => x.AdmissionIntakeFormId,
+                        principalTable: "AdmissionIntakeForms",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AdmissionApplicants_Campuses_CampusId",
+                        column: x => x.CampusId,
+                        principalTable: "Campuses",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AdmissionApplicants_Classes_AcademicUnitId",
+                        column: x => x.AcademicUnitId,
+                        principalTable: "Classes",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AdmissionApplicants_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Admissions",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    AcademicYearId = table.Column<long>(type: "bigint", nullable: false),
+                    ClassId = table.Column<long>(type: "bigint", nullable: false),
+                    ApplicationNo = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    StudentName = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    FatherName = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    MotherName = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    DOB = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    Gender = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    Religion = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    BloodGroup = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    Phone = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    Email = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    Address = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    PhotoUrl = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    ApplicationDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    Status = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    AdmissionFee = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    Remarks = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Admissions", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Admissions_AcademicLevels_ClassId",
+                        column: x => x.ClassId,
+                        principalTable: "AcademicLevels",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Admissions_AcademicYears_AcademicYearId",
+                        column: x => x.AcademicYearId,
+                        principalTable: "AcademicYears",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Admissions_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AcademicBatches",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    CampusId = table.Column<long>(type: "bigint", nullable: false),
+                    AcademicYearId = table.Column<long>(type: "bigint", nullable: false),
+                    AcademicTermId = table.Column<long>(type: "bigint", nullable: true),
+                    AcademicProgramId = table.Column<long>(type: "bigint", nullable: false),
+                    AcademicLevelId = table.Column<long>(type: "bigint", nullable: false),
+                    AcademicTrackId = table.Column<long>(type: "bigint", nullable: true),
+                    MediumId = table.Column<long>(type: "bigint", nullable: true),
+                    ShiftId = table.Column<long>(type: "bigint", nullable: true),
+                    Name = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: false),
+                    Code = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    DeliveryMode = table.Column<int>(type: "int", nullable: false),
+                    Capacity = table.Column<int>(type: "int", nullable: false),
+                    StartDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    EndDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    IsDefault = table.Column<bool>(type: "bit", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
+                    Remarks = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AcademicBatches", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_AcademicBatches_AcademicLevels_AcademicLevelId",
+                        column: x => x.AcademicLevelId,
+                        principalTable: "AcademicLevels",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AcademicBatches_AcademicPrograms_AcademicProgramId",
+                        column: x => x.AcademicProgramId,
+                        principalTable: "AcademicPrograms",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AcademicBatches_AcademicTerms_AcademicTermId",
+                        column: x => x.AcademicTermId,
+                        principalTable: "AcademicTerms",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AcademicBatches_AcademicTracks_AcademicTrackId",
+                        column: x => x.AcademicTrackId,
+                        principalTable: "AcademicTracks",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AcademicBatches_AcademicYears_AcademicYearId",
+                        column: x => x.AcademicYearId,
+                        principalTable: "AcademicYears",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AcademicBatches_Campuses_CampusId",
+                        column: x => x.CampusId,
+                        principalTable: "Campuses",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AcademicBatches_Mediums_MediumId",
+                        column: x => x.MediumId,
+                        principalTable: "Mediums",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AcademicBatches_Shifts_ShiftId",
+                        column: x => x.ShiftId,
+                        principalTable: "Shifts",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AcademicBatches_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "CurriculumSubjects",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    AcademicCurriculumId = table.Column<long>(type: "bigint", nullable: false),
+                    AcademicLevelId = table.Column<long>(type: "bigint", nullable: false),
+                    SubjectId = table.Column<long>(type: "bigint", nullable: false),
+                    AcademicTrackId = table.Column<long>(type: "bigint", nullable: true),
+                    MediumId = table.Column<long>(type: "bigint", nullable: true),
+                    FullMarks = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    PassMarks = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    CreditHours = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    IsOptional = table.Column<bool>(type: "bit", nullable: false),
+                    HasPractical = table.Column<bool>(type: "bit", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CurriculumSubjects", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_CurriculumSubjects_AcademicCurriculums_AcademicCurriculumId",
+                        column: x => x.AcademicCurriculumId,
+                        principalTable: "AcademicCurriculums",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_CurriculumSubjects_AcademicLevels_AcademicLevelId",
+                        column: x => x.AcademicLevelId,
+                        principalTable: "AcademicLevels",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_CurriculumSubjects_AcademicTracks_AcademicTrackId",
+                        column: x => x.AcademicTrackId,
+                        principalTable: "AcademicTracks",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_CurriculumSubjects_Mediums_MediumId",
+                        column: x => x.MediumId,
+                        principalTable: "Mediums",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_CurriculumSubjects_Subjects_SubjectId",
+                        column: x => x.SubjectId,
+                        principalTable: "Subjects",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_CurriculumSubjects_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Assignments",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    PublicId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CourseId = table.Column<long>(type: "bigint", nullable: false),
+                    Title = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    TotalMark = table.Column<int>(type: "int", nullable: false),
+                    DueDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    AttachmentUrl = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Assignments", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Assignments_Courses_CourseId",
+                        column: x => x.CourseId,
+                        principalTable: "Courses",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Assignments_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Lessons",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    PublicId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CourseId = table.Column<long>(type: "bigint", nullable: false),
+                    Title = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    Content = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    VideoUrl = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    AttachmentUrl = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    OrderNo = table.Column<int>(type: "int", nullable: false),
+                    Duration = table.Column<int>(type: "int", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Lessons", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Lessons_Courses_CourseId",
+                        column: x => x.CourseId,
+                        principalTable: "Courses",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Lessons_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "OnlineExamQuestions",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    OnlineExamId = table.Column<long>(type: "bigint", nullable: false),
+                    QuestionId = table.Column<long>(type: "bigint", nullable: false),
+                    QuestionOrder = table.Column<int>(type: "int", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_OnlineExamQuestions", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_OnlineExamQuestions_OnlineExams_OnlineExamId",
+                        column: x => x.OnlineExamId,
+                        principalTable: "OnlineExams",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_OnlineExamQuestions_Questions_QuestionId",
+                        column: x => x.QuestionId,
+                        principalTable: "Questions",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AdmissionApplicantDocuments",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    PublicId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ClientRequestId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ApplicantId = table.Column<long>(type: "bigint", nullable: false),
+                    AdmissionIntakeFormId = table.Column<long>(type: "bigint", nullable: false),
+                    DocumentType = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    OriginalFileName = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: false),
+                    StorageKey = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    ContentType = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    FileSizeBytes = table.Column<long>(type: "bigint", nullable: false),
+                    Sha256 = table.Column<string>(type: "nvarchar(44)", maxLength: 44, nullable: false),
+                    VerificationStatus = table.Column<int>(type: "int", nullable: false),
+                    IsCurrent = table.Column<bool>(type: "bit", nullable: false),
+                    UploadedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ReviewedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    ReviewedByUserId = table.Column<long>(type: "bigint", nullable: true),
+                    ReviewNote = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AdmissionApplicantDocuments", x => x.Id);
+                    table.CheckConstraint("CK_AdmissionApplicantDocuments_FileSize", "[FileSizeBytes] > 0");
+                    table.CheckConstraint("CK_AdmissionApplicantDocuments_Status", "[VerificationStatus] >= 1 AND [VerificationStatus] <= 3");
+                    table.ForeignKey(
+                        name: "FK_AdmissionApplicantDocuments_AdmissionApplicants_ApplicantId",
+                        column: x => x.ApplicantId,
+                        principalTable: "AdmissionApplicants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AdmissionApplicantDocuments_AdmissionIntakeForms_AdmissionIntakeFormId",
+                        column: x => x.AdmissionIntakeFormId,
+                        principalTable: "AdmissionIntakeForms",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AdmissionApplicantDocuments_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AdmissionResults",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    AdmissionTestId = table.Column<long>(type: "bigint", nullable: false),
+                    ApplicantId = table.Column<long>(type: "bigint", nullable: false),
+                    ObtainedMarks = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    Percentage = table.Column<decimal>(type: "decimal(7,2)", precision: 7, scale: 2, nullable: false),
+                    IsPassed = table.Column<bool>(type: "bit", nullable: false),
+                    MeritPosition = table.Column<int>(type: "int", nullable: true),
+                    ResultStatus = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
+                    Grade = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
+                    Remarks = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AdmissionResults", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_AdmissionResults_AdmissionApplicants_ApplicantId",
+                        column: x => x.ApplicantId,
+                        principalTable: "AdmissionApplicants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AdmissionResults_AdmissionTests_AdmissionTestId",
+                        column: x => x.AdmissionTestId,
+                        principalTable: "AdmissionTests",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AdmissionResults_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Students",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    PublicId = table.Column<Guid>(type: "uniqueidentifier", nullable: false, defaultValueSql: "NEWSEQUENTIALID()"),
+                    UserId = table.Column<long>(type: "bigint", nullable: true),
+                    AdmissionId = table.Column<long>(type: "bigint", nullable: true),
+                    AdmissionApplicationId = table.Column<long>(type: "bigint", nullable: true),
+                    StudentCode = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    Roll = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    FullName = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    FullNameBangla = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    FatherName = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    MotherName = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    DOB = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    Gender = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    BloodGroup = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    Religion = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    Phone = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    Email = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    Address = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    BirthCertNo = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    ClassId = table.Column<long>(type: "bigint", nullable: false),
+                    SectionId = table.Column<long>(type: "bigint", nullable: false),
+                    GroupId = table.Column<long>(type: "bigint", nullable: true),
+                    AcademicYearId = table.Column<long>(type: "bigint", nullable: false),
+                    AdmissionDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    PhotoUrl = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    PreferredLanguage = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false, defaultValue: "bn-BD"),
+                    Status = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Students", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Students_AcademicYears_AcademicYearId",
+                        column: x => x.AcademicYearId,
+                        principalTable: "AcademicYears",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Students_AdmissionApplicants_AdmissionApplicationId",
+                        column: x => x.AdmissionApplicationId,
+                        principalTable: "AdmissionApplicants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Students_Admissions_AdmissionId",
+                        column: x => x.AdmissionId,
+                        principalTable: "Admissions",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Students_AspNetUsers_UserId",
+                        column: x => x.UserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Students_Classes_ClassId",
+                        column: x => x.ClassId,
+                        principalTable: "Classes",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Students_Groups_GroupId",
+                        column: x => x.GroupId,
+                        principalTable: "Groups",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Students_Sections_SectionId",
+                        column: x => x.SectionId,
+                        principalTable: "Sections",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Students_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "InstructorAssignments",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    AcademicBatchId = table.Column<long>(type: "bigint", nullable: false),
+                    SubjectId = table.Column<long>(type: "bigint", nullable: false),
+                    EmployeeId = table.Column<long>(type: "bigint", nullable: false),
+                    AcademicYearId = table.Column<long>(type: "bigint", nullable: false),
+                    AcademicTermId = table.Column<long>(type: "bigint", nullable: true),
+                    IsPrimary = table.Column<bool>(type: "bit", nullable: false),
+                    IsClassAdvisor = table.Column<bool>(type: "bit", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_InstructorAssignments", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_InstructorAssignments_AcademicBatches_AcademicBatchId",
+                        column: x => x.AcademicBatchId,
+                        principalTable: "AcademicBatches",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_InstructorAssignments_AcademicTerms_AcademicTermId",
+                        column: x => x.AcademicTermId,
+                        principalTable: "AcademicTerms",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_InstructorAssignments_AcademicYears_AcademicYearId",
+                        column: x => x.AcademicYearId,
+                        principalTable: "AcademicYears",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_InstructorAssignments_Employee_EmployeeId",
+                        column: x => x.EmployeeId,
+                        principalTable: "Employee",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_InstructorAssignments_Subjects_SubjectId",
+                        column: x => x.SubjectId,
+                        principalTable: "Subjects",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_InstructorAssignments_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "RoutineEntries",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    AcademicBatchId = table.Column<long>(type: "bigint", nullable: false),
+                    RoutineTimeSlotId = table.Column<long>(type: "bigint", nullable: false),
+                    DayOfWeek = table.Column<int>(type: "int", nullable: false),
+                    SubjectId = table.Column<long>(type: "bigint", nullable: false),
+                    EmployeeId = table.Column<long>(type: "bigint", nullable: false),
+                    RoomId = table.Column<long>(type: "bigint", nullable: true),
+                    AcademicYearId = table.Column<long>(type: "bigint", nullable: false),
+                    AcademicTermId = table.Column<long>(type: "bigint", nullable: true),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    Remarks = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_RoutineEntries", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_RoutineEntries_AcademicBatches_AcademicBatchId",
+                        column: x => x.AcademicBatchId,
+                        principalTable: "AcademicBatches",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_RoutineEntries_Employee_EmployeeId",
+                        column: x => x.EmployeeId,
+                        principalTable: "Employee",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_RoutineEntries_RoutineTimeSlots_RoutineTimeSlotId",
+                        column: x => x.RoutineTimeSlotId,
+                        principalTable: "RoutineTimeSlots",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_RoutineEntries_Subjects_SubjectId",
+                        column: x => x.SubjectId,
+                        principalTable: "Subjects",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_RoutineEntries_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "AdmitCards",
                 columns: table => new
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    ExamId = table.Column<int>(type: "int", nullable: false),
-                    StudentId = table.Column<int>(type: "int", nullable: false),
+                    ExamId = table.Column<long>(type: "bigint", nullable: false),
+                    StudentId = table.Column<long>(type: "bigint", nullable: false),
                     AdmitNo = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     IssueDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     IsIssued = table.Column<bool>(type: "bit", nullable: false),
-                    ExamId1 = table.Column<long>(type: "bigint", nullable: true),
-                    StudentId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -4072,14 +5293,14 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_AdmitCards", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_AdmitCards_Exams_ExamId1",
-                        column: x => x.ExamId1,
+                        name: "FK_AdmitCards_Exams_ExamId",
+                        column: x => x.ExamId,
                         principalTable: "Exams",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_AdmitCards_Students_StudentId1",
-                        column: x => x.StudentId1,
+                        name: "FK_AdmitCards_Students_StudentId",
+                        column: x => x.StudentId,
                         principalTable: "Students",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -4092,12 +5313,60 @@ namespace EduOS.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "AssignmentSubmissions",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    PublicId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ClientRequestId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    AssignmentId = table.Column<long>(type: "bigint", nullable: false),
+                    StudentId = table.Column<long>(type: "bigint", nullable: false),
+                    SubmissionFile = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    SubmissionText = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    SubmittedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    Mark = table.Column<decimal>(type: "decimal(18,2)", nullable: true),
+                    Feedback = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    Status = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    ReviewedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    ReviewedByUserId = table.Column<long>(type: "bigint", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AssignmentSubmissions", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_AssignmentSubmissions_Assignments_AssignmentId",
+                        column: x => x.AssignmentId,
+                        principalTable: "Assignments",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AssignmentSubmissions_Students_StudentId",
+                        column: x => x.StudentId,
+                        principalTable: "Students",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AssignmentSubmissions_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "BehaviorRecords",
                 columns: table => new
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    StudentId = table.Column<int>(type: "int", nullable: false),
+                    StudentId = table.Column<long>(type: "bigint", nullable: false),
                     Date = table.Column<DateTime>(type: "datetime2", nullable: false),
                     Type = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Title = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
@@ -4105,7 +5374,6 @@ namespace EduOS.Persistence.Migrations
                     Action = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     ReportedBy = table.Column<int>(type: "int", nullable: false),
                     ParentNotified = table.Column<bool>(type: "bit", nullable: false),
-                    StudentId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -4117,8 +5385,8 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_BehaviorRecords", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_BehaviorRecords_Students_StudentId1",
-                        column: x => x.StudentId1,
+                        name: "FK_BehaviorRecords_Students_StudentId",
+                        column: x => x.StudentId,
                         principalTable: "Students",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -4136,17 +5404,19 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    BookId = table.Column<int>(type: "int", nullable: false),
-                    StudentId = table.Column<int>(type: "int", nullable: true),
-                    EmployeeId = table.Column<int>(type: "int", nullable: true),
+                    PublicId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ClientRequestId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    BookId = table.Column<long>(type: "bigint", nullable: false),
+                    StudentId = table.Column<long>(type: "bigint", nullable: true),
+                    EmployeeId = table.Column<long>(type: "bigint", nullable: true),
                     IssueDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     ReturnDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     ActualReturnDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     FineAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     Status = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    BookId1 = table.Column<long>(type: "bigint", nullable: true),
-                    StudentId1 = table.Column<long>(type: "bigint", nullable: true),
-                    EmployeeId1 = table.Column<long>(type: "bigint", nullable: true),
+                    IssuedByUserId = table.Column<long>(type: "bigint", nullable: true),
+                    ReturnedByUserId = table.Column<long>(type: "bigint", nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -4158,20 +5428,20 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_BookIssues", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_BookIssues_Books_BookId1",
-                        column: x => x.BookId1,
+                        name: "FK_BookIssues_Books_BookId",
+                        column: x => x.BookId,
                         principalTable: "Books",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_BookIssues_Employee_EmployeeId1",
-                        column: x => x.EmployeeId1,
+                        name: "FK_BookIssues_Employee_EmployeeId",
+                        column: x => x.EmployeeId,
                         principalTable: "Employee",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_BookIssues_Students_StudentId1",
-                        column: x => x.StudentId1,
+                        name: "FK_BookIssues_Students_StudentId",
+                        column: x => x.StudentId,
                         principalTable: "Students",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -4184,24 +5454,64 @@ namespace EduOS.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "CourseEnrollment",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    CourseId = table.Column<long>(type: "bigint", nullable: false),
+                    StudentId = table.Column<long>(type: "bigint", nullable: false),
+                    EnrollDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    ProgressPercentage = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    CompletedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CourseEnrollment", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_CourseEnrollment_Courses_CourseId",
+                        column: x => x.CourseId,
+                        principalTable: "Courses",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_CourseEnrollment_Students_StudentId",
+                        column: x => x.StudentId,
+                        principalTable: "Students",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_CourseEnrollment_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Enrollments",
                 columns: table => new
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    StudentId = table.Column<int>(type: "int", nullable: false),
-                    AcademicYearId = table.Column<int>(type: "int", nullable: false),
-                    ClassId = table.Column<int>(type: "int", nullable: false),
-                    SectionId = table.Column<int>(type: "int", nullable: false),
-                    GroupId = table.Column<int>(type: "int", nullable: true),
+                    StudentId = table.Column<long>(type: "bigint", nullable: false),
+                    AcademicYearId = table.Column<long>(type: "bigint", nullable: false),
+                    ClassId = table.Column<long>(type: "bigint", nullable: false),
+                    SectionId = table.Column<long>(type: "bigint", nullable: false),
+                    GroupId = table.Column<long>(type: "bigint", nullable: true),
+                    CampusId = table.Column<long>(type: "bigint", nullable: true),
+                    AcademicTermId = table.Column<long>(type: "bigint", nullable: true),
                     Roll = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     EnrollmentDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    StudentId1 = table.Column<long>(type: "bigint", nullable: true),
-                    AcademicYearId1 = table.Column<long>(type: "bigint", nullable: true),
-                    ClassId1 = table.Column<long>(type: "bigint", nullable: true),
-                    SectionId1 = table.Column<long>(type: "bigint", nullable: true),
-                    GroupId1 = table.Column<long>(type: "bigint", nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -4213,32 +5523,44 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_Enrollments", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Enrollments_AcademicYears_AcademicYearId1",
-                        column: x => x.AcademicYearId1,
+                        name: "FK_Enrollments_AcademicTerms_AcademicTermId",
+                        column: x => x.AcademicTermId,
+                        principalTable: "AcademicTerms",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Enrollments_AcademicYears_AcademicYearId",
+                        column: x => x.AcademicYearId,
                         principalTable: "AcademicYears",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Enrollments_Classes_ClassId1",
-                        column: x => x.ClassId1,
+                        name: "FK_Enrollments_Campuses_CampusId",
+                        column: x => x.CampusId,
+                        principalTable: "Campuses",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Enrollments_Classes_ClassId",
+                        column: x => x.ClassId,
                         principalTable: "Classes",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Enrollments_Groups_GroupId1",
-                        column: x => x.GroupId1,
+                        name: "FK_Enrollments_Groups_GroupId",
+                        column: x => x.GroupId,
                         principalTable: "Groups",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Enrollments_Sections_SectionId1",
-                        column: x => x.SectionId1,
+                        name: "FK_Enrollments_Sections_SectionId",
+                        column: x => x.SectionId,
                         principalTable: "Sections",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Enrollments_Students_StudentId1",
-                        column: x => x.StudentId1,
+                        name: "FK_Enrollments_Students_StudentId",
+                        column: x => x.StudentId,
                         principalTable: "Students",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -4256,15 +5578,22 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    ExamId = table.Column<int>(type: "int", nullable: false),
-                    StudentId = table.Column<int>(type: "int", nullable: false),
+                    ExamId = table.Column<long>(type: "bigint", nullable: false),
+                    StudentId = table.Column<long>(type: "bigint", nullable: false),
+                    AcademicYearId = table.Column<long>(type: "bigint", nullable: false),
+                    ClassId = table.Column<long>(type: "bigint", nullable: false),
+                    SectionId = table.Column<long>(type: "bigint", nullable: false),
+                    GroupId = table.Column<long>(type: "bigint", nullable: true),
                     TotalMark = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    TotalFullMark = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    Percentage = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     TotalGPA = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     FinalGrade = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     Position = table.Column<int>(type: "int", nullable: true),
                     IsPassed = table.Column<bool>(type: "bit", nullable: false),
-                    ExamId1 = table.Column<long>(type: "bigint", nullable: true),
-                    StudentId1 = table.Column<long>(type: "bigint", nullable: true),
+                    IsPublished = table.Column<bool>(type: "bit", nullable: false),
+                    PublishedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    PublishedByUserId = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -4276,14 +5605,14 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_ExamResults", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_ExamResults_Exams_ExamId1",
-                        column: x => x.ExamId1,
+                        name: "FK_ExamResults_Exams_ExamId",
+                        column: x => x.ExamId,
                         principalTable: "Exams",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_ExamResults_Students_StudentId1",
-                        column: x => x.StudentId1,
+                        name: "FK_ExamResults_Students_StudentId",
+                        column: x => x.StudentId,
                         principalTable: "Students",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -4301,9 +5630,11 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
+                    PublicId = table.Column<Guid>(type: "uniqueidentifier", nullable: false, defaultValueSql: "NEWSEQUENTIALID()"),
                     StudentId = table.Column<long>(type: "bigint", nullable: false),
                     UserId = table.Column<long>(type: "bigint", nullable: true),
                     Name = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    NameBangla = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
                     Relation = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Phone = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Email = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
@@ -4312,6 +5643,7 @@ namespace EduOS.Persistence.Migrations
                     MonthlyIncome = table.Column<decimal>(type: "decimal(18,2)", nullable: true),
                     Address = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     IsPrimary = table.Column<bool>(type: "bit", nullable: false),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -4348,7 +5680,7 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    StudentId = table.Column<int>(type: "int", nullable: false),
+                    StudentId = table.Column<long>(type: "bigint", nullable: false),
                     BloodGroup = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     Height = table.Column<decimal>(type: "decimal(18,2)", nullable: true),
                     Weight = table.Column<decimal>(type: "decimal(18,2)", nullable: true),
@@ -4358,7 +5690,6 @@ namespace EduOS.Persistence.Migrations
                     EmergencyContact = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     LastCheckupDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     Notes = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    StudentId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -4370,8 +5701,8 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_HealthRecords", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_HealthRecords_Students_StudentId1",
-                        column: x => x.StudentId1,
+                        name: "FK_HealthRecords_Students_StudentId",
+                        column: x => x.StudentId,
                         principalTable: "Students",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -4384,21 +5715,62 @@ namespace EduOS.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "HomeworkSubmissions",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    HomeworkId = table.Column<long>(type: "bigint", nullable: false),
+                    StudentId = table.Column<long>(type: "bigint", nullable: false),
+                    SubmittedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    FileUrl = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    Status = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    Feedback = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    Mark = table.Column<decimal>(type: "decimal(18,2)", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_HomeworkSubmissions", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_HomeworkSubmissions_Homeworks_HomeworkId",
+                        column: x => x.HomeworkId,
+                        principalTable: "Homeworks",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_HomeworkSubmissions_Students_StudentId",
+                        column: x => x.StudentId,
+                        principalTable: "Students",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_HomeworkSubmissions_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "IdCards",
                 columns: table => new
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    StudentId = table.Column<int>(type: "int", nullable: true),
-                    EmployeeId = table.Column<int>(type: "int", nullable: true),
+                    StudentId = table.Column<long>(type: "bigint", nullable: true),
+                    EmployeeId = table.Column<long>(type: "bigint", nullable: true),
                     CardNo = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     IssueDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     ExpiryDate = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    TemplateId = table.Column<int>(type: "int", nullable: true),
+                    TemplateId = table.Column<long>(type: "bigint", nullable: true),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    StudentId1 = table.Column<long>(type: "bigint", nullable: true),
-                    EmployeeId1 = table.Column<long>(type: "bigint", nullable: true),
-                    TemplateId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -4410,20 +5782,20 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_IdCards", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_IdCards_DocumentTemplates_TemplateId1",
-                        column: x => x.TemplateId1,
+                        name: "FK_IdCards_DocumentTemplates_TemplateId",
+                        column: x => x.TemplateId,
                         principalTable: "DocumentTemplates",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_IdCards_Employee_EmployeeId1",
-                        column: x => x.EmployeeId1,
+                        name: "FK_IdCards_Employee_EmployeeId",
+                        column: x => x.EmployeeId,
                         principalTable: "Employee",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_IdCards_Students_StudentId1",
-                        column: x => x.StudentId1,
+                        name: "FK_IdCards_Students_StudentId",
+                        column: x => x.StudentId,
                         principalTable: "Students",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -4436,24 +5808,68 @@ namespace EduOS.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "LearnerConsentRequests",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    PublicId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    PersonId = table.Column<long>(type: "bigint", nullable: false),
+                    RequestedStudentId = table.Column<long>(type: "bigint", nullable: false),
+                    RequestedByUserId = table.Column<long>(type: "bigint", nullable: false),
+                    Purpose = table.Column<int>(type: "int", nullable: false),
+                    RequestedScopes = table.Column<int>(type: "int", nullable: false),
+                    Status = table.Column<int>(type: "int", nullable: false),
+                    ExpiresAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ResolvedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    ResolvedByUserId = table.Column<long>(type: "bigint", nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_LearnerConsentRequests", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_LearnerConsentRequests_Persons_PersonId",
+                        column: x => x.PersonId,
+                        principalTable: "Persons",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_LearnerConsentRequests_Students_RequestedStudentId",
+                        column: x => x.RequestedStudentId,
+                        principalTable: "Students",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_LearnerConsentRequests_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "MarkEntries",
                 columns: table => new
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    ExamId = table.Column<int>(type: "int", nullable: false),
-                    StudentId = table.Column<int>(type: "int", nullable: false),
-                    SubjectId = table.Column<int>(type: "int", nullable: false),
+                    ExamId = table.Column<long>(type: "bigint", nullable: false),
+                    StudentId = table.Column<long>(type: "bigint", nullable: false),
+                    SubjectId = table.Column<long>(type: "bigint", nullable: false),
                     ObtainedMark = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     FullMark = table.Column<int>(type: "int", nullable: false),
                     IsAbsent = table.Column<bool>(type: "bit", nullable: false),
                     Grade = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     GPA = table.Column<decimal>(type: "decimal(18,2)", nullable: true),
-                    EnteredBy = table.Column<int>(type: "int", nullable: false),
+                    EnteredBy = table.Column<long>(type: "bigint", nullable: false),
                     EntryDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    ExamId1 = table.Column<long>(type: "bigint", nullable: true),
-                    StudentId1 = table.Column<long>(type: "bigint", nullable: true),
-                    SubjectId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -4465,20 +5881,20 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_MarkEntries", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_MarkEntries_Exams_ExamId1",
-                        column: x => x.ExamId1,
+                        name: "FK_MarkEntries_Exams_ExamId",
+                        column: x => x.ExamId,
                         principalTable: "Exams",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_MarkEntries_Students_StudentId1",
-                        column: x => x.StudentId1,
+                        name: "FK_MarkEntries_Students_StudentId",
+                        column: x => x.StudentId,
                         principalTable: "Students",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_MarkEntries_Subjects_SubjectId1",
-                        column: x => x.SubjectId1,
+                        name: "FK_MarkEntries_Subjects_SubjectId",
+                        column: x => x.SubjectId,
                         principalTable: "Subjects",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -4491,23 +5907,53 @@ namespace EduOS.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "OnlineExamAttempts",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    OnlineExamId = table.Column<long>(type: "bigint", nullable: false),
+                    StudentId = table.Column<long>(type: "bigint", nullable: false),
+                    StartedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    SubmittedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    TotalScore = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    Status = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_OnlineExamAttempts", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_OnlineExamAttempts_OnlineExams_OnlineExamId",
+                        column: x => x.OnlineExamId,
+                        principalTable: "OnlineExams",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_OnlineExamAttempts_Students_StudentId",
+                        column: x => x.StudentId,
+                        principalTable: "Students",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Promotions",
                 columns: table => new
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    StudentId = table.Column<int>(type: "int", nullable: false),
-                    FromClassId = table.Column<int>(type: "int", nullable: false),
-                    ToClassId = table.Column<int>(type: "int", nullable: false),
-                    FromYearId = table.Column<int>(type: "int", nullable: false),
-                    ToYearId = table.Column<int>(type: "int", nullable: false),
+                    StudentId = table.Column<long>(type: "bigint", nullable: false),
+                    FromClassId = table.Column<long>(type: "bigint", nullable: false),
+                    ToClassId = table.Column<long>(type: "bigint", nullable: false),
+                    FromYearId = table.Column<long>(type: "bigint", nullable: false),
+                    ToYearId = table.Column<long>(type: "bigint", nullable: false),
                     Status = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     PromotionDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    StudentId1 = table.Column<long>(type: "bigint", nullable: true),
-                    FromClassId1 = table.Column<long>(type: "bigint", nullable: true),
-                    ToClassId1 = table.Column<long>(type: "bigint", nullable: true),
-                    FromYearId1 = table.Column<long>(type: "bigint", nullable: true),
-                    ToYearId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -4519,32 +5965,32 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_Promotions", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Promotions_AcademicYears_FromYearId1",
-                        column: x => x.FromYearId1,
+                        name: "FK_Promotions_AcademicYears_FromYearId",
+                        column: x => x.FromYearId,
                         principalTable: "AcademicYears",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Promotions_AcademicYears_ToYearId1",
-                        column: x => x.ToYearId1,
+                        name: "FK_Promotions_AcademicYears_ToYearId",
+                        column: x => x.ToYearId,
                         principalTable: "AcademicYears",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Promotions_Classes_FromClassId1",
-                        column: x => x.FromClassId1,
+                        name: "FK_Promotions_Classes_FromClassId",
+                        column: x => x.FromClassId,
                         principalTable: "Classes",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Promotions_Classes_ToClassId1",
-                        column: x => x.ToClassId1,
+                        name: "FK_Promotions_Classes_ToClassId",
+                        column: x => x.ToClassId,
                         principalTable: "Classes",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Promotions_Students_StudentId1",
-                        column: x => x.StudentId1,
+                        name: "FK_Promotions_Students_StudentId",
+                        column: x => x.StudentId,
                         principalTable: "Students",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -4557,23 +6003,66 @@ namespace EduOS.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "SeatPlans",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    ExamScheduleId = table.Column<long>(type: "bigint", nullable: false),
+                    StudentId = table.Column<long>(type: "bigint", nullable: false),
+                    HallId = table.Column<long>(type: "bigint", nullable: false),
+                    SeatNo = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SeatPlans", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_SeatPlans_ExamHalls_HallId",
+                        column: x => x.HallId,
+                        principalTable: "ExamHalls",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_SeatPlans_ExamSchedules_ExamScheduleId",
+                        column: x => x.ExamScheduleId,
+                        principalTable: "ExamSchedules",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_SeatPlans_Students_StudentId",
+                        column: x => x.StudentId,
+                        principalTable: "Students",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_SeatPlans_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "StudentAttendances",
                 columns: table => new
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    StudentId = table.Column<int>(type: "int", nullable: false),
-                    ClassId = table.Column<int>(type: "int", nullable: false),
-                    SectionId = table.Column<int>(type: "int", nullable: false),
-                    Date = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    Status = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    StudentId = table.Column<long>(type: "bigint", nullable: false),
+                    ClassId = table.Column<long>(type: "bigint", nullable: false),
+                    SectionId = table.Column<long>(type: "bigint", nullable: false),
+                    Date = table.Column<DateTime>(type: "date", nullable: false),
+                    Status = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
                     InTime = table.Column<TimeSpan>(type: "time", nullable: true),
                     OutTime = table.Column<TimeSpan>(type: "time", nullable: true),
                     Remarks = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    MarkedBy = table.Column<int>(type: "int", nullable: false),
-                    StudentId1 = table.Column<long>(type: "bigint", nullable: true),
-                    ClassId1 = table.Column<long>(type: "bigint", nullable: true),
-                    SectionId1 = table.Column<long>(type: "bigint", nullable: true),
+                    MarkedBy = table.Column<long>(type: "bigint", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -4584,21 +6073,23 @@ namespace EduOS.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_StudentAttendances", x => x.Id);
+                    table.CheckConstraint("CK_StudentAttendances_Status", "[Status] IN ('Present','Absent','Late','Leave')");
+                    table.CheckConstraint("CK_StudentAttendances_TimeRange", "[OutTime] IS NULL OR [InTime] IS NULL OR [OutTime] >= [InTime]");
                     table.ForeignKey(
-                        name: "FK_StudentAttendances_Classes_ClassId1",
-                        column: x => x.ClassId1,
+                        name: "FK_StudentAttendances_Classes_ClassId",
+                        column: x => x.ClassId,
                         principalTable: "Classes",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_StudentAttendances_Sections_SectionId1",
-                        column: x => x.SectionId1,
+                        name: "FK_StudentAttendances_Sections_SectionId",
+                        column: x => x.SectionId,
                         principalTable: "Sections",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_StudentAttendances_Students_StudentId1",
-                        column: x => x.StudentId1,
+                        name: "FK_StudentAttendances_Students_StudentId",
+                        column: x => x.StudentId,
                         principalTable: "Students",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -4616,14 +6107,12 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    StudentId = table.Column<int>(type: "int", nullable: false),
-                    DiscountId = table.Column<int>(type: "int", nullable: false),
+                    StudentId = table.Column<long>(type: "bigint", nullable: false),
+                    DiscountId = table.Column<long>(type: "bigint", nullable: false),
                     StartDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     EndDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     Reason = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    ApprovedBy = table.Column<int>(type: "int", nullable: false),
-                    StudentId1 = table.Column<long>(type: "bigint", nullable: true),
-                    DiscountId1 = table.Column<long>(type: "bigint", nullable: true),
+                    ApprovedBy = table.Column<long>(type: "bigint", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -4635,14 +6124,14 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_StudentDiscounts", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_StudentDiscounts_Discounts_DiscountId1",
-                        column: x => x.DiscountId1,
+                        name: "FK_StudentDiscounts_Discounts_DiscountId",
+                        column: x => x.DiscountId,
                         principalTable: "Discounts",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_StudentDiscounts_Students_StudentId1",
-                        column: x => x.StudentId1,
+                        name: "FK_StudentDiscounts_Students_StudentId",
+                        column: x => x.StudentId,
                         principalTable: "Students",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -4655,22 +6144,128 @@ namespace EduOS.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "StudentEnrollments",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    ClientRequestId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    StudentId = table.Column<long>(type: "bigint", nullable: false),
+                    CampusId = table.Column<long>(type: "bigint", nullable: false),
+                    AcademicYearId = table.Column<long>(type: "bigint", nullable: false),
+                    AcademicTermId = table.Column<long>(type: "bigint", nullable: true),
+                    AcademicProgramId = table.Column<long>(type: "bigint", nullable: false),
+                    AcademicLevelId = table.Column<long>(type: "bigint", nullable: false),
+                    AcademicBatchId = table.Column<long>(type: "bigint", nullable: false),
+                    AcademicCurriculumId = table.Column<long>(type: "bigint", nullable: false),
+                    MediumId = table.Column<long>(type: "bigint", nullable: true),
+                    ShiftId = table.Column<long>(type: "bigint", nullable: true),
+                    AcademicTrackId = table.Column<long>(type: "bigint", nullable: true),
+                    RollNo = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    EnrollmentDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    EnrollmentStatus = table.Column<int>(type: "int", nullable: false),
+                    IsCurrent = table.Column<bool>(type: "bit", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    Remarks = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_StudentEnrollments", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_StudentEnrollments_AcademicBatches_AcademicBatchId",
+                        column: x => x.AcademicBatchId,
+                        principalTable: "AcademicBatches",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentEnrollments_AcademicCurriculums_AcademicCurriculumId",
+                        column: x => x.AcademicCurriculumId,
+                        principalTable: "AcademicCurriculums",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentEnrollments_AcademicLevels_AcademicLevelId",
+                        column: x => x.AcademicLevelId,
+                        principalTable: "AcademicLevels",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentEnrollments_AcademicPrograms_AcademicProgramId",
+                        column: x => x.AcademicProgramId,
+                        principalTable: "AcademicPrograms",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentEnrollments_AcademicTerms_AcademicTermId",
+                        column: x => x.AcademicTermId,
+                        principalTable: "AcademicTerms",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentEnrollments_AcademicTracks_AcademicTrackId",
+                        column: x => x.AcademicTrackId,
+                        principalTable: "AcademicTracks",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentEnrollments_AcademicYears_AcademicYearId",
+                        column: x => x.AcademicYearId,
+                        principalTable: "AcademicYears",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentEnrollments_Campuses_CampusId",
+                        column: x => x.CampusId,
+                        principalTable: "Campuses",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentEnrollments_Mediums_MediumId",
+                        column: x => x.MediumId,
+                        principalTable: "Mediums",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentEnrollments_Shifts_ShiftId",
+                        column: x => x.ShiftId,
+                        principalTable: "Shifts",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentEnrollments_Students_StudentId",
+                        column: x => x.StudentId,
+                        principalTable: "Students",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentEnrollments_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "StudentHostels",
                 columns: table => new
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    StudentId = table.Column<int>(type: "int", nullable: false),
-                    HostelId = table.Column<int>(type: "int", nullable: false),
-                    HostelRoomId = table.Column<int>(type: "int", nullable: false),
+                    StudentId = table.Column<long>(type: "bigint", nullable: false),
+                    HostelId = table.Column<long>(type: "bigint", nullable: false),
+                    HostelRoomId = table.Column<long>(type: "bigint", nullable: false),
                     BedNo = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     StartDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     EndDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     MonthlyRent = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    StudentId1 = table.Column<long>(type: "bigint", nullable: true),
-                    HostelId1 = table.Column<long>(type: "bigint", nullable: true),
-                    HostelRoomId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -4682,20 +6277,20 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_StudentHostels", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_StudentHostels_HostelRooms_HostelRoomId1",
-                        column: x => x.HostelRoomId1,
+                        name: "FK_StudentHostels_HostelRooms_HostelRoomId",
+                        column: x => x.HostelRoomId,
                         principalTable: "HostelRooms",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_StudentHostels_Hostels_HostelId1",
-                        column: x => x.HostelId1,
+                        name: "FK_StudentHostels_Hostels_HostelId",
+                        column: x => x.HostelId,
                         principalTable: "Hostels",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_StudentHostels_Students_StudentId1",
-                        column: x => x.StudentId1,
+                        name: "FK_StudentHostels_Students_StudentId",
+                        column: x => x.StudentId,
                         principalTable: "Students",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -4713,7 +6308,13 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    StudentId = table.Column<int>(type: "int", nullable: false),
+                    PublicId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    GenerationRequestId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    BillingKey = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    StudentId = table.Column<long>(type: "bigint", nullable: false),
+                    AcademicYearId = table.Column<long>(type: "bigint", nullable: false),
+                    ClassId = table.Column<long>(type: "bigint", nullable: false),
+                    SectionId = table.Column<long>(type: "bigint", nullable: false),
                     InvoiceNo = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Month = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Year = table.Column<int>(type: "int", nullable: false),
@@ -4725,7 +6326,7 @@ namespace EduOS.Persistence.Migrations
                     Status = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     DueDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    StudentId1 = table.Column<long>(type: "bigint", nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -4737,8 +6338,8 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_StudentInvoices", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_StudentInvoices_Students_StudentId1",
-                        column: x => x.StudentId1,
+                        name: "FK_StudentInvoices_Students_StudentId",
+                        column: x => x.StudentId,
                         principalTable: "Students",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -4751,22 +6352,63 @@ namespace EduOS.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "StudentPersonLinks",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    StudentId = table.Column<long>(type: "bigint", nullable: false),
+                    PersonId = table.Column<long>(type: "bigint", nullable: false),
+                    Status = table.Column<int>(type: "int", nullable: false),
+                    LinkedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    LinkedByUserId = table.Column<long>(type: "bigint", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_StudentPersonLinks", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_StudentPersonLinks_Persons_PersonId",
+                        column: x => x.PersonId,
+                        principalTable: "Persons",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentPersonLinks_Students_StudentId",
+                        column: x => x.StudentId,
+                        principalTable: "Students",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentPersonLinks_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "StudentTransports",
                 columns: table => new
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    StudentId = table.Column<int>(type: "int", nullable: false),
-                    VehicleId = table.Column<int>(type: "int", nullable: false),
-                    RouteId = table.Column<int>(type: "int", nullable: false),
+                    PublicId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ClientRequestId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    StudentId = table.Column<long>(type: "bigint", nullable: false),
+                    VehicleId = table.Column<long>(type: "bigint", nullable: false),
+                    RouteId = table.Column<long>(type: "bigint", nullable: false),
                     PickupPoint = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     StartDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     EndDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     MonthlyFare = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    StudentId1 = table.Column<long>(type: "bigint", nullable: true),
-                    VehicleId1 = table.Column<long>(type: "bigint", nullable: true),
-                    RouteId1 = table.Column<long>(type: "bigint", nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -4778,14 +6420,14 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_StudentTransports", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_StudentTransports_Routes_RouteId1",
-                        column: x => x.RouteId1,
+                        name: "FK_StudentTransports_Routes_RouteId",
+                        column: x => x.RouteId,
                         principalTable: "Routes",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_StudentTransports_Students_StudentId1",
-                        column: x => x.StudentId1,
+                        name: "FK_StudentTransports_Students_StudentId",
+                        column: x => x.StudentId,
                         principalTable: "Students",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -4796,8 +6438,8 @@ namespace EduOS.Persistence.Migrations
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_StudentTransports_Vehicles_VehicleId1",
-                        column: x => x.VehicleId1,
+                        name: "FK_StudentTransports_Vehicles_VehicleId",
+                        column: x => x.VehicleId,
                         principalTable: "Vehicles",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -4809,18 +6451,14 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    ExamId = table.Column<int>(type: "int", nullable: false),
-                    ClassId = table.Column<int>(type: "int", nullable: false),
-                    SectionId = table.Column<int>(type: "int", nullable: false),
-                    StudentId = table.Column<int>(type: "int", nullable: false),
+                    ExamId = table.Column<long>(type: "bigint", nullable: false),
+                    ClassId = table.Column<long>(type: "bigint", nullable: false),
+                    SectionId = table.Column<long>(type: "bigint", nullable: false),
+                    StudentId = table.Column<long>(type: "bigint", nullable: false),
                     TotalMarks = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     TotalGPA = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     Position = table.Column<int>(type: "int", nullable: true),
                     Result = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    ExamId1 = table.Column<long>(type: "bigint", nullable: true),
-                    ClassId1 = table.Column<long>(type: "bigint", nullable: true),
-                    SectionId1 = table.Column<long>(type: "bigint", nullable: true),
-                    StudentId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -4832,26 +6470,26 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_Tabulations", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Tabulations_Classes_ClassId1",
-                        column: x => x.ClassId1,
-                        principalTable: "Classes",
+                        name: "FK_Tabulations_AcademicBatches_SectionId",
+                        column: x => x.SectionId,
+                        principalTable: "AcademicBatches",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Tabulations_Exams_ExamId1",
-                        column: x => x.ExamId1,
+                        name: "FK_Tabulations_AcademicLevels_ClassId",
+                        column: x => x.ClassId,
+                        principalTable: "AcademicLevels",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Tabulations_Exams_ExamId",
+                        column: x => x.ExamId,
                         principalTable: "Exams",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Tabulations_Sections_SectionId1",
-                        column: x => x.SectionId1,
-                        principalTable: "Sections",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_Tabulations_Students_StudentId1",
-                        column: x => x.StudentId1,
+                        name: "FK_Tabulations_Students_StudentId",
+                        column: x => x.StudentId,
                         principalTable: "Students",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -4869,16 +6507,19 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    StudentId = table.Column<int>(type: "int", nullable: false),
+                    PublicId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ClientRequestId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    StudentId = table.Column<long>(type: "bigint", nullable: false),
                     TcNo = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     IssueDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     Reason = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    LastClassId = table.Column<int>(type: "int", nullable: false),
+                    LastClassId = table.Column<long>(type: "bigint", nullable: false),
+                    LastSectionId = table.Column<long>(type: "bigint", nullable: false),
+                    LastAcademicYearId = table.Column<long>(type: "bigint", nullable: false),
+                    LastRoll = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     ConductRemark = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     FeesCleared = table.Column<bool>(type: "bit", nullable: false),
-                    IssuedBy = table.Column<int>(type: "int", nullable: false),
-                    StudentId1 = table.Column<long>(type: "bigint", nullable: true),
-                    LastClassId1 = table.Column<long>(type: "bigint", nullable: true),
+                    IssuedBy = table.Column<long>(type: "bigint", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -4890,14 +6531,14 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_TransferCertificates", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_TransferCertificates_Classes_LastClassId1",
-                        column: x => x.LastClassId1,
+                        name: "FK_TransferCertificates_Classes_LastClassId",
+                        column: x => x.LastClassId,
                         principalTable: "Classes",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_TransferCertificates_Students_StudentId1",
-                        column: x => x.StudentId1,
+                        name: "FK_TransferCertificates_Students_StudentId",
+                        column: x => x.StudentId,
                         principalTable: "Students",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -4910,243 +6551,596 @@ namespace EduOS.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "Assignments",
+                name: "LessonPlans",
                 columns: table => new
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    CourseId = table.Column<int>(type: "int", nullable: false),
-                    Title = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    TotalMark = table.Column<int>(type: "int", nullable: false),
-                    DueDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    AttachmentUrl = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    CourseId1 = table.Column<long>(type: "bigint", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
-                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
-                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
-                    TenantId = table.Column<long>(type: "bigint", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_Assignments", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_Assignments_Courses_CourseId1",
-                        column: x => x.CourseId1,
-                        principalTable: "Courses",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_Assignments_Tenants_TenantId",
-                        column: x => x.TenantId,
-                        principalTable: "Tenants",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "Lessons",
-                columns: table => new
-                {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    CourseId = table.Column<int>(type: "int", nullable: false),
-                    Title = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    Content = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    VideoUrl = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    AttachmentUrl = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    OrderNo = table.Column<int>(type: "int", nullable: false),
-                    Duration = table.Column<int>(type: "int", nullable: false),
-                    CourseId1 = table.Column<long>(type: "bigint", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
-                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
-                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
-                    TenantId = table.Column<long>(type: "bigint", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_Lessons", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_Lessons_Courses_CourseId1",
-                        column: x => x.CourseId1,
-                        principalTable: "Courses",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_Lessons_Tenants_TenantId",
-                        column: x => x.TenantId,
-                        principalTable: "Tenants",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "SeatPlans",
-                columns: table => new
-                {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    ExamScheduleId = table.Column<int>(type: "int", nullable: false),
-                    StudentId = table.Column<int>(type: "int", nullable: false),
-                    HallId = table.Column<int>(type: "int", nullable: false),
-                    SeatNo = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    ExamScheduleId1 = table.Column<long>(type: "bigint", nullable: true),
-                    StudentId1 = table.Column<long>(type: "bigint", nullable: true),
-                    HallId1 = table.Column<long>(type: "bigint", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
-                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
-                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
-                    TenantId = table.Column<long>(type: "bigint", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_SeatPlans", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_SeatPlans_ExamHalls_HallId1",
-                        column: x => x.HallId1,
-                        principalTable: "ExamHalls",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_SeatPlans_ExamSchedules_ExamScheduleId1",
-                        column: x => x.ExamScheduleId1,
-                        principalTable: "ExamSchedules",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_SeatPlans_Students_StudentId1",
-                        column: x => x.StudentId1,
-                        principalTable: "Students",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_SeatPlans_Tenants_TenantId",
-                        column: x => x.TenantId,
-                        principalTable: "Tenants",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "HomeworkSubmissions",
-                columns: table => new
-                {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    HomeworkId = table.Column<int>(type: "int", nullable: false),
-                    StudentId = table.Column<int>(type: "int", nullable: false),
-                    SubmittedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    FileUrl = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    Status = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    Feedback = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    Mark = table.Column<decimal>(type: "decimal(18,2)", nullable: true),
-                    HomeworkId1 = table.Column<long>(type: "bigint", nullable: true),
-                    StudentId1 = table.Column<long>(type: "bigint", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
-                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
-                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
-                    TenantId = table.Column<long>(type: "bigint", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_HomeworkSubmissions", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_HomeworkSubmissions_Homeworks_HomeworkId1",
-                        column: x => x.HomeworkId1,
-                        principalTable: "Homeworks",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_HomeworkSubmissions_Students_StudentId1",
-                        column: x => x.StudentId1,
-                        principalTable: "Students",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_HomeworkSubmissions_Tenants_TenantId",
-                        column: x => x.TenantId,
-                        principalTable: "Tenants",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "OnlineExamAttempts",
-                columns: table => new
-                {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    OnlineExamId = table.Column<int>(type: "int", nullable: false),
-                    StudentId = table.Column<int>(type: "int", nullable: false),
-                    StartedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ClientRequestId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    NaturalKey = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: true),
+                    ClassId = table.Column<long>(type: "bigint", nullable: true),
+                    SubjectId = table.Column<long>(type: "bigint", nullable: false),
+                    TeacherId = table.Column<long>(type: "bigint", nullable: false),
+                    InstructorAssignmentId = table.Column<long>(type: "bigint", nullable: true),
+                    AcademicBatchId = table.Column<long>(type: "bigint", nullable: true),
+                    AcademicYearId = table.Column<long>(type: "bigint", nullable: true),
+                    AcademicTermId = table.Column<long>(type: "bigint", nullable: true),
+                    ChapterName = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    Topic = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    StartDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    EndDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
+                    LearningObjectives = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
+                    Resources = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
+                    ProgressNotes = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
+                    Status = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: false),
+                    ProgressPercent = table.Column<int>(type: "int", nullable: false),
                     SubmittedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    TotalScore = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    Status = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    OnlineExamId1 = table.Column<long>(type: "bigint", nullable: true),
-                    StudentId1 = table.Column<long>(type: "bigint", nullable: true),
+                    SubmittedBy = table.Column<long>(type: "bigint", nullable: true),
+                    ReviewedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    ReviewedBy = table.Column<long>(type: "bigint", nullable: true),
+                    ReviewRemarks = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    CompletedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
                     UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
-                    IsDeleted = table.Column<bool>(type: "bit", nullable: false)
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_OnlineExamAttempts", x => x.Id);
+                    table.PrimaryKey("PK_LessonPlans", x => x.Id);
+                    table.CheckConstraint("CK_LessonPlans_CanonicalState", "[InstructorAssignmentId] IS NULL OR (([Status] IN ('Draft','Submitted','Approved','Rejected') AND [ProgressPercent] = 0) OR ([Status] = 'InProgress' AND [ProgressPercent] BETWEEN 1 AND 99) OR ([Status] = 'Completed' AND [ProgressPercent] = 100))");
+                    table.CheckConstraint("CK_LessonPlans_ProgressPercent", "[ProgressPercent] >= 0 AND [ProgressPercent] <= 100");
                     table.ForeignKey(
-                        name: "FK_OnlineExamAttempts_OnlineExams_OnlineExamId1",
-                        column: x => x.OnlineExamId1,
-                        principalTable: "OnlineExams",
+                        name: "FK_LessonPlans_AcademicBatches_AcademicBatchId",
+                        column: x => x.AcademicBatchId,
+                        principalTable: "AcademicBatches",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_OnlineExamAttempts_Students_StudentId1",
-                        column: x => x.StudentId1,
-                        principalTable: "Students",
+                        name: "FK_LessonPlans_AcademicTerms_AcademicTermId",
+                        column: x => x.AcademicTermId,
+                        principalTable: "AcademicTerms",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_LessonPlans_AcademicYears_AcademicYearId",
+                        column: x => x.AcademicYearId,
+                        principalTable: "AcademicYears",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_LessonPlans_Classes_ClassId",
+                        column: x => x.ClassId,
+                        principalTable: "Classes",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_LessonPlans_Employee_TeacherId",
+                        column: x => x.TeacherId,
+                        principalTable: "Employee",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_LessonPlans_InstructorAssignments_InstructorAssignmentId",
+                        column: x => x.InstructorAssignmentId,
+                        principalTable: "InstructorAssignments",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_LessonPlans_Subjects_SubjectId",
+                        column: x => x.SubjectId,
+                        principalTable: "Subjects",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_LessonPlans_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
-                name: "OnlineExamQuestions",
+                name: "Substitutions",
                 columns: table => new
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    OnlineExamId = table.Column<int>(type: "int", nullable: false),
-                    QuestionId = table.Column<int>(type: "int", nullable: false),
-                    QuestionOrder = table.Column<int>(type: "int", nullable: false),
-                    OnlineExamId1 = table.Column<long>(type: "bigint", nullable: true),
-                    QuestionId1 = table.Column<long>(type: "bigint", nullable: true),
+                    ClientRequestId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    Date = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    OriginalTeacherId = table.Column<long>(type: "bigint", nullable: false),
+                    SubstituteTeacherId = table.Column<long>(type: "bigint", nullable: false),
+                    ClassId = table.Column<long>(type: "bigint", nullable: true),
+                    SubjectId = table.Column<long>(type: "bigint", nullable: false),
+                    RoutineEntryId = table.Column<long>(type: "bigint", nullable: true),
+                    AcademicBatchId = table.Column<long>(type: "bigint", nullable: true),
+                    RoutineTimeSlotId = table.Column<long>(type: "bigint", nullable: true),
+                    AcademicYearId = table.Column<long>(type: "bigint", nullable: true),
+                    AcademicTermId = table.Column<long>(type: "bigint", nullable: true),
+                    Period = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    Reason = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    CancelledAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CancelledBy = table.Column<long>(type: "bigint", nullable: true),
+                    CancellationReason = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
                     UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
-                    IsDeleted = table.Column<bool>(type: "bit", nullable: false)
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_OnlineExamQuestions", x => x.Id);
+                    table.PrimaryKey("PK_Substitutions", x => x.Id);
+                    table.CheckConstraint("CK_Substitutions_CancellationState", "([IsActive] = 1 AND [CancelledAt] IS NULL AND [CancelledBy] IS NULL AND [CancellationReason] IS NULL) OR ([IsActive] = 0 AND [CancelledAt] IS NOT NULL AND [CancelledBy] IS NOT NULL AND [CancellationReason] IS NOT NULL)");
                     table.ForeignKey(
-                        name: "FK_OnlineExamQuestions_OnlineExams_OnlineExamId1",
-                        column: x => x.OnlineExamId1,
-                        principalTable: "OnlineExams",
+                        name: "FK_Substitutions_AcademicBatches_AcademicBatchId",
+                        column: x => x.AcademicBatchId,
+                        principalTable: "AcademicBatches",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_OnlineExamQuestions_Questions_QuestionId1",
-                        column: x => x.QuestionId1,
-                        principalTable: "Questions",
+                        name: "FK_Substitutions_AcademicTerms_AcademicTermId",
+                        column: x => x.AcademicTermId,
+                        principalTable: "AcademicTerms",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Substitutions_AcademicYears_AcademicYearId",
+                        column: x => x.AcademicYearId,
+                        principalTable: "AcademicYears",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Substitutions_Classes_ClassId",
+                        column: x => x.ClassId,
+                        principalTable: "Classes",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Substitutions_Employee_OriginalTeacherId",
+                        column: x => x.OriginalTeacherId,
+                        principalTable: "Employee",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Substitutions_Employee_SubstituteTeacherId",
+                        column: x => x.SubstituteTeacherId,
+                        principalTable: "Employee",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Substitutions_RoutineEntries_RoutineEntryId",
+                        column: x => x.RoutineEntryId,
+                        principalTable: "RoutineEntries",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Substitutions_RoutineTimeSlots_RoutineTimeSlotId",
+                        column: x => x.RoutineTimeSlotId,
+                        principalTable: "RoutineTimeSlots",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Substitutions_Subjects_SubjectId",
+                        column: x => x.SubjectId,
+                        principalTable: "Subjects",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Substitutions_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "LessonProgress",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    CourseEnrollmentId = table.Column<long>(type: "bigint", nullable: false),
+                    LessonId = table.Column<long>(type: "bigint", nullable: false),
+                    StudentId = table.Column<long>(type: "bigint", nullable: false),
+                    IsCompleted = table.Column<bool>(type: "bit", nullable: false),
+                    CompletedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_LessonProgress", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_LessonProgress_CourseEnrollment_CourseEnrollmentId",
+                        column: x => x.CourseEnrollmentId,
+                        principalTable: "CourseEnrollment",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_LessonProgress_Lessons_LessonId",
+                        column: x => x.LessonId,
+                        principalTable: "Lessons",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_LessonProgress_Students_StudentId",
+                        column: x => x.StudentId,
+                        principalTable: "Students",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_LessonProgress_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "StudentExitRecord",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    PublicId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ClientRequestId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    StudentId = table.Column<long>(type: "bigint", nullable: false),
+                    EnrollmentId = table.Column<long>(type: "bigint", nullable: true),
+                    ExitType = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    CertificateNo = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    AcademicYearId = table.Column<long>(type: "bigint", nullable: false),
+                    ClassId = table.Column<long>(type: "bigint", nullable: false),
+                    SectionId = table.Column<long>(type: "bigint", nullable: false),
+                    GroupId = table.Column<long>(type: "bigint", nullable: true),
+                    Roll = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    DueAtExit = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    FeesCleared = table.Column<bool>(type: "bit", nullable: false),
+                    ProcessedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ProcessedByUserId = table.Column<long>(type: "bigint", nullable: false),
+                    Reason = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    ConductRemark = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_StudentExitRecord", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_StudentExitRecord_Enrollments_EnrollmentId",
+                        column: x => x.EnrollmentId,
+                        principalTable: "Enrollments",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentExitRecord_Students_StudentId",
+                        column: x => x.StudentId,
+                        principalTable: "Students",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentExitRecord_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "StudentPromotionRecords",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    PublicId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ClientRequestId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    StudentId = table.Column<long>(type: "bigint", nullable: false),
+                    FromEnrollmentId = table.Column<long>(type: "bigint", nullable: false),
+                    ToEnrollmentId = table.Column<long>(type: "bigint", nullable: false),
+                    FromAcademicYearId = table.Column<long>(type: "bigint", nullable: false),
+                    ToAcademicYearId = table.Column<long>(type: "bigint", nullable: false),
+                    FromClassId = table.Column<long>(type: "bigint", nullable: false),
+                    ToClassId = table.Column<long>(type: "bigint", nullable: false),
+                    FromSectionId = table.Column<long>(type: "bigint", nullable: false),
+                    ToSectionId = table.Column<long>(type: "bigint", nullable: false),
+                    FromGroupId = table.Column<long>(type: "bigint", nullable: true),
+                    ToGroupId = table.Column<long>(type: "bigint", nullable: true),
+                    FromRoll = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    ToRoll = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    Decision = table.Column<int>(type: "int", nullable: false),
+                    ProcessedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ProcessedByUserId = table.Column<long>(type: "bigint", nullable: false),
+                    Note = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_StudentPromotionRecords", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_StudentPromotionRecords_AcademicYears_FromAcademicYearId",
+                        column: x => x.FromAcademicYearId,
+                        principalTable: "AcademicYears",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentPromotionRecords_AcademicYears_ToAcademicYearId",
+                        column: x => x.ToAcademicYearId,
+                        principalTable: "AcademicYears",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentPromotionRecords_Classes_FromClassId",
+                        column: x => x.FromClassId,
+                        principalTable: "Classes",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentPromotionRecords_Classes_ToClassId",
+                        column: x => x.ToClassId,
+                        principalTable: "Classes",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentPromotionRecords_Enrollments_FromEnrollmentId",
+                        column: x => x.FromEnrollmentId,
+                        principalTable: "Enrollments",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentPromotionRecords_Enrollments_ToEnrollmentId",
+                        column: x => x.ToEnrollmentId,
+                        principalTable: "Enrollments",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentPromotionRecords_Groups_FromGroupId",
+                        column: x => x.FromGroupId,
+                        principalTable: "Groups",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentPromotionRecords_Groups_ToGroupId",
+                        column: x => x.ToGroupId,
+                        principalTable: "Groups",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentPromotionRecords_Sections_FromSectionId",
+                        column: x => x.FromSectionId,
+                        principalTable: "Sections",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentPromotionRecords_Sections_ToSectionId",
+                        column: x => x.ToSectionId,
+                        principalTable: "Sections",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentPromotionRecords_Students_StudentId",
+                        column: x => x.StudentId,
+                        principalTable: "Students",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentPromotionRecords_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "LearnerDataGrants",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    PublicId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    PersonId = table.Column<long>(type: "bigint", nullable: false),
+                    StudentId = table.Column<long>(type: "bigint", nullable: false),
+                    ConsentRequestId = table.Column<long>(type: "bigint", nullable: false),
+                    Purpose = table.Column<int>(type: "int", nullable: false),
+                    GrantedScopes = table.Column<int>(type: "int", nullable: false),
+                    Status = table.Column<int>(type: "int", nullable: false),
+                    StartsAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ExpiresAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    GrantedByUserId = table.Column<long>(type: "bigint", nullable: false),
+                    RevokedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    RevokedByUserId = table.Column<long>(type: "bigint", nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_LearnerDataGrants", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_LearnerDataGrants_LearnerConsentRequests_ConsentRequestId",
+                        column: x => x.ConsentRequestId,
+                        principalTable: "LearnerConsentRequests",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_LearnerDataGrants_Persons_PersonId",
+                        column: x => x.PersonId,
+                        principalTable: "Persons",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_LearnerDataGrants_Students_StudentId",
+                        column: x => x.StudentId,
+                        principalTable: "Students",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_LearnerDataGrants_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "LearnerIdentityAccessLogs",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    PersonId = table.Column<long>(type: "bigint", nullable: true),
+                    StudentId = table.Column<long>(type: "bigint", nullable: true),
+                    ConsentRequestId = table.Column<long>(type: "bigint", nullable: true),
+                    UserId = table.Column<long>(type: "bigint", nullable: false),
+                    Action = table.Column<int>(type: "int", nullable: false),
+                    Outcome = table.Column<int>(type: "int", nullable: false),
+                    Purpose = table.Column<int>(type: "int", nullable: true),
+                    ReasonCode = table.Column<string>(type: "nvarchar(80)", maxLength: 80, nullable: false),
+                    IpAddress = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: true),
+                    UserAgent = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_LearnerIdentityAccessLogs", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_LearnerIdentityAccessLogs_LearnerConsentRequests_ConsentRequestId",
+                        column: x => x.ConsentRequestId,
+                        principalTable: "LearnerConsentRequests",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_LearnerIdentityAccessLogs_Persons_PersonId",
+                        column: x => x.PersonId,
+                        principalTable: "Persons",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_LearnerIdentityAccessLogs_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "StudentSubjectRegistrations",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    ClientRequestId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    StudentEnrollmentId = table.Column<long>(type: "bigint", nullable: false),
+                    StudentId = table.Column<long>(type: "bigint", nullable: false),
+                    AcademicYearId = table.Column<long>(type: "bigint", nullable: false),
+                    AcademicTermId = table.Column<long>(type: "bigint", nullable: true),
+                    AcademicBatchId = table.Column<long>(type: "bigint", nullable: false),
+                    AcademicCurriculumId = table.Column<long>(type: "bigint", nullable: false),
+                    CurriculumSubjectId = table.Column<long>(type: "bigint", nullable: false),
+                    SubjectId = table.Column<long>(type: "bigint", nullable: false),
+                    IsRequired = table.Column<bool>(type: "bit", nullable: false),
+                    Status = table.Column<int>(type: "int", nullable: false),
+                    RequestedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    DecidedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    DecidedByUserId = table.Column<long>(type: "bigint", nullable: true),
+                    FullMarksSnapshot = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    PassMarksSnapshot = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    CreditHoursSnapshot = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    SubjectCodeSnapshot = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    SubjectNameSnapshot = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    Remarks = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_StudentSubjectRegistrations", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_StudentSubjectRegistrations_AcademicBatches_AcademicBatchId",
+                        column: x => x.AcademicBatchId,
+                        principalTable: "AcademicBatches",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentSubjectRegistrations_AcademicCurriculums_AcademicCurriculumId",
+                        column: x => x.AcademicCurriculumId,
+                        principalTable: "AcademicCurriculums",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentSubjectRegistrations_AcademicTerms_AcademicTermId",
+                        column: x => x.AcademicTermId,
+                        principalTable: "AcademicTerms",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentSubjectRegistrations_AcademicYears_AcademicYearId",
+                        column: x => x.AcademicYearId,
+                        principalTable: "AcademicYears",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentSubjectRegistrations_CurriculumSubjects_CurriculumSubjectId",
+                        column: x => x.CurriculumSubjectId,
+                        principalTable: "CurriculumSubjects",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentSubjectRegistrations_StudentEnrollments_StudentEnrollmentId",
+                        column: x => x.StudentEnrollmentId,
+                        principalTable: "StudentEnrollments",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentSubjectRegistrations_Students_StudentId",
+                        column: x => x.StudentId,
+                        principalTable: "Students",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentSubjectRegistrations_Subjects_SubjectId",
+                        column: x => x.SubjectId,
+                        principalTable: "Subjects",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StudentSubjectRegistrations_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
@@ -5157,12 +7151,10 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    InvoiceId = table.Column<int>(type: "int", nullable: false),
-                    FeeHeadId = table.Column<int>(type: "int", nullable: false),
+                    InvoiceId = table.Column<long>(type: "bigint", nullable: false),
+                    FeeHeadId = table.Column<long>(type: "bigint", nullable: false),
                     Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Amount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    InvoiceId1 = table.Column<long>(type: "bigint", nullable: true),
-                    FeeHeadId1 = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -5173,14 +7165,14 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_InvoiceItems", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_InvoiceItems_FeeHeads_FeeHeadId1",
-                        column: x => x.FeeHeadId1,
+                        name: "FK_InvoiceItems_FeeHeads_FeeHeadId",
+                        column: x => x.FeeHeadId,
                         principalTable: "FeeHeads",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_InvoiceItems_StudentInvoices_InvoiceId1",
-                        column: x => x.InvoiceId1,
+                        name: "FK_InvoiceItems_StudentInvoices_InvoiceId",
+                        column: x => x.InvoiceId,
                         principalTable: "StudentInvoices",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -5192,19 +7184,18 @@ namespace EduOS.Persistence.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    InvoiceId = table.Column<int>(type: "int", nullable: false),
-                    StudentId = table.Column<int>(type: "int", nullable: false),
+                    PublicId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ClientRequestId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    InvoiceId = table.Column<long>(type: "bigint", nullable: false),
+                    StudentId = table.Column<long>(type: "bigint", nullable: false),
                     ReceiptNo = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Amount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     PaymentMethod = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     PaymentDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    ReceivedBy = table.Column<int>(type: "int", nullable: false),
+                    ReceivedBy = table.Column<long>(type: "bigint", nullable: false),
                     TransactionId = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     Note = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    BankAccountId = table.Column<int>(type: "int", nullable: true),
-                    InvoiceId1 = table.Column<long>(type: "bigint", nullable: true),
-                    StudentId1 = table.Column<long>(type: "bigint", nullable: true),
-                    BankAccountId1 = table.Column<long>(type: "bigint", nullable: true),
+                    BankAccountId = table.Column<long>(type: "bigint", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<long>(type: "bigint", nullable: true),
@@ -5216,20 +7207,20 @@ namespace EduOS.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_Payments", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Payments_BankAccounts_BankAccountId1",
-                        column: x => x.BankAccountId1,
+                        name: "FK_Payments_BankAccounts_BankAccountId",
+                        column: x => x.BankAccountId,
                         principalTable: "BankAccounts",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Payments_StudentInvoices_InvoiceId1",
-                        column: x => x.InvoiceId1,
+                        name: "FK_Payments_StudentInvoices_InvoiceId",
+                        column: x => x.InvoiceId,
                         principalTable: "StudentInvoices",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Payments_Students_StudentId1",
-                        column: x => x.StudentId1,
+                        name: "FK_Payments_Students_StudentId",
+                        column: x => x.StudentId,
                         principalTable: "Students",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -5241,51 +7232,197 @@ namespace EduOS.Persistence.Migrations
                         onDelete: ReferentialAction.Restrict);
                 });
 
-            migrationBuilder.CreateTable(
-                name: "AssignmentSubmissions",
-                columns: table => new
-                {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    AssignmentId = table.Column<int>(type: "int", nullable: false),
-                    StudentId = table.Column<int>(type: "int", nullable: false),
-                    SubmissionFile = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    SubmissionText = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    SubmittedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    Mark = table.Column<decimal>(type: "decimal(18,2)", nullable: true),
-                    Feedback = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    Status = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    AssignmentId1 = table.Column<long>(type: "bigint", nullable: true),
-                    StudentId1 = table.Column<long>(type: "bigint", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    CreatedBy = table.Column<long>(type: "bigint", nullable: true),
-                    UpdatedBy = table.Column<long>(type: "bigint", nullable: true),
-                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
-                    TenantId = table.Column<long>(type: "bigint", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_AssignmentSubmissions", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_AssignmentSubmissions_Assignments_AssignmentId1",
-                        column: x => x.AssignmentId1,
-                        principalTable: "Assignments",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_AssignmentSubmissions_Students_StudentId1",
-                        column: x => x.StudentId1,
-                        principalTable: "Students",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_AssignmentSubmissions_Tenants_TenantId",
-                        column: x => x.TenantId,
-                        principalTable: "Tenants",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                });
+            migrationBuilder.CreateIndex(
+                name: "IX_AcademicBatches_AcademicLevelId",
+                table: "AcademicBatches",
+                column: "AcademicLevelId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AcademicBatches_AcademicProgramId",
+                table: "AcademicBatches",
+                column: "AcademicProgramId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AcademicBatches_AcademicTermId",
+                table: "AcademicBatches",
+                column: "AcademicTermId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AcademicBatches_AcademicTrackId",
+                table: "AcademicBatches",
+                column: "AcademicTrackId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AcademicBatches_AcademicYearId",
+                table: "AcademicBatches",
+                column: "AcademicYearId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AcademicBatches_CampusId",
+                table: "AcademicBatches",
+                column: "CampusId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AcademicBatches_MediumId",
+                table: "AcademicBatches",
+                column: "MediumId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AcademicBatches_ShiftId",
+                table: "AcademicBatches",
+                column: "ShiftId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AcademicBatches_TenantId",
+                table: "AcademicBatches",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "UX_AcademicBatches_Tenant_Year_Code",
+                table: "AcademicBatches",
+                columns: new[] { "TenantId", "AcademicYearId", "Code" },
+                unique: true,
+                filter: "[IsDeleted] = 0");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AcademicCalendarEvents_AcademicTermId",
+                table: "AcademicCalendarEvents",
+                column: "AcademicTermId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AcademicCalendarEvents_AcademicYearId",
+                table: "AcademicCalendarEvents",
+                column: "AcademicYearId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AcademicCalendarEvents_CampusId",
+                table: "AcademicCalendarEvents",
+                column: "CampusId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AcademicCalendarEvents_TenantId",
+                table: "AcademicCalendarEvents",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AcademicCalendarEvents_TenantId_AcademicYearId_CampusId_StartDate_EndDate",
+                table: "AcademicCalendarEvents",
+                columns: new[] { "TenantId", "AcademicYearId", "CampusId", "StartDate", "EndDate" });
+
+            migrationBuilder.CreateIndex(
+                name: "UX_AcademicCalendarEvents_Tenant_Request",
+                table: "AcademicCalendarEvents",
+                columns: new[] { "TenantId", "ClientRequestId" },
+                unique: true,
+                filter: "[ClientRequestId] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "UX_AcademicCalendarEvents_Tenant_Scope_Title_Dates",
+                table: "AcademicCalendarEvents",
+                columns: new[] { "TenantId", "AcademicYearId", "AcademicTermId", "CampusId", "Title", "StartDate", "EndDate" },
+                unique: true,
+                filter: "[IsDeleted] = 0 AND [IsActive] = 1 AND [AcademicYearId] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AcademicCalendarPolicies_AcademicYearId",
+                table: "AcademicCalendarPolicies",
+                column: "AcademicYearId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AcademicCalendarPolicies_CampusId",
+                table: "AcademicCalendarPolicies",
+                column: "CampusId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AcademicCalendarPolicies_TenantId",
+                table: "AcademicCalendarPolicies",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "UX_AcademicCalendarPolicies_Tenant_Request",
+                table: "AcademicCalendarPolicies",
+                columns: new[] { "TenantId", "ClientRequestId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "UX_AcademicCalendarPolicies_Tenant_Scope",
+                table: "AcademicCalendarPolicies",
+                columns: new[] { "TenantId", "AcademicYearId", "CampusId" },
+                unique: true,
+                filter: "[IsDeleted] = 0 AND [IsActive] = 1");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AcademicCurriculums_AcademicProgramId",
+                table: "AcademicCurriculums",
+                column: "AcademicProgramId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AcademicCurriculums_EffectiveFromAcademicYearId",
+                table: "AcademicCurriculums",
+                column: "EffectiveFromAcademicYearId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AcademicCurriculums_EffectiveToAcademicYearId",
+                table: "AcademicCurriculums",
+                column: "EffectiveToAcademicYearId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AcademicCurriculums_TenantId",
+                table: "AcademicCurriculums",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "UX_AcademicCurriculums_Tenant_Code",
+                table: "AcademicCurriculums",
+                columns: new[] { "TenantId", "Code" },
+                unique: true,
+                filter: "[IsDeleted] = 0");
+
+            migrationBuilder.CreateIndex(
+                name: "UX_AcademicCurriculums_Tenant_CurrentProgram",
+                table: "AcademicCurriculums",
+                columns: new[] { "TenantId", "AcademicProgramId" },
+                unique: true,
+                filter: "[IsDeleted] = 0 AND [IsActive] = 1 AND [IsCurrent] = 1");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AcademicLevels_AcademicProgramId",
+                table: "AcademicLevels",
+                column: "AcademicProgramId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AcademicLevels_TenantId",
+                table: "AcademicLevels",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "UX_AcademicLevels_Tenant_Program_Code",
+                table: "AcademicLevels",
+                columns: new[] { "TenantId", "AcademicProgramId", "Code" },
+                unique: true,
+                filter: "[IsDeleted] = 0");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AcademicPrograms_CampusId",
+                table: "AcademicPrograms",
+                column: "CampusId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AcademicPrograms_DepartmentId",
+                table: "AcademicPrograms",
+                column: "DepartmentId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AcademicPrograms_TenantId",
+                table: "AcademicPrograms",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "UX_AcademicPrograms_Tenant_Code",
+                table: "AcademicPrograms",
+                columns: new[] { "TenantId", "Code" },
+                unique: true,
+                filter: "[IsDeleted] = 0");
 
             migrationBuilder.CreateIndex(
                 name: "IX_AcademicTerms_AcademicYearId",
@@ -5298,14 +7435,38 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_AcademicTracks_AcademicProgramId",
+                table: "AcademicTracks",
+                column: "AcademicProgramId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AcademicTracks_TenantId",
+                table: "AcademicTracks",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "UX_AcademicTracks_Tenant_Code",
+                table: "AcademicTracks",
+                columns: new[] { "TenantId", "Code" },
+                unique: true,
+                filter: "[IsDeleted] = 0");
+
+            migrationBuilder.CreateIndex(
+                name: "UX_AcademicTracks_Tenant_DefaultScope",
+                table: "AcademicTracks",
+                columns: new[] { "TenantId", "AcademicProgramId" },
+                unique: true,
+                filter: "[IsDeleted] = 0 AND [IsActive] = 1 AND [IsDefault] = 1");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_AcademicYears_TenantId",
                 table: "AcademicYears",
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Accounts_ParentAccountId1",
+                name: "IX_Accounts_ParentAccountId",
                 table: "Accounts",
-                column: "ParentAccountId1");
+                column: "ParentAccountId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Accounts_TenantId",
@@ -5313,14 +7474,173 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Admissions_AcademicYearId1",
-                table: "Admissions",
-                column: "AcademicYearId1");
+                name: "IX_AdmissionApplicantDocuments_AdmissionIntakeFormId",
+                table: "AdmissionApplicantDocuments",
+                column: "AdmissionIntakeFormId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Admissions_ClassId1",
+                name: "IX_AdmissionApplicantDocuments_ApplicantId",
+                table: "AdmissionApplicantDocuments",
+                column: "ApplicantId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AdmissionApplicantDocuments_PublicId",
+                table: "AdmissionApplicantDocuments",
+                column: "PublicId",
+                unique: true,
+                filter: "[IsDeleted] = 0");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AdmissionApplicantDocuments_TenantId_ApplicantId_VerificationStatus_IsCurrent",
+                table: "AdmissionApplicantDocuments",
+                columns: new[] { "TenantId", "ApplicantId", "VerificationStatus", "IsCurrent" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AdmissionApplicantDocuments_TenantId_ClientRequestId",
+                table: "AdmissionApplicantDocuments",
+                columns: new[] { "TenantId", "ClientRequestId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "UX_AdmissionApplicantDocuments_CurrentType",
+                table: "AdmissionApplicantDocuments",
+                columns: new[] { "TenantId", "ApplicantId", "DocumentType" },
+                unique: true,
+                filter: "[IsDeleted] = 0 AND [IsCurrent] = 1");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AdmissionApplicants_AcademicTermId",
+                table: "AdmissionApplicants",
+                column: "AcademicTermId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AdmissionApplicants_AcademicUnitId",
+                table: "AdmissionApplicants",
+                column: "AcademicUnitId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AdmissionApplicants_AcademicYearId",
+                table: "AdmissionApplicants",
+                column: "AcademicYearId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AdmissionApplicants_AdmissionIntakeFormId",
+                table: "AdmissionApplicants",
+                column: "AdmissionIntakeFormId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AdmissionApplicants_CampusId",
+                table: "AdmissionApplicants",
+                column: "CampusId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AdmissionApplicants_PublicId",
+                table: "AdmissionApplicants",
+                column: "PublicId",
+                unique: true,
+                filter: "[IsDeleted] = 0");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AdmissionApplicants_TenantId_AcademicYearId_AcademicUnitId",
+                table: "AdmissionApplicants",
+                columns: new[] { "TenantId", "AcademicYearId", "AcademicUnitId" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AdmissionApplicants_TenantId_ApplicationNumber",
+                table: "AdmissionApplicants",
+                columns: new[] { "TenantId", "ApplicationNumber" },
+                unique: true,
+                filter: "[IsDeleted] = 0");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AdmissionApplicants_TenantId_ClientRequestId",
+                table: "AdmissionApplicants",
+                columns: new[] { "TenantId", "ClientRequestId" },
+                unique: true,
+                filter: "[IsDeleted] = 0");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AdmissionApplicants_TenantId_Status_SubmittedAtUtc",
+                table: "AdmissionApplicants",
+                columns: new[] { "TenantId", "Status", "SubmittedAtUtc" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AdmissionIntakeForms_AcademicTermId",
+                table: "AdmissionIntakeForms",
+                column: "AcademicTermId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AdmissionIntakeForms_AcademicUnitId",
+                table: "AdmissionIntakeForms",
+                column: "AcademicUnitId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AdmissionIntakeForms_AcademicYearId",
+                table: "AdmissionIntakeForms",
+                column: "AcademicYearId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AdmissionIntakeForms_CampusId",
+                table: "AdmissionIntakeForms",
+                column: "CampusId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AdmissionIntakeForms_PublicId",
+                table: "AdmissionIntakeForms",
+                column: "PublicId",
+                unique: true,
+                filter: "[IsDeleted] = 0");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AdmissionIntakeForms_TenantId_ClientRequestId",
+                table: "AdmissionIntakeForms",
+                columns: new[] { "TenantId", "ClientRequestId" },
+                unique: true,
+                filter: "[IsDeleted] = 0");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AdmissionIntakeForms_TenantId_Code",
+                table: "AdmissionIntakeForms",
+                columns: new[] { "TenantId", "Code" },
+                unique: true,
+                filter: "[IsDeleted] = 0");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AdmissionIntakeForms_TenantId_Status_OpensAtUtc_ClosesAtUtc",
+                table: "AdmissionIntakeForms",
+                columns: new[] { "TenantId", "Status", "OpensAtUtc", "ClosesAtUtc" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AdmissionResults_AdmissionTestId",
+                table: "AdmissionResults",
+                column: "AdmissionTestId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AdmissionResults_ApplicantId",
+                table: "AdmissionResults",
+                column: "ApplicantId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AdmissionResults_TenantId_AdmissionTestId_ApplicantId",
+                table: "AdmissionResults",
+                columns: new[] { "TenantId", "AdmissionTestId", "ApplicantId" },
+                unique: true,
+                filter: "[IsDeleted] = 0");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AdmissionResults_TenantId_AdmissionTestId_MeritPosition",
+                table: "AdmissionResults",
+                columns: new[] { "TenantId", "AdmissionTestId", "MeritPosition" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Admissions_AcademicYearId",
                 table: "Admissions",
-                column: "ClassId1");
+                column: "AcademicYearId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Admissions_ClassId",
+                table: "Admissions",
+                column: "ClassId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Admissions_TenantId",
@@ -5328,14 +7648,34 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_AdmitCards_ExamId1",
-                table: "AdmitCards",
-                column: "ExamId1");
+                name: "IX_AdmissionTests_AcademicUnitId",
+                table: "AdmissionTests",
+                column: "AcademicUnitId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_AdmitCards_StudentId1",
+                name: "IX_AdmissionTests_AcademicYearId",
+                table: "AdmissionTests",
+                column: "AcademicYearId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AdmissionTests_CampusId",
+                table: "AdmissionTests",
+                column: "CampusId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AdmissionTests_TenantId_AcademicYearId_CampusId_AcademicUnitId_TestDate",
+                table: "AdmissionTests",
+                columns: new[] { "TenantId", "AcademicYearId", "CampusId", "AcademicUnitId", "TestDate" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AdmitCards_ExamId",
                 table: "AdmitCards",
-                column: "StudentId1");
+                column: "ExamId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AdmitCards_StudentId",
+                table: "AdmitCards",
+                column: "StudentId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_AdmitCards_TenantId",
@@ -5343,9 +7683,9 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_AlbumPhotos_AlbumId1",
+                name: "IX_AlbumPhotos_AlbumId",
                 table: "AlbumPhotos",
-                column: "AlbumId1");
+                column: "AlbumId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Albums_TenantId",
@@ -5422,9 +7762,9 @@ namespace EduOS.Persistence.Migrations
                 filter: "[NormalizedUserName] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
-                name: "IX_AssetMaintenances_AssetId1",
+                name: "IX_AssetMaintenances_AssetId",
                 table: "AssetMaintenances",
-                column: "AssetId1");
+                column: "AssetId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_AssetMaintenances_TenantId",
@@ -5437,9 +7777,9 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Assignments_CourseId1",
+                name: "IX_Assignments_CourseId",
                 table: "Assignments",
-                column: "CourseId1");
+                column: "CourseId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Assignments_TenantId",
@@ -5447,14 +7787,14 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_AssignmentSubmissions_AssignmentId1",
+                name: "IX_AssignmentSubmissions_AssignmentId",
                 table: "AssignmentSubmissions",
-                column: "AssignmentId1");
+                column: "AssignmentId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_AssignmentSubmissions_StudentId1",
+                name: "IX_AssignmentSubmissions_StudentId",
                 table: "AssignmentSubmissions",
-                column: "StudentId1");
+                column: "StudentId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_AssignmentSubmissions_TenantId",
@@ -5482,9 +7822,9 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_BehaviorRecords_StudentId1",
+                name: "IX_BehaviorRecords_StudentId",
                 table: "BehaviorRecords",
-                column: "StudentId1");
+                column: "StudentId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_BehaviorRecords_TenantId",
@@ -5492,9 +7832,9 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Bonuses_EmployeeId1",
+                name: "IX_Bonuses_EmployeeId",
                 table: "Bonuses",
-                column: "EmployeeId1");
+                column: "EmployeeId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Bonuses_TenantId",
@@ -5502,19 +7842,19 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_BookIssues_BookId1",
+                name: "IX_BookIssues_BookId",
                 table: "BookIssues",
-                column: "BookId1");
+                column: "BookId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_BookIssues_EmployeeId1",
+                name: "IX_BookIssues_EmployeeId",
                 table: "BookIssues",
-                column: "EmployeeId1");
+                column: "EmployeeId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_BookIssues_StudentId1",
+                name: "IX_BookIssues_StudentId",
                 table: "BookIssues",
-                column: "StudentId1");
+                column: "StudentId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_BookIssues_TenantId",
@@ -5539,29 +7879,29 @@ namespace EduOS.Persistence.Migrations
                 filter: "[IsDeleted] = 0");
 
             migrationBuilder.CreateIndex(
-                name: "IX_ClassRoutines_AcademicYearId1",
+                name: "IX_ClassRoutines_AcademicYearId",
                 table: "ClassRoutines",
-                column: "AcademicYearId1");
+                column: "AcademicYearId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_ClassRoutines_ClassId1",
+                name: "IX_ClassRoutines_ClassId",
                 table: "ClassRoutines",
-                column: "ClassId1");
+                column: "ClassId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_ClassRoutines_SectionId1",
+                name: "IX_ClassRoutines_SectionId",
                 table: "ClassRoutines",
-                column: "SectionId1");
+                column: "SectionId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_ClassRoutines_SubjectId1",
+                name: "IX_ClassRoutines_SubjectId",
                 table: "ClassRoutines",
-                column: "SubjectId1");
+                column: "SubjectId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_ClassRoutines_TeacherId1",
+                name: "IX_ClassRoutines_TeacherId",
                 table: "ClassRoutines",
-                column: "TeacherId1");
+                column: "TeacherId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_ClassRoutines_TenantId",
@@ -5574,19 +7914,44 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Courses_ClassId1",
-                table: "Courses",
-                column: "ClassId1");
+                name: "IX_CourseEnrollment_CourseId",
+                table: "CourseEnrollment",
+                column: "CourseId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Courses_SubjectId1",
-                table: "Courses",
-                column: "SubjectId1");
+                name: "IX_CourseEnrollment_StudentId",
+                table: "CourseEnrollment",
+                column: "StudentId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Courses_TeacherId1",
+                name: "IX_CourseEnrollment_TenantId",
+                table: "CourseEnrollment",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Courses_AcademicYearId",
                 table: "Courses",
-                column: "TeacherId1");
+                column: "AcademicYearId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Courses_ClassId",
+                table: "Courses",
+                column: "ClassId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Courses_SectionId",
+                table: "Courses",
+                column: "SectionId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Courses_SubjectId",
+                table: "Courses",
+                column: "SubjectId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Courses_TeacherId",
+                table: "Courses",
+                column: "TeacherId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Courses_TenantId",
@@ -5594,14 +7959,51 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_CurriculumSubjects_AcademicCurriculumId",
+                table: "CurriculumSubjects",
+                column: "AcademicCurriculumId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CurriculumSubjects_AcademicLevelId",
+                table: "CurriculumSubjects",
+                column: "AcademicLevelId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CurriculumSubjects_AcademicTrackId",
+                table: "CurriculumSubjects",
+                column: "AcademicTrackId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CurriculumSubjects_MediumId",
+                table: "CurriculumSubjects",
+                column: "MediumId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CurriculumSubjects_SubjectId",
+                table: "CurriculumSubjects",
+                column: "SubjectId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CurriculumSubjects_TenantId",
+                table: "CurriculumSubjects",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "UX_CurriculumSubjects_Tenant_Scope",
+                table: "CurriculumSubjects",
+                columns: new[] { "TenantId", "AcademicCurriculumId", "AcademicLevelId", "SubjectId", "AcademicTrackId", "MediumId" },
+                unique: true,
+                filter: "[IsDeleted] = 0 AND [IsActive] = 1");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_CustomFields_TenantId",
                 table: "CustomFields",
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_CustomFieldValues_CustomFieldId1",
+                name: "IX_CustomFieldValues_CustomFieldId",
                 table: "CustomFieldValues",
-                column: "CustomFieldId1");
+                column: "CustomFieldId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Dashboards_UserId",
@@ -5629,9 +8031,9 @@ namespace EduOS.Persistence.Migrations
                 column: "UserId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Discounts_FeeHeadId1",
+                name: "IX_Discounts_FeeHeadId",
                 table: "Discounts",
-                column: "FeeHeadId1");
+                column: "FeeHeadId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Discounts_TenantId",
@@ -5649,14 +8051,14 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Employee_DepartmentId1",
+                name: "IX_Employee_DepartmentId",
                 table: "Employee",
-                column: "DepartmentId1");
+                column: "DepartmentId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Employee_DesignationId1",
+                name: "IX_Employee_DesignationId",
                 table: "Employee",
-                column: "DesignationId1");
+                column: "DesignationId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Employee_TenantId",
@@ -5669,9 +8071,9 @@ namespace EduOS.Persistence.Migrations
                 column: "UserId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_EmployeeAttendances_EmployeeId1",
+                name: "IX_EmployeeAttendances_EmployeeId",
                 table: "EmployeeAttendances",
-                column: "EmployeeId1");
+                column: "EmployeeId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_EmployeeAttendances_TenantId",
@@ -5679,34 +8081,53 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Enrollments_AcademicYearId1",
+                name: "IX_Enrollments_AcademicTermId",
                 table: "Enrollments",
-                column: "AcademicYearId1");
+                column: "AcademicTermId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Enrollments_ClassId1",
+                name: "IX_Enrollments_AcademicYearId",
                 table: "Enrollments",
-                column: "ClassId1");
+                column: "AcademicYearId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Enrollments_GroupId1",
+                name: "IX_Enrollments_CampusId",
                 table: "Enrollments",
-                column: "GroupId1");
+                column: "CampusId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Enrollments_SectionId1",
+                name: "IX_Enrollments_ClassId",
                 table: "Enrollments",
-                column: "SectionId1");
+                column: "ClassId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Enrollments_StudentId1",
+                name: "IX_Enrollments_GroupId",
                 table: "Enrollments",
-                column: "StudentId1");
+                column: "GroupId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Enrollments_TenantId",
+                name: "IX_Enrollments_SectionId",
                 table: "Enrollments",
-                column: "TenantId");
+                column: "SectionId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Enrollments_StudentId",
+                table: "Enrollments",
+                column: "StudentId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Enrollments_TenantId_AcademicYearId_ClassId_SectionId_Roll",
+                table: "Enrollments",
+                columns: new[] { "TenantId", "AcademicYearId", "ClassId", "SectionId", "Roll" },
+                unique: true,
+                filter: "[IsDeleted] = 0 AND [IsActive] = 1");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Enrollments_TenantId_StudentId_AcademicYearId",
+                table: "Enrollments",
+                columns: new[] { "TenantId", "StudentId", "AcademicYearId" },
+                unique: true,
+                filter: "[IsDeleted] = 0");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Events_TenantId",
@@ -5719,14 +8140,14 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_ExamResults_ExamId1",
+                name: "IX_ExamResults_ExamId",
                 table: "ExamResults",
-                column: "ExamId1");
+                column: "ExamId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_ExamResults_StudentId1",
+                name: "IX_ExamResults_StudentId",
                 table: "ExamResults",
-                column: "StudentId1");
+                column: "StudentId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_ExamResults_TenantId",
@@ -5734,9 +8155,9 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Exams_AcademicYearId1",
+                name: "IX_Exams_AcademicYearId",
                 table: "Exams",
-                column: "AcademicYearId1");
+                column: "AcademicYearId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Exams_TenantId",
@@ -5744,19 +8165,19 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_ExamSchedules_ClassId1",
+                name: "IX_ExamSchedules_ClassId",
                 table: "ExamSchedules",
-                column: "ClassId1");
+                column: "ClassId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_ExamSchedules_ExamId1",
+                name: "IX_ExamSchedules_ExamId",
                 table: "ExamSchedules",
-                column: "ExamId1");
+                column: "ExamId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_ExamSchedules_SubjectId1",
+                name: "IX_ExamSchedules_SubjectId",
                 table: "ExamSchedules",
-                column: "SubjectId1");
+                column: "SubjectId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_ExamSchedules_TenantId",
@@ -5769,14 +8190,14 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Expenses_BankAccountId1",
+                name: "IX_Expenses_BankAccountId",
                 table: "Expenses",
-                column: "BankAccountId1");
+                column: "BankAccountId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Expenses_CategoryId1",
+                name: "IX_Expenses_CategoryId",
                 table: "Expenses",
-                column: "CategoryId1");
+                column: "CategoryId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Expenses_TenantId",
@@ -5801,9 +8222,9 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_FeeReminders_TemplateId1",
+                name: "IX_FeeReminders_TemplateId",
                 table: "FeeReminders",
-                column: "TemplateId1");
+                column: "TemplateId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_FeeReminders_TenantId",
@@ -5811,19 +8232,19 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_FeeStructures_AcademicYearId1",
+                name: "IX_FeeStructures_AcademicYearId",
                 table: "FeeStructures",
-                column: "AcademicYearId1");
+                column: "AcademicYearId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_FeeStructures_ClassId1",
+                name: "IX_FeeStructures_ClassId",
                 table: "FeeStructures",
-                column: "ClassId1");
+                column: "ClassId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_FeeStructures_FeeHeadId1",
+                name: "IX_FeeStructures_FeeHeadId",
                 table: "FeeStructures",
-                column: "FeeHeadId1");
+                column: "FeeHeadId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_FeeStructures_TenantId",
@@ -5846,14 +8267,27 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Guardians_PublicId",
+                table: "Guardians",
+                column: "PublicId",
+                unique: true,
+                filter: "[IsDeleted] = 0");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Guardians_StudentId",
                 table: "Guardians",
                 column: "StudentId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Guardians_TenantId",
+                name: "IX_Guardians_TenantId_Phone",
                 table: "Guardians",
-                column: "TenantId");
+                columns: new[] { "TenantId", "Phone" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Guardians_TenantId_StudentId_IsPrimary",
+                table: "Guardians",
+                columns: new[] { "TenantId", "StudentId", "IsPrimary" },
+                filter: "[IsDeleted] = 0");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Guardians_UserId",
@@ -5861,9 +8295,9 @@ namespace EduOS.Persistence.Migrations
                 column: "UserId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_HealthRecords_StudentId1",
+                name: "IX_HealthRecords_StudentId",
                 table: "HealthRecords",
-                column: "StudentId1");
+                column: "StudentId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_HealthRecords_TenantId",
@@ -5871,9 +8305,9 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Holidays_AcademicYearId1",
+                name: "IX_Holidays_AcademicYearId",
                 table: "Holidays",
-                column: "AcademicYearId1");
+                column: "AcademicYearId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Holidays_TenantId",
@@ -5881,24 +8315,24 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Homeworks_ClassId1",
+                name: "IX_Homeworks_ClassId",
                 table: "Homeworks",
-                column: "ClassId1");
+                column: "ClassId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Homeworks_SectionId1",
+                name: "IX_Homeworks_SectionId",
                 table: "Homeworks",
-                column: "SectionId1");
+                column: "SectionId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Homeworks_SubjectId1",
+                name: "IX_Homeworks_SubjectId",
                 table: "Homeworks",
-                column: "SubjectId1");
+                column: "SubjectId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Homeworks_TeacherId1",
+                name: "IX_Homeworks_TeacherId",
                 table: "Homeworks",
-                column: "TeacherId1");
+                column: "TeacherId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Homeworks_TenantId",
@@ -5906,14 +8340,14 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_HomeworkSubmissions_HomeworkId1",
+                name: "IX_HomeworkSubmissions_HomeworkId",
                 table: "HomeworkSubmissions",
-                column: "HomeworkId1");
+                column: "HomeworkId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_HomeworkSubmissions_StudentId1",
+                name: "IX_HomeworkSubmissions_StudentId",
                 table: "HomeworkSubmissions",
-                column: "StudentId1");
+                column: "StudentId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_HomeworkSubmissions_TenantId",
@@ -5921,9 +8355,9 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_HostelRooms_HostelId1",
+                name: "IX_HostelRooms_HostelId",
                 table: "HostelRooms",
-                column: "HostelId1");
+                column: "HostelId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_HostelRooms_TenantId",
@@ -5951,19 +8385,19 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_IdCards_EmployeeId1",
+                name: "IX_IdCards_EmployeeId",
                 table: "IdCards",
-                column: "EmployeeId1");
+                column: "EmployeeId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_IdCards_StudentId1",
+                name: "IX_IdCards_StudentId",
                 table: "IdCards",
-                column: "StudentId1");
+                column: "StudentId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_IdCards_TemplateId1",
+                name: "IX_IdCards_TemplateId",
                 table: "IdCards",
-                column: "TemplateId1");
+                column: "TemplateId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_IdCards_TenantId",
@@ -5981,14 +8415,14 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Incomes_BankAccountId1",
+                name: "IX_Incomes_BankAccountId",
                 table: "Incomes",
-                column: "BankAccountId1");
+                column: "BankAccountId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Incomes_CategoryId1",
+                name: "IX_Incomes_CategoryId",
                 table: "Incomes",
-                column: "CategoryId1");
+                column: "CategoryId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Incomes_TenantId",
@@ -5996,9 +8430,9 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Increments_EmployeeId1",
+                name: "IX_Increments_EmployeeId",
                 table: "Increments",
-                column: "EmployeeId1");
+                column: "EmployeeId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Increments_TenantId",
@@ -6006,19 +8440,144 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_InvoiceItems_FeeHeadId1",
-                table: "InvoiceItems",
-                column: "FeeHeadId1");
+                name: "IX_InstitutionTypeDefinitions_Code",
+                table: "InstitutionTypeDefinitions",
+                column: "Code",
+                unique: true,
+                filter: "[IsDeleted] = 0");
 
             migrationBuilder.CreateIndex(
-                name: "IX_InvoiceItems_InvoiceId1",
-                table: "InvoiceItems",
-                column: "InvoiceId1");
+                name: "IX_InstitutionTypeDefinitions_IsActive_IsPubliclyVisible_DisplayOrder",
+                table: "InstitutionTypeDefinitions",
+                columns: new[] { "IsActive", "IsPubliclyVisible", "DisplayOrder" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_LeaveApplications_LeaveTypeId1",
+                name: "IX_InstitutionTypeModules_InstitutionTypeDefinitionId_ProductModuleId",
+                table: "InstitutionTypeModules",
+                columns: new[] { "InstitutionTypeDefinitionId", "ProductModuleId" },
+                unique: true,
+                filter: "[IsDeleted] = 0");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_InstitutionTypeModules_ProductModuleId",
+                table: "InstitutionTypeModules",
+                column: "ProductModuleId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_InstructorAssignments_AcademicBatchId",
+                table: "InstructorAssignments",
+                column: "AcademicBatchId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_InstructorAssignments_AcademicTermId",
+                table: "InstructorAssignments",
+                column: "AcademicTermId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_InstructorAssignments_AcademicYearId",
+                table: "InstructorAssignments",
+                column: "AcademicYearId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_InstructorAssignments_EmployeeId",
+                table: "InstructorAssignments",
+                column: "EmployeeId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_InstructorAssignments_SubjectId",
+                table: "InstructorAssignments",
+                column: "SubjectId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_InstructorAssignments_TenantId",
+                table: "InstructorAssignments",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_InvoiceItems_FeeHeadId",
+                table: "InvoiceItems",
+                column: "FeeHeadId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_InvoiceItems_InvoiceId",
+                table: "InvoiceItems",
+                column: "InvoiceId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_LearnerConsentRequests_PersonId",
+                table: "LearnerConsentRequests",
+                column: "PersonId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_LearnerConsentRequests_PublicId",
+                table: "LearnerConsentRequests",
+                column: "PublicId",
+                unique: true,
+                filter: "[IsDeleted] = 0");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_LearnerConsentRequests_RequestedStudentId",
+                table: "LearnerConsentRequests",
+                column: "RequestedStudentId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_LearnerConsentRequests_TenantId_PersonId_Status_ExpiresAt",
+                table: "LearnerConsentRequests",
+                columns: new[] { "TenantId", "PersonId", "Status", "ExpiresAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_LearnerDataGrants_ConsentRequestId",
+                table: "LearnerDataGrants",
+                column: "ConsentRequestId",
+                unique: true,
+                filter: "[IsDeleted] = 0");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_LearnerDataGrants_PersonId",
+                table: "LearnerDataGrants",
+                column: "PersonId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_LearnerDataGrants_PublicId",
+                table: "LearnerDataGrants",
+                column: "PublicId",
+                unique: true,
+                filter: "[IsDeleted] = 0");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_LearnerDataGrants_StudentId",
+                table: "LearnerDataGrants",
+                column: "StudentId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_LearnerDataGrants_TenantId_PersonId_Status_ExpiresAt",
+                table: "LearnerDataGrants",
+                columns: new[] { "TenantId", "PersonId", "Status", "ExpiresAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_LearnerIdentityAccessLogs_ConsentRequestId",
+                table: "LearnerIdentityAccessLogs",
+                column: "ConsentRequestId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_LearnerIdentityAccessLogs_PersonId",
+                table: "LearnerIdentityAccessLogs",
+                column: "PersonId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_LearnerIdentityAccessLogs_TenantId_PersonId_CreatedAt",
+                table: "LearnerIdentityAccessLogs",
+                columns: new[] { "TenantId", "PersonId", "CreatedAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_LearnerIdentityAccessLogs_TenantId_UserId_CreatedAt",
+                table: "LearnerIdentityAccessLogs",
+                columns: new[] { "TenantId", "UserId", "CreatedAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_LeaveApplications_LeaveTypeId",
                 table: "LeaveApplications",
-                column: "LeaveTypeId1");
+                column: "LeaveTypeId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_LeaveApplications_TenantId",
@@ -6031,19 +8590,39 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_LessonPlans_ClassId1",
+                name: "IX_LessonPlans_AcademicBatchId",
                 table: "LessonPlans",
-                column: "ClassId1");
+                column: "AcademicBatchId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_LessonPlans_SubjectId1",
+                name: "IX_LessonPlans_AcademicTermId",
                 table: "LessonPlans",
-                column: "SubjectId1");
+                column: "AcademicTermId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_LessonPlans_TeacherId1",
+                name: "IX_LessonPlans_AcademicYearId",
                 table: "LessonPlans",
-                column: "TeacherId1");
+                column: "AcademicYearId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_LessonPlans_ClassId",
+                table: "LessonPlans",
+                column: "ClassId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_LessonPlans_InstructorAssignmentId",
+                table: "LessonPlans",
+                column: "InstructorAssignmentId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_LessonPlans_SubjectId",
+                table: "LessonPlans",
+                column: "SubjectId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_LessonPlans_TeacherId",
+                table: "LessonPlans",
+                column: "TeacherId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_LessonPlans_TenantId",
@@ -6051,9 +8630,48 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Lessons_CourseId1",
+                name: "IX_LessonPlans_TenantId_AcademicBatchId_TeacherId_StartDate_EndDate_Status",
+                table: "LessonPlans",
+                columns: new[] { "TenantId", "AcademicBatchId", "TeacherId", "StartDate", "EndDate", "Status" });
+
+            migrationBuilder.CreateIndex(
+                name: "UX_LessonPlans_Tenant_NaturalKey",
+                table: "LessonPlans",
+                columns: new[] { "TenantId", "NaturalKey" },
+                unique: true,
+                filter: "[IsDeleted] = 0 AND [IsActive] = 1 AND [NaturalKey] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "UX_LessonPlans_Tenant_Request",
+                table: "LessonPlans",
+                columns: new[] { "TenantId", "ClientRequestId" },
+                unique: true,
+                filter: "[ClientRequestId] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_LessonProgress_CourseEnrollmentId",
+                table: "LessonProgress",
+                column: "CourseEnrollmentId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_LessonProgress_LessonId",
+                table: "LessonProgress",
+                column: "LessonId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_LessonProgress_StudentId",
+                table: "LessonProgress",
+                column: "StudentId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_LessonProgress_TenantId",
+                table: "LessonProgress",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Lessons_CourseId",
                 table: "Lessons",
-                column: "CourseId1");
+                column: "CourseId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Lessons_TenantId",
@@ -6061,24 +8679,24 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_LiveClasses_ClassId1",
+                name: "IX_LiveClasses_ClassId",
                 table: "LiveClasses",
-                column: "ClassId1");
+                column: "ClassId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_LiveClasses_SectionId1",
+                name: "IX_LiveClasses_SectionId",
                 table: "LiveClasses",
-                column: "SectionId1");
+                column: "SectionId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_LiveClasses_SubjectId1",
+                name: "IX_LiveClasses_SubjectId",
                 table: "LiveClasses",
-                column: "SubjectId1");
+                column: "SubjectId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_LiveClasses_TeacherId1",
+                name: "IX_LiveClasses_TeacherId",
                 table: "LiveClasses",
-                column: "TeacherId1");
+                column: "TeacherId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_LiveClasses_TenantId",
@@ -6086,9 +8704,9 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_LoanAdvances_EmployeeId1",
+                name: "IX_LoanAdvances_EmployeeId",
                 table: "LoanAdvances",
-                column: "EmployeeId1");
+                column: "EmployeeId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_LoanAdvances_TenantId",
@@ -6101,19 +8719,19 @@ namespace EduOS.Persistence.Migrations
                 column: "UserId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_MarkEntries_ExamId1",
+                name: "IX_MarkEntries_ExamId",
                 table: "MarkEntries",
-                column: "ExamId1");
+                column: "ExamId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_MarkEntries_StudentId1",
+                name: "IX_MarkEntries_StudentId",
                 table: "MarkEntries",
-                column: "StudentId1");
+                column: "StudentId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_MarkEntries_SubjectId1",
+                name: "IX_MarkEntries_SubjectId",
                 table: "MarkEntries",
-                column: "SubjectId1");
+                column: "SubjectId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_MarkEntries_TenantId",
@@ -6156,14 +8774,14 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Notices_CategoryId1",
+                name: "IX_Notices_CategoryId",
                 table: "Notices",
-                column: "CategoryId1");
+                column: "CategoryId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Notices_ClassId1",
+                name: "IX_Notices_ClassId",
                 table: "Notices",
-                column: "ClassId1");
+                column: "ClassId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Notices_TenantId",
@@ -6186,34 +8804,34 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_OnlineExamAttempts_OnlineExamId1",
+                name: "IX_OnlineExamAttempts_OnlineExamId",
                 table: "OnlineExamAttempts",
-                column: "OnlineExamId1");
+                column: "OnlineExamId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_OnlineExamAttempts_StudentId1",
+                name: "IX_OnlineExamAttempts_StudentId",
                 table: "OnlineExamAttempts",
-                column: "StudentId1");
+                column: "StudentId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_OnlineExamQuestions_OnlineExamId1",
+                name: "IX_OnlineExamQuestions_OnlineExamId",
                 table: "OnlineExamQuestions",
-                column: "OnlineExamId1");
+                column: "OnlineExamId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_OnlineExamQuestions_QuestionId1",
+                name: "IX_OnlineExamQuestions_QuestionId",
                 table: "OnlineExamQuestions",
-                column: "QuestionId1");
+                column: "QuestionId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_OnlineExams_ClassId1",
+                name: "IX_OnlineExams_ClassId",
                 table: "OnlineExams",
-                column: "ClassId1");
+                column: "ClassId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_OnlineExams_SubjectId1",
+                name: "IX_OnlineExams_SubjectId",
                 table: "OnlineExams",
-                column: "SubjectId1");
+                column: "SubjectId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_OnlineExams_TenantId",
@@ -6221,19 +8839,19 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Payments_BankAccountId1",
+                name: "IX_Payments_BankAccountId",
                 table: "Payments",
-                column: "BankAccountId1");
+                column: "BankAccountId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Payments_InvoiceId1",
+                name: "IX_Payments_InvoiceId",
                 table: "Payments",
-                column: "InvoiceId1");
+                column: "InvoiceId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Payments_StudentId1",
+                name: "IX_Payments_StudentId",
                 table: "Payments",
-                column: "StudentId1");
+                column: "StudentId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Payments_TenantId",
@@ -6241,14 +8859,33 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Payrolls_EmployeeId1",
+                name: "IX_Payrolls_EmployeeId",
                 table: "Payrolls",
-                column: "EmployeeId1");
+                column: "EmployeeId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Payrolls_TenantId",
                 table: "Payrolls",
                 column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PersonIdentifiers_PersonId",
+                table: "PersonIdentifiers",
+                column: "PersonId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PersonIdentifiers_Type_LookupDigest",
+                table: "PersonIdentifiers",
+                columns: new[] { "Type", "LookupDigest" },
+                unique: true,
+                filter: "[IsDeleted] = 0");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Persons_PublicId",
+                table: "Persons",
+                column: "PublicId",
+                unique: true,
+                filter: "[IsDeleted] = 0");
 
             migrationBuilder.CreateIndex(
                 name: "IX_PlanFeatures_FeatureId",
@@ -6263,19 +8900,65 @@ namespace EduOS.Persistence.Migrations
                 filter: "[IsDeleted] = 0");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Promotions_FromClassId1",
-                table: "Promotions",
-                column: "FromClassId1");
+                name: "IX_ProductModuleFeatures_FeatureId",
+                table: "ProductModuleFeatures",
+                column: "FeatureId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Promotions_FromYearId1",
-                table: "Promotions",
-                column: "FromYearId1");
+                name: "IX_ProductModuleFeatures_ProductModuleId_FeatureId",
+                table: "ProductModuleFeatures",
+                columns: new[] { "ProductModuleId", "FeatureId" },
+                unique: true,
+                filter: "[IsDeleted] = 0");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Promotions_StudentId1",
+                name: "IX_ProductModules_Code",
+                table: "ProductModules",
+                column: "Code",
+                unique: true,
+                filter: "[IsDeleted] = 0");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProductModules_IsActive_Category_DisplayOrder",
+                table: "ProductModules",
+                columns: new[] { "IsActive", "Category", "DisplayOrder" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProgramCampuses_AcademicProgramId",
+                table: "ProgramCampuses",
+                column: "AcademicProgramId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProgramCampuses_CampusId",
+                table: "ProgramCampuses",
+                column: "CampusId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProgramCampuses_TenantId",
+                table: "ProgramCampuses",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "UX_ProgramCampuses_Tenant_Program_Campus",
+                table: "ProgramCampuses",
+                columns: new[] { "TenantId", "AcademicProgramId", "CampusId" },
+                unique: true,
+                filter: "[IsDeleted] = 0");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Promotions_FromClassId",
                 table: "Promotions",
-                column: "StudentId1");
+                column: "FromClassId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Promotions_FromYearId",
+                table: "Promotions",
+                column: "FromYearId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Promotions_StudentId",
+                table: "Promotions",
+                column: "StudentId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Promotions_TenantId",
@@ -6283,19 +8966,19 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Promotions_ToClassId1",
+                name: "IX_Promotions_ToClassId",
                 table: "Promotions",
-                column: "ToClassId1");
+                column: "ToClassId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Promotions_ToYearId1",
+                name: "IX_Promotions_ToYearId",
                 table: "Promotions",
-                column: "ToYearId1");
+                column: "ToYearId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Questions_SubjectId1",
+                name: "IX_Questions_SubjectId",
                 table: "Questions",
-                column: "SubjectId1");
+                column: "SubjectId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Questions_TenantId",
@@ -6318,14 +9001,61 @@ namespace EduOS.Persistence.Migrations
                 column: "RoleId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Rooms_CampusId",
+                table: "Rooms",
+                column: "CampusId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Rooms_TenantId",
+                table: "Rooms",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "UX_Rooms_Tenant_Code",
+                table: "Rooms",
+                columns: new[] { "TenantId", "Code" },
+                unique: true,
+                filter: "[IsDeleted] = 0");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Routes_TenantId",
                 table: "Routes",
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_SalaryStructures_EmployeeId1",
+                name: "IX_RoutineEntries_AcademicBatchId",
+                table: "RoutineEntries",
+                column: "AcademicBatchId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RoutineEntries_EmployeeId",
+                table: "RoutineEntries",
+                column: "EmployeeId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RoutineEntries_RoutineTimeSlotId",
+                table: "RoutineEntries",
+                column: "RoutineTimeSlotId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RoutineEntries_SubjectId",
+                table: "RoutineEntries",
+                column: "SubjectId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RoutineEntries_TenantId",
+                table: "RoutineEntries",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RoutineTimeSlots_TenantId",
+                table: "RoutineTimeSlots",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SalaryStructures_EmployeeId",
                 table: "SalaryStructures",
-                column: "EmployeeId1");
+                column: "EmployeeId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_SalaryStructures_TenantId",
@@ -6338,19 +9068,19 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_SeatPlans_ExamScheduleId1",
+                name: "IX_SeatPlans_ExamScheduleId",
                 table: "SeatPlans",
-                column: "ExamScheduleId1");
+                column: "ExamScheduleId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_SeatPlans_HallId1",
+                name: "IX_SeatPlans_HallId",
                 table: "SeatPlans",
-                column: "HallId1");
+                column: "HallId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_SeatPlans_StudentId1",
+                name: "IX_SeatPlans_StudentId",
                 table: "SeatPlans",
-                column: "StudentId1");
+                column: "StudentId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_SeatPlans_TenantId",
@@ -6358,9 +9088,9 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Sections_ClassId1",
+                name: "IX_Sections_ClassId",
                 table: "Sections",
-                column: "ClassId1");
+                column: "ClassId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Sections_TenantId",
@@ -6378,34 +9108,41 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_StudentAttendances_ClassId1",
+                name: "IX_StudentAttendances_ClassId",
                 table: "StudentAttendances",
-                column: "ClassId1");
+                column: "ClassId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_StudentAttendances_SectionId1",
+                name: "IX_StudentAttendances_SectionId",
                 table: "StudentAttendances",
-                column: "SectionId1");
+                column: "SectionId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_StudentAttendances_StudentId1",
+                name: "IX_StudentAttendances_StudentId",
                 table: "StudentAttendances",
-                column: "StudentId1");
+                column: "StudentId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_StudentAttendances_TenantId",
+                name: "IX_StudentAttendances_Tenant_Roster_Date",
                 table: "StudentAttendances",
-                column: "TenantId");
+                columns: new[] { "TenantId", "ClassId", "SectionId", "Date" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_StudentDiscounts_DiscountId1",
+                name: "UX_StudentAttendances_Tenant_Student_Date",
+                table: "StudentAttendances",
+                columns: new[] { "TenantId", "StudentId", "Date" },
+                unique: true,
+                filter: "[IsDeleted] = 0");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentDiscounts_DiscountId",
                 table: "StudentDiscounts",
-                column: "DiscountId1");
+                column: "DiscountId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_StudentDiscounts_StudentId1",
+                name: "IX_StudentDiscounts_StudentId",
                 table: "StudentDiscounts",
-                column: "StudentId1");
+                column: "StudentId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_StudentDiscounts_TenantId",
@@ -6413,19 +9150,115 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_StudentHostels_HostelId1",
-                table: "StudentHostels",
-                column: "HostelId1");
+                name: "IX_StudentEnrollments_AcademicBatchId",
+                table: "StudentEnrollments",
+                column: "AcademicBatchId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_StudentHostels_HostelRoomId1",
-                table: "StudentHostels",
-                column: "HostelRoomId1");
+                name: "IX_StudentEnrollments_AcademicCurriculumId",
+                table: "StudentEnrollments",
+                column: "AcademicCurriculumId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_StudentHostels_StudentId1",
+                name: "IX_StudentEnrollments_AcademicLevelId",
+                table: "StudentEnrollments",
+                column: "AcademicLevelId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentEnrollments_AcademicProgramId",
+                table: "StudentEnrollments",
+                column: "AcademicProgramId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentEnrollments_AcademicTermId",
+                table: "StudentEnrollments",
+                column: "AcademicTermId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentEnrollments_AcademicTrackId",
+                table: "StudentEnrollments",
+                column: "AcademicTrackId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentEnrollments_AcademicYearId",
+                table: "StudentEnrollments",
+                column: "AcademicYearId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentEnrollments_CampusId",
+                table: "StudentEnrollments",
+                column: "CampusId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentEnrollments_MediumId",
+                table: "StudentEnrollments",
+                column: "MediumId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentEnrollments_ShiftId",
+                table: "StudentEnrollments",
+                column: "ShiftId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentEnrollments_StudentId",
+                table: "StudentEnrollments",
+                column: "StudentId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentEnrollments_TenantId",
+                table: "StudentEnrollments",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "UX_StudentEnrollments_Tenant_Batch_Roll",
+                table: "StudentEnrollments",
+                columns: new[] { "TenantId", "AcademicBatchId", "RollNo" },
+                unique: true,
+                filter: "[IsDeleted] = 0 AND [IsActive] = 1 AND [IsCurrent] = 1");
+
+            migrationBuilder.CreateIndex(
+                name: "UX_StudentEnrollments_Tenant_CurrentStudent",
+                table: "StudentEnrollments",
+                columns: new[] { "TenantId", "StudentId" },
+                unique: true,
+                filter: "[IsDeleted] = 0 AND [IsActive] = 1 AND [IsCurrent] = 1");
+
+            migrationBuilder.CreateIndex(
+                name: "UX_StudentEnrollments_Tenant_Request",
+                table: "StudentEnrollments",
+                columns: new[] { "TenantId", "ClientRequestId" },
+                unique: true,
+                filter: "[IsDeleted] = 0");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentExitRecord_EnrollmentId",
+                table: "StudentExitRecord",
+                column: "EnrollmentId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentExitRecord_StudentId",
+                table: "StudentExitRecord",
+                column: "StudentId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentExitRecord_TenantId",
+                table: "StudentExitRecord",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentHostels_HostelId",
                 table: "StudentHostels",
-                column: "StudentId1");
+                column: "HostelId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentHostels_HostelRoomId",
+                table: "StudentHostels",
+                column: "HostelRoomId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentHostels_StudentId",
+                table: "StudentHostels",
+                column: "StudentId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_StudentHostels_TenantId",
@@ -6433,9 +9266,9 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_StudentInvoices_StudentId1",
+                name: "IX_StudentInvoices_StudentId",
                 table: "StudentInvoices",
-                column: "StudentId1");
+                column: "StudentId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_StudentInvoices_TenantId",
@@ -6443,9 +9276,119 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Students_AcademicYearId1",
+                name: "IX_StudentPersonLinks_PersonId",
+                table: "StudentPersonLinks",
+                column: "PersonId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentPersonLinks_StudentId",
+                table: "StudentPersonLinks",
+                column: "StudentId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentPersonLinks_TenantId_PersonId",
+                table: "StudentPersonLinks",
+                columns: new[] { "TenantId", "PersonId" },
+                unique: true,
+                filter: "[IsDeleted] = 0");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentPersonLinks_TenantId_StudentId",
+                table: "StudentPersonLinks",
+                columns: new[] { "TenantId", "StudentId" },
+                unique: true,
+                filter: "[IsDeleted] = 0");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentPromotionRecords_FromAcademicYearId",
+                table: "StudentPromotionRecords",
+                column: "FromAcademicYearId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentPromotionRecords_FromClassId",
+                table: "StudentPromotionRecords",
+                column: "FromClassId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentPromotionRecords_FromEnrollmentId",
+                table: "StudentPromotionRecords",
+                column: "FromEnrollmentId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentPromotionRecords_FromGroupId",
+                table: "StudentPromotionRecords",
+                column: "FromGroupId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentPromotionRecords_FromSectionId",
+                table: "StudentPromotionRecords",
+                column: "FromSectionId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentPromotionRecords_PublicId",
+                table: "StudentPromotionRecords",
+                column: "PublicId",
+                unique: true,
+                filter: "[IsDeleted] = 0");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentPromotionRecords_StudentId",
+                table: "StudentPromotionRecords",
+                column: "StudentId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentPromotionRecords_TenantId_ClientRequestId",
+                table: "StudentPromotionRecords",
+                columns: new[] { "TenantId", "ClientRequestId" },
+                unique: true,
+                filter: "[IsDeleted] = 0");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentPromotionRecords_TenantId_FromEnrollmentId",
+                table: "StudentPromotionRecords",
+                columns: new[] { "TenantId", "FromEnrollmentId" },
+                unique: true,
+                filter: "[IsDeleted] = 0");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentPromotionRecords_TenantId_StudentId_ProcessedAt",
+                table: "StudentPromotionRecords",
+                columns: new[] { "TenantId", "StudentId", "ProcessedAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentPromotionRecords_ToAcademicYearId",
+                table: "StudentPromotionRecords",
+                column: "ToAcademicYearId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentPromotionRecords_ToClassId",
+                table: "StudentPromotionRecords",
+                column: "ToClassId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentPromotionRecords_ToEnrollmentId",
+                table: "StudentPromotionRecords",
+                column: "ToEnrollmentId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentPromotionRecords_ToGroupId",
+                table: "StudentPromotionRecords",
+                column: "ToGroupId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentPromotionRecords_ToSectionId",
+                table: "StudentPromotionRecords",
+                column: "ToSectionId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Students_AcademicYearId",
                 table: "Students",
-                column: "AcademicYearId1");
+                column: "AcademicYearId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Students_AdmissionApplicationId",
+                table: "Students",
+                column: "AdmissionApplicationId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Students_AdmissionId",
@@ -6453,24 +9396,47 @@ namespace EduOS.Persistence.Migrations
                 column: "AdmissionId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Students_ClassId1",
+                name: "IX_Students_ClassId",
                 table: "Students",
-                column: "ClassId1");
+                column: "ClassId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Students_GroupId1",
+                name: "IX_Students_GroupId",
                 table: "Students",
-                column: "GroupId1");
+                column: "GroupId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Students_SectionId1",
+                name: "IX_Students_PublicId",
                 table: "Students",
-                column: "SectionId1");
+                column: "PublicId",
+                unique: true,
+                filter: "[IsDeleted] = 0");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Students_TenantId",
+                name: "IX_Students_SectionId",
                 table: "Students",
-                column: "TenantId");
+                column: "SectionId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Students_TenantId_AcademicYearId_ClassId_SectionId_Roll",
+                table: "Students",
+                columns: new[] { "TenantId", "AcademicYearId", "ClassId", "SectionId", "Roll" },
+                unique: true,
+                filter: "[IsDeleted] = 0 AND [IsActive] = 1");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Students_TenantId_AdmissionApplicationId",
+                table: "Students",
+                columns: new[] { "TenantId", "AdmissionApplicationId" },
+                unique: true,
+                filter: "[IsDeleted] = 0 AND [AdmissionApplicationId] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Students_TenantId_StudentCode",
+                table: "Students",
+                columns: new[] { "TenantId", "StudentCode" },
+                unique: true,
+                filter: "[IsDeleted] = 0");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Students_UserId",
@@ -6478,14 +9444,78 @@ namespace EduOS.Persistence.Migrations
                 column: "UserId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_StudentTransports_RouteId1",
-                table: "StudentTransports",
-                column: "RouteId1");
+                name: "IX_StudentSubjectRegistrations_AcademicBatchId",
+                table: "StudentSubjectRegistrations",
+                column: "AcademicBatchId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_StudentTransports_StudentId1",
+                name: "IX_StudentSubjectRegistrations_AcademicCurriculumId",
+                table: "StudentSubjectRegistrations",
+                column: "AcademicCurriculumId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentSubjectRegistrations_AcademicTermId",
+                table: "StudentSubjectRegistrations",
+                column: "AcademicTermId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentSubjectRegistrations_AcademicYearId",
+                table: "StudentSubjectRegistrations",
+                column: "AcademicYearId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentSubjectRegistrations_CurriculumSubjectId",
+                table: "StudentSubjectRegistrations",
+                column: "CurriculumSubjectId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentSubjectRegistrations_StudentEnrollmentId",
+                table: "StudentSubjectRegistrations",
+                column: "StudentEnrollmentId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentSubjectRegistrations_StudentId",
+                table: "StudentSubjectRegistrations",
+                column: "StudentId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentSubjectRegistrations_SubjectId",
+                table: "StudentSubjectRegistrations",
+                column: "SubjectId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentSubjectRegistrations_TenantId",
+                table: "StudentSubjectRegistrations",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentSubjectRegistrations_TenantId_StudentId_Status",
+                table: "StudentSubjectRegistrations",
+                columns: new[] { "TenantId", "StudentId", "Status" });
+
+            migrationBuilder.CreateIndex(
+                name: "UX_StudentSubjectRegistrations_Tenant_Enrollment_Subject",
+                table: "StudentSubjectRegistrations",
+                columns: new[] { "TenantId", "StudentEnrollmentId", "SubjectId" },
+                unique: true,
+                filter: "[IsDeleted] = 0");
+
+            migrationBuilder.CreateIndex(
+                name: "UX_StudentSubjectRegistrations_Tenant_Request",
+                table: "StudentSubjectRegistrations",
+                columns: new[] { "TenantId", "ClientRequestId" },
+                unique: true,
+                filter: "[IsDeleted] = 0 AND [ClientRequestId] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentTransports_RouteId",
                 table: "StudentTransports",
-                column: "StudentId1");
+                column: "RouteId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StudentTransports_StudentId",
+                table: "StudentTransports",
+                column: "StudentId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_StudentTransports_TenantId",
@@ -6493,19 +9523,34 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_StudentTransports_VehicleId1",
+                name: "IX_StudentTransports_VehicleId",
                 table: "StudentTransports",
-                column: "VehicleId1");
+                column: "VehicleId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Subjects_ClassId1",
-                table: "Subjects",
-                column: "ClassId1");
+                name: "IX_SubjectPrerequisites_PrerequisiteSubjectId",
+                table: "SubjectPrerequisites",
+                column: "PrerequisiteSubjectId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Subjects_GroupId1",
+                name: "IX_SubjectPrerequisites_SubjectId",
+                table: "SubjectPrerequisites",
+                column: "SubjectId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SubjectPrerequisites_TenantId",
+                table: "SubjectPrerequisites",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Subjects_ClassId",
                 table: "Subjects",
-                column: "GroupId1");
+                column: "ClassId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Subjects_GroupId",
+                table: "Subjects",
+                column: "GroupId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Subjects_TenantId",
@@ -6513,29 +9558,36 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_SubjectTeachers_AcademicYearId1",
-                table: "SubjectTeachers",
-                column: "AcademicYearId1");
+                name: "UX_Subjects_Tenant_CanonicalCode",
+                table: "Subjects",
+                columns: new[] { "TenantId", "Code" },
+                unique: true,
+                filter: "[IsDeleted] = 0 AND [ClassId] IS NULL");
 
             migrationBuilder.CreateIndex(
-                name: "IX_SubjectTeachers_ClassId1",
+                name: "IX_SubjectTeachers_AcademicYearId",
                 table: "SubjectTeachers",
-                column: "ClassId1");
+                column: "AcademicYearId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_SubjectTeachers_SectionId1",
+                name: "IX_SubjectTeachers_ClassId",
                 table: "SubjectTeachers",
-                column: "SectionId1");
+                column: "ClassId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_SubjectTeachers_SubjectId1",
+                name: "IX_SubjectTeachers_SectionId",
                 table: "SubjectTeachers",
-                column: "SubjectId1");
+                column: "SectionId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_SubjectTeachers_TeacherId1",
+                name: "IX_SubjectTeachers_SubjectId",
                 table: "SubjectTeachers",
-                column: "TeacherId1");
+                column: "SubjectId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SubjectTeachers_TeacherId",
+                table: "SubjectTeachers",
+                column: "TeacherId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_SubjectTeachers_TenantId",
@@ -6572,7 +9624,9 @@ namespace EduOS.Persistence.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_SubscriptionPayments_SubscriptionInvoiceId",
                 table: "SubscriptionPayments",
-                column: "SubscriptionInvoiceId");
+                column: "SubscriptionInvoiceId",
+                unique: true,
+                filter: "[IsDeleted] = 0 AND [Status] IN (2, 7)");
 
             migrationBuilder.CreateIndex(
                 name: "IX_SubscriptionPayments_TenantId_Status",
@@ -6599,24 +9653,49 @@ namespace EduOS.Persistence.Migrations
                 columns: new[] { "IsActive", "IsPubliclyVisible" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_Substitutions_ClassId1",
+                name: "IX_Substitutions_AcademicBatchId",
                 table: "Substitutions",
-                column: "ClassId1");
+                column: "AcademicBatchId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Substitutions_OriginalTeacherId1",
+                name: "IX_Substitutions_AcademicTermId",
                 table: "Substitutions",
-                column: "OriginalTeacherId1");
+                column: "AcademicTermId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Substitutions_SubjectId1",
+                name: "IX_Substitutions_AcademicYearId",
                 table: "Substitutions",
-                column: "SubjectId1");
+                column: "AcademicYearId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Substitutions_SubstituteTeacherId1",
+                name: "IX_Substitutions_ClassId",
                 table: "Substitutions",
-                column: "SubstituteTeacherId1");
+                column: "ClassId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Substitutions_OriginalTeacherId",
+                table: "Substitutions",
+                column: "OriginalTeacherId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Substitutions_RoutineEntryId",
+                table: "Substitutions",
+                column: "RoutineEntryId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Substitutions_RoutineTimeSlotId",
+                table: "Substitutions",
+                column: "RoutineTimeSlotId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Substitutions_SubjectId",
+                table: "Substitutions",
+                column: "SubjectId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Substitutions_SubstituteTeacherId",
+                table: "Substitutions",
+                column: "SubstituteTeacherId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Substitutions_TenantId",
@@ -6624,19 +9703,40 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_SurveyQuestions_SurveyId1",
+                name: "UX_Substitutions_Tenant_Request",
+                table: "Substitutions",
+                columns: new[] { "TenantId", "ClientRequestId" },
+                unique: true,
+                filter: "[ClientRequestId] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "UX_Substitutions_Tenant_Routine_Date",
+                table: "Substitutions",
+                columns: new[] { "TenantId", "RoutineEntryId", "Date" },
+                unique: true,
+                filter: "[IsDeleted] = 0 AND [IsActive] = 1 AND [RoutineEntryId] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "UX_Substitutions_Tenant_Substitute_Date_Slot",
+                table: "Substitutions",
+                columns: new[] { "TenantId", "SubstituteTeacherId", "Date", "RoutineTimeSlotId" },
+                unique: true,
+                filter: "[IsDeleted] = 0 AND [IsActive] = 1 AND [RoutineTimeSlotId] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SurveyQuestions_SurveyId",
                 table: "SurveyQuestions",
-                column: "SurveyId1");
+                column: "SurveyId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_SurveyResponses_QuestionId1",
+                name: "IX_SurveyResponses_QuestionId",
                 table: "SurveyResponses",
-                column: "QuestionId1");
+                column: "QuestionId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_SurveyResponses_SurveyId1",
+                name: "IX_SurveyResponses_SurveyId",
                 table: "SurveyResponses",
-                column: "SurveyId1");
+                column: "SurveyId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Surveys_TenantId",
@@ -6644,29 +9744,46 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Tabulations_ClassId1",
+                name: "IX_Tabulations_ClassId",
                 table: "Tabulations",
-                column: "ClassId1");
+                column: "ClassId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Tabulations_ExamId1",
+                name: "IX_Tabulations_ExamId",
                 table: "Tabulations",
-                column: "ExamId1");
+                column: "ExamId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Tabulations_SectionId1",
+                name: "IX_Tabulations_SectionId",
                 table: "Tabulations",
-                column: "SectionId1");
+                column: "SectionId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Tabulations_StudentId1",
+                name: "IX_Tabulations_StudentId",
                 table: "Tabulations",
-                column: "StudentId1");
+                column: "StudentId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Tabulations_TenantId",
                 table: "Tabulations",
                 column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TenantModules_ProductModuleId",
+                table: "TenantModules",
+                column: "ProductModuleId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TenantModules_TenantId_IsEnabled_EffectiveFromUtc_EffectiveUntilUtc",
+                table: "TenantModules",
+                columns: new[] { "TenantId", "IsEnabled", "EffectiveFromUtc", "EffectiveUntilUtc" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TenantModules_TenantId_ProductModuleId",
+                table: "TenantModules",
+                columns: new[] { "TenantId", "ProductModuleId" },
+                unique: true,
+                filter: "[IsDeleted] = 0");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Tenants_Code",
@@ -6686,6 +9803,11 @@ namespace EduOS.Persistence.Migrations
                 name: "IX_Tenants_Email",
                 table: "Tenants",
                 column: "Email");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Tenants_InstitutionTypeDefinitionId",
+                table: "Tenants",
+                column: "InstitutionTypeDefinitionId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Tenants_Status",
@@ -6722,6 +9844,13 @@ namespace EduOS.Persistence.Migrations
                 column: "SubscriptionPlanId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_TenantSubscriptions_TenantId",
+                table: "TenantSubscriptions",
+                column: "TenantId",
+                unique: true,
+                filter: "[IsDeleted] = 0 AND [Status] IN (1, 2, 3, 6)");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_TenantSubscriptions_TenantId_Status",
                 table: "TenantSubscriptions",
                 columns: new[] { "TenantId", "Status" });
@@ -6732,14 +9861,14 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_TransferCertificates_LastClassId1",
+                name: "IX_TransferCertificates_LastClassId",
                 table: "TransferCertificates",
-                column: "LastClassId1");
+                column: "LastClassId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_TransferCertificates_StudentId1",
+                name: "IX_TransferCertificates_StudentId",
                 table: "TransferCertificates",
-                column: "StudentId1");
+                column: "StudentId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_TransferCertificates_TenantId",
@@ -6747,9 +9876,14 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_TrialAccounts_TenantId1",
+                name: "IX_TrialAccounts_ConvertedToPlanId",
                 table: "TrialAccounts",
-                column: "TenantId1");
+                column: "ConvertedToPlanId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TrialAccounts_TenantId",
+                table: "TrialAccounts",
+                column: "TenantId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_TwoFactorAuths_UserId",
@@ -6762,9 +9896,9 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Vehicles_RouteId1",
+                name: "IX_Vehicles_RouteId",
                 table: "Vehicles",
-                column: "RouteId1");
+                column: "RouteId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Vehicles_TenantId",
@@ -6777,14 +9911,14 @@ namespace EduOS.Persistence.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_VoucherDetails_AccountId1",
+                name: "IX_VoucherDetails_AccountId",
                 table: "VoucherDetails",
-                column: "AccountId1");
+                column: "AccountId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_VoucherDetails_VoucherId1",
+                name: "IX_VoucherDetails_VoucherId",
                 table: "VoucherDetails",
-                column: "VoucherId1");
+                column: "VoucherId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Vouchers_TenantId",
@@ -6801,7 +9935,16 @@ namespace EduOS.Persistence.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "AcademicTerms");
+                name: "AcademicCalendarEvents");
+
+            migrationBuilder.DropTable(
+                name: "AcademicCalendarPolicies");
+
+            migrationBuilder.DropTable(
+                name: "AdmissionApplicantDocuments");
+
+            migrationBuilder.DropTable(
+                name: "AdmissionResults");
 
             migrationBuilder.DropTable(
                 name: "AdmitCards");
@@ -6849,9 +9992,6 @@ namespace EduOS.Persistence.Migrations
                 name: "BookIssues");
 
             migrationBuilder.DropTable(
-                name: "Campuses");
-
-            migrationBuilder.DropTable(
                 name: "ClassRoutines");
 
             migrationBuilder.DropTable(
@@ -6874,9 +10014,6 @@ namespace EduOS.Persistence.Migrations
 
             migrationBuilder.DropTable(
                 name: "EmployeeAttendances");
-
-            migrationBuilder.DropTable(
-                name: "Enrollments");
 
             migrationBuilder.DropTable(
                 name: "Events");
@@ -6933,10 +10070,19 @@ namespace EduOS.Persistence.Migrations
                 name: "Increments");
 
             migrationBuilder.DropTable(
+                name: "InstitutionTypeModules");
+
+            migrationBuilder.DropTable(
                 name: "InvoiceItems");
 
             migrationBuilder.DropTable(
                 name: "Languages");
+
+            migrationBuilder.DropTable(
+                name: "LearnerDataGrants");
+
+            migrationBuilder.DropTable(
+                name: "LearnerIdentityAccessLogs");
 
             migrationBuilder.DropTable(
                 name: "LeaveApplications");
@@ -6945,7 +10091,7 @@ namespace EduOS.Persistence.Migrations
                 name: "LessonPlans");
 
             migrationBuilder.DropTable(
-                name: "Lessons");
+                name: "LessonProgress");
 
             migrationBuilder.DropTable(
                 name: "LiveClasses");
@@ -6958,9 +10104,6 @@ namespace EduOS.Persistence.Migrations
 
             migrationBuilder.DropTable(
                 name: "MarkEntries");
-
-            migrationBuilder.DropTable(
-                name: "Mediums");
 
             migrationBuilder.DropTable(
                 name: "MessageQueues");
@@ -6990,7 +10133,16 @@ namespace EduOS.Persistence.Migrations
                 name: "Payrolls");
 
             migrationBuilder.DropTable(
+                name: "PersonIdentifiers");
+
+            migrationBuilder.DropTable(
                 name: "PlanFeatures");
+
+            migrationBuilder.DropTable(
+                name: "ProductModuleFeatures");
+
+            migrationBuilder.DropTable(
+                name: "ProgramCampuses");
 
             migrationBuilder.DropTable(
                 name: "Promotions");
@@ -7002,6 +10154,9 @@ namespace EduOS.Persistence.Migrations
                 name: "RolePermissions");
 
             migrationBuilder.DropTable(
+                name: "Rooms");
+
+            migrationBuilder.DropTable(
                 name: "SalaryStructures");
 
             migrationBuilder.DropTable(
@@ -7009,9 +10164,6 @@ namespace EduOS.Persistence.Migrations
 
             migrationBuilder.DropTable(
                 name: "SeatPlans");
-
-            migrationBuilder.DropTable(
-                name: "Shifts");
 
             migrationBuilder.DropTable(
                 name: "SmsGateways");
@@ -7023,10 +10175,25 @@ namespace EduOS.Persistence.Migrations
                 name: "StudentDiscounts");
 
             migrationBuilder.DropTable(
+                name: "StudentExitRecord");
+
+            migrationBuilder.DropTable(
                 name: "StudentHostels");
 
             migrationBuilder.DropTable(
+                name: "StudentPersonLinks");
+
+            migrationBuilder.DropTable(
+                name: "StudentPromotionRecords");
+
+            migrationBuilder.DropTable(
+                name: "StudentSubjectRegistrations");
+
+            migrationBuilder.DropTable(
                 name: "StudentTransports");
+
+            migrationBuilder.DropTable(
+                name: "SubjectPrerequisites");
 
             migrationBuilder.DropTable(
                 name: "SubjectTeachers");
@@ -7042,6 +10209,9 @@ namespace EduOS.Persistence.Migrations
 
             migrationBuilder.DropTable(
                 name: "Tabulations");
+
+            migrationBuilder.DropTable(
+                name: "TenantModules");
 
             migrationBuilder.DropTable(
                 name: "TenantSettings");
@@ -7069,6 +10239,9 @@ namespace EduOS.Persistence.Migrations
 
             migrationBuilder.DropTable(
                 name: "WebhookEndpoints");
+
+            migrationBuilder.DropTable(
+                name: "AdmissionTests");
 
             migrationBuilder.DropTable(
                 name: "Albums");
@@ -7101,7 +10274,19 @@ namespace EduOS.Persistence.Migrations
                 name: "IncomeCategories");
 
             migrationBuilder.DropTable(
+                name: "LearnerConsentRequests");
+
+            migrationBuilder.DropTable(
                 name: "LeaveTypes");
+
+            migrationBuilder.DropTable(
+                name: "InstructorAssignments");
+
+            migrationBuilder.DropTable(
+                name: "CourseEnrollment");
+
+            migrationBuilder.DropTable(
+                name: "Lessons");
 
             migrationBuilder.DropTable(
                 name: "NoticeCategories");
@@ -7140,13 +10325,28 @@ namespace EduOS.Persistence.Migrations
                 name: "HostelRooms");
 
             migrationBuilder.DropTable(
+                name: "Enrollments");
+
+            migrationBuilder.DropTable(
+                name: "CurriculumSubjects");
+
+            migrationBuilder.DropTable(
+                name: "StudentEnrollments");
+
+            migrationBuilder.DropTable(
                 name: "Vehicles");
 
             migrationBuilder.DropTable(
                 name: "SubscriptionInvoices");
 
             migrationBuilder.DropTable(
+                name: "RoutineEntries");
+
+            migrationBuilder.DropTable(
                 name: "SurveyQuestions");
+
+            migrationBuilder.DropTable(
+                name: "ProductModules");
 
             migrationBuilder.DropTable(
                 name: "Accounts");
@@ -7155,10 +10355,10 @@ namespace EduOS.Persistence.Migrations
                 name: "Vouchers");
 
             migrationBuilder.DropTable(
-                name: "Courses");
+                name: "Persons");
 
             migrationBuilder.DropTable(
-                name: "Students");
+                name: "Courses");
 
             migrationBuilder.DropTable(
                 name: "Exams");
@@ -7170,10 +10370,22 @@ namespace EduOS.Persistence.Migrations
                 name: "Hostels");
 
             migrationBuilder.DropTable(
+                name: "AcademicCurriculums");
+
+            migrationBuilder.DropTable(
+                name: "Students");
+
+            migrationBuilder.DropTable(
                 name: "Routes");
 
             migrationBuilder.DropTable(
                 name: "TenantSubscriptions");
+
+            migrationBuilder.DropTable(
+                name: "AcademicBatches");
+
+            migrationBuilder.DropTable(
+                name: "RoutineTimeSlots");
 
             migrationBuilder.DropTable(
                 name: "Surveys");
@@ -7185,6 +10397,9 @@ namespace EduOS.Persistence.Migrations
                 name: "Subjects");
 
             migrationBuilder.DropTable(
+                name: "AdmissionApplicants");
+
+            migrationBuilder.DropTable(
                 name: "Admissions");
 
             migrationBuilder.DropTable(
@@ -7194,10 +10409,16 @@ namespace EduOS.Persistence.Migrations
                 name: "SubscriptionPlans");
 
             migrationBuilder.DropTable(
-                name: "AspNetUsers");
+                name: "AcademicTracks");
 
             migrationBuilder.DropTable(
-                name: "Departments");
+                name: "Mediums");
+
+            migrationBuilder.DropTable(
+                name: "Shifts");
+
+            migrationBuilder.DropTable(
+                name: "AspNetUsers");
 
             migrationBuilder.DropTable(
                 name: "Designation");
@@ -7206,13 +10427,34 @@ namespace EduOS.Persistence.Migrations
                 name: "Groups");
 
             migrationBuilder.DropTable(
-                name: "AcademicYears");
+                name: "AdmissionIntakeForms");
+
+            migrationBuilder.DropTable(
+                name: "AcademicLevels");
+
+            migrationBuilder.DropTable(
+                name: "AcademicTerms");
 
             migrationBuilder.DropTable(
                 name: "Classes");
 
             migrationBuilder.DropTable(
+                name: "AcademicPrograms");
+
+            migrationBuilder.DropTable(
+                name: "AcademicYears");
+
+            migrationBuilder.DropTable(
+                name: "Campuses");
+
+            migrationBuilder.DropTable(
+                name: "Departments");
+
+            migrationBuilder.DropTable(
                 name: "Tenants");
+
+            migrationBuilder.DropTable(
+                name: "InstitutionTypeDefinitions");
         }
     }
 }
