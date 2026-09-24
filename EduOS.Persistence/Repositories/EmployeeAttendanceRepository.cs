@@ -11,33 +11,48 @@ namespace EduOS.Persistence.Repositories
 
         public async Task<List<EmployeeAttendance>> GetByDateAsync(DateTime date, long tenantId)
         {
+            var dayStart = date.Date;
+            var dayEnd = dayStart.AddDays(1);
+
             return await _dbSet
+                .AsNoTracking()
                 .Include(a => a.Employee)
-                .Where(a => a.Date.Date == date.Date && a.TenantId == tenantId)
+                .Where(a => a.Date >= dayStart && a.Date < dayEnd && a.TenantId == tenantId)
                 .ToListAsync();
         }
 
         public async Task<List<EmployeeAttendance>> GetByEmployeeRangeAsync(long employeeId, DateTime fromDate, DateTime toDate)
         {
+            var rangeStart = fromDate.Date;
+            var rangeEndExclusive = toDate.Date.AddDays(1);
+
             return await _dbSet
+                .AsNoTracking()
                 .Where(a => a.EmployeeId == employeeId
-                    && a.Date.Date >= fromDate.Date
-                    && a.Date.Date <= toDate.Date)
+                    && a.Date >= rangeStart
+                    && a.Date < rangeEndExclusive)
                 .OrderBy(a => a.Date)
                 .ToListAsync();
         }
 
         public async Task<EmployeeAttendance?> GetByEmployeeAndDateAsync(long employeeId, DateTime date)
         {
+            var dayStart = date.Date;
+            var dayEnd = dayStart.AddDays(1);
+
             return await _dbSet
-                .FirstOrDefaultAsync(a => a.EmployeeId == employeeId && a.Date.Date == date.Date);
+                .AsNoTracking()
+                .FirstOrDefaultAsync(a => a.EmployeeId == employeeId && a.Date >= dayStart && a.Date < dayEnd);
         }
 
         public async Task<int> GetPresentCountAsync(long employeeId, int month, int year)
         {
+            var monthStart = new DateTime(year, month, 1);
+            var monthEndExclusive = monthStart.AddMonths(1);
+
             return await _dbSet.CountAsync(a => a.EmployeeId == employeeId
-                && a.Date.Month == month
-                && a.Date.Year == year
+                && a.Date >= monthStart
+                && a.Date < monthEndExclusive
                 && a.Status == "Present");
         }
     }
