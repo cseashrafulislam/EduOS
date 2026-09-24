@@ -1,0 +1,25 @@
+@{
+    ViewData["Title"] = "Library";
+}
+<section class="admission-page" aria-labelledby="libraryTitle">
+    <header class="content-header-card d-flex justify-content-between align-items-center gap-3 flex-wrap">
+        <div><p class="dashboard-eyebrow">Library Operations</p><h2 id="libraryTitle">Library</h2><p>Search the tenant catalog, review your borrowing history and print an operational statement.</p></div>
+        <button id="printLibrary" type="button" class="btn btn-outline-secondary">Print report</button>
+    </header>
+    <div id="libraryAlert" class="d-none" role="alert" tabindex="-1"></div>
+    <section class="content-card">
+        <form id="librarySearch" class="row g-3 align-items-end">
+            <div class="col-md-8"><label class="form-label" for="libraryQuery">Title, author or ISBN</label><input id="libraryQuery" class="form-control" maxlength="150" autocomplete="off" /></div>
+            <div class="col-md-4 d-flex gap-2"><button class="btn btn-primary" type="submit">Search catalog</button><button id="clearLibrarySearch" class="btn btn-outline-secondary" type="button">Clear</button></div>
+        </form>
+    </section>
+    <section class="content-card mt-3" aria-labelledby="catalogTitle">
+        <div class="content-card-heading d-flex justify-content-between align-items-center"><h3 id="catalogTitle">Catalog</h3><span id="catalogCount" class="small text-muted"></span></div>
+        <div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead><tr><th>Title</th><th>Author</th><th>ISBN</th><th>Category</th><th>Shelf</th><th class="text-end">Available</th></tr></thead><tbody id="catalogRows"><tr><td colspan="6" class="text-center text-muted py-4">Loading catalog…</td></tr></tbody></table></div>
+    </section>
+    <section class="content-card mt-3" aria-labelledby="issuesTitle">
+        <div class="content-card-heading d-flex justify-content-between align-items-center"><h3 id="issuesTitle">My issues</h3><span id="issueCount" class="small text-muted"></span></div>
+        <div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead><tr><th>Book</th><th>Borrower</th><th>Issued</th><th>Due</th><th>Returned</th><th>Status</th><th class="text-end">Fine</th></tr></thead><tbody id="issueRows"><tr><td colspan="7" class="text-center text-muted py-4">Loading issues…</td></tr></tbody></table></div>
+    </section>
+</section>
+@section Scripts { <script src="~/js/library/index.js" asp-append-version="true"></script> }
