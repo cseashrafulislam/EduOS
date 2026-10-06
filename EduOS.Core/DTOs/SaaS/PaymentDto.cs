@@ -3,66 +3,6 @@ using System.ComponentModel.DataAnnotations;
 
 namespace EduOS.Core.DTOs.SaaS
 {
-    public class SubscriptionInvoiceDto
-    {
-        public long Id { get; set; }
-        public string InvoiceNumber { get; set; } = string.Empty;
-        public DateTime IssueDate { get; set; }
-        public DateTime DueDate { get; set; }
-        public DateTime PeriodStart { get; set; }
-        public DateTime PeriodEnd { get; set; }
-
-        public decimal Subtotal { get; set; }
-        public decimal DiscountAmount { get; set; }
-        public decimal TaxAmount { get; set; }
-        public decimal TotalAmount { get; set; }
-        public decimal PaidAmount { get; set; }
-        public decimal DueAmount { get; set; }
-
-        public string Currency { get; set; } = "BDT";
-        public PaymentStatus PaymentStatus { get; set; }
-        public DateTime? PaidAt { get; set; }
-
-        public string CustomerName { get; set; } = string.Empty;
-        public string? CustomerEmail { get; set; }
-        public string? CustomerPhone { get; set; }
-        public string? CustomerAddress { get; set; }
-
-        public string? Description { get; set; }
-
-        public string PlanName { get; set; } = string.Empty;
-        public string? PlanNameBangla { get; set; }
-    }
-
-    public class SubscriptionPaymentDto
-    {
-        public long Id { get; set; }
-        public long InvoiceId { get; set; }
-        public string InvoiceNumber { get; set; } = string.Empty;
-
-        public string TransactionId { get; set; } = string.Empty;
-        public string? GatewayTransactionId { get; set; }
-
-        public PaymentMethod PaymentMethod { get; set; }
-        public decimal Amount { get; set; }
-        public string Currency { get; set; } = "BDT";
-        public PaymentStatus Status { get; set; }
-
-        public DateTime InitiatedAt { get; set; }
-        public DateTime? CompletedAt { get; set; }
-
-        // Manual payment fields
-        public string? PayerBankName { get; set; }
-        public string? PayerAccountNumber { get; set; }
-        public string? DepositSlipNumber { get; set; }
-        public DateTime? DepositDate { get; set; }
-        public bool HasDepositSlip { get; set; }
-        public string? VerificationNote { get; set; }
-        public DateTime? VerifiedAt { get; set; }
-
-        public string? FailureReason { get; set; }
-    }
-
     /// <summary>
     /// Initiate online payment (AamarPay)
     /// </summary>
