@@ -1,10 +1,9 @@
-using EduOS.Core.Entities.Exams;
+using EduOS.Core.Entities.Assessment;
 
-namespace EduOS.Core.Interfaces.IRepositories
+namespace EduOS.Core.Interfaces.IRepositories;
+
+public interface IExamScheduleRepository : IGenericRepository<AssessmentSchedule>
 {
-    public interface IExamScheduleRepository : IGenericRepository<ExamSchedule>
-    {
-        Task<List<ExamSchedule>> GetByExamAndClassAsync(long examId, long classId);
-        Task<List<ExamSchedule>> GetByDateAsync(DateTime date, long tenantId);
-    }
+    Task<List<AssessmentSchedule>> GetByExamAndClassAsync(long examId, long classId);
+    Task<List<AssessmentSchedule>> GetByDateAsync(DateTime date, long tenantId);
 }
