@@ -1,30 +1,17 @@
-﻿using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Academic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace EduOS.Persistence.Configurations
+namespace EduOS.Persistence.Configurations;
+
+public class ClassConfiguration : IEntityTypeConfiguration<AcademicLevel>
 {
-    public class ClassConfiguration : IEntityTypeConfiguration<Class>
+    public void Configure(EntityTypeBuilder<AcademicLevel> builder)
     {
-        public void Configure(EntityTypeBuilder<Class> builder)
-        {
-            builder.ToTable("Classes");
-
-            builder.HasKey(c => c.Id);
-
-            builder.Property(c => c.Name)
-                .IsRequired()
-                .HasMaxLength(100);
-
-            builder.Property(c => c.NumericValue)
-                .IsRequired();
-
-            builder.HasIndex(c => new { c.TenantId, c.Name })
-                .IsUnique()
-                .HasFilter("[IsDeleted] = 0");
-
-            // Soft delete query filter
-            builder.HasQueryFilter(c => !c.IsDeleted);
-        }
+        builder.Property(x => x.Name).IsRequired().HasMaxLength(150);
+        builder.Property(x => x.Code).IsRequired().HasMaxLength(50);
+        builder.HasIndex(x => new { x.TenantId, x.AcademicProgramId, x.Code })
+            .IsUnique().HasFilter("[IsDeleted] = 0");
+        builder.HasIndex(x => new { x.TenantId, x.AcademicProgramId, x.DisplayOrder });
     }
 }
