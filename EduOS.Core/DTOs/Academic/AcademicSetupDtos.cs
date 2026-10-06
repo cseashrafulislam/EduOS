@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Enums.Academics;
 
 namespace EduOS.Core.DTOs.Academic;
 
