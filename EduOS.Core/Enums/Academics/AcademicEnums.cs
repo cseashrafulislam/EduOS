@@ -69,6 +69,27 @@
         Meeting = 7,
         Other = 8
     }
+    public enum AcademicCalendarEventType
+    {
+        Academic = 1,
+        Holiday = 2,
+        Examination = 3,
+        Admission = 4,
+        Sports = 5,
+        Cultural = 6,
+        Meeting = 7,
+        Other = 99
+    }
+
+    public enum SubjectRegistrationStatus
+    {
+        Pending = 1,
+        Approved = 2,
+        Rejected = 3,
+        Dropped = 4,
+        Completed = 5
+    }
+
 
     public enum LearningContentType
     {
