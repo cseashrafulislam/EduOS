@@ -1,9 +1,8 @@
-using EduOS.Core.Entities.Employees;
+using EduOS.Core.Entities.HR;
 
-namespace EduOS.Core.Interfaces.IRepositories
+namespace EduOS.Core.Interfaces.IRepositories;
+
+public interface IDesignationRepository : IGenericRepository<Designation>
 {
-    public interface IDesignationRepository : IGenericRepository<Designation>
-    {
-        Task<List<Designation>> GetActiveAsync(long tenantId);
-    }
+    Task<List<Designation>> GetActiveAsync(long tenantId);
 }
