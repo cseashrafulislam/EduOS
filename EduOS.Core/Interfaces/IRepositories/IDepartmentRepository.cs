@@ -1,9 +1,8 @@
 using EduOS.Core.Entities.Academic;
 
-namespace EduOS.Core.Interfaces.IRepositories
+namespace EduOS.Core.Interfaces.IRepositories;
+
+public interface IDepartmentRepository : IGenericRepository<AcademicDepartment>
 {
-    public interface IDepartmentRepository : IGenericRepository<Department>
-    {
-        Task<bool> IsCodeExistsAsync(string code, long tenantId, long? excludeId = null);
-    }
+    Task<bool> IsCodeExistsAsync(string code, long tenantId, long? excludeId = null);
 }
