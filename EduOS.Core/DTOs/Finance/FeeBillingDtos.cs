@@ -40,44 +40,12 @@ public sealed class SetInvoiceFineDto
     [Required] public string InvoiceRowVersion { get; set; } = string.Empty;
 }
 
-public sealed class StudentInvoiceDto
-{
-    public Guid Reference { get; set; }
-    public string InvoiceNo { get; set; } = string.Empty;
-    public long StudentId { get; set; }
-    public Guid StudentReference { get; set; }
-    public string StudentName { get; set; } = string.Empty;
-    public string Roll { get; set; } = string.Empty;
-    public string Month { get; set; } = string.Empty;
-    public int Year { get; set; }
-    public decimal TotalAmount { get; set; }
-    public decimal DiscountAmount { get; set; }
-    public decimal FineAmount { get; set; }
-    public decimal PaidAmount { get; set; }
-    public decimal DueAmount { get; set; }
-    public string Status { get; set; } = string.Empty;
-    public DateTime DueDate { get; set; }
-    public string RowVersion { get; set; } = string.Empty;
-}
-
 public sealed class InvoiceBatchResultDto
 {
     public Guid ClientRequestId { get; set; }
     public int Generated { get; set; }
     public int Existing { get; set; }
     public List<StudentInvoiceDto> Invoices { get; set; } = new();
-}
-
-public sealed class StudentPaymentDto
-{
-    public Guid Reference { get; set; }
-    public Guid InvoiceReference { get; set; }
-    public string ReceiptNo { get; set; } = string.Empty;
-    public decimal Amount { get; set; }
-    public string PaymentMethod { get; set; } = string.Empty;
-    public DateTime PaymentDate { get; set; }
-    public string? TransactionId { get; set; }
-    public StudentInvoiceDto Invoice { get; set; } = new();
 }
 
 public sealed class StudentLedgerDto
