@@ -15,18 +15,6 @@ public sealed class AcademicSetupCatalogDto
     public IReadOnlyList<AcademicRoomDto> Rooms { get; set; } = [];
 }
 
-public sealed class AcademicTrackDto
-{
-    public long Id { get; set; }
-    public long? AcademicProgramId { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public string Code { get; set; } = string.Empty;
-    public string? Description { get; set; }
-    public bool IsDefault { get; set; }
-    public int DisplayOrder { get; set; }
-    public bool IsActive { get; set; }
-}
-
 public sealed class CreateAcademicTrackDto
 {
     public long? AcademicProgramId { get; set; }
@@ -35,20 +23,6 @@ public sealed class CreateAcademicTrackDto
     [StringLength(500)] public string? Description { get; set; }
     public bool IsDefault { get; set; }
     [Range(1, 10000)] public int DisplayOrder { get; set; } = 1;
-}
-
-public sealed class AcademicProgramDto
-{
-    public long Id { get; set; }
-    public long? CampusId { get; set; }
-    public long? DepartmentId { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public string Code { get; set; } = string.Empty;
-    public string? ShortName { get; set; }
-    public int DurationInMonths { get; set; }
-    public string? AwardTitle { get; set; }
-    public bool IsAdmissionOpen { get; set; }
-    public bool IsActive { get; set; }
 }
 
 public sealed class CreateAcademicProgramDto
@@ -62,18 +36,6 @@ public sealed class CreateAcademicProgramDto
     [StringLength(150)] public string? AwardTitle { get; set; }
     [StringLength(1000)] public string? Description { get; set; }
     public bool IsAdmissionOpen { get; set; } = true;
-}
-
-public sealed class AcademicLevelDto
-{
-    public long Id { get; set; }
-    public long AcademicProgramId { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public string Code { get; set; } = string.Empty;
-    public int LevelNo { get; set; }
-    public bool IsPromotable { get; set; }
-    public bool IsTerminalLevel { get; set; }
-    public bool IsActive { get; set; }
 }
 
 public sealed class CreateAcademicLevelDto
@@ -111,18 +73,6 @@ public sealed class CreateAcademicSubjectDto
     public bool HasPractical { get; set; }
 }
 
-public sealed class AcademicCurriculumDto
-{
-    public long Id { get; set; }
-    public long AcademicProgramId { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public string Code { get; set; } = string.Empty;
-    public long? EffectiveFromAcademicYearId { get; set; }
-    public long? EffectiveToAcademicYearId { get; set; }
-    public bool IsCurrent { get; set; }
-    public bool IsActive { get; set; }
-}
-
 public sealed class CreateAcademicCurriculumDto
 {
     [Range(1, long.MaxValue)] public long AcademicProgramId { get; set; }
@@ -132,22 +82,6 @@ public sealed class CreateAcademicCurriculumDto
     public long? EffectiveToAcademicYearId { get; set; }
     public bool IsCurrent { get; set; }
     [StringLength(500)] public string? Remarks { get; set; }
-}
-
-public sealed class CurriculumSubjectDto
-{
-    public long Id { get; set; }
-    public long AcademicCurriculumId { get; set; }
-    public long AcademicLevelId { get; set; }
-    public long SubjectId { get; set; }
-    public long? AcademicTrackId { get; set; }
-    public long? MediumId { get; set; }
-    public decimal FullMarks { get; set; }
-    public decimal PassMarks { get; set; }
-    public decimal CreditHours { get; set; }
-    public bool IsOptional { get; set; }
-    public bool HasPractical { get; set; }
-    public bool IsActive { get; set; }
 }
 
 public sealed class RegisterCurriculumSubjectDto
@@ -161,26 +95,6 @@ public sealed class RegisterCurriculumSubjectDto
     [Range(typeof(decimal), "0", "1000")] public decimal CreditHours { get; set; }
     public bool IsOptional { get; set; }
     public bool HasPractical { get; set; }
-}
-
-public sealed class AcademicBatchDto
-{
-    public long Id { get; set; }
-    public long CampusId { get; set; }
-    public long AcademicYearId { get; set; }
-    public long? AcademicTermId { get; set; }
-    public long AcademicProgramId { get; set; }
-    public long AcademicLevelId { get; set; }
-    public long? AcademicTrackId { get; set; }
-    public long? MediumId { get; set; }
-    public long? ShiftId { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public string Code { get; set; } = string.Empty;
-    public DeliveryMode DeliveryMode { get; set; }
-    public int Capacity { get; set; }
-    public DateTime? StartDate { get; set; }
-    public DateTime? EndDate { get; set; }
-    public bool IsActive { get; set; }
 }
 
 public sealed class CreateAcademicBatchDto
