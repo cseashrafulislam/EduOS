@@ -1,11 +1,10 @@
-using EduOS.Core.Entities.Exams;
+using EduOS.Core.Entities.Assessment;
 
-namespace EduOS.Core.Interfaces.IRepositories
+namespace EduOS.Core.Interfaces.IRepositories;
+
+public interface IResultRepository : IGenericRepository<StudentResultSummary>
 {
-    public interface IResultRepository : IGenericRepository<ExamResult>
-    {
-        Task<ExamResult?> GetByExamAndStudentAsync(long examId, long studentId);
-        Task<List<ExamResult>> GetByExamAndClassAsync(long examId, long classId);
-        Task<List<ExamResult>> GetTopRankersAsync(long examId, long classId, int top = 10);
-    }
+    Task<StudentResultSummary?> GetByExamAndStudentAsync(long examId, long studentId);
+    Task<List<StudentResultSummary>> GetByExamAndClassAsync(long examId, long classId);
+    Task<List<StudentResultSummary>> GetTopRankersAsync(long examId, long classId, int top = 10);
 }
