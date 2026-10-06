@@ -28,13 +28,13 @@ public class StudentAttendanceRepository : GenericRepository<StudentAttendance>,
 
     public async Task<List<StudentAttendance>> GetByStudentRangeAsync(long studentId, DateTime fromDate, DateTime toDate)
     {
-        var from = DateOnly.FromDateTime(fromDate);
-        var to = DateOnly.FromDateTime(toDate);
+        var rangeStart = DateOnly.FromDateTime(fromDate);
+        var rangeEnd = DateOnly.FromDateTime(toDate);
         var query =
             from attendance in _dbSet.AsNoTracking()
             join session in _context.Set<AttendanceSession>() on attendance.AttendanceSessionId equals session.Id
             join enrollment in _context.Set<StudentEnrollment>() on attendance.StudentEnrollmentId equals enrollment.Id
-            where enrollment.StudentId == studentId && session.AttendanceDate >= from && session.AttendanceDate <= to
+            where enrollment.StudentId == studentId && session.AttendanceDate >= rangeStart && session.AttendanceDate <= rangeEnd
             orderby session.AttendanceDate
             select attendance;
         return await query.ToListAsync();
@@ -88,13 +88,13 @@ public class StudentAttendanceRepository : GenericRepository<StudentAttendance>,
 
     private async Task<int> CountStateAsync(long studentId, DateTime fromDate, DateTime toDate, AttendanceState state)
     {
-        var from = DateOnly.FromDateTime(fromDate);
-        var to = DateOnly.FromDateTime(toDate);
+        var rangeStart = DateOnly.FromDateTime(fromDate);
+        var rangeEnd = DateOnly.FromDateTime(toDate);
         var query =
             from attendance in _dbSet
             join session in _context.Set<AttendanceSession>() on attendance.AttendanceSessionId equals session.Id
             join enrollment in _context.Set<StudentEnrollment>() on attendance.StudentEnrollmentId equals enrollment.Id
-            where enrollment.StudentId == studentId && session.AttendanceDate >= from && session.AttendanceDate <= to
+            where enrollment.StudentId == studentId && session.AttendanceDate >= rangeStart && session.AttendanceDate <= rangeEnd
                 && attendance.State == state
             select attendance.Id;
         return await query.CountAsync();
