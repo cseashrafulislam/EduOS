@@ -1,12 +1,11 @@
-using EduOS.Core.Entities.Exams;
+using EduOS.Core.Entities.Assessment;
 
-namespace EduOS.Core.Interfaces.IRepositories
+namespace EduOS.Core.Interfaces.IRepositories;
+
+public interface IMarkEntryRepository : IGenericRepository<StudentAssessmentMark>
 {
-    public interface IMarkEntryRepository : IGenericRepository<MarkEntry>
-    {
-        Task<List<MarkEntry>> GetByExamAndStudentAsync(long examId, long studentId);
-        Task<List<MarkEntry>> GetByExamAndSubjectAsync(long examId, long subjectId, long classId);
-        Task<MarkEntry?> GetExistingAsync(long examId, long studentId, long subjectId);
-        Task<bool> IsAllMarksEnteredAsync(long examId, long classId);
-    }
+    Task<List<StudentAssessmentMark>> GetByExamAndStudentAsync(long examId, long studentId);
+    Task<List<StudentAssessmentMark>> GetByExamAndSubjectAsync(long examId, long subjectId, long classId);
+    Task<StudentAssessmentMark?> GetExistingAsync(long examId, long studentId, long subjectId);
+    Task<bool> IsAllMarksEnteredAsync(long examId, long classId);
 }
