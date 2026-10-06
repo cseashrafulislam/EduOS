@@ -1,7 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.LMS;
 using EduOS.Core.Entities.Academic;
-using EduOS.Core.Entities.Employees;
+using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.LMS;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Interfaces;
@@ -17,14 +17,14 @@ public sealed class LmsWorkflowService : ILmsWorkflowService
     private readonly IGenericRepository<Course> _courses; private readonly IGenericRepository<Lesson> _lessons;
     private readonly IGenericRepository<Assignment> _assignments; private readonly IGenericRepository<AssignmentSubmission> _submissions;
     private readonly IGenericRepository<CourseEnrollment> _courseEnrollments; private readonly IGenericRepository<LessonProgress> _progress;
-    private readonly IGenericRepository<Enrollment> _academicEnrollments; private readonly IGenericRepository<Student> _students;
+    private readonly IGenericRepository<StudentEnrollment> _academicEnrollments; private readonly IGenericRepository<Student> _students;
     private readonly IGenericRepository<Employee> _employees; private readonly IGenericRepository<AcademicYear> _years;
-    private readonly IGenericRepository<Class> _classes; private readonly IGenericRepository<Section> _sections; private readonly IGenericRepository<Subject> _subjects;
+    private readonly IGenericRepository<AcademicLevel> _classes; private readonly IGenericRepository<AcademicBatch> _sections; private readonly IGenericRepository<Subject> _subjects;
     private readonly IUnitOfWork _unitOfWork; private readonly ICurrentUserService _currentUser; private readonly TimeProvider _clock; private readonly ILogger<LmsWorkflowService> _logger;
     public LmsWorkflowService(IGenericRepository<Course> courses, IGenericRepository<Lesson> lessons, IGenericRepository<Assignment> assignments,
         IGenericRepository<AssignmentSubmission> submissions, IGenericRepository<CourseEnrollment> courseEnrollments, IGenericRepository<LessonProgress> progress,
-        IGenericRepository<Enrollment> academicEnrollments, IGenericRepository<Student> students, IGenericRepository<Employee> employees,
-        IGenericRepository<AcademicYear> years, IGenericRepository<Class> classes, IGenericRepository<Section> sections, IGenericRepository<Subject> subjects,
+        IGenericRepository<StudentEnrollment> academicEnrollments, IGenericRepository<Student> students, IGenericRepository<Employee> employees,
+        IGenericRepository<AcademicYear> years, IGenericRepository<AcademicLevel> classes, IGenericRepository<AcademicBatch> sections, IGenericRepository<Subject> subjects,
         IUnitOfWork unitOfWork, ICurrentUserService currentUser, TimeProvider clock, ILogger<LmsWorkflowService> logger)
     { _courses=courses; _lessons=lessons; _assignments=assignments; _submissions=submissions; _courseEnrollments=courseEnrollments; _progress=progress; _academicEnrollments=academicEnrollments; _students=students; _employees=employees; _years=years; _classes=classes; _sections=sections; _subjects=subjects; _unitOfWork=unitOfWork; _currentUser=currentUser; _clock=clock; _logger=logger; }
 
@@ -33,7 +33,7 @@ public sealed class LmsWorkflowService : ILmsWorkflowService
         if(!CanTeach()) return ApiResponse<LmsCourseDto>.ErrorResponse("LMS authoring access is required.",403);
         var t=_currentUser.TenantId; var teacher=await ResolveTeacherAsync(r.TeacherId,ct); if(teacher==null) return ApiResponse<LmsCourseDto>.ErrorResponse("Teacher is unavailable.",409);
         if(!await _years.AnyAsync(x=>x.TenantId==t&&x.Id==r.AcademicYearId&&x.IsActive)||!await _classes.AnyAsync(x=>x.TenantId==t&&x.Id==r.ClassId&&x.IsActive)||!await _subjects.AnyAsync(x=>x.TenantId==t&&x.Id==r.SubjectId&&x.IsActive&&x.ClassId==r.ClassId)) return ApiResponse<LmsCourseDto>.ErrorResponse("Academic course references are unavailable.",409);
-        if(r.SectionId.HasValue&&!await _sections.AnyAsync(x=>x.TenantId==t&&x.Id==r.SectionId.Value&&x.ClassId==r.ClassId&&x.IsActive)) return ApiResponse<LmsCourseDto>.ErrorResponse("Section is unavailable.",409);
+        if(r.SectionId.HasValue&&!await _sections.AnyAsync(x=>x.TenantId==t&&x.Id==r.SectionId.Value&&x.ClassId==r.ClassId&&x.IsActive)) return ApiResponse<LmsCourseDto>.ErrorResponse("AcademicBatch is unavailable.",409);
         Course? c=null; if(r.Reference.HasValue) c=await _courses.GetQueryable().FirstOrDefaultAsync(x=>x.TenantId==t&&x.PublicId==r.Reference.Value,ct);
         if(c==null){ c=new Course{TenantId=t,PublicId=Guid.NewGuid(),CreatedAt=_clock.GetUtcNow().UtcDateTime,CreatedBy=_currentUser.UserId}; await _courses.AddAsync(c); }
         else if(!CanEditCourse(c,teacher.Id)) return ApiResponse<LmsCourseDto>.ErrorResponse("This course is owned by another teacher.",403);

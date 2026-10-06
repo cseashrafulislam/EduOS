@@ -16,12 +16,12 @@ namespace EduOS.Service.Services.Students;
 public sealed class StudentPromotionService : IStudentPromotionService
 {
     private readonly IGenericRepository<Student> _students;
-    private readonly IGenericRepository<Enrollment> _enrollments;
+    private readonly IGenericRepository<StudentEnrollment> _enrollments;
     private readonly IGenericRepository<StudentPromotionRecord> _records;
     private readonly IGenericRepository<AcademicYear> _academicYears;
-    private readonly IGenericRepository<Class> _classes;
-    private readonly IGenericRepository<Section> _sections;
-    private readonly IGenericRepository<Group> _groups;
+    private readonly IGenericRepository<AcademicLevel> _classes;
+    private readonly IGenericRepository<AcademicBatch> _sections;
+    private readonly IGenericRepository<AcademicTrack> _groups;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUser;
     private readonly TimeProvider _clock;
@@ -29,12 +29,12 @@ public sealed class StudentPromotionService : IStudentPromotionService
 
     public StudentPromotionService(
         IGenericRepository<Student> students,
-        IGenericRepository<Enrollment> enrollments,
+        IGenericRepository<StudentEnrollment> enrollments,
         IGenericRepository<StudentPromotionRecord> records,
         IGenericRepository<AcademicYear> academicYears,
-        IGenericRepository<Class> classes,
-        IGenericRepository<Section> sections,
-        IGenericRepository<Group> groups,
+        IGenericRepository<AcademicLevel> classes,
+        IGenericRepository<AcademicBatch> sections,
+        IGenericRepository<AcademicTrack> groups,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUser,
         TimeProvider clock,
@@ -166,7 +166,7 @@ public sealed class StudentPromotionService : IStudentPromotionService
                 return Error("A repeated student must remain in the same academic unit.", 409);
             }
 
-            Group? targetGroup = null;
+            AcademicTrack? targetGroup = null;
             if (request.TargetGroupId.HasValue)
             {
                 targetGroup = await _groups.FirstOrDefaultAsync(x =>
@@ -202,7 +202,7 @@ public sealed class StudentPromotionService : IStudentPromotionService
 
             var now = _clock.GetUtcNow().UtcDateTime;
             source.IsActive = false;
-            var target = new Enrollment
+            var target = new StudentEnrollment
             {
                 TenantId = tenantId,
                 StudentId = studentId,
@@ -370,7 +370,7 @@ public sealed class StudentPromotionService : IStudentPromotionService
         && (request.Note == null || request.Note.Trim().Length <= 500)
         && Enum.IsDefined(request.Decision);
 
-    private static bool MatchesCurrentPlacement(Student student, Enrollment enrollment) =>
+    private static bool MatchesCurrentPlacement(Student student, StudentEnrollment enrollment) =>
         student.AcademicYearId == enrollment.AcademicYearId
         && student.ClassId == enrollment.ClassId
         && student.SectionId == enrollment.SectionId
@@ -391,7 +391,7 @@ public sealed class StudentPromotionService : IStudentPromotionService
     private static StudentPromotionResultDto Map(
         StudentPromotionRecord record,
         Student student,
-        Enrollment target,
+        StudentEnrollment target,
         bool alreadyProcessed) => new()
     {
         Reference = record.PublicId,

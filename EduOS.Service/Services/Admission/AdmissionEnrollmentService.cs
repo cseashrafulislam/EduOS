@@ -19,19 +19,19 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
     private readonly IGenericRepository<AdmissionApplicant> _applications;
     private readonly IGenericRepository<Student> _students;
     private readonly IGenericRepository<Guardian> _guardians;
-    private readonly IGenericRepository<Enrollment> _enrollments;
+    private readonly IGenericRepository<StudentEnrollment> _enrollments;
     private readonly IGenericRepository<Person> _persons;
     private readonly IGenericRepository<StudentPersonLink> _personLinks;
-    private readonly IGenericRepository<Section> _sections;
-    private readonly IGenericRepository<Group> _groups;
+    private readonly IGenericRepository<AcademicBatch> _sections;
+    private readonly IGenericRepository<AcademicTrack> _groups;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUser;
     private readonly TimeProvider _clock;
     private readonly ILogger<AdmissionEnrollmentService> _logger;
 
     public AdmissionEnrollmentService(IGenericRepository<AdmissionApplicant> applications, IGenericRepository<Student> students,
-        IGenericRepository<Guardian> guardians, IGenericRepository<Enrollment> enrollments, IGenericRepository<Person> persons,
-        IGenericRepository<StudentPersonLink> personLinks, IGenericRepository<Section> sections, IGenericRepository<Group> groups,
+        IGenericRepository<Guardian> guardians, IGenericRepository<StudentEnrollment> enrollments, IGenericRepository<Person> persons,
+        IGenericRepository<StudentPersonLink> personLinks, IGenericRepository<AcademicBatch> sections, IGenericRepository<AcademicTrack> groups,
         IUnitOfWork unitOfWork, ICurrentUserService currentUser, TimeProvider clock, ILogger<AdmissionEnrollmentService> logger)
     {
         _applications = applications;
@@ -111,16 +111,16 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
                 return ApiResponse<AdmittedStudentDto>.ErrorResponse("The application was changed by another user. Reload and try again.", 409);
             if (!TryLegacyId(application.AcademicYearId, out var yearId) || !TryLegacyId(application.AcademicUnitId, out var unitId)
                 || !TryLegacyId(request.SectionId, out var sectionId) || !TryNullableLegacyId(request.GroupId, out var groupId))
-                return ApiResponse<AdmittedStudentDto>.ErrorResponse("Enrollment reference is invalid.", 409);
+                return ApiResponse<AdmittedStudentDto>.ErrorResponse("StudentEnrollment reference is invalid.", 409);
 
             var section = await _sections.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.SectionId
                                                                                   && x.ClassId == unitId && x.IsActive, cancellationToken);
-            if (section == null) return ApiResponse<AdmittedStudentDto>.ErrorResponse("Section does not belong to the selected academic unit.", 409);
-            Group? group = null;
+            if (section == null) return ApiResponse<AdmittedStudentDto>.ErrorResponse("AcademicBatch does not belong to the selected academic unit.", 409);
+            AcademicTrack? group = null;
             if (request.GroupId.HasValue)
             {
                 group = await _groups.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.GroupId.Value && x.IsActive, cancellationToken);
-                if (group == null) return ApiResponse<AdmittedStudentDto>.ErrorResponse("Group is unavailable.", 409);
+                if (group == null) return ApiResponse<AdmittedStudentDto>.ErrorResponse("AcademicTrack is unavailable.", 409);
             }
             if (await _enrollments.AnyAsync(x => x.TenantId == tenantId && x.AcademicYearId == yearId && x.ClassId == unitId
                                                  && x.SectionId == sectionId && x.Roll == roll && x.IsActive))
@@ -145,9 +145,9 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             if (student.Id > int.MaxValue) throw new InvalidOperationException("Student reference exceeds the legacy enrollment range.");
 
-            var enrollment = new Enrollment { TenantId = tenantId, StudentId = checked((int)student.Id), Student = student,
-                AcademicYearId = yearId, AcademicYear = application.AcademicYear, ClassId = unitId, Class = application.AcademicUnit,
-                SectionId = sectionId, Section = section, GroupId = groupId, Group = group, CampusId = application.CampusId,
+            var enrollment = new StudentEnrollment { TenantId = tenantId, StudentId = checked((int)student.Id), Student = student,
+                AcademicYearId = yearId, AcademicYear = application.AcademicYear, ClassId = unitId, AcademicLevel = application.AcademicUnit,
+                SectionId = sectionId, AcademicBatch = section, GroupId = groupId, AcademicTrack = group, CampusId = application.CampusId,
                 Campus = application.Campus, AcademicTermId = application.AcademicTermId, AcademicTerm = application.AcademicTerm,
                 Roll = roll, EnrollmentDate = now, IsActive = true };
             await _enrollments.AddAsync(enrollment);
@@ -186,7 +186,7 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
         }
     }
 
-    private Student BuildStudent(AdmissionApplicant application, Section section, Group? group, int yearId, int unitId,
+    private Student BuildStudent(AdmissionApplicant application, AcademicBatch section, AcademicTrack? group, int yearId, int unitId,
         int sectionId, int? groupId, string roll, DateTime now)
     {
         var relation = application.GuardianRelation?.Trim();
@@ -199,13 +199,13 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
             MotherName = IsRelation(relation, "mother", "মাতা") ? application.GuardianName ?? string.Empty : string.Empty,
             DOB = application.DateOfBirth.Date, Gender = application.Gender.ToString(), Phone = application.PrimaryMobile,
             Email = application.Email, Address = application.PermanentAddress ?? application.PresentAddress,
-            ClassId = unitId, Class = application.AcademicUnit, SectionId = sectionId, Section = section, GroupId = groupId, Group = group,
+            ClassId = unitId, AcademicLevel = application.AcademicUnit, SectionId = sectionId, AcademicBatch = section, GroupId = groupId, AcademicTrack = group,
             AcademicYearId = yearId, AcademicYear = application.AcademicYear, AdmissionDate = now,
             PreferredLanguage = application.PreferredLanguage, Status = "Active", IsActive = true
         };
     }
 
-    private static AdmittedStudentDto Map(Student student, Enrollment? enrollment) => new()
+    private static AdmittedStudentDto Map(Student student, StudentEnrollment? enrollment) => new()
     {
         StudentReference = student.PublicId, StudentCode = student.StudentCode, Roll = student.Roll, StudentId = student.Id,
         EnrollmentId = enrollment?.Id ?? 0, ApplicationStatus = AdmissionApplicationStatus.Admitted
