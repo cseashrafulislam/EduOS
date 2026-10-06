@@ -1,11 +1,7 @@
-﻿using EduOS.Core.Entities.Auth;
-using System;
-using System.Collections.Generic;
-using System.Text;
+using EduOS.Core.Entities.Auth;
 
-namespace EduOS.Core.Interfaces.IRepositories
+namespace EduOS.Core.Interfaces.IRepositories;
+
+public interface ITenantUserRepository : IGenericRepository<TenantMembership>
 {
-    public interface ITenantUserRepository : IGenericRepository<TenantUser>
-    {
-    }
 }
