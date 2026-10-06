@@ -23,7 +23,7 @@ public sealed class AdmissionIntakeService : IAdmissionIntakeService
     private readonly IGenericRepository<AcademicYear> _years;
     private readonly IGenericRepository<AcademicTerm> _terms;
     private readonly IGenericRepository<Campus> _campuses;
-    private readonly IGenericRepository<Class> _academicUnits;
+    private readonly IGenericRepository<AcademicLevel> _academicUnits;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUser;
     private readonly IFileUploadService _storage;
@@ -37,7 +37,7 @@ public sealed class AdmissionIntakeService : IAdmissionIntakeService
         IGenericRepository<AcademicYear> years,
         IGenericRepository<AcademicTerm> terms,
         IGenericRepository<Campus> campuses,
-        IGenericRepository<Class> academicUnits,
+        IGenericRepository<AcademicLevel> academicUnits,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUser,
         IFileUploadService storage,

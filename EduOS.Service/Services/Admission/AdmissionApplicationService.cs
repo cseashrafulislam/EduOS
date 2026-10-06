@@ -22,7 +22,7 @@ public sealed class AdmissionApplicationService : IAdmissionApplicationService
     private readonly IGenericRepository<AcademicYear> _academicYears;
     private readonly IGenericRepository<AcademicTerm> _academicTerms;
     private readonly IGenericRepository<Campus> _campuses;
-    private readonly IGenericRepository<Class> _academicUnits;
+    private readonly IGenericRepository<AcademicLevel> _academicUnits;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUser;
     private readonly TimeProvider _clock;
@@ -35,7 +35,7 @@ public sealed class AdmissionApplicationService : IAdmissionApplicationService
         IGenericRepository<AcademicYear> academicYears,
         IGenericRepository<AcademicTerm> academicTerms,
         IGenericRepository<Campus> campuses,
-        IGenericRepository<Class> academicUnits,
+        IGenericRepository<AcademicLevel> academicUnits,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUser,
         TimeProvider clock,

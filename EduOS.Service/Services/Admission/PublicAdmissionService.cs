@@ -30,7 +30,7 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
     private readonly IGenericRepository<AcademicYear> _academicYears;
     private readonly IGenericRepository<AcademicTerm> _academicTerms;
     private readonly IGenericRepository<Campus> _campuses;
-    private readonly IGenericRepository<Class> _academicUnits;
+    private readonly IGenericRepository<AcademicLevel> _academicUnits;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IFileUploadService _storage;
     private readonly IHttpContextAccessor _httpContextAccessor;
@@ -48,7 +48,7 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
         IGenericRepository<AcademicYear> academicYears,
         IGenericRepository<AcademicTerm> academicTerms,
         IGenericRepository<Campus> campuses,
-        IGenericRepository<Class> academicUnits,
+        IGenericRepository<AcademicLevel> academicUnits,
         IUnitOfWork unitOfWork,
         IFileUploadService storage,
         IHttpContextAccessor httpContextAccessor,
