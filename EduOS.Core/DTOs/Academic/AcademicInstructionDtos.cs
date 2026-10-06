@@ -42,37 +42,6 @@ public sealed class CancelRoutineSubstitutionDto
     [Required, StringLength(1000)] public string Reason { get; set; } = string.Empty;
 }
 
-public sealed class LessonPlanDto
-{
-    public long Id { get; set; }
-    public long InstructorAssignmentId { get; set; }
-    public long AcademicBatchId { get; set; }
-    public string BatchName { get; set; } = string.Empty;
-    public long SubjectId { get; set; }
-    public string SubjectName { get; set; } = string.Empty;
-    public long TeacherId { get; set; }
-    public string TeacherName { get; set; } = string.Empty;
-    public long AcademicYearId { get; set; }
-    public long? AcademicTermId { get; set; }
-    public string ChapterName { get; set; } = string.Empty;
-    public string? Topic { get; set; }
-    public DateTime StartDate { get; set; }
-    public DateTime EndDate { get; set; }
-    public string? Description { get; set; }
-    public string? LearningObjectives { get; set; }
-    public string? Resources { get; set; }
-    public string? ProgressNotes { get; set; }
-    public LessonPlanStatus Status { get; set; }
-    public int ProgressPercent { get; set; }
-    public DateTime? SubmittedAt { get; set; }
-    public DateTime? ReviewedAt { get; set; }
-    public long? ReviewedBy { get; set; }
-    public string? ReviewRemarks { get; set; }
-    public DateTime? CompletedAt { get; set; }
-    public bool IsActive { get; set; }
-    public string RowVersion { get; set; } = string.Empty;
-}
-
 public sealed class CreateLessonPlanDto
 {
     public Guid ClientRequestId { get; set; }
