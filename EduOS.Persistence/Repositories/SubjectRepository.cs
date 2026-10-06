@@ -3,37 +3,40 @@ using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 
-namespace EduOS.Persistence.Repositories
+namespace EduOS.Persistence.Repositories;
+
+public class SubjectRepository : GenericRepository<Subject>, ISubjectRepository
 {
-    public class SubjectRepository : GenericRepository<Subject>, ISubjectRepository
+    public SubjectRepository(EduOSDbContext context) : base(context) { }
+
+    public async Task<List<Subject>> GetByClassIdAsync(long classId)
     {
-        public SubjectRepository(EduOSDbContext context) : base(context) { }
+        var subjectIds = _context.Set<CurriculumSubject>()
+            .Where(x => x.AcademicLevelId == classId && x.IsActive)
+            .Select(x => x.SubjectId).Distinct();
+        return await _dbSet.AsNoTracking().Where(x => subjectIds.Contains(x.Id) && x.IsActive)
+            .OrderBy(x => x.Name).ToListAsync();
+    }
 
-        public async Task<List<Subject>> GetByClassIdAsync(long classId)
-        {
-            return await _dbSet
-                .Where(s => s.ClassId == classId && s.IsActive)
-                .OrderBy(s => s.Name)
-                .ToListAsync();
-        }
+    public async Task<List<Subject>> GetByClassAndGroupAsync(long classId, long? groupId)
+    {
+        var rows =
+            from curriculumSubject in _context.Set<CurriculumSubject>()
+            join curriculum in _context.Set<AcademicCurriculum>() on curriculumSubject.AcademicCurriculumId equals curriculum.Id
+            where curriculumSubject.AcademicLevelId == classId
+                && curriculumSubject.IsActive && curriculum.IsActive
+                && (!groupId.HasValue || curriculum.AcademicTrackId == groupId || curriculum.AcademicTrackId == null)
+            select curriculumSubject.SubjectId;
+        var ids = rows.Distinct();
+        return await _dbSet.AsNoTracking().Where(x => ids.Contains(x.Id) && x.IsActive)
+            .OrderBy(x => x.Name).ToListAsync();
+    }
 
-        public async Task<List<Subject>> GetByClassAndGroupAsync(long classId, long? groupId)
-        {
-            return await _dbSet
-                .Where(s => s.ClassId == classId
-                    && (s.GroupId == groupId || s.GroupId == null)
-                    && s.IsActive)
-                .OrderBy(s => s.Name)
-                .ToListAsync();
-        }
-
-        public async Task<bool> IsCodeExistsAsync(string code, long tenantId, long? excludeId = null)
-        {
-            var query = _dbSet.Where(s =>
-                s.Code.ToLower() == code.ToLower() && s.TenantId == tenantId);
-            if (excludeId.HasValue)
-                query = query.Where(s => s.Id != excludeId.Value);
-            return await query.AnyAsync();
-        }
+    public async Task<bool> IsCodeExistsAsync(string code, long tenantId, long? excludeId = null)
+    {
+        var normalized = code.Trim();
+        var query = _dbSet.Where(x => x.TenantId == tenantId && x.Code == normalized);
+        if (excludeId.HasValue) query = query.Where(x => x.Id != excludeId.Value);
+        return await query.AnyAsync();
     }
 }

@@ -1,27 +1,24 @@
 using EduOS.Core.Entities.Finance;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 
-namespace EduOS.Persistence.Repositories
+namespace EduOS.Persistence.Repositories;
+
+public class FeeHeadRepository : GenericRepository<FeeHead>, IFeeHeadRepository
 {
-    public class FeeHeadRepository : GenericRepository<FeeHead>, IFeeHeadRepository
+    public FeeHeadRepository(EduOSDbContext context) : base(context) { }
+
+    public Task<List<FeeHead>> GetActiveAsync(long tenantId) =>
+        _dbSet.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
+            .OrderBy(x => x.Name).ToListAsync();
+
+    public Task<List<FeeHead>> GetByTypeAsync(string type, long tenantId)
     {
-        public FeeHeadRepository(EduOSDbContext context) : base(context) { }
-
-        public async Task<List<FeeHead>> GetActiveAsync(long tenantId)
-        {
-            return await _dbSet
-                .Where(f => f.TenantId == tenantId && f.IsActive)
-                .OrderBy(f => f.Name)
-                .ToListAsync();
-        }
-
-        public async Task<List<FeeHead>> GetByTypeAsync(string type, long tenantId)
-        {
-            return await _dbSet
-                .Where(f => f.Type == type && f.TenantId == tenantId && f.IsActive)
-                .ToListAsync();
-        }
+        if (!Enum.TryParse<FeeFrequencyType>(type, true, out var frequency))
+            return Task.FromResult(new List<FeeHead>());
+        return _dbSet.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive && x.DefaultFrequency == frequency)
+            .OrderBy(x => x.Name).ToListAsync();
     }
 }

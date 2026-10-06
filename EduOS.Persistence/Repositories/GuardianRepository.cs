@@ -3,30 +3,29 @@ using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 
-namespace EduOS.Persistence.Repositories
+namespace EduOS.Persistence.Repositories;
+
+public class GuardianRepository : GenericRepository<Guardian>, IGuardianRepository
 {
-    public class GuardianRepository : GenericRepository<Guardian>, IGuardianRepository
+    public GuardianRepository(EduOSDbContext context) : base(context) { }
+
+    public async Task<List<Guardian>> GetByStudentIdAsync(long studentId)
     {
-        public GuardianRepository(EduOSDbContext context) : base(context) { }
-
-        public async Task<List<Guardian>> GetByStudentIdAsync(long studentId)
-        {
-            return await _dbSet
-                .Where(g => g.StudentId == studentId)
-                .OrderByDescending(g => g.IsPrimary)
-                .ToListAsync();
-        }
-
-        public async Task<Guardian?> GetPrimaryByStudentIdAsync(long studentId)
-        {
-            return await _dbSet
-                .FirstOrDefaultAsync(g => g.StudentId == studentId && g.IsPrimary);
-        }
-
-        public async Task<Guardian?> GetByPhoneAsync(string phone)
-        {
-            return await _dbSet
-                .FirstOrDefaultAsync(g => g.Phone == phone);
-        }
+        var ids = _context.Set<StudentGuardian>().Where(x => x.StudentId == studentId).Select(x => x.GuardianId);
+        return await _dbSet.AsNoTracking().Where(x => ids.Contains(x.Id) && x.IsActive)
+            .OrderBy(x => x.FullName).ToListAsync();
     }
+
+    public async Task<Guardian?> GetPrimaryByStudentIdAsync(long studentId)
+    {
+        var guardianId = await _context.Set<StudentGuardian>().AsNoTracking()
+            .Where(x => x.StudentId == studentId && x.IsPrimary)
+            .Select(x => (long?)x.GuardianId).FirstOrDefaultAsync();
+        return guardianId.HasValue
+            ? await _dbSet.AsNoTracking().FirstOrDefaultAsync(x => x.Id == guardianId.Value)
+            : null;
+    }
+
+    public Task<Guardian?> GetByPhoneAsync(string phone) =>
+        _dbSet.AsNoTracking().FirstOrDefaultAsync(x => x.Phone == phone);
 }

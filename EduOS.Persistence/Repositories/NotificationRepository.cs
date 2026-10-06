@@ -3,55 +3,39 @@ using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 
-namespace EduOS.Persistence.Repositories
+namespace EduOS.Persistence.Repositories;
+
+public class NotificationRepository : GenericRepository<Notification>, INotificationRepository
 {
-    public class NotificationRepository : GenericRepository<Notification>, INotificationRepository
+    public NotificationRepository(EduOSDbContext context) : base(context) { }
+
+    public Task<List<Notification>> GetByUserAsync(long userId) =>
+        _dbSet.AsNoTracking().Where(x => x.UserId == userId)
+            .OrderByDescending(x => x.CreatedAt).Take(100).ToListAsync();
+
+    public Task<List<Notification>> GetUnreadAsync(long userId) =>
+        _dbSet.AsNoTracking().Where(x => x.UserId == userId && !x.IsRead)
+            .OrderByDescending(x => x.CreatedAt).Take(100).ToListAsync();
+
+    public Task<int> GetUnreadCountAsync(long userId) =>
+        _dbSet.CountAsync(x => x.UserId == userId && !x.IsRead);
+
+    public async Task MarkAsReadAsync(long notificationId)
     {
-        public NotificationRepository(EduOSDbContext context) : base(context) { }
+        var row = await _dbSet.FindAsync(notificationId);
+        if (row == null || row.IsRead) return;
+        row.IsRead = true;
+        row.ReadAt = DateTime.UtcNow;
+    }
 
-        public async Task<List<Notification>> GetByUserAsync(long userId)
+    public async Task MarkAllAsReadAsync(long userId)
+    {
+        var rows = await _dbSet.Where(x => x.UserId == userId && !x.IsRead).Take(1000).ToListAsync();
+        var now = DateTime.UtcNow;
+        foreach (var row in rows)
         {
-            return await _dbSet
-                .Where(n => n.RecipientUserId == userId)
-                .OrderByDescending(n => n.CreatedAt)
-                .Take(100)
-                .ToListAsync();
-        }
-
-        public async Task<List<Notification>> GetUnreadAsync(long userId)
-        {
-            return await _dbSet
-                .Where(n => n.RecipientUserId == userId && !n.IsRead)
-                .OrderByDescending(n => n.CreatedAt)
-                .ToListAsync();
-        }
-
-        public async Task<int> GetUnreadCountAsync(long userId)
-        {
-            return await _dbSet.CountAsync(n => n.RecipientUserId == userId && !n.IsRead);
-        }
-
-        public async Task MarkAsReadAsync(long notificationId)
-        {
-            var notification = await _dbSet.FindAsync(notificationId);
-            if (notification != null)
-            {
-                notification.IsRead = true;
-                notification.ReadAt = DateTime.UtcNow;
-            }
-        }
-
-        public async Task MarkAllAsReadAsync(long userId)
-        {
-            var notifications = await _dbSet
-                .Where(n => n.RecipientUserId == userId && !n.IsRead)
-                .ToListAsync();
-
-            foreach (var notification in notifications)
-            {
-                notification.IsRead = true;
-                notification.ReadAt = DateTime.UtcNow;
-            }
+            row.IsRead = true;
+            row.ReadAt = now;
         }
     }
 }

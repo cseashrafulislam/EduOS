@@ -1,30 +1,27 @@
 using EduOS.Core.Entities.Finance;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 
-namespace EduOS.Persistence.Repositories
+namespace EduOS.Persistence.Repositories;
+
+public class FeeStructureRepository : GenericRepository<FeeStructure>, IFeeStructureRepository
 {
-    public class FeeStructureRepository : GenericRepository<FeeStructure>, IFeeStructureRepository
+    public FeeStructureRepository(EduOSDbContext context) : base(context) { }
+
+    public Task<List<FeeStructure>> GetByClassAsync(long classId, long academicYearId) =>
+        _dbSet.AsNoTracking().Where(x => x.AcademicLevelId == classId && x.AcademicYearId == academicYearId && x.IsActive)
+            .OrderByDescending(x => x.EffectiveFrom).ToListAsync();
+
+    public async Task<decimal> GetTotalMonthlyFeeAsync(long classId, long academicYearId)
     {
-        public FeeStructureRepository(EduOSDbContext context) : base(context) { }
-
-        public async Task<List<FeeStructure>> GetByClassAsync(long classId, long academicYearId)
-        {
-            return await _dbSet
-                .Include(f => f.FeeHead)
-                .Where(f => f.ClassId == classId && f.AcademicYearId == academicYearId)
-                .ToListAsync();
-        }
-
-        public async Task<decimal> GetTotalMonthlyFeeAsync(long classId, long academicYearId)
-        {
-            return await _dbSet
-                .Include(f => f.FeeHead)
-                .Where(f => f.ClassId == classId
-                    && f.AcademicYearId == academicYearId
-                    && f.FeeHead!.Type == "Monthly")
-                .SumAsync(f => f.Amount);
-        }
+        var structureIds = _dbSet.Where(x => x.AcademicLevelId == classId
+                && x.AcademicYearId == academicYearId && x.IsActive)
+            .Select(x => x.Id);
+        return await _context.Set<FeeStructureLine>()
+            .Where(x => structureIds.Contains(x.FeeStructureId)
+                && x.Frequency == FeeFrequencyType.Monthly && x.IsMandatory)
+            .SumAsync(x => x.Amount);
     }
 }

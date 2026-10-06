@@ -1,40 +1,23 @@
-﻿using EduOS.Core.Entities.System;
+using EduOS.Core.Entities.System;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 
-namespace EduOS.Persistence.Repositories.System
+namespace EduOS.Persistence.Repositories.System;
+
+public class AuditLogRepository : GenericRepository<AuditLog>, IAuditLogRepository
 {
-    public class AuditLogRepository : GenericRepository<AuditLog>, IAuditLogRepository
-    {
-        public AuditLogRepository(EduOSDbContext context) : base(context) { }
+    public AuditLogRepository(EduOSDbContext context) : base(context) { }
 
-        public async Task<List<AuditLog>> GetByUserIdAsync(long userId, long tenantId)
-        {
-            return await _dbSet
-                .Where(a => a.UserId == userId && a.TenantId == tenantId)
-                .OrderByDescending(a => a.CreatedAt)
-                .Take(100)
-                .ToListAsync();
-        }
+    public Task<List<AuditLog>> GetByUserIdAsync(long userId, long tenantId) =>
+        _dbSet.AsNoTracking().Where(x => x.UserId == userId && x.TenantId == tenantId)
+            .OrderByDescending(x => x.OccurredAt).Take(100).ToListAsync();
 
-        public async Task<List<AuditLog>> GetByTableNameAsync(string tableName, long tenantId)
-        {
-            return await _dbSet
-                .Where(a => a.TableName == tableName && a.TenantId == tenantId)
-                .OrderByDescending(a => a.CreatedAt)
-                .Take(100)
-                .ToListAsync();
-        }
+    public Task<List<AuditLog>> GetByTableNameAsync(string tableName, long tenantId) =>
+        _dbSet.AsNoTracking().Where(x => x.EntityName == tableName && x.TenantId == tenantId)
+            .OrderByDescending(x => x.OccurredAt).Take(100).ToListAsync();
 
-        public async Task<List<AuditLog>> GetByRecordIdAsync(string tableName, long recordId, long tenantId)
-        {
-            return await _dbSet
-                .Where(a => a.TableName == tableName
-                         && a.RecordId == recordId
-                         && a.TenantId == tenantId)
-                .OrderByDescending(a => a.CreatedAt)
-                .ToListAsync();
-        }
-    }
+    public Task<List<AuditLog>> GetByRecordIdAsync(string tableName, long recordId, long tenantId) =>
+        _dbSet.AsNoTracking().Where(x => x.EntityName == tableName && x.EntityId == recordId && x.TenantId == tenantId)
+            .OrderByDescending(x => x.OccurredAt).Take(500).ToListAsync();
 }

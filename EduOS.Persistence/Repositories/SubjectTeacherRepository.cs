@@ -3,40 +3,44 @@ using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 
-namespace EduOS.Persistence.Repositories
+namespace EduOS.Persistence.Repositories;
+
+public class InstructorAssignmentRepository : GenericRepository<InstructorAssignment>, IInstructorAssignmentRepository
 {
-    public class InstructorAssignmentRepository : GenericRepository<InstructorAssignment>, IInstructorAssignmentRepository
+    public InstructorAssignmentRepository(EduOSDbContext context) : base(context) { }
+
+    public async Task<List<InstructorAssignment>> GetByEmployeeAsync(long employeeId, long academicYearId)
     {
-        public InstructorAssignmentRepository(EduOSDbContext context) : base(context) { }
+        var query =
+            from assignment in _dbSet.AsNoTracking()
+            join offering in _context.Set<SubjectOffering>() on assignment.SubjectOfferingId equals offering.Id
+            where assignment.EmployeeId == employeeId && offering.AcademicYearId == academicYearId && assignment.IsActive
+            orderby assignment.EffectiveFrom descending
+            select assignment;
+        return await query.ToListAsync();
+    }
 
-        public async Task<List<InstructorAssignment>> GetByEmployeeAsync(long employeeId, long academicYearId)
-        {
-            return await _dbSet
-                .Include(st => st.AcademicBatch)
-                .Include(st => st.Subject)
-                .Include(st => st.Employee)
-                .Include(st => st.AcademicTerm)
-                .Where(st => st.EmployeeId == employeeId && st.AcademicYearId == academicYearId)
-                .ToListAsync();
-        }
+    public async Task<List<InstructorAssignment>> GetByBatchAsync(long academicBatchId)
+    {
+        var query =
+            from assignment in _dbSet.AsNoTracking()
+            join offering in _context.Set<SubjectOffering>() on assignment.SubjectOfferingId equals offering.Id
+            where offering.AcademicBatchId == academicBatchId && assignment.IsActive
+            orderby assignment.IsPrimary descending, assignment.EffectiveFrom descending
+            select assignment;
+        return await query.ToListAsync();
+    }
 
-        public async Task<List<InstructorAssignment>> GetByBatchAsync(long academicBatchId)
-        {
-            return await _dbSet
-                .Include(st => st.AcademicBatch)
-                .Include(st => st.Subject)
-                .Include(st => st.Employee)
-                .Include(st => st.AcademicTerm)
-                .Where(st => st.AcademicBatchId == academicBatchId)
-                .ToListAsync();
-        }
-
-        public async Task<InstructorAssignment?> GetAdvisorAsync(long academicBatchId, long academicYearId)
-        {
-            return await _dbSet
-                .Include(st => st.AcademicBatch)
-                .Include(st => st.Employee)
-                .FirstOrDefaultAsync(st => st.AcademicBatchId == academicBatchId && st.AcademicYearId == academicYearId && st.IsClassAdvisor && st.IsActive);
-        }
+    public async Task<InstructorAssignment?> GetAdvisorAsync(long academicBatchId, long academicYearId)
+    {
+        var query =
+            from assignment in _dbSet.AsNoTracking()
+            join offering in _context.Set<SubjectOffering>() on assignment.SubjectOfferingId equals offering.Id
+            where offering.AcademicBatchId == academicBatchId
+                && offering.AcademicYearId == academicYearId
+                && assignment.IsActive && assignment.IsPrimary
+            orderby assignment.EffectiveFrom descending
+            select assignment;
+        return await query.FirstOrDefaultAsync();
     }
 }
