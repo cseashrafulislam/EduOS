@@ -1,13 +1,12 @@
-using EduOS.Core.Entities.Students;
+using EduOS.Core.Entities.Admission;
 
-namespace EduOS.Core.Interfaces.IRepositories
+namespace EduOS.Core.Interfaces.IRepositories;
+
+public interface IAdmissionRepository : IGenericRepository<AdmissionApplicant>
 {
-    public interface IAdmissionRepository : IGenericRepository<Admission>
-    {
-        Task<Admission?> GetByApplicationNoAsync(string appNo);
-        Task<List<Admission>> GetByStatusAsync(string status, long tenantId);
-        Task<List<Admission>> GetByYearAsync(long academicYearId);
-        Task<string> GenerateApplicationNoAsync(long tenantId, long academicYearId);
-        Task<int> GetCountByStatusAsync(string status, long tenantId);
-    }
+    Task<AdmissionApplicant?> GetByApplicationNoAsync(string appNo);
+    Task<List<AdmissionApplicant>> GetByStatusAsync(string status, long tenantId);
+    Task<List<AdmissionApplicant>> GetByYearAsync(long academicYearId);
+    Task<string> GenerateApplicationNoAsync(long tenantId, long academicYearId);
+    Task<int> GetCountByStatusAsync(string status, long tenantId);
 }
