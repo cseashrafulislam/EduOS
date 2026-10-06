@@ -1,7 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.HR;
 using EduOS.Core.Entities.Attendance;
-using EduOS.Core.Entities.Employees;
+using EduOS.Core.Entities.HR;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
@@ -9,8 +9,8 @@ using Microsoft.EntityFrameworkCore;
 namespace EduOS.Service.Services.HR;
 public sealed class HrAdminService:IHrAdminService
 {
- private readonly IGenericRepository<Employee> _employees;private readonly IGenericRepository<LeaveApplication> _leaves;private readonly IUnitOfWork _uow;private readonly ICurrentUserService _user;private readonly TimeProvider _clock;
- public HrAdminService(IGenericRepository<Employee> employees,IGenericRepository<LeaveApplication> leaves,IUnitOfWork uow,ICurrentUserService user,TimeProvider clock){_employees=employees;_leaves=leaves;_uow=uow;_user=user;_clock=clock;}
+ private readonly IGenericRepository<Employee> _employees;private readonly IGenericRepository<EmployeeLeaveApplication> _leaves;private readonly IUnitOfWork _uow;private readonly ICurrentUserService _user;private readonly TimeProvider _clock;
+ public HrAdminService(IGenericRepository<Employee> employees,IGenericRepository<EmployeeLeaveApplication> leaves,IUnitOfWork uow,ICurrentUserService user,TimeProvider clock){_employees=employees;_leaves=leaves;_uow=uow;_user=user;_clock=clock;}
  public async Task<ApiResponse<PagedResult<HrEmployeeRowDto>>> GetEmployeesAsync(HrEmployeeQueryDto r,CancellationToken ct=default)
  {
   if(!CanHr())return ApiResponse<PagedResult<HrEmployeeRowDto>>.ErrorResponse("HR access is required.",403);var page=Math.Max(1,r.Page);var size=Math.Clamp(r.PageSize,1,100);var q=_employees.GetQueryable().AsNoTracking().Where(x=>x.TenantId==_user.TenantId);

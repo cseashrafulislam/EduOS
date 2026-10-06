@@ -16,17 +16,17 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
     private static readonly HashSet<string> AllowedStatuses = new(StringComparer.OrdinalIgnoreCase) { "Present", "Absent", "Late", "Leave" };
 
     private readonly IGenericRepository<StudentAttendance> _attendances;
-    private readonly IGenericRepository<Enrollment> _enrollments;
+    private readonly IGenericRepository<StudentEnrollment> _enrollments;
     private readonly IGenericRepository<AcademicYear> _academicYears;
-    private readonly IGenericRepository<Class> _classes;
-    private readonly IGenericRepository<Section> _sections;
+    private readonly IGenericRepository<AcademicLevel> _classes;
+    private readonly IGenericRepository<AcademicBatch> _sections;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUser;
     private readonly TimeProvider _clock;
     private readonly ILogger<StudentAttendanceService> _logger;
 
-    public StudentAttendanceService(IGenericRepository<StudentAttendance> attendances, IGenericRepository<Enrollment> enrollments,
-        IGenericRepository<AcademicYear> academicYears, IGenericRepository<Class> classes, IGenericRepository<Section> sections,
+    public StudentAttendanceService(IGenericRepository<StudentAttendance> attendances, IGenericRepository<StudentEnrollment> enrollments,
+        IGenericRepository<AcademicYear> academicYears, IGenericRepository<AcademicLevel> classes, IGenericRepository<AcademicBatch> sections,
         IUnitOfWork unitOfWork, ICurrentUserService currentUser, TimeProvider clock, ILogger<StudentAttendanceService> logger)
     {
         _attendances = attendances;
@@ -160,8 +160,8 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
         var year = await _academicYears.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == query.AcademicYearId && x.IsActive, cancellationToken);
         if (year == null) return "Academic year is unavailable.";
         if (date < year.StartDate.Date || date > year.EndDate.Date) return "Attendance date is outside the selected academic year.";
-        if (!await _classes.AnyAsync(x => x.TenantId == tenantId && x.Id == query.ClassId && x.IsActive)) return "Class is unavailable.";
-        if (!await _sections.AnyAsync(x => x.TenantId == tenantId && x.Id == query.SectionId && x.ClassId == query.ClassId && x.IsActive)) return "Section is unavailable for the selected class.";
+        if (!await _classes.AnyAsync(x => x.TenantId == tenantId && x.Id == query.ClassId && x.IsActive)) return "AcademicLevel is unavailable.";
+        if (!await _sections.AnyAsync(x => x.TenantId == tenantId && x.Id == query.SectionId && x.ClassId == query.ClassId && x.IsActive)) return "AcademicBatch is unavailable for the selected class.";
         return null;
     }
 

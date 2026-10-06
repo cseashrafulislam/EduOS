@@ -1,7 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.HR;
 using EduOS.Core.Entities.Attendance;
-using EduOS.Core.Entities.Employees;
+using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.Payroll;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
