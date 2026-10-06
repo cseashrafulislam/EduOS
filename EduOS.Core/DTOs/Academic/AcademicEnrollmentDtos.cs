@@ -37,24 +37,6 @@ public sealed class CreateAcademicStudentEnrollmentDto
     [StringLength(500)] public string? Remarks { get; set; }
 }
 
-public sealed class StudentSubjectRegistrationDto
-{
-    public long Id { get; set; }
-    public long StudentEnrollmentId { get; set; }
-    public long SubjectId { get; set; }
-    public string SubjectCode { get; set; } = string.Empty;
-    public string SubjectName { get; set; } = string.Empty;
-    public decimal FullMarks { get; set; }
-    public decimal PassMarks { get; set; }
-    public decimal CreditHours { get; set; }
-    public bool IsRequired { get; set; }
-    public SubjectRegistrationStatus Status { get; set; }
-    public DateTime RequestedAtUtc { get; set; }
-    public DateTime? DecidedAtUtc { get; set; }
-    public string? Remarks { get; set; }
-    public string RowVersion { get; set; } = string.Empty;
-}
-
 public sealed class RequestOptionalSubjectDto
 {
     public Guid ClientRequestId { get; set; }
