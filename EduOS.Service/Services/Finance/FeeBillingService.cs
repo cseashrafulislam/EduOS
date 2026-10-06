@@ -2,6 +2,7 @@ using EduOS.Core.Common;
 using EduOS.Core.DTOs.Finance;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Finance;
+using EduOS.Core.Entities.Accounting;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
@@ -18,13 +19,13 @@ public sealed class FeeBillingService : IFeeBillingService
     private readonly IGenericRepository<FeeHead> _heads;
     private readonly IGenericRepository<StudentDiscount> _studentDiscounts;
     private readonly IGenericRepository<StudentInvoice> _invoices;
-    private readonly IGenericRepository<Payment> _payments;
+    private readonly IGenericRepository<StudentPayment> _payments;
     private readonly IGenericRepository<BankAccount> _bankAccounts;
-    private readonly IGenericRepository<Enrollment> _enrollments;
+    private readonly IGenericRepository<StudentEnrollment> _enrollments;
     private readonly IGenericRepository<Student> _students;
     private readonly IGenericRepository<AcademicYear> _years;
-    private readonly IGenericRepository<Class> _classes;
-    private readonly IGenericRepository<Section> _sections;
+    private readonly IGenericRepository<AcademicLevel> _classes;
+    private readonly IGenericRepository<AcademicBatch> _sections;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUser;
     private readonly TimeProvider _clock;
@@ -32,9 +33,9 @@ public sealed class FeeBillingService : IFeeBillingService
 
     public FeeBillingService(IGenericRepository<FeeStructure> structures, IGenericRepository<FeeHead> heads,
         IGenericRepository<StudentDiscount> studentDiscounts, IGenericRepository<StudentInvoice> invoices,
-        IGenericRepository<Payment> payments, IGenericRepository<BankAccount> bankAccounts,
-        IGenericRepository<Enrollment> enrollments, IGenericRepository<Student> students,
-        IGenericRepository<AcademicYear> years, IGenericRepository<Class> classes, IGenericRepository<Section> sections,
+        IGenericRepository<StudentPayment> payments, IGenericRepository<BankAccount> bankAccounts,
+        IGenericRepository<StudentEnrollment> enrollments, IGenericRepository<Student> students,
+        IGenericRepository<AcademicYear> years, IGenericRepository<AcademicLevel> classes, IGenericRepository<AcademicBatch> sections,
         IUnitOfWork unitOfWork, ICurrentUserService currentUser, TimeProvider clock, ILogger<FeeBillingService> logger)
     {
         _structures = structures; _heads = heads; _studentDiscounts = studentDiscounts; _invoices = invoices;
@@ -127,7 +128,7 @@ public sealed class FeeBillingService : IFeeBillingService
     public async Task<ApiResponse<StudentPaymentDto>> CollectPaymentAsync(CollectStudentPaymentDto request, CancellationToken cancellationToken = default)
     {
         if (!CanCollect()) return ApiResponse<StudentPaymentDto>.ErrorResponse("Fee collection access is required.", 403);
-        if (request.ClientRequestId == Guid.Empty || request.InvoiceReference == Guid.Empty || !TryVersion(request.InvoiceRowVersion, out var version)) return ApiResponse<StudentPaymentDto>.ErrorResponse("Payment request is invalid.");
+        if (request.ClientRequestId == Guid.Empty || request.InvoiceReference == Guid.Empty || !TryVersion(request.InvoiceRowVersion, out var version)) return ApiResponse<StudentPaymentDto>.ErrorResponse("StudentPayment request is invalid.");
         var method = request.PaymentMethod.Trim();
         if (!string.Equals(method, "Cash", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(request.TransactionId)) return ApiResponse<StudentPaymentDto>.ErrorResponse("Transaction reference is required for non-cash payment.");
         var tenantId = _currentUser.TenantId;
@@ -135,7 +136,7 @@ public sealed class FeeBillingService : IFeeBillingService
         if (existingPayment != null)
         {
             if (!PaymentMatchesRequest(existingPayment, request, method)) return ApiResponse<StudentPaymentDto>.ErrorResponse("Client request reference was already used for a different payment.", 409);
-            return ApiResponse<StudentPaymentDto>.SuccessResponse(MapPayment(existingPayment), "Payment was already received.");
+            return ApiResponse<StudentPaymentDto>.SuccessResponse(MapPayment(existingPayment), "StudentPayment was already received.");
         }
         try
         {
@@ -143,7 +144,7 @@ public sealed class FeeBillingService : IFeeBillingService
             var invoice = await _invoices.GetQueryable().Include(x => x.Student).FirstOrDefaultAsync(x => x.TenantId == tenantId && x.PublicId == request.InvoiceReference, cancellationToken);
             if (invoice == null) return await RollbackError("Invoice not found.", 404);
             if (!VersionsMatch(invoice.RowVersion, version)) return await RollbackError("Invoice changed by another user. Reload and try again.", 409);
-            if (request.Amount <= 0 || request.Amount > invoice.DueAmount) return await RollbackError("Payment amount exceeds the outstanding due.", 409);
+            if (request.Amount <= 0 || request.Amount > invoice.DueAmount) return await RollbackError("StudentPayment amount exceeds the outstanding due.", 409);
             BankAccount? account = null;
             if (request.BankAccountId.HasValue)
             {
@@ -151,11 +152,11 @@ public sealed class FeeBillingService : IFeeBillingService
                 if (account == null) return await RollbackError("Bank or cash account is unavailable.", 409);
             }
             var publicId = Guid.NewGuid(); var now = _clock.GetUtcNow().UtcDateTime;
-            var payment = new Payment { TenantId = tenantId, PublicId = publicId, ClientRequestId = request.ClientRequestId, InvoiceId = invoice.Id, Invoice = invoice, StudentId = invoice.StudentId, Student = invoice.Student, ReceiptNo = $"RCP-{now:yyyyMMdd}-{publicId:N}"[..25].ToUpperInvariant(), Amount = request.Amount, PaymentMethod = method, PaymentDate = now, ReceivedBy = _currentUser.UserId, TransactionId = Trim(request.TransactionId), Note = Trim(request.Note), BankAccountId = account?.Id, BankAccount = account, CreatedAt = now, CreatedBy = _currentUser.UserId };
+            var payment = new StudentPayment { TenantId = tenantId, PublicId = publicId, ClientRequestId = request.ClientRequestId, InvoiceId = invoice.Id, Invoice = invoice, StudentId = invoice.StudentId, Student = invoice.Student, ReceiptNo = $"RCP-{now:yyyyMMdd}-{publicId:N}"[..25].ToUpperInvariant(), Amount = request.Amount, PaymentMethod = method, PaymentDate = now, ReceivedBy = _currentUser.UserId, TransactionId = Trim(request.TransactionId), Note = Trim(request.Note), BankAccountId = account?.Id, BankAccount = account, CreatedAt = now, CreatedBy = _currentUser.UserId };
             invoice.PaidAmount += request.Amount; invoice.DueAmount = Math.Max(0m, invoice.TotalAmount - (invoice.DiscountAmount ?? 0m) + (invoice.FineAmount ?? 0m) - invoice.PaidAmount); invoice.Status = invoice.DueAmount <= 0 ? "Paid" : "Partial"; invoice.UpdatedAt = now; invoice.UpdatedBy = _currentUser.UserId;
             if (account != null) { account.CurrentBalance += request.Amount; account.UpdatedAt = now; account.UpdatedBy = _currentUser.UserId; }
             await _payments.AddAsync(payment); await _unitOfWork.SaveChangesAsync(cancellationToken); await _unitOfWork.CommitTransactionAsync();
-            return ApiResponse<StudentPaymentDto>.SuccessResponse(MapPayment(payment), "Payment received successfully.");
+            return ApiResponse<StudentPaymentDto>.SuccessResponse(MapPayment(payment), "StudentPayment received successfully.");
         }
         catch (DbUpdateConcurrencyException ex)
         {
@@ -167,20 +168,20 @@ public sealed class FeeBillingService : IFeeBillingService
             var persistedPayment = await FindPaymentByRequestAsync(tenantId, request.ClientRequestId, cancellationToken);
             if (persistedPayment == null)
             {
-                _logger.LogError(ex, "Payment persistence failed without an idempotency winner for tenant {TenantId}, request {RequestId}", tenantId, request.ClientRequestId);
-                return ApiResponse<StudentPaymentDto>.ErrorResponse("Payment could not be completed.", 500);
+                _logger.LogError(ex, "StudentPayment persistence failed without an idempotency winner for tenant {TenantId}, request {RequestId}", tenantId, request.ClientRequestId);
+                return ApiResponse<StudentPaymentDto>.ErrorResponse("StudentPayment could not be completed.", 500);
             }
             if (!PaymentMatchesRequest(persistedPayment, request, method))
             {
-                _logger.LogWarning(ex, "Payment request {RequestId} collided with a different persisted payload for tenant {TenantId}", request.ClientRequestId, tenantId);
+                _logger.LogWarning(ex, "StudentPayment request {RequestId} collided with a different persisted payload for tenant {TenantId}", request.ClientRequestId, tenantId);
                 return ApiResponse<StudentPaymentDto>.ErrorResponse("Client request reference was already used for a different payment.", 409);
             }
             _logger.LogInformation("Concurrent payment request {RequestId} replayed persisted payment {PaymentId} for tenant {TenantId}", request.ClientRequestId, persistedPayment.Id, tenantId);
-            return ApiResponse<StudentPaymentDto>.SuccessResponse(MapPayment(persistedPayment), "Payment was already received.");
+            return ApiResponse<StudentPaymentDto>.SuccessResponse(MapPayment(persistedPayment), "StudentPayment was already received.");
         }
         catch (Exception ex)
         {
-            await SafeRollbackAsync(); _logger.LogError(ex, "Payment collection failed for invoice {Reference}", request.InvoiceReference); return ApiResponse<StudentPaymentDto>.ErrorResponse("Payment could not be completed.", 500);
+            await SafeRollbackAsync(); _logger.LogError(ex, "StudentPayment collection failed for invoice {Reference}", request.InvoiceReference); return ApiResponse<StudentPaymentDto>.ErrorResponse("StudentPayment could not be completed.", 500);
         }
     }
 
@@ -208,8 +209,8 @@ public sealed class FeeBillingService : IFeeBillingService
     {
         var t = _currentUser.TenantId;
         if (!await _years.AnyAsync(x => x.TenantId == t && x.Id == request.AcademicYearId && x.IsActive)) return "Academic year is unavailable.";
-        if (!await _classes.AnyAsync(x => x.TenantId == t && x.Id == request.ClassId && x.IsActive)) return "Class is unavailable.";
-        if (!await _sections.AnyAsync(x => x.TenantId == t && x.Id == request.SectionId && x.ClassId == request.ClassId && x.IsActive)) return "Section is unavailable.";
+        if (!await _classes.AnyAsync(x => x.TenantId == t && x.Id == request.ClassId && x.IsActive)) return "AcademicLevel is unavailable.";
+        if (!await _sections.AnyAsync(x => x.TenantId == t && x.Id == request.SectionId && x.ClassId == request.ClassId && x.IsActive)) return "AcademicBatch is unavailable.";
         if (request.DueDate.Date < new DateTime(request.Year, request.Month, 1)) return "Due date cannot be before the billing month.";
         return null;
     }
@@ -228,10 +229,10 @@ public sealed class FeeBillingService : IFeeBillingService
         return Math.Min(total, Math.Round(discount, 2));
     }
 
-    private Task<Payment?> FindPaymentByRequestAsync(long tenantId, Guid clientRequestId, CancellationToken cancellationToken) =>
+    private Task<StudentPayment?> FindPaymentByRequestAsync(long tenantId, Guid clientRequestId, CancellationToken cancellationToken) =>
         _payments.GetQueryable().AsNoTracking().Include(x => x.Invoice).ThenInclude(x => x!.Student).FirstOrDefaultAsync(x => x.TenantId == tenantId && x.ClientRequestId == clientRequestId, cancellationToken);
 
-    private static bool PaymentMatchesRequest(Payment payment, CollectStudentPaymentDto request, string method) =>
+    private static bool PaymentMatchesRequest(StudentPayment payment, CollectStudentPaymentDto request, string method) =>
         payment.Invoice?.PublicId == request.InvoiceReference
         && payment.Amount == request.Amount
         && string.Equals(payment.PaymentMethod, method, StringComparison.OrdinalIgnoreCase)
@@ -240,7 +241,7 @@ public sealed class FeeBillingService : IFeeBillingService
         && payment.BankAccountId == request.BankAccountId;
 
     private static StudentInvoiceDto MapInvoice(StudentInvoice x) => new() { Reference = x.PublicId, InvoiceNo = x.InvoiceNo, StudentId = x.StudentId, StudentReference = x.Student?.PublicId ?? Guid.Empty, StudentName = x.Student?.FullName ?? string.Empty, Roll = x.Student?.Roll ?? string.Empty, Month = x.Month, Year = x.Year, TotalAmount = x.TotalAmount, DiscountAmount = x.DiscountAmount ?? 0m, FineAmount = x.FineAmount ?? 0m, PaidAmount = x.PaidAmount, DueAmount = x.DueAmount, Status = x.Status, DueDate = x.DueDate, RowVersion = Convert.ToBase64String(x.RowVersion) };
-    private static StudentPaymentDto MapPayment(Payment x) => new() { Reference = x.PublicId, InvoiceReference = x.Invoice?.PublicId ?? Guid.Empty, ReceiptNo = x.ReceiptNo, Amount = x.Amount, PaymentMethod = x.PaymentMethod, PaymentDate = x.PaymentDate, TransactionId = x.TransactionId, Invoice = x.Invoice == null ? new StudentInvoiceDto() : MapInvoice(x.Invoice) };
+    private static StudentPaymentDto MapPayment(StudentPayment x) => new() { Reference = x.PublicId, InvoiceReference = x.Invoice?.PublicId ?? Guid.Empty, ReceiptNo = x.ReceiptNo, Amount = x.Amount, PaymentMethod = x.PaymentMethod, PaymentDate = x.PaymentDate, TransactionId = x.TransactionId, Invoice = x.Invoice == null ? new StudentInvoiceDto() : MapInvoice(x.Invoice) };
     private bool CanManage() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0 && (_currentUser.IsTenantAdmin || _currentUser.IsInRole("Principal") || _currentUser.IsInRole("Accountant"));
     private bool CanCollect() => CanManage() || _currentUser.IsInRole("Cashier");
     private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();

@@ -2,7 +2,7 @@ using EduOS.Core.Common;
 using EduOS.Core.DTOs.Portals;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Attendance;
-using EduOS.Core.Entities.Exams;
+using EduOS.Core.Entities.Assessment;
 using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.LMS;
 using EduOS.Core.Entities.Students;
@@ -19,12 +19,12 @@ public sealed class SelfServicePortalService : ISelfServicePortalService
 {
     private readonly IGenericRepository<Student> _students;
     private readonly IGenericRepository<Guardian> _guardians;
-    private readonly IGenericRepository<Enrollment> _studentEnrollments;
-    private readonly IGenericRepository<ClassRoutine> _classRoutines;
+    private readonly IGenericRepository<StudentEnrollment> _studentEnrollments;
+    private readonly IGenericRepository<RoutineEntry> _classRoutines;
     private readonly IGenericRepository<StudentAttendance> _attendance;
-    private readonly IGenericRepository<ExamResult> _results;
+    private readonly IGenericRepository<StudentResultSummary> _results;
     private readonly IGenericRepository<StudentInvoice> _invoices;
-    private readonly IGenericRepository<Payment> _payments;
+    private readonly IGenericRepository<StudentPayment> _payments;
     private readonly IGenericRepository<StudentTransport> _transport;
     private readonly IGenericRepository<Homework> _homework;
     private readonly IGenericRepository<Assignment> _assignments;
@@ -33,9 +33,9 @@ public sealed class SelfServicePortalService : ISelfServicePortalService
     private readonly ILogger<SelfServicePortalService> _logger;
 
     public SelfServicePortalService(IGenericRepository<Student> students, IGenericRepository<Guardian> guardians,
-        IGenericRepository<Enrollment> studentEnrollments, IGenericRepository<ClassRoutine> classRoutines,
-        IGenericRepository<StudentAttendance> attendance, IGenericRepository<ExamResult> results,
-        IGenericRepository<StudentInvoice> invoices, IGenericRepository<Payment> payments,
+        IGenericRepository<StudentEnrollment> studentEnrollments, IGenericRepository<RoutineEntry> classRoutines,
+        IGenericRepository<StudentAttendance> attendance, IGenericRepository<StudentResultSummary> results,
+        IGenericRepository<StudentInvoice> invoices, IGenericRepository<StudentPayment> payments,
         IGenericRepository<StudentTransport> transport, IGenericRepository<Homework> homework,
         IGenericRepository<Assignment> assignments, IGenericRepository<CourseEnrollment> enrollments,
         ICurrentUserService currentUser, ILogger<SelfServicePortalService> logger)
@@ -117,10 +117,10 @@ public sealed class SelfServicePortalService : ISelfServicePortalService
     {
         var student = await GetAuthorizedStudentAsync(studentReference, cancellationToken);
         if (student == null) return Denied<IReadOnlyList<PortalResultDto>>();
-        IReadOnlyList<PortalResultDto> rows = await _results.GetQueryable().AsNoTracking().Include(x => x.Exam)
+        IReadOnlyList<PortalResultDto> rows = await _results.GetQueryable().AsNoTracking().Include(x => x.Assessment)
             .Where(x => x.TenantId == _currentUser.TenantId && x.StudentId == student.Id && x.IsPublished)
             .OrderByDescending(x => x.PublishedAtUtc)
-            .Select(x => new PortalResultDto { ExamId = x.ExamId, ExamName = x.Exam != null ? x.Exam.Name : string.Empty, TotalMark = x.TotalMark, TotalFullMark = x.TotalFullMark, Percentage = x.Percentage, GPA = x.TotalGPA, Grade = x.FinalGrade, Position = x.Position, IsPassed = x.IsPassed, PublishedAtUtc = x.PublishedAtUtc })
+            .Select(x => new PortalResultDto { ExamId = x.ExamId, ExamName = x.Assessment != null ? x.Assessment.Name : string.Empty, TotalMark = x.TotalMark, TotalFullMark = x.TotalFullMark, Percentage = x.Percentage, GPA = x.TotalGPA, Grade = x.FinalGrade, Position = x.Position, IsPassed = x.IsPassed, PublishedAtUtc = x.PublishedAtUtc })
             .ToListAsync(cancellationToken);
         return ApiResponse<IReadOnlyList<PortalResultDto>>.SuccessResponse(rows);
     }

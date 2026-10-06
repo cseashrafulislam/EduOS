@@ -1,8 +1,8 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Exams;
 using EduOS.Core.Entities.Academic;
-using EduOS.Core.Entities.Employees;
-using EduOS.Core.Entities.Exams;
+using EduOS.Core.Entities.HR;
+using EduOS.Core.Entities.Assessment;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
@@ -14,24 +14,24 @@ namespace EduOS.Service.Services.Exams;
 
 public sealed class ExamWorkflowService : IExamWorkflowService
 {
-    private readonly IGenericRepository<Exam> _exams;
-    private readonly IGenericRepository<ExamSchedule> _schedules;
-    private readonly IGenericRepository<MarkEntry> _marks;
-    private readonly IGenericRepository<ExamResult> _results;
+    private readonly IGenericRepository<Assessment> _exams;
+    private readonly IGenericRepository<AssessmentSchedule> _schedules;
+    private readonly IGenericRepository<StudentAssessmentMark> _marks;
+    private readonly IGenericRepository<StudentResultSummary> _results;
     private readonly IGenericRepository<GradeRule> _gradeRules;
-    private readonly IGenericRepository<Enrollment> _enrollments;
-    private readonly IGenericRepository<Section> _sections;
+    private readonly IGenericRepository<StudentEnrollment> _enrollments;
+    private readonly IGenericRepository<AcademicBatch> _sections;
     private readonly IGenericRepository<Employee> _employees;
-    private readonly IGenericRepository<SubjectTeacher> _subjectTeachers;
+    private readonly IGenericRepository<InstructorAssignment> _subjectTeachers;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUser;
     private readonly TimeProvider _clock;
     private readonly ILogger<ExamWorkflowService> _logger;
 
-    public ExamWorkflowService(IGenericRepository<Exam> exams, IGenericRepository<ExamSchedule> schedules,
-        IGenericRepository<MarkEntry> marks, IGenericRepository<ExamResult> results, IGenericRepository<GradeRule> gradeRules,
-        IGenericRepository<Enrollment> enrollments, IGenericRepository<Section> sections,
-        IGenericRepository<Employee> employees, IGenericRepository<SubjectTeacher> subjectTeachers, IUnitOfWork unitOfWork,
+    public ExamWorkflowService(IGenericRepository<Assessment> exams, IGenericRepository<AssessmentSchedule> schedules,
+        IGenericRepository<StudentAssessmentMark> marks, IGenericRepository<StudentResultSummary> results, IGenericRepository<GradeRule> gradeRules,
+        IGenericRepository<StudentEnrollment> enrollments, IGenericRepository<AcademicBatch> sections,
+        IGenericRepository<Employee> employees, IGenericRepository<InstructorAssignment> subjectTeachers, IUnitOfWork unitOfWork,
         ICurrentUserService currentUser, TimeProvider clock, ILogger<ExamWorkflowService> logger)
     {
         _exams = exams; _schedules = schedules; _marks = marks; _results = results; _gradeRules = gradeRules;
@@ -42,19 +42,19 @@ public sealed class ExamWorkflowService : IExamWorkflowService
 
     public async Task<ApiResponse<ExamMarkRosterDto>> GetMarkRosterAsync(ExamMarkRosterQueryDto request, CancellationToken cancellationToken = default)
     {
-        if (!CanMark()) return ApiResponse<ExamMarkRosterDto>.ErrorResponse("Exam access is required.", 403);
+        if (!CanMark()) return ApiResponse<ExamMarkRosterDto>.ErrorResponse("Assessment access is required.", 403);
         var context = await LoadMarkContextAsync(request, cancellationToken);
         if (context.Error != null) return ApiResponse<ExamMarkRosterDto>.ErrorResponse(context.Error, context.StatusCode);
-        return ApiResponse<ExamMarkRosterDto>.SuccessResponse(await BuildMarkRosterAsync(context.Exam!, context.Schedule!, context.Enrollments!, request, cancellationToken));
+        return ApiResponse<ExamMarkRosterDto>.SuccessResponse(await BuildMarkRosterAsync(context.Assessment!, context.Schedule!, context.Enrollments!, request, cancellationToken));
     }
 
     public async Task<ApiResponse<ExamMarkRosterDto>> SaveMarksAsync(SaveExamMarksDto request, CancellationToken cancellationToken = default)
     {
-        if (!CanMark()) return ApiResponse<ExamMarkRosterDto>.ErrorResponse("Exam mark-entry access is required.", 403);
+        if (!CanMark()) return ApiResponse<ExamMarkRosterDto>.ErrorResponse("Assessment mark-entry access is required.", 403);
         if (request.Items.Count == 0 || request.Items.GroupBy(x => x.StudentId).Any(g => g.Count() > 1)) return ApiResponse<ExamMarkRosterDto>.ErrorResponse("Mark entries are invalid.");
         var context = await LoadMarkContextAsync(request, cancellationToken);
         if (context.Error != null) return ApiResponse<ExamMarkRosterDto>.ErrorResponse(context.Error, context.StatusCode);
-        var exam = context.Exam!; var schedule = context.Schedule!; var enrollments = context.Enrollments!;
+        var exam = context.Assessment!; var schedule = context.Schedule!; var enrollments = context.Enrollments!;
         var enrolledIds = enrollments.Select(x => x.StudentId).ToHashSet();
         if (request.Items.Any(x => !enrolledIds.Contains(x.StudentId))) return ApiResponse<ExamMarkRosterDto>.ErrorResponse("One or more students are not active in the selected class and section.", 409);
         if (request.Items.Any(x => !x.IsAbsent && x.ObtainedMark > schedule.FullMark)) return ApiResponse<ExamMarkRosterDto>.ErrorResponse("Obtained mark cannot exceed the scheduled full mark.");
@@ -74,7 +74,7 @@ public sealed class ExamWorkflowService : IExamWorkflowService
                 var rule = FindGrade(rules, percentage);
                 if (!byStudent.TryGetValue(item.StudentId, out var entity))
                 {
-                    entity = new MarkEntry { TenantId = _currentUser.TenantId, ExamId = exam.Id > int.MaxValue ? request.ExamId : (int)exam.Id, StudentId = item.StudentId, SubjectId = request.SubjectId, CreatedAt = now, CreatedBy = _currentUser.UserId };
+                    entity = new StudentAssessmentMark { TenantId = _currentUser.TenantId, ExamId = exam.Id > int.MaxValue ? request.ExamId : (int)exam.Id, StudentId = item.StudentId, SubjectId = request.SubjectId, CreatedAt = now, CreatedBy = _currentUser.UserId };
                     await _marks.AddAsync(entity);
                 }
                 entity.ObtainedMark = mark; entity.FullMark = schedule.FullMark; entity.IsAbsent = item.IsAbsent;
@@ -98,10 +98,10 @@ public sealed class ExamWorkflowService : IExamWorkflowService
 
     public async Task<ApiResponse<ExamResultSheetDto>> GenerateResultsAsync(ExamScopeDto request, CancellationToken cancellationToken = default)
     {
-        if (!CanPublish()) return ApiResponse<ExamResultSheetDto>.ErrorResponse("Exam result access is required.", 403);
+        if (!CanPublish()) return ApiResponse<ExamResultSheetDto>.ErrorResponse("Assessment result access is required.", 403);
         var scope = await LoadResultScopeAsync(request, cancellationToken);
         if (scope.Error != null) return ApiResponse<ExamResultSheetDto>.ErrorResponse(scope.Error, scope.StatusCode);
-        var exam = scope.Exam!; var schedules = scope.Schedules!; var enrollments = scope.Enrollments!;
+        var exam = scope.Assessment!; var schedules = scope.Schedules!; var enrollments = scope.Enrollments!;
         var studentIds = enrollments.Select(x => x.StudentId).Distinct().ToArray();
         if (studentIds.Length == 0) return ApiResponse<ExamResultSheetDto>.ErrorResponse("No active students were found for this section.", 409);
         if (await _results.AnyAsync(x => x.TenantId == _currentUser.TenantId && x.ExamId == request.ExamId && x.ClassId == request.ClassId && x.SectionId == request.SectionId && x.IsPublished)) return ApiResponse<ExamResultSheetDto>.ErrorResponse("Published results cannot be regenerated.", 409);
@@ -117,7 +117,7 @@ public sealed class ExamWorkflowService : IExamWorkflowService
             var rules = await _gradeRules.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId).OrderBy(x => x.MinMark).ToListAsync(cancellationToken);
             var existing = await _results.GetQueryable().Where(x => x.TenantId == _currentUser.TenantId && x.ExamId == request.ExamId && studentIds.Contains(x.StudentId)).ToListAsync(cancellationToken);
             var byStudent = existing.GroupBy(x => x.StudentId).ToDictionary(x => x.Key, x => x.First());
-            var computed = new List<(Enrollment Enrollment, decimal Total, decimal Full, decimal Gpa, decimal Percentage, string? Grade, bool Passed)>();
+            var computed = new List<(StudentEnrollment StudentEnrollment, decimal Total, decimal Full, decimal Gpa, decimal Percentage, string? Grade, bool Passed)>();
             foreach (var enrollment in enrollments.GroupBy(x => x.StudentId).Select(x => x.First()))
             {
                 var studentMarks = markLookup[enrollment.StudentId];
@@ -128,17 +128,17 @@ public sealed class ExamWorkflowService : IExamWorkflowService
                 var percentage = full <= 0 ? 0 : Math.Round(total / full * 100m, 2);
                 computed.Add((enrollment, total, full, Math.Round(gpa, 2), percentage, FindGrade(rules, percentage)?.Grade, passed));
             }
-            var ranked = computed.OrderByDescending(x => x.Passed).ThenByDescending(x => x.Total).ThenByDescending(x => x.Gpa).ThenBy(x => x.Enrollment.Roll).ToList();
+            var ranked = computed.OrderByDescending(x => x.Passed).ThenByDescending(x => x.Total).ThenByDescending(x => x.Gpa).ThenBy(x => x.StudentEnrollment.Roll).ToList();
             var now = _clock.GetUtcNow().UtcDateTime;
             for (var i = 0; i < ranked.Count; i++)
             {
                 var row = ranked[i];
-                if (!byStudent.TryGetValue(row.Enrollment.StudentId, out var result))
+                if (!byStudent.TryGetValue(row.StudentEnrollment.StudentId, out var result))
                 {
-                    result = new ExamResult { TenantId = _currentUser.TenantId, ExamId = request.ExamId, StudentId = row.Enrollment.StudentId, CreatedAt = now, CreatedBy = _currentUser.UserId };
+                    result = new StudentResultSummary { TenantId = _currentUser.TenantId, ExamId = request.ExamId, StudentId = row.StudentEnrollment.StudentId, CreatedAt = now, CreatedBy = _currentUser.UserId };
                     await _results.AddAsync(result);
                 }
-                result.AcademicYearId = exam.AcademicYearId; result.ClassId = request.ClassId; result.SectionId = request.SectionId; result.GroupId = row.Enrollment.GroupId;
+                result.AcademicYearId = exam.AcademicYearId; result.ClassId = request.ClassId; result.SectionId = request.SectionId; result.GroupId = row.StudentEnrollment.GroupId;
                 result.TotalMark = row.Total; result.TotalFullMark = row.Full; result.Percentage = row.Percentage; result.TotalGPA = row.Gpa; result.FinalGrade = row.Grade;
                 result.Position = i + 1; result.IsPassed = row.Passed; result.IsPublished = false; result.PublishedAtUtc = null; result.PublishedByUserId = null; result.UpdatedAt = now; result.UpdatedBy = _currentUser.UserId;
             }
@@ -159,10 +159,10 @@ public sealed class ExamWorkflowService : IExamWorkflowService
 
     public async Task<ApiResponse<ExamResultSheetDto>> PublishResultsAsync(ExamScopeDto request, CancellationToken cancellationToken = default)
     {
-        if (!CanPublish()) return ApiResponse<ExamResultSheetDto>.ErrorResponse("Exam publishing access is required.", 403);
+        if (!CanPublish()) return ApiResponse<ExamResultSheetDto>.ErrorResponse("Assessment publishing access is required.", 403);
         var scope = await LoadResultScopeAsync(request, cancellationToken);
         if (scope.Error != null) return ApiResponse<ExamResultSheetDto>.ErrorResponse(scope.Error, scope.StatusCode);
-        var exam = scope.Exam!; var schedules = scope.Schedules!; var enrollments = scope.Enrollments!;
+        var exam = scope.Assessment!; var schedules = scope.Schedules!; var enrollments = scope.Enrollments!;
         try
         {
             var strategy = _unitOfWork.CreateExecutionStrategy();
@@ -204,40 +204,40 @@ public sealed class ExamWorkflowService : IExamWorkflowService
 
     public async Task<ApiResponse<ExamResultSheetDto>> GetResultsAsync(ExamScopeDto request, CancellationToken cancellationToken = default)
     {
-        if (!CanMark()) return ApiResponse<ExamResultSheetDto>.ErrorResponse("Exam access is required.", 403);
+        if (!CanMark()) return ApiResponse<ExamResultSheetDto>.ErrorResponse("Assessment access is required.", 403);
         var scope = await LoadResultScopeAsync(request, cancellationToken);
         if (scope.Error != null) return ApiResponse<ExamResultSheetDto>.ErrorResponse(scope.Error, scope.StatusCode);
-        if (!await CanViewResultScopeAsync(scope.Exam!.AcademicYearId, request.ClassId, request.SectionId, cancellationToken)) return ApiResponse<ExamResultSheetDto>.ErrorResponse("Exam result access is required.", 403);
-        return await GetResultsInternalAsync(scope.Exam!, request, scope.Schedules!.Count, cancellationToken);
+        if (!await CanViewResultScopeAsync(scope.Assessment!.AcademicYearId, request.ClassId, request.SectionId, cancellationToken)) return ApiResponse<ExamResultSheetDto>.ErrorResponse("Assessment result access is required.", 403);
+        return await GetResultsInternalAsync(scope.Assessment!, request, scope.Schedules!.Count, cancellationToken);
     }
 
-    private async Task<(Exam? Exam, ExamSchedule? Schedule, List<Enrollment>? Enrollments, string? Error, int StatusCode)> LoadMarkContextAsync(ExamMarkRosterQueryDto request, CancellationToken cancellationToken)
+    private async Task<(Assessment? Assessment, AssessmentSchedule? Schedule, List<StudentEnrollment>? Enrollments, string? Error, int StatusCode)> LoadMarkContextAsync(ExamMarkRosterQueryDto request, CancellationToken cancellationToken)
     {
         var exam = await _exams.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.Id == request.ExamId && x.IsActive, cancellationToken);
-        if (exam == null) return (null, null, null, "Exam is unavailable.", 404);
-        if (!await _sections.AnyAsync(x => x.TenantId == _currentUser.TenantId && x.Id == request.SectionId && x.ClassId == request.ClassId && x.IsActive)) return (null, null, null, "Section is unavailable for the selected class.", 409);
+        if (exam == null) return (null, null, null, "Assessment is unavailable.", 404);
+        if (!await _sections.AnyAsync(x => x.TenantId == _currentUser.TenantId && x.Id == request.SectionId && x.ClassId == request.ClassId && x.IsActive)) return (null, null, null, "AcademicBatch is unavailable for the selected class.", 409);
         var schedule = await _schedules.GetQueryable().AsNoTracking().Include(x => x.Subject).FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.ExamId == request.ExamId && x.ClassId == request.ClassId && x.SubjectId == request.SubjectId, cancellationToken);
         if (schedule == null) return (null, null, null, "Subject is not scheduled for this exam and class.", 409);
-        if (!await CanAccessMarkScopeAsync(exam.AcademicYearId, request.ClassId, request.SectionId, request.SubjectId, cancellationToken)) return (null, null, null, "Exam mark-entry access is required.", 403);
+        if (!await CanAccessMarkScopeAsync(exam.AcademicYearId, request.ClassId, request.SectionId, request.SubjectId, cancellationToken)) return (null, null, null, "Assessment mark-entry access is required.", 403);
         var enrollments = await _enrollments.GetQueryable().AsNoTracking().Include(x => x.Student).Where(x => x.TenantId == _currentUser.TenantId && x.IsActive && x.AcademicYearId == exam.AcademicYearId && x.ClassId == request.ClassId && x.SectionId == request.SectionId && x.Student != null && x.Student.IsActive).OrderBy(x => x.Roll).ToListAsync(cancellationToken);
         return (exam, schedule, enrollments, null, 200);
     }
 
-    private async Task<(Exam? Exam, List<ExamSchedule>? Schedules, List<Enrollment>? Enrollments, string? Error, int StatusCode)> LoadResultScopeAsync(ExamScopeDto request, CancellationToken cancellationToken)
+    private async Task<(Assessment? Assessment, List<AssessmentSchedule>? Schedules, List<StudentEnrollment>? Enrollments, string? Error, int StatusCode)> LoadResultScopeAsync(ExamScopeDto request, CancellationToken cancellationToken)
     {
         var exam = await _exams.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.Id == request.ExamId && x.IsActive, cancellationToken);
-        if (exam == null) return (null, null, null, "Exam is unavailable.", 404);
-        if (!await _sections.AnyAsync(x => x.TenantId == _currentUser.TenantId && x.Id == request.SectionId && x.ClassId == request.ClassId && x.IsActive)) return (null, null, null, "Section is unavailable for the selected class.", 409);
+        if (exam == null) return (null, null, null, "Assessment is unavailable.", 404);
+        if (!await _sections.AnyAsync(x => x.TenantId == _currentUser.TenantId && x.Id == request.SectionId && x.ClassId == request.ClassId && x.IsActive)) return (null, null, null, "AcademicBatch is unavailable for the selected class.", 409);
         var schedules = await _schedules.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId && x.ExamId == request.ExamId && x.ClassId == request.ClassId).OrderBy(x => x.ExamDate).ThenBy(x => x.SubjectId).ToListAsync(cancellationToken);
         if (schedules.Count == 0) return (null, null, null, "No exam schedule was found for the selected class.", 409);
         var enrollments = await _enrollments.GetQueryable().AsNoTracking().Include(x => x.Student).Where(x => x.TenantId == _currentUser.TenantId && x.IsActive && x.AcademicYearId == exam.AcademicYearId && x.ClassId == request.ClassId && x.SectionId == request.SectionId && x.Student != null && x.Student.IsActive).OrderBy(x => x.Roll).ToListAsync(cancellationToken);
         return (exam, schedules, enrollments, null, 200);
     }
 
-    private async Task<ExamMarkRosterDto> BuildMarkRosterAsync(Exam exam, ExamSchedule schedule, List<Enrollment> enrollments, ExamMarkRosterQueryDto request, CancellationToken cancellationToken)
+    private async Task<ExamMarkRosterDto> BuildMarkRosterAsync(Assessment exam, AssessmentSchedule schedule, List<StudentEnrollment> enrollments, ExamMarkRosterQueryDto request, CancellationToken cancellationToken)
     {
         var studentIds = enrollments.Select(x => x.StudentId).Distinct().ToArray();
-        var marks = studentIds.Length == 0 ? new List<MarkEntry>() : await _marks.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId && x.ExamId == request.ExamId && x.SubjectId == request.SubjectId && studentIds.Contains(x.StudentId)).ToListAsync(cancellationToken);
+        var marks = studentIds.Length == 0 ? new List<StudentAssessmentMark>() : await _marks.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId && x.ExamId == request.ExamId && x.SubjectId == request.SubjectId && studentIds.Contains(x.StudentId)).ToListAsync(cancellationToken);
         var byStudent = marks.GroupBy(x => x.StudentId).ToDictionary(x => x.Key, x => x.OrderByDescending(y => y.Id).First());
         return new ExamMarkRosterDto
         {
@@ -248,7 +248,7 @@ public sealed class ExamWorkflowService : IExamWorkflowService
         };
     }
 
-    private async Task<ApiResponse<ExamResultSheetDto>> GetResultsInternalAsync(Exam exam, ExamScopeDto request, int subjectCount, CancellationToken cancellationToken, string? message = null)
+    private async Task<ApiResponse<ExamResultSheetDto>> GetResultsInternalAsync(Assessment exam, ExamScopeDto request, int subjectCount, CancellationToken cancellationToken, string? message = null)
     {
         var rows = await _results.GetQueryable().AsNoTracking().Include(x => x.Student).Where(x => x.TenantId == _currentUser.TenantId && x.ExamId == request.ExamId && x.ClassId == request.ClassId && x.SectionId == request.SectionId).OrderBy(x => x.Position).ThenBy(x => x.Student!.Roll).ToListAsync(cancellationToken);
         return ApiResponse<ExamResultSheetDto>.SuccessResponse(new ExamResultSheetDto { ExamId = request.ExamId, ExamName = exam.Name, AcademicYearId = exam.AcademicYearId, ClassId = request.ClassId, SectionId = request.SectionId, SubjectCount = subjectCount, Results = rows.Select(x => new ExamResultItemDto { StudentId = x.StudentId, StudentReference = x.Student?.PublicId ?? Guid.Empty, StudentCode = x.Student?.StudentCode ?? string.Empty, Roll = x.Student?.Roll ?? string.Empty, StudentName = x.Student?.FullName ?? string.Empty, TotalMark = x.TotalMark, TotalFullMark = x.TotalFullMark, Percentage = x.Percentage, TotalGPA = x.TotalGPA, FinalGrade = x.FinalGrade, Position = x.Position, IsPassed = x.IsPassed, IsPublished = x.IsPublished, PublishedAtUtc = x.PublishedAtUtc }).ToList() }, message);
