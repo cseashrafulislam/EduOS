@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
 using System.Transactions;
 
+using EduOS.Core.Enums.Academics;
 namespace EduOS.Service.Services.Academic;
 
 public sealed class AcademicCalendarService : IAcademicCalendarService
