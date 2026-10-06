@@ -1,7 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Portals;
 using EduOS.Core.Entities.Attendance;
-using EduOS.Core.Entities.Employees;
+using EduOS.Core.Entities.HR;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
@@ -14,12 +14,12 @@ public sealed class EmployeeSelfServiceService : IEmployeeSelfServiceService
 {
     private readonly IGenericRepository<Employee> _employees;
     private readonly IGenericRepository<EmployeeAttendance> _attendance;
-    private readonly IGenericRepository<LeaveApplication> _leaveApplications;
+    private readonly IGenericRepository<EmployeeLeaveApplication> _leaveApplications;
     private readonly IGenericRepository<LeaveType> _leaveTypes;
     private readonly ICurrentUserService _currentUser;
     private readonly ILogger<EmployeeSelfServiceService> _logger;
 
-    public EmployeeSelfServiceService(IGenericRepository<Employee> employees, IGenericRepository<EmployeeAttendance> attendance, IGenericRepository<LeaveApplication> leaveApplications, IGenericRepository<LeaveType> leaveTypes, ICurrentUserService currentUser, ILogger<EmployeeSelfServiceService> logger)
+    public EmployeeSelfServiceService(IGenericRepository<Employee> employees, IGenericRepository<EmployeeAttendance> attendance, IGenericRepository<EmployeeLeaveApplication> leaveApplications, IGenericRepository<LeaveType> leaveTypes, ICurrentUserService currentUser, ILogger<EmployeeSelfServiceService> logger)
     {
         _employees = employees;
         _attendance = attendance;
@@ -136,7 +136,7 @@ public sealed class EmployeeSelfServiceService : IEmployeeSelfServiceService
             }
             var overlaps = await _leaveApplications.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == _currentUser.TenantId && x.UserId == _currentUser.UserId && x.UserType == "Employee" && !x.IsDeleted && (x.Status == "Pending" || x.Status == "Approved") && x.FromDate <= to && x.ToDate >= from, cancellationToken);
             if (overlaps) return ApiResponse<EmployeePortalLeaveDto>.ErrorResponse("An existing pending or approved leave overlaps this period.", 409);
-            var entity = new LeaveApplication { TenantId = _currentUser.TenantId, UserId = _currentUser.UserId, UserType = "Employee", LeaveTypeId = leaveType.Id, FromDate = from, ToDate = to, TotalDays = totalDays, Reason = reason, Status = "Pending", CreatedBy = _currentUser.UserId };
+            var entity = new EmployeeLeaveApplication { TenantId = _currentUser.TenantId, UserId = _currentUser.UserId, UserType = "Employee", LeaveTypeId = leaveType.Id, FromDate = from, ToDate = to, TotalDays = totalDays, Reason = reason, Status = "Pending", CreatedBy = _currentUser.UserId };
             await _leaveApplications.AddAsync(entity);
             await _leaveApplications.UnitOfWork.SaveChangesAsync(cancellationToken);
             var dto = new EmployeePortalLeaveDto { Id = entity.Id, LeaveType = leaveType.Name, FromDate = entity.FromDate, ToDate = entity.ToDate, TotalDays = entity.TotalDays, Reason = entity.Reason, Status = entity.Status, Remarks = entity.Remarks };

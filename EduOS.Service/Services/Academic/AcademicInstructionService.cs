@@ -1,7 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Academic;
 using EduOS.Core.Entities.Academic;
-using EduOS.Core.Entities.Employees;
+using EduOS.Core.Entities.HR;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
@@ -258,7 +258,7 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
                 Description = description,
                 LearningObjectives = objectives,
                 Resources = resources,
-                Status = LessonPlanStatus.Draft.ToString(),
+                Status = LessonPlanState.Draft.ToString(),
                 ProgressPercent = 0,
                 IsActive = true,
                 Subject = assignment.Subject,
@@ -285,7 +285,7 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
             var row = await LessonPlanQuery().FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.Id == id && x.InstructorAssignmentId.HasValue && x.IsActive, cancellationToken);
             if (row == null || !await OwnsTeacherAsync(row.TeacherId, cancellationToken)) return Error<LessonPlanDto>("Lesson plan not found.", 404);
             var status = ParseStatus(row.Status);
-            if (status is not (LessonPlanStatus.Draft or LessonPlanStatus.Rejected)) return Error<LessonPlanDto>("Only draft or rejected lesson plans can be edited.", 409);
+            if (status is not (LessonPlanState.Draft or LessonPlanState.Rejected)) return Error<LessonPlanDto>("Only draft or rejected lesson plans can be edited.", 409);
             if (!CryptographicOperations.FixedTimeEquals(row.RowVersion, rowVersion)) return Stale<LessonPlanDto>();
             if (!row.AcademicYearId.HasValue) return Error<LessonPlanDto>("Legacy lesson plan has no academic year and cannot use this workflow.", 409);
             var start = request.StartDate.Date;
@@ -304,7 +304,7 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
             row.Description = Trim(request.Description);
             row.LearningObjectives = Trim(request.LearningObjectives);
             row.Resources = Trim(request.Resources);
-            row.Status = LessonPlanStatus.Draft.ToString();
+            row.Status = LessonPlanState.Draft.ToString();
             row.ReviewedAt = null;
             row.ReviewedBy = null;
             row.ReviewRemarks = null;
@@ -324,10 +324,10 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
             var row = await LessonPlanQuery().FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.Id == id && x.InstructorAssignmentId.HasValue && x.IsActive, cancellationToken);
             if (row == null || !await OwnsTeacherAsync(row.TeacherId, cancellationToken)) return Error<LessonPlanDto>("Lesson plan not found.", 404);
             var status = ParseStatus(row.Status);
-            if (status == LessonPlanStatus.Submitted) return ApiResponse<LessonPlanDto>.SuccessResponse(MapLessonPlan(row), "Lesson plan is already submitted.");
-            if (status is not (LessonPlanStatus.Draft or LessonPlanStatus.Rejected)) return Error<LessonPlanDto>("Lesson plan cannot be submitted from its current status.", 409);
+            if (status == LessonPlanState.Submitted) return ApiResponse<LessonPlanDto>.SuccessResponse(MapLessonPlan(row), "Lesson plan is already submitted.");
+            if (status is not (LessonPlanState.Draft or LessonPlanState.Rejected)) return Error<LessonPlanDto>("Lesson plan cannot be submitted from its current status.", 409);
             if (!CryptographicOperations.FixedTimeEquals(row.RowVersion, rowVersion)) return Stale<LessonPlanDto>();
-            row.Status = LessonPlanStatus.Submitted.ToString();
+            row.Status = LessonPlanState.Submitted.ToString();
             row.SubmittedAt = _clock.GetUtcNow().UtcDateTime;
             row.SubmittedBy = _currentUser.UserId;
             row.ReviewedAt = null;
@@ -349,13 +349,13 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
         {
             var row = await LessonPlanQuery().FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.Id == id && x.InstructorAssignmentId.HasValue && x.IsActive, cancellationToken);
             if (row == null) return Error<LessonPlanDto>("Lesson plan not found.", 404);
-            var target = request.Approve ? LessonPlanStatus.Approved : LessonPlanStatus.Rejected;
+            var target = request.Approve ? LessonPlanState.Approved : LessonPlanState.Rejected;
             if (ParseStatus(row.Status) == target)
             {
                 if (row.ReviewRemarks != Trim(request.Remarks)) return Error<LessonPlanDto>("Lesson plan was already reviewed with different remarks.", 409);
                 return ApiResponse<LessonPlanDto>.SuccessResponse(MapLessonPlan(row), $"Lesson plan is already {target.ToString().ToLowerInvariant()}.");
             }
-            if (ParseStatus(row.Status) != LessonPlanStatus.Submitted) return Error<LessonPlanDto>("Only submitted lesson plans can be reviewed.", 409);
+            if (ParseStatus(row.Status) != LessonPlanState.Submitted) return Error<LessonPlanDto>("Only submitted lesson plans can be reviewed.", 409);
             if (!CryptographicOperations.FixedTimeEquals(row.RowVersion, rowVersion)) return Stale<LessonPlanDto>();
             row.Status = target.ToString();
             row.ReviewedAt = _clock.GetUtcNow().UtcDateTime;
@@ -378,17 +378,17 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
             var row = await LessonPlanQuery().FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.Id == id && x.InstructorAssignmentId.HasValue && x.IsActive, cancellationToken);
             if (row == null || !await OwnsTeacherAsync(row.TeacherId, cancellationToken)) return Error<LessonPlanDto>("Lesson plan not found.", 404);
             var status = ParseStatus(row.Status);
-            if (status == LessonPlanStatus.Completed && request.ProgressPercent == 100)
+            if (status == LessonPlanState.Completed && request.ProgressPercent == 100)
             {
                 if (row.ProgressNotes != Trim(request.Notes)) return Error<LessonPlanDto>("Lesson plan was completed with different progress notes.", 409);
                 return ApiResponse<LessonPlanDto>.SuccessResponse(MapLessonPlan(row), "Lesson plan is already complete.");
             }
-            if (status is not (LessonPlanStatus.Approved or LessonPlanStatus.InProgress)) return Error<LessonPlanDto>("Only approved lesson plans can record progress.", 409);
+            if (status is not (LessonPlanState.Approved or LessonPlanState.InProgress)) return Error<LessonPlanDto>("Only approved lesson plans can record progress.", 409);
             if (request.ProgressPercent < row.ProgressPercent) return Error<LessonPlanDto>("Lesson progress cannot decrease.", 409);
             if (!CryptographicOperations.FixedTimeEquals(row.RowVersion, rowVersion)) return Stale<LessonPlanDto>();
             row.ProgressPercent = request.ProgressPercent;
             row.ProgressNotes = Trim(request.Notes);
-            row.Status = request.ProgressPercent == 100 ? LessonPlanStatus.Completed.ToString() : request.ProgressPercent > 0 ? LessonPlanStatus.InProgress.ToString() : LessonPlanStatus.Approved.ToString();
+            row.Status = request.ProgressPercent == 100 ? LessonPlanState.Completed.ToString() : request.ProgressPercent > 0 ? LessonPlanState.InProgress.ToString() : LessonPlanState.Approved.ToString();
             row.CompletedAt = request.ProgressPercent == 100 ? _clock.GetUtcNow().UtcDateTime : null;
             Touch(row);
             _lessonPlans.Update(row);
@@ -497,9 +497,9 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
     private static bool SameLesson(LessonPlan row, long assignmentId, string chapter, string? topic, DateTime start, DateTime end, string? description, string? objectives, string? resources) =>
         row.InstructorAssignmentId == assignmentId && row.ChapterName == chapter && row.Topic == topic && row.StartDate.Date == start && row.EndDate.Date == end && row.Description == description && row.LearningObjectives == objectives && row.Resources == resources;
 
-    private static LessonPlanStatus ParseStatus(string value)
+    private static LessonPlanState ParseStatus(string value)
     {
-        return Enum.TryParse<LessonPlanStatus>(value, true, out var parsed) && Enum.IsDefined(parsed) ? parsed : LessonPlanStatus.Unknown;
+        return Enum.TryParse<LessonPlanState>(value, true, out var parsed) && Enum.IsDefined(parsed) ? parsed : LessonPlanState.Unknown;
     }
 
     private bool CanRead() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0 && (IsManager() || _currentUser.IsInRole("Teacher"));

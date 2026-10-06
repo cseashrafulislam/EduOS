@@ -13,13 +13,13 @@ namespace EduOS.Service.Services.Hostel;
 public sealed class HostelService : IHostelService
 {
     private readonly IGenericRepository<HostelRoom> _rooms;
-    private readonly IGenericRepository<StudentHostel> _allocations;
+    private readonly IGenericRepository<StudentHostelAllocation> _allocations;
     private readonly IGenericRepository<Student> _students;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUser;
     private readonly TimeProvider _clock;
 
-    public HostelService(IGenericRepository<HostelRoom> rooms, IGenericRepository<StudentHostel> allocations, IGenericRepository<Student> students, IUnitOfWork unitOfWork, ICurrentUserService currentUser, TimeProvider clock)
+    public HostelService(IGenericRepository<HostelRoom> rooms, IGenericRepository<StudentHostelAllocation> allocations, IGenericRepository<Student> students, IUnitOfWork unitOfWork, ICurrentUserService currentUser, TimeProvider clock)
     { _rooms = rooms; _allocations = allocations; _students = students; _unitOfWork = unitOfWork; _currentUser = currentUser; _clock = clock; }
 
     public async Task<ApiResponse<IReadOnlyList<HostelRoomDto>>> GetRoomsAsync(CancellationToken cancellationToken = default)
@@ -61,7 +61,7 @@ public sealed class HostelService : IHostelService
             var occupied = await _allocations.GetQueryable().CountAsync(x => x.TenantId == tenantId && x.HostelRoomId == room.Id && x.IsActive, cancellationToken);
             if (occupied >= room.Capacity) return Error("Hostel room has reached capacity.", 409);
             if (!string.IsNullOrWhiteSpace(request.BedNo) && await _allocations.GetQueryable().AnyAsync(x => x.TenantId == tenantId && x.HostelRoomId == room.Id && x.IsActive && x.BedNo == request.BedNo.Trim(), cancellationToken)) return Error("Bed is already allocated.", 409);
-            var row = new StudentHostel { TenantId = tenantId, StudentId = student.Id, HostelId = room.HostelId, HostelRoomId = room.Id, BedNo = string.IsNullOrWhiteSpace(request.BedNo) ? null : request.BedNo.Trim(), StartDate = request.StartDate == default ? _clock.GetLocalNow().Date : request.StartDate.Date, MonthlyRent = request.MonthlyRent ?? room.RentPerBed, IsActive = true, CreatedAt = _clock.GetUtcNow().UtcDateTime, CreatedBy = _currentUser.UserId };
+            var row = new StudentHostelAllocation { TenantId = tenantId, StudentId = student.Id, HostelId = room.HostelId, HostelRoomId = room.Id, BedNo = string.IsNullOrWhiteSpace(request.BedNo) ? null : request.BedNo.Trim(), StartDate = request.StartDate == default ? _clock.GetLocalNow().Date : request.StartDate.Date, MonthlyRent = request.MonthlyRent ?? room.RentPerBed, IsActive = true, CreatedAt = _clock.GetUtcNow().UtcDateTime, CreatedBy = _currentUser.UserId };
             await _allocations.AddAsync(row); await _unitOfWork.SaveChangesAsync(cancellationToken); scope.Complete();
             row.Student = student; row.Hostel = room.Hostel; row.HostelRoom = room;
             return new ApiResponse<StudentHostelDto> { Success = true, StatusCode = 201, Message = "Hostel allocated.", Data = Map(row) };
@@ -84,10 +84,10 @@ public sealed class HostelService : IHostelService
         return ApiResponse<StudentHostelDto>.SuccessResponse(Map(row), "Hostel allocation closed.");
     }
 
-    private IQueryable<StudentHostel> Query() => _allocations.GetQueryable().Include(x => x.Student).Include(x => x.Hostel).Include(x => x.HostelRoom);
+    private IQueryable<StudentHostelAllocation> Query() => _allocations.GetQueryable().Include(x => x.Student).Include(x => x.Hostel).Include(x => x.HostelRoom);
     private bool CanRead() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0;
     private bool CanManage() => CanRead() && (_currentUser.IsTenantAdmin || _currentUser.IsInRole("Principal") || _currentUser.IsInRole("HostelWarden"));
-    private static StudentHostelDto Map(StudentHostel x) => new() { Id = x.Id, StudentReference = x.Student?.PublicId ?? Guid.Empty, StudentName = x.Student?.FullName ?? string.Empty, HostelId = x.HostelId, HostelName = x.Hostel?.Name ?? string.Empty, HostelRoomId = x.HostelRoomId, RoomNo = x.HostelRoom?.RoomNo ?? string.Empty, BedNo = x.BedNo, StartDate = x.StartDate, EndDate = x.EndDate, MonthlyRent = x.MonthlyRent, IsActive = x.IsActive };
+    private static StudentHostelDto Map(StudentHostelAllocation x) => new() { Id = x.Id, StudentReference = x.Student?.PublicId ?? Guid.Empty, StudentName = x.Student?.FullName ?? string.Empty, HostelId = x.HostelId, HostelName = x.Hostel?.Name ?? string.Empty, HostelRoomId = x.HostelRoomId, RoomNo = x.HostelRoom?.RoomNo ?? string.Empty, BedNo = x.BedNo, StartDate = x.StartDate, EndDate = x.EndDate, MonthlyRent = x.MonthlyRent, IsActive = x.IsActive };
     private static ApiResponse<T> Denied<T>() => ApiResponse<T>.ErrorResponse("Hostel access is required.", 403);
     private static ApiResponse<StudentHostelDto> Error(string message, int status = 400) => ApiResponse<StudentHostelDto>.ErrorResponse(message, status);
 }
