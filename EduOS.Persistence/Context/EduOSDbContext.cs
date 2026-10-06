@@ -1,24 +1,19 @@
-using EduOS.Core.Common;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Admission;
 using EduOS.Core.Entities.Attendance;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Base;
 using EduOS.Core.Entities.Communication;
-using EduOS.Core.Entities.Exams;
 using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.Hostel;
-using EduOS.Core.Entities.HR;
-using EduOS.Core.Entities.Inventory;
-using EduOS.Core.Entities.Library;
 using EduOS.Core.Entities.Learners;
+using EduOS.Core.Entities.Library;
 using EduOS.Core.Entities.LMS;
 using EduOS.Core.Entities.Payroll;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Entities.System;
 using EduOS.Core.Entities.Transport;
-using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -701,12 +696,12 @@ namespace EduOS.Persistence.Context
                     UserId = UserId,
                     UserName = UserName,
                     Action = action,
-                    TableName = entry.Entity.GetType().Name,
-                    RecordId = GetEntityId(entry),
+                    EntityName = entry.Entity.GetType().Name,
+                    EntityId = GetEntityId(entry),
                     IpAddress = IpAddress,
                     UserAgent = UserAgent,
                     Endpoint = Endpoint,
-                    ExecutionTime = DateTime.UtcNow - _startTime,
+                    OccurredAt = DateTime.UtcNow - _startTime,
                     IsSuccess = true,
                     CreatedAt = now
                 };

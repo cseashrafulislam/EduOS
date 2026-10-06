@@ -1,10 +1,7 @@
 using EduOS.Core.Entities.SaaS;
-
-namespace EduOS.Core.Entities.Base
+namespace EduOS.Core.Entities.Base;
+public abstract class BaseTenantEntity : BaseEntity, ITenantScopedEntity
 {
-    public abstract class BaseTenantEntity : BaseEntity, ITenantScopedEntity
-    {
-        public long TenantId { get; set; }
-        public virtual Tenant? Tenant { get; set; }
-    }
+    public long TenantId { get; set; }
+    public virtual Tenant? Tenant { get; set; }
 }
