@@ -1,247 +1,154 @@
 using EduOS.Core.Entities.SaaS;
-using EduOS.Core.Enums;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 
-namespace EduOS.Persistence.Repositories.SaaS
+namespace EduOS.Persistence.Repositories.SaaS;
+
+public class SubscriptionPlanRepository : GenericRepository<SubscriptionPlan>, ISubscriptionPlanRepository
 {
-    public class SubscriptionPlanRepository : GenericRepository<SubscriptionPlan>, ISubscriptionPlanRepository
+    public SubscriptionPlanRepository(EduOSDbContext context) : base(context) { }
+
+    public Task<List<SubscriptionPlan>> GetActivePublicPlansAsync(CancellationToken ct = default) =>
+        _context.SubscriptionPlans.AsNoTracking()
+            .Where(x => x.IsActive && x.IsPublic)
+            .OrderBy(x => x.MonthlyPrice).ThenBy(x => x.Name)
+            .ToListAsync(ct);
+
+    public Task<SubscriptionPlan?> GetByCodeAsync(string code, CancellationToken ct = default) =>
+        _context.SubscriptionPlans.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Code == code, ct);
+
+    public Task<SubscriptionPlan?> GetWithFeaturesAsync(long id, CancellationToken ct = default) =>
+        _context.SubscriptionPlans.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == id, ct);
+
+    public Task<SubscriptionPlan?> GetTrialPlanAsync(CancellationToken ct = default) =>
+        _context.SubscriptionPlans.AsNoTracking()
+            .Where(x => x.IsActive && x.IsPublic && x.TrialDays > 0)
+            .OrderBy(x => x.MonthlyPrice)
+            .FirstOrDefaultAsync(ct);
+}
+
+public class TenantSubscriptionRepository : GenericRepository<TenantSubscription>, ITenantSubscriptionRepository
+{
+    public TenantSubscriptionRepository(EduOSDbContext context) : base(context) { }
+
+    public Task<TenantSubscription?> GetActiveByTenantAsync(long tenantId, CancellationToken ct = default) =>
+        _context.TenantSubscriptions.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => !x.IsDeleted && x.TenantId == tenantId
+                && (x.State == SubscriptionState.Active || x.State == SubscriptionState.Trial || x.State == SubscriptionState.Grace))
+            .OrderByDescending(x => x.StartsAt)
+            .FirstOrDefaultAsync(ct);
+
+    public Task<TenantSubscription?> GetByIdForSystemAsync(long id, long tenantId, CancellationToken ct = default) =>
+        _context.TenantSubscriptions.IgnoreQueryFilters().AsNoTracking()
+            .FirstOrDefaultAsync(x => !x.IsDeleted && x.Id == id && x.TenantId == tenantId, ct);
+
+    public Task<List<TenantSubscription>> GetHistoryByTenantAsync(long tenantId, CancellationToken ct = default) =>
+        _context.TenantSubscriptions.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => !x.IsDeleted && x.TenantId == tenantId)
+            .OrderByDescending(x => x.StartsAt)
+            .ToListAsync(ct);
+
+    public Task<List<TenantSubscription>> GetExpiringSoonAsync(int daysAhead, CancellationToken ct = default)
     {
-        public SubscriptionPlanRepository(EduOSDbContext context) : base(context) { }
-
-        public async Task<List<SubscriptionPlan>> GetActivePublicPlansAsync(CancellationToken ct = default)
-        {
-            return await _context.SubscriptionPlans
-                .Include(p => p.PlanFeatures)
-                    .ThenInclude(pf => pf.Feature)
-                .Where(p => p.IsActive && p.IsPubliclyVisible)
-                .OrderBy(p => p.DisplayOrder)
-                .ToListAsync(ct);
-        }
-
-        public async Task<SubscriptionPlan?> GetByCodeAsync(string code, CancellationToken ct = default)
-        {
-            return await _context.SubscriptionPlans
-                .Include(p => p.PlanFeatures)
-                    .ThenInclude(pf => pf.Feature)
-                .FirstOrDefaultAsync(p => p.Code == code, ct);
-        }
-
-        public async Task<SubscriptionPlan?> GetWithFeaturesAsync(long id, CancellationToken ct = default)
-        {
-            return await _context.SubscriptionPlans
-                .Include(p => p.PlanFeatures)
-                    .ThenInclude(pf => pf.Feature)
-                .FirstOrDefaultAsync(p => p.Id == id, ct);
-        }
-
-        public async Task<SubscriptionPlan?> GetTrialPlanAsync(CancellationToken ct = default)
-        {
-            return await _context.SubscriptionPlans
-                .FirstOrDefaultAsync(p => p.IsFreeTrial && p.IsActive, ct);
-        }
+        var now = DateTime.UtcNow;
+        var cutoff = now.AddDays(Math.Clamp(daysAhead, 1, 365));
+        return _context.TenantSubscriptions.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => !x.IsDeleted
+                && (x.State == SubscriptionState.Active || x.State == SubscriptionState.Trial || x.State == SubscriptionState.Grace)
+                && x.EndsAt > now && x.EndsAt <= cutoff)
+            .OrderBy(x => x.EndsAt)
+            .ToListAsync(ct);
     }
 
-    public class TenantSubscriptionRepository : GenericRepository<TenantSubscription>, ITenantSubscriptionRepository
+    public Task<List<TenantSubscription>> GetExpiredAsync(CancellationToken ct = default)
     {
-        public TenantSubscriptionRepository(EduOSDbContext context) : base(context) { }
-
-        public async Task<TenantSubscription?> GetActiveByTenantAsync(long tenantId, CancellationToken ct = default)
-        {
-            return await _context.TenantSubscriptions
-                .IgnoreQueryFilters()
-                .Include(s => s.SubscriptionPlan)
-                    .ThenInclude(p => p!.PlanFeatures)
-                .Where(s => !s.IsDeleted &&
-                           s.TenantId == tenantId &&
-                           (s.Status == SubscriptionStatus.Active ||
-                            s.Status == SubscriptionStatus.Trialing ||
-                            s.Status == SubscriptionStatus.PendingPayment ||
-                            s.Status == SubscriptionStatus.CancelAtPeriodEnd))
-                .OrderByDescending(s => s.CreatedAt)
-                .FirstOrDefaultAsync(ct);
-        }
-
-        public async Task<TenantSubscription?> GetByIdForSystemAsync(
-            long id, long tenantId, CancellationToken ct = default)
-        {
-            return await _context.TenantSubscriptions
-                .IgnoreQueryFilters()
-                .FirstOrDefaultAsync(
-                    s => !s.IsDeleted && s.Id == id && s.TenantId == tenantId,
-                    ct);
-        }
-
-        public async Task<List<TenantSubscription>> GetHistoryByTenantAsync(long tenantId, CancellationToken ct = default)
-        {
-            return await _context.TenantSubscriptions
-                .Include(s => s.SubscriptionPlan)
-                .Where(s => s.TenantId == tenantId)
-                .OrderByDescending(s => s.CreatedAt)
-                .ToListAsync(ct);
-        }
-
-        public async Task<List<TenantSubscription>> GetExpiringSoonAsync(int daysAhead, CancellationToken ct = default)
-        {
-            var cutoff = DateTime.UtcNow.AddDays(daysAhead);
-            return await _context.TenantSubscriptions
-                .IgnoreQueryFilters()
-                .Include(s => s.Tenant)
-                .Where(s => !s.IsDeleted &&
-                           s.Status == SubscriptionStatus.Active &&
-                           s.EndDate <= cutoff &&
-                           s.EndDate > DateTime.UtcNow)
-                .ToListAsync(ct);
-        }
-
-        public async Task<List<TenantSubscription>> GetExpiredAsync(CancellationToken ct = default)
-        {
-            return await _context.TenantSubscriptions
-                .IgnoreQueryFilters()
-                .Where(s => !s.IsDeleted &&
-                           (s.Status == SubscriptionStatus.Active ||
-                             s.Status == SubscriptionStatus.Trialing) &&
-                            s.EndDate < DateTime.UtcNow)
-                .ToListAsync(ct);
-        }
+        var now = DateTime.UtcNow;
+        return _context.TenantSubscriptions.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => !x.IsDeleted
+                && (x.State == SubscriptionState.Active || x.State == SubscriptionState.Trial || x.State == SubscriptionState.Grace)
+                && x.EndsAt < now)
+            .OrderBy(x => x.EndsAt)
+            .ToListAsync(ct);
     }
+}
 
-    public class SubscriptionInvoiceRepository : GenericRepository<SubscriptionInvoice>, ISubscriptionInvoiceRepository
+public class SubscriptionInvoiceRepository : GenericRepository<SubscriptionInvoice>, ISubscriptionInvoiceRepository
+{
+    public SubscriptionInvoiceRepository(EduOSDbContext context) : base(context) { }
+
+    public override Task<SubscriptionInvoice?> GetByIdAsync(long id) =>
+        _context.SubscriptionInvoices.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+
+    public Task<SubscriptionInvoice?> GetByIdForSystemAsync(long id, long tenantId, CancellationToken ct = default) =>
+        _context.SubscriptionInvoices.IgnoreQueryFilters().AsNoTracking()
+            .FirstOrDefaultAsync(x => !x.IsDeleted && x.Id == id && x.TenantId == tenantId, ct);
+
+    public Task<SubscriptionInvoice?> GetByIdForPlatformAsync(long id, CancellationToken ct = default) =>
+        _context.SubscriptionInvoices.IgnoreQueryFilters().AsNoTracking()
+            .FirstOrDefaultAsync(x => !x.IsDeleted && x.Id == id, ct);
+
+    public Task<SubscriptionInvoice?> GetByInvoiceNumberAsync(string invoiceNumber, CancellationToken ct = default) =>
+        _context.SubscriptionInvoices.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.InvoiceNumber == invoiceNumber, ct);
+
+    public Task<List<SubscriptionInvoice>> GetByTenantAsync(long tenantId, CancellationToken ct = default) =>
+        _context.SubscriptionInvoices.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => !x.IsDeleted && x.TenantId == tenantId)
+            .OrderByDescending(x => x.InvoiceDate)
+            .ToListAsync(ct);
+
+    public Task<List<SubscriptionInvoice>> GetUnpaidByTenantAsync(long tenantId, CancellationToken ct = default) =>
+        _context.SubscriptionInvoices.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => !x.IsDeleted && x.TenantId == tenantId
+                && x.State != InvoiceState.Paid && x.State != InvoiceState.Cancelled && x.State != InvoiceState.Refunded
+                && x.DueAmount > 0)
+            .OrderBy(x => x.DueDate)
+            .ToListAsync(ct);
+
+    public Task<string> GenerateNextInvoiceNumberAsync(CancellationToken ct = default)
     {
-        public SubscriptionInvoiceRepository(EduOSDbContext context) : base(context) { }
-
-        public override async Task<SubscriptionInvoice?> GetByIdAsync(long id)
-        {
-            return await _context.SubscriptionInvoices
-                .Include(i => i.Subscription)
-                    .ThenInclude(s => s!.SubscriptionPlan)
-                .FirstOrDefaultAsync(i => i.Id == id);
-        }
-
-        public async Task<SubscriptionInvoice?> GetByIdForSystemAsync(
-            long id, long tenantId, CancellationToken ct = default)
-        {
-            return await _context.SubscriptionInvoices
-                .IgnoreQueryFilters()
-                .Include(i => i.Subscription)
-                    .ThenInclude(s => s!.SubscriptionPlan)
-                .FirstOrDefaultAsync(
-                    i => !i.IsDeleted && i.Id == id && i.TenantId == tenantId,
-                    ct);
-        }
-
-        public async Task<SubscriptionInvoice?> GetByIdForPlatformAsync(
-            long id, CancellationToken ct = default)
-        {
-            return await _context.SubscriptionInvoices
-                .IgnoreQueryFilters()
-                .Include(i => i.Subscription)
-                    .ThenInclude(s => s!.SubscriptionPlan)
-                .FirstOrDefaultAsync(i => !i.IsDeleted && i.Id == id, ct);
-        }
-
-        public async Task<SubscriptionInvoice?> GetByInvoiceNumberAsync(string invoiceNumber, CancellationToken ct = default)
-        {
-            return await _context.SubscriptionInvoices
-                .FirstOrDefaultAsync(i => i.InvoiceNumber == invoiceNumber, ct);
-        }
-
-        public async Task<List<SubscriptionInvoice>> GetByTenantAsync(long tenantId, CancellationToken ct = default)
-        {
-            return await _context.SubscriptionInvoices
-                .IgnoreQueryFilters()
-                .Include(i => i.Subscription)
-                    .ThenInclude(s => s!.SubscriptionPlan)
-                .Where(i => !i.IsDeleted && i.TenantId == tenantId)
-                .OrderByDescending(i => i.IssueDate)
-                .ToListAsync(ct);
-        }
-
-        public async Task<List<SubscriptionInvoice>> GetUnpaidByTenantAsync(long tenantId, CancellationToken ct = default)
-        {
-            return await _context.SubscriptionInvoices
-                .IgnoreQueryFilters()
-                .Include(i => i.Subscription)
-                    .ThenInclude(s => s!.SubscriptionPlan)
-                .Where(i => !i.IsDeleted &&
-                           i.TenantId == tenantId &&
-                           (i.PaymentStatus == PaymentStatus.Pending ||
-                            i.PaymentStatus == PaymentStatus.AwaitingVerification))
-                .OrderByDescending(i => i.IssueDate)
-                .ToListAsync(ct);
-        }
-
-        public Task<string> GenerateNextInvoiceNumberAsync(CancellationToken ct = default)
-        {
-            ct.ThrowIfCancellationRequested();
-
-            // The former "last sequence + 1" allocator could issue the same number
-            // on concurrent app instances. Keep the business prefix while using a
-            // collision-resistant suffix that is safe without a database sequence.
-            var invoiceNumber = $"INV-{DateTime.UtcNow:yyyyMM}-{Guid.NewGuid():N}";
-            return Task.FromResult(invoiceNumber);
-        }
+        ct.ThrowIfCancellationRequested();
+        return Task.FromResult($"INV-{DateTime.UtcNow:yyyyMM}-{Guid.NewGuid():N}".ToUpperInvariant());
     }
+}
 
-    public class SubscriptionPaymentRepository : GenericRepository<SubscriptionPayment>, ISubscriptionPaymentRepository
-    {
-        public SubscriptionPaymentRepository(EduOSDbContext context) : base(context) { }
+public class SubscriptionPaymentRepository : GenericRepository<SubscriptionPayment>, ISubscriptionPaymentRepository
+{
+    public SubscriptionPaymentRepository(EduOSDbContext context) : base(context) { }
 
-        public async Task<SubscriptionPayment?> GetByIdForPlatformAsync(
-            long id, CancellationToken ct = default)
-        {
-            return await _context.SubscriptionPayments
-                .IgnoreQueryFilters()
-                .FirstOrDefaultAsync(p => !p.IsDeleted && p.Id == id, ct);
-        }
+    public Task<SubscriptionPayment?> GetByIdForPlatformAsync(long id, CancellationToken ct = default) =>
+        _context.SubscriptionPayments.IgnoreQueryFilters().AsNoTracking()
+            .FirstOrDefaultAsync(x => !x.IsDeleted && x.Id == id, ct);
 
-        public async Task<SubscriptionPayment?> GetByTransactionIdForCallbackAsync(
-            string transactionId, CancellationToken ct = default)
-        {
-            return await _context.SubscriptionPayments
-                .IgnoreQueryFilters()
-                .FirstOrDefaultAsync(
-                    p => !p.IsDeleted && p.TransactionId == transactionId,
-                    ct);
-        }
+    public Task<SubscriptionPayment?> GetByTransactionIdForCallbackAsync(string transactionId, CancellationToken ct = default) =>
+        _context.SubscriptionPayments.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(x => !x.IsDeleted && x.TransactionId == transactionId, ct);
 
-        public async Task<SubscriptionPayment?> GetByGatewayTransactionIdAsync(string gatewayTxnId, CancellationToken ct = default)
-        {
-            return await _context.SubscriptionPayments
-                .FirstOrDefaultAsync(p => p.GatewayTransactionId == gatewayTxnId, ct);
-        }
+    public Task<SubscriptionPayment?> GetByGatewayTransactionIdAsync(string gatewayTxnId, CancellationToken ct = default) =>
+        _context.SubscriptionPayments.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.ProviderTransactionId == gatewayTxnId, ct);
 
-        public async Task<List<SubscriptionPayment>> GetByInvoiceAsync(long invoiceId, CancellationToken ct = default)
-        {
-            return await _context.SubscriptionPayments
-                .Where(p => p.SubscriptionInvoiceId == invoiceId)
-                .OrderByDescending(p => p.InitiatedAt)
-                .ToListAsync(ct);
-        }
+    public Task<List<SubscriptionPayment>> GetByInvoiceAsync(long invoiceId, CancellationToken ct = default) =>
+        _context.SubscriptionPayments.AsNoTracking()
+            .Where(x => x.SubscriptionInvoiceId == invoiceId)
+            .OrderByDescending(x => x.InitiatedAt)
+            .ToListAsync(ct);
 
-        public async Task<List<SubscriptionPayment>> GetByInvoiceForPlatformAsync(
-            long invoiceId, long tenantId, CancellationToken ct = default)
-        {
-            return await _context.SubscriptionPayments
-                .IgnoreQueryFilters()
-                .Where(p => !p.IsDeleted &&
-                            p.TenantId == tenantId &&
-                            p.SubscriptionInvoiceId == invoiceId)
-                .OrderByDescending(p => p.InitiatedAt)
-                .ToListAsync(ct);
-        }
+    public Task<List<SubscriptionPayment>> GetByInvoiceForPlatformAsync(long invoiceId, long tenantId, CancellationToken ct = default) =>
+        _context.SubscriptionPayments.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => !x.IsDeleted && x.TenantId == tenantId && x.SubscriptionInvoiceId == invoiceId)
+            .OrderByDescending(x => x.InitiatedAt)
+            .ToListAsync(ct);
 
-        public async Task<List<SubscriptionPayment>> GetPendingManualVerificationForPlatformAsync(
-            CancellationToken ct = default)
-        {
-            return await _context.SubscriptionPayments
-                .IgnoreQueryFilters()
-                .Where(p => !p.IsDeleted &&
-                           p.PaymentMethod == PaymentMethod.ManualBankTransfer &&
-                           p.Status == PaymentStatus.AwaitingVerification)
-                .OrderBy(p => p.InitiatedAt)
-                .ToListAsync(ct);
-        }
-    }
+    public Task<List<SubscriptionPayment>> GetPendingManualVerificationForPlatformAsync(CancellationToken ct = default) =>
+        _context.SubscriptionPayments.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => !x.IsDeleted
+                && x.PaymentMethod == PaymentMethodType.BankTransfer
+                && x.State == PaymentState.AwaitingVerification)
+            .OrderBy(x => x.InitiatedAt)
+            .ToListAsync(ct);
 }
