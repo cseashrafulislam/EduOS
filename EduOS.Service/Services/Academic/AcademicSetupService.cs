@@ -22,7 +22,7 @@ public sealed class AcademicSetupService : IAcademicSetupService
     private readonly IGenericRepository<Room> _rooms;
     private readonly IGenericRepository<ProgramCampus> _programCampuses;
     private readonly IGenericRepository<Campus> _campuses;
-    private readonly IGenericRepository<Department> _departments;
+    private readonly IGenericRepository<AcademicDepartment> _departments;
     private readonly IGenericRepository<AcademicYear> _academicYears;
     private readonly IGenericRepository<AcademicTerm> _academicTerms;
     private readonly IGenericRepository<AcademicTrack> _tracks;
@@ -42,7 +42,7 @@ public sealed class AcademicSetupService : IAcademicSetupService
         IGenericRepository<Room> rooms,
         IGenericRepository<ProgramCampus> programCampuses,
         IGenericRepository<Campus> campuses,
-        IGenericRepository<Department> departments,
+        IGenericRepository<AcademicDepartment> departments,
         IGenericRepository<AcademicYear> academicYears,
         IGenericRepository<AcademicTerm> academicTerms,
         IGenericRepository<AcademicTrack> tracks,
@@ -193,13 +193,13 @@ public sealed class AcademicSetupService : IAcademicSetupService
                 campus = await _campuses.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.CampusId.Value && x.IsActive, cancellationToken);
                 if (campus == null) return Error<AcademicProgramDto>("Campus not found.", 404);
             }
-            Department? department = null;
+            AcademicDepartment? department = null;
             if (request.DepartmentId.HasValue)
             {
                 department = await _departments.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.DepartmentId.Value && x.IsActive, cancellationToken);
-                if (department == null) return Error<AcademicProgramDto>("Department not found.", 404);
+                if (department == null) return Error<AcademicProgramDto>("AcademicDepartment not found.", 404);
                 if (campus != null && department.CampusId.HasValue && department.CampusId != campus.Id)
-                    return Error<AcademicProgramDto>("Department belongs to a different campus.", 409);
+                    return Error<AcademicProgramDto>("AcademicDepartment belongs to a different campus.", 409);
             }
             var existing = await _programs.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Code == code, cancellationToken);
             if (existing != null)

@@ -17,7 +17,7 @@ namespace EduOS.Service.Services.Students;
 public sealed class StudentExitService : IStudentExitService
 {
     private readonly IGenericRepository<Student> _students;
-    private readonly IGenericRepository<Enrollment> _enrollments;
+    private readonly IGenericRepository<StudentEnrollment> _enrollments;
     private readonly IGenericRepository<StudentEnrollment> _academicEnrollments;
     private readonly IGenericRepository<StudentExitRecord> _exits;
     private readonly IGenericRepository<TransferCertificate> _certificates;
@@ -27,7 +27,7 @@ public sealed class StudentExitService : IStudentExitService
     private readonly TimeProvider _clock;
     private readonly ILogger<StudentExitService> _logger;
 
-    public StudentExitService(IGenericRepository<Student> students, IGenericRepository<Enrollment> enrollments,
+    public StudentExitService(IGenericRepository<Student> students, IGenericRepository<StudentEnrollment> enrollments,
         IGenericRepository<StudentEnrollment> academicEnrollments,
         IGenericRepository<StudentExitRecord> exits, IGenericRepository<TransferCertificate> certificates,
         IGenericRepository<StudentInvoice> invoices, IUnitOfWork unitOfWork, ICurrentUserService currentUser,
@@ -81,7 +81,7 @@ public sealed class StudentExitService : IStudentExitService
             var record = new StudentExitRecord
             {
                 TenantId = tenantId, PublicId = publicId, ClientRequestId = request.ClientRequestId, StudentId = student.Id, Student = student,
-                EnrollmentId = placement?.Id, Enrollment = placement, ExitType = exitType, CertificateNo = certificateNo,
+                EnrollmentId = placement?.Id, StudentEnrollment = placement, ExitType = exitType, CertificateNo = certificateNo,
                 AcademicYearId = placement?.AcademicYearId ?? student.AcademicYearId, ClassId = placement?.ClassId ?? student.ClassId,
                 SectionId = placement?.SectionId ?? student.SectionId, GroupId = placement?.GroupId ?? student.GroupId,
                 Roll = placement?.Roll ?? student.Roll, DueAtExit = due, FeesCleared = feesCleared, ProcessedAtUtc = now,

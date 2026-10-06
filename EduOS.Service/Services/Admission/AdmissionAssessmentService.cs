@@ -18,7 +18,7 @@ public sealed class AdmissionAssessmentService : IAdmissionAssessmentService
     private readonly IGenericRepository<AdmissionApplicant> _applications;
     private readonly IGenericRepository<AcademicYear> _academicYears;
     private readonly IGenericRepository<Campus> _campuses;
-    private readonly IGenericRepository<Class> _academicUnits;
+    private readonly IGenericRepository<AcademicLevel> _academicUnits;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUser;
     private readonly TimeProvider _clock;
@@ -30,7 +30,7 @@ public sealed class AdmissionAssessmentService : IAdmissionAssessmentService
         IGenericRepository<AdmissionApplicant> applications,
         IGenericRepository<AcademicYear> academicYears,
         IGenericRepository<Campus> campuses,
-        IGenericRepository<Class> academicUnits,
+        IGenericRepository<AcademicLevel> academicUnits,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUser,
         TimeProvider clock,
