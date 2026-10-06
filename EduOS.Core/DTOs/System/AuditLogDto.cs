@@ -4,26 +4,6 @@ using System.Text;
 
 namespace EduOS.Core.DTOs.System
 {
-    public class AuditLogDto
-    {
-        public long Id { get; set; }
-        public long? TenantId { get; set; }
-        public long? UserId { get; set; }
-        public string UserName { get; set; } = string.Empty;
-        public string Action { get; set; } = string.Empty; // Create, Update, Delete
-        public string TableName { get; set; } = string.Empty;
-        public long? RecordId { get; set; }
-        public string? OldValue { get; set; } // JSON
-        public string? NewValue { get; set; } // JSON
-        public string IpAddress { get; set; } = string.Empty;
-        public string UserAgent { get; set; } = string.Empty;
-        public string Endpoint { get; set; } = string.Empty;
-        public TimeSpan ExecutionTime { get; set; }
-        public bool IsSuccess { get; set; }
-        public string? ErrorMessage { get; set; }
-        public DateTime CreatedAt { get; set; }
-    }
-
     public class AuditLogFilterDto
     {
         public long? UserId { get; set; }
