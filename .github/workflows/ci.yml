@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [ master ]
   push:
-    branches: [ master, codex/phase-0-security-foundation ]
+    branches: [ master, Ashraful, codex/phase-0-security-foundation ]
 
 permissions:
   contents: read
