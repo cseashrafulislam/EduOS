@@ -1,11 +1,10 @@
-using EduOS.Core.Entities.Students;
+using EduOS.Core.Entities.Academic;
 
-namespace EduOS.Core.Interfaces.IRepositories
+namespace EduOS.Core.Interfaces.IRepositories;
+
+public interface IEnrollmentRepository : IGenericRepository<StudentEnrollment>
 {
-    public interface IEnrollmentRepository : IGenericRepository<Enrollment>
-    {
-        Task<List<Enrollment>> GetByStudentIdAsync(long studentId);
-        Task<Enrollment?> GetCurrentAsync(long studentId, long academicYearId);
-        Task<List<Enrollment>> GetByClassSectionAsync(long classId, long sectionId, long academicYearId);
-    }
+    Task<List<StudentEnrollment>> GetByStudentIdAsync(long studentId);
+    Task<StudentEnrollment?> GetCurrentAsync(long studentId, long academicYearId);
+    Task<List<StudentEnrollment>> GetByClassSectionAsync(long classId, long sectionId, long academicYearId);
 }
