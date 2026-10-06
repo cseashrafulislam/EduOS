@@ -123,3 +123,10 @@ public class ReserveBookRequestDto
     public Guid BookReference { get; set; }
     public Guid StudentReference { get; set; }
 }
+
+// Backward-compatible API contract aliases; domain entities remain canonical.
+public class LibraryBookDto : BookDto { }
+public class SaveLibraryBookDto : SaveBookRequestDto { }
+public class LibraryIssueDto : BookIssueDto { }
+public class IssueBookDto : IssueBookRequestDto { }
+public class ReturnBookDto : ReturnBookRequestDto { }
