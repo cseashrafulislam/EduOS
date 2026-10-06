@@ -3,41 +3,27 @@ using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 
-namespace EduOS.Persistence.Repositories
+namespace EduOS.Persistence.Repositories;
+
+public class ClassRepository : GenericRepository<AcademicLevel>, IClassRepository
 {
-    public class ClassRepository : GenericRepository<Class>, IClassRepository
+    public ClassRepository(EduOSDbContext context) : base(context) { }
+
+    public async Task<bool> IsClassNameExistsAsync(string name, long tenantId, long? excludeId = null)
     {
-        public ClassRepository(EduOSDbContext context) : base(context) { }
-
-        public async Task<bool> IsClassNameExistsAsync(string name, long tenantId, long? excludeId = null)
-        {
-            var query = _dbSet.Where(c =>
-                c.Name.ToLower() == name.ToLower() && c.TenantId == tenantId);
-            if (excludeId.HasValue)
-                query = query.Where(c => c.Id != excludeId.Value);
-            return await query.AnyAsync();
-        }
-
-        public async Task<List<Class>> GetActiveClassesAsync(long tenantId)
-        {
-            return await _dbSet
-                .Where(c => c.TenantId == tenantId && c.IsActive)
-                .OrderBy(c => c.NumericValue)
-                .ToListAsync();
-        }
-
-        public async Task<Class?> GetWithSectionsAsync(long id)
-        {
-            return await _dbSet
-                .Include(c => c.Sections)
-                .FirstOrDefaultAsync(c => c.Id == id);
-        }
-
-        public async Task<Class?> GetWithSubjectsAsync(long id)
-        {
-            return await _dbSet
-                .Include(c => c.Subjects)
-                .FirstOrDefaultAsync(c => c.Id == id);
-        }
+        var normalized = name.Trim();
+        var query = _dbSet.Where(x => x.TenantId == tenantId && x.Name == normalized);
+        if (excludeId.HasValue) query = query.Where(x => x.Id != excludeId.Value);
+        return await query.AnyAsync();
     }
+
+    public Task<List<AcademicLevel>> GetActiveClassesAsync(long tenantId) =>
+        _dbSet.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
+            .OrderBy(x => x.DisplayOrder).ThenBy(x => x.LevelNo).ThenBy(x => x.Name).ToListAsync();
+
+    public Task<AcademicLevel?> GetWithSectionsAsync(long id) =>
+        _dbSet.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+
+    public Task<AcademicLevel?> GetWithSubjectsAsync(long id) =>
+        _dbSet.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
 }

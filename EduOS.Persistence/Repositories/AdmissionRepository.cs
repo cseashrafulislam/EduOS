@@ -1,50 +1,43 @@
-using EduOS.Core.Entities.Students;
+using EduOS.Core.Entities.Admission;
 using EduOS.Core.Interfaces.IRepositories;
+using EduOS.Core.Enums.Domain;
 using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 
-namespace EduOS.Persistence.Repositories
+namespace EduOS.Persistence.Repositories;
+
+public class AdmissionRepository : GenericRepository<AdmissionApplicant>, IAdmissionRepository
 {
-    public class AdmissionRepository : GenericRepository<Admission>, IAdmissionRepository
+    public AdmissionRepository(EduOSDbContext context) : base(context) { }
+
+    public Task<AdmissionApplicant?> GetByApplicationNoAsync(string appNo) =>
+        _dbSet.AsNoTracking().FirstOrDefaultAsync(x => x.ApplicationNumber == appNo);
+
+    public async Task<List<AdmissionApplicant>> GetByStatusAsync(string status, long tenantId)
     {
-        public AdmissionRepository(EduOSDbContext context) : base(context) { }
+        if (!Enum.TryParse<AdmissionApplicantState>(status, true, out var state))
+            return new List<AdmissionApplicant>();
+        return await _dbSet.AsNoTracking().Where(x => x.TenantId == tenantId && x.State == state)
+            .OrderByDescending(x => x.SubmittedAt ?? x.CreatedAt).ToListAsync();
+    }
 
-        public async Task<Admission?> GetByApplicationNoAsync(string appNo)
-        {
-            return await _dbSet
-                .Include(a => a.Class)
-                .Include(a => a.AcademicYear)
-                .FirstOrDefaultAsync(a => a.ApplicationNo == appNo);
-        }
+    public async Task<List<AdmissionApplicant>> GetByYearAsync(long academicYearId)
+    {
+        var intakeIds = _context.Set<AdmissionIntakeForm>().Where(x => x.AcademicYearId == academicYearId).Select(x => x.Id);
+        return await _dbSet.AsNoTracking().Where(x => intakeIds.Contains(x.AdmissionIntakeFormId))
+            .OrderByDescending(x => x.SubmittedAt ?? x.CreatedAt).ToListAsync();
+    }
 
-        public async Task<List<Admission>> GetByStatusAsync(string status, long tenantId)
-        {
-            return await _dbSet
-                .Where(a => a.Status == status && a.TenantId == tenantId)
-                .OrderByDescending(a => a.ApplicationDate)
-                .ToListAsync();
-        }
+    public Task<string> GenerateApplicationNoAsync(long tenantId, long academicYearId)
+    {
+        var suffix = Guid.NewGuid().ToString("N")[..10].ToUpperInvariant();
+        return Task.FromResult($"APP-{academicYearId}-{suffix}");
+    }
 
-        public async Task<List<Admission>> GetByYearAsync(long academicYearId)
-        {
-            return await _dbSet
-                .Include(a => a.Class)
-                .Where(a => a.AcademicYearId == academicYearId)
-                .OrderByDescending(a => a.ApplicationDate)
-                .ToListAsync();
-        }
-
-        public async Task<string> GenerateApplicationNoAsync(long tenantId, long academicYearId)
-        {
-            var count = await _dbSet
-                .CountAsync(a => a.TenantId == tenantId && a.AcademicYearId == academicYearId);
-            return $"APP{(count + 1):D5}";
-        }
-
-        public async Task<int> GetCountByStatusAsync(string status, long tenantId)
-        {
-            return await _dbSet
-                .CountAsync(a => a.Status == status && a.TenantId == tenantId);
-        }
+    public async Task<int> GetCountByStatusAsync(string status, long tenantId)
+    {
+        if (!Enum.TryParse<AdmissionApplicantState>(status, true, out var state))
+            return 0;
+        return await _dbSet.CountAsync(x => x.TenantId == tenantId && x.State == state);
     }
 }

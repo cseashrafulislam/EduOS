@@ -1,18 +1,25 @@
-using EduOS.Core.Entities.Students;
+using EduOS.Core.Entities.Academic;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 
-namespace EduOS.Persistence.Repositories
+namespace EduOS.Persistence.Repositories;
+
+public class EnrollmentRepository : GenericRepository<StudentEnrollment>, IEnrollmentRepository
 {
-    public class EnrollmentRepository : GenericRepository<Enrollment>, IEnrollmentRepository
-    {
-        public EnrollmentRepository(EduOSDbContext context) : base(context) { }
+    public EnrollmentRepository(EduOSDbContext context) : base(context) { }
 
-        public async Task<List<Enrollment>> GetByStudentIdAsync(long studentId) => await _dbSet.Include(e => e.Class).Include(e => e.Section).Include(e => e.AcademicYear).Where(e => e.StudentId == studentId).OrderByDescending(e => e.EnrollmentDate).ToListAsync();
+    public Task<List<StudentEnrollment>> GetByStudentIdAsync(long studentId) =>
+        _dbSet.AsNoTracking().Where(x => x.StudentId == studentId)
+            .OrderByDescending(x => x.EnrollmentDate).ToListAsync();
 
-        public async Task<Enrollment?> GetCurrentAsync(long studentId, long academicYearId) => await _dbSet.FirstOrDefaultAsync(e => e.StudentId == studentId && e.AcademicYearId == academicYearId && e.IsActive);
+    public Task<StudentEnrollment?> GetCurrentAsync(long studentId, long academicYearId) =>
+        _dbSet.AsNoTracking().FirstOrDefaultAsync(x => x.StudentId == studentId
+            && x.AcademicYearId == academicYearId && x.IsCurrent && x.State == EnrollmentState.Active);
 
-        public async Task<List<Enrollment>> GetByClassSectionAsync(long classId, long sectionId, long academicYearId) => await _dbSet.Include(e => e.Student).Where(e => e.ClassId == classId && e.SectionId == sectionId && e.AcademicYearId == academicYearId && e.IsActive).OrderBy(e => e.Roll).ToListAsync();
-    }
+    public Task<List<StudentEnrollment>> GetByClassSectionAsync(long classId, long sectionId, long academicYearId) =>
+        _dbSet.AsNoTracking().Where(x => x.AcademicLevelId == classId && x.AcademicBatchId == sectionId
+            && x.AcademicYearId == academicYearId && x.State == EnrollmentState.Active)
+            .OrderBy(x => x.RollNo).ToListAsync();
 }
