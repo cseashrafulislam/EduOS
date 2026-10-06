@@ -55,6 +55,7 @@ public class LearnerConsentRequest : BaseTenantEntity
 
 public class LearnerDataGrant : BaseTenantEntity
 {
+    public Guid PublicId { get; set; } = Guid.NewGuid();
     public long LearnerConsentRequestId { get; set; }
     public long PersonId { get; set; }
     public long StudentId { get; set; }
@@ -64,6 +65,7 @@ public class LearnerDataGrant : BaseTenantEntity
     public DateTime GrantedAt { get; set; } = DateTime.UtcNow;
     public DateTime? ExpiresAt { get; set; }
     public DateTime? RevokedAt { get; set; }
+    public long? RevokedByUserId { get; set; }
 }
 
 public class LearnerIdentityAccessLog : BaseTenantEntity
@@ -73,9 +75,12 @@ public class LearnerIdentityAccessLog : BaseTenantEntity
     public long UserId { get; set; }
     public long? LearnerConsentRequestId { get; set; }
     [Required, MaxLength(100)] public string Action { get; set; } = string.Empty;
+    [MaxLength(100)] public string? OutcomeCode { get; set; }
+    [MaxLength(100)] public string? ReasonCode { get; set; }
     [MaxLength(500)] public string? Purpose { get; set; }
     public DateTime AccessedAt { get; set; } = DateTime.UtcNow;
     [MaxLength(100)] public string? IpAddress { get; set; }
+    [MaxLength(500)] public string? UserAgent { get; set; }
 }
 
 public class PersonAddress : BaseEntity

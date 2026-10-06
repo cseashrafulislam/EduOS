@@ -624,6 +624,7 @@ public class EduOSDbContext :
         Reference<LearnerDataGrant, Person>(modelBuilder, nameof(LearnerDataGrant.PersonId));
         TenantReference<LearnerDataGrant, Student>(modelBuilder, nameof(LearnerDataGrant.StudentId));
         Reference<LearnerDataGrant, ApplicationUser>(modelBuilder, nameof(LearnerDataGrant.GrantedToUserId));
+        Reference<LearnerDataGrant, ApplicationUser>(modelBuilder, nameof(LearnerDataGrant.RevokedByUserId));
         Reference<LearnerIdentityAccessLog, Person>(modelBuilder, nameof(LearnerIdentityAccessLog.PersonId));
         TenantReference<LearnerIdentityAccessLog, Student>(modelBuilder, nameof(LearnerIdentityAccessLog.StudentId));
         Reference<LearnerIdentityAccessLog, ApplicationUser>(modelBuilder, nameof(LearnerIdentityAccessLog.UserId));
@@ -2309,6 +2310,7 @@ public class EduOSDbContext :
                         entry,
                         nameof(LearnerDataGrant.State),
                         nameof(LearnerDataGrant.RevokedAt),
+                        nameof(LearnerDataGrant.RevokedByUserId),
                         nameof(LearnerDataGrant.ExpiresAt))),
 
             StudentPersonLink link =>
