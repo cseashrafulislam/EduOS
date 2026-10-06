@@ -1,19 +1,51 @@
 using EduOS.Core.Entities.Finance;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 
-namespace EduOS.Persistence.Repositories
+namespace EduOS.Persistence.Repositories;
+
+public class PaymentRepository : GenericRepository<StudentPayment>, IPaymentRepository
 {
-    public class PaymentRepository : GenericRepository<Payment>, IPaymentRepository
+    public PaymentRepository(EduOSDbContext context) : base(context) { }
+
+    public Task<StudentPayment?> GetByReceiptNoAsync(string receiptNo) =>
+        _dbSet.AsNoTracking().FirstOrDefaultAsync(x => x.ReceiptNumber == receiptNo);
+
+    public async Task<List<StudentPayment>> GetByInvoiceAsync(long invoiceId)
     {
-        public PaymentRepository(EduOSDbContext context) : base(context) { }
-        public async Task<Payment?> GetByReceiptNoAsync(string receiptNo) => await _dbSet.Include(p => p.Invoice).Include(p => p.Student).FirstOrDefaultAsync(p => p.ReceiptNo == receiptNo);
-        public async Task<List<Payment>> GetByInvoiceAsync(long invoiceId) => await _dbSet.Where(p => p.InvoiceId == invoiceId).OrderByDescending(p => p.PaymentDate).ToListAsync();
-        public async Task<List<Payment>> GetByStudentAsync(long studentId) => await _dbSet.Include(p => p.Invoice).Where(p => p.StudentId == studentId).OrderByDescending(p => p.PaymentDate).ToListAsync();
-        public async Task<List<Payment>> GetByDateRangeAsync(DateTime fromDate, DateTime toDate, long tenantId) => await _dbSet.Include(p => p.Student).Where(p => p.TenantId == tenantId && p.PaymentDate.Date >= fromDate.Date && p.PaymentDate.Date <= toDate.Date).OrderByDescending(p => p.PaymentDate).ToListAsync();
-        public async Task<decimal> GetTotalCollectionAsync(DateTime date, long tenantId) => await _dbSet.Where(p => p.TenantId == tenantId && p.PaymentDate.Date == date.Date).SumAsync(p => p.Amount);
-        public async Task<decimal> GetMonthlyCollectionAsync(int month, int year, long tenantId) => await _dbSet.Where(p => p.TenantId == tenantId && p.PaymentDate.Month == month && p.PaymentDate.Year == year).SumAsync(p => p.Amount);
-        public Task<string> GenerateReceiptNoAsync(long tenantId) => Task.FromResult($"RCP-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid():N}"[..25].ToUpperInvariant());
+        var paymentIds = _context.Set<PaymentAllocation>().Where(x => x.StudentInvoiceId == invoiceId).Select(x => x.StudentPaymentId);
+        return await _dbSet.AsNoTracking().Where(x => paymentIds.Contains(x.Id))
+            .OrderByDescending(x => x.PaymentDate).ToListAsync();
+    }
+
+    public Task<List<StudentPayment>> GetByStudentAsync(long studentId) =>
+        _dbSet.AsNoTracking().Where(x => x.StudentId == studentId)
+            .OrderByDescending(x => x.PaymentDate).ToListAsync();
+
+    public Task<List<StudentPayment>> GetByDateRangeAsync(DateTime fromDate, DateTime toDate, long tenantId)
+    {
+        var from = DateOnly.FromDateTime(fromDate);
+        var to = DateOnly.FromDateTime(toDate);
+        return _dbSet.AsNoTracking().Where(x => x.TenantId == tenantId && x.PaymentDate >= from && x.PaymentDate <= to)
+            .OrderByDescending(x => x.PaymentDate).ToListAsync();
+    }
+
+    public async Task<decimal> GetTotalCollectionAsync(DateTime date, long tenantId)
+    {
+        var target = DateOnly.FromDateTime(date);
+        return await _dbSet.Where(x => x.TenantId == tenantId && x.PaymentDate == target && x.State == PaymentState.Successful)
+            .SumAsync(x => x.Amount);
+    }
+
+    public Task<decimal> GetMonthlyCollectionAsync(int month, int year, long tenantId) =>
+        _dbSet.Where(x => x.TenantId == tenantId && x.PaymentDate.Month == month && x.PaymentDate.Year == year
+            && x.State == PaymentState.Successful).SumAsync(x => x.Amount);
+
+    public Task<string> GenerateReceiptNoAsync(long tenantId)
+    {
+        var suffix = Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
+        return Task.FromResult($"RCP-{tenantId}-{suffix}");
     }
 }

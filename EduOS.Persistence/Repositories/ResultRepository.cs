@@ -1,39 +1,47 @@
-using EduOS.Core.Entities.Exams;
+using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Assessment;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 
-namespace EduOS.Persistence.Repositories
+namespace EduOS.Persistence.Repositories;
+
+public class ResultRepository : GenericRepository<StudentResultSummary>, IResultRepository
 {
-    public class ResultRepository : GenericRepository<ExamResult>, IResultRepository
+    public ResultRepository(EduOSDbContext context) : base(context) { }
+
+    public async Task<StudentResultSummary?> GetByExamAndStudentAsync(long examId, long studentId)
     {
-        public ResultRepository(EduOSDbContext context) : base(context) { }
+        var query =
+            from result in _dbSet.AsNoTracking()
+            join enrollment in _context.Set<StudentEnrollment>() on result.StudentEnrollmentId equals enrollment.Id
+            where result.AssessmentId == examId && enrollment.StudentId == studentId
+            orderby result.PublicationVersionNo descending
+            select result;
+        return await query.FirstOrDefaultAsync();
+    }
 
-        public async Task<ExamResult?> GetByExamAndStudentAsync(long examId, long studentId)
-        {
-            return await _dbSet
-                .FirstOrDefaultAsync(r => r.ExamId == examId && r.StudentId == studentId);
-        }
+    public async Task<List<StudentResultSummary>> GetByExamAndClassAsync(long examId, long classId)
+    {
+        var query =
+            from result in _dbSet.AsNoTracking()
+            join enrollment in _context.Set<StudentEnrollment>() on result.StudentEnrollmentId equals enrollment.Id
+            where result.AssessmentId == examId && enrollment.AcademicLevelId == classId
+            orderby result.MeritPosition ?? int.MaxValue, enrollment.RollNo
+            select result;
+        return await query.ToListAsync();
+    }
 
-        public async Task<List<ExamResult>> GetByExamAndClassAsync(long examId, long classId)
-        {
-            return await _dbSet
-                .Include(r => r.Student)
-                .Where(r => r.ExamId == examId && r.Student!.ClassId == classId)
-                .OrderBy(r => r.Position)
-                .ToListAsync();
-        }
-
-        public async Task<List<ExamResult>> GetTopRankersAsync(long examId, long classId, int top = 10)
-        {
-            return await _dbSet
-                .Include(r => r.Student)
-                .Where(r => r.ExamId == examId
-                    && r.Student!.ClassId == classId
-                    && r.IsPassed)
-                .OrderBy(r => r.Position)
-                .Take(top)
-                .ToListAsync();
-        }
+    public async Task<List<StudentResultSummary>> GetTopRankersAsync(long examId, long classId, int top = 10)
+    {
+        var take = Math.Clamp(top, 1, 100);
+        var query =
+            from result in _dbSet.AsNoTracking()
+            join enrollment in _context.Set<StudentEnrollment>() on result.StudentEnrollmentId equals enrollment.Id
+            where result.AssessmentId == examId && enrollment.AcademicLevelId == classId
+                && result.IsPassed && !result.IsWithheld && result.MeritPosition != null
+            orderby result.MeritPosition
+            select result;
+        return await query.Take(take).ToListAsync();
     }
 }

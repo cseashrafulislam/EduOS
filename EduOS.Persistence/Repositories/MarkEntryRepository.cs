@@ -1,53 +1,77 @@
-using EduOS.Core.Entities.Exams;
+using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Assessment;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 
-namespace EduOS.Persistence.Repositories
+namespace EduOS.Persistence.Repositories;
+
+public class MarkEntryRepository : GenericRepository<StudentAssessmentMark>, IMarkEntryRepository
 {
-    public class MarkEntryRepository : GenericRepository<MarkEntry>, IMarkEntryRepository
+    public MarkEntryRepository(EduOSDbContext context) : base(context) { }
+
+    public async Task<List<StudentAssessmentMark>> GetByExamAndStudentAsync(long examId, long studentId)
     {
-        public MarkEntryRepository(EduOSDbContext context) : base(context) { }
+        var query =
+            from mark in _dbSet.AsNoTracking()
+            join assessmentSubject in _context.Set<AssessmentSubject>() on mark.AssessmentSubjectId equals assessmentSubject.Id
+            join registration in _context.Set<StudentSubjectRegistration>() on mark.StudentSubjectRegistrationId equals registration.Id
+            join enrollment in _context.Set<StudentEnrollment>() on registration.StudentEnrollmentId equals enrollment.Id
+            where assessmentSubject.AssessmentId == examId && enrollment.StudentId == studentId
+            select mark;
+        return await query.ToListAsync();
+    }
 
-        public async Task<List<MarkEntry>> GetByExamAndStudentAsync(long examId, long studentId)
-        {
-            return await _dbSet
-                .Include(m => m.Subject)
-                .Where(m => m.ExamId == examId && m.StudentId == studentId)
-                .ToListAsync();
-        }
+    public async Task<List<StudentAssessmentMark>> GetByExamAndSubjectAsync(long examId, long subjectId, long classId)
+    {
+        var query =
+            from mark in _dbSet.AsNoTracking()
+            join assessmentSubject in _context.Set<AssessmentSubject>() on mark.AssessmentSubjectId equals assessmentSubject.Id
+            join offering in _context.Set<SubjectOffering>() on assessmentSubject.SubjectOfferingId equals offering.Id
+            join curriculumSubject in _context.Set<CurriculumSubject>() on offering.CurriculumSubjectId equals curriculumSubject.Id
+            join registration in _context.Set<StudentSubjectRegistration>() on mark.StudentSubjectRegistrationId equals registration.Id
+            join enrollment in _context.Set<StudentEnrollment>() on registration.StudentEnrollmentId equals enrollment.Id
+            where assessmentSubject.AssessmentId == examId && curriculumSubject.SubjectId == subjectId && enrollment.AcademicLevelId == classId
+            orderby enrollment.RollNo
+            select mark;
+        return await query.ToListAsync();
+    }
 
-        public async Task<List<MarkEntry>> GetByExamAndSubjectAsync(long examId, long subjectId, long classId)
-        {
-            return await _dbSet
-                .Include(m => m.Student)
-                .Where(m => m.ExamId == examId && m.SubjectId == subjectId
-                    && m.Student!.ClassId == classId)
-                .OrderBy(m => m.Student!.Roll)
-                .ToListAsync();
-        }
+    public async Task<StudentAssessmentMark?> GetExistingAsync(long examId, long studentId, long subjectId)
+    {
+        var query =
+            from mark in _dbSet
+            join assessmentSubject in _context.Set<AssessmentSubject>() on mark.AssessmentSubjectId equals assessmentSubject.Id
+            join offering in _context.Set<SubjectOffering>() on assessmentSubject.SubjectOfferingId equals offering.Id
+            join curriculumSubject in _context.Set<CurriculumSubject>() on offering.CurriculumSubjectId equals curriculumSubject.Id
+            join registration in _context.Set<StudentSubjectRegistration>() on mark.StudentSubjectRegistrationId equals registration.Id
+            join enrollment in _context.Set<StudentEnrollment>() on registration.StudentEnrollmentId equals enrollment.Id
+            where assessmentSubject.AssessmentId == examId && enrollment.StudentId == studentId && curriculumSubject.SubjectId == subjectId
+            select mark;
+        return await query.FirstOrDefaultAsync();
+    }
 
-        public async Task<MarkEntry?> GetExistingAsync(long examId, long studentId, long subjectId)
-        {
-            return await _dbSet.FirstOrDefaultAsync(m =>
-                m.ExamId == examId && m.StudentId == studentId && m.SubjectId == subjectId);
-        }
+    public async Task<bool> IsAllMarksEnteredAsync(long examId, long classId)
+    {
+        var expected =
+            from assessmentSubject in _context.Set<AssessmentSubject>()
+            join offering in _context.Set<SubjectOffering>() on assessmentSubject.SubjectOfferingId equals offering.Id
+            join registration in _context.Set<StudentSubjectRegistration>() on offering.Id equals registration.SubjectOfferingId
+            join enrollment in _context.Set<StudentEnrollment>() on registration.StudentEnrollmentId equals enrollment.Id
+            where assessmentSubject.AssessmentId == examId && enrollment.AcademicLevelId == classId
+                && registration.State == SubjectRegistrationState.Approved
+            select new { assessmentSubject.Id, RegistrationId = registration.Id };
 
-        public async Task<bool> IsAllMarksEnteredAsync(long examId, long classId)
-        {
-            var totalStudents = await _context.Students
-                .CountAsync(s => s.ClassId == classId && s.IsActive);
+        var actual =
+            from mark in _dbSet
+            join assessmentSubject in _context.Set<AssessmentSubject>() on mark.AssessmentSubjectId equals assessmentSubject.Id
+            join registration in _context.Set<StudentSubjectRegistration>() on mark.StudentSubjectRegistrationId equals registration.Id
+            join enrollment in _context.Set<StudentEnrollment>() on registration.StudentEnrollmentId equals enrollment.Id
+            where assessmentSubject.AssessmentId == examId && enrollment.AcademicLevelId == classId
+            select mark.Id;
 
-            var totalSubjects = await _context.Subjects
-                .CountAsync(s => s.ClassId == classId && s.IsActive);
-
-            var expectedEntries = totalStudents * totalSubjects;
-
-            var actualEntries = await _dbSet
-                .CountAsync(m => m.ExamId == examId
-                    && m.Student!.ClassId == classId);
-
-            return actualEntries >= expectedEntries;
-        }
+        var expectedCount = await expected.CountAsync();
+        return expectedCount > 0 && await actual.CountAsync() >= expectedCount;
     }
 }
