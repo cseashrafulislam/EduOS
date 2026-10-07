@@ -26,7 +26,8 @@ public sealed class SelfServicePortalService : ISelfServicePortalService
     private readonly IGenericRepository<StudentInvoice> _invoices;
     private readonly IGenericRepository<StudentPayment> _payments;
     private readonly IGenericRepository<StudentTransport> _transport;
-    private readonly IGenericRepository<Homework> _homework;
+    private readonly IGenericRepository<Course> _courses;
+    private readonly IGenericRepository<Subject> _subjects;
     private readonly IGenericRepository<Assignment> _assignments;
     private readonly IGenericRepository<CourseEnrollment> _enrollments;
     private readonly ICurrentUserService _currentUser;
@@ -36,12 +37,13 @@ public sealed class SelfServicePortalService : ISelfServicePortalService
         IGenericRepository<StudentEnrollment> studentEnrollments, IGenericRepository<RoutineEntry> classRoutines,
         IGenericRepository<StudentAttendance> attendance, IGenericRepository<StudentResultSummary> results,
         IGenericRepository<StudentInvoice> invoices, IGenericRepository<StudentPayment> payments,
-        IGenericRepository<StudentTransport> transport, IGenericRepository<Homework> homework,
-        IGenericRepository<Assignment> assignments, IGenericRepository<CourseEnrollment> enrollments,
+        IGenericRepository<StudentTransport> transport, IGenericRepository<Course> courses,
+        IGenericRepository<Subject> subjects, IGenericRepository<Assignment> assignments,
+        IGenericRepository<CourseEnrollment> enrollments,
         ICurrentUserService currentUser, ILogger<SelfServicePortalService> logger)
     {
         _students = students; _guardians = guardians; _studentEnrollments = studentEnrollments; _classRoutines = classRoutines; _attendance = attendance; _results = results;
-        _invoices = invoices; _payments = payments; _transport = transport; _homework = homework;
+        _invoices = invoices; _payments = payments; _transport = transport; _courses = courses; _subjects = subjects;
         _assignments = assignments; _enrollments = enrollments; _currentUser = currentUser; _logger = logger;
     }
 
@@ -155,11 +157,42 @@ public sealed class SelfServicePortalService : ISelfServicePortalService
     {
         var student = await GetAuthorizedStudentAsync(studentReference, cancellationToken);
         if (student == null) return Denied<IReadOnlyList<PortalHomeworkDto>>();
-        IReadOnlyList<PortalHomeworkDto> rows = await _homework.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == _currentUser.TenantId && x.ClassId == student.ClassId && x.SectionId == student.SectionId)
-            .OrderByDescending(x => x.AssignedDate).ThenByDescending(x => x.Id)
-            .Select(x => new PortalHomeworkDto { HomeworkId = x.Id, SubjectId = x.SubjectId, SubjectName = x.Subject != null ? x.Subject.Name : string.Empty, Title = x.Title, Description = x.Description, AssignedDate = x.AssignedDate, DueDate = x.DueDate, AttachmentUrl = x.AttachmentUrl })
-            .ToListAsync(cancellationToken);
+
+        var courseIds = await _enrollments.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == _currentUser.TenantId && x.StudentId == student.Id && x.State == CourseEnrollmentState.Active)
+            .Select(x => x.CourseId).Distinct().Take(200).ToListAsync(cancellationToken);
+        if (courseIds.Count == 0) return ApiResponse<IReadOnlyList<PortalHomeworkDto>>.SuccessResponse(Array.Empty<PortalHomeworkDto>());
+
+        var assignments = await _assignments.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == _currentUser.TenantId && courseIds.Contains(x.CourseId) && x.Type == LearningTaskType.Homework && x.IsPublished)
+            .OrderByDescending(x => x.OpensAt ?? x.CreatedAt).ThenByDescending(x => x.Id)
+            .Take(200).ToListAsync(cancellationToken);
+        var usedCourseIds = assignments.Select(x => x.CourseId).Distinct().ToArray();
+        var courses = await _courses.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == _currentUser.TenantId && usedCourseIds.Contains(x.Id) && x.IsActive)
+            .Select(x => new { x.Id, x.SubjectId, x.Title }).ToListAsync(cancellationToken);
+        var subjectIds = courses.Where(x => x.SubjectId.HasValue).Select(x => x.SubjectId!.Value).Distinct().ToArray();
+        var subjects = await _subjects.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == _currentUser.TenantId && subjectIds.Contains(x.Id))
+            .Select(x => new { x.Id, x.Name }).ToDictionaryAsync(x => x.Id, x => x.Name, cancellationToken);
+        var courseMap = courses.ToDictionary(x => x.Id);
+
+        IReadOnlyList<PortalHomeworkDto> rows = assignments.Where(x => courseMap.ContainsKey(x.CourseId)).Select(x =>
+        {
+            var course = courseMap[x.CourseId];
+            var subjectId = course.SubjectId ?? 0;
+            return new PortalHomeworkDto
+            {
+                HomeworkId = x.Id,
+                SubjectId = subjectId,
+                SubjectName = subjectId > 0 && subjects.TryGetValue(subjectId, out var subjectName) ? subjectName : course.Title,
+                Title = x.Title,
+                Description = x.Instructions,
+                AssignedDate = x.OpensAt ?? x.CreatedAt,
+                DueDate = x.DueAt ?? x.OpensAt ?? x.CreatedAt,
+                AttachmentUrl = null
+            };
+        }).ToList();
         return ApiResponse<IReadOnlyList<PortalHomeworkDto>>.SuccessResponse(rows);
     }
 
@@ -167,14 +200,33 @@ public sealed class SelfServicePortalService : ISelfServicePortalService
     {
         var student = await GetAuthorizedStudentAsync(studentReference, cancellationToken);
         if (student == null) return Denied<IReadOnlyList<PortalAssignmentDto>>();
-        var courseIds = _enrollments.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == _currentUser.TenantId && x.StudentId == student.Id && x.IsActive)
-            .Select(x => x.CourseId);
-        IReadOnlyList<PortalAssignmentDto> rows = await _assignments.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == _currentUser.TenantId && x.IsActive && courseIds.Contains(x.CourseId))
-            .OrderBy(x => x.DueDate).ThenBy(x => x.Id)
-            .Select(x => new PortalAssignmentDto { Reference = x.PublicId, CourseId = x.CourseId, CourseTitle = x.Course != null ? x.Course.Title : string.Empty, Title = x.Title, Description = x.Description, TotalMark = x.TotalMark, DueDate = x.DueDate, AttachmentUrl = x.AttachmentUrl })
-            .ToListAsync(cancellationToken);
+
+        var courseIds = await _enrollments.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == _currentUser.TenantId && x.StudentId == student.Id && x.State == CourseEnrollmentState.Active)
+            .Select(x => x.CourseId).Distinct().Take(200).ToListAsync(cancellationToken);
+        if (courseIds.Count == 0) return ApiResponse<IReadOnlyList<PortalAssignmentDto>>.SuccessResponse(Array.Empty<PortalAssignmentDto>());
+
+        var assignments = await _assignments.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == _currentUser.TenantId && courseIds.Contains(x.CourseId) && x.Type != LearningTaskType.Homework && x.IsPublished)
+            .OrderBy(x => x.DueAt ?? DateTime.MaxValue).ThenBy(x => x.Id)
+            .Take(200).ToListAsync(cancellationToken);
+        var usedCourseIds = assignments.Select(x => x.CourseId).Distinct().ToArray();
+        var courseTitles = await _courses.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == _currentUser.TenantId && usedCourseIds.Contains(x.Id) && x.IsActive)
+            .Select(x => new { x.Id, x.Title }).ToDictionaryAsync(x => x.Id, x => x.Title, cancellationToken);
+
+        IReadOnlyList<PortalAssignmentDto> rows = assignments.Where(x => courseTitles.ContainsKey(x.CourseId))
+            .Select(x => new PortalAssignmentDto
+            {
+                Reference = x.PublicId,
+                CourseId = x.CourseId,
+                CourseTitle = courseTitles[x.CourseId],
+                Title = x.Title,
+                Description = x.Instructions,
+                TotalMark = decimal.ToInt32(decimal.Round(x.MaxMarks, 0, MidpointRounding.AwayFromZero)),
+                DueDate = x.DueAt ?? x.OpensAt ?? x.CreatedAt,
+                AttachmentUrl = null
+            }).ToList();
         return ApiResponse<IReadOnlyList<PortalAssignmentDto>>.SuccessResponse(rows);
     }
 
