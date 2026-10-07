@@ -116,7 +116,7 @@ public sealed class StudentDirectoryService : IStudentDirectoryService
             return ApiResponse<PagedResult<StudentDirectoryListItemDto>>.SuccessResponse(
                 new PagedResult<StudentDirectoryListItemDto>
                 {
-                    Items = items,
+                    Items = items.ToList(),
                     TotalCount = total,
                     Page = request.Page,
                     PageSize = request.PageSize
