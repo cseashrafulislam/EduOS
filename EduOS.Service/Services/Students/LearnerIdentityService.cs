@@ -1,3 +1,4 @@
+using System.Globalization;
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Student;
 using EduOS.Core.Entities.Learners;
@@ -62,148 +63,70 @@ public sealed class LearnerIdentityService : ILearnerIdentityService
         RegisterLearnerIdentityRequestDto request,
         CancellationToken cancellationToken = default)
     {
-        if (!_currentUser.IsAuthenticated
-            || (!_currentUser.IsTenantAdmin && !_currentUser.IsInRole("AdmissionOfficer")))
-        {
+        if (!_currentUser.IsAuthenticated || (!_currentUser.IsTenantAdmin && !_currentUser.IsInRole("AdmissionOfficer")))
             return Error("Authorized admission access is required.", 403);
-        }
-
-        if (_currentUser.TenantId <= 0)
-            return Error("Tenant context is required.", 403);
-
-        if (request == null)
-            return Error("Invalid learner identity request.");
+        if (_currentUser.TenantId <= 0) return Error("Tenant context is required.", 403);
+        if (request == null) return Error("Invalid learner identity request.");
 
         var purpose = request.Purpose;
-        if (request.StudentId <= 0
-            || !purpose.HasValue
-            || !Enum.IsDefined(purpose.Value)
-            || request.RequestedScopes == LearnerDataScope.None
-            || (request.RequestedScopes & ~AllowedScopes) != 0
-            || !request.RequestedScopes.HasFlag(LearnerDataScope.BasicIdentity))
-        {
-            return await FailWithAuditAsync(
-                request.StudentId > 0 ? request.StudentId : null,
-                purpose,
-                "INVALID_REQUEST",
-                "Invalid learner identity request.",
-                cancellationToken);
-        }
+        if (request.StudentId <= 0 ||
+            !purpose.HasValue ||
+            !Enum.IsDefined(purpose.Value) ||
+            request.RequestedScopes == LearnerDataScope.None ||
+            (request.RequestedScopes & ~AllowedScopes) != 0 ||
+            !request.RequestedScopes.HasFlag(LearnerDataScope.BasicIdentity))
+            return Error("Invalid learner identity request.");
 
-        if (!_identifierProtector.TryNormalize(
-                request.IdentifierType,
-                request.IdentifierValue,
-                out var normalizedIdentifier))
-        {
-            return await FailWithAuditAsync(
-                request.StudentId,
-                purpose,
-                "INVALID_IDENTIFIER",
-                "The identifier format is invalid.",
-                cancellationToken);
-        }
+        if (!_identifierProtector.TryNormalize(request.IdentifierType, request.IdentifierValue, out var normalizedIdentifier))
+            return Error("The identifier format is invalid.");
 
-        var student = await _students.FirstOrDefaultAsync(x => x.Id == request.StudentId);
-        if (student == null)
-        {
-            return await FailWithAuditAsync(
-                request.StudentId,
-                purpose,
-                "STUDENT_NOT_FOUND",
-                "Student not found.",
-                cancellationToken,
-                404);
-        }
+        var student = await _students.GetQueryable()
+            .FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.Id == request.StudentId && x.IsActive, cancellationToken);
+        if (student == null) return Error("Student not found.", 404);
 
-        if (string.IsNullOrWhiteSpace(student.FullName)
-            || student.DOB.Date < new DateTime(1900, 1, 1)
-            || student.DOB.Date > DateTime.UtcNow.Date)
-        {
-            return await FailWithAuditAsync(
-                student.Id,
-                purpose,
-                "STUDENT_PROFILE_INCOMPLETE",
-                "Complete the student's name and date of birth before linking identity.",
-                cancellationToken,
-                409);
-        }
+        if (string.IsNullOrWhiteSpace(student.FullName) ||
+            !student.DateOfBirth.HasValue ||
+            student.DateOfBirth.Value < new DateOnly(1900, 1, 1) ||
+            student.DateOfBirth.Value > DateOnly.FromDateTime(DateTime.UtcNow))
+            return await DenyKnownStudentAsync(student, purpose.Value, "STUDENT_PROFILE_INCOMPLETE",
+                "Complete the student's name and date of birth before linking identity.", 409, cancellationToken);
+
+        if (!TryMapIdentifierType(request.IdentifierType, out var identifierKind))
+            return await DenyKnownStudentAsync(student, purpose.Value, "UNSUPPORTED_IDENTIFIER",
+                "The identifier type is not supported by the final identity model.", 400, cancellationToken);
 
         try
         {
-            var lookupDigest = _identifierProtector.ComputeLookupDigest(
-                request.IdentifierType,
-                normalizedIdentifier);
+            var digest = _identifierProtector.ComputeLookupDigest(request.IdentifierType, normalizedIdentifier);
             var protectedValue = _identifierProtector.Protect(normalizedIdentifier);
-            var matchingIdentifier = await _identifiers.FirstOrDefaultAsync(x =>
-                x.Type == request.IdentifierType && x.LookupDigest == lookupDigest);
-            var currentStudentLink = await _links.FirstOrDefaultAsync(x =>
-                x.TenantId == _currentUser.TenantId && x.StudentId == student.Id);
+            var matchingIdentifier = await _identifiers.GetQueryable().AsNoTracking()
+                .FirstOrDefaultAsync(x => x.IdentifierType == identifierKind && x.LookupDigest == digest, cancellationToken);
 
-            if (currentStudentLink != null)
-            {
-                if (currentStudentLink.Status != StudentPersonLinkStatus.Active)
-                {
-                    return await DenyWithAuditAsync(
-                        currentStudentLink.PersonId,
-                        student.Id,
-                        purpose.Value,
-                        "STUDENT_LINK_NOT_ACTIVE",
-                        "The student's identity link requires administrator review.",
-                        cancellationToken,
-                        409);
-                }
+            var currentPerson = student.PersonId > 0
+                ? await _persons.GetQueryable().FirstOrDefaultAsync(x => x.Id == student.PersonId && !x.IsDeleted, cancellationToken)
+                : null;
 
-                return await HandleAlreadyLinkedStudentAsync(
-                    student,
-                    currentStudentLink,
-                    matchingIdentifier,
-                    request.IdentifierType,
-                    protectedValue,
-                    lookupDigest,
-                    purpose.Value,
-                    cancellationToken);
-            }
+            if (currentPerson != null)
+                return await HandleExistingPersonAsync(student, currentPerson, matchingIdentifier, identifierKind, protectedValue, digest, purpose.Value, cancellationToken);
+
+            if (student.PersonId > 0)
+                return await DenyKnownStudentAsync(student, purpose.Value, "PERSON_INTEGRITY_FAILURE",
+                    "The learner identity record requires administrator review.", 409, cancellationToken);
 
             if (matchingIdentifier == null)
-            {
-                return await CreateIdentityAsync(
-                    student,
-                    request.IdentifierType,
-                    protectedValue,
-                    lookupDigest,
-                    purpose.Value,
-                    cancellationToken);
-            }
+                return await CreateIdentityAsync(student, identifierKind, protectedValue, digest, purpose.Value, cancellationToken);
 
-            var existingTenantLink = await _links.FirstOrDefaultAsync(x =>
-                x.TenantId == _currentUser.TenantId
-                && x.PersonId == matchingIdentifier.PersonId);
+            var existingTenantLink = await _links.GetQueryable().AsNoTracking()
+                .FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId &&
+                                          x.PersonId == matchingIdentifier.PersonId &&
+                                          x.UnlinkedAt == null, cancellationToken);
             if (existingTenantLink != null)
-            {
-                return await DenyWithAuditAsync(
-                    matchingIdentifier.PersonId,
-                    student.Id,
-                    purpose.Value,
-                    "TENANT_STUDENT_CONFLICT",
-                    "This identity is already linked to another student in the institution.",
-                    cancellationToken,
-                    409);
-            }
+                return await DenyWithAuditAsync(matchingIdentifier.PersonId, student.Id, purpose.Value,
+                    "TENANT_STUDENT_CONFLICT", "This identity is already linked to another student in the institution.", 409, cancellationToken);
 
-            // A tenant's self-entered number is not government verification. It
-            // cannot become a cross-institution linkage authority until an approved
-            // provider or reviewed evidence marks the identifier verified.
-            if (matchingIdentifier.VerificationStatus != IdentifierVerificationStatus.Verified)
-            {
-                return await DenyWithAuditAsync(
-                    matchingIdentifier.PersonId,
-                    student.Id,
-                    purpose.Value,
-                    "IDENTIFIER_VERIFICATION_REQUIRED",
-                    "Identity review is required before linking.",
-                    cancellationToken,
-                    409);
-            }
+            if (!matchingIdentifier.IsVerified)
+                return await DenyWithAuditAsync(matchingIdentifier.PersonId, student.Id, purpose.Value,
+                    "IDENTIFIER_VERIFICATION_REQUIRED", "Identity review is required before linking.", 409, cancellationToken);
 
             return await CreateOrReuseConsentRequestAsync(
                 matchingIdentifier.PersonId,
@@ -215,13 +138,12 @@ public sealed class LearnerIdentityService : ILearnerIdentityService
         catch (LearnerIdentityProtectionException ex)
         {
             _logger.LogError(ex, "Learner identity protection is unavailable for tenant {TenantId}", _currentUser.TenantId);
-            return await FailWithAuditAsync(
-                student.Id,
-                purpose,
-                "PROTECTION_NOT_CONFIGURED",
-                "Learner identity protection is temporarily unavailable.",
-                cancellationToken,
-                503);
+            return Error("Learner identity protection is temporarily unavailable.", 503);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            _logger.LogWarning(ex, "Concurrent learner identity update for tenant {TenantId}", _currentUser.TenantId);
+            return Error("The identity was changed by another request. Reload and try again.", 409);
         }
         catch (DbUpdateException ex)
         {
@@ -235,114 +157,140 @@ public sealed class LearnerIdentityService : ILearnerIdentityService
         }
     }
 
-    private async Task<ApiResponse<LearnerIdentityResultDto>> HandleAlreadyLinkedStudentAsync(
+    private async Task<ApiResponse<LearnerIdentityResultDto>> HandleExistingPersonAsync(
         Student student,
-        StudentPersonLink link,
+        Person person,
         PersonIdentifier? matchingIdentifier,
-        PersonIdentifierType identifierType,
+        PersonIdentifierKind identifierKind,
         string protectedValue,
         string lookupDigest,
         LearnerIdentityPurpose purpose,
         CancellationToken cancellationToken)
     {
-        var person = await _persons.GetByIdAsync(link.PersonId);
-        if (person == null)
-        {
-            return await DenyWithAuditAsync(
-                link.PersonId,
-                student.Id,
-                purpose,
-                "LINK_INTEGRITY_FAILURE",
-                "The identity link requires administrator review.",
-                cancellationToken,
-                409);
-        }
+        if (matchingIdentifier != null && matchingIdentifier.PersonId != person.Id)
+            return await DenyWithAuditAsync(person.Id, student.Id, purpose, "IDENTIFIER_PERSON_CONFLICT",
+                "The supplied identifier conflicts with the student's current identity.", 409, cancellationToken);
 
-        if (matchingIdentifier != null && matchingIdentifier.PersonId != link.PersonId)
+        await _unitOfWork.BeginTransactionAsync();
+        try
         {
-            return await DenyWithAuditAsync(
-                link.PersonId,
-                student.Id,
-                purpose,
-                "IDENTIFIER_PERSON_CONFLICT",
-                "The supplied identifier conflicts with the student's current identity.",
-                cancellationToken,
-                409);
-        }
-
-        if (matchingIdentifier == null)
-        {
-            await _identifiers.AddAsync(new PersonIdentifier
+            if (matchingIdentifier == null)
             {
-                PersonId = person.Id,
-                Type = identifierType,
-                ProtectedValue = protectedValue,
-                LookupDigest = lookupDigest,
-                VerificationStatus = IdentifierVerificationStatus.Unverified
-            });
+                await _identifiers.AddAsync(new PersonIdentifier
+                {
+                    PersonId = person.Id,
+                    IdentifierType = identifierKind,
+                    ProtectedValue = protectedValue,
+                    LookupDigest = lookupDigest,
+                    IsVerified = false,
+                    CreatedBy = _currentUser.UserId,
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+
+            var activeLink = await _links.GetQueryable()
+                .FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId &&
+                                          x.StudentId == student.Id &&
+                                          x.PersonId == person.Id &&
+                                          x.UnlinkedAt == null, cancellationToken);
+            if (activeLink == null)
+            {
+                await _links.AddAsync(new StudentPersonLink
+                {
+                    TenantId = _currentUser.TenantId,
+                    PersonId = person.Id,
+                    StudentId = student.Id,
+                    IsPrimary = true,
+                    LinkedAt = DateTime.UtcNow,
+                    LinkedByUserId = _currentUser.UserId,
+                    LinkReason = "Canonical learner identity link",
+                    CreatedAt = DateTime.UtcNow,
+                    CreatedBy = _currentUser.UserId
+                });
+            }
+
+            await AddAccessLogAsync(person.Id, student.Id, null, "RegisterOrLink",
+                matchingIdentifier == null ? "Created" : "Reused", purpose, matchingIdentifier == null ? "IDENTIFIER_ADDED" : "IDENTITY_ALREADY_LINKED");
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            await _unitOfWork.CommitTransactionAsync();
+
+            return Success(matchingIdentifier == null ? "IdentifierAdded" : "AlreadyLinked", person.PublicId, "Learner identity is linked.");
         }
-
-        await AddAccessLogAsync(
-            person.Id,
-            student.Id,
-            null,
-            LearnerIdentityAccessAction.RegisterOrLink,
-            LearnerIdentityAccessOutcome.Reused,
-            purpose,
-            matchingIdentifier == null ? "IDENTIFIER_ADDED" : "IDENTITY_ALREADY_LINKED");
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return Success(
-            matchingIdentifier == null ? "IdentifierAdded" : "AlreadyLinked",
-            person.PublicId,
-            "Learner identity is linked.");
+        catch
+        {
+            await SafeRollbackAsync();
+            throw;
+        }
     }
 
     private async Task<ApiResponse<LearnerIdentityResultDto>> CreateIdentityAsync(
         Student student,
-        PersonIdentifierType identifierType,
+        PersonIdentifierKind identifierKind,
         string protectedValue,
         string lookupDigest,
         LearnerIdentityPurpose purpose,
         CancellationToken cancellationToken)
     {
-        var person = new Person
+        await _unitOfWork.BeginTransactionAsync();
+        try
         {
-            PublicId = Guid.NewGuid(),
-            FullName = student.FullName.Trim(),
-            DateOfBirth = student.DOB.Date,
-            Gender = student.Gender.Trim()
-        };
-        await _persons.AddAsync(person);
-        await _identifiers.AddAsync(new PersonIdentifier
-        {
-            Person = person,
-            Type = identifierType,
-            ProtectedValue = protectedValue,
-            LookupDigest = lookupDigest,
-            VerificationStatus = IdentifierVerificationStatus.Unverified
-        });
-        await _links.AddAsync(new StudentPersonLink
-        {
-            TenantId = _currentUser.TenantId,
-            Student = student,
-            Person = person,
-            Status = StudentPersonLinkStatus.Active,
-            LinkedAt = DateTime.UtcNow,
-            LinkedByUserId = _currentUser.UserId
-        });
-        await AddAccessLogAsync(
-            null,
-            student.Id,
-            null,
-            LearnerIdentityAccessAction.RegisterOrLink,
-            LearnerIdentityAccessOutcome.Created,
-            purpose,
-            "IDENTITY_CREATED",
-            person: person);
+            var now = DateTime.UtcNow;
+            var person = new Person
+            {
+                PublicId = Guid.NewGuid(),
+                FullName = student.FullName.Trim(),
+                FullNameBangla = student.FullNameBangla,
+                DateOfBirth = student.DateOfBirth,
+                Gender = student.Gender,
+                Phone = student.Phone,
+                Email = student.Email,
+                PreferredLanguage = student.PreferredLanguage,
+                PhotoUrl = student.PhotoUrl,
+                CreatedAt = now,
+                CreatedBy = _currentUser.UserId
+            };
+            await _persons.AddAsync(person);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-        return Success("Created", person.PublicId, "Learner identity created.", 201);
+            student.PersonId = person.Id;
+            student.PersonDataSnapshotAt = now;
+            student.UpdatedAt = now;
+            student.UpdatedBy = _currentUser.UserId;
+            _students.Update(student);
+
+            await _identifiers.AddAsync(new PersonIdentifier
+            {
+                PersonId = person.Id,
+                IdentifierType = identifierKind,
+                ProtectedValue = protectedValue,
+                LookupDigest = lookupDigest,
+                IsVerified = false,
+                CreatedAt = now,
+                CreatedBy = _currentUser.UserId
+            });
+            await _links.AddAsync(new StudentPersonLink
+            {
+                TenantId = _currentUser.TenantId,
+                PersonId = person.Id,
+                StudentId = student.Id,
+                IsPrimary = true,
+                LinkedAt = now,
+                LinkedByUserId = _currentUser.UserId,
+                LinkReason = "Learner identity created by authorized admission workflow",
+                CreatedAt = now,
+                CreatedBy = _currentUser.UserId
+            });
+            await AddAccessLogAsync(person.Id, student.Id, null, "RegisterOrLink", "Created", purpose, "IDENTITY_CREATED");
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            await _unitOfWork.CommitTransactionAsync();
+            return Success("Created", person.PublicId, "Learner identity created.", 201);
+        }
+        catch
+        {
+            await SafeRollbackAsync();
+            throw;
+        }
     }
 
     private async Task<ApiResponse<LearnerIdentityResultDto>> CreateOrReuseConsentRequestAsync(
@@ -353,29 +301,24 @@ public sealed class LearnerIdentityService : ILearnerIdentityService
         CancellationToken cancellationToken)
     {
         if (_settings.ConsentRequestLifetimeHours is < 1 or > 720)
-        {
-            return await FailWithAuditAsync(
-                studentId,
-                purpose,
-                "CONSENT_CONFIGURATION_INVALID",
-                "Learner consent is temporarily unavailable.",
-                cancellationToken,
-                503,
-                personId);
-        }
+            return await DenyWithAuditAsync(personId, studentId, purpose, "CONSENT_CONFIGURATION_INVALID",
+                "Learner consent is temporarily unavailable.", 503, cancellationToken);
 
         var now = DateTime.UtcNow;
-        var request = await _consentRequests.FirstOrDefaultAsync(x =>
-            x.TenantId == _currentUser.TenantId
-            && x.PersonId == personId
-            && x.RequestedStudentId == studentId
-            && x.Status == LearnerConsentRequestStatus.Pending
-            && x.ExpiresAt > now);
-        var isNewRequest = false;
+        var expiresAt = now.AddHours(_settings.ConsentRequestLifetimeHours);
+        var serializedPurpose = purpose.ToString();
+        var serializedScopes = ((long)scopes).ToString(CultureInfo.InvariantCulture);
 
+        var request = await _consentRequests.GetQueryable()
+            .FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId &&
+                                      x.PersonId == personId &&
+                                      x.RequestedStudentId == studentId &&
+                                      x.State == ConsentState.Pending &&
+                                      x.ExpiresAt.HasValue &&
+                                      x.ExpiresAt.Value > now, cancellationToken);
+        var isNew = request == null;
         if (request == null)
         {
-            isNewRequest = true;
             request = new LearnerConsentRequest
             {
                 TenantId = _currentUser.TenantId,
@@ -383,23 +326,26 @@ public sealed class LearnerIdentityService : ILearnerIdentityService
                 PersonId = personId,
                 RequestedStudentId = studentId,
                 RequestedByUserId = _currentUser.UserId,
-                Purpose = purpose,
-                RequestedScopes = scopes,
-                Status = LearnerConsentRequestStatus.Pending,
-                ExpiresAt = now.AddHours(_settings.ConsentRequestLifetimeHours)
+                Purpose = serializedPurpose,
+                RequestedScopes = serializedScopes,
+                State = ConsentState.Pending,
+                RequestedAt = now,
+                ExpiresAt = expiresAt,
+                CreatedAt = now,
+                CreatedBy = _currentUser.UserId
             };
             await _consentRequests.AddAsync(request);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        else if (!string.Equals(request.Purpose, serializedPurpose, StringComparison.OrdinalIgnoreCase) ||
+                 request.RequestedScopes != serializedScopes)
+        {
+            return await DenyWithAuditAsync(personId, studentId, purpose, "CONSENT_REQUEST_CONFLICT",
+                "A pending consent request already exists with different scope or purpose.", 409, cancellationToken);
         }
 
-        await AddAccessLogAsync(
-            personId,
-            studentId,
-            isNewRequest ? null : request.Id,
-            LearnerIdentityAccessAction.RequestConsent,
-            LearnerIdentityAccessOutcome.ConsentRequired,
-            purpose,
-            isNewRequest ? "CONSENT_REQUEST_CREATED" : "CONSENT_REQUEST_REUSED",
-            consentRequest: request);
+        await AddAccessLogAsync(personId, studentId, request.Id, "RequestConsent", "ConsentRequired", purpose,
+            isNew ? "CONSENT_REQUEST_CREATED" : "CONSENT_REQUEST_REUSED");
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return new ApiResponse<LearnerIdentityResultDto>
@@ -417,89 +363,87 @@ public sealed class LearnerIdentityService : ILearnerIdentityService
         };
     }
 
-    private async Task<ApiResponse<LearnerIdentityResultDto>> FailWithAuditAsync(
-        long? studentId,
-        LearnerIdentityPurpose? purpose,
+    private async Task<ApiResponse<LearnerIdentityResultDto>> DenyKnownStudentAsync(
+        Student student,
+        LearnerIdentityPurpose purpose,
         string reasonCode,
         string message,
-        CancellationToken cancellationToken,
-        int statusCode = 400,
-        long? personId = null)
+        int statusCode,
+        CancellationToken cancellationToken)
     {
-        try
-        {
-            await AddAccessLogAsync(
-                personId,
-                studentId,
-                null,
-                LearnerIdentityAccessAction.RegisterOrLink,
-                LearnerIdentityAccessOutcome.Failed,
-                purpose,
-                reasonCode);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to persist learner identity access failure for tenant {TenantId}", _currentUser.TenantId);
-        }
+        if (student.PersonId > 0)
+            return await DenyWithAuditAsync(student.PersonId, student.Id, purpose, reasonCode, message, statusCode, cancellationToken);
 
+        _logger.LogWarning("Learner identity denied before a person was linked. Tenant {TenantId}, Student {StudentId}, Reason {ReasonCode}",
+            _currentUser.TenantId, student.Id, reasonCode);
         return Error(message, statusCode);
     }
 
     private async Task<ApiResponse<LearnerIdentityResultDto>> DenyWithAuditAsync(
-        long? personId,
+        long personId,
         long studentId,
         LearnerIdentityPurpose purpose,
         string reasonCode,
         string message,
-        CancellationToken cancellationToken,
-        int statusCode)
+        int statusCode,
+        CancellationToken cancellationToken)
     {
-        await AddAccessLogAsync(
-            personId,
-            studentId,
-            null,
-            LearnerIdentityAccessAction.RegisterOrLink,
-            LearnerIdentityAccessOutcome.Denied,
-            purpose,
-            reasonCode);
+        await AddAccessLogAsync(personId, studentId, null, "RegisterOrLink", "Denied", purpose, reasonCode);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return Error(message, statusCode);
     }
 
     private Task AddAccessLogAsync(
-        long? personId,
-        long? studentId,
+        long personId,
+        long studentId,
         long? consentRequestId,
-        LearnerIdentityAccessAction action,
-        LearnerIdentityAccessOutcome outcome,
-        LearnerIdentityPurpose? purpose,
-        string reasonCode,
-        Person? person = null,
-        LearnerConsentRequest? consentRequest = null)
+        string action,
+        string outcome,
+        LearnerIdentityPurpose purpose,
+        string reasonCode)
     {
         return _accessLogs.AddAsync(new LearnerIdentityAccessLog
         {
             TenantId = _currentUser.TenantId,
             PersonId = personId,
             StudentId = studentId,
-            ConsentRequestId = consentRequestId,
+            LearnerConsentRequestId = consentRequestId,
             UserId = _currentUser.UserId,
             Action = action,
-            Outcome = outcome,
-            Purpose = purpose,
+            OutcomeCode = outcome,
             ReasonCode = reasonCode,
-            IpAddress = Truncate(_currentUser.IpAddress, 64),
+            Purpose = purpose.ToString(),
+            AccessedAt = DateTime.UtcNow,
+            IpAddress = Truncate(_currentUser.IpAddress, 100),
             UserAgent = Truncate(_currentUser.UserAgent, 500),
-            Person = person,
-            ConsentRequest = consentRequest
+            CreatedAt = DateTime.UtcNow,
+            CreatedBy = _currentUser.UserId
         });
     }
 
-    private static string? Truncate(string? value, int maxLength) =>
-        string.IsNullOrWhiteSpace(value)
-            ? null
-            : value.Trim()[..Math.Min(value.Trim().Length, maxLength)];
+    private static bool TryMapIdentifierType(PersonIdentifierType source, out PersonIdentifierKind target)
+    {
+        target = source switch
+        {
+            PersonIdentifierType.BirthRegistration => PersonIdentifierKind.BirthRegistration,
+            PersonIdentifierType.NationalId => PersonIdentifierKind.NationalId,
+            _ => PersonIdentifierKind.Other
+        };
+        return target != PersonIdentifierKind.Other;
+    }
+
+    private async Task SafeRollbackAsync()
+    {
+        try { await _unitOfWork.RollbackTransactionAsync(); }
+        catch (Exception ex) { _logger.LogError(ex, "Learner identity rollback failed."); }
+    }
+
+    private static string? Truncate(string? value, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var trimmed = value.Trim();
+        return trimmed[..Math.Min(trimmed.Length, maxLength)];
+    }
 
     private static ApiResponse<LearnerIdentityResultDto> Success(
         string state,
@@ -519,8 +463,6 @@ public sealed class LearnerIdentityService : ILearnerIdentityService
             }
         };
 
-    private static ApiResponse<LearnerIdentityResultDto> Error(
-        string message,
-        int statusCode = 400) =>
+    private static ApiResponse<LearnerIdentityResultDto> Error(string message, int statusCode = 400) =>
         ApiResponse<LearnerIdentityResultDto>.ErrorResponse(message, statusCode);
 }
