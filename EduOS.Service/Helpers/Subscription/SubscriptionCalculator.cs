@@ -17,8 +17,8 @@ namespace EduOS.Service.Helpers.Subscription
             return cycle switch
             {
                 BillingCycle.Monthly => plan.MonthlyPrice,
-                BillingCycle.Quarterly => plan.QuarterlyPrice,
-                BillingCycle.HalfYearly => plan.HalfYearlyPrice,
+                BillingCycle.Quarterly => plan.MonthlyPrice * 3,
+                BillingCycle.HalfYearly => plan.MonthlyPrice * 6,
                 BillingCycle.Yearly => plan.YearlyPrice,
                 BillingCycle.Lifetime => plan.YearlyPrice * 5,
                 _ => plan.MonthlyPrice
