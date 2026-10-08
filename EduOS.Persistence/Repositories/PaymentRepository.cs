@@ -39,9 +39,17 @@ public class PaymentRepository : GenericRepository<StudentPayment>, IPaymentRepo
             .SumAsync(x => x.Amount);
     }
 
-    public Task<decimal> GetMonthlyCollectionAsync(int month, int year, long tenantId) =>
-        _dbSet.Where(x => x.TenantId == tenantId && x.PaymentDate.Month == month && x.PaymentDate.Year == year
+    public Task<decimal> GetMonthlyCollectionAsync(int month, int year, long tenantId)
+    {
+        if (month < 1 || month > 12 || year < 1 || year > 9998)
+            throw new ArgumentOutOfRangeException(nameof(month), "Month and year are outside the supported date range.");
+
+        var firstDay = new DateOnly(year, month, 1);
+        var nextMonth = firstDay.AddMonths(1);
+        return _dbSet.Where(x => x.TenantId == tenantId
+            && x.PaymentDate >= firstDay && x.PaymentDate < nextMonth
             && x.State == PaymentState.Successful).SumAsync(x => x.Amount);
+    }
 
     public Task<string> GenerateReceiptNoAsync(long tenantId)
     {

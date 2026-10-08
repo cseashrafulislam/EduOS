@@ -63,15 +63,12 @@ public class MarkEntryRepository : GenericRepository<StudentAssessmentMark>, IMa
                 && registration.State == SubjectRegistrationState.Approved
             select new { assessmentSubject.Id, RegistrationId = registration.Id };
 
-        var actual =
-            from mark in _dbSet
-            join assessmentSubject in _context.Set<AssessmentSubject>() on mark.AssessmentSubjectId equals assessmentSubject.Id
-            join registration in _context.Set<StudentSubjectRegistration>() on mark.StudentSubjectRegistrationId equals registration.Id
-            join enrollment in _context.Set<StudentEnrollment>() on registration.StudentEnrollmentId equals enrollment.Id
-            where assessmentSubject.AssessmentId == examId && enrollment.AcademicLevelId == classId
-            select mark.Id;
+        if (!await expected.AnyAsync()) return false;
 
-        var expectedCount = await expected.CountAsync();
-        return expectedCount > 0 && await actual.CountAsync() >= expectedCount;
+        // Count-only comparison incorrectly reports complete when a duplicate or unrelated
+        // mark replaces a missing required registration. Check each expected pairing instead.
+        return !await expected.AnyAsync(item => !_dbSet.Any(mark =>
+            mark.AssessmentSubjectId == item.Id &&
+            mark.StudentSubjectRegistrationId == item.RegistrationId));
     }
 }

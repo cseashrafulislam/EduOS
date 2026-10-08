@@ -49,6 +49,7 @@ namespace EduOS.Persistence.Extensions
             RegisterFinanceRepositories(services);
             RegisterCommunicationRepositories(services);
             RegisterSubscriptionRepositories(services);
+            RegisterOperationalRepositories(services);
 
             return services;
         }
@@ -118,6 +119,14 @@ namespace EduOS.Persistence.Extensions
         {
             s.AddScoped<INoticeRepository, NoticeRepository>();
             s.AddScoped<INotificationRepository, NotificationRepository>();
+        }
+
+        private static void RegisterOperationalRepositories(IServiceCollection s)
+        {
+            s.AddScoped<IAuditLogRepository, AuditLogRepository>();
+            s.AddScoped<ILoginHistoryRepository, LoginHistoryRepository>();
+            s.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+            s.AddScoped<ITenantUserRepository, TenantUserRepository>();
         }
 
         private static void RegisterSubscriptionRepositories(IServiceCollection s)

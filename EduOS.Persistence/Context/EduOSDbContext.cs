@@ -1566,7 +1566,9 @@ public class EduOSDbContext :
 
         ResolveContext();
 
-        if (Database.CurrentTransaction != null)
+        // Non-relational test providers do not support transactions. Production SQL Server
+        // still uses a real transaction for the business write and its audit trail.
+        if (Database.CurrentTransaction != null || !Database.IsRelational())
             return await SaveChangesCoreAsync(cancellationToken);
 
         var strategy = Database.CreateExecutionStrategy();

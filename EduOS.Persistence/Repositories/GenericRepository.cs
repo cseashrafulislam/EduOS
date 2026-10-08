@@ -20,7 +20,8 @@ namespace EduOS.Persistence.Repositories
 
         public virtual async Task<T?> GetByIdAsync(long id)
         {
-            return await _dbSet.FindAsync(id);
+            // FindAsync can return an already-tracked entity without applying global tenant/soft-delete filters.
+            return await _dbSet.FirstOrDefaultAsync(x => EF.Property<long>(x, "Id") == id);
         }
 
         public virtual async Task<T?> GetByIdAsync(
@@ -230,10 +231,9 @@ namespace EduOS.Persistence.Repositories
                 page = 1;
             }
 
-            if (pageSize <= 0)
-            {
-                pageSize = 10;
-            }
+            pageSize = Math.Clamp(pageSize, 1, 200);
+            var offset = ((long)Math.Max(1, page) - 1) * pageSize;
+            if (offset > int.MaxValue) return (new List<T>(), 0);
 
             IQueryable<T> query = _dbSet;
 
@@ -249,15 +249,14 @@ namespace EduOS.Persistence.Repositories
 
             var totalCount = await query.CountAsync();
 
-            if (orderBy != null)
-            {
-                query = descending
-                    ? query.OrderByDescending(orderBy)
-                    : query.OrderBy(orderBy);
-            }
+            query = orderBy == null
+                ? query.OrderBy(x => EF.Property<long>(x, "Id"))
+                : descending
+                    ? query.OrderByDescending(orderBy).ThenBy(x => EF.Property<long>(x, "Id"))
+                    : query.OrderBy(orderBy).ThenBy(x => EF.Property<long>(x, "Id"));
 
             var items = await query
-                .Skip((page - 1) * pageSize)
+                .Skip((int)offset)
                 .Take(pageSize)
                 .ToListAsync();
 

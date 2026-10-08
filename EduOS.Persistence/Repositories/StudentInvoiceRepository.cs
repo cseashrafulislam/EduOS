@@ -60,8 +60,15 @@ public class StudentInvoiceRepository : GenericRepository<StudentInvoice>, IStud
             .SumAsync(x => x.DueAmount);
     }
 
-    public Task<string> GenerateInvoiceNoAsync(long tenantId) =>
-        Task.FromResult($"SINV-{tenantId}-{DateTime.UtcNow:yyyyMM}-{Guid.NewGuid():N}"[..Math.Min(50, $"SINV-{tenantId}-{DateTime.UtcNow:yyyyMM}-{Guid.NewGuid():N}".Length)].ToUpperInvariant());
+    public Task<string> GenerateInvoiceNoAsync(long tenantId)
+    {
+        if (tenantId <= 0) throw new ArgumentOutOfRangeException(nameof(tenantId));
+        var prefix = $"SINV-{tenantId}-{DateTime.UtcNow:yyyyMM}-";
+        var available = 50 - prefix.Length;
+        if (available < 12) throw new InvalidOperationException("Invoice prefix exceeds the number-series length.");
+        var suffix = Guid.NewGuid().ToString("N")[..Math.Min(available, 32)].ToUpperInvariant();
+        return Task.FromResult(prefix + suffix);
+    }
 
     private static int ParseMonth(string value)
     {

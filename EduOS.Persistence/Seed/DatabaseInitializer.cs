@@ -31,6 +31,14 @@ namespace EduOS.Persistence.Seed
                 // 1) Apply pending migrations
                 if (applyMigrations)
                 {
+                    // A missing migration assembly otherwise looks like a successful no-op
+                    // until the seeders fail with an unrelated "invalid object name" error.
+                    var migrationIds = await context.Database.GetMigrationsAsync();
+                    if (!migrationIds.Any())
+                        throw new InvalidOperationException(
+                            "No EF Core migrations are included in EduOS.Persistence. Generate and validate the " +
+                            "initial migration against the final domain model before database initialization.");
+
                     logger.LogInformation("Applying database migrations...");
                     await context.Database.MigrateAsync();
                     logger.LogInformation("Migrations applied");
