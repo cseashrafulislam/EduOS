@@ -1,5 +1,8 @@
 using EduOS.Core.DTOs.Auth;
 using EduOS.Core.Entities.Auth;
+using EduOS.Core.Entities.Learners;
+using EduOS.Core.Enums.Domain;
+using Microsoft.EntityFrameworkCore;
 using EduOS.Core.Interfaces.Jobs;
 using EduOS.Core.Interfaces.IServices;
 using EduOS.Core.Settings;
@@ -107,9 +110,14 @@ namespace EduOS.App.Controllers.Api
                 });
             }
 
-            await _signInManager.SignInWithClaimsAsync(user, dto.RememberMe, BuildSessionClaims(user, "pwd"));
+            var session = await GetSessionContextAsync(user);
+            if (!session.IsValid)
+                return StatusCode(StatusCodes.Status403Forbidden, new
+                { success = false, message = "Select an active institution or contact your administrator." });
+            await _signInManager.SignInWithClaimsAsync(user, dto.RememberMe,
+                BuildSessionClaims(user, "pwd", session.Role, session.TenantId));
 
-            user.LastLogin = DateTime.UtcNow;
+            user.LastLoginAt = DateTime.UtcNow;
             user.LastLoginIp = ip;
             user.LastActivityAt = DateTime.UtcNow;
             user.UpdatedAt = DateTime.UtcNow;
@@ -134,9 +142,9 @@ namespace EduOS.App.Controllers.Api
                     userId = user.Id,
                     email = user.Email,
                     fullName = user.FullName,
-                    userType = user.UserType,
-                    tenantId = user.TenantId,
-                    redirectUrl = GetRedirectUrl(user.UserType, user.TenantId)
+                    userType = session.Role,
+                    tenantId = session.TenantId,
+                    redirectUrl = GetRedirectUrl(session.Role, session.TenantId)
                 }
             });
         }
@@ -253,7 +261,12 @@ namespace EduOS.App.Controllers.Api
             if (!enabled.Succeeded)
                 return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Multi-factor authentication could not be enabled." });
 
-            await _signInManager.SignInWithClaimsAsync(user, isPersistent: false, BuildSessionClaims(user, "mfa"));
+            var session = await GetSessionContextAsync(user);
+            if (!session.IsValid)
+                return StatusCode(StatusCodes.Status403Forbidden, new
+                { success = false, message = "Your institution membership is unavailable." });
+            await _signInManager.SignInWithClaimsAsync(user, isPersistent: false,
+                BuildSessionClaims(user, "mfa", session.Role, session.TenantId));
             _logger.LogInformation("MFA enabled for user {UserId}", user.Id);
 
             return Ok(new
@@ -305,9 +318,14 @@ namespace EduOS.App.Controllers.Api
             }
 
             await _userManager.ResetAccessFailedCountAsync(user);
-            await _signInManager.SignInWithClaimsAsync(user, challenge.RememberMe, BuildSessionClaims(user, "mfa"));
+            var session = await GetSessionContextAsync(user);
+            if (!session.IsValid)
+                return StatusCode(StatusCodes.Status403Forbidden, new
+                { success = false, message = "Select an active institution or contact your administrator." });
+            await _signInManager.SignInWithClaimsAsync(user, challenge.RememberMe,
+                BuildSessionClaims(user, "mfa", session.Role, session.TenantId));
 
-            user.LastLogin = DateTime.UtcNow;
+            user.LastLoginAt = DateTime.UtcNow;
             user.LastLoginIp = ip;
             user.LastActivityAt = DateTime.UtcNow;
             user.UpdatedAt = DateTime.UtcNow;
@@ -328,7 +346,7 @@ namespace EduOS.App.Controllers.Api
             {
                 success = true,
                 message = "Login successful",
-                data = new { redirectUrl = GetRedirectUrl(user.UserType, user.TenantId) }
+                data = new { redirectUrl = GetRedirectUrl(session.Role, session.TenantId) }
             });
         }
 
@@ -396,30 +414,8 @@ namespace EduOS.App.Controllers.Api
         [HttpPost("logout")]
         public async Task<IActionResult> Logout()
         {
-            try
-            {
-                var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-                if (long.TryParse(userIdStr, out var userId))
-                {
-                    var history = _db.LoginHistories
-                        .Where(h => h.UserId == userId && h.LogoutAt == null && h.IsSuccess)
-                        .OrderByDescending(h => h.LoginAt)
-                        .FirstOrDefault();
-
-                    if (history != null)
-                    {
-                        history.LogoutAt = DateTime.UtcNow;
-                        _db.LoginHistories.Update(history);
-                        await _db.SaveChangesAsync();
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error updating logout time");
-            }
-
+            // LoginHistory is an append-only access record in the canonical schema.
+            // LogoutAt is no longer a mutable field; invalidate the authentication cookie.
             await _signInManager.SignOutAsync();
             return Ok(new { success = true, message = "Logged out successfully." });
         }
@@ -441,7 +437,9 @@ namespace EduOS.App.Controllers.Api
                 FullName = user.FullName ?? string.Empty,
                 Email = user.Email ?? string.Empty,
                 PhoneNumber = user.PhoneNumber,
-                Address = user.Address
+                Address = user.PersonId.HasValue ? await _db.PersonAddresses.AsNoTracking()
+                    .Where(x => x.PersonId == user.PersonId.Value && x.IsPrimary && !x.IsDeleted)
+                    .Select(x => x.AddressLine1).FirstOrDefaultAsync() : null
             };
 
             return Ok(new { success = true, data = dto });
@@ -460,15 +458,35 @@ namespace EduOS.App.Controllers.Api
             if (user == null)
                 return Unauthorized(new { success = false, message = "User session not found." });
 
+            if (!string.IsNullOrWhiteSpace(dto.Address) && !user.PersonId.HasValue)
+                return Conflict(new { success = false, message = "Link a verified person profile before updating an address." });
+
             user.FullName = dto.FullName.Trim();
             user.PhoneNumber = string.IsNullOrWhiteSpace(dto.PhoneNumber) ? null : dto.PhoneNumber.Trim();
-            user.Address = string.IsNullOrWhiteSpace(dto.Address) ? null : dto.Address.Trim();
             user.UpdatedAt = DateTime.UtcNow;
+            PersonAddress? address = null;
+            if (user.PersonId.HasValue)
+            {
+                address = await _db.PersonAddresses.FirstOrDefaultAsync(x =>
+                    x.PersonId == user.PersonId.Value && x.IsPrimary && !x.IsDeleted);
+                if (address == null && !string.IsNullOrWhiteSpace(dto.Address))
+                {
+                    address = new PersonAddress
+                    {
+                        PersonId = user.PersonId.Value, IsPrimary = true,
+                        AddressTypeCode = "Current", AddressLine1 = dto.Address.Trim()
+                    };
+                    _db.PersonAddresses.Add(address);
+                }
+                else if (address != null)
+                    address.AddressLine1 = string.IsNullOrWhiteSpace(dto.Address) ? null : dto.Address.Trim();
+            }
 
             var result = await _userManager.UpdateAsync(user);
 
             if (!result.Succeeded)
                 return BadRequest(new { success = false, message = string.Join(" | ", result.Errors.Select(x => x.Description)) });
+            if (user.PersonId.HasValue) await _db.SaveChangesAsync();
 
             return Ok(new
             {
@@ -480,7 +498,7 @@ namespace EduOS.App.Controllers.Api
                     fullName = user.FullName,
                     email = user.Email,
                     phoneNumber = user.PhoneNumber,
-                    address = user.Address
+                    address = address?.AddressLine1
                 }
             });
         }
@@ -530,23 +548,38 @@ namespace EduOS.App.Controllers.Api
             return long.TryParse(value, out var userId) ? await _userManager.FindByIdAsync(userId.ToString()) : null;
         }
 
-        private static List<Claim> BuildSessionClaims(ApplicationUser user, string authenticationMethod)
+        private async Task<(bool IsValid, string Role, long? TenantId)> GetSessionContextAsync(ApplicationUser user)
+        {
+            var roles = await _userManager.GetRolesAsync(user);
+            if (roles.Contains("SuperAdmin", StringComparer.OrdinalIgnoreCase))
+                return (true, "SuperAdmin", null);
+            var tenantIds = await (from member in _db.TenantMemberships.IgnoreQueryFilters().AsNoTracking()
+                join tenant in _db.Tenants.IgnoreQueryFilters().AsNoTracking()
+                    on member.TenantId equals tenant.Id
+                where member.UserId == user.Id && !member.IsDeleted &&
+                    member.Status == MembershipStatus.Active &&
+                    tenant.IsActive && !tenant.IsDeleted &&
+                    tenant.State != TenantState.Closed && tenant.State != TenantState.Suspended
+                select member.TenantId).Distinct().Take(2).ToArrayAsync();
+            if (tenantIds.Length != 1) return (false, "", null);
+            var role = roles.Contains("TenantAdmin", StringComparer.OrdinalIgnoreCase) ? "TenantAdmin"
+                : roles.FirstOrDefault() ?? "User";
+            return (true, role, tenantIds[0]);
+        }
+
+        private static List<Claim> BuildSessionClaims(ApplicationUser user,
+            string authenticationMethod, string role, long? tenantId)
         {
             var claims = new List<Claim>
             {
                 new(ClaimTypes.NameIdentifier, user.Id.ToString()),
                 new(ClaimTypes.Email, user.Email ?? string.Empty),
                 new("FullName", user.FullName ?? string.Empty),
+                new("UserType", role),
                 new("amr", authenticationMethod),
                 new("auth_time", DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString())
             };
-
-            if (user.TenantId.HasValue)
-                claims.Add(new Claim("TenantId", user.TenantId.Value.ToString()));
-
-            if (!string.IsNullOrWhiteSpace(user.UserType))
-                claims.Add(new Claim("UserType", user.UserType));
-
+            if (tenantId.HasValue) claims.Add(new Claim("TenantId", tenantId.Value.ToString()));
             return claims;
         }
 
@@ -572,31 +605,32 @@ namespace EduOS.App.Controllers.Api
         private async Task SaveLoginHistoryAsync(ApplicationUser user, string ip, string userAgent, bool isSuccess, string? failReason) =>
             await SaveLoginHistoryAsync(user, null, ip, userAgent, isSuccess, failReason);
 
-        private async Task SaveLoginHistoryAsync(ApplicationUser? user, string? attemptedEmail, string ip, string userAgent, bool isSuccess, string? failReason)
+        private async Task SaveLoginHistoryAsync(ApplicationUser? user, string? attemptedEmail,
+            string ip, string userAgent, bool isSuccess, string? failReason)
         {
             try
             {
-                var (browser, device) = ParseUserAgent(userAgent);
-
-                var history = new LoginHistory
+                long? tenantId = null;
+                if (user != null)
                 {
-                    UserId = user?.Id ?? 0,
-                    TenantId = user?.TenantId ?? 0,
-                    LoginAt = DateTime.UtcNow,
-                    IpAddress = ip,
-                    UserAgent = userAgent,
-                    Browser = browser,
-                    Device = device,
-                    IsSuccess = isSuccess,
-                    FailReason = failReason
-                };
-
-                _db.LoginHistories.Add(history);
+                    var allowed = await _db.TenantMemberships.IgnoreQueryFilters().AsNoTracking()
+                        .Where(x => x.UserId == user.Id && !x.IsDeleted &&
+                            x.Status == MembershipStatus.Active)
+                        .Select(x => x.TenantId).Distinct().Take(2).ToArrayAsync();
+                    if (allowed.Length == 1) tenantId = allowed[0];
+                }
+                _db.LoginHistories.Add(new LoginHistory
+                {
+                    UserId = user?.Id, TenantId = tenantId,
+                    OccurredAt = DateTime.UtcNow, IpAddress = ip,
+                    UserAgent = userAgent, IsSuccess = isSuccess,
+                    FailureReason = failReason
+                });
                 await _db.SaveChangesAsync();
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to save login history for {Email}", user?.Email ?? attemptedEmail ?? "unknown");
+                _logger.LogError(ex, "Unable to append login history for user {UserId}", user?.Id);
             }
         }
 

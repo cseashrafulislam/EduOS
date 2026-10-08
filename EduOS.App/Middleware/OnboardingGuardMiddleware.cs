@@ -1,4 +1,4 @@
-using EduOS.Core.Enums;
+using EduOS.Core.Enums.Domain;
 using EduOS.Persistence.Context;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -78,7 +78,7 @@ namespace EduOS.App.Middleware
 
                 var state = await dbContext.Tenants.AsNoTracking()
                     .Where(t => t.Id == tenantId && t.IsActive && !t.IsDeleted)
-                    .Select(t => new OnboardingState { IsComplete = t.IsOnboardingComplete, Step = t.OnboardingStep })
+                    .Select(t => new OnboardingState { IsComplete = t.IsOnboardingComplete, Step = t.OnboardingStage })
                     .FirstOrDefaultAsync();
 
                 if (state == null)
@@ -124,25 +124,25 @@ namespace EduOS.App.Middleware
             await context.Response.WriteAsJsonAsync(new { success = false, message });
         }
 
-        private static string GetRedirectUrlForStep(OnboardingStep step) => step switch
+        private static string GetRedirectUrlForStep(OnboardingStage step) => step switch
         {
-            OnboardingStep.EmailVerification => "/Account/VerifyEmail",
-            OnboardingStep.InstitutionProfile => "/Account/InstitutionProfile",
-            OnboardingStep.PlanSelection => "/Account/PlanSelection",
-            OnboardingStep.Payment => "/Account/Payment",
-            OnboardingStep.CampusSetup => "/Account/CampusSetup",
-            OnboardingStep.AcademicSetup => "/Account/AcademicSetup",
-            OnboardingStep.ModuleSetup => "/Account/ModuleSetup",
-            OnboardingStep.BrandingSetup => "/Account/BrandingSetup",
-            OnboardingStep.GeneralSettings => "/Account/GeneralSettings",
-            OnboardingStep.GatewaySetup => "/Account/GatewaySetup",
+            OnboardingStage.EmailVerification => "/Account/VerifyEmail",
+            OnboardingStage.InstitutionProfile => "/Account/InstitutionProfile",
+            OnboardingStage.PlanSelection => "/Account/PlanSelection",
+            OnboardingStage.Payment => "/Account/Payment",
+            OnboardingStage.CampusSetup => "/Account/CampusSetup",
+            OnboardingStage.AcademicSetup => "/Account/AcademicSetup",
+            OnboardingStage.ModuleSetup => "/Account/ModuleSetup",
+            OnboardingStage.BrandingSetup => "/Account/BrandingSetup",
+            OnboardingStage.GeneralSettings => "/Account/GeneralSettings",
+            OnboardingStage.GatewaySetup => "/Account/GatewaySetup",
             _ => "/Account/InstitutionProfile"
         };
 
         private sealed class OnboardingState
         {
             public bool IsComplete { get; set; }
-            public OnboardingStep Step { get; set; }
+            public OnboardingStage Step { get; set; }
         }
     }
 
