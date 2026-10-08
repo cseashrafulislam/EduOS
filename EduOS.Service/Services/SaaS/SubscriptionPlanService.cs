@@ -1,6 +1,7 @@
 using AutoMapper;
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.SaaS;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.EntityFrameworkCore;
@@ -11,15 +12,21 @@ namespace EduOS.Service.Services.SaaS
     public class SubscriptionPlanService : ISubscriptionPlanService
     {
         private readonly ISubscriptionPlanRepository _planRepository;
+        private readonly IGenericRepository<PlanFeature> _planFeatureRepository;
+        private readonly IGenericRepository<Feature> _featureRepository;
         private readonly IMapper _mapper;
         private readonly ILogger<SubscriptionPlanService> _logger;
 
         public SubscriptionPlanService(
             ISubscriptionPlanRepository planRepository,
+            IGenericRepository<PlanFeature> planFeatureRepository,
+            IGenericRepository<Feature> featureRepository,
             IMapper mapper,
             ILogger<SubscriptionPlanService> logger)
         {
             _planRepository = planRepository;
+            _planFeatureRepository = planFeatureRepository;
+            _featureRepository = featureRepository;
             _mapper = mapper;
             _logger = logger;
         }
@@ -29,7 +36,7 @@ namespace EduOS.Service.Services.SaaS
             try
             {
                 var plans = await _planRepository.GetActivePublicPlansAsync();
-                var dtos = _mapper.Map<List<SubscriptionPlanDto>>(plans);
+                var dtos = await MapPlansWithFeaturesAsync(plans);
                 return ApiResponse<List<SubscriptionPlanDto>>.SuccessResponse(dtos);
             }
             catch (Exception ex)
@@ -45,10 +52,10 @@ namespace EduOS.Service.Services.SaaS
             {
                 var plan = await _planRepository.GetWithFeaturesAsync(id);
 
-                if (plan == null || !plan.IsActive)
+                if (plan == null || !plan.IsActive || !plan.IsPublic)
                     return ApiResponse<SubscriptionPlanDto>.ErrorResponse("Plan not found", 404);
 
-                var dto = _mapper.Map<SubscriptionPlanDto>(plan);
+                var dto = (await MapPlansWithFeaturesAsync(new List<SubscriptionPlan> { plan }))[0];
                 return ApiResponse<SubscriptionPlanDto>.SuccessResponse(dto);
             }
             catch (Exception ex)
@@ -64,10 +71,10 @@ namespace EduOS.Service.Services.SaaS
             {
                 var plan = await _planRepository.GetByCodeAsync(code);
 
-                if (plan == null || !plan.IsActive)
+                if (plan == null || !plan.IsActive || !plan.IsPublic)
                     return ApiResponse<SubscriptionPlanDto>.ErrorResponse("Plan not found", 404);
 
-                var dto = _mapper.Map<SubscriptionPlanDto>(plan);
+                var dto = (await MapPlansWithFeaturesAsync(new List<SubscriptionPlan> { plan }))[0];
                 return ApiResponse<SubscriptionPlanDto>.SuccessResponse(dto);
             }
             catch (Exception ex)
@@ -82,38 +89,29 @@ namespace EduOS.Service.Services.SaaS
             try
             {
                 var plans = await _planRepository.GetActivePublicPlansAsync();
-                var planDtos = _mapper.Map<List<SubscriptionPlanDto>>(plans);
-
-                // Build feature category groups for comparison table
-                var allFeatures = plans
-                    .SelectMany(p => p.PlanFeatures)
-                    .Where(pf => pf.Feature != null)
-                    .Select(pf => pf.Feature!)
-                    .DistinctBy(f => f.Id)
+                var planDtos = await MapPlansWithFeaturesAsync(plans);
+                var allFeatures = planDtos.SelectMany(p => p.Features)
+                    .GroupBy(f => f.FeatureId)
+                    .Select(g => g.First())
+                    .OrderBy(f => f.FeatureName)
                     .ToList();
-
-                var categories = allFeatures
-                    .GroupBy(f => f.Category ?? "General")
-                    .OrderBy(g => g.Min(f => f.DisplayOrder))
-                    .Select(grp => new FeatureCategoryDto
+                var categories = allFeatures.Count == 0 ? new List<FeatureCategoryDto>() :
+                    new List<FeatureCategoryDto>
                     {
-                        Category = grp.Key,
-                        Features = grp
-                            .OrderBy(f => f.DisplayOrder)
-                            .Select(f => new FeatureItemDto
+                        new FeatureCategoryDto
+                        {
+                            Category = "General",
+                            Features = allFeatures.Select(feature => new FeatureItemDto
                             {
-                                FeatureId = f.Id,
-                                Name = f.Name,
-                                NameBangla = f.NameBangla,
-                                Code = f.Code,
-                                PlanAvailability = plans.ToDictionary(
+                                FeatureId = feature.FeatureId,
+                                Code = feature.FeatureCode,
+                                Name = feature.FeatureName,
+                                PlanAvailability = planDtos.ToDictionary(
                                     p => p.Id,
-                                    p => p.PlanFeatures.Any(pf => pf.FeatureId == f.Id && pf.IsEnabled)
-                                )
-                            })
-                            .ToList()
-                    })
-                    .ToList();
+                                    p => p.Features.Any(f => f.FeatureId == feature.FeatureId && f.IsEnabled))
+                            }).ToList()
+                        }
+                    };
 
                 return ApiResponse<PlanComparisonDto>.SuccessResponse(new PlanComparisonDto
                 {
@@ -126,6 +124,41 @@ namespace EduOS.Service.Services.SaaS
                 _logger.LogError(ex, "Failed to build plan comparison");
                 return ApiResponse<PlanComparisonDto>.ErrorResponse("Failed to load comparison", 500);
             }
+        }
+        private async Task<List<SubscriptionPlanDto>> MapPlansWithFeaturesAsync(List<SubscriptionPlan> plans)
+        {
+            var dtos = _mapper.Map<List<SubscriptionPlanDto>>(plans);
+            if (dtos.Count == 0) return dtos;
+
+            var ids = plans.Select(p => p.Id).Distinct().ToArray();
+            var assignments = await (
+                from assignment in _planFeatureRepository.GetQueryable().AsNoTracking()
+                join feature in _featureRepository.GetQueryable().AsNoTracking()
+                    on assignment.FeatureId equals feature.Id
+                where ids.Contains(assignment.SubscriptionPlanId) && feature.IsActive
+                select new
+                {
+                    assignment.SubscriptionPlanId,
+                    assignment.FeatureId,
+                    assignment.IsEnabled,
+                    assignment.LimitValue,
+                    feature.Code,
+                    feature.Name
+                }).ToListAsync();
+
+            var lookup = assignments.GroupBy(x => x.SubscriptionPlanId)
+                .ToDictionary(g => g.Key, g => g.OrderBy(x => x.Name)
+                    .Select(x => new PlanFeatureDto
+                    {
+                        FeatureId = x.FeatureId,
+                        FeatureCode = x.Code,
+                        FeatureName = x.Name,
+                        IsEnabled = x.IsEnabled,
+                        LimitValue = x.LimitValue
+                    }).ToList());
+            foreach (var dto in dtos)
+                dto.Features = lookup.TryGetValue(dto.Id, out var features) ? features : new List<PlanFeatureDto>();
+            return dtos;
         }
     }
 }
