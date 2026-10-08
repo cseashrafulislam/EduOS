@@ -38,6 +38,7 @@ public class BookDto
 
 public class SaveBookRequestDto
 {
+    public Guid? Reference { get; set; }
     public long? BookCategoryId { get; set; }
     [Required, MaxLength(300)] public string Title { get; set; } = string.Empty;
     [MaxLength(200)] public string? Author { get; set; }
@@ -73,6 +74,7 @@ public class SaveBookCopyRequestDto
 
 public class BookIssueDto
 {
+    public Guid Reference { get; set; }
     public long Id { get; set; }
     public long BookCopyId { get; set; }
     public string AccessionNumber { get; set; } = string.Empty;
