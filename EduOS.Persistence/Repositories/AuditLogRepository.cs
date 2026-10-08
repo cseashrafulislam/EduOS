@@ -11,13 +11,13 @@ public class AuditLogRepository : GenericRepository<AuditLog>, IAuditLogReposito
 
     public Task<List<AuditLog>> GetByUserIdAsync(long userId, long tenantId) =>
         _dbSet.AsNoTracking().Where(x => x.UserId == userId && x.TenantId == tenantId)
-            .OrderByDescending(x => x.OccurredAt).Take(100).ToListAsync();
+            .OrderByDescending(x => x.OccurredAt).ThenByDescending(x => x.Id).Take(100).ToListAsync();
 
     public Task<List<AuditLog>> GetByTableNameAsync(string tableName, long tenantId) =>
         _dbSet.AsNoTracking().Where(x => x.EntityName == tableName && x.TenantId == tenantId)
-            .OrderByDescending(x => x.OccurredAt).Take(100).ToListAsync();
+            .OrderByDescending(x => x.OccurredAt).ThenByDescending(x => x.Id).Take(100).ToListAsync();
 
     public Task<List<AuditLog>> GetByRecordIdAsync(string tableName, long recordId, long tenantId) =>
         _dbSet.AsNoTracking().Where(x => x.EntityName == tableName && x.EntityId == recordId && x.TenantId == tenantId)
-            .OrderByDescending(x => x.OccurredAt).Take(500).ToListAsync();
+            .OrderByDescending(x => x.OccurredAt).ThenByDescending(x => x.Id).Take(500).ToListAsync();
 }
