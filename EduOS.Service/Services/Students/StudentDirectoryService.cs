@@ -242,7 +242,7 @@ public sealed class StudentDirectoryService : IStudentDirectoryService
                 .Select(x =>
                 {
                     var guardian = guardians[x.GuardianId];
-                    return new StudentGuardianDto
+                    return new StudentDirectoryGuardianDto
                     {
                         Reference = guardian.PublicId,
                         Name = guardian.FullName,
@@ -254,7 +254,7 @@ public sealed class StudentDirectoryService : IStudentDirectoryService
                         IsPrimary = x.IsPrimary
                     };
                 }).ToList(),
-            Enrollments = enrollments.Select(e => new EduOS.Core.DTOs.Student.StudentEnrollmentDto
+            Enrollments = enrollments.Select(e => new EduOS.Core.DTOs.Student.StudentDirectoryEnrollmentDto
             {
                 Id = e.Id,
                 AcademicYear = lookups.YearNames.GetValueOrDefault(e.AcademicYearId) ?? string.Empty,

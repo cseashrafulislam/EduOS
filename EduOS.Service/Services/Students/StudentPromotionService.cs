@@ -55,7 +55,7 @@ public sealed class StudentPromotionService : IStudentPromotionService
 
     public async Task<ApiResponse<StudentPromotionResultDto>> PromoteAsync(
         Guid studentReference,
-        PromoteStudentRequestDto request,
+        PromoteStudentWorkflowRequestDto request,
         CancellationToken cancellationToken = default)
     {
         if (!CanManage()) return Denied<StudentPromotionResultDto>();
@@ -357,7 +357,7 @@ public sealed class StudentPromotionService : IStudentPromotionService
         && _currentUser.TenantId > 0
         && (_currentUser.IsTenantAdmin || _currentUser.IsInRole("Principal"));
 
-    private static bool IsValid(PromoteStudentRequestDto? request) =>
+    private static bool IsValid(PromoteStudentWorkflowRequestDto? request) =>
         request != null
         && request.ClientRequestId != Guid.Empty
         && request.SourceEnrollmentId > 0
@@ -379,7 +379,7 @@ public sealed class StudentPromotionService : IStudentPromotionService
 
     private static bool MatchesRequest(
         StudentPromotionRecord record,
-        PromoteStudentRequestDto request,
+        PromoteStudentWorkflowRequestDto request,
         string targetRoll) =>
         record.ToAcademicYearId == request.TargetAcademicYearId
         && record.ToClassId == request.TargetClassId

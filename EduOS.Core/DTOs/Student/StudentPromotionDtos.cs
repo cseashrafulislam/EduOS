@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace EduOS.Core.DTOs.Student;
 
-public sealed class PromoteStudentRequestDto
+public sealed class PromoteStudentWorkflowRequestDto
 {
     public Guid ClientRequestId { get; set; }
 

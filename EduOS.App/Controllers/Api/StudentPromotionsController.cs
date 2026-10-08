@@ -35,7 +35,7 @@ public sealed class StudentPromotionsController : ControllerBase
     [EnableRateLimiting("ApiPolicy")]
     public async Task<IActionResult> Promote(
         Guid studentReference,
-        [FromBody] PromoteStudentRequestDto request,
+        [FromBody] PromoteStudentWorkflowRequestDto request,
         CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid)

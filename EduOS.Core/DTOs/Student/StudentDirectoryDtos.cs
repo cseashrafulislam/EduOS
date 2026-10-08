@@ -27,7 +27,7 @@ public class StudentDirectoryListItemDto
     public string Status { get; set; } = string.Empty;
 }
 
-public class StudentGuardianDto
+public class StudentDirectoryGuardianDto
 {
     public Guid Reference { get; set; }
     public string Name { get; set; } = string.Empty;
@@ -39,7 +39,7 @@ public class StudentGuardianDto
     public bool IsPrimary { get; set; }
 }
 
-public class StudentEnrollmentDto
+public class StudentDirectoryEnrollmentDto
 {
     public long Id { get; set; }
     public string AcademicYear { get; set; } = string.Empty;
@@ -62,6 +62,6 @@ public class StudentDirectoryDetailsDto : StudentDirectoryListItemDto
     public string? Address { get; set; }
     public string PreferredLanguage { get; set; } = string.Empty;
     public DateTime AdmissionDate { get; set; }
-    public List<StudentGuardianDto> Guardians { get; set; } = new();
-    public List<StudentEnrollmentDto> Enrollments { get; set; } = new();
+    public List<StudentDirectoryGuardianDto> Guardians { get; set; } = new();
+    public List<StudentDirectoryEnrollmentDto> Enrollments { get; set; } = new();
 }

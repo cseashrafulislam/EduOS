@@ -192,7 +192,7 @@ public class StudentPromotionServiceTests
         new FixedTimeProvider(Now),
         NullLogger<StudentPromotionService>.Instance);
 
-    private static PromoteStudentRequestDto Request(SeededStudent seeded) => new()
+    private static PromoteStudentWorkflowRequestDto Request(SeededStudent seeded) => new()
     {
         ClientRequestId = Guid.NewGuid(),
         SourceEnrollmentId = seeded.EnrollmentId,

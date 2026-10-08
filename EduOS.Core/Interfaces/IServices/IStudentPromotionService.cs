@@ -7,7 +7,7 @@ public interface IStudentPromotionService
 {
     Task<ApiResponse<StudentPromotionResultDto>> PromoteAsync(
         Guid studentReference,
-        PromoteStudentRequestDto request,
+        PromoteStudentWorkflowRequestDto request,
         CancellationToken cancellationToken = default);
 
     Task<ApiResponse<IReadOnlyList<StudentPromotionHistoryDto>>> GetHistoryAsync(
