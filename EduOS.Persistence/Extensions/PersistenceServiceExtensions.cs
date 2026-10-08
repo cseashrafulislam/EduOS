@@ -3,6 +3,7 @@ using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Persistence.Context;
 using EduOS.Persistence.Repositories;
 using EduOS.Persistence.Repositories.SaaS;
+using EduOS.Persistence.Repositories.System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

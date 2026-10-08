@@ -33,7 +33,7 @@ namespace EduOS.Persistence.Seed
                 {
                     // A missing migration assembly otherwise looks like a successful no-op
                     // until the seeders fail with an unrelated "invalid object name" error.
-                    var migrationIds = await context.Database.GetMigrationsAsync();
+                    var migrationIds = context.Database.GetMigrations();
                     if (!migrationIds.Any())
                         throw new InvalidOperationException(
                             "No EF Core migrations are included in EduOS.Persistence. Generate and validate the " +
