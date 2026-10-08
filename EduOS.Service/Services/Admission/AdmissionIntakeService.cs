@@ -336,7 +336,8 @@ public sealed class AdmissionIntakeService : IAdmissionIntakeService
         OptionsJson = field.OptionsJson, ValidationJson = field.ValidationJson, IsActive = field.IsActive,
         RowVersion = Convert.ToBase64String(field.RowVersion)
     };
-    private static AdmissionApplicantDocumentDto MapDocument(AdmissionApplicantDocument doc, FileAsset? asset) => new()
+    internal static AdmissionApplicantDocumentDto MapDocument(AdmissionApplicantDocument doc) => MapDocument(doc, null);
+    internal static AdmissionApplicantDocumentDto MapDocument(AdmissionApplicantDocument doc, FileAsset? asset) => new()
     {
         Id = doc.Id, FileAssetId = doc.FileAssetId, DocumentTypeCode = doc.DocumentTypeCode,
         VersionNo = doc.VersionNo, IsVerified = doc.IsVerified, VerifiedByUserId = doc.VerifiedByUserId,
