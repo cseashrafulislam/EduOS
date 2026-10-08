@@ -286,9 +286,7 @@ public sealed class SubscriptionService : ISubscriptionService
             if (row.State == SubscriptionState.Active) return ApiResponse<bool>.SuccessResponse(true, "Subscription already active.");
             if (row.State is SubscriptionState.Cancelled or SubscriptionState.Expired)
                 return ApiResponse<bool>.ErrorResponse("Ended subscription cannot be activated.", 409);
-            var invoices = await _invoices.GetByTenantAsync(tenantId);
-            var settled = invoices.Any(x => x.TenantSubscriptionId == subscriptionId &&
-                x.State == InvoiceState.Paid && x.PaidAmount == x.TotalAmount && x.DueAmount == 0m);
+            var settled = await _invoices.HasFullyPaidInvoiceForSubscriptionAsync(tenantId, subscriptionId);
             if (!settled) return ApiResponse<bool>.ErrorResponse("Payment has not been fully settled.", 409);
             row.State = SubscriptionState.Active;
             row.IsTrial = false;

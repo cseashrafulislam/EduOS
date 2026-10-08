@@ -83,6 +83,11 @@ public class SubscriptionInvoiceRepository : GenericRepository<SubscriptionInvoi
     public override Task<SubscriptionInvoice?> GetByIdAsync(long id) =>
         _context.SubscriptionInvoices.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
 
+    public Task<bool> HasFullyPaidInvoiceForSubscriptionAsync(long tenantId, long subscriptionId, CancellationToken ct = default) =>
+        _context.SubscriptionInvoices.IgnoreQueryFilters().AsNoTracking()
+            .AnyAsync(x => !x.IsDeleted && x.TenantId == tenantId && x.TenantSubscriptionId == subscriptionId &&
+                x.State == InvoiceState.Paid && x.PaidAmount == x.TotalAmount && x.DueAmount == 0m, ct);
+
     public Task<SubscriptionInvoice?> GetByIdForSystemAsync(long id, long tenantId, CancellationToken ct = default) =>
         _context.SubscriptionInvoices.IgnoreQueryFilters().AsNoTracking()
             .FirstOrDefaultAsync(x => !x.IsDeleted && x.Id == id && x.TenantId == tenantId, ct);
