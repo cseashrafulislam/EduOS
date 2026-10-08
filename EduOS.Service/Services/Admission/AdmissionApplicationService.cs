@@ -281,6 +281,8 @@ public sealed class AdmissionApplicationService : IAdmissionApplicationService
                 return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("A reason is required for rejection or withdrawal.");
             if (request.DecisionNote?.Length > 1000)
                 return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Decision note is too long.");
+            if (request.Status == AdmissionApplicationStatus.Withdrawn)
+                return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Applicant withdrawal requires a verified applicant request.", 403);
             if (request.Status == AdmissionApplicationStatus.Approved &&
                 await _documents.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
                     x.AdmissionApplicantId == app.Id && !x.IsVerified, ct))
@@ -296,8 +298,6 @@ public sealed class AdmissionApplicationService : IAdmissionApplicationService
                     State = AdmissionDecisionState.Rejected, DecidedByUserId = _user.UserId,
                     Note = Trim(request.DecisionNote), CreatedAt = now, CreatedBy = _user.UserId
                 });
-            else if (request.Status == AdmissionApplicationStatus.Withdrawn)
-                return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Applicant withdrawal requires a verified applicant request.", 403);
             await _uow.SaveChangesAsync(ct);
             var dto = await ReadDetailsAsync(reference, ct);
             return dto == null ? ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Applicant could not be reloaded.", 500) :
@@ -315,16 +315,16 @@ public sealed class AdmissionApplicationService : IAdmissionApplicationService
     private async Task<AdmissionApplicationDetailsDto?> ReadDetailsAsync(Guid reference, CancellationToken ct)
     {
         var tenant = _user.TenantId;
-        var data = await (from a in _applications.GetQueryable().AsNoTracking()
-            join form in _forms.GetQueryable().AsNoTracking() on a.AdmissionIntakeFormId equals form.Id
+        var data = await (from applicant in _applications.GetQueryable().AsNoTracking()
+            join form in _forms.GetQueryable().AsNoTracking() on applicant.AdmissionIntakeFormId equals form.Id
             join year in _years.GetQueryable().AsNoTracking() on form.AcademicYearId equals year.Id
             join campus in _campuses.GetQueryable().AsNoTracking() on form.CampusId equals campus.Id
             join level in _levels.GetQueryable().AsNoTracking() on form.AcademicLevelId equals level.Id
-            where a.TenantId == tenant && form.TenantId == tenant && year.TenantId == tenant &&
-                campus.TenantId == tenant && level.TenantId == tenant && a.PublicId == reference
-            select new { a, form, year, campus, level }).FirstOrDefaultAsync(ct);
+            where applicant.TenantId == tenant && form.TenantId == tenant && year.TenantId == tenant &&
+                campus.TenantId == tenant && level.TenantId == tenant && applicant.PublicId == reference
+            select new { applicant, form, year, campus, level }).FirstOrDefaultAsync(ct);
         if (data == null) return null;
-        var a = data.a;
+        var a = data.applicant;
         var termName = data.form.AcademicTermId.HasValue
             ? await _terms.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
                 x.Id == data.form.AcademicTermId.Value).Select(x => x.Name).FirstOrDefaultAsync(ct) : null;
