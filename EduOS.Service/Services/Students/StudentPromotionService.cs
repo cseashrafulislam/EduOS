@@ -65,17 +65,17 @@ public sealed class StudentPromotionService : IStudentPromotionService
             if (replay != null)
             {
                 if (replay.StudentId != student.Id) return Error("Client request ID has been used for another student.", 409);
-                var result = await ExistingResultAsync(replay, student, ct);
-                if (!result.Success || result.Data == null ||
-                    result.Data.AcademicYearId != request.TargetAcademicYearId ||
-                    result.Data.ClassId != request.TargetClassId ||
-                    result.Data.SectionId != request.TargetSectionId ||
-                    result.Data.GroupId != request.TargetGroupId && request.TargetGroupId.HasValue ||
-                    !string.Equals(result.Data.Roll, roll, StringComparison.OrdinalIgnoreCase) ||
-                    result.Data.Decision != request.Decision)
+                var replayResult = await ExistingResultAsync(replay, student, ct);
+                if (!replayResult.Success || replayResult.Data == null ||
+                    replayResult.Data.AcademicYearId != request.TargetAcademicYearId ||
+                    replayResult.Data.ClassId != request.TargetClassId ||
+                    replayResult.Data.SectionId != request.TargetSectionId ||
+                    replayResult.Data.GroupId != request.TargetGroupId && request.TargetGroupId.HasValue ||
+                    !string.Equals(replayResult.Data.Roll, roll, StringComparison.OrdinalIgnoreCase) ||
+                    replayResult.Data.Decision != request.Decision)
                     return Error("Client request ID is already used for different progression details.", 409);
                 tx.Complete();
-                return result;
+                return replayResult;
             }
             if (!student.IsActive || student.StatusCode != "Active")
                 return Error("Only an active student can progress.", 409);
