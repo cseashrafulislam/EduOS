@@ -2,8 +2,10 @@ using EduOS.Core.Common;
 using EduOS.Core.DTOs.Admission;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Admission;
+using EduOS.Core.Entities.Files;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Enums;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
@@ -18,342 +20,381 @@ namespace EduOS.Service.Services.Admission;
 public sealed class AdmissionIntakeService : IAdmissionIntakeService
 {
     private readonly IGenericRepository<AdmissionIntakeForm> _forms;
-    private readonly IGenericRepository<AdmissionApplicant> _applications;
+    private readonly IGenericRepository<AdmissionFormField> _fields;
+    private readonly IGenericRepository<AdmissionApplicant> _applicants;
     private readonly IGenericRepository<AdmissionApplicantDocument> _documents;
+    private readonly IGenericRepository<FileAsset> _fileAssets;
     private readonly IGenericRepository<AcademicYear> _years;
     private readonly IGenericRepository<AcademicTerm> _terms;
     private readonly IGenericRepository<Campus> _campuses;
-    private readonly IGenericRepository<AcademicLevel> _academicUnits;
-    private readonly IUnitOfWork _unitOfWork;
-    private readonly ICurrentUserService _currentUser;
+    private readonly IGenericRepository<AcademicLevel> _levels;
+    private readonly IUnitOfWork _uow;
+    private readonly ICurrentUserService _user;
     private readonly IFileUploadService _storage;
     private readonly TimeProvider _clock;
     private readonly ILogger<AdmissionIntakeService> _logger;
 
-    public AdmissionIntakeService(
-        IGenericRepository<AdmissionIntakeForm> forms,
-        IGenericRepository<AdmissionApplicant> applications,
+    public AdmissionIntakeService(IGenericRepository<AdmissionIntakeForm> forms,
+        IGenericRepository<AdmissionFormField> fields,
+        IGenericRepository<AdmissionApplicant> applicants,
         IGenericRepository<AdmissionApplicantDocument> documents,
-        IGenericRepository<AcademicYear> years,
-        IGenericRepository<AcademicTerm> terms,
-        IGenericRepository<Campus> campuses,
-        IGenericRepository<AcademicLevel> academicUnits,
-        IUnitOfWork unitOfWork,
-        ICurrentUserService currentUser,
-        IFileUploadService storage,
-        TimeProvider clock,
-        ILogger<AdmissionIntakeService> logger)
+        IGenericRepository<FileAsset> fileAssets,
+        IGenericRepository<AcademicYear> years, IGenericRepository<AcademicTerm> terms,
+        IGenericRepository<Campus> campuses, IGenericRepository<AcademicLevel> levels,
+        IUnitOfWork unitOfWork, ICurrentUserService currentUser, IFileUploadService storage,
+        TimeProvider clock, ILogger<AdmissionIntakeService> logger)
     {
-        _forms = forms;
-        _applications = applications;
-        _documents = documents;
-        _years = years;
-        _terms = terms;
-        _campuses = campuses;
-        _academicUnits = academicUnits;
-        _unitOfWork = unitOfWork;
-        _currentUser = currentUser;
-        _storage = storage;
-        _clock = clock;
-        _logger = logger;
+        _forms = forms; _fields = fields; _applicants = applicants;
+        _documents = documents; _fileAssets = fileAssets; _years = years;
+        _terms = terms; _campuses = campuses; _levels = levels;
+        _uow = unitOfWork; _user = currentUser; _storage = storage;
+        _clock = clock; _logger = logger;
     }
 
-    public async Task<ApiResponse<IReadOnlyList<AdmissionIntakeFormDto>>> GetFormsAsync(CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<IReadOnlyList<AdmissionIntakeFormDto>>> GetFormsAsync(CancellationToken ct = default)
     {
         if (!CanManage()) return Denied<IReadOnlyList<AdmissionIntakeFormDto>>();
-        var rows = await _forms.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == _currentUser.TenantId)
-            .OrderByDescending(x => x.OpensAtUtc).ThenBy(x => x.Code)
-            .ToListAsync(cancellationToken);
-        return ApiResponse<IReadOnlyList<AdmissionIntakeFormDto>>.SuccessResponse(rows.Select(MapForm).ToList());
+        var tenant = _user.TenantId;
+        var forms = await _forms.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant)
+            .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).Take(200).ToListAsync(ct);
+        var ids = forms.Select(x => x.Id).ToArray();
+        var fields = await _fields.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
+            ids.Contains(x.AdmissionIntakeFormId) && x.IsActive)
+            .OrderBy(x => x.DisplayOrder).ThenBy(x => x.Id).ToListAsync(ct);
+        var groups = fields.GroupBy(x => x.AdmissionIntakeFormId)
+            .ToDictionary(x => x.Key, x => x.Select(MapField).ToArray());
+        IReadOnlyList<AdmissionIntakeFormDto> result = forms.Select(x =>
+            MapForm(x, groups.GetValueOrDefault(x.Id) ?? Array.Empty<AdmissionFormFieldDto>())).ToList();
+        return ApiResponse<IReadOnlyList<AdmissionIntakeFormDto>>.SuccessResponse(result);
     }
 
-    public Task<ApiResponse<AdmissionIntakeFormDto>> CreateFormAsync(CreateAdmissionIntakeFormDto request, CancellationToken cancellationToken = default)
+    public Task<ApiResponse<AdmissionIntakeFormDto>> CreateFormAsync(CreateAdmissionIntakeFormDto request,
+        CancellationToken ct = default)
     {
         if (!CanManage()) return Task.FromResult(Denied<AdmissionIntakeFormDto>());
-        if (request == null) return Task.FromResult(Error<AdmissionIntakeFormDto>("Admission form is required."));
-        var validation = AdmissionIntakeRules.ValidateForm(request);
-        if (request.ClientRequestId == Guid.Empty || validation != null)
-            return Task.FromResult(Error<AdmissionIntakeFormDto>(validation ?? "Client request ID is required."));
-
-        return ExecuteWriteAsync("create intake form", async () =>
+        var error = ValidateInput(request);
+        if (request == null || request.ClientRequestId == Guid.Empty || error != null)
+            return Task.FromResult(Error<AdmissionIntakeFormDto>(error ?? "Client request ID is required."));
+        return ExecuteWriteAsync("create admission form", async () =>
         {
-            var tenantId = _currentUser.TenantId;
-            var normalized = Normalize(request);
-            var replay = await _forms.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.ClientRequestId == request.ClientRequestId, cancellationToken);
-            if (replay != null)
-            {
-                if (!SameForm(replay, normalized)) return Error<AdmissionIntakeFormDto>("Client request ID was already used for a different admission form.", 409);
-                return ApiResponse<AdmissionIntakeFormDto>.SuccessResponse(MapForm(replay), "Admission form already exists.");
-            }
-            var referenceError = await ValidateReferencesAsync(normalized, cancellationToken);
-            if (referenceError != null) return Error<AdmissionIntakeFormDto>(referenceError, 409);
-            if (await _forms.GetQueryable().AnyAsync(x => x.TenantId == tenantId && x.Code == normalized.Code, cancellationToken))
-                return Error<AdmissionIntakeFormDto>("Admission form code already exists.", 409);
-
+            var tenant = _user.TenantId;
+            var code = request.Code.Trim().ToUpperInvariant();
+            var existing = await _forms.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.Code == code, ct);
+            if (existing != null)
+                return Error<AdmissionIntakeFormDto>("Admission form code already exists; choose a unique code.", 409);
+            var level = await ValidateReferencesAsync(request, ct);
+            if (level == null) return Error<AdmissionIntakeFormDto>("Invalid year, campus, term or academic level.", 409);
             var now = _clock.GetUtcNow().UtcDateTime;
-            var row = new AdmissionIntakeForm
+            var form = new AdmissionIntakeForm
             {
-                TenantId = tenantId,
-                PublicId = Guid.NewGuid(),
-                ClientRequestId = request.ClientRequestId,
-                Code = normalized.Code,
-                Title = normalized.Title,
-                Description = normalized.Description,
-                AcademicYearId = normalized.AcademicYearId,
-                AcademicTermId = normalized.AcademicTermId,
-                CampusId = normalized.CampusId,
-                AcademicUnitId = normalized.AcademicUnitId,
-                OpensAtUtc = normalized.OpensAtUtc,
-                ClosesAtUtc = normalized.ClosesAtUtc,
-                ApplicationFee = normalized.ApplicationFee,
-                Currency = normalized.Currency,
-                FieldsJson = normalized.FieldsJson,
-                DocumentRequirementsJson = normalized.RequirementsJson,
-                Status = AdmissionIntakeFormStatus.Draft,
-                CreatedAt = now,
-                CreatedBy = _currentUser.UserId
+                TenantId = tenant, PublicId = Guid.NewGuid(), Code = code, Title = request.Title.Trim(),
+                CampusId = request.CampusId, AcademicYearId = request.AcademicYearId,
+                AcademicTermId = request.AcademicTermId, AcademicProgramId = level.AcademicProgramId,
+                AcademicLevelId = level.Id, VersionNo = 1,
+                OpensAt = AdmissionIntakeRules.Utc(request.OpensAtUtc),
+                ClosesAt = AdmissionIntakeRules.Utc(request.ClosesAtUtc),
+                ApplicationFee = request.ApplicationFee, CurrencyCode = request.Currency.Trim().ToUpperInvariant(),
+                State = AdmissionFormState.Draft, CreatedAt = now, CreatedBy = _user.UserId
             };
-            await _forms.AddAsync(row);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            return Created(MapForm(row), "Admission form created as draft.");
+            await _forms.AddAsync(form);
+            await _uow.SaveChangesAsync(ct);
+            foreach (var field in request.Fields)
+                await _fields.AddAsync(BuildField(form.Id, field, now));
+            await _uow.SaveChangesAsync(ct);
+            var savedFields = await _fields.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == tenant && x.AdmissionIntakeFormId == form.Id && x.IsActive)
+                .OrderBy(x => x.DisplayOrder).ToListAsync(ct);
+            return Created(MapForm(form, savedFields.Select(MapField).ToArray()), "Admission form created as draft.");
         });
     }
 
-    public Task<ApiResponse<AdmissionIntakeFormDto>> UpdateFormAsync(long id, UpdateAdmissionIntakeFormDto request, CancellationToken cancellationToken = default)
+    public Task<ApiResponse<AdmissionIntakeFormDto>> UpdateFormAsync(long id, UpdateAdmissionIntakeFormDto request,
+        CancellationToken ct = default)
     {
         if (!CanManage()) return Task.FromResult(Denied<AdmissionIntakeFormDto>());
-        if (id <= 0 || request == null)
-            return Task.FromResult(Error<AdmissionIntakeFormDto>("A valid form and row version are required."));
-        var validation = AdmissionIntakeRules.ValidateForm(request);
-        if (validation != null || !TryVersion(request.RowVersion, out var version))
-            return Task.FromResult(Error<AdmissionIntakeFormDto>(validation ?? "A valid form and row version are required."));
-
-        return ExecuteWriteAsync("update intake form", async () =>
+        var error = ValidateInput(request);
+        if (id <= 0 || request == null || error != null || !TryVersion(request.RowVersion, out var version))
+            return Task.FromResult(Error<AdmissionIntakeFormDto>(error ?? "Valid form and row version are required."));
+        return ExecuteWriteAsync("update admission form", async () =>
         {
-            var row = await _forms.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.Id == id, cancellationToken);
-            if (row == null) return Error<AdmissionIntakeFormDto>("Admission form not found.", 404);
-            if (row.Status != AdmissionIntakeFormStatus.Draft) return Error<AdmissionIntakeFormDto>("Only draft admission forms can be edited.", 409);
-            if (!CryptographicOperations.FixedTimeEquals(row.RowVersion, version)) return Stale<AdmissionIntakeFormDto>();
-            var normalized = Normalize(request);
-            var referenceError = await ValidateReferencesAsync(normalized, cancellationToken);
-            if (referenceError != null) return Error<AdmissionIntakeFormDto>(referenceError, 409);
-            if (await _forms.GetQueryable().AnyAsync(x => x.TenantId == _currentUser.TenantId && x.Id != id && x.Code == normalized.Code, cancellationToken))
+            var tenant = _user.TenantId;
+            var form = await _forms.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenant && x.Id == id, ct);
+            if (form == null) return Error<AdmissionIntakeFormDto>("Admission form not found.", 404);
+            if (form.State != AdmissionFormState.Draft)
+                return Error<AdmissionIntakeFormDto>("Only a draft admission form can be edited.", 409);
+            if (!VersionsMatch(form.RowVersion, version)) return Stale<AdmissionIntakeFormDto>();
+            var level = await ValidateReferencesAsync(request, ct);
+            if (level == null) return Error<AdmissionIntakeFormDto>("Invalid year, campus, term or academic level.", 409);
+            var code = request.Code.Trim().ToUpperInvariant();
+            if (await _forms.GetQueryable().AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenant && x.Id != id && x.Code == code, ct))
                 return Error<AdmissionIntakeFormDto>("Admission form code already exists.", 409);
-
-            row.Code = normalized.Code;
-            row.Title = normalized.Title;
-            row.Description = normalized.Description;
-            row.AcademicYearId = normalized.AcademicYearId;
-            row.AcademicTermId = normalized.AcademicTermId;
-            row.CampusId = normalized.CampusId;
-            row.AcademicUnitId = normalized.AcademicUnitId;
-            row.OpensAtUtc = normalized.OpensAtUtc;
-            row.ClosesAtUtc = normalized.ClosesAtUtc;
-            row.ApplicationFee = normalized.ApplicationFee;
-            row.Currency = normalized.Currency;
-            row.FieldsJson = normalized.FieldsJson;
-            row.DocumentRequirementsJson = normalized.RequirementsJson;
-            Touch(row);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            return ApiResponse<AdmissionIntakeFormDto>.SuccessResponse(MapForm(row), "Admission form updated.");
+            var now = _clock.GetUtcNow().UtcDateTime;
+            form.Code = code; form.Title = request.Title.Trim();
+            form.CampusId = request.CampusId; form.AcademicYearId = request.AcademicYearId;
+            form.AcademicTermId = request.AcademicTermId; form.AcademicProgramId = level.AcademicProgramId;
+            form.AcademicLevelId = level.Id;
+            form.OpensAt = AdmissionIntakeRules.Utc(request.OpensAtUtc);
+            form.ClosesAt = AdmissionIntakeRules.Utc(request.ClosesAtUtc);
+            form.ApplicationFee = request.ApplicationFee;
+            form.CurrencyCode = request.Currency.Trim().ToUpperInvariant();
+            form.UpdatedAt = now; form.UpdatedBy = _user.UserId;
+            var previous = await _fields.GetQueryable().Where(x => x.TenantId == tenant &&
+                x.AdmissionIntakeFormId == id).ToListAsync(ct);
+            var incoming = request.Fields.ToDictionary(x => x.FieldKey.Trim(), StringComparer.OrdinalIgnoreCase);
+            foreach (var old in previous)
+            {
+                if (!incoming.TryGetValue(old.FieldKey, out var updated))
+                {
+                    old.IsActive = false; old.UpdatedAt = now; old.UpdatedBy = _user.UserId;
+                    continue;
+                }
+                ApplyField(old, updated);
+                old.UpdatedAt = now; old.UpdatedBy = _user.UserId;
+                incoming.Remove(old.FieldKey);
+            }
+            foreach (var added in incoming.Values)
+                await _fields.AddAsync(BuildField(id, added, now));
+            await _uow.SaveChangesAsync(ct);
+            var savedFields = await _fields.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
+                x.AdmissionIntakeFormId == id && x.IsActive).OrderBy(x => x.DisplayOrder).ToListAsync(ct);
+            return ApiResponse<AdmissionIntakeFormDto>.SuccessResponse(
+                MapForm(form, savedFields.Select(MapField).ToArray()), "Admission form updated.");
         });
     }
 
-    public Task<ApiResponse<AdmissionIntakeFormDto>> PublishFormAsync(long id, AdmissionRowVersionDto request, CancellationToken cancellationToken = default)
+    public Task<ApiResponse<AdmissionIntakeFormDto>> PublishFormAsync(long id, AdmissionRowVersionDto request,
+        CancellationToken ct = default) =>
+        TransitionAsync(id, request, AdmissionFormState.Draft, AdmissionFormState.Published, ct);
+
+    public Task<ApiResponse<AdmissionIntakeFormDto>> CloseFormAsync(long id, AdmissionRowVersionDto request,
+        CancellationToken ct = default) =>
+        TransitionAsync(id, request, AdmissionFormState.Published, AdmissionFormState.Closed, ct);
+
+    private Task<ApiResponse<AdmissionIntakeFormDto>> TransitionAsync(long id, AdmissionRowVersionDto request,
+        AdmissionFormState from, AdmissionFormState to, CancellationToken ct)
     {
         if (!CanManage()) return Task.FromResult(Denied<AdmissionIntakeFormDto>());
-        if (id <= 0 || request == null || !TryVersion(request.RowVersion, out var version)) return Task.FromResult(Error<AdmissionIntakeFormDto>("A valid form and row version are required."));
-        return ExecuteWriteAsync("publish intake form", async () =>
+        if (id <= 0 || request == null || !TryVersion(request.RowVersion, out var version))
+            return Task.FromResult(Error<AdmissionIntakeFormDto>("Form ID and row version are required."));
+        return ExecuteWriteAsync("change admission form state", async () =>
         {
-            var row = await _forms.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.Id == id, cancellationToken);
-            if (row == null) return Error<AdmissionIntakeFormDto>("Admission form not found.", 404);
-            if (row.Status == AdmissionIntakeFormStatus.Published) return ApiResponse<AdmissionIntakeFormDto>.SuccessResponse(MapForm(row), "Admission form is already published.");
-            if (row.Status != AdmissionIntakeFormStatus.Draft) return Error<AdmissionIntakeFormDto>("Only draft admission forms can be published.", 409);
-            if (row.ClosesAtUtc <= _clock.GetUtcNow().UtcDateTime) return Error<AdmissionIntakeFormDto>("Admission form closing time has passed.", 409);
-            if (!CryptographicOperations.FixedTimeEquals(row.RowVersion, version)) return Stale<AdmissionIntakeFormDto>();
-            row.Status = AdmissionIntakeFormStatus.Published;
-            row.PublishedAtUtc = _clock.GetUtcNow().UtcDateTime;
-            row.PublishedByUserId = _currentUser.UserId;
-            Touch(row);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            return ApiResponse<AdmissionIntakeFormDto>.SuccessResponse(MapForm(row), "Admission form published.");
+            var tenant = _user.TenantId;
+            var form = await _forms.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenant && x.Id == id, ct);
+            if (form == null) return Error<AdmissionIntakeFormDto>("Admission form not found.", 404);
+            if (!VersionsMatch(form.RowVersion, version)) return Stale<AdmissionIntakeFormDto>();
+            if (form.State != from)
+                return Error<AdmissionIntakeFormDto>("Admission form is not in a valid state for this transition.", 409);
+            if (to == AdmissionFormState.Published &&
+                (!form.OpensAt.HasValue || !form.ClosesAt.HasValue || form.ClosesAt <= _clock.GetUtcNow().UtcDateTime))
+                return Error<AdmissionIntakeFormDto>("Admission opening and closing dates must be valid and in the future.", 409);
+            form.State = to; form.UpdatedAt = _clock.GetUtcNow().UtcDateTime; form.UpdatedBy = _user.UserId;
+            await _uow.SaveChangesAsync(ct);
+            var fields = await _fields.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
+                x.AdmissionIntakeFormId == id && x.IsActive).OrderBy(x => x.DisplayOrder).ToListAsync(ct);
+            return ApiResponse<AdmissionIntakeFormDto>.SuccessResponse(MapForm(form, fields.Select(MapField).ToArray()),
+                to == AdmissionFormState.Published ? "Admission form published." : "Admission form closed.");
         });
     }
 
-    public Task<ApiResponse<AdmissionIntakeFormDto>> CloseFormAsync(long id, AdmissionRowVersionDto request, CancellationToken cancellationToken = default)
-    {
-        if (!CanManage()) return Task.FromResult(Denied<AdmissionIntakeFormDto>());
-        if (id <= 0 || request == null || !TryVersion(request.RowVersion, out var version)) return Task.FromResult(Error<AdmissionIntakeFormDto>("A valid form and row version are required."));
-        return ExecuteWriteAsync("close intake form", async () =>
-        {
-            var row = await _forms.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.Id == id, cancellationToken);
-            if (row == null) return Error<AdmissionIntakeFormDto>("Admission form not found.", 404);
-            if (row.Status == AdmissionIntakeFormStatus.Closed) return ApiResponse<AdmissionIntakeFormDto>.SuccessResponse(MapForm(row), "Admission form is already closed.");
-            if (row.Status != AdmissionIntakeFormStatus.Published) return Error<AdmissionIntakeFormDto>("Only published admission forms can be closed.", 409);
-            if (!CryptographicOperations.FixedTimeEquals(row.RowVersion, version)) return Stale<AdmissionIntakeFormDto>();
-            row.Status = AdmissionIntakeFormStatus.Closed;
-            row.ClosedAtUtc = _clock.GetUtcNow().UtcDateTime;
-            row.ClosedByUserId = _currentUser.UserId;
-            Touch(row);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            return ApiResponse<AdmissionIntakeFormDto>.SuccessResponse(MapForm(row), "Admission form closed.");
-        });
-    }
-
-    public async Task<ApiResponse<IReadOnlyList<AdmissionApplicantDocumentDto>>> GetDocumentsAsync(Guid applicantReference, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<IReadOnlyList<AdmissionApplicantDocumentDto>>> GetDocumentsAsync(Guid applicantReference,
+        CancellationToken ct = default)
     {
         if (!CanManage()) return Denied<IReadOnlyList<AdmissionApplicantDocumentDto>>();
-        var applicantId = await _applications.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == _currentUser.TenantId && x.PublicId == applicantReference)
-            .Select(x => (long?)x.Id).FirstOrDefaultAsync(cancellationToken);
-        if (!applicantId.HasValue) return Error<IReadOnlyList<AdmissionApplicantDocumentDto>>("Application not found.", 404);
-        var rows = await _documents.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == _currentUser.TenantId && x.ApplicantId == applicantId.Value && x.IsCurrent)
-            .OrderBy(x => x.DocumentType).ToListAsync(cancellationToken);
-        return ApiResponse<IReadOnlyList<AdmissionApplicantDocumentDto>>.SuccessResponse(rows.Select(MapDocument).ToList());
+        var tenant = _user.TenantId;
+        var applicant = await _applicants.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.PublicId == applicantReference, ct);
+        if (applicant == null) return Error<IReadOnlyList<AdmissionApplicantDocumentDto>>("Applicant not found.", 404);
+        var docs = await _documents.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
+            x.AdmissionApplicantId == applicant.Id).OrderBy(x => x.DocumentTypeCode)
+            .ThenByDescending(x => x.VersionNo).ToListAsync(ct);
+        var fileIds = docs.Select(x => x.FileAssetId).Distinct().ToArray();
+        var assets = await _fileAssets.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
+            fileIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, ct);
+        IReadOnlyList<AdmissionApplicantDocumentDto> result = docs.Select(x =>
+            MapDocument(x, assets.GetValueOrDefault(x.FileAssetId))).ToList();
+        return ApiResponse<IReadOnlyList<AdmissionApplicantDocumentDto>>.SuccessResponse(result);
     }
 
-    public Task<ApiResponse<AdmissionApplicantDocumentDto>> ReviewDocumentAsync(Guid applicantReference, long documentId, ReviewAdmissionDocumentDto request, CancellationToken cancellationToken = default)
+    public Task<ApiResponse<AdmissionApplicantDocumentDto>> ReviewDocumentAsync(Guid applicantReference,
+        long documentId, ReviewAdmissionDocumentDto request, CancellationToken ct = default)
     {
         if (!CanManage()) return Task.FromResult(Denied<AdmissionApplicantDocumentDto>());
-        if (applicantReference == Guid.Empty || documentId <= 0 || request == null || request.Status is not (AdmissionDocumentVerificationStatus.Verified or AdmissionDocumentVerificationStatus.Rejected) || request.Note?.Length > 1000 || request.Status == AdmissionDocumentVerificationStatus.Rejected && string.IsNullOrWhiteSpace(request.Note) || !TryVersion(request.RowVersion, out var version))
-            return Task.FromResult(Error<AdmissionApplicantDocumentDto>("A valid document decision, row version and rejection note are required."));
-
-        return ExecuteWriteAsync("review applicant document", async () =>
+        if (applicantReference == Guid.Empty || documentId <= 0 || request == null ||
+            request.Status is not (AdmissionDocumentVerificationStatus.Verified or AdmissionDocumentVerificationStatus.Rejected) ||
+            !TryVersion(request.RowVersion, out var version))
+            return Task.FromResult(Error<AdmissionApplicantDocumentDto>("Valid document review request and row version required."));
+        if (request.Status == AdmissionDocumentVerificationStatus.Rejected)
+            return Task.FromResult(Error<AdmissionApplicantDocumentDto>("Rejection requires an explicit status field in the canonical document model. No rejection was recorded.", 409));
+        return ExecuteWriteAsync("verify applicant document", async () =>
         {
-            var row = await _documents.GetQueryable().Include(x => x.Applicant)
-                .FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.Id == documentId && x.IsCurrent && x.Applicant != null && x.Applicant.PublicId == applicantReference, cancellationToken);
-            if (row == null) return Error<AdmissionApplicantDocumentDto>("Applicant document not found.", 404);
-            var note = Trim(request.Note);
-            if (row.VerificationStatus == request.Status)
-            {
-                if (row.ReviewNote != note) return Error<AdmissionApplicantDocumentDto>("Document was already reviewed with a different note.", 409);
-                return ApiResponse<AdmissionApplicantDocumentDto>.SuccessResponse(MapDocument(row), "Document decision already saved.");
-            }
-            if (row.VerificationStatus != AdmissionDocumentVerificationStatus.Pending) return Error<AdmissionApplicantDocumentDto>("Only pending documents can be reviewed.", 409);
-            if (!CryptographicOperations.FixedTimeEquals(row.RowVersion, version)) return Stale<AdmissionApplicantDocumentDto>();
-            row.VerificationStatus = request.Status;
-            row.ReviewNote = note;
-            row.ReviewedAtUtc = _clock.GetUtcNow().UtcDateTime;
-            row.ReviewedByUserId = _currentUser.UserId;
-            row.UpdatedAt = row.ReviewedAtUtc;
-            row.UpdatedBy = _currentUser.UserId;
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            return ApiResponse<AdmissionApplicantDocumentDto>.SuccessResponse(MapDocument(row), "Document decision saved.");
+            var tenant = _user.TenantId;
+            var applicant = await _applicants.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.PublicId == applicantReference, ct);
+            if (applicant == null) return Error<AdmissionApplicantDocumentDto>("Applicant not found.", 404);
+            var doc = await _documents.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenant &&
+                x.Id == documentId && x.AdmissionApplicantId == applicant.Id, ct);
+            if (doc == null) return Error<AdmissionApplicantDocumentDto>("Document not found.", 404);
+            if (!VersionsMatch(doc.RowVersion, version)) return Stale<AdmissionApplicantDocumentDto>();
+            var asset = await _fileAssets.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.Id == doc.FileAssetId, ct);
+            if (asset == null || !asset.IsVerifiedSafe)
+                return Error<AdmissionApplicantDocumentDto>("File is not cleared by upload security checks.", 409);
+            doc.IsVerified = true; doc.VerifiedAt = _clock.GetUtcNow().UtcDateTime;
+            doc.VerifiedByUserId = _user.UserId; doc.VerificationNote = Trim(request.Note);
+            doc.UpdatedAt = _clock.GetUtcNow().UtcDateTime; doc.UpdatedBy = _user.UserId;
+            await _uow.SaveChangesAsync(ct);
+            return ApiResponse<AdmissionApplicantDocumentDto>.SuccessResponse(MapDocument(doc, asset),
+                "Applicant document verified.");
         });
     }
 
-    public async Task<ApiResponse<AdmissionDocumentContentDto>> GetDocumentContentAsync(Guid applicantReference, long documentId, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<AdmissionDocumentContentDto>> GetDocumentContentAsync(Guid applicantReference,
+        long documentId, CancellationToken ct = default)
     {
         if (!CanManage()) return Denied<AdmissionDocumentContentDto>();
-        var row = await _documents.GetQueryable().AsNoTracking().Include(x => x.Applicant)
-            .FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.Id == documentId && x.IsCurrent && x.Applicant != null && x.Applicant.PublicId == applicantReference, cancellationToken);
-        if (row == null) return Error<AdmissionDocumentContentDto>("Applicant document not found.", 404);
-        var file = await _storage.GetPrivateFileAsync(row.StorageKey);
-        if (file == null) return Error<AdmissionDocumentContentDto>("Applicant document content is unavailable.", 404);
+        var tenant = _user.TenantId;
+        var applicant = await _applicants.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.PublicId == applicantReference, ct);
+        if (applicant == null) return Error<AdmissionDocumentContentDto>("Applicant not found.", 404);
+        var doc = await _documents.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.Id == documentId && x.AdmissionApplicantId == applicant.Id, ct);
+        if (doc == null) return Error<AdmissionDocumentContentDto>("Document not found.", 404);
+        var asset = await _fileAssets.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.Id == doc.FileAssetId, ct);
+        if (asset == null || !asset.IsVerifiedSafe)
+            return Error<AdmissionDocumentContentDto>("Document has not passed file security checks.", 403);
+        var download = await _storage.GetPrivateFileAsync(asset.StorageKey);
+        if (download == null) return Error<AdmissionDocumentContentDto>("Document content is unavailable.", 404);
         return ApiResponse<AdmissionDocumentContentDto>.SuccessResponse(new AdmissionDocumentContentDto
         {
-            Content = file.Content,
-            ContentType = string.IsNullOrWhiteSpace(row.ContentType) ? file.ContentType : row.ContentType,
-            FileName = row.OriginalFileName
+            Content = download.Content, ContentType = asset.ContentType, FileName = asset.OriginalFileName
         });
     }
 
-    private async Task<string?> ValidateReferencesAsync(NormalizedForm input, CancellationToken cancellationToken)
+    private async Task<AcademicLevel?> ValidateReferencesAsync(AdmissionIntakeFormInputDto request, CancellationToken ct)
     {
-        var tenantId = _currentUser.TenantId;
-        if (!await _years.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenantId && x.Id == input.AcademicYearId && x.IsActive, cancellationToken)) return "Academic year is unavailable.";
-        if (input.AcademicTermId.HasValue && !await _terms.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenantId && x.Id == input.AcademicTermId && x.AcademicYearId == input.AcademicYearId && x.IsActive, cancellationToken)) return "Academic term does not belong to the selected year.";
-        if (!await _campuses.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenantId && x.Id == input.CampusId && x.IsActive, cancellationToken)) return "Campus is unavailable.";
-        if (!await _academicUnits.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenantId && x.Id == input.AcademicUnitId && x.IsActive, cancellationToken)) return "Academic unit is unavailable.";
+        var tenant = _user.TenantId;
+        if (!await _years.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
+            x.Id == request.AcademicYearId && x.IsActive, ct)) return null;
+        if (request.AcademicTermId.HasValue && !await _terms.GetQueryable().AsNoTracking().AnyAsync(x =>
+            x.TenantId == tenant && x.Id == request.AcademicTermId && x.AcademicYearId == request.AcademicYearId &&
+            x.IsActive, ct)) return null;
+        if (!await _campuses.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
+            x.Id == request.CampusId && x.IsActive, ct)) return null;
+        return await _levels.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
+            x.Id == request.AcademicUnitId && x.IsActive, ct);
+    }
+
+    private static string? ValidateInput(AdmissionIntakeFormInputDto? request)
+    {
+        if (request == null) return "Admission form is required.";
+        var error = AdmissionIntakeRules.ValidateForm(request);
+        if (error != null) return error;
+        if (!string.IsNullOrWhiteSpace(request.Description))
+            return "Description is not supported by the canonical admission form model.";
+        if (request.DocumentRequirements.Count > 0)
+            return "Document requirements require a dedicated persisted policy; none were saved. Configure requirements in the supported document module.";
+        if (request.Fields.Any(x => x.Id > 0))
+            return "Field IDs are server-managed. Update definitions by their keys.";
         return null;
     }
 
-    private Task<ApiResponse<T>> ExecuteWriteAsync<T>(string operation, Func<Task<ApiResponse<T>>> action) => ExecuteAsync(operation, action);
+    private AdmissionFormField BuildField(long formId, AdmissionFormFieldDto input, DateTime now)
+    {
+        var row = new AdmissionFormField
+        {
+            TenantId = _user.TenantId, AdmissionIntakeFormId = formId,
+            CreatedAt = now, CreatedBy = _user.UserId
+        };
+        ApplyField(row, input);
+        return row;
+    }
+    private static void ApplyField(AdmissionFormField row, AdmissionFormFieldDto field)
+    {
+        row.FieldKey = field.FieldKey.Trim();
+        row.Label = field.Label.Trim();
+        row.DataType = field.DataType; row.IsRequired = field.IsRequired;
+        row.DisplayOrder = field.DisplayOrder; row.OptionsJson = field.OptionsJson;
+        row.ValidationJson = field.ValidationJson; row.IsActive = field.IsActive;
+    }
 
-    private async Task<ApiResponse<T>> ExecuteAsync<T>(string operation, Func<Task<ApiResponse<T>>> action)
+    private static AdmissionIntakeFormDto MapForm(AdmissionIntakeForm form, IReadOnlyList<AdmissionFormFieldDto> fields) => new()
+    {
+        Id = form.Id, Reference = form.PublicId, Code = form.Code, Title = form.Title,
+        CampusId = form.CampusId, AcademicYearId = form.AcademicYearId,
+        AcademicProgramId = form.AcademicProgramId, AcademicLevelId = form.AcademicLevelId,
+        VersionNo = form.VersionNo, State = form.State, OpensAt = form.OpensAt, ClosesAt = form.ClosesAt,
+        ApplicationFee = form.ApplicationFee, CurrencyCode = form.CurrencyCode, Fields = fields,
+        RowVersion = Convert.ToBase64String(form.RowVersion)
+    };
+    private static AdmissionFormFieldDto MapField(AdmissionFormField field) => new()
+    {
+        Id = field.Id, FieldKey = field.FieldKey, Label = field.Label,
+        DataType = field.DataType, IsRequired = field.IsRequired, DisplayOrder = field.DisplayOrder,
+        OptionsJson = field.OptionsJson, ValidationJson = field.ValidationJson, IsActive = field.IsActive,
+        RowVersion = Convert.ToBase64String(field.RowVersion)
+    };
+    private static AdmissionApplicantDocumentDto MapDocument(AdmissionApplicantDocument doc, FileAsset? asset) => new()
+    {
+        Id = doc.Id, FileAssetId = doc.FileAssetId, DocumentTypeCode = doc.DocumentTypeCode,
+        VersionNo = doc.VersionNo, IsVerified = doc.IsVerified, VerifiedByUserId = doc.VerifiedByUserId,
+        VerifiedAt = doc.VerifiedAt, VerificationNote = doc.VerificationNote
+    };
+
+    private async Task<ApiResponse<T>> ExecuteWriteAsync<T>(string operation, Func<Task<ApiResponse<T>>> action)
     {
         try
         {
-            var strategy = _unitOfWork.CreateExecutionStrategy();
+            var strategy = _uow.CreateExecutionStrategy();
             return await strategy.ExecuteAsync(async () =>
             {
-                using var scope = new TransactionScope(TransactionScopeOption.Required, new TransactionOptions { IsolationLevel = IsolationLevel.Serializable }, TransactionScopeAsyncFlowOption.Enabled);
-                var response = await action();
-                if (response.Success) scope.Complete();
-                return response;
+                using var scope = new TransactionScope(TransactionScopeOption.Required,
+                    new TransactionOptions { IsolationLevel = IsolationLevel.Serializable },
+                    TransactionScopeAsyncFlowOption.Enabled);
+                var result = await action();
+                if (result.Success) scope.Complete();
+                return result;
             });
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            _logger.LogWarning(ex, "Stale admission intake write during {Operation} for tenant {TenantId}", operation, _currentUser.TenantId);
+            _logger.LogWarning(ex, "Concurrent {Operation} for tenant {TenantId}", operation, _user.TenantId);
             return Stale<T>();
         }
         catch (DbUpdateException ex)
         {
-            _logger.LogWarning(ex, "Conflicting admission intake write during {Operation} for tenant {TenantId}", operation, _currentUser.TenantId);
-            return Error<T>("Admission intake data conflicts with another update. Reload and try again.", 409);
+            _logger.LogWarning(ex, "Integrity conflict in {Operation} for tenant {TenantId}", operation, _user.TenantId);
+            return Error<T>("Admission data conflicts with another update.", 409);
         }
         catch (TransactionAbortedException ex)
         {
-            _logger.LogWarning(ex, "Serialized admission intake write aborted during {Operation} for tenant {TenantId}", operation, _currentUser.TenantId);
-            return Error<T>("Admission intake data conflicts with another update. Reload and try again.", 409);
+            _logger.LogWarning(ex, "Transaction aborted in {Operation} for tenant {TenantId}", operation, _user.TenantId);
+            return Error<T>("Admission update conflicted with another request.", 409);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed {Operation} for tenant {TenantId}", operation, _user.TenantId);
+            return Error<T>("Admission request could not be completed.", 500);
         }
     }
-
-    private void Touch(AdmissionIntakeForm row)
+    private bool CanManage() => _user.IsAuthenticated && _user.TenantId > 0 &&
+        (_user.IsTenantAdmin || _user.IsInRole("AdmissionOfficer"));
+    private static string? Trim(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
+    private static bool TryVersion(string? value, out byte[] version)
     {
-        row.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
-        row.UpdatedBy = _currentUser.UserId;
-    }
-
-    private static NormalizedForm Normalize(AdmissionIntakeFormInputDto x) => new(
-        x.Code.Trim().ToUpperInvariant(), x.Title.Trim(), Trim(x.Description), x.AcademicYearId, x.AcademicTermId,
-        x.CampusId, x.AcademicUnitId, AdmissionIntakeRules.Utc(x.OpensAtUtc), AdmissionIntakeRules.Utc(x.ClosesAtUtc),
-        x.ApplicationFee, x.Currency.Trim().ToUpperInvariant(), AdmissionIntakeRules.SerializeFields(x.Fields), AdmissionIntakeRules.SerializeRequirements(x.DocumentRequirements));
-
-    private static bool SameForm(AdmissionIntakeForm row, NormalizedForm x) =>
-        row.Code == x.Code && row.Title == x.Title && row.Description == x.Description && row.AcademicYearId == x.AcademicYearId
-        && row.AcademicTermId == x.AcademicTermId && row.CampusId == x.CampusId && row.AcademicUnitId == x.AcademicUnitId
-        && row.OpensAtUtc == x.OpensAtUtc && row.ClosesAtUtc == x.ClosesAtUtc && row.ApplicationFee == x.ApplicationFee
-        && row.Currency == x.Currency && row.FieldsJson == x.FieldsJson && row.DocumentRequirementsJson == x.RequirementsJson;
-
-    private static AdmissionIntakeFormDto MapForm(AdmissionIntakeForm x) => new()
-    {
-        Id = x.Id, Reference = x.PublicId, Code = x.Code, Title = x.Title, Description = x.Description,
-        AcademicYearId = x.AcademicYearId, AcademicTermId = x.AcademicTermId, CampusId = x.CampusId,
-        AcademicUnitId = x.AcademicUnitId, OpensAtUtc = x.OpensAtUtc, ClosesAtUtc = x.ClosesAtUtc,
-        ApplicationFee = x.ApplicationFee, Currency = x.Currency, Status = x.Status, PublishedAtUtc = x.PublishedAtUtc,
-        ClosedAtUtc = x.ClosedAtUtc, Fields = AdmissionIntakeRules.ReadFields(x.FieldsJson),
-        DocumentRequirements = AdmissionIntakeRules.ReadRequirements(x.DocumentRequirementsJson),
-        RowVersion = Convert.ToBase64String(x.RowVersion)
-    };
-
-    internal static AdmissionApplicantDocumentDto MapDocument(AdmissionApplicantDocument x) => new()
-    {
-        Id = x.Id, Reference = x.PublicId, DocumentType = x.DocumentType, OriginalFileName = x.OriginalFileName,
-        ContentType = x.ContentType, FileSizeBytes = x.FileSizeBytes, VerificationStatus = x.VerificationStatus,
-        IsCurrent = x.IsCurrent, UploadedAtUtc = x.UploadedAtUtc, ReviewedAtUtc = x.ReviewedAtUtc,
-        ReviewNote = x.ReviewNote, RowVersion = Convert.ToBase64String(x.RowVersion)
-    };
-
-    private bool CanManage() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0 && (_currentUser.IsTenantAdmin || _currentUser.IsInRole("AdmissionOfficer"));
-    private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-    private static bool TryVersion(string? value, out byte[] bytes)
-    {
-        bytes = [];
+        version = Array.Empty<byte>();
         if (string.IsNullOrWhiteSpace(value)) return false;
-        try { bytes = Convert.FromBase64String(value); return bytes.Length > 0; }
+        try { version = Convert.FromBase64String(value); return version.Length > 0; }
         catch (FormatException) { return false; }
     }
-
-    private static ApiResponse<T> Created<T>(T data, string message) => new() { Success = true, Data = data, Message = message, StatusCode = 201 };
-    private static ApiResponse<T> Error<T>(string message, int status = 400) => ApiResponse<T>.ErrorResponse(message, status);
-    private static ApiResponse<T> Stale<T>() => Error<T>("Admission intake data changed. Reload and try again.", 409);
+    private static bool VersionsMatch(byte[] stored, byte[] expected) =>
+        stored.Length == expected.Length && CryptographicOperations.FixedTimeEquals(stored, expected);
+    private static ApiResponse<T> Created<T>(T value, string message) => new()
+    { Success = true, StatusCode = 201, Message = message, Data = value };
+    private static ApiResponse<T> Error<T>(string message, int status = 400) =>
+        ApiResponse<T>.ErrorResponse(message, status);
+    private static ApiResponse<T> Stale<T>() => Error<T>("Admission data changed. Reload and try again.", 409);
     private static ApiResponse<T> Denied<T>() => Error<T>("Admission officer access is required.", 403);
-
-    private sealed record NormalizedForm(string Code, string Title, string? Description, long AcademicYearId, long? AcademicTermId,
-        long CampusId, long AcademicUnitId, DateTime OpensAtUtc, DateTime ClosesAtUtc, decimal ApplicationFee, string Currency,
-        string FieldsJson, string RequirementsJson);
 }
