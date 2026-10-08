@@ -3,6 +3,7 @@ using EduOS.Core.DTOs.Tenants;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Enums;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
@@ -51,6 +52,7 @@ namespace EduOS.Service.Services.Tenants
         // ============================================================
         public async Task<ApiResponse<OnboardingStatusDto>> GetStatusAsync()
         {
+            if (!CanRead()) return ApiResponse<OnboardingStatusDto>.ErrorResponse("Tenant access is required.", 403);
             try
             {
                 var tenant = await _tenantRepo.GetByIdAsync(_currentUser.TenantId);
@@ -66,7 +68,7 @@ namespace EduOS.Service.Services.Tenants
                 var status = new OnboardingStatusDto
                 {
                     TenantId = tenant.Id,
-                    CurrentStep = tenant.OnboardingStep,
+                    CurrentStep = ReadStep(tenant),
                     IsComplete = tenant.IsOnboardingComplete,
                     CompletedAt = tenant.OnboardingCompletedAt,
                     Steps = steps,
@@ -92,6 +94,7 @@ namespace EduOS.Service.Services.Tenants
         // ============================================================
         public async Task<ApiResponse<bool>> AdvanceToStepAsync(OnboardingStep step)
         {
+            if (!CanManage()) return ApiResponse<bool>.ErrorResponse("Tenant administrator access is required.", 403);
             try
             {
                 var tenant = await _tenantRepo.GetByIdAsync(_currentUser.TenantId);
@@ -101,7 +104,7 @@ namespace EduOS.Service.Services.Tenants
                 if (tenant.IsOnboardingComplete)
                     return ApiResponse<bool>.ErrorResponse("Onboarding already completed", 400);
 
-                var currentOrder = GetStepOrder(tenant.OnboardingStep);
+                var currentOrder = GetStepOrder(ReadStep(tenant));
                 var targetOrder = GetStepOrder(step);
                 if (currentOrder == 0 || targetOrder == 0)
                     return ApiResponse<bool>.ErrorResponse("Invalid onboarding step", 400);
@@ -121,11 +124,11 @@ namespace EduOS.Service.Services.Tenants
                 {
                     var validation = await ValidateStepCompletionAsync(
                         tenant,
-                        tenant.OnboardingStep);
+                        ReadStep(tenant));
                     if (!validation.Success) return validation;
                 }
 
-                tenant.OnboardingStep = step;
+                tenant.OnboardingStage = ToStage(step);
                 _tenantRepo.Update(tenant);
                 await _unitOfWork.SaveChangesAsync();
                 ClearOnboardingCache(tenant.Id);
@@ -144,6 +147,8 @@ namespace EduOS.Service.Services.Tenants
         // ============================================================
         public async Task<ApiResponse<bool>> CompleteStepAsync(CompleteStepDto dto)
         {
+            if (!CanManage()) return ApiResponse<bool>.ErrorResponse("Tenant administrator access is required.", 403);
+            if (dto == null) return ApiResponse<bool>.ErrorResponse("Step details are required.");
             try
             {
                 var tenant = await _tenantRepo.GetByIdAsync(_currentUser.TenantId);
@@ -156,7 +161,7 @@ namespace EduOS.Service.Services.Tenants
                 if (GetStepOrder(dto.Step) == 0)
                     return ApiResponse<bool>.ErrorResponse("Invalid onboarding step", 400);
 
-                if (dto.Step != tenant.OnboardingStep)
+                if (dto.Step != ReadStep(tenant))
                 {
                     return ApiResponse<bool>.ErrorResponse(
                         "This onboarding step is not currently active. Reload and continue from the current step.",
@@ -173,14 +178,14 @@ namespace EduOS.Service.Services.Tenants
 
                 // Advance to next step
                 var nextStep = GetNextStep(dto.Step);
-                tenant.OnboardingStep = nextStep;
+                tenant.OnboardingStage = ToStage(nextStep);
 
                 if (nextStep == OnboardingStep.Completed)
                 {
                     tenant.IsOnboardingComplete = true;
                     tenant.OnboardingCompletedAt = DateTime.UtcNow;
-                    if (tenant.Status == TenantStatus.Onboarding)
-                        tenant.Status = TenantStatus.Active;
+                    if (tenant.State == TenantState.PendingVerification)
+                        tenant.State = TenantState.Active;
                 }
 
                 _tenantRepo.Update(tenant);
@@ -207,6 +212,7 @@ namespace EduOS.Service.Services.Tenants
         // ============================================================
         public async Task<ApiResponse<bool>> CompleteOnboardingAsync()
         {
+            if (!CanManage()) return ApiResponse<bool>.ErrorResponse("Tenant administrator access is required.", 403);
             try
             {
                 var tenant = await _tenantRepo.GetByIdAsync(_currentUser.TenantId);
@@ -216,7 +222,7 @@ namespace EduOS.Service.Services.Tenants
                 if (tenant.IsOnboardingComplete)
                     return ApiResponse<bool>.SuccessResponse(true, "Already completed");
 
-                if (tenant.OnboardingStep != OnboardingStep.GatewaySetup)
+                if (ReadStep(tenant) != OnboardingStep.GatewaySetup)
                 {
                     return ApiResponse<bool>.ErrorResponse(
                         "Complete the current onboarding step before finishing setup", 409);
@@ -229,10 +235,10 @@ namespace EduOS.Service.Services.Tenants
 
                 tenant.IsOnboardingComplete = true;
                 tenant.OnboardingCompletedAt = DateTime.UtcNow;
-                tenant.OnboardingStep = OnboardingStep.Completed;
+                tenant.OnboardingStage = OnboardingStage.Completed;
 
-                if (tenant.Status == TenantStatus.Onboarding)
-                    tenant.Status = TenantStatus.Active;
+                if (tenant.State == TenantState.PendingVerification)
+                    tenant.State = TenantState.Active;
 
                 _tenantRepo.Update(tenant);
                 await _unitOfWork.SaveChangesAsync();
@@ -262,8 +268,8 @@ namespace EduOS.Service.Services.Tenants
 
                 case OnboardingStep.InstitutionProfile:
                     if (string.IsNullOrWhiteSpace(tenant.Name) ||
-                        string.IsNullOrWhiteSpace(tenant.OwnerName) ||
-                        string.IsNullOrWhiteSpace(tenant.InstitutionType))
+                        !tenant.InstitutionTypeDefinitionId.HasValue ||
+                        string.IsNullOrWhiteSpace(tenant.Email))
                         return ApiResponse<bool>.ErrorResponse(
                             "Please complete institution profile first", 400);
                     break;
@@ -280,8 +286,8 @@ namespace EduOS.Service.Services.Tenants
                         // Trial doesn't need payment
                         if (sub.IsTrial) break;
 
-                        if (sub.Status != SubscriptionStatus.Active &&
-                            sub.Status != SubscriptionStatus.Trialing)
+                        if (sub.State != SubscriptionState.Active &&
+                            sub.State != SubscriptionState.Trial)
                             return ApiResponse<bool>.ErrorResponse(
                                 "Please complete payment first", 400);
                     }
@@ -346,7 +352,7 @@ namespace EduOS.Service.Services.Tenants
                 return ApiResponse<bool>.ErrorResponse("No active subscription", 400);
 
             if (!sub.IsTrial &&
-                sub.Status != SubscriptionStatus.Active)
+                sub.State != SubscriptionState.Active)
                 return ApiResponse<bool>.ErrorResponse("Subscription not active", 400);
 
             if (!await _campusRepo.GetQueryable()
@@ -403,8 +409,8 @@ namespace EduOS.Service.Services.Tenants
                     Url = "/Account/InstitutionProfile",
                     IsSkippable = false,
                     IsCompleted = !string.IsNullOrEmpty(tenant.Name) &&
-                                  !string.IsNullOrEmpty(tenant.OwnerName) &&
-                                  !string.IsNullOrEmpty(tenant.InstitutionType),
+                                  tenant.InstitutionTypeDefinitionId.HasValue &&
+                                  !string.IsNullOrWhiteSpace(tenant.Email),
                 },
                 new()
                 {
@@ -499,11 +505,11 @@ namespace EduOS.Service.Services.Tenants
 
             var currentOrder = tenant.IsOnboardingComplete
                 ? int.MaxValue
-                : defs.FirstOrDefault(x => x.Step == tenant.OnboardingStep)?.Order ?? 1;
+                : defs.FirstOrDefault(x => x.Step == ReadStep(tenant))?.Order ?? 1;
 
             foreach (var s in defs)
             {
-                s.IsCurrent = !tenant.IsOnboardingComplete && s.Step == tenant.OnboardingStep;
+                s.IsCurrent = !tenant.IsOnboardingComplete && s.Step == ReadStep(tenant);
                 s.IsCompleted = tenant.IsOnboardingComplete || s.IsCompleted || s.Order < currentOrder;
                 s.IsLocked = !tenant.IsOnboardingComplete && s.Order > currentOrder;
             }
@@ -550,6 +556,17 @@ namespace EduOS.Service.Services.Tenants
 
         private static bool IsSkippable(OnboardingStep step) =>
             step is OnboardingStep.GeneralSettings or OnboardingStep.GatewaySetup;
+
+        private static OnboardingStep ReadStep(Tenant tenant) =>
+            Enum.TryParse<OnboardingStep>(tenant.OnboardingStage.ToString(), out var step)
+                ? step : OnboardingStep.EmailVerification;
+
+        private static OnboardingStage ToStage(OnboardingStep step) =>
+            Enum.TryParse<OnboardingStage>(step.ToString(), out var stage)
+                ? stage : throw new ArgumentOutOfRangeException(nameof(step), step, "Unknown onboarding stage.");
+
+        private bool CanRead() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0;
+        private bool CanManage() => CanRead() && _currentUser.IsTenantAdmin;
 
         private void ClearOnboardingCache(long tenantId) =>
             _cache.Remove($"onboarding:tenant:{tenantId}");
