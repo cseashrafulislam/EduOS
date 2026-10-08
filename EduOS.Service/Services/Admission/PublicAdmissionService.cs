@@ -137,7 +137,7 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
             return Error<AdmissionApplicationCreatedDto>("Admission portal is unavailable.", 404);
         SetTenantContext(tenant.Id);
         if (request == null || request.ClientRequestId == Guid.Empty || request.AdmissionFormReference is null ||
-            request.ApplicantName?.Trim().Length is < 2 or > 200 ||
+            string.IsNullOrWhiteSpace(request.ApplicantName) || request.ApplicantName.Trim().Length is < 2 or > 200 ||
             !TryNormalizeMobile(request.PrimaryMobile, out var phone) ||
             !TryNormalizeOptionalMobile(request.GuardianMobile, out var guardianPhone) ||
             request.DateOfBirth.Date < new DateTime(1900, 1, 1) ||
@@ -270,7 +270,9 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
         if (applicant.State is AdmissionApplicantState.Admitted or AdmissionApplicantState.Rejected or
             AdmissionApplicantState.Withdrawn or AdmissionApplicantState.Qualified)
             return Error<AdmissionApplicantDocumentDto>("Documents cannot be modified after the final decision.", 409);
-        var hash = Convert.ToHexString(await SHA256.HashDataAsync(file.OpenReadStream(), ct));
+        string hash;
+        await using (var stream = file.OpenReadStream())
+            hash = Convert.ToHexString(await SHA256.HashDataAsync(stream, ct));
         var replay = await _assets.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant.Id &&
             x.PublicId == request.ClientRequestId, ct);
         if (replay != null)
@@ -300,7 +302,10 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
                 x.Id == applicant.Id).Select(x => x.State).SingleAsync(ct);
             if (currentState is AdmissionApplicantState.Admitted or AdmissionApplicantState.Qualified or
                 AdmissionApplicantState.Rejected or AdmissionApplicantState.Withdrawn)
+            {
+                await _storage.DeletePrivateAsync(uploaded.FileUrl);
                 return Error<AdmissionApplicantDocumentDto>("Document upload is no longer permitted.", 409);
+            }
             var asset = new FileAsset
             {
                 TenantId = tenant.Id, PublicId = request.ClientRequestId,
