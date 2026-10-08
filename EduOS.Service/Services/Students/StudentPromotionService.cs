@@ -3,6 +3,7 @@ using EduOS.Core.DTOs.Student;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Enums;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
@@ -18,435 +19,260 @@ public sealed class StudentPromotionService : IStudentPromotionService
     private readonly IGenericRepository<Student> _students;
     private readonly IGenericRepository<StudentEnrollment> _enrollments;
     private readonly IGenericRepository<StudentPromotionRecord> _records;
-    private readonly IGenericRepository<AcademicYear> _academicYears;
-    private readonly IGenericRepository<AcademicLevel> _classes;
-    private readonly IGenericRepository<AcademicBatch> _sections;
-    private readonly IGenericRepository<AcademicTrack> _groups;
-    private readonly IUnitOfWork _unitOfWork;
-    private readonly ICurrentUserService _currentUser;
+    private readonly IGenericRepository<AcademicYear> _years;
+    private readonly IGenericRepository<AcademicLevel> _levels;
+    private readonly IGenericRepository<AcademicBatch> _batches;
+    private readonly IGenericRepository<AcademicCurriculum> _curricula;
+    private readonly IUnitOfWork _uow;
+    private readonly ICurrentUserService _user;
     private readonly TimeProvider _clock;
     private readonly ILogger<StudentPromotionService> _logger;
 
-    public StudentPromotionService(
-        IGenericRepository<Student> students,
+    public StudentPromotionService(IGenericRepository<Student> students,
         IGenericRepository<StudentEnrollment> enrollments,
         IGenericRepository<StudentPromotionRecord> records,
-        IGenericRepository<AcademicYear> academicYears,
-        IGenericRepository<AcademicLevel> classes,
-        IGenericRepository<AcademicBatch> sections,
-        IGenericRepository<AcademicTrack> groups,
-        IUnitOfWork unitOfWork,
-        ICurrentUserService currentUser,
-        TimeProvider clock,
+        IGenericRepository<AcademicYear> years, IGenericRepository<AcademicLevel> levels,
+        IGenericRepository<AcademicBatch> batches, IGenericRepository<AcademicCurriculum> curricula,
+        IUnitOfWork unitOfWork, ICurrentUserService currentUser, TimeProvider clock,
         ILogger<StudentPromotionService> logger)
     {
-        _students = students;
-        _enrollments = enrollments;
-        _records = records;
-        _academicYears = academicYears;
-        _classes = classes;
-        _sections = sections;
-        _groups = groups;
-        _unitOfWork = unitOfWork;
-        _currentUser = currentUser;
-        _clock = clock;
-        _logger = logger;
+        _students = students; _enrollments = enrollments; _records = records;
+        _years = years; _levels = levels; _batches = batches; _curricula = curricula;
+        _uow = unitOfWork; _user = currentUser; _clock = clock; _logger = logger;
     }
 
-    public async Task<ApiResponse<StudentPromotionResultDto>> PromoteAsync(
-        Guid studentReference,
-        PromoteStudentWorkflowRequestDto request,
-        CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<StudentPromotionResultDto>> PromoteAsync(Guid studentReference,
+        PromoteStudentWorkflowRequestDto request, CancellationToken ct = default)
     {
         if (!CanManage()) return Denied<StudentPromotionResultDto>();
-        if (studentReference == Guid.Empty || !IsValid(request))
-            return Error("Promotion request is invalid.");
-        if (!TryVersion(request.StudentRowVersion, out var expectedStudentVersion)
-            || !TryVersion(request.SourceEnrollmentRowVersion, out var expectedEnrollmentVersion))
-        {
-            return Error("Row version is invalid.");
-        }
-
-        var tenantId = _currentUser.TenantId;
-        var targetRoll = request.TargetRoll.Trim();
-        var note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim();
-        if (!TryLegacyId(request.TargetAcademicYearId, out var targetYearId)
-            || !TryLegacyId(request.TargetClassId, out var targetClassId)
-            || !TryLegacyId(request.TargetSectionId, out var targetSectionId)
-            || !TryNullableLegacyId(request.TargetGroupId, out var targetGroupId))
-        {
-            return Error("Promotion target is invalid.");
-        }
-
+        if (studentReference == Guid.Empty || !IsValid(request) ||
+            !TryVersion(request.StudentRowVersion, out var expectedStudent) ||
+            !TryVersion(request.SourceEnrollmentRowVersion, out var expectedSource) ||
+            !Enum.TryParse<StudentProgressionDecisionType>(request.Decision.ToString(), out var decision))
+            return Error("Valid progression request and row versions are required.");
+        var tenant = _user.TenantId;
+        var roll = request.TargetRoll.Trim();
         try
         {
-            // Promotion performs read-before-write uniqueness and section-capacity checks.
-            // Serializable isolation prevents concurrent promotions from both observing the
-            // same free roll/seat and committing an invalid placement.
-            using var scope = new TransactionScope(
-                TransactionScopeOption.Required,
+            using var tx = new TransactionScope(TransactionScopeOption.Required,
                 new TransactionOptions { IsolationLevel = IsolationLevel.Serializable },
                 TransactionScopeAsyncFlowOption.Enabled);
-
-            var student = await _students.GetQueryable()
-                .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.PublicId == studentReference,
-                    cancellationToken);
+            var student = await _students.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenant &&
+                x.PublicId == studentReference, ct);
             if (student == null) return Error("Student not found.", 404);
-            if (student.Id > int.MaxValue) return Error("Student cannot use the legacy academic placement model.", 409);
-
-            var existingByClient = await _records.GetQueryable().AsNoTracking()
-                .FirstOrDefaultAsync(x => x.TenantId == tenantId
-                                          && x.ClientRequestId == request.ClientRequestId,
-                    cancellationToken);
-            if (existingByClient != null)
+            var replay = await _records.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
+                x.ClientRequestId == request.ClientRequestId, ct);
+            if (replay != null)
             {
-                if (existingByClient.StudentId != student.Id)
-                    return Error("Client request reference was already used.", 409);
-                return await ExistingResultAsync(existingByClient, student, cancellationToken);
+                if (replay.StudentId != student.Id) return Error("Client request ID has been used for another student.", 409);
+                var result = await ExistingResultAsync(replay, student, ct);
+                if (!result.Success || result.Data == null ||
+                    result.Data.AcademicYearId != request.TargetAcademicYearId ||
+                    result.Data.ClassId != request.TargetClassId ||
+                    result.Data.SectionId != request.TargetSectionId ||
+                    result.Data.GroupId != request.TargetGroupId && request.TargetGroupId.HasValue ||
+                    !string.Equals(result.Data.Roll, roll, StringComparison.OrdinalIgnoreCase) ||
+                    result.Data.Decision != request.Decision)
+                    return Error("Client request ID is already used for different progression details.", 409);
+                tx.Complete();
+                return result;
             }
-
-            if (!student.IsActive || !string.Equals(student.Status, "Active", StringComparison.OrdinalIgnoreCase))
-                return Error("Only an active student can be promoted.", 409);
-            if (!VersionsMatch(student.RowVersion, expectedStudentVersion))
-                return Error("The student was changed by another user. Reload and try again.", 409);
-
-            var studentId = checked((int)student.Id);
-            var source = await _enrollments.GetQueryable()
-                .FirstOrDefaultAsync(x => x.TenantId == tenantId
-                                          && x.Id == request.SourceEnrollmentId
-                                          && x.StudentId == studentId,
-                    cancellationToken);
+            if (!student.IsActive || student.StatusCode != "Active")
+                return Error("Only an active student can progress.", 409);
+            if (!VersionsMatch(student.RowVersion, expectedStudent))
+                return Error("Student changed. Reload and retry.", 409);
+            var source = await _enrollments.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenant &&
+                x.Id == request.SourceEnrollmentId && x.StudentId == student.Id, ct);
             if (source == null) return Error("Source enrollment not found.", 404);
-            if (!source.IsActive) return Error("Source enrollment is no longer active.", 409);
-            if (!VersionsMatch(source.RowVersion, expectedEnrollmentVersion))
-                return Error("The enrollment was changed by another user. Reload and try again.", 409);
-            if (!MatchesCurrentPlacement(student, source))
-                return Error("Student placement and active enrollment are inconsistent.", 409);
+            if (!source.IsActive || !source.IsCurrent || source.State != EnrollmentState.Active)
+                return Error("Source enrollment is no longer current.", 409);
+            if (!VersionsMatch(source.RowVersion, expectedSource))
+                return Error("Source enrollment changed. Reload and retry.", 409);
+            if (await _records.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
+                x.FromEnrollmentId == source.Id, ct))
+                return Error("Source enrollment has already been progressed.", 409);
 
-            var existingFromSource = await _records.GetQueryable().AsNoTracking()
-                .FirstOrDefaultAsync(x => x.TenantId == tenantId
-                                          && x.FromEnrollmentId == source.Id,
-                    cancellationToken);
-            if (existingFromSource != null)
-            {
-                if (MatchesRequest(existingFromSource, request, targetRoll))
-                    return await ExistingResultAsync(existingFromSource, student, cancellationToken);
-                return Error("Source enrollment was already progressed.", 409);
-            }
-
-            var sourceYear = await _academicYears.FirstOrDefaultAsync(x =>
-                x.TenantId == tenantId && x.Id == source.AcademicYearId && x.IsActive);
-            var targetYear = await _academicYears.FirstOrDefaultAsync(x =>
-                x.TenantId == tenantId && x.Id == request.TargetAcademicYearId && x.IsActive);
-            var sourceClass = await _classes.FirstOrDefaultAsync(x =>
-                x.TenantId == tenantId && x.Id == source.ClassId && x.IsActive);
-            var targetClass = await _classes.FirstOrDefaultAsync(x =>
-                x.TenantId == tenantId && x.Id == request.TargetClassId && x.IsActive);
-            var targetSection = await _sections.FirstOrDefaultAsync(x =>
-                x.TenantId == tenantId
-                && x.Id == request.TargetSectionId
-                && x.ClassId == targetClassId
-                && x.IsActive);
-            if (sourceYear == null || targetYear == null || sourceClass == null
-                || targetClass == null || targetSection == null)
-            {
-                return Error("Promotion target is unavailable.", 409);
-            }
-
+            var sourceYear = await _years.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.Id == source.AcademicYearId, ct);
+            var targetYear = await _years.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.Id == request.TargetAcademicYearId && x.IsActive, ct);
+            var sourceLevel = await _levels.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.Id == source.AcademicLevelId, ct);
+            var targetLevel = await _levels.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.Id == request.TargetClassId && x.IsActive, ct);
+            var batch = await _batches.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
+                x.Id == request.TargetSectionId && x.IsActive &&
+                x.AcademicYearId == request.TargetAcademicYearId && x.AcademicLevelId == request.TargetClassId, ct);
+            if (sourceYear == null || targetYear == null || sourceLevel == null || targetLevel == null || batch == null)
+                return Error("Academic placement is unavailable.", 409);
             if (targetYear.Id == sourceYear.Id || targetYear.StartDate <= sourceYear.StartDate)
-                return Error("Target academic year must be later than the source year.", 409);
-            if (request.Decision == StudentProgressionDecision.Promoted
-                && targetClass.NumericValue <= sourceClass.NumericValue)
-            {
-                return Error("A promotion must move to a higher academic unit.", 409);
-            }
-            if (request.Decision == StudentProgressionDecision.Repeated
-                && targetClass.Id != sourceClass.Id)
-            {
-                return Error("A repeated student must remain in the same academic unit.", 409);
-            }
+                return Error("Progression must target a later academic year.", 409);
+            if (sourceLevel.AcademicProgramId != targetLevel.AcademicProgramId ||
+                batch.AcademicProgramId != targetLevel.AcademicProgramId)
+                return Error("Cross-program progression requires a separate transfer workflow.", 409);
+            if (decision == StudentProgressionDecisionType.Promoted &&
+                (targetLevel.LevelNo <= sourceLevel.LevelNo || !sourceLevel.IsPromotable))
+                return Error("Promotion must advance from a promotable level.", 409);
+            if (decision == StudentProgressionDecisionType.Repeated && targetLevel.Id != sourceLevel.Id)
+                return Error("Repeating students must remain at the same academic level.", 409);
+            if (request.TargetGroupId.HasValue && batch.AcademicTrackId != request.TargetGroupId.Value)
+                return Error("Target track does not match the selected batch.", 409);
+            if (batch.CampusId != source.CampusId)
+                return Error("Campus changes require a transfer workflow.", 409);
+            var effectiveDate = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+            var curricula = await _curricula.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
+                x.IsActive && x.IsCurrent && x.AcademicProgramId == batch.AcademicProgramId &&
+                x.AcademicTrackId == batch.AcademicTrackId && x.MediumId == batch.MediumId &&
+                x.EffectiveFrom <= effectiveDate && (!x.EffectiveTo.HasValue || x.EffectiveTo >= effectiveDate))
+                .Take(2).Select(x => x.Id).ToArrayAsync(ct);
+            if (curricula.Length != 1)
+                return Error("Target batch must have exactly one matching active curriculum.", 409);
 
-            AcademicTrack? targetGroup = null;
-            if (request.TargetGroupId.HasValue)
-            {
-                targetGroup = await _groups.FirstOrDefaultAsync(x =>
-                    x.TenantId == tenantId && x.Id == request.TargetGroupId.Value && x.IsActive);
-                if (targetGroup == null) return Error("Target group is unavailable.", 409);
-            }
-
-            if (await _enrollments.AnyAsync(x => x.TenantId == tenantId
-                                                  && x.StudentId == studentId
-                                                  && x.AcademicYearId == targetYearId))
-            {
-                return Error("The student already has an enrollment in the target year.", 409);
-            }
-            if (await _enrollments.AnyAsync(x => x.TenantId == tenantId
-                                                  && x.AcademicYearId == targetYearId
-                                                  && x.ClassId == targetClassId
-                                                  && x.SectionId == targetSectionId
-                                                  && x.Roll == targetRoll
-                                                  && x.IsActive))
-            {
-                return Error("Target roll is already assigned in the section.", 409);
-            }
-            if (targetSection.Capacity > 0)
-            {
-                var occupied = await _enrollments.CountAsync(x => x.TenantId == tenantId
-                                                                  && x.AcademicYearId == targetYearId
-                                                                  && x.ClassId == targetClassId
-                                                                  && x.SectionId == targetSectionId
-                                                                  && x.IsActive);
-                if (occupied >= targetSection.Capacity)
-                    return Error("Target section has reached capacity.", 409);
-            }
+            if (await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
+                x.StudentId == student.Id && x.AcademicYearId == targetYear.Id &&
+                x.IsActive, ct))
+                return Error("Student already has an active enrollment in the target year.", 409);
+            if (await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
+                x.AcademicBatchId == batch.Id && x.RollNo == roll && x.IsActive && x.IsCurrent, ct))
+                return Error("Target roll already belongs to an active student.", 409);
+            if (batch.Capacity > 0 && await _enrollments.GetQueryable().AsNoTracking().CountAsync(x =>
+                x.TenantId == tenant && x.AcademicBatchId == batch.Id && x.IsActive && x.IsCurrent, ct) >= batch.Capacity)
+                return Error("Target batch capacity has been reached.", 409);
 
             var now = _clock.GetUtcNow().UtcDateTime;
-            source.IsActive = false;
+            source.IsCurrent = false; source.IsActive = false;
+            source.State = decision == StudentProgressionDecisionType.Promoted
+                ? EnrollmentState.Promoted : EnrollmentState.Completed;
+            source.EndDate ??= effectiveDate;
+            source.UpdatedAt = now; source.UpdatedBy = _user.UserId;
             var target = new StudentEnrollment
             {
-                TenantId = tenantId,
-                StudentId = studentId,
-                AcademicYearId = targetYearId,
-                ClassId = targetClassId,
-                SectionId = targetSectionId,
-                GroupId = targetGroupId,
-                CampusId = source.CampusId,
-                AcademicTermId = null,
-                Roll = targetRoll,
-                EnrollmentDate = now,
-                IsActive = true
+                TenantId = tenant, PublicId = Guid.NewGuid(), ClientRequestId = Guid.NewGuid(),
+                StudentId = student.Id, CampusId = batch.CampusId, AcademicYearId = batch.AcademicYearId,
+                AcademicTermId = batch.AcademicTermId, AcademicProgramId = batch.AcademicProgramId,
+                AcademicLevelId = batch.AcademicLevelId, AcademicBatchId = batch.Id,
+                AcademicCurriculumId = curricula[0], AcademicTrackId = batch.AcademicTrackId,
+                MediumId = batch.MediumId, ShiftId = batch.ShiftId,
+                RollNo = roll, EnrollmentDate = effectiveDate, IsActive = true, IsCurrent = true,
+                State = EnrollmentState.Active, CreatedAt = now, CreatedBy = _user.UserId
             };
             await _enrollments.AddAsync(target);
-
-            student.AcademicYearId = targetYearId;
-            student.ClassId = targetClassId;
-            student.SectionId = targetSectionId;
-            student.GroupId = targetGroupId;
-            student.Roll = targetRoll;
+            student.UpdatedAt = now; student.UpdatedBy = _user.UserId;
+            await _uow.SaveChangesAsync(ct);
 
             var record = new StudentPromotionRecord
             {
-                TenantId = tenantId,
-                PublicId = Guid.NewGuid(),
-                ClientRequestId = request.ClientRequestId,
-                StudentId = student.Id,
-                FromEnrollmentId = source.Id,
-                ToEnrollment = target,
-                FromAcademicYearId = source.AcademicYearId,
-                ToAcademicYearId = targetYear.Id,
-                FromClassId = source.ClassId,
-                ToClassId = targetClass.Id,
-                FromSectionId = source.SectionId,
-                ToSectionId = targetSection.Id,
-                FromGroupId = source.GroupId,
-                ToGroupId = targetGroup?.Id,
-                FromRoll = source.Roll,
-                ToRoll = targetRoll,
-                Decision = request.Decision,
-                ProcessedAt = now,
-                ProcessedByUserId = _currentUser.UserId,
-                Note = note
+                TenantId = tenant, ClientRequestId = request.ClientRequestId,
+                PublicId = Guid.NewGuid(), StudentId = student.Id,
+                FromEnrollmentId = source.Id, ToEnrollmentId = target.Id,
+                Decision = decision, ProcessedAt = now, ProcessedByUserId = _user.UserId,
+                Note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim(),
+                CreatedAt = now, CreatedBy = _user.UserId
             };
             await _records.AddAsync(record);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            scope.Complete();
-
+            await _uow.SaveChangesAsync(ct);
+            var result = Map(record, student, source, target, false);
+            tx.Complete();
             return new ApiResponse<StudentPromotionResultDto>
             {
-                Success = true,
-                StatusCode = 201,
-                Message = request.Decision == StudentProgressionDecision.Promoted
-                    ? "Student promoted."
-                    : "Student repeat placement recorded.",
-                Data = Map(record, student, target, false)
+                Success = true, StatusCode = 201, Message = decision == StudentProgressionDecisionType.Promoted
+                    ? "Student promoted." : "Student repeat placement recorded.", Data = result
             };
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            _logger.LogWarning(ex, "Concurrent promotion for student {Reference} in tenant {TenantId}",
-                studentReference, tenantId);
-            return Error("The student or enrollment changed. Reload and try again.", 409);
+            _logger.LogWarning(ex, "Progression concurrency conflict for tenant {TenantId}", tenant);
+            return Error("Student or enrollment changed. Reload and retry.", 409);
         }
         catch (DbUpdateException ex)
         {
-            _logger.LogWarning(ex, "Conflicting promotion for student {Reference} in tenant {TenantId}",
-                studentReference, tenantId);
-            return Error("The promotion conflicts with an existing enrollment or request.", 409);
+            _logger.LogWarning(ex, "Progression integrity conflict for tenant {TenantId}", tenant);
+            return Error("Student progression conflicts with an existing transaction.", 409);
         }
         catch (TransactionAbortedException ex)
         {
-            _logger.LogWarning(ex, "Serialized promotion transaction aborted for student {Reference} in tenant {TenantId}",
-                studentReference, tenantId);
-            return Error("The promotion conflicts with another update. Reload and try again.", 409);
+            _logger.LogWarning(ex, "Progression serialization conflict for tenant {TenantId}", tenant);
+            return Error("Concurrent progression detected. Reload and retry.", 409);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Promotion failed for student {Reference} in tenant {TenantId}",
-                studentReference, tenantId);
-            return Error("Student promotion failed.", 500);
+            _logger.LogError(ex, "Student progression failed for tenant {TenantId}", tenant);
+            return Error("Student progression could not be processed.", 500);
         }
     }
 
     public async Task<ApiResponse<IReadOnlyList<StudentPromotionHistoryDto>>> GetHistoryAsync(
-        Guid studentReference,
-        CancellationToken cancellationToken = default)
+        Guid studentReference, CancellationToken ct = default)
     {
         if (!CanManage()) return Denied<IReadOnlyList<StudentPromotionHistoryDto>>();
-        if (studentReference == Guid.Empty)
-            return ApiResponse<IReadOnlyList<StudentPromotionHistoryDto>>.ErrorResponse(
-                "Student reference is invalid.");
-
-        try
+        var tenant = _user.TenantId;
+        var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.PublicId == studentReference, ct);
+        if (student == null) return ApiResponse<IReadOnlyList<StudentPromotionHistoryDto>>.ErrorResponse("Student not found.", 404);
+        var records = await (from record in _records.GetQueryable().AsNoTracking()
+            join source in _enrollments.GetQueryable().AsNoTracking() on record.FromEnrollmentId equals source.Id
+            join target in _enrollments.GetQueryable().AsNoTracking() on record.ToEnrollmentId equals target.Id
+            where record.TenantId == tenant && source.TenantId == tenant && target.TenantId == tenant &&
+                record.StudentId == student.Id
+            orderby record.ProcessedAt descending, record.Id descending
+            select new { Record = record, Source = source, Target = target }).Take(200).ToListAsync(ct);
+        IReadOnlyList<StudentPromotionHistoryDto> result = records.Select(x => new StudentPromotionHistoryDto
         {
-            var tenantId = _currentUser.TenantId;
-            var student = await _students.GetQueryable().AsNoTracking()
-                .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.PublicId == studentReference,
-                    cancellationToken);
-            if (student == null)
-                return ApiResponse<IReadOnlyList<StudentPromotionHistoryDto>>.ErrorResponse(
-                    "Student not found.", 404);
-
-            IReadOnlyList<StudentPromotionHistoryDto> history = await _records.GetQueryable()
-                .AsNoTracking()
-                .Where(x => x.TenantId == tenantId && x.StudentId == student.Id)
-                .OrderByDescending(x => x.ProcessedAt)
-                .Select(x => new StudentPromotionHistoryDto
-                {
-                    Reference = x.PublicId,
-                    Decision = x.Decision,
-                    FromAcademicYearId = x.FromAcademicYearId,
-                    ToAcademicYearId = x.ToAcademicYearId,
-                    FromClassId = x.FromClassId,
-                    ToClassId = x.ToClassId,
-                    FromSectionId = x.FromSectionId,
-                    ToSectionId = x.ToSectionId,
-                    FromGroupId = x.FromGroupId,
-                    ToGroupId = x.ToGroupId,
-                    FromRoll = x.FromRoll,
-                    ToRoll = x.ToRoll,
-                    ProcessedAt = x.ProcessedAt,
-                    Note = x.Note
-                })
-                .ToListAsync(cancellationToken);
-            return ApiResponse<IReadOnlyList<StudentPromotionHistoryDto>>.SuccessResponse(history);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Promotion history failed for student {Reference} in tenant {TenantId}",
-                studentReference, _currentUser.TenantId);
-            return ApiResponse<IReadOnlyList<StudentPromotionHistoryDto>>.ErrorResponse(
-                "Promotion history could not be loaded.", 500);
-        }
+            Reference = x.Record.PublicId, Decision = ToLegacy(x.Record.Decision),
+            FromAcademicYearId = x.Source.AcademicYearId, ToAcademicYearId = x.Target.AcademicYearId,
+            FromClassId = x.Source.AcademicLevelId, ToClassId = x.Target.AcademicLevelId,
+            FromSectionId = x.Source.AcademicBatchId, ToSectionId = x.Target.AcademicBatchId,
+            FromGroupId = x.Source.AcademicTrackId, ToGroupId = x.Target.AcademicTrackId,
+            FromRoll = x.Source.RollNo, ToRoll = x.Target.RollNo,
+            ProcessedAt = x.Record.ProcessedAt, Note = x.Record.Note
+        }).ToList();
+        return ApiResponse<IReadOnlyList<StudentPromotionHistoryDto>>.SuccessResponse(result);
     }
 
     private async Task<ApiResponse<StudentPromotionResultDto>> ExistingResultAsync(
-        StudentPromotionRecord record,
-        Student student,
-        CancellationToken cancellationToken)
+        StudentPromotionRecord record, Student student, CancellationToken ct)
     {
-        var target = await _enrollments.FirstOrDefaultAsync(x =>
-            x.TenantId == _currentUser.TenantId && x.Id == record.ToEnrollmentId);
-        if (target == null) return Error("Existing promotion record is incomplete.", 409);
-        return ApiResponse<StudentPromotionResultDto>.SuccessResponse(
-            Map(record, student, target, true),
-            "Student progression was already processed.");
+        var rows = await _enrollments.GetQueryable().AsNoTracking().Where(x => x.TenantId == _user.TenantId &&
+            (x.Id == record.FromEnrollmentId || x.Id == record.ToEnrollmentId)).ToListAsync(ct);
+        var source = rows.FirstOrDefault(x => x.Id == record.FromEnrollmentId);
+        var target = rows.FirstOrDefault(x => x.Id == record.ToEnrollmentId);
+        return source == null || target == null
+            ? Error("Existing progression record is inconsistent.", 409)
+            : ApiResponse<StudentPromotionResultDto>.SuccessResponse(Map(record, student, source, target, true),
+                "Student progression already processed.");
     }
 
-    private bool CanManage() =>
-        _currentUser.IsAuthenticated
-        && _currentUser.TenantId > 0
-        && (_currentUser.IsTenantAdmin || _currentUser.IsInRole("Principal"));
-
-    private static bool IsValid(PromoteStudentWorkflowRequestDto? request) =>
-        request != null
-        && request.ClientRequestId != Guid.Empty
-        && request.SourceEnrollmentId > 0
-        && request.TargetAcademicYearId > 0
-        && request.TargetClassId > 0
-        && request.TargetSectionId > 0
-        && (!request.TargetGroupId.HasValue || request.TargetGroupId.Value > 0)
-        && !string.IsNullOrWhiteSpace(request.TargetRoll)
-        && request.TargetRoll.Trim().Length <= 50
-        && (request.Note == null || request.Note.Trim().Length <= 500)
-        && Enum.IsDefined(request.Decision);
-
-    private static bool MatchesCurrentPlacement(Student student, StudentEnrollment enrollment) =>
-        student.AcademicYearId == enrollment.AcademicYearId
-        && student.ClassId == enrollment.ClassId
-        && student.SectionId == enrollment.SectionId
-        && student.GroupId == enrollment.GroupId
-        && string.Equals(student.Roll, enrollment.Roll, StringComparison.OrdinalIgnoreCase);
-
-    private static bool MatchesRequest(
-        StudentPromotionRecord record,
-        PromoteStudentWorkflowRequestDto request,
-        string targetRoll) =>
-        record.ToAcademicYearId == request.TargetAcademicYearId
-        && record.ToClassId == request.TargetClassId
-        && record.ToSectionId == request.TargetSectionId
-        && record.ToGroupId == request.TargetGroupId
-        && record.Decision == request.Decision
-        && string.Equals(record.ToRoll, targetRoll, StringComparison.OrdinalIgnoreCase);
-
-    private static StudentPromotionResultDto Map(
-        StudentPromotionRecord record,
-        Student student,
-        StudentEnrollment target,
-        bool alreadyProcessed) => new()
+    private static StudentPromotionResultDto Map(StudentPromotionRecord record, Student student,
+        StudentEnrollment source, StudentEnrollment target, bool already) => new()
     {
-        Reference = record.PublicId,
-        StudentReference = student.PublicId,
-        FromEnrollmentId = record.FromEnrollmentId,
-        ToEnrollmentId = target.Id,
-        Decision = record.Decision,
-        AcademicYearId = record.ToAcademicYearId,
-        ClassId = record.ToClassId,
-        SectionId = record.ToSectionId,
-        GroupId = record.ToGroupId,
-        Roll = record.ToRoll,
-        ProcessedAt = record.ProcessedAt,
+        Reference = record.PublicId, StudentReference = student.PublicId, FromEnrollmentId = source.Id,
+        ToEnrollmentId = target.Id, Decision = ToLegacy(record.Decision),
+        AcademicYearId = target.AcademicYearId, ClassId = target.AcademicLevelId,
+        SectionId = target.AcademicBatchId, GroupId = target.AcademicTrackId,
+        Roll = target.RollNo, ProcessedAt = record.ProcessedAt,
         StudentRowVersion = Convert.ToBase64String(student.RowVersion),
-        AlreadyProcessed = alreadyProcessed
+        AlreadyProcessed = already
     };
-
+    private static StudentProgressionDecision ToLegacy(StudentProgressionDecisionType decision) =>
+        Enum.Parse<StudentProgressionDecision>(decision.ToString());
+    private bool CanManage() => _user.IsAuthenticated && _user.TenantId > 0 &&
+        (_user.IsTenantAdmin || _user.IsInRole("Principal"));
+    private static bool IsValid(PromoteStudentWorkflowRequestDto? request) =>
+        request != null && request.ClientRequestId != Guid.Empty && request.SourceEnrollmentId > 0 &&
+        request.TargetAcademicYearId > 0 && request.TargetClassId > 0 && request.TargetSectionId > 0 &&
+        request.TargetGroupId is not <= 0 && !string.IsNullOrWhiteSpace(request.TargetRoll) &&
+        request.TargetRoll.Trim().Length <= 50 && request.Note?.Length <= 500 &&
+        Enum.IsDefined(request.Decision);
     private static bool TryVersion(string? value, out byte[] version)
     {
-        try
-        {
-            version = Convert.FromBase64String(value ?? string.Empty);
-            return true;
-        }
-        catch (FormatException)
-        {
-            version = [];
-            return false;
-        }
+        version = Array.Empty<byte>();
+        if (string.IsNullOrWhiteSpace(value)) return false;
+        try { version = Convert.FromBase64String(value); return version.Length > 0; }
+        catch (FormatException) { return false; }
     }
-
     private static bool VersionsMatch(byte[] actual, byte[] expected) =>
-        actual.Length == expected.Length
-        && CryptographicOperations.FixedTimeEquals(actual, expected);
-
-    private static bool TryLegacyId(long value, out int result)
-    {
-        result = 0;
-        return value > 0 && value <= int.MaxValue && (result = (int)value) > 0;
-    }
-
-    private static bool TryNullableLegacyId(long? value, out int? result)
-    {
-        result = null;
-        if (!value.HasValue) return true;
-        if (!TryLegacyId(value.Value, out var parsed)) return false;
-        result = parsed;
-        return true;
-    }
-
-    private static ApiResponse<T> Denied<T>() =>
-        ApiResponse<T>.ErrorResponse("Student promotion access is required.", 403);
-
-    private static ApiResponse<StudentPromotionResultDto> Error(
-        string message,
-        int statusCode = 400) =>
-        ApiResponse<StudentPromotionResultDto>.ErrorResponse(message, statusCode);
+        actual.Length == expected.Length && CryptographicOperations.FixedTimeEquals(actual, expected);
+    private static ApiResponse<T> Denied<T>() => ApiResponse<T>.ErrorResponse("Student promotion permission required.", 403);
+    private static ApiResponse<StudentPromotionResultDto> Error(string message, int code = 400) =>
+        ApiResponse<StudentPromotionResultDto>.ErrorResponse(message, code);
 }
