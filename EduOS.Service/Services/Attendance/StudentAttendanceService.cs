@@ -3,37 +3,45 @@ using EduOS.Core.DTOs.Attendance;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Attendance;
 using EduOS.Core.Entities.Students;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace EduOS.Service.Services.Attendance;
 
 public sealed class StudentAttendanceService : IStudentAttendanceService
 {
-    private static readonly HashSet<string> AllowedStatuses = new(StringComparer.OrdinalIgnoreCase) { "Present", "Absent", "Late", "Leave" };
-
     private readonly IGenericRepository<StudentAttendance> _attendances;
+    private readonly IGenericRepository<AttendanceSession> _sessions;
     private readonly IGenericRepository<StudentEnrollment> _enrollments;
-    private readonly IGenericRepository<AcademicYear> _academicYears;
-    private readonly IGenericRepository<AcademicLevel> _classes;
-    private readonly IGenericRepository<AcademicBatch> _sections;
+    private readonly IGenericRepository<Student> _students;
+    private readonly IGenericRepository<AcademicYear> _years;
+    private readonly IGenericRepository<AcademicLevel> _levels;
+    private readonly IGenericRepository<AcademicBatch> _batches;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUser;
     private readonly TimeProvider _clock;
     private readonly ILogger<StudentAttendanceService> _logger;
 
-    public StudentAttendanceService(IGenericRepository<StudentAttendance> attendances, IGenericRepository<StudentEnrollment> enrollments,
-        IGenericRepository<AcademicYear> academicYears, IGenericRepository<AcademicLevel> classes, IGenericRepository<AcademicBatch> sections,
-        IUnitOfWork unitOfWork, ICurrentUserService currentUser, TimeProvider clock, ILogger<StudentAttendanceService> logger)
+    public StudentAttendanceService(IGenericRepository<StudentAttendance> attendances,
+        IGenericRepository<AttendanceSession> sessions, IGenericRepository<StudentEnrollment> enrollments,
+        IGenericRepository<Student> students, IGenericRepository<AcademicYear> years,
+        IGenericRepository<AcademicLevel> levels, IGenericRepository<AcademicBatch> batches,
+        IUnitOfWork unitOfWork, ICurrentUserService currentUser, TimeProvider clock,
+        ILogger<StudentAttendanceService> logger)
     {
         _attendances = attendances;
+        _sessions = sessions;
         _enrollments = enrollments;
-        _academicYears = academicYears;
-        _classes = classes;
-        _sections = sections;
+        _students = students;
+        _years = years;
+        _levels = levels;
+        _batches = batches;
         _unitOfWork = unitOfWork;
         _currentUser = currentUser;
         _clock = clock;
@@ -43,135 +51,207 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
     public async Task<ApiResponse<StudentAttendanceRosterDto>> GetRosterAsync(StudentAttendanceRosterQueryDto query, CancellationToken cancellationToken = default)
     {
         if (!CanManage()) return Denied();
-        var validation = await ValidateContextAsync(query, cancellationToken);
-        if (validation != null) return ApiResponse<StudentAttendanceRosterDto>.ErrorResponse(validation);
+        if (query == null) return Error("Attendance query is required.");
+        var error = await ValidateContextAsync(query, cancellationToken);
+        if (error != null) return Error(error);
         try { return ApiResponse<StudentAttendanceRosterDto>.SuccessResponse(await BuildRosterAsync(query, cancellationToken)); }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Attendance roster failed for tenant {TenantId}, class {ClassId}, section {SectionId}, date {Date}", _currentUser.TenantId, query.ClassId, query.SectionId, query.Date.Date);
-            return ApiResponse<StudentAttendanceRosterDto>.ErrorResponse("Attendance roster could not be loaded.", 500);
+            _logger.LogError(ex, "Attendance roster failed for tenant {TenantId} and batch {BatchId}", _currentUser.TenantId, query.SectionId);
+            return Error("Attendance roster could not be loaded.", 500);
         }
     }
 
     public async Task<ApiResponse<StudentAttendanceRosterDto>> SaveAsync(SaveStudentAttendanceDto request, CancellationToken cancellationToken = default)
     {
         if (!CanManage()) return Denied();
-        var validation = await ValidateContextAsync(request, cancellationToken);
-        if (validation != null) return ApiResponse<StudentAttendanceRosterDto>.ErrorResponse(validation);
-        if (request.Items == null || request.Items.Count == 0) return ApiResponse<StudentAttendanceRosterDto>.ErrorResponse("At least one attendance entry is required.");
-        if (request.Items.Any(x => x.StudentReference == Guid.Empty || !AllowedStatuses.Contains(x.Status?.Trim() ?? string.Empty))) return ApiResponse<StudentAttendanceRosterDto>.ErrorResponse("One or more attendance entries are invalid.");
-        if (request.Items.GroupBy(x => x.StudentReference).Any(g => g.Count() > 1)) return ApiResponse<StudentAttendanceRosterDto>.ErrorResponse("A student can only appear once in the attendance request.");
-        if (_currentUser.UserId <= 0 || _currentUser.UserId > int.MaxValue) return ApiResponse<StudentAttendanceRosterDto>.ErrorResponse("The current user cannot mark attendance.", 403);
+        if (request == null) return Error("Attendance request is required.");
+        var error = await ValidateContextAsync(request, cancellationToken);
+        if (error != null) return Error(error);
+        if (request.Items == null || request.Items.Count == 0 || request.Items.Any(x => x == null || x.StudentReference == Guid.Empty || !Enum.TryParse<AttendanceState>(x.Status, true, out var state) || state == AttendanceState.Excused))
+            return Error("One or more attendance entries are invalid.");
+        if (request.Items.Select(x => x.StudentReference).Distinct().Count() != request.Items.Count)
+            return Error("Each student must appear only once.");
+        if (request.Items.Any(x => x.Remarks?.Length > 500 || x.InTime < TimeSpan.Zero || x.InTime >= TimeSpan.FromDays(1) || x.OutTime < TimeSpan.Zero || x.OutTime >= TimeSpan.FromDays(1) ||
+            (x.InTime.HasValue && x.OutTime.HasValue && x.OutTime < x.InTime)))
+            return Error("Attendance times or remarks are invalid.");
 
         var tenantId = _currentUser.TenantId;
-        var date = request.Date.Date;
-        var nextDate = date.AddDays(1);
-
+        var attendanceDate = DateOnly.FromDateTime(request.Date);
+        var sessionRequestId = DailySessionKey(tenantId, request.SectionId, attendanceDate);
+        var transactionStarted = false;
         try
         {
-            var enrolledStudents = await _enrollments.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenantId && x.IsActive && x.AcademicYearId == request.AcademicYearId && x.ClassId == request.ClassId && x.SectionId == request.SectionId && x.Student != null && x.Student.IsActive)
-                .Select(x => new { x.StudentId, x.Student!.PublicId })
-                .Distinct()
+            var enrolled = await ActiveEnrollments(request, cancellationToken)
+                .Join(_students.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive),
+                    enrollment => enrollment.StudentId, student => student.Id,
+                    (enrollment, student) => new { EnrollmentId = enrollment.Id, student.PublicId })
                 .ToListAsync(cancellationToken);
-            var studentIdByReference = enrolledStudents.Where(x => x.PublicId != Guid.Empty).ToDictionary(x => x.PublicId, x => x.StudentId);
-            var requestedReferences = request.Items.Select(x => x.StudentReference).ToHashSet();
-            if (requestedReferences.Any(x => !studentIdByReference.ContainsKey(x))) return ApiResponse<StudentAttendanceRosterDto>.ErrorResponse("One or more students are not active in the selected class and section.", 409);
+            var enrollmentByReference = enrolled.ToDictionary(x => x.PublicId, x => x.EnrollmentId);
+            if (request.Items.Any(x => !enrollmentByReference.ContainsKey(x.StudentReference)))
+                return Error("One or more students are not actively enrolled in this batch.", 409);
 
-            var requestedStudentIds = requestedReferences.Select(x => studentIdByReference[x]).ToHashSet();
-            var existingRows = await _attendances.GetQueryable()
-                .Where(x => x.TenantId == tenantId && x.ClassId == request.ClassId && x.SectionId == request.SectionId && x.Date >= date && x.Date < nextDate && requestedStudentIds.Contains(x.StudentId))
-                .OrderBy(x => x.Id).ToListAsync(cancellationToken);
-            var existingByStudent = existingRows.GroupBy(x => x.StudentId).ToDictionary(g => g.Key, g => g.First());
+            await _unitOfWork.BeginTransactionAsync();
+            transactionStarted = true;
+            var session = await _sessions.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId &&
+                x.AcademicBatchId == request.SectionId && x.AttendanceDate == attendanceDate &&
+                x.SubjectOfferingId == null, cancellationToken);
+            if (session != null && session.IsFinalized)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                transactionStarted = false;
+                return Error("Finalized attendance cannot be edited.", 409);
+            }
             var now = _clock.GetUtcNow().UtcDateTime;
+            if (session == null)
+            {
+                session = new AttendanceSession
+                {
+                    TenantId = tenantId, ClientRequestId = sessionRequestId,
+                    AcademicBatchId = request.SectionId, AttendanceDate = attendanceDate,
+                    CreatedAt = now, CreatedBy = _currentUser.UserId
+                };
+                await _sessions.AddAsync(session);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+
+            var enrollmentIds = request.Items.Select(x => enrollmentByReference[x.StudentReference]).ToArray();
+            var existingRows = await _attendances.GetQueryable().Where(x => x.TenantId == tenantId &&
+                x.AttendanceSessionId == session.Id && enrollmentIds.Contains(x.StudentEnrollmentId))
+                .ToDictionaryAsync(x => x.StudentEnrollmentId, cancellationToken);
 
             foreach (var item in request.Items)
             {
-                var studentId = studentIdByReference[item.StudentReference];
-                var status = NormalizeStatus(item.Status);
-                var remarks = TrimToNull(item.Remarks);
-                if (remarks?.Length > 500) return ApiResponse<StudentAttendanceRosterDto>.ErrorResponse("Attendance remarks cannot exceed 500 characters.");
-                if (item.OutTime.HasValue && item.InTime.HasValue && item.OutTime.Value < item.InTime.Value) return ApiResponse<StudentAttendanceRosterDto>.ErrorResponse("Out time cannot be earlier than in time.");
-
-                if (existingByStudent.TryGetValue(studentId, out var attendance))
+                var enrollmentId = enrollmentByReference[item.StudentReference];
+                var state = Enum.Parse<AttendanceState>(item.Status, true);
+                if (!existingRows.TryGetValue(enrollmentId, out var attendance))
                 {
-                    attendance.Status = status;
-                    attendance.InTime = item.InTime;
-                    attendance.OutTime = item.OutTime;
-                    attendance.Remarks = remarks;
-                    attendance.MarkedBy = (int)_currentUser.UserId;
-                    attendance.UpdatedAt = now;
-                    attendance.UpdatedBy = _currentUser.UserId;
+                    attendance = new StudentAttendance
+                    {
+                        TenantId = tenantId, AttendanceSessionId = session.Id,
+                        StudentEnrollmentId = enrollmentId,
+                        CreatedAt = now, CreatedBy = _currentUser.UserId
+                    };
+                    await _attendances.AddAsync(attendance);
                 }
-                else
-                {
-                    await _attendances.AddAsync(new StudentAttendance { TenantId = tenantId, StudentId = studentId, ClassId = request.ClassId, SectionId = request.SectionId, Date = date, Status = status, InTime = item.InTime, OutTime = item.OutTime, Remarks = remarks, MarkedBy = (int)_currentUser.UserId, CreatedAt = now, CreatedBy = _currentUser.UserId });
-                }
+                attendance.State = state;
+                attendance.CheckInTime = item.InTime.HasValue ? TimeOnly.FromTimeSpan(item.InTime.Value) : null;
+                attendance.CheckOutTime = item.OutTime.HasValue ? TimeOnly.FromTimeSpan(item.OutTime.Value) : null;
+                attendance.Remarks = string.IsNullOrWhiteSpace(item.Remarks) ? null : item.Remarks.Trim();
+                attendance.RecordedByUserId = _currentUser.UserId;
+                attendance.RecordedAt = now;
+                attendance.UpdatedAt = now;
+                attendance.UpdatedBy = _currentUser.UserId;
             }
-
             await _unitOfWork.SaveChangesAsync(cancellationToken);
-            return ApiResponse<StudentAttendanceRosterDto>.SuccessResponse(await BuildRosterAsync(request, cancellationToken), "Attendance saved successfully.");
+            await _unitOfWork.CommitTransactionAsync();
+            transactionStarted = false;
+            return ApiResponse<StudentAttendanceRosterDto>.SuccessResponse(await BuildRosterAsync(request, cancellationToken), "Attendance saved.");
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            _logger.LogWarning(ex, "Concurrent attendance update for tenant {TenantId}, class {ClassId}, section {SectionId}, date {Date}", tenantId, request.ClassId, request.SectionId, date);
-            return ApiResponse<StudentAttendanceRosterDto>.ErrorResponse("Attendance changed by another user. Reload and try again.", 409);
+            _logger.LogWarning(ex, "Concurrent attendance update rejected for tenant {TenantId}", tenantId);
+            return Error("Attendance was changed by another user. Reload and retry.", 409);
         }
         catch (DbUpdateException ex)
         {
-            _logger.LogWarning(ex, "Attendance integrity conflict for tenant {TenantId}, class {ClassId}, section {SectionId}, date {Date}", tenantId, request.ClassId, request.SectionId, date);
-            return ApiResponse<StudentAttendanceRosterDto>.ErrorResponse("Attendance conflicts with an existing daily record. Reload and try again.", 409);
+            _logger.LogWarning(ex, "Duplicate or invalid attendance rejected for tenant {TenantId}", tenantId);
+            return Error("Attendance conflicts with an existing session or record. Reload and retry.", 409);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Attendance save failed for tenant {TenantId}, class {ClassId}, section {SectionId}, date {Date}", tenantId, request.ClassId, request.SectionId, date);
-            return ApiResponse<StudentAttendanceRosterDto>.ErrorResponse("Attendance could not be saved.", 500);
+            _logger.LogError(ex, "Attendance save failed for tenant {TenantId}", tenantId);
+            return Error("Attendance could not be saved.", 500);
+        }
+        finally
+        {
+            if (transactionStarted) await _unitOfWork.RollbackTransactionAsync();
         }
     }
 
-    private async Task<StudentAttendanceRosterDto> BuildRosterAsync(StudentAttendanceRosterQueryDto query, CancellationToken cancellationToken)
+    private async Task<StudentAttendanceRosterDto> BuildRosterAsync(StudentAttendanceRosterQueryDto query, CancellationToken ct)
     {
         var tenantId = _currentUser.TenantId;
-        var date = query.Date.Date;
-        var nextDate = date.AddDays(1);
-        var enrollments = await _enrollments.GetQueryable().AsNoTracking().Include(x => x.Student)
-            .Where(x => x.TenantId == tenantId && x.IsActive && x.AcademicYearId == query.AcademicYearId && x.ClassId == query.ClassId && x.SectionId == query.SectionId && x.Student != null && x.Student.IsActive)
-            .OrderBy(x => x.Roll).ThenBy(x => x.Student!.FullName).ToListAsync(cancellationToken);
-        var studentIds = enrollments.Select(x => x.StudentId).Distinct().ToArray();
-        var attendanceRows = studentIds.Length == 0 ? new List<StudentAttendance>() : await _attendances.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && x.ClassId == query.ClassId && x.SectionId == query.SectionId && x.Date >= date && x.Date < nextDate && studentIds.Contains(x.StudentId))
-            .OrderBy(x => x.Id).ToListAsync(cancellationToken);
-        var attendanceByStudent = attendanceRows.GroupBy(x => x.StudentId).ToDictionary(g => g.Key, g => g.First());
-        var students = enrollments.GroupBy(x => x.StudentId).Select(g => g.First()).Select(x =>
+        var date = DateOnly.FromDateTime(query.Date);
+        var enrollments = await ActiveEnrollments(query, ct)
+            .Join(_students.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive),
+                enrollment => enrollment.StudentId, student => student.Id,
+                (enrollment, student) => new { EnrollmentId = enrollment.Id, student.PublicId, student.StudentCode, student.FullName, enrollment.RollNo })
+            .OrderBy(x => x.RollNo).ThenBy(x => x.FullName).ToListAsync(ct);
+        var session = await _sessions.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenantId &&
+            x.AcademicBatchId == query.SectionId && x.AttendanceDate == date && x.SubjectOfferingId == null, ct);
+        var ids = enrollments.Select(x => x.EnrollmentId).ToArray();
+        var records = session == null || ids.Length == 0 ? new List<StudentAttendance>() :
+            await _attendances.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenantId &&
+                x.AttendanceSessionId == session.Id && ids.Contains(x.StudentEnrollmentId)).ToListAsync(ct);
+        var byEnrollment = records.ToDictionary(x => x.StudentEnrollmentId);
+        var students = enrollments.Select(x =>
         {
-            attendanceByStudent.TryGetValue(x.StudentId, out var a);
-            return new StudentAttendanceRosterItemDto { StudentReference = x.Student?.PublicId ?? Guid.Empty, StudentCode = x.Student?.StudentCode ?? string.Empty, Roll = x.Roll, StudentName = x.Student?.FullName ?? string.Empty, Status = a?.Status, InTime = a?.InTime, OutTime = a?.OutTime, Remarks = a?.Remarks };
+            byEnrollment.TryGetValue(x.EnrollmentId, out var attendance);
+            return new StudentAttendanceRosterItemDto
+            {
+                StudentReference = x.PublicId, StudentCode = x.StudentCode,
+                Roll = x.RollNo, StudentName = x.FullName,
+                Status = attendance?.State.ToString(),
+                InTime = attendance?.CheckInTime?.ToTimeSpan(),
+                OutTime = attendance?.CheckOutTime?.ToTimeSpan(),
+                Remarks = attendance?.Remarks
+            };
         }).ToList();
-        return new StudentAttendanceRosterDto { Date = date, AcademicYearId = query.AcademicYearId, ClassId = query.ClassId, SectionId = query.SectionId, Students = students, Summary = BuildSummary(students) };
+        return new StudentAttendanceRosterDto
+        {
+            Date = query.Date.Date, AcademicYearId = query.AcademicYearId,
+            ClassId = query.ClassId, SectionId = query.SectionId,
+            Students = students,
+            Summary = new StudentAttendanceSummaryDto
+            {
+                TotalStudents = students.Count,
+                Marked = students.Count(x => x.Status != null),
+                Present = students.Count(x => x.Status == nameof(AttendanceState.Present)),
+                Absent = students.Count(x => x.Status == nameof(AttendanceState.Absent)),
+                Late = students.Count(x => x.Status == nameof(AttendanceState.Late)),
+                Leave = students.Count(x => x.Status == nameof(AttendanceState.Leave)),
+                Unmarked = students.Count(x => x.Status == null)
+            }
+        };
     }
 
-    private async Task<string?> ValidateContextAsync(StudentAttendanceRosterQueryDto query, CancellationToken cancellationToken)
+    private IQueryable<StudentEnrollment> ActiveEnrollments(StudentAttendanceRosterQueryDto query, CancellationToken ct) =>
+        _enrollments.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId &&
+            x.IsActive && x.IsCurrent && x.AcademicYearId == query.AcademicYearId &&
+            x.AcademicLevelId == query.ClassId && x.AcademicBatchId == query.SectionId);
+
+    private async Task<string?> ValidateContextAsync(StudentAttendanceRosterQueryDto query, CancellationToken ct)
     {
-        if (query.AcademicYearId <= 0 || query.ClassId <= 0 || query.SectionId <= 0) return "Academic year, class and section are required.";
-        var date = query.Date.Date;
-        var today = _clock.GetLocalNow().Date;
-        if (date < new DateTime(2000, 1, 1) || date > today) return "Attendance date is invalid.";
-        var tenantId = _currentUser.TenantId;
-        var year = await _academicYears.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == query.AcademicYearId && x.IsActive, cancellationToken);
+        if (query.AcademicYearId <= 0 || query.ClassId <= 0 || query.SectionId <= 0) return "Year, level and batch are required.";
+        var date = DateOnly.FromDateTime(query.Date);
+        var now = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+        if (date < new DateOnly(2000, 1, 1) || date > now) return "Attendance date is invalid.";
+        var tenant = _currentUser.TenantId;
+        var year = await _years.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
+            x.Id == query.AcademicYearId && x.IsActive, ct);
         if (year == null) return "Academic year is unavailable.";
-        if (date < year.StartDate.Date || date > year.EndDate.Date) return "Attendance date is outside the selected academic year.";
-        if (!await _classes.AnyAsync(x => x.TenantId == tenantId && x.Id == query.ClassId && x.IsActive)) return "AcademicLevel is unavailable.";
-        if (!await _sections.AnyAsync(x => x.TenantId == tenantId && x.Id == query.SectionId && x.ClassId == query.ClassId && x.IsActive)) return "AcademicBatch is unavailable for the selected class.";
+        if (date < year.StartDate || date > year.EndDate) return "Attendance date is outside the selected academic year.";
+        var batch = await _batches.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
+            x.Id == query.SectionId && x.IsActive && x.AcademicLevelId == query.ClassId &&
+            x.AcademicYearId == query.AcademicYearId, ct);
+        if (batch == null) return "The batch does not belong to the selected year and level.";
+        if (!await _levels.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.Id == query.ClassId &&
+            x.AcademicProgramId == batch.AcademicProgramId && x.IsActive, ct))
+            return "Academic level is unavailable.";
         return null;
     }
 
-    private bool CanManage() => _currentUser.TenantId > 0 && (_currentUser.IsTenantAdmin || _currentUser.IsInRole("Principal") || _currentUser.IsInRole("VicePrincipal") || _currentUser.IsInRole("Teacher"));
-    private static ApiResponse<StudentAttendanceRosterDto> Denied() => ApiResponse<StudentAttendanceRosterDto>.ErrorResponse("Attendance access is required.", 403);
-    private static StudentAttendanceSummaryDto BuildSummary(IEnumerable<StudentAttendanceRosterItemDto> students)
+    private static Guid DailySessionKey(long tenantId, int batchId, DateOnly date)
     {
-        var rows = students.ToList();
-        return new StudentAttendanceSummaryDto { TotalStudents = rows.Count, Marked = rows.Count(x => !string.IsNullOrWhiteSpace(x.Status)), Present = rows.Count(x => string.Equals(x.Status, "Present", StringComparison.OrdinalIgnoreCase)), Absent = rows.Count(x => string.Equals(x.Status, "Absent", StringComparison.OrdinalIgnoreCase)), Late = rows.Count(x => string.Equals(x.Status, "Late", StringComparison.OrdinalIgnoreCase)), Leave = rows.Count(x => string.Equals(x.Status, "Leave", StringComparison.OrdinalIgnoreCase)), Unmarked = rows.Count(x => string.IsNullOrWhiteSpace(x.Status)) };
+        var payload = Encoding.UTF8.GetBytes($"attendance-daily/v1/{tenantId}/{batchId}/{date:yyyy-MM-dd}");
+        var hash = SHA256.HashData(payload);
+        return new Guid(hash.AsSpan(0, 16));
     }
-    private static string NormalizeStatus(string value) => AllowedStatuses.First(x => string.Equals(x, value.Trim(), StringComparison.OrdinalIgnoreCase));
-    private static string? TrimToNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private bool CanManage() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0 &&
+        (_currentUser.IsTenantAdmin || _currentUser.IsInRole("Principal") || _currentUser.IsInRole("VicePrincipal") || _currentUser.IsInRole("Teacher"));
+    private static ApiResponse<StudentAttendanceRosterDto> Denied() => Error("Attendance permission is required.", 403);
+    private static ApiResponse<StudentAttendanceRosterDto> Error(string message, int code = 400) =>
+        ApiResponse<StudentAttendanceRosterDto>.ErrorResponse(message, code);
 }
