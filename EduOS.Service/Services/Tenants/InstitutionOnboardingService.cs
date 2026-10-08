@@ -183,12 +183,12 @@ public sealed class InstitutionOnboardingService : IInstitutionOnboardingService
             var result = await _users.ConfirmEmailAsync(user, token);
             if (!result.Succeeded) return false;
             var matching = await (from membership in _memberships.GetQueryable().IgnoreQueryFilters().AsNoTracking()
-                join tenant in _tenants.GetQueryable().IgnoreQueryFilters() on membership.TenantId equals tenant.Id
+                join institution in _tenants.GetQueryable().IgnoreQueryFilters() on membership.TenantId equals institution.Id
                 where membership.UserId == user.Id && membership.IsOwner &&
-                    membership.Status == MembershipStatus.Active && tenant.IsActive &&
-                    tenant.State != TenantState.Suspended && tenant.State != TenantState.Closed &&
-                    tenant.Email == user.Email
-                select tenant.Id).Take(2).ToListAsync();
+                    membership.Status == MembershipStatus.Active && institution.IsActive &&
+                    institution.State != TenantState.Suspended && institution.State != TenantState.Closed &&
+                    institution.Email == user.Email
+                select institution.Id).Take(2).ToListAsync();
             if (matching.Count != 1) return false;
             var tenant = await _tenants.GetQueryable().IgnoreQueryFilters()
                 .FirstOrDefaultAsync(x => x.Id == matching[0]);
