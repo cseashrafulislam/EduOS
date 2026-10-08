@@ -4,13 +4,14 @@ using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Admission;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Enums;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using System.Net.Mail;
 using System.Security.Cryptography;
+using System.Transactions;
 
 namespace EduOS.Service.Services.Admission;
 
@@ -18,534 +19,391 @@ public sealed class AdmissionApplicationService : IAdmissionApplicationService
 {
     private readonly IGenericRepository<AdmissionApplicant> _applications;
     private readonly IGenericRepository<AdmissionIntakeForm> _forms;
+    private readonly IGenericRepository<AdmissionFormField> _fields;
+    private readonly IGenericRepository<AdmissionApplicantFieldValue> _values;
+    private readonly IGenericRepository<AdmissionApplicantGuardian> _guardians;
     private readonly IGenericRepository<AdmissionApplicantDocument> _documents;
-    private readonly IGenericRepository<AcademicYear> _academicYears;
-    private readonly IGenericRepository<AcademicTerm> _academicTerms;
+    private readonly IGenericRepository<AdmissionDecision> _decisions;
+    private readonly IGenericRepository<AcademicYear> _years;
+    private readonly IGenericRepository<AcademicTerm> _terms;
     private readonly IGenericRepository<Campus> _campuses;
-    private readonly IGenericRepository<AcademicLevel> _academicUnits;
-    private readonly IUnitOfWork _unitOfWork;
-    private readonly ICurrentUserService _currentUser;
+    private readonly IGenericRepository<AcademicLevel> _levels;
+    private readonly IUnitOfWork _uow;
+    private readonly ICurrentUserService _user;
     private readonly TimeProvider _clock;
     private readonly ILogger<AdmissionApplicationService> _logger;
 
-    public AdmissionApplicationService(
-        IGenericRepository<AdmissionApplicant> applications,
-        IGenericRepository<AdmissionIntakeForm> forms,
-        IGenericRepository<AdmissionApplicantDocument> documents,
-        IGenericRepository<AcademicYear> academicYears,
-        IGenericRepository<AcademicTerm> academicTerms,
-        IGenericRepository<Campus> campuses,
-        IGenericRepository<AcademicLevel> academicUnits,
-        IUnitOfWork unitOfWork,
-        ICurrentUserService currentUser,
-        TimeProvider clock,
+    public AdmissionApplicationService(IGenericRepository<AdmissionApplicant> applications,
+        IGenericRepository<AdmissionIntakeForm> forms, IGenericRepository<AdmissionFormField> fields,
+        IGenericRepository<AdmissionApplicantFieldValue> values,
+        IGenericRepository<AdmissionApplicantGuardian> guardians,
+        IGenericRepository<AdmissionApplicantDocument> documents, IGenericRepository<AdmissionDecision> decisions,
+        IGenericRepository<AcademicYear> years, IGenericRepository<AcademicTerm> terms,
+        IGenericRepository<Campus> campuses, IGenericRepository<AcademicLevel> levels,
+        IUnitOfWork unitOfWork, ICurrentUserService currentUser, TimeProvider clock,
         ILogger<AdmissionApplicationService> logger)
     {
-        _applications = applications;
-        _forms = forms;
-        _documents = documents;
-        _academicYears = academicYears;
-        _academicTerms = academicTerms;
-        _campuses = campuses;
-        _academicUnits = academicUnits;
-        _unitOfWork = unitOfWork;
-        _currentUser = currentUser;
-        _clock = clock;
-        _logger = logger;
+        _applications = applications; _forms = forms; _fields = fields; _values = values;
+        _guardians = guardians; _documents = documents; _decisions = decisions;
+        _years = years; _terms = terms; _campuses = campuses; _levels = levels;
+        _uow = unitOfWork; _user = currentUser; _clock = clock; _logger = logger;
     }
 
-    public async Task<ApiResponse<AdmissionApplicationOptionsDto>> GetOptionsAsync(CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<AdmissionApplicationOptionsDto>> GetOptionsAsync(CancellationToken ct = default)
     {
         if (!CanManage()) return Denied<AdmissionApplicationOptionsDto>();
-
-        var tenantId = _currentUser.TenantId;
-        try
+        var tenant = _user.TenantId;
+        var now = _clock.GetUtcNow().UtcDateTime;
+        var years = await _years.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant && x.IsActive)
+            .OrderByDescending(x => x.StartDate)
+            .Select(x => new AdmissionReferenceOptionDto { Id = x.Id, Name = x.Name }).Take(100).ToListAsync(ct);
+        var yearIds = years.Select(x => x.Id).ToArray();
+        var terms = await _terms.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant && x.IsActive && yearIds.Contains(x.AcademicYearId))
+            .OrderBy(x => x.DisplayOrder).Select(x => new AdmissionReferenceOptionDto
+            { Id = x.Id, Name = x.Name, ParentId = x.AcademicYearId }).Take(200).ToListAsync(ct);
+        var campuses = await _campuses.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant && x.IsActive)
+            .OrderBy(x => x.Name).Select(x => new AdmissionReferenceOptionDto { Id = x.Id, Name = x.Name }).Take(200).ToListAsync(ct);
+        var levels = await _levels.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant && x.IsActive)
+            .OrderBy(x => x.LevelNo).Select(x => new AdmissionReferenceOptionDto { Id = x.Id, Name = x.Name }).Take(200).ToListAsync(ct);
+        var formRows = await _forms.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
+            x.State == AdmissionFormState.Published && (!x.OpensAt.HasValue || x.OpensAt <= now) &&
+            (!x.ClosesAt.HasValue || x.ClosesAt >= now)).OrderBy(x => x.Title).Take(100).ToListAsync(ct);
+        var openForms = formRows.Select(x => new PublicAdmissionIntakeFormDto
         {
-            var years = await _academicYears.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenantId && x.IsActive)
-                .OrderByDescending(x => x.StartDate)
-                .Select(x => new AdmissionReferenceOptionDto { Id = x.Id, Name = x.Name })
-                .ToListAsync(cancellationToken);
-            var yearIds = years.Select(x => x.Id).ToArray();
-            var terms = await _academicTerms.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenantId && x.IsActive && yearIds.Contains(x.AcademicYearId))
-                .OrderBy(x => x.DisplayOrder)
-                .ThenBy(x => x.Name)
-                .Select(x => new AdmissionReferenceOptionDto { Id = x.Id, Name = x.Name, ParentId = x.AcademicYearId })
-                .ToListAsync(cancellationToken);
-            var campuses = await _campuses.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenantId && x.IsActive)
-                .OrderByDescending(x => x.IsHeadOffice)
-                .ThenBy(x => x.Name)
-                .Select(x => new AdmissionReferenceOptionDto { Id = x.Id, Name = x.Name })
-                .ToListAsync(cancellationToken);
-            var units = await _academicUnits.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenantId && x.IsActive)
-                .OrderBy(x => x.NumericValue)
-                .ThenBy(x => x.Name)
-                .Select(x => new AdmissionReferenceOptionDto { Id = x.Id, Name = x.Name })
-                .ToListAsync(cancellationToken);
-
-            return ApiResponse<AdmissionApplicationOptionsDto>.SuccessResponse(new AdmissionApplicationOptionsDto
-            {
-                AcademicYears = years,
-                AcademicTerms = terms,
-                Campuses = campuses,
-                AcademicUnits = units
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Admission options failed for tenant {TenantId}", tenantId);
-            return ApiResponse<AdmissionApplicationOptionsDto>.ErrorResponse("Admission options could not be loaded.", 500);
-        }
+            Reference = x.PublicId, Code = x.Code, Title = x.Title, CampusId = x.CampusId,
+            AcademicYearId = x.AcademicYearId, AcademicTermId = x.AcademicTermId,
+            AcademicUnitId = x.AcademicLevelId, OpensAtUtc = x.OpensAt ?? DateTime.MinValue,
+            ClosesAtUtc = x.ClosesAt ?? DateTime.MaxValue, ApplicationFee = x.ApplicationFee,
+            Currency = x.CurrencyCode
+        }).ToList();
+        return ApiResponse<AdmissionApplicationOptionsDto>.SuccessResponse(new AdmissionApplicationOptionsDto
+        { AcademicYears = years, AcademicTerms = terms, Campuses = campuses, AcademicUnits = levels, OpenForms = openForms });
     }
 
     public async Task<ApiResponse<PagedResult<AdmissionApplicationListItemDto>>> GetPageAsync(
-        AdmissionApplicationQueryDto request,
-        CancellationToken cancellationToken = default)
+        AdmissionApplicationQueryDto request, CancellationToken ct = default)
     {
         if (!CanManage()) return Denied<PagedResult<AdmissionApplicationListItemDto>>();
-        if (request.Page < 1 || request.PageSize is < 1 or > 100)
-            return ApiResponse<PagedResult<AdmissionApplicationListItemDto>>.ErrorResponse("Pagination is invalid.");
-        if (request.Status.HasValue && !Enum.IsDefined(request.Status.Value))
-            return ApiResponse<PagedResult<AdmissionApplicationListItemDto>>.ErrorResponse("Application status is invalid.");
-
-        var tenantId = _currentUser.TenantId;
-        try
+        if (request == null || request.Page < 1 || request.PageSize is < 1 or > 100 ||
+            request.Search?.Length > 100 || request.Status.HasValue && !Enum.IsDefined(request.Status.Value))
+            return ApiResponse<PagedResult<AdmissionApplicationListItemDto>>.ErrorResponse("Filter or pagination is invalid.");
+        var tenant = _user.TenantId;
+        var q = from app in _applications.GetQueryable().AsNoTracking()
+                join form in _forms.GetQueryable().AsNoTracking() on app.AdmissionIntakeFormId equals form.Id
+                join year in _years.GetQueryable().AsNoTracking() on form.AcademicYearId equals year.Id
+                join campus in _campuses.GetQueryable().AsNoTracking() on form.CampusId equals campus.Id
+                join level in _levels.GetQueryable().AsNoTracking() on form.AcademicLevelId equals level.Id
+                where app.TenantId == tenant && form.TenantId == tenant && year.TenantId == tenant &&
+                    campus.TenantId == tenant && level.TenantId == tenant
+                select new { app, form, year, campus, level };
+        var term = request.Search?.Trim();
+        if (!string.IsNullOrWhiteSpace(term))
+            q = q.Where(x => x.app.ApplicationNumber.Contains(term) || x.app.FullName.Contains(term));
+        if (request.AcademicYearId.HasValue) q = q.Where(x => x.form.AcademicYearId == request.AcademicYearId.Value);
+        if (request.CampusId.HasValue) q = q.Where(x => x.form.CampusId == request.CampusId.Value);
+        if (request.AcademicUnitId.HasValue) q = q.Where(x => x.form.AcademicLevelId == request.AcademicUnitId.Value);
+        if (request.Status.HasValue)
         {
-            var query = _applications.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenantId);
-            var search = TrimToNull(request.Search);
-            if (search != null)
-                query = query.Where(x => x.ApplicationNumber.Contains(search) || x.ApplicantName.Contains(search));
-            if (request.Status.HasValue) query = query.Where(x => x.Status == request.Status.Value);
-            if (request.AcademicYearId.HasValue) query = query.Where(x => x.AcademicYearId == request.AcademicYearId.Value);
-            if (request.CampusId.HasValue) query = query.Where(x => x.CampusId == request.CampusId.Value);
-            if (request.AcademicUnitId.HasValue) query = query.Where(x => x.AcademicUnitId == request.AcademicUnitId.Value);
-
-            var total = await query.CountAsync(cancellationToken);
-            var records = await query
-                .Include(x => x.AcademicYear)
-                .Include(x => x.Campus)
-                .Include(x => x.AcademicUnit)
-                .OrderByDescending(x => x.SubmittedAtUtc)
-                .ThenByDescending(x => x.Id)
-                .Skip((request.Page - 1) * request.PageSize)
-                .Take(request.PageSize)
-                .ToListAsync(cancellationToken);
-
-            return ApiResponse<PagedResult<AdmissionApplicationListItemDto>>.SuccessResponse(new PagedResult<AdmissionApplicationListItemDto>
+            var state = ToState(request.Status.Value);
+            if (!state.HasValue) return ApiResponse<PagedResult<AdmissionApplicationListItemDto>>.ErrorResponse("Unsupported application status filter.");
+            q = q.Where(x => x.app.State == state.Value);
+        }
+        var total = await q.CountAsync(ct);
+        var skip = ((long)request.Page - 1) * request.PageSize;
+        if (skip > int.MaxValue) return ApiResponse<PagedResult<AdmissionApplicationListItemDto>>.ErrorResponse("Page is outside the result range.");
+        var data = await q.OrderByDescending(x => x.app.SubmittedAt).ThenByDescending(x => x.app.Id)
+            .Skip((int)skip).Take(request.PageSize).Select(x => new
             {
-                Items = records.Select(MapListItem).ToList(),
-                TotalCount = total,
-                Page = request.Page,
-                PageSize = request.PageSize
-            });
-        }
-        catch (Exception ex)
+                x.app.PublicId, x.app.ApplicationNumber, x.app.FullName, x.app.Phone, x.app.State,
+                x.app.SubmittedAt, x.app.RowVersion, YearId = x.year.Id, YearName = x.year.Name,
+                CampusId = x.campus.Id, CampusName = x.campus.Name,
+                LevelId = x.level.Id, LevelName = x.level.Name
+            }).ToListAsync(ct);
+        var rows = data.Select(x => new AdmissionApplicationListItemDto
         {
-            _logger.LogError(ex, "Admission list failed for tenant {TenantId}", tenantId);
-            return ApiResponse<PagedResult<AdmissionApplicationListItemDto>>.ErrorResponse("Applications could not be loaded.", 500);
-        }
+            Reference = x.PublicId, ApplicationNumber = x.ApplicationNumber,
+            ApplicantName = x.FullName, MaskedMobile = Mask(x.Phone),
+            AcademicYearId = x.YearId, AcademicYearName = x.YearName,
+            CampusId = x.CampusId, CampusName = x.CampusName,
+            AcademicUnitId = x.LevelId, AcademicUnitName = x.LevelName,
+            Status = ToLegacy(x.State), SubmittedAtUtc = x.SubmittedAt ?? DateTime.MinValue,
+            RowVersion = Convert.ToBase64String(x.RowVersion)
+        }).ToList();
+        return ApiResponse<PagedResult<AdmissionApplicationListItemDto>>.SuccessResponse(new PagedResult<AdmissionApplicationListItemDto>
+        { Items = rows, TotalCount = total, Page = request.Page, PageSize = request.PageSize });
     }
 
-    public async Task<ApiResponse<AdmissionApplicationDetailsDto>> GetByReferenceAsync(
-        Guid reference,
-        CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<AdmissionApplicationDetailsDto>> GetByReferenceAsync(Guid reference, CancellationToken ct = default)
     {
         if (!CanManage()) return Denied<AdmissionApplicationDetailsDto>();
-        if (reference == Guid.Empty) return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Application reference is invalid.");
-
-        var application = await FindDetailsAsync(reference, cancellationToken);
-        return application == null
-            ? ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Application not found.", 404)
-            : ApiResponse<AdmissionApplicationDetailsDto>.SuccessResponse(MapDetails(application));
+        if (reference == Guid.Empty) return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Applicant reference is invalid.");
+        var dto = await ReadDetailsAsync(reference, ct);
+        return dto == null ? ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Applicant not found.", 404) :
+            ApiResponse<AdmissionApplicationDetailsDto>.SuccessResponse(dto);
     }
 
-    public async Task<ApiResponse<AdmissionApplicationCreatedDto>> CreateAsync(
-        CreateAdmissionApplicationDto request,
-        CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<AdmissionApplicationCreatedDto>> CreateAsync(CreateAdmissionApplicationDto request,
+        CancellationToken ct = default)
     {
         if (!CanManage()) return Denied<AdmissionApplicationCreatedDto>();
-        if (request.ClientRequestId == Guid.Empty)
-            return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Client request reference is required.");
-
-        var now = _clock.GetUtcNow().UtcDateTime;
-        if (request.DateOfBirth.Date < new DateTime(1900, 1, 1) || request.DateOfBirth.Date > now.Date)
-            return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Date of birth is invalid.");
-        if (!Enum.IsDefined(request.Gender))
-            return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Gender is invalid.");
-        if (!TryNormalizeMobile(request.PrimaryMobile, out var primaryMobile))
-            return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Primary mobile number is invalid.");
-        if (!TryNormalizeOptionalMobile(request.GuardianMobile, out var guardianMobile))
-            return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Guardian mobile number is invalid.");
-
-        var applicantName = TrimToNull(request.ApplicantName);
-        if (applicantName == null || applicantName.Length > 200)
-            return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Applicant name is required.");
-        if (!OptionalLengthsAreValid(request))
-            return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("One or more application fields are too long.");
-        var email = TrimToNull(request.Email);
-        if (email != null && (email.Length > 254 || !MailAddress.TryCreate(email, out var parsedEmail)
-                              || !string.Equals(parsedEmail.Address, email, StringComparison.OrdinalIgnoreCase)))
-        {
-            return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Email address is invalid.");
-        }
-        var isMinor = request.DateOfBirth.Date > now.Date.AddYears(-18);
-        if (isMinor && (TrimToNull(request.GuardianName) == null
-                        || TrimToNull(request.GuardianRelation) == null
-                        || guardianMobile == null))
-        {
-            return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Guardian name, relation and mobile are required for a minor applicant.");
-        }
-
-        var language = request.PreferredLanguage?.Trim();
-        if (language is not ("en-BD" or "bn-BD"))
-            return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Preferred language is invalid.");
-
-        var tenantId = _currentUser.TenantId;
+        if (request == null || request.ClientRequestId == Guid.Empty || request.AdmissionFormReference is null ||
+            string.IsNullOrWhiteSpace(request.ApplicantName) || request.ApplicantName.Trim().Length > 200 ||
+            string.IsNullOrWhiteSpace(request.PrimaryMobile) || request.PrimaryMobile.Trim().Length > 30 ||
+            request.DateOfBirth.Date < new DateTime(1900, 1, 1) ||
+            request.DateOfBirth.Date > _clock.GetUtcNow().UtcDateTime.Date ||
+            !Enum.IsDefined(request.Gender))
+            return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("A valid applicant and configured intake form are required.");
+        if (request.PreviousInstitution != null && !string.IsNullOrWhiteSpace(request.PreviousInstitution))
+            return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Previous institution is not supported by the canonical applicant record.");
+        if (!string.IsNullOrWhiteSpace(request.PermanentAddress) && !string.IsNullOrWhiteSpace(request.PresentAddress) &&
+            !string.Equals(request.PermanentAddress.Trim(), request.PresentAddress.Trim(), StringComparison.Ordinal))
+            return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Distinct permanent and present addresses require a separate address workflow.");
+        var tenant = _user.TenantId;
         try
         {
-            var existing = await _applications.GetQueryable().Include(x => x.AdmissionIntakeForm)
-                .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.ClientRequestId == request.ClientRequestId, cancellationToken);
+            using var tx = new TransactionScope(TransactionScopeOption.Required,
+                new TransactionOptions { IsolationLevel = IsolationLevel.Serializable }, TransactionScopeAsyncFlowOption.Enabled);
+            var form = await _forms.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.PublicId == request.AdmissionFormReference &&
+                x.State == AdmissionFormState.Published, ct);
+            if (form == null) return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Published intake form not found.", 404);
+            var now = _clock.GetUtcNow().UtcDateTime;
+            if (form.OpensAt > now || form.ClosesAt < now)
+                return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Intake form is not open.", 409);
+            if (form.AcademicYearId != request.AcademicYearId || form.CampusId != request.CampusId ||
+                form.AcademicLevelId != request.AcademicUnitId || form.AcademicTermId != request.AcademicTermId)
+                return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Academic choices do not match the intake form.", 409);
+            var fields = await _fields.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
+                x.AdmissionIntakeFormId == form.Id && x.IsActive).OrderBy(x => x.DisplayOrder)
+                .Select(x => new AdmissionFormFieldDto
+                { Id = x.Id, FieldKey = x.FieldKey, Label = x.Label, DataType = x.DataType,
+                    IsRequired = x.IsRequired, OptionsJson = x.OptionsJson, ValidationJson = x.ValidationJson,
+                    IsActive = x.IsActive }).ToListAsync(ct);
+            var validation = AdmissionIntakeRules.ValidateResponses(fields, request.CustomResponses, out _);
+            if (validation != null) return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse(validation);
+            var existing = await _applications.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.ClientRequestId == request.ClientRequestId, ct);
             if (existing != null)
             {
-                var replayResponses = "{}";
-                if (request.AdmissionFormReference.HasValue)
-                {
-                    if (existing.AdmissionIntakeForm?.PublicId != request.AdmissionFormReference.Value)
-                        return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Client request reference was already used for different data.", 409);
-                    var responseError = AdmissionIntakeRules.ValidateResponses(AdmissionIntakeRules.ReadFields(existing.AdmissionIntakeForm.FieldsJson), request.CustomResponses, out replayResponses);
-                    if (responseError != null) return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse(responseError);
-                }
-                else if (existing.AdmissionIntakeFormId.HasValue || request.CustomResponses?.Count > 0)
-                {
-                    return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Client request reference was already used for different data.", 409);
-                }
-                if (!IsSameRequest(existing, request, applicantName, primaryMobile, guardianMobile, email?.ToLowerInvariant(), language, replayResponses))
-                    return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Client request reference was already used for different data.", 409);
-                return ApiResponse<AdmissionApplicationCreatedDto>.SuccessResponse(MapCreated(existing), "Application already received.");
+                if (existing.AdmissionIntakeFormId != form.Id ||
+                    !string.Equals(existing.FullName, request.ApplicantName.Trim(), StringComparison.Ordinal) ||
+                    existing.Phone != request.PrimaryMobile.Trim())
+                    return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Request ID was previously used for another application.", 409);
+                tx.Complete();
+                return ApiResponse<AdmissionApplicationCreatedDto>.SuccessResponse(MapCreated(existing), "Application already submitted.");
             }
-
-            AdmissionIntakeForm? form = null;
-            string? customResponsesJson = null;
-            if (request.AdmissionFormReference.HasValue)
+            var isMinor = request.DateOfBirth.Date > now.Date.AddYears(-18);
+            if (isMinor && (string.IsNullOrWhiteSpace(request.GuardianName) ||
+                string.IsNullOrWhiteSpace(request.GuardianRelation) || string.IsNullOrWhiteSpace(request.GuardianMobile)))
+                return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Guardian details are required for a minor.");
+            var id = Guid.NewGuid();
+            var applicant = new AdmissionApplicant
             {
-                form = await _forms.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.PublicId == request.AdmissionFormReference.Value
-                    && x.Status == AdmissionIntakeFormStatus.Published && x.OpensAtUtc <= now && x.ClosesAtUtc >= now, cancellationToken);
-                if (form == null) return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Admission form is unavailable.", 404);
-                if (form.AcademicYearId != request.AcademicYearId || form.AcademicTermId != request.AcademicTermId || form.CampusId != request.CampusId || form.AcademicUnitId != request.AcademicUnitId)
-                    return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Application academic choices do not match the selected admission form.", 409);
-                var responseError = AdmissionIntakeRules.ValidateResponses(AdmissionIntakeRules.ReadFields(form.FieldsJson), request.CustomResponses, out var responses);
-                if (responseError != null) return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse(responseError);
-                customResponsesJson = responses;
-            }
-            else if (request.CustomResponses?.Count > 0)
-            {
-                return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("A configured admission form is required for custom responses.");
-            }
-
-            var referenceError = await ValidateReferencesAsync(request, tenantId);
-            if (referenceError != null) return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse(referenceError, 409);
-
-            var publicId = Guid.NewGuid();
-            var application = new AdmissionApplicant
-            {
-                TenantId = tenantId,
-                PublicId = publicId,
-                ClientRequestId = request.ClientRequestId,
-                ApplicationNumber = $"APP-{now:yyyy}-{publicId:N}"[..17].ToUpperInvariant(),
-                AdmissionIntakeFormId = form?.Id,
-                CustomResponsesJson = customResponsesJson,
-                AcademicYearId = request.AcademicYearId,
-                AcademicTermId = request.AcademicTermId,
-                CampusId = request.CampusId,
-                AcademicUnitId = request.AcademicUnitId,
-                ApplicantName = applicantName,
-                ApplicantNameBangla = TrimToNull(request.ApplicantNameBangla),
-                DateOfBirth = request.DateOfBirth.Date,
-                Gender = request.Gender,
-                PrimaryMobile = primaryMobile,
-                Email = email?.ToLowerInvariant(),
-                GuardianName = TrimToNull(request.GuardianName),
-                GuardianRelation = TrimToNull(request.GuardianRelation),
-                GuardianMobile = guardianMobile,
-                PresentAddress = TrimToNull(request.PresentAddress),
-                PermanentAddress = TrimToNull(request.PermanentAddress),
-                PreviousInstitution = TrimToNull(request.PreviousInstitution),
-                PreferredLanguage = language,
-                Status = AdmissionApplicationStatus.Submitted,
-                SubmittedAtUtc = now,
-                CreatedAt = now,
-                CreatedBy = _currentUser.UserId
+                TenantId = tenant, PublicId = id, ClientRequestId = request.ClientRequestId,
+                AdmissionIntakeFormId = form.Id,
+                ApplicationNumber = ("APP-" + now.ToString("yyyy") + "-" + id.ToString("N")).Substring(0, 17).ToUpperInvariant(),
+                FullName = request.ApplicantName.Trim(), FullNameBangla = Trim(request.ApplicantNameBangla),
+                DateOfBirth = DateOnly.FromDateTime(request.DateOfBirth.Date), Gender = request.Gender.ToString(),
+                Phone = request.PrimaryMobile.Trim(), Email = Trim(request.Email),
+                Address = Trim(request.PermanentAddress) ?? Trim(request.PresentAddress),
+                State = AdmissionApplicantState.Submitted, SubmittedAt = now,
+                CreatedAt = now, CreatedBy = _user.UserId
             };
-            await _applications.AddAsync(application);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            await _applications.AddAsync(applicant);
+            await _uow.SaveChangesAsync(ct);
+            foreach (var f in fields)
+            {
+                var value = request.CustomResponses != null && request.CustomResponses.TryGetValue(f.FieldKey, out var supplied)
+                    ? supplied : null;
+                if (string.IsNullOrWhiteSpace(value)) continue;
+                await _values.AddAsync(new AdmissionApplicantFieldValue
+                {
+                    TenantId = tenant, AdmissionApplicantId = applicant.Id, AdmissionFormFieldId = f.Id,
+                    Value = value, CreatedAt = now, CreatedBy = _user.UserId
+                });
+            }
+            if (!string.IsNullOrWhiteSpace(request.GuardianName))
+                await _guardians.AddAsync(new AdmissionApplicantGuardian
+                {
+                    TenantId = tenant, AdmissionApplicantId = applicant.Id, FullName = request.GuardianName.Trim(),
+                    RelationCode = request.GuardianRelation?.Trim() ?? "Guardian",
+                    Phone = Trim(request.GuardianMobile), IsPrimary = true, CreatedAt = now, CreatedBy = _user.UserId
+                });
+            await _uow.SaveChangesAsync(ct);
+            tx.Complete();
             return new ApiResponse<AdmissionApplicationCreatedDto>
-            {
-                Success = true,
-                Message = "Application submitted.",
-                Data = MapCreated(application),
-                StatusCode = 201
-            };
+            { Success = true, StatusCode = 201, Message = "Application submitted.", Data = MapCreated(applicant) };
         }
+        catch (DbUpdateConcurrencyException)
+        { return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Intake changed during submission.", 409); }
         catch (DbUpdateException ex)
         {
-            _logger.LogWarning(ex, "Conflicting admission intake for tenant {TenantId}", tenantId);
-            return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("The application conflicts with another request. Reload and try again.", 409);
+            _logger.LogWarning(ex, "Duplicate or invalid applicant data for tenant {TenantId}", tenant);
+            return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Application conflicts with an existing request.", 409);
         }
+        catch (TransactionAbortedException)
+        { return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Concurrent application submission detected.", 409); }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Admission intake failed for tenant {TenantId}", tenantId);
+            _logger.LogError(ex, "Admission application failed for tenant {TenantId}", tenant);
             return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Application could not be submitted.", 500);
         }
     }
 
-    public async Task<ApiResponse<AdmissionApplicationDetailsDto>> ReviewAsync(
-        Guid reference,
-        ReviewAdmissionApplicationDto request,
-        CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<AdmissionApplicationDetailsDto>> ReviewAsync(Guid reference,
+        ReviewAdmissionApplicationDto request, CancellationToken ct = default)
     {
         if (!CanManage()) return Denied<AdmissionApplicationDetailsDto>();
-        if (reference == Guid.Empty || !Enum.IsDefined(request.Status))
-            return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Review request is invalid.");
-        if (request.DecisionNote?.Length > 1000)
-            return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Decision note is too long.");
-        if (request.Status is AdmissionApplicationStatus.Rejected or AdmissionApplicationStatus.Withdrawn
-            && TrimToNull(request.DecisionNote) == null)
-        {
-            return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("A decision note is required for rejection or withdrawal.");
-        }
-
-        byte[] expectedVersion;
-        try { expectedVersion = Convert.FromBase64String(request.RowVersion ?? string.Empty); }
-        catch (FormatException) { return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Row version is invalid."); }
-
-        var tenantId = _currentUser.TenantId;
+        if (reference == Guid.Empty || request == null ||
+            !TryVersion(request.RowVersion, out var expected))
+            return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Valid applicant reference and row version are required.");
+        if (request.Status is not (AdmissionApplicationStatus.UnderReview or AdmissionApplicationStatus.Approved or
+            AdmissionApplicationStatus.Rejected or AdmissionApplicationStatus.Withdrawn))
+            return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Unsupported review status. Waitlisting and admission require their dedicated workflows.");
+        var tenant = _user.TenantId;
         try
         {
-            var application = await _applications.GetQueryable()
-                .Include(x => x.AcademicYear)
-                .Include(x => x.AcademicTerm)
-                .Include(x => x.Campus)
-                .Include(x => x.AcademicUnit)
-                .Include(x => x.AdmissionIntakeForm)
-                .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.PublicId == reference, cancellationToken);
-            if (application == null) return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Application not found.", 404);
-            if (!VersionsMatch(application.RowVersion, expectedVersion))
-                return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("The application was changed by another user. Reload and try again.", 409);
-            if (!CanTransition(application.Status, request.Status))
-                return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("This status change is not allowed.", 409);
-            if (request.Status == AdmissionApplicationStatus.Approved && application.AdmissionIntakeForm != null)
-            {
-                var requiredTypes = AdmissionIntakeRules.ReadRequirements(application.AdmissionIntakeForm.DocumentRequirementsJson)
-                    .Where(x => x.IsRequired).Select(x => x.DocumentType).ToList();
-                if (requiredTypes.Count > 0)
+            var app = await _applications.GetQueryable().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.PublicId == reference, ct);
+            if (app == null) return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Applicant not found.", 404);
+            if (!VersionsMatch(app.RowVersion, expected))
+                return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Application changed. Reload and retry.", 409);
+            if (app.State is AdmissionApplicantState.Admitted or AdmissionApplicantState.Rejected or AdmissionApplicantState.Withdrawn)
+                return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("A final decision cannot be silently changed.", 409);
+            if (request.Status == AdmissionApplicationStatus.UnderReview &&
+                app.State is not (AdmissionApplicantState.Submitted or AdmissionApplicantState.DocumentPending))
+                return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Application cannot move to review.", 409);
+            if (request.Status == AdmissionApplicationStatus.Approved &&
+                app.State is not (AdmissionApplicantState.Submitted or AdmissionApplicantState.UnderReview or AdmissionApplicantState.AssessmentPending))
+                return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Application cannot be qualified from its current state.", 409);
+            if (request.Status is AdmissionApplicationStatus.Rejected or AdmissionApplicationStatus.Withdrawn &&
+                string.IsNullOrWhiteSpace(request.DecisionNote))
+                return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("A reason is required for rejection or withdrawal.");
+            if (request.DecisionNote?.Length > 1000)
+                return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Decision note is too long.");
+            if (request.Status == AdmissionApplicationStatus.Approved &&
+                await _documents.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
+                    x.AdmissionApplicantId == app.Id && !x.IsVerified, ct))
+                return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Unverified documents must be reviewed before qualification.", 409);
+            var now = _clock.GetUtcNow().UtcDateTime;
+            app.State = ToState(request.Status)!.Value;
+            app.ReviewedAt = now; app.ReviewedByUserId = _user.UserId;
+            app.UpdatedAt = now; app.UpdatedBy = _user.UserId;
+            if (request.Status == AdmissionApplicationStatus.Rejected)
+                await _decisions.AddAsync(new AdmissionDecision
                 {
-                    var verifiedTypes = await _documents.GetQueryable().AsNoTracking()
-                        .Where(x => x.TenantId == tenantId && x.ApplicantId == application.Id && x.IsCurrent && x.VerificationStatus == AdmissionDocumentVerificationStatus.Verified)
-                        .Select(x => x.DocumentType).ToListAsync(cancellationToken);
-                    if (requiredTypes.Except(verifiedTypes, StringComparer.OrdinalIgnoreCase).Any())
-                        return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("All required applicant documents must be verified before approval.", 409);
-                }
-            }
-
-            application.Status = request.Status;
-            application.DecisionNote = TrimToNull(request.DecisionNote);
-            application.ReviewedAtUtc = _clock.GetUtcNow().UtcDateTime;
-            application.ReviewedByUserId = _currentUser.UserId;
-            application.UpdatedAt = application.ReviewedAtUtc;
-            application.UpdatedBy = _currentUser.UserId;
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            return ApiResponse<AdmissionApplicationDetailsDto>.SuccessResponse(MapDetails(application), "Application decision saved.");
+                    TenantId = tenant, ClientRequestId = Guid.NewGuid(), AdmissionApplicantId = app.Id,
+                    State = AdmissionDecisionState.Rejected, DecidedByUserId = _user.UserId,
+                    Note = Trim(request.DecisionNote), CreatedAt = now, CreatedBy = _user.UserId
+                });
+            else if (request.Status == AdmissionApplicationStatus.Withdrawn)
+                return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Applicant withdrawal requires a verified applicant request.", 403);
+            await _uow.SaveChangesAsync(ct);
+            var dto = await ReadDetailsAsync(reference, ct);
+            return dto == null ? ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Applicant could not be reloaded.", 500) :
+                ApiResponse<AdmissionApplicationDetailsDto>.SuccessResponse(dto, "Application review saved.");
         }
-        catch (DbUpdateConcurrencyException ex)
+        catch (DbUpdateConcurrencyException)
+        { return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Application changed. Reload and retry.", 409); }
+        catch (DbUpdateException ex)
         {
-            _logger.LogWarning(ex, "Concurrent admission review {Reference} for tenant {TenantId}", reference, tenantId);
-            return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("The application was changed by another user. Reload and try again.", 409);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Admission review failed for {Reference} in tenant {TenantId}", reference, tenantId);
-            return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Application decision could not be saved.", 500);
+            _logger.LogWarning(ex, "Admission review conflict for tenant {TenantId}", tenant);
+            return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Review conflicts with another decision.", 409);
         }
     }
 
-    private async Task<string?> ValidateReferencesAsync(CreateAdmissionApplicationDto request, long tenantId)
+    private async Task<AdmissionApplicationDetailsDto?> ReadDetailsAsync(Guid reference, CancellationToken ct)
     {
-        if (!await _academicYears.AnyAsync(x => x.TenantId == tenantId && x.Id == request.AcademicYearId && x.IsActive))
-            return "Academic year is unavailable.";
-        if (!await _campuses.AnyAsync(x => x.TenantId == tenantId && x.Id == request.CampusId && x.IsActive))
-            return "Campus is unavailable.";
-        if (!await _academicUnits.AnyAsync(x => x.TenantId == tenantId && x.Id == request.AcademicUnitId && x.IsActive))
-            return "Academic unit is unavailable.";
-        if (request.AcademicTermId.HasValue
-            && !await _academicTerms.AnyAsync(x => x.TenantId == tenantId && x.Id == request.AcademicTermId.Value
-                                                && x.AcademicYearId == request.AcademicYearId && x.IsActive))
+        var tenant = _user.TenantId;
+        var data = await (from a in _applications.GetQueryable().AsNoTracking()
+            join form in _forms.GetQueryable().AsNoTracking() on a.AdmissionIntakeFormId equals form.Id
+            join year in _years.GetQueryable().AsNoTracking() on form.AcademicYearId equals year.Id
+            join campus in _campuses.GetQueryable().AsNoTracking() on form.CampusId equals campus.Id
+            join level in _levels.GetQueryable().AsNoTracking() on form.AcademicLevelId equals level.Id
+            where a.TenantId == tenant && form.TenantId == tenant && year.TenantId == tenant &&
+                campus.TenantId == tenant && level.TenantId == tenant && a.PublicId == reference
+            select new { a, form, year, campus, level }).FirstOrDefaultAsync(ct);
+        if (data == null) return null;
+        var a = data.a;
+        var termName = data.form.AcademicTermId.HasValue
+            ? await _terms.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
+                x.Id == data.form.AcademicTermId.Value).Select(x => x.Name).FirstOrDefaultAsync(ct) : null;
+        var guardians = await _guardians.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.AdmissionApplicantId == a.Id).OrderByDescending(x => x.IsPrimary)
+            .ToListAsync(ct);
+        var fieldRows = await (from value in _values.GetQueryable().AsNoTracking()
+            join field in _fields.GetQueryable().AsNoTracking() on value.AdmissionFormFieldId equals field.Id
+            where value.TenantId == tenant && field.TenantId == tenant && value.AdmissionApplicantId == a.Id
+            select new { field.FieldKey, value.Value }).ToListAsync(ct);
+        var decisionNote = await _decisions.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.AdmissionApplicantId == a.Id && x.State == AdmissionDecisionState.Rejected)
+            .OrderByDescending(x => x.Id).Select(x => x.Note).FirstOrDefaultAsync(ct);
+        var firstGuardian = guardians.FirstOrDefault();
+        var dt = new AdmissionApplicationDetailsDto
         {
-            return "Academic term does not belong to the selected year.";
-        }
-        return null;
-    }
-
-    private async Task<AdmissionApplicant?> FindDetailsAsync(Guid reference, CancellationToken cancellationToken) =>
-        await _applications.GetQueryable().AsNoTracking()
-            .Include(x => x.AcademicYear)
-            .Include(x => x.AcademicTerm)
-            .Include(x => x.Campus)
-            .Include(x => x.AcademicUnit)
-            .Include(x => x.AdmissionIntakeForm)
-            .FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.PublicId == reference, cancellationToken);
-
-    private bool CanManage() => _currentUser.TenantId > 0
-                                && (_currentUser.IsTenantAdmin || _currentUser.IsInRole("AdmissionOfficer"));
-
-    private static ApiResponse<T> Denied<T>() => ApiResponse<T>.ErrorResponse("Admission officer access is required.", 403);
-
-    private static bool CanTransition(AdmissionApplicationStatus current, AdmissionApplicationStatus next) => current switch
-    {
-        AdmissionApplicationStatus.Submitted => next is AdmissionApplicationStatus.UnderReview or AdmissionApplicationStatus.Withdrawn,
-        AdmissionApplicationStatus.UnderReview => next is AdmissionApplicationStatus.Waitlisted or AdmissionApplicationStatus.Approved or AdmissionApplicationStatus.Rejected,
-        AdmissionApplicationStatus.Waitlisted => next is AdmissionApplicationStatus.Approved or AdmissionApplicationStatus.Rejected,
-        _ => false
-    };
-
-    private static bool VersionsMatch(byte[] actual, byte[] expected) => actual.Length == expected.Length
-        && CryptographicOperations.FixedTimeEquals(actual, expected);
-
-    private static bool IsSameRequest(AdmissionApplicant existing, CreateAdmissionApplicationDto request, string name, string mobile, string? guardianMobile, string? email, string language, string customResponsesJson) =>
-        existing.AcademicYearId == request.AcademicYearId
-        && existing.AcademicTermId == request.AcademicTermId
-        && existing.CampusId == request.CampusId
-        && existing.AcademicUnitId == request.AcademicUnitId
-        && existing.DateOfBirth.Date == request.DateOfBirth.Date
-        && existing.Gender == request.Gender
-        && string.Equals(existing.ApplicantName, name, StringComparison.Ordinal)
-        && string.Equals(existing.ApplicantNameBangla, TrimToNull(request.ApplicantNameBangla), StringComparison.Ordinal)
-        && string.Equals(existing.PrimaryMobile, mobile, StringComparison.Ordinal)
-        && string.Equals(existing.Email, email, StringComparison.Ordinal)
-        && string.Equals(existing.GuardianName, TrimToNull(request.GuardianName), StringComparison.Ordinal)
-        && string.Equals(existing.GuardianRelation, TrimToNull(request.GuardianRelation), StringComparison.Ordinal)
-        && string.Equals(existing.GuardianMobile, guardianMobile, StringComparison.Ordinal)
-        && string.Equals(existing.PresentAddress, TrimToNull(request.PresentAddress), StringComparison.Ordinal)
-        && string.Equals(existing.PermanentAddress, TrimToNull(request.PermanentAddress), StringComparison.Ordinal)
-        && string.Equals(existing.PreviousInstitution, TrimToNull(request.PreviousInstitution), StringComparison.Ordinal)
-        && existing.PreferredLanguage == language
-        && string.Equals(existing.CustomResponsesJson ?? "{}", customResponsesJson, StringComparison.Ordinal);
-
-    private static AdmissionApplicationCreatedDto MapCreated(AdmissionApplicant x) => new()
-    {
-        Reference = x.PublicId,
-        ApplicationNumber = x.ApplicationNumber,
-        Status = x.Status,
-        RowVersion = Convert.ToBase64String(x.RowVersion)
-    };
-
-    private static AdmissionApplicationListItemDto MapListItem(AdmissionApplicant x) => new()
-    {
-        Reference = x.PublicId,
-        ApplicationNumber = x.ApplicationNumber,
-        ApplicantName = x.ApplicantName,
-        MaskedMobile = MaskMobile(x.PrimaryMobile),
-        AcademicYearId = x.AcademicYearId,
-        AcademicYearName = x.AcademicYear?.Name ?? string.Empty,
-        CampusId = x.CampusId,
-        CampusName = x.Campus?.Name ?? string.Empty,
-        AcademicUnitId = x.AcademicUnitId,
-        AcademicUnitName = x.AcademicUnit?.Name ?? string.Empty,
-        Status = x.Status,
-        SubmittedAtUtc = x.SubmittedAtUtc,
-        RowVersion = Convert.ToBase64String(x.RowVersion)
-    };
-
-    private static AdmissionApplicationDetailsDto MapDetails(AdmissionApplicant x)
-    {
-        var item = MapListItem(x);
-        return new AdmissionApplicationDetailsDto
-        {
-            Reference = item.Reference,
-            ApplicationNumber = item.ApplicationNumber,
-            ApplicantName = item.ApplicantName,
-            MaskedMobile = item.MaskedMobile,
-            AcademicYearId = item.AcademicYearId,
-            AcademicYearName = item.AcademicYearName,
-            CampusId = item.CampusId,
-            CampusName = item.CampusName,
-            AcademicUnitId = item.AcademicUnitId,
-            AcademicUnitName = item.AcademicUnitName,
-            Status = item.Status,
-            SubmittedAtUtc = item.SubmittedAtUtc,
-            RowVersion = item.RowVersion,
-            AdmissionFormReference = x.AdmissionIntakeForm?.PublicId,
-            AdmissionFormTitle = x.AdmissionIntakeForm?.Title,
-            CustomResponses = AdmissionIntakeRules.ReadResponses(x.CustomResponsesJson),
-            ApplicantNameBangla = x.ApplicantNameBangla,
-            DateOfBirth = x.DateOfBirth,
-            Gender = x.Gender,
-            PrimaryMobile = x.PrimaryMobile,
-            Email = x.Email,
-            GuardianName = x.GuardianName,
-            GuardianRelation = x.GuardianRelation,
-            GuardianMobile = x.GuardianMobile,
-            PresentAddress = x.PresentAddress,
-            PermanentAddress = x.PermanentAddress,
-            PreviousInstitution = x.PreviousInstitution,
-            PreferredLanguage = x.PreferredLanguage,
-            AcademicTermId = x.AcademicTermId,
-            AcademicTermName = x.AcademicTerm?.Name,
-            ReviewedAtUtc = x.ReviewedAtUtc,
-            DecisionNote = x.DecisionNote
+            Reference = a.PublicId, ApplicationNumber = a.ApplicationNumber, ApplicantName = a.FullName,
+            ApplicantNameBangla = a.FullNameBangla, MaskedMobile = Mask(a.Phone), PrimaryMobile = a.Phone ?? "",
+            Status = ToLegacy(a.State), SubmittedAtUtc = a.SubmittedAt ?? DateTime.MinValue,
+            RowVersion = Convert.ToBase64String(a.RowVersion),
+            AcademicYearId = data.year.Id, AcademicYearName = data.year.Name,
+            CampusId = data.campus.Id, CampusName = data.campus.Name,
+            AcademicUnitId = data.level.Id, AcademicUnitName = data.level.Name,
+            AcademicTermId = data.form.AcademicTermId, AcademicTermName = termName,
+            AdmissionFormReference = data.form.PublicId, AdmissionFormTitle = data.form.Title,
+            CustomResponses = fieldRows.ToDictionary(x => x.FieldKey, x => x.Value),
+            DateOfBirth = a.DateOfBirth?.ToDateTime(TimeOnly.MinValue) ?? default,
+            Gender = Enum.TryParse<Gender>(a.Gender, true, out var g) ? g : default,
+            Email = a.Email, GuardianName = firstGuardian?.FullName,
+            GuardianRelation = firstGuardian?.RelationCode, GuardianMobile = firstGuardian?.Phone,
+            PresentAddress = a.Address, PermanentAddress = a.Address,
+            PreferredLanguage = "bn-BD", ReviewedAtUtc = a.ReviewedAt, DecisionNote = decisionNote
         };
+        return dt;
     }
 
-    private static string MaskMobile(string value) => value.Length <= 4
-        ? new string('*', value.Length)
-        : string.Concat(new string('*', value.Length - 4), value[^4..]);
-
-    private static bool TryNormalizeOptionalMobile(string? value, out string? normalized)
+    private static AdmissionApplicationCreatedDto MapCreated(AdmissionApplicant app) => new()
     {
-        normalized = null;
-        if (string.IsNullOrWhiteSpace(value)) return true;
-        if (!TryNormalizeMobile(value, out var result)) return false;
-        normalized = result;
-        return true;
-    }
-
-    private static bool TryNormalizeMobile(string? value, out string normalized)
+        Reference = app.PublicId, ApplicationNumber = app.ApplicationNumber,
+        Status = ToLegacy(app.State), RowVersion = Convert.ToBase64String(app.RowVersion)
+    };
+    private static AdmissionApplicationStatus ToLegacy(AdmissionApplicantState value) => value switch
     {
-        normalized = string.Empty;
-        if (string.IsNullOrWhiteSpace(value)) return false;
-        var ascii = value.Trim().Select(ToAsciiDigit).ToArray();
-        if (ascii.Any(c => !char.IsDigit(c) && c is not ('+' or ' ' or '-' or '(' or ')'))) return false;
-        var compact = new string(ascii.Where(c => char.IsDigit(c) || c == '+').ToArray());
-        if (compact.Count(c => c == '+') > 1 || compact.Contains('+') && !compact.StartsWith('+')) return false;
-        if (compact.StartsWith("00", StringComparison.Ordinal)) compact = "+" + compact[2..];
-        else if (compact.StartsWith("880", StringComparison.Ordinal)) compact = "+" + compact;
-        else if (compact.Length == 11 && compact.StartsWith("01", StringComparison.Ordinal)) compact = "+88" + compact;
-        if (!compact.StartsWith('+')) return false;
-        var digits = compact[1..];
-        if (digits.Length is < 8 or > 15 || digits[0] == '0' || digits.Any(c => !char.IsDigit(c))) return false;
-        normalized = compact;
-        return true;
-    }
-
-    private static char ToAsciiDigit(char value)
+        AdmissionApplicantState.Submitted => AdmissionApplicationStatus.Submitted,
+        AdmissionApplicantState.UnderReview or AdmissionApplicantState.DocumentPending or
+            AdmissionApplicantState.AssessmentPending => AdmissionApplicationStatus.UnderReview,
+        AdmissionApplicantState.Qualified => AdmissionApplicationStatus.Approved,
+        AdmissionApplicantState.Rejected => AdmissionApplicationStatus.Rejected,
+        AdmissionApplicantState.Withdrawn => AdmissionApplicationStatus.Withdrawn,
+        AdmissionApplicantState.Admitted => AdmissionApplicationStatus.Admitted,
+        _ => AdmissionApplicationStatus.Submitted
+    };
+    private static AdmissionApplicantState? ToState(AdmissionApplicationStatus value) => value switch
     {
-        const string banglaDigits = "০১২৩৪৫৬৭৮৯";
-        var index = banglaDigits.IndexOf(value);
-        return index >= 0 ? (char)('0' + index) : value;
+        AdmissionApplicationStatus.Submitted => AdmissionApplicantState.Submitted,
+        AdmissionApplicationStatus.UnderReview => AdmissionApplicantState.UnderReview,
+        AdmissionApplicationStatus.Approved => AdmissionApplicantState.Qualified,
+        AdmissionApplicationStatus.Rejected => AdmissionApplicantState.Rejected,
+        AdmissionApplicationStatus.Withdrawn => AdmissionApplicantState.Withdrawn,
+        AdmissionApplicationStatus.Admitted => AdmissionApplicantState.Admitted,
+        _ => null
+    };
+    private static string Mask(string? phone) => string.IsNullOrWhiteSpace(phone) ? string.Empty :
+        phone.Length <= 4 ? "****" : new string('*', phone.Length - 4) + phone[^4..];
+    private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    private static bool TryVersion(string? input, out byte[] version)
+    {
+        version = Array.Empty<byte>();
+        try
+        {
+            version = Convert.FromBase64String(input ?? "");
+            return version.Length > 0;
+        }
+        catch (FormatException) { return false; }
     }
-
-    private static string? TrimToNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
-    private static bool OptionalLengthsAreValid(CreateAdmissionApplicationDto request) =>
-        Within(request.ApplicantNameBangla, 200)
-        && Within(request.GuardianName, 200)
-        && Within(request.GuardianRelation, 50)
-        && Within(request.PresentAddress, 1000)
-        && Within(request.PermanentAddress, 1000)
-        && Within(request.PreviousInstitution, 200);
-
-    private static bool Within(string? value, int maximum) => value == null || value.Trim().Length <= maximum;
+    private static bool VersionsMatch(byte[] a, byte[] b) =>
+        a.Length == b.Length && CryptographicOperations.FixedTimeEquals(a, b);
+    private bool CanManage() => _user.IsAuthenticated && _user.TenantId > 0 &&
+        (_user.IsTenantAdmin || _user.IsInRole("AdmissionOfficer"));
+    private static ApiResponse<T> Denied<T>() =>
+        ApiResponse<T>.ErrorResponse("Admission officer access is required.", 403);
 }
