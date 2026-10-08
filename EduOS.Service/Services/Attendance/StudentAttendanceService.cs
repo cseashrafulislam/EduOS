@@ -3,6 +3,7 @@ using EduOS.Core.DTOs.Attendance;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Attendance;
 using EduOS.Core.Entities.Students;
+using EduOS.Core.Entities.HR;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
@@ -19,6 +20,9 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
     private readonly IGenericRepository<StudentAttendance> _attendances;
     private readonly IGenericRepository<AttendanceSession> _sessions;
     private readonly IGenericRepository<StudentEnrollment> _enrollments;
+    private readonly IGenericRepository<Employee> _employees;
+    private readonly IGenericRepository<InstructorAssignment> _instructors;
+    private readonly IGenericRepository<SubjectOffering> _offerings;
     private readonly IGenericRepository<Student> _students;
     private readonly IGenericRepository<AcademicYear> _years;
     private readonly IGenericRepository<AcademicLevel> _levels;
@@ -30,6 +34,8 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
 
     public StudentAttendanceService(IGenericRepository<StudentAttendance> attendances,
         IGenericRepository<AttendanceSession> sessions, IGenericRepository<StudentEnrollment> enrollments,
+        IGenericRepository<Employee> employees, IGenericRepository<InstructorAssignment> instructors,
+        IGenericRepository<SubjectOffering> offerings,
         IGenericRepository<Student> students, IGenericRepository<AcademicYear> years,
         IGenericRepository<AcademicLevel> levels, IGenericRepository<AcademicBatch> batches,
         IUnitOfWork unitOfWork, ICurrentUserService currentUser, TimeProvider clock,
@@ -38,6 +44,9 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
         _attendances = attendances;
         _sessions = sessions;
         _enrollments = enrollments;
+        _employees = employees;
+        _instructors = instructors;
+        _offerings = offerings;
         _students = students;
         _years = years;
         _levels = levels;
@@ -68,7 +77,8 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
         if (request == null) return Error("Attendance request is required.");
         var error = await ValidateContextAsync(request, cancellationToken);
         if (error != null) return Error(error);
-        if (request.Items == null || request.Items.Count == 0 || request.Items.Any(x => x == null || x.StudentReference == Guid.Empty || !Enum.TryParse<AttendanceState>(x.Status, true, out var state) || state == AttendanceState.Excused))
+        if (request.Items == null || request.Items.Count == 0 || request.Items.Any(x => x == null || x.StudentReference == Guid.Empty ||
+            !new[] { "Present", "Absent", "Late", "Leave" }.Contains(x.Status?.Trim(), StringComparer.OrdinalIgnoreCase)))
             return Error("One or more attendance entries are invalid.");
         if (request.Items.Select(x => x.StudentReference).Distinct().Count() != request.Items.Count)
             return Error("Each student must appear only once.");
@@ -239,6 +249,19 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
         if (!await _levels.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.Id == query.ClassId &&
             x.AcademicProgramId == batch.AcademicProgramId && x.IsActive, ct))
             return "Academic level is unavailable.";
+        if (_currentUser.IsInRole("Teacher") && !_currentUser.IsTenantAdmin &&
+            !_currentUser.IsInRole("Principal") && !_currentUser.IsInRole("VicePrincipal"))
+        {
+            var instructorAccess = await (from employee in _employees.GetQueryable().AsNoTracking()
+                join assignment in _instructors.GetQueryable().AsNoTracking() on employee.Id equals assignment.EmployeeId
+                join offering in _offerings.GetQueryable().AsNoTracking() on assignment.SubjectOfferingId equals offering.Id
+                where employee.TenantId == tenant && assignment.TenantId == tenant && offering.TenantId == tenant &&
+                    employee.UserId == _currentUser.UserId && employee.State == EmployeeState.Active &&
+                    assignment.IsActive && offering.IsActive && offering.AcademicBatchId == batch.Id &&
+                    assignment.EffectiveFrom <= date && (!assignment.EffectiveTo.HasValue || assignment.EffectiveTo >= date)
+                select assignment.Id).AnyAsync(ct);
+            if (!instructorAccess) return "Teacher is not assigned to the selected batch.";
+        }
         return null;
     }
 
