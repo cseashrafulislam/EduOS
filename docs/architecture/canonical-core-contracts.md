@@ -33,3 +33,6 @@ The retired DTO files only contained empty namespaces, excluded types, or simpli
 - No existing API route, service interface, or usable business DTO was changed.
 - Validate with .NET 10: `dotnet build EduOS.Core/EduOS.Core.csproj -c Release`, `dotnet build EduOS.slnx -c Release`, `dotnet test EduOS.slnx -c Release`.
 - Full-solution failures caused by old service-to-model mappings need an independent migration-safe implementation; Core compiling alone is not evidence of production readiness.
+
+## Automated guard
+The CI step `python3 scripts/check_core_contracts.py` fails on empty Core C# files, duplicate public fully qualified types, or repeated public `*Dto` simple names across DTO namespaces. This naming guard does not validate runtime ownership, migrations or business semantics; service/EF integration tests remain mandatory.
