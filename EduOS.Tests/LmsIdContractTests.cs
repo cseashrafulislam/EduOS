@@ -9,10 +9,11 @@ public sealed class LmsIdContractTests
     [InlineData(typeof(Quiz), nameof(Quiz.Id), typeof(long))]
     [InlineData(typeof(Quiz), nameof(Quiz.TenantId), typeof(long))]
     [InlineData(typeof(Quiz), nameof(Quiz.CourseId), typeof(long))]
-    [InlineData(typeof(QuizResult), nameof(QuizResult.Id), typeof(long))]
-    [InlineData(typeof(QuizResult), nameof(QuizResult.TenantId), typeof(long))]
-    [InlineData(typeof(QuizResult), nameof(QuizResult.QuizId), typeof(long))]
-    [InlineData(typeof(QuizResult), nameof(QuizResult.StudentId), typeof(long))]
+    [InlineData(typeof(QuizAttempt), nameof(QuizAttempt.Id), typeof(long))]
+    [InlineData(typeof(QuizAttempt), nameof(QuizAttempt.TenantId), typeof(long))]
+    [InlineData(typeof(QuizAttempt), nameof(QuizAttempt.QuizId), typeof(long))]
+    [InlineData(typeof(QuizAttempt), nameof(QuizAttempt.CourseEnrollmentId), typeof(long))]
+    [InlineData(typeof(QuizAttempt), nameof(QuizAttempt.CourseEnrollmentId), typeof(long))]
     public void Quiz_identifiers_remain_long(Type type, string propertyName, Type expectedType)
     {
         var property = type.GetProperty(propertyName);
