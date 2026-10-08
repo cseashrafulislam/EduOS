@@ -138,16 +138,15 @@ public sealed class SubscriptionPaymentService : ISubscriptionPaymentService
             var matchedAmount = decimal.TryParse(verified.Amount, NumberStyles.Number,
                 CultureInfo.InvariantCulture, out var amount);
             using var tx = SerializableScope();
-            var payment = await _payments.GetQueryable().FirstOrDefaultAsync(x =>
-                x.TransactionId == callback.MerTxnid && x.GatewayCode == "AamarPay");
-            if (payment == null) return ApiResponse<bool>.ErrorResponse("Payment not found.", 404);
+            var payment = await _payments.GetByTransactionIdForCallbackAsync(callback.MerTxnid);
+            if (payment == null || payment.GatewayCode != "AamarPay")
+                return ApiResponse<bool>.ErrorResponse("Payment not found.", 404);
             if (payment.State == PaymentState.Successful)
             {
                 tx.Complete();
                 return ApiResponse<bool>.SuccessResponse(true, "Payment was already applied.");
             }
-            var invoice = await _invoices.GetQueryable().FirstOrDefaultAsync(x =>
-                x.TenantId == payment.TenantId && x.Id == payment.SubscriptionInvoiceId);
+            var invoice = await _invoices.GetByIdForSystemAsync(payment.SubscriptionInvoiceId, payment.TenantId);
             if (invoice == null) return ApiResponse<bool>.ErrorResponse("Invoice not found.", 404);
             if (!verified.IsSuccess || !matchedAmount || amount != payment.Amount ||
                 !string.Equals(payment.CurrencyCode, invoice.CurrencyCode, StringComparison.OrdinalIgnoreCase) ||
@@ -174,7 +173,8 @@ public sealed class SubscriptionPaymentService : ISubscriptionPaymentService
             invoice.State = invoice.DueAmount == 0m ? InvoiceState.Paid : InvoiceState.PartiallyPaid;
             if (invoice.State == InvoiceState.Paid) invoice.PaidAt = now;
             invoice.UpdatedAt = now;
-            // Save payment and invoice atomically; EF rowversion rejects concurrent double credit.
+            // Invoice repository returns a no-tracking system DTO: explicitly attach it.
+            _invoices.Update(invoice);
             await _uow.SaveChangesAsync();
             if (invoice.State == InvoiceState.Paid)
             {
@@ -306,8 +306,9 @@ public sealed class SubscriptionPaymentService : ISubscriptionPaymentService
         var payment = await _payments.GetByIdForPlatformAsync(paymentId);
         if (payment?.DepositSlipFileId == null)
             return ApiResponse<PrivateFileDownloadDto>.ErrorResponse("Deposit slip not found.", 404);
-        var file = await _files.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-            x.TenantId == payment.TenantId && x.Id == payment.DepositSlipFileId && x.Visibility == FileVisibility.Private);
+        var file = await _files.GetQueryable().IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(x =>
+            !x.IsDeleted && x.TenantId == payment.TenantId &&
+            x.Id == payment.DepositSlipFileId && x.Visibility == FileVisibility.Private);
         if (file == null) return ApiResponse<PrivateFileDownloadDto>.ErrorResponse("Deposit slip not found.", 404);
         if (!file.IsVerifiedSafe)
             return ApiResponse<PrivateFileDownloadDto>.ErrorResponse("Deposit slip is pending file safety verification.", 409);
@@ -339,8 +340,8 @@ public sealed class SubscriptionPaymentService : ISubscriptionPaymentService
                 return ApiResponse<bool>.ErrorResponse("Payment currency and invoice currency differ.", 409);
             if (dto.Approve && payment.DepositSlipFileId.HasValue)
             {
-                var file = await _files.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                    x.TenantId == payment.TenantId && x.Id == payment.DepositSlipFileId.Value);
+                var file = await _files.GetQueryable().IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(x =>
+                    !x.IsDeleted && x.TenantId == payment.TenantId && x.Id == payment.DepositSlipFileId.Value);
                 if (file?.IsVerifiedSafe != true)
                     return ApiResponse<bool>.ErrorResponse("Deposit slip must pass file safety verification first.", 409);
             }
@@ -364,6 +365,9 @@ public sealed class SubscriptionPaymentService : ISubscriptionPaymentService
                 payment.State = PaymentState.Failed;
                 payment.FailureReason = payment.VerificationNote;
             }
+            // Platform repository methods are deliberately AsNoTracking.
+            _payments.Update(payment);
+            if (dto.Approve) _invoices.Update(invoice);
             await _uow.SaveChangesAsync();
             if (dto.Approve && invoice.State == InvoiceState.Paid)
             {
@@ -406,7 +410,8 @@ public sealed class SubscriptionPaymentService : ISubscriptionPaymentService
             return ApiResponse<List<SubscriptionPaymentDto>>.ErrorResponse("Platform administrator access required.", 403);
         var payments = await _payments.GetPendingManualVerificationForPlatformAsync();
         var ids = payments.Select(x => x.SubscriptionInvoiceId).Distinct().ToArray();
-        var invoiceNos = await _invoices.GetQueryable().AsNoTracking().Where(x => ids.Contains(x.Id))
+        var invoiceNos = await _invoices.GetQueryable().IgnoreQueryFilters().AsNoTracking()
+            .Where(x => !x.IsDeleted && ids.Contains(x.Id))
             .ToDictionaryAsync(x => x.Id, x => x.InvoiceNumber);
         return ApiResponse<List<SubscriptionPaymentDto>>.SuccessResponse(
             payments.Select(x => Map(x, invoiceNos.GetValueOrDefault(x.SubscriptionInvoiceId) ?? string.Empty)).ToList());
