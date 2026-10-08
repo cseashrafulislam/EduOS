@@ -3,6 +3,7 @@ using EduOS.Core.DTOs.Academic;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Enums.Academics;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
@@ -19,365 +20,446 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
     private readonly IGenericRepository<StudentSubjectRegistration> _registrations;
     private readonly IGenericRepository<Student> _students;
     private readonly IGenericRepository<Guardian> _guardians;
+    private readonly IGenericRepository<StudentGuardian> _studentGuardians;
     private readonly IGenericRepository<AcademicBatch> _batches;
     private readonly IGenericRepository<AcademicYear> _years;
     private readonly IGenericRepository<AcademicCurriculum> _curricula;
     private readonly IGenericRepository<CurriculumSubject> _curriculumSubjects;
+    private readonly IGenericRepository<SubjectOffering> _offerings;
+    private readonly IGenericRepository<Subject> _subjects;
     private readonly IGenericRepository<RoutineEntry> _routineEntries;
+    private readonly IGenericRepository<RoutineTimeSlot> _timeSlots;
     private readonly IGenericRepository<Room> _rooms;
-    private readonly IUnitOfWork _unitOfWork;
-    private readonly ICurrentUserService _currentUser;
+    private readonly IUnitOfWork _uow;
+    private readonly ICurrentUserService _user;
     private readonly TimeProvider _clock;
     private readonly ILogger<AcademicEnrollmentService> _logger;
 
-    public AcademicEnrollmentService(
-        IGenericRepository<StudentEnrollment> enrollments,
+    public AcademicEnrollmentService(IGenericRepository<StudentEnrollment> enrollments,
         IGenericRepository<StudentSubjectRegistration> registrations,
-        IGenericRepository<Student> students,
-        IGenericRepository<Guardian> guardians,
-        IGenericRepository<AcademicBatch> batches,
-        IGenericRepository<AcademicYear> years,
-        IGenericRepository<AcademicCurriculum> curricula,
-        IGenericRepository<CurriculumSubject> curriculumSubjects,
-        IGenericRepository<RoutineEntry> routineEntries,
-        IGenericRepository<Room> rooms,
-        IUnitOfWork unitOfWork,
-        ICurrentUserService currentUser,
-        TimeProvider clock,
-        ILogger<AcademicEnrollmentService> logger)
+        IGenericRepository<Student> students, IGenericRepository<Guardian> guardians,
+        IGenericRepository<StudentGuardian> studentGuardians,
+        IGenericRepository<AcademicBatch> batches, IGenericRepository<AcademicYear> years,
+        IGenericRepository<AcademicCurriculum> curricula, IGenericRepository<CurriculumSubject> curriculumSubjects,
+        IGenericRepository<SubjectOffering> offerings, IGenericRepository<Subject> subjects,
+        IGenericRepository<RoutineEntry> routineEntries, IGenericRepository<RoutineTimeSlot> timeSlots,
+        IGenericRepository<Room> rooms, IUnitOfWork unitOfWork,
+        ICurrentUserService currentUser, TimeProvider clock, ILogger<AcademicEnrollmentService> logger)
     {
-        _enrollments = enrollments;
-        _registrations = registrations;
-        _students = students;
-        _guardians = guardians;
-        _batches = batches;
-        _years = years;
-        _curricula = curricula;
-        _curriculumSubjects = curriculumSubjects;
-        _routineEntries = routineEntries;
-        _rooms = rooms;
-        _unitOfWork = unitOfWork;
-        _currentUser = currentUser;
-        _clock = clock;
-        _logger = logger;
+        _enrollments = enrollments; _registrations = registrations;
+        _students = students; _guardians = guardians; _studentGuardians = studentGuardians;
+        _batches = batches; _years = years; _curricula = curricula;
+        _curriculumSubjects = curriculumSubjects; _offerings = offerings; _subjects = subjects;
+        _routineEntries = routineEntries; _timeSlots = timeSlots; _rooms = rooms;
+        _uow = unitOfWork; _user = currentUser; _clock = clock; _logger = logger;
     }
 
-    public async Task<ApiResponse<AcademicStudentEnrollmentDto>> GetCurrentAsync(Guid studentReference, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<AcademicStudentEnrollmentDto>> GetCurrentAsync(Guid studentReference,
+        CancellationToken ct = default)
     {
         if (!CanRead() || studentReference == Guid.Empty) return NotFound<AcademicStudentEnrollmentDto>();
-        var student = await GetAuthorizedStudentAsync(studentReference, cancellationToken);
+        var student = await AuthorizedStudentAsync(studentReference, ct);
         if (student == null) return NotFound<AcademicStudentEnrollmentDto>();
-        var enrollment = await EnrollmentQuery().AsNoTracking()
-            .Where(x => x.TenantId == _currentUser.TenantId && x.StudentId == student.Id && x.IsCurrent && x.IsActive)
-            .OrderByDescending(x => x.EnrollmentDate).ThenByDescending(x => x.Id)
-            .FirstOrDefaultAsync(cancellationToken);
-        if (enrollment == null) return NotFound<AcademicStudentEnrollmentDto>();
-        var subjects = await GetRegistrationDtosAsync(enrollment.Id, cancellationToken);
-        return ApiResponse<AcademicStudentEnrollmentDto>.SuccessResponse(MapEnrollment(enrollment, subjects));
+        var enrollment = await _enrollments.GetQueryable().AsNoTracking().Where(x => x.TenantId == _user.TenantId &&
+            x.StudentId == student.Id && x.IsCurrent && x.IsActive)
+            .OrderByDescending(x => x.EnrollmentDate).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+        return enrollment == null ? NotFound<AcademicStudentEnrollmentDto>() :
+            ApiResponse<AcademicStudentEnrollmentDto>.SuccessResponse(await BuildEnrollmentDtoAsync(enrollment, student, ct));
     }
 
-    public Task<ApiResponse<AcademicStudentEnrollmentDto>> EnrollAsync(CreateAcademicStudentEnrollmentDto request, CancellationToken cancellationToken = default)
+    public Task<ApiResponse<AcademicStudentEnrollmentDto>> EnrollAsync(CreateAcademicStudentEnrollmentDto request,
+        CancellationToken ct = default)
     {
         if (!CanManage()) return Task.FromResult(Denied<AcademicStudentEnrollmentDto>());
-        if (request == null || request.ClientRequestId == Guid.Empty || request.StudentReference == Guid.Empty || request.AcademicBatchId <= 0 || string.IsNullOrWhiteSpace(request.RollNo))
-            return Task.FromResult(Error<AcademicStudentEnrollmentDto>("Request ID, student, academic batch and roll are required."));
-        return ExecuteWriteAsync("enrol student", async () =>
+        if (request == null || request.ClientRequestId == Guid.Empty || request.StudentReference == Guid.Empty ||
+            request.AcademicBatchId <= 0 || string.IsNullOrWhiteSpace(request.RollNo) ||
+            request.RollNo.Trim().Length > 50 || request.Remarks?.Length > 500)
+            return Task.FromResult(Error<AcademicStudentEnrollmentDto>("Student, batch, roll and request reference are required."));
+        return ExecuteWriteAsync("enroll student", async () =>
         {
-            var tenantId = _currentUser.TenantId;
+            var tenant = _user.TenantId;
             var roll = request.RollNo.Trim();
-            var replay = await EnrollmentQuery().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.ClientRequestId == request.ClientRequestId, cancellationToken);
+            var replay = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.ClientRequestId == request.ClientRequestId, ct);
             if (replay != null)
             {
-                if (replay.Student?.PublicId != request.StudentReference || replay.AcademicBatchId != request.AcademicBatchId || !string.Equals(replay.RollNo, roll, StringComparison.OrdinalIgnoreCase) || request.EnrollmentDate.HasValue && replay.EnrollmentDate.Date != request.EnrollmentDate.Value.Date)
-                    return Error<AcademicStudentEnrollmentDto>("Client request ID was already used for a different enrollment.", 409);
-                var replaySubjects = await GetRegistrationDtosAsync(replay.Id, cancellationToken);
-                return ApiResponse<AcademicStudentEnrollmentDto>.SuccessResponse(MapEnrollment(replay, replaySubjects), "Academic enrollment already exists.");
+                var linked = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Id == replay.StudentId, ct);
+                if (linked == null || linked.PublicId != request.StudentReference ||
+                    replay.AcademicBatchId != request.AcademicBatchId ||
+                    !string.Equals(replay.RollNo, roll, StringComparison.OrdinalIgnoreCase) ||
+                    request.EnrollmentDate.HasValue && replay.EnrollmentDate != DateOnly.FromDateTime(request.EnrollmentDate.Value))
+                    return Error<AcademicStudentEnrollmentDto>("Request ID was previously used for different enrollment data.", 409);
+                return ApiResponse<AcademicStudentEnrollmentDto>.SuccessResponse(
+                    await BuildEnrollmentDtoAsync(replay, linked, ct), "Enrollment already exists.");
             }
-            var student = await _students.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.PublicId == request.StudentReference && x.IsActive, cancellationToken);
-            if (student == null) return Error<AcademicStudentEnrollmentDto>("Student not found.", 404);
-            var batch = await _batches.GetQueryable().Include(x => x.AcademicYear).FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.AcademicBatchId && x.IsActive, cancellationToken);
-            if (batch?.AcademicYear == null) return Error<AcademicStudentEnrollmentDto>("Academic batch not found.", 404);
-            var enrollmentDate = (request.EnrollmentDate ?? _clock.GetUtcNow().UtcDateTime).Date;
-            if (enrollmentDate < batch.AcademicYear.StartDate.Date || enrollmentDate > batch.AcademicYear.EndDate.Date || batch.StartDate.HasValue && enrollmentDate < batch.StartDate.Value.Date || batch.EndDate.HasValue && enrollmentDate > batch.EndDate.Value.Date)
+
+            var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.PublicId == request.StudentReference && x.IsActive, ct);
+            if (student == null) return Error<AcademicStudentEnrollmentDto>("Active student not found.", 404);
+            var batch = await _batches.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.Id == request.AcademicBatchId && x.IsActive, ct);
+            if (batch == null) return Error<AcademicStudentEnrollmentDto>("Active academic batch not found.", 404);
+            var year = await _years.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.Id == batch.AcademicYearId && x.IsActive, ct);
+            if (year == null) return Error<AcademicStudentEnrollmentDto>("Academic year is unavailable.", 409);
+            var date = request.EnrollmentDate.HasValue
+                ? DateOnly.FromDateTime(request.EnrollmentDate.Value)
+                : DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+            if (date < year.StartDate || date > year.EndDate ||
+                batch.StartDate.HasValue && date < batch.StartDate.Value ||
+                batch.EndDate.HasValue && date > batch.EndDate.Value)
                 return Error<AcademicStudentEnrollmentDto>("Enrollment date is outside the academic batch period.", 409);
-            var current = await _enrollments.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.StudentId == student.Id && x.IsCurrent && x.IsActive, cancellationToken);
+            var current = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.StudentId == student.Id && x.IsCurrent && x.IsActive, ct);
             if (current != null)
             {
-                if (current.AcademicBatchId == batch.Id && string.Equals(current.RollNo, roll, StringComparison.OrdinalIgnoreCase))
-                {
-                    var currentRow = await EnrollmentQuery().FirstAsync(x => x.Id == current.Id, cancellationToken);
-                    var currentSubjects = await GetRegistrationDtosAsync(current.Id, cancellationToken);
-                    return ApiResponse<AcademicStudentEnrollmentDto>.SuccessResponse(MapEnrollment(currentRow, currentSubjects), "Student is already enrolled.");
-                }
-                return Error<AcademicStudentEnrollmentDto>("Student already has a current academic enrollment.", 409);
+                if (current.AcademicBatchId == batch.Id && string.Equals(current.RollNo, roll, StringComparison.OrdinalIgnoreCase) &&
+                    current.EnrollmentDate == date)
+                    return ApiResponse<AcademicStudentEnrollmentDto>.SuccessResponse(
+                        await BuildEnrollmentDtoAsync(current, student, ct), "Student already enrolled.");
+                return Error<AcademicStudentEnrollmentDto>("Student already has a current enrollment.", 409);
             }
-            if (await _enrollments.GetQueryable().AnyAsync(x => x.TenantId == tenantId && x.AcademicBatchId == batch.Id && x.RollNo == roll && x.IsCurrent && x.IsActive, cancellationToken))
-                return Error<AcademicStudentEnrollmentDto>("Roll is already assigned in this academic batch.", 409);
-            var occupied = await _enrollments.GetQueryable().CountAsync(x => x.TenantId == tenantId && x.AcademicBatchId == batch.Id && x.IsCurrent && x.IsActive && x.EnrollmentStatus == EnrollmentStatus.Active, cancellationToken);
-            if (batch.Capacity <= 0 || occupied >= batch.Capacity) return Error<AcademicStudentEnrollmentDto>("Academic batch capacity has been reached.", 409);
-            var curriculum = await ResolveCurriculumAsync(batch, cancellationToken);
-            if (curriculum == null) return Error<AcademicStudentEnrollmentDto>("No effective curriculum is configured for this academic batch.", 409);
-            var curriculumSubjects = await CurriculumSubjectQuery(curriculum.Id, batch).ToListAsync(cancellationToken);
-            if (curriculumSubjects.Count == 0) return Error<AcademicStudentEnrollmentDto>("The effective curriculum has no subjects for this academic level.", 409);
+            if (await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenant && x.AcademicBatchId == batch.Id && x.RollNo == roll &&
+                x.IsCurrent && x.IsActive, ct))
+                return Error<AcademicStudentEnrollmentDto>("Roll already assigned in this academic batch.", 409);
+            var occupied = await _enrollments.GetQueryable().AsNoTracking().CountAsync(x =>
+                x.TenantId == tenant && x.AcademicBatchId == batch.Id &&
+                x.IsCurrent && x.IsActive && x.State == EnrollmentState.Active, ct);
+            if (batch.Capacity <= 0 || occupied >= batch.Capacity)
+                return Error<AcademicStudentEnrollmentDto>("Batch capacity has been reached.", 409);
+
+            var curricula = await _curricula.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == tenant && x.AcademicProgramId == batch.AcademicProgramId &&
+                x.AcademicTrackId == batch.AcademicTrackId && x.MediumId == batch.MediumId &&
+                x.IsCurrent && x.IsActive && x.EffectiveFrom <= date &&
+                (!x.EffectiveTo.HasValue || x.EffectiveTo >= date))
+                .Take(2).ToListAsync(ct);
+            if (curricula.Count != 1)
+                return Error<AcademicStudentEnrollmentDto>("Exactly one effective curriculum is required for this batch.", 409);
+            var curriculum = curricula[0];
+            var requiredSubjects = await _curriculumSubjects.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == tenant && x.AcademicCurriculumId == curriculum.Id &&
+                x.AcademicLevelId == batch.AcademicLevelId && x.IsActive && !x.IsOptional).ToListAsync(ct);
+            if (requiredSubjects.Count == 0)
+                return Error<AcademicStudentEnrollmentDto>("Curriculum must contain required subjects.", 409);
+            var requiredIds = requiredSubjects.Select(x => x.Id).ToArray();
+            var offerings = await _offerings.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == tenant && x.AcademicBatchId == batch.Id && x.IsActive &&
+                requiredIds.Contains(x.CurriculumSubjectId)).ToListAsync(ct);
+            if (offerings.GroupBy(x => x.CurriculumSubjectId).Any(x => x.Count() != 1) ||
+                requiredSubjects.Any(x => offerings.All(y => y.CurriculumSubjectId != x.Id)))
+                return Error<AcademicStudentEnrollmentDto>("Each required curriculum subject needs exactly one active batch offering.", 409);
+
             var now = _clock.GetUtcNow().UtcDateTime;
-            var row = new StudentEnrollment
+            var entity = new StudentEnrollment
             {
-                TenantId = tenantId,
-                ClientRequestId = request.ClientRequestId,
-                StudentId = student.Id,
-                CampusId = batch.CampusId,
-                AcademicYearId = batch.AcademicYearId,
-                AcademicTermId = batch.AcademicTermId,
-                AcademicProgramId = batch.AcademicProgramId,
-                AcademicLevelId = batch.AcademicLevelId,
-                AcademicBatchId = batch.Id,
-                AcademicCurriculumId = curriculum.Id,
-                MediumId = batch.MediumId,
-                ShiftId = batch.ShiftId,
-                AcademicTrackId = batch.AcademicTrackId,
-                RollNo = roll,
-                EnrollmentDate = enrollmentDate,
-                EnrollmentStatus = EnrollmentStatus.Active,
-                IsCurrent = true,
-                IsActive = true,
-                Remarks = Trim(request.Remarks),
-                Student = student,
-                AcademicBatch = batch,
-                AcademicYear = batch.AcademicYear,
-                AcademicCurriculum = curriculum
+                TenantId = tenant, PublicId = Guid.NewGuid(), ClientRequestId = request.ClientRequestId,
+                StudentId = student.Id, CampusId = batch.CampusId, AcademicYearId = batch.AcademicYearId,
+                AcademicTermId = batch.AcademicTermId, AcademicProgramId = batch.AcademicProgramId,
+                AcademicLevelId = batch.AcademicLevelId, AcademicBatchId = batch.Id,
+                AcademicCurriculumId = curriculum.Id, AcademicTrackId = batch.AcademicTrackId,
+                MediumId = batch.MediumId, ShiftId = batch.ShiftId, RollNo = roll,
+                EnrollmentDate = date, State = EnrollmentState.Active,
+                IsCurrent = true, IsActive = true, Remarks = Trim(request.Remarks),
+                CreatedAt = now, CreatedBy = _user.UserId
             };
-            await _enrollments.AddAsync(row);
-            var requiredRegistrations = curriculumSubjects.Where(x => !x.IsOptional).Select(x => CreateRegistration(row, student, batch, curriculum, x, true, SubjectRegistrationStatus.Approved, now, null, request.Remarks, _currentUser.UserId)).ToList();
-            await _registrations.AddRangeAsync(requiredRegistrations);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            return Created(MapEnrollment(row, requiredRegistrations.Select(MapRegistration).ToList()), "Student enrolled in academic batch.");
+            await _enrollments.AddAsync(entity);
+            await _uow.SaveChangesAsync(ct);
+            foreach (var offering in offerings)
+            {
+                var item = requiredSubjects.Single(x => x.Id == offering.CurriculumSubjectId);
+                await _registrations.AddAsync(new StudentSubjectRegistration
+                {
+                    TenantId = tenant, ClientRequestId = Guid.NewGuid(),
+                    StudentEnrollmentId = entity.Id, SubjectOfferingId = offering.Id,
+                    State = SubjectRegistrationState.Approved, RegisteredAt = now,
+                    CreditHoursSnapshot = item.CreditHours, ApprovedByUserId = _user.UserId,
+                    ApprovedAt = now, CreatedAt = now, CreatedBy = _user.UserId
+                });
+            }
+            await _uow.SaveChangesAsync(ct);
+            var result = await BuildEnrollmentDtoAsync(entity, student, ct);
+            return Created(result, "Student enrolled in academic batch.");
         });
     }
 
-    public Task<ApiResponse<StudentSubjectRegistrationDto>> RequestOptionalSubjectAsync(long studentEnrollmentId, RequestOptionalSubjectDto request, CancellationToken cancellationToken = default)
+    public Task<ApiResponse<StudentSubjectRegistrationDto>> RequestOptionalSubjectAsync(long studentEnrollmentId,
+        RequestOptionalSubjectDto request, CancellationToken ct = default)
     {
-        if (!CanSelfServe()) return Task.FromResult(Denied<StudentSubjectRegistrationDto>());
+        if (!CanSelfServe() && !CanManage()) return Task.FromResult(Denied<StudentSubjectRegistrationDto>());
         if (studentEnrollmentId <= 0 || request == null || request.ClientRequestId == Guid.Empty || request.SubjectId <= 0)
-            return Task.FromResult(Error<StudentSubjectRegistrationDto>("Enrollment, subject and client request ID are required."));
+            return Task.FromResult(Error<StudentSubjectRegistrationDto>("Enrollment, subject and request ID are required."));
         return ExecuteWriteAsync("request optional subject", async () =>
         {
-            var tenantId = _currentUser.TenantId;
-            var replay = await _registrations.GetQueryable().Include(x => x.Student).FirstOrDefaultAsync(x => x.TenantId == tenantId && x.ClientRequestId == request.ClientRequestId, cancellationToken);
+            var tenant = _user.TenantId;
+            var replay = await _registrations.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.ClientRequestId == request.ClientRequestId, ct);
             if (replay != null)
             {
-                if (replay.Student == null || !await CanAccessStudentAsync(replay.Student, cancellationToken)) return NotFound<StudentSubjectRegistrationDto>();
-                if (replay.StudentEnrollmentId != studentEnrollmentId || replay.SubjectId != request.SubjectId)
-                    return Error<StudentSubjectRegistrationDto>("Client request ID was already used for a different subject request.", 409);
-                return ApiResponse<StudentSubjectRegistrationDto>.SuccessResponse(MapRegistration(replay), "Subject request already exists.");
+                var candidate = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Id == replay.StudentEnrollmentId, ct);
+                var oldStudent = candidate == null ? null : await _students.GetQueryable().AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.TenantId == tenant && x.Id == candidate.StudentId, ct);
+                if (candidate == null || oldStudent == null || !await CanAccessStudentAsync(oldStudent, ct))
+                    return NotFound<StudentSubjectRegistrationDto>();
+                var mapped = await GetRegistrationDtosAsync(candidate.Id, ct);
+                var old = mapped.FirstOrDefault(x => x.Id == replay.Id);
+                if (candidate.Id != studentEnrollmentId || old == null ||
+                    !await OfferingMatchesSubjectAsync(replay.SubjectOfferingId, request.SubjectId, ct))
+                    return Error<StudentSubjectRegistrationDto>("Request ID was reused for another subject.", 409);
+                return ApiResponse<StudentSubjectRegistrationDto>.SuccessResponse(old, "Subject request already exists.");
             }
-            var enrollment = await EnrollmentQuery().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == studentEnrollmentId && x.IsCurrent && x.IsActive, cancellationToken);
-            if (enrollment?.Student == null || !await CanAccessStudentAsync(enrollment.Student, cancellationToken)) return NotFound<StudentSubjectRegistrationDto>();
-            var option = await CurriculumSubjectQuery(enrollment.AcademicCurriculumId, enrollment.AcademicBatch!).FirstOrDefaultAsync(x => x.SubjectId == request.SubjectId && x.IsOptional, cancellationToken);
-            if (option == null) return Error<StudentSubjectRegistrationDto>("Optional subject is unavailable for this enrollment.", 409);
-            var existing = await _registrations.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.StudentEnrollmentId == enrollment.Id && x.SubjectId == request.SubjectId, cancellationToken);
+            var enrollment = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.Id == studentEnrollmentId && x.IsCurrent &&
+                x.IsActive && x.State == EnrollmentState.Active, ct);
+            var student = enrollment == null ? null : await _students.GetQueryable().AsNoTracking()
+                .FirstOrDefaultAsync(x => x.TenantId == tenant && x.Id == enrollment.StudentId, ct);
+            if (enrollment == null || student == null || !await CanAccessStudentAsync(student, ct))
+                return NotFound<StudentSubjectRegistrationDto>();
+            var matches = await (from offer in _offerings.GetQueryable().AsNoTracking()
+                join item in _curriculumSubjects.GetQueryable().AsNoTracking() on offer.CurriculumSubjectId equals item.Id
+                where offer.TenantId == tenant && item.TenantId == tenant && offer.IsActive &&
+                    item.IsActive && item.IsOptional && offer.AcademicBatchId == enrollment.AcademicBatchId &&
+                    item.AcademicCurriculumId == enrollment.AcademicCurriculumId &&
+                    item.AcademicLevelId == enrollment.AcademicLevelId && item.SubjectId == request.SubjectId
+                select new { OfferId = offer.Id, item.CreditHours }).Take(2).ToListAsync(ct);
+            if (matches.Count != 1) return Error<StudentSubjectRegistrationDto>("Optional subject offering is unavailable or ambiguous.", 409);
+            var selected = matches[0];
+            var exists = await _registrations.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
+                x.StudentEnrollmentId == enrollment.Id && x.SubjectOfferingId == selected.OfferId, ct);
+            if (exists) return Error<StudentSubjectRegistrationDto>("Subject registration already exists. Review its current state.", 409);
             var now = _clock.GetUtcNow().UtcDateTime;
-            if (existing != null)
+            var entity = new StudentSubjectRegistration
             {
-                if (existing.Status is SubjectRegistrationStatus.Pending or SubjectRegistrationStatus.Approved)
-                    return ApiResponse<StudentSubjectRegistrationDto>.SuccessResponse(MapRegistration(existing), "Subject is already registered or pending approval.");
-                existing.ClientRequestId = request.ClientRequestId;
-                existing.Status = SubjectRegistrationStatus.Pending;
-                existing.RequestedAtUtc = now;
-                existing.DecidedAtUtc = null;
-                existing.DecidedByUserId = null;
-                existing.Remarks = Trim(request.Remarks);
-                _registrations.Update(existing);
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
-                return ApiResponse<StudentSubjectRegistrationDto>.SuccessResponse(MapRegistration(existing), "Optional subject request reopened.");
-            }
-            var row = CreateRegistration(enrollment, enrollment.Student, enrollment.AcademicBatch!, enrollment.AcademicCurriculum!, option, false, SubjectRegistrationStatus.Pending, now, request.ClientRequestId, request.Remarks, null);
-            await _registrations.AddAsync(row);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            return Created(MapRegistration(row), "Optional subject requested for approval.");
+                TenantId = tenant, ClientRequestId = request.ClientRequestId,
+                StudentEnrollmentId = enrollment.Id, SubjectOfferingId = selected.OfferId,
+                State = SubjectRegistrationState.Pending, RegisteredAt = now,
+                CreditHoursSnapshot = selected.CreditHours, Remarks = Trim(request.Remarks),
+                CreatedAt = now, CreatedBy = _user.UserId
+            };
+            await _registrations.AddAsync(entity);
+            await _uow.SaveChangesAsync(ct);
+            var dtos = await GetRegistrationDtosAsync(enrollment.Id, ct);
+            return Created(dtos.Single(x => x.Id == entity.Id), "Optional subject request submitted.");
         });
     }
 
-    public Task<ApiResponse<StudentSubjectRegistrationDto>> DecideSubjectAsync(long registrationId, DecideSubjectRegistrationDto request, CancellationToken cancellationToken = default)
+    public Task<ApiResponse<StudentSubjectRegistrationDto>> DecideSubjectAsync(long registrationId,
+        DecideSubjectRegistrationDto request, CancellationToken ct = default)
     {
         if (!CanManage()) return Task.FromResult(Denied<StudentSubjectRegistrationDto>());
-        if (registrationId <= 0 || request == null || request.Status is not (SubjectRegistrationStatus.Approved or SubjectRegistrationStatus.Rejected) || !TryDecodeRowVersion(request.RowVersion, out var rowVersion))
+        if (registrationId <= 0 || request == null ||
+            request.Status is not (SubjectRegistrationStatus.Approved or SubjectRegistrationStatus.Rejected) ||
+            !TryVersion(request.RowVersion, out var expected))
             return Task.FromResult(Error<StudentSubjectRegistrationDto>("A valid decision and row version are required."));
         return ExecuteWriteAsync("decide subject registration", async () =>
         {
-            var row = await _registrations.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.Id == registrationId, cancellationToken);
-            if (row == null) return NotFound<StudentSubjectRegistrationDto>();
-            if (row.IsRequired) return Error<StudentSubjectRegistrationDto>("Required curriculum subjects do not use elective approval.", 409);
-            if (row.Status == request.Status) return ApiResponse<StudentSubjectRegistrationDto>.SuccessResponse(MapRegistration(row), "Subject decision already applied.");
-            if (row.Status != SubjectRegistrationStatus.Pending) return Error<StudentSubjectRegistrationDto>("Only pending subject requests can be decided.", 409);
-            if (!CryptographicOperations.FixedTimeEquals(row.RowVersion, rowVersion)) return Error<StudentSubjectRegistrationDto>("Subject request changed. Reload and try again.", 409);
-            row.Status = request.Status;
-            row.DecidedAtUtc = _clock.GetUtcNow().UtcDateTime;
-            row.DecidedByUserId = _currentUser.UserId;
-            row.Remarks = Trim(request.Remarks) ?? row.Remarks;
-            _registrations.Update(row);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            return ApiResponse<StudentSubjectRegistrationDto>.SuccessResponse(MapRegistration(row), "Subject registration decision saved.");
+            var tenant = _user.TenantId;
+            var entity = await _registrations.GetQueryable().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.Id == registrationId, ct);
+            if (entity == null) return NotFound<StudentSubjectRegistrationDto>();
+            var offering = await (from offer in _offerings.GetQueryable().AsNoTracking()
+                join item in _curriculumSubjects.GetQueryable().AsNoTracking() on offer.CurriculumSubjectId equals item.Id
+                where offer.TenantId == tenant && item.TenantId == tenant &&
+                    offer.Id == entity.SubjectOfferingId
+                select new { item.IsOptional }).FirstOrDefaultAsync(ct);
+            if (offering == null || !offering.IsOptional)
+                return Error<StudentSubjectRegistrationDto>("Required subjects do not use elective approval.", 409);
+            var decision = Enum.Parse<SubjectRegistrationState>(request.Status.ToString());
+            if (entity.State == decision)
+            {
+                var existing = await GetRegistrationDtosAsync(entity.StudentEnrollmentId, ct);
+                return ApiResponse<StudentSubjectRegistrationDto>.SuccessResponse(
+                    existing.Single(x => x.Id == entity.Id), "Subject decision already applied.");
+            }
+            if (entity.State != SubjectRegistrationState.Pending)
+                return Error<StudentSubjectRegistrationDto>("Only pending subject requests can be decided.", 409);
+            if (!VersionsMatch(entity.RowVersion, expected))
+                return Error<StudentSubjectRegistrationDto>("Subject request changed. Reload and retry.", 409);
+            var now = _clock.GetUtcNow().UtcDateTime;
+            entity.State = decision;
+            if (decision == SubjectRegistrationState.Approved)
+            {
+                entity.ApprovedAt = now;
+                entity.ApprovedByUserId = _user.UserId;
+            }
+            entity.UpdatedAt = now; entity.UpdatedBy = _user.UserId;
+            entity.Remarks = Trim(request.Remarks) ?? entity.Remarks;
+            await _uow.SaveChangesAsync(ct);
+            var dtos = await GetRegistrationDtosAsync(entity.StudentEnrollmentId, ct);
+            return ApiResponse<StudentSubjectRegistrationDto>.SuccessResponse(
+                dtos.Single(x => x.Id == entity.Id), "Subject decision saved.");
         });
     }
 
-    public async Task<ApiResponse<IReadOnlyList<RoutineEntryDto>>> GetTimetableAsync(Guid studentReference, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<IReadOnlyList<RoutineEntryDto>>> GetTimetableAsync(Guid studentReference,
+        CancellationToken ct = default)
     {
         if (!CanRead() || studentReference == Guid.Empty) return NotFound<IReadOnlyList<RoutineEntryDto>>();
-        var student = await GetAuthorizedStudentAsync(studentReference, cancellationToken);
+        var student = await AuthorizedStudentAsync(studentReference, ct);
         if (student == null) return NotFound<IReadOnlyList<RoutineEntryDto>>();
-        var enrollment = await _enrollments.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == _currentUser.TenantId && x.StudentId == student.Id && x.IsCurrent && x.IsActive)
-            .OrderByDescending(x => x.EnrollmentDate).ThenByDescending(x => x.Id)
-            .FirstOrDefaultAsync(cancellationToken);
+        var enrollment = await _enrollments.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == _user.TenantId && x.StudentId == student.Id && x.IsCurrent && x.IsActive)
+            .OrderByDescending(x => x.EnrollmentDate).FirstOrDefaultAsync(ct);
         if (enrollment == null) return NotFound<IReadOnlyList<RoutineEntryDto>>();
-        var subjectIds = await _registrations.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId && x.StudentEnrollmentId == enrollment.Id && x.Status == SubjectRegistrationStatus.Approved).Select(x => x.SubjectId).ToListAsync(cancellationToken);
-        if (subjectIds.Count == 0) return ApiResponse<IReadOnlyList<RoutineEntryDto>>.SuccessResponse(Array.Empty<RoutineEntryDto>());
-        var entries = await _routineEntries.GetQueryable().AsNoTracking()
-            .Include(x => x.AcademicBatch).Include(x => x.RoutineTimeSlot).Include(x => x.Subject).Include(x => x.Employee)
-            .Where(x => x.TenantId == _currentUser.TenantId && x.AcademicBatchId == enrollment.AcademicBatchId && x.AcademicYearId == enrollment.AcademicYearId && x.AcademicTermId == enrollment.AcademicTermId && subjectIds.Contains(x.SubjectId) && x.IsActive)
-            .OrderBy(x => x.DayOfWeek).ThenBy(x => x.RoutineTimeSlot!.StartTime).ThenBy(x => x.Subject!.Name)
-            .ToListAsync(cancellationToken);
-        var roomIds = entries.Where(x => x.RoomId.HasValue).Select(x => x.RoomId!.Value).Distinct().ToList();
-        var roomNames = await _rooms.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId && roomIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name, cancellationToken);
-        IReadOnlyList<RoutineEntryDto> rows = entries.Select(x => new RoutineEntryDto
+        var ids = await _registrations.GetQueryable().AsNoTracking().Where(x => x.TenantId == _user.TenantId &&
+            x.StudentEnrollmentId == enrollment.Id && x.State == SubjectRegistrationState.Approved)
+            .Select(x => x.SubjectOfferingId).ToArrayAsync(ct);
+        if (ids.Length == 0)
+            return ApiResponse<IReadOnlyList<RoutineEntryDto>>.SuccessResponse(Array.Empty<RoutineEntryDto>());
+        var tenant = _user.TenantId;
+        var rows = await (from routine in _routineEntries.GetQueryable().AsNoTracking()
+            join offering in _offerings.GetQueryable().AsNoTracking() on routine.SubjectOfferingId equals offering.Id
+            join item in _curriculumSubjects.GetQueryable().AsNoTracking() on offering.CurriculumSubjectId equals item.Id
+            join subject in _subjects.GetQueryable().AsNoTracking() on item.SubjectId equals subject.Id
+            join slot in _timeSlots.GetQueryable().AsNoTracking() on routine.RoutineTimeSlotId equals slot.Id
+            where routine.TenantId == tenant && offering.TenantId == tenant && item.TenantId == tenant &&
+                subject.TenantId == tenant && slot.TenantId == tenant &&
+                routine.IsActive && offering.IsActive && ids.Contains(offering.Id)
+            orderby routine.DayOfWeek, slot.StartTime, subject.Name
+            select new { Routine = routine, Offering = offering, SubjectName = subject.Name, TimeSlotName = slot.Name })
+            .Take(300).ToListAsync(ct);
+        var roomIds = rows.Where(x => x.Routine.RoomId.HasValue).Select(x => x.Routine.RoomId!.Value).Distinct().ToArray();
+        var rooms = await _rooms.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
+            roomIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name, ct);
+        IReadOnlyList<RoutineEntryDto> result = rows.Select(x => new RoutineEntryDto
         {
-            Id = x.Id,
-            AcademicBatchId = x.AcademicBatchId,
-            BatchName = x.AcademicBatch?.Name ?? string.Empty,
-            SubjectId = x.SubjectId,
-            SubjectName = x.Subject?.Name ?? string.Empty,
-            EmployeeId = x.EmployeeId,
-            EmployeeName = x.Employee?.FullName ?? string.Empty,
-            AcademicYearId = x.AcademicYearId,
-            AcademicTermId = x.AcademicTermId,
-            DayOfWeek = x.DayOfWeek,
-            RoutineTimeSlotId = x.RoutineTimeSlotId,
-            TimeSlotName = x.RoutineTimeSlot?.Name ?? string.Empty,
-            StartTime = x.RoutineTimeSlot?.StartTime ?? default,
-            EndTime = x.RoutineTimeSlot?.EndTime ?? default,
-            RoomId = x.RoomId,
-            RoomName = x.RoomId.HasValue && roomNames.TryGetValue(x.RoomId.Value, out var roomName) ? roomName : null,
-            Remarks = x.Remarks,
-            IsActive = x.IsActive
+            Id = x.Routine.Id, SubjectOfferingId = x.Offering.Id,
+            SubjectOfferingReference = x.Offering.PublicId, SubjectName = x.SubjectName,
+            RoutineTimeSlotId = x.Routine.RoutineTimeSlotId, TimeSlotName = x.TimeSlotName,
+            RoomId = x.Routine.RoomId, RoomName = x.Routine.RoomId.HasValue
+                ? rooms.GetValueOrDefault(x.Routine.RoomId.Value) : null,
+            DayOfWeek = x.Routine.DayOfWeek, EffectiveFrom = x.Routine.EffectiveFrom,
+            EffectiveTo = x.Routine.EffectiveTo, IsActive = x.Routine.IsActive,
+            RowVersion = Convert.ToBase64String(x.Routine.RowVersion)
         }).ToList();
-        return ApiResponse<IReadOnlyList<RoutineEntryDto>>.SuccessResponse(rows);
+        return ApiResponse<IReadOnlyList<RoutineEntryDto>>.SuccessResponse(result);
     }
 
-    private IQueryable<StudentEnrollment> EnrollmentQuery() => _enrollments.GetQueryable()
-        .Include(x => x.Student).Include(x => x.AcademicBatch).Include(x => x.AcademicCurriculum);
+    private async Task<bool> OfferingMatchesSubjectAsync(long offeringId, long subjectId, CancellationToken ct) =>
+        await (from offering in _offerings.GetQueryable().AsNoTracking()
+            join item in _curriculumSubjects.GetQueryable().AsNoTracking() on offering.CurriculumSubjectId equals item.Id
+            where offering.TenantId == _user.TenantId && item.TenantId == _user.TenantId &&
+                offering.Id == offeringId && item.SubjectId == subjectId
+            select offering.Id).AnyAsync(ct);
 
-    private IQueryable<CurriculumSubject> CurriculumSubjectQuery(long curriculumId, AcademicBatch batch) => _curriculumSubjects.GetQueryable()
-        .Include(x => x.Subject)
-        .Where(x => x.TenantId == _currentUser.TenantId && x.AcademicCurriculumId == curriculumId && x.AcademicLevelId == batch.AcademicLevelId && x.IsActive && x.Subject != null && x.Subject.IsActive && (!x.AcademicTrackId.HasValue || x.AcademicTrackId == batch.AcademicTrackId) && (!x.MediumId.HasValue || x.MediumId == batch.MediumId));
-
-    private async Task<AcademicCurriculum?> ResolveCurriculumAsync(AcademicBatch batch, CancellationToken cancellationToken)
+    private async Task<Student?> AuthorizedStudentAsync(Guid reference, CancellationToken ct)
     {
-        var candidates = await _curricula.GetQueryable().Where(x => x.TenantId == _currentUser.TenantId && x.AcademicProgramId == batch.AcademicProgramId && x.IsActive).ToListAsync(cancellationToken);
-        if (candidates.Count == 0) return null;
-        var boundaryIds = candidates.SelectMany(x => new[] { x.EffectiveFromAcademicYearId, x.EffectiveToAcademicYearId }).Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToList();
-        var boundaries = await _years.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId && boundaryIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, cancellationToken);
-        return candidates
-            .Where(x => (!x.EffectiveFromAcademicYearId.HasValue || boundaries.TryGetValue(x.EffectiveFromAcademicYearId.Value, out var from) && from.StartDate.Date <= batch.AcademicYear!.EndDate.Date)
-                     && (!x.EffectiveToAcademicYearId.HasValue || boundaries.TryGetValue(x.EffectiveToAcademicYearId.Value, out var to) && to.EndDate.Date >= batch.AcademicYear!.StartDate.Date))
-            .OrderByDescending(x => x.IsCurrent)
-            .ThenByDescending(x => x.EffectiveFromAcademicYearId)
-            .ThenByDescending(x => x.Id)
-            .FirstOrDefault();
+        var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == _user.TenantId && x.PublicId == reference && x.IsActive, ct);
+        return student != null && await CanAccessStudentAsync(student, ct) ? student : null;
     }
 
-    private static StudentSubjectRegistration CreateRegistration(StudentEnrollment enrollment, Student student, AcademicBatch batch, AcademicCurriculum curriculum, CurriculumSubject option, bool isRequired, SubjectRegistrationStatus status, DateTime now, Guid? clientRequestId, string? remarks, long? decidedByUserId) => new()
-    {
-        TenantId = enrollment.TenantId,
-        ClientRequestId = clientRequestId,
-        StudentEnrollment = enrollment,
-        StudentId = student.Id,
-        AcademicYearId = batch.AcademicYearId,
-        AcademicTermId = batch.AcademicTermId,
-        AcademicBatchId = batch.Id,
-        AcademicCurriculumId = curriculum.Id,
-        CurriculumSubjectId = option.Id,
-        SubjectId = option.SubjectId,
-        IsRequired = isRequired,
-        Status = status,
-        RequestedAtUtc = now,
-        DecidedAtUtc = status == SubjectRegistrationStatus.Approved ? now : null,
-        DecidedByUserId = status == SubjectRegistrationStatus.Approved ? decidedByUserId : null,
-        FullMarksSnapshot = option.FullMarks,
-        PassMarksSnapshot = option.PassMarks,
-        CreditHoursSnapshot = option.CreditHours,
-        SubjectCodeSnapshot = option.Subject?.Code ?? string.Empty,
-        SubjectNameSnapshot = option.Subject?.Name ?? string.Empty,
-        Remarks = Trim(remarks),
-        Student = student,
-        AcademicBatch = batch,
-        AcademicCurriculum = curriculum,
-        CurriculumSubject = option,
-        Subject = option.Subject
-    };
-
-    private async Task<Student?> GetAuthorizedStudentAsync(Guid reference, CancellationToken cancellationToken)
-    {
-        var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.PublicId == reference && x.IsActive, cancellationToken);
-        return student != null && await CanAccessStudentAsync(student, cancellationToken) ? student : null;
-    }
-
-    private async Task<bool> CanAccessStudentAsync(Student student, CancellationToken cancellationToken)
+    private async Task<bool> CanAccessStudentAsync(Student student, CancellationToken ct)
     {
         if (CanManage()) return true;
         if (!CanSelfServe()) return false;
-        if (student.UserId == _currentUser.UserId) return true;
-        return await _guardians.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == _currentUser.TenantId && x.StudentId == student.Id && x.UserId == _currentUser.UserId, cancellationToken);
+        if (student.UserId == _user.UserId) return true;
+        return await (from link in _studentGuardians.GetQueryable().AsNoTracking()
+            join guardian in _guardians.GetQueryable().AsNoTracking() on link.GuardianId equals guardian.Id
+            where link.TenantId == _user.TenantId && guardian.TenantId == _user.TenantId &&
+                link.StudentId == student.Id && guardian.UserId == _user.UserId && guardian.IsActive
+            select link.Id).AnyAsync(ct);
     }
 
-    private async Task<IReadOnlyList<StudentSubjectRegistrationDto>> GetRegistrationDtosAsync(long enrollmentId, CancellationToken cancellationToken) =>
-        (await _registrations.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId && x.StudentEnrollmentId == enrollmentId).OrderByDescending(x => x.IsRequired).ThenBy(x => x.SubjectNameSnapshot).ToListAsync(cancellationToken)).Select(MapRegistration).ToList();
+    private async Task<AcademicStudentEnrollmentDto> BuildEnrollmentDtoAsync(StudentEnrollment entity,
+        Student student, CancellationToken ct)
+    {
+        var tenant = _user.TenantId;
+        var batchName = await _batches.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
+            x.Id == entity.AcademicBatchId).Select(x => x.Name).FirstOrDefaultAsync(ct);
+        var curriculumName = await _curricula.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
+            x.Id == entity.AcademicCurriculumId).Select(x => x.Name).FirstOrDefaultAsync(ct);
+        return new AcademicStudentEnrollmentDto
+        {
+            Id = entity.Id, StudentReference = student.PublicId, StudentName = student.FullName,
+            CampusId = entity.CampusId, AcademicYearId = entity.AcademicYearId, AcademicTermId = entity.AcademicTermId,
+            AcademicProgramId = entity.AcademicProgramId, AcademicLevelId = entity.AcademicLevelId,
+            AcademicBatchId = entity.AcademicBatchId, BatchName = batchName ?? string.Empty,
+            AcademicCurriculumId = entity.AcademicCurriculumId, CurriculumName = curriculumName ?? string.Empty,
+            RollNo = entity.RollNo, EnrollmentDate = entity.EnrollmentDate.ToDateTime(TimeOnly.MinValue),
+            EnrollmentStatus = Enum.Parse<EnrollmentStatus>(entity.State.ToString()),
+            IsCurrent = entity.IsCurrent, IsActive = entity.IsActive,
+            RowVersion = Convert.ToBase64String(entity.RowVersion),
+            Subjects = await GetRegistrationDtosAsync(entity.Id, ct)
+        };
+    }
+
+    private async Task<IReadOnlyList<StudentSubjectRegistrationDto>> GetRegistrationDtosAsync(long id, CancellationToken ct)
+    {
+        var tenant = _user.TenantId;
+        var rows = await (from registration in _registrations.GetQueryable().AsNoTracking()
+            join offering in _offerings.GetQueryable().AsNoTracking() on registration.SubjectOfferingId equals offering.Id
+            join item in _curriculumSubjects.GetQueryable().AsNoTracking() on offering.CurriculumSubjectId equals item.Id
+            join subject in _subjects.GetQueryable().AsNoTracking() on item.SubjectId equals subject.Id
+            where registration.TenantId == tenant && offering.TenantId == tenant &&
+                item.TenantId == tenant && subject.TenantId == tenant &&
+                registration.StudentEnrollmentId == id
+            orderby item.IsOptional, subject.Name
+            select new { Registration = registration, SubjectCode = subject.Code, SubjectName = subject.Name })
+            .Take(300).ToListAsync(ct);
+        return rows.Select(x => new StudentSubjectRegistrationDto
+        {
+            Id = x.Registration.Id, StudentEnrollmentId = x.Registration.StudentEnrollmentId,
+            SubjectOfferingId = x.Registration.SubjectOfferingId,
+            SubjectCode = x.SubjectCode, SubjectName = x.SubjectName, State = x.Registration.State,
+            RegisteredAt = x.Registration.RegisteredAt, ApprovedByUserId = x.Registration.ApprovedByUserId,
+            ApprovedAt = x.Registration.ApprovedAt, Remarks = x.Registration.Remarks,
+            RowVersion = Convert.ToBase64String(x.Registration.RowVersion)
+        }).ToList();
+    }
 
     private async Task<ApiResponse<T>> ExecuteWriteAsync<T>(string operation, Func<Task<ApiResponse<T>>> action)
     {
         try
         {
-            var strategy = _unitOfWork.CreateExecutionStrategy();
+            var strategy = _uow.CreateExecutionStrategy();
             return await strategy.ExecuteAsync(async () =>
             {
-                using var scope = SerializableScope();
-                var response = await action();
-                if (response.Success) scope.Complete();
-                return response;
+                using var scope = new TransactionScope(TransactionScopeOption.Required,
+                    new TransactionOptions { IsolationLevel = IsolationLevel.Serializable }, TransactionScopeAsyncFlowOption.Enabled);
+                var result = await action();
+                if (result.Success) scope.Complete();
+                return result;
             });
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            _logger.LogWarning(ex, "Stale academic enrollment write during {Operation} for tenant {TenantId}", operation, _currentUser.TenantId);
-            return Error<T>("Academic enrollment changed. Reload and try again.", 409);
+            _logger.LogWarning(ex, "Academic enrollment concurrency failure during {Operation} tenant {TenantId}", operation, _user.TenantId);
+            return Error<T>("Enrollment changed. Reload and retry.", 409);
         }
         catch (DbUpdateException ex)
         {
-            _logger.LogWarning(ex, "Conflicting academic enrollment write during {Operation} for tenant {TenantId}", operation, _currentUser.TenantId);
-            return Error<T>("Academic enrollment conflicts with another update. Reload and try again.", 409);
+            _logger.LogWarning(ex, "Academic enrollment conflict during {Operation} tenant {TenantId}", operation, _user.TenantId);
+            return Error<T>("Enrollment conflicts with another request.", 409);
         }
         catch (TransactionAbortedException ex)
         {
-            _logger.LogWarning(ex, "Serialized academic enrollment write aborted during {Operation} for tenant {TenantId}", operation, _currentUser.TenantId);
-            return Error<T>("Academic enrollment conflicts with another update. Reload and try again.", 409);
+            _logger.LogWarning(ex, "Academic enrollment transaction aborted during {Operation} tenant {TenantId}", operation, _user.TenantId);
+            return Error<T>("Concurrent enrollment conflict. Reload and retry.", 409);
         }
     }
 
-    private bool CanRead() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0 && (CanManage() || CanSelfServe());
-    private bool CanSelfServe() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0 && (_currentUser.IsInRole("Student") || _currentUser.IsInRole("Guardian") || _currentUser.IsInRole("Parent"));
-    private bool CanManage() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0 && (_currentUser.IsTenantAdmin || _currentUser.IsInRole("Principal") || _currentUser.IsInRole("VicePrincipal"));
-    private static TransactionScope SerializableScope() => new(TransactionScopeOption.Required, new TransactionOptions { IsolationLevel = IsolationLevel.Serializable }, TransactionScopeAsyncFlowOption.Enabled);
-    private static bool TryDecodeRowVersion(string value, out byte[] bytes)
+    private bool CanRead() => _user.IsAuthenticated && _user.TenantId > 0 && (CanManage() || CanSelfServe());
+    private bool CanSelfServe() => _user.IsAuthenticated && _user.TenantId > 0 &&
+        (_user.IsInRole("Student") || _user.IsInRole("Guardian") || _user.IsInRole("Parent"));
+    private bool CanManage() => _user.IsAuthenticated && _user.TenantId > 0 &&
+        (_user.IsTenantAdmin || _user.IsInRole("Principal") || _user.IsInRole("VicePrincipal"));
+    private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    private static bool TryVersion(string? encoded, out byte[] version)
     {
-        bytes = [];
-        if (string.IsNullOrWhiteSpace(value)) return false;
-        try { bytes = Convert.FromBase64String(value); return bytes.Length > 0; }
+        version = Array.Empty<byte>();
+        if (string.IsNullOrWhiteSpace(encoded)) return false;
+        try { version = Convert.FromBase64String(encoded); return version.Length > 0; }
         catch (FormatException) { return false; }
     }
-    private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-    private static AcademicStudentEnrollmentDto MapEnrollment(StudentEnrollment x, IReadOnlyList<StudentSubjectRegistrationDto> subjects) => new() { Id = x.Id, StudentReference = x.Student?.PublicId ?? Guid.Empty, StudentName = x.Student?.FullName ?? string.Empty, CampusId = x.CampusId, AcademicYearId = x.AcademicYearId, AcademicTermId = x.AcademicTermId, AcademicProgramId = x.AcademicProgramId, AcademicLevelId = x.AcademicLevelId, AcademicBatchId = x.AcademicBatchId, BatchName = x.AcademicBatch?.Name ?? string.Empty, AcademicCurriculumId = x.AcademicCurriculumId, CurriculumName = x.AcademicCurriculum?.Name ?? string.Empty, RollNo = x.RollNo, EnrollmentDate = x.EnrollmentDate, EnrollmentStatus = x.EnrollmentStatus, IsCurrent = x.IsCurrent, IsActive = x.IsActive, RowVersion = Convert.ToBase64String(x.RowVersion), Subjects = subjects };
-    private static StudentSubjectRegistrationDto MapRegistration(StudentSubjectRegistration x) => new() { Id = x.Id, StudentEnrollmentId = x.StudentEnrollmentId, SubjectId = x.SubjectId, SubjectCode = x.SubjectCodeSnapshot, SubjectName = x.SubjectNameSnapshot, FullMarks = x.FullMarksSnapshot, PassMarks = x.PassMarksSnapshot, CreditHours = x.CreditHoursSnapshot, IsRequired = x.IsRequired, Status = x.Status, RequestedAtUtc = x.RequestedAtUtc, DecidedAtUtc = x.DecidedAtUtc, Remarks = x.Remarks, RowVersion = Convert.ToBase64String(x.RowVersion) };
-    private static ApiResponse<T> Created<T>(T data, string message) => new() { Success = true, StatusCode = 201, Message = message, Data = data };
-    private static ApiResponse<T> Error<T>(string message, int statusCode = 400) => ApiResponse<T>.ErrorResponse(message, statusCode);
-    private static ApiResponse<T> Denied<T>() => ApiResponse<T>.ErrorResponse("Academic enrollment access is required.", 403);
+    private static bool VersionsMatch(byte[] actual, byte[] expected) =>
+        actual.Length == expected.Length && CryptographicOperations.FixedTimeEquals(actual, expected);
+    private static ApiResponse<T> Created<T>(T data, string message) => new()
+    { Success = true, StatusCode = 201, Message = message, Data = data };
+    private static ApiResponse<T> Error<T>(string message, int code = 400) => ApiResponse<T>.ErrorResponse(message, code);
+    private static ApiResponse<T> Denied<T>() => ApiResponse<T>.ErrorResponse("Academic enrollment permission required.", 403);
     private static ApiResponse<T> NotFound<T>() => ApiResponse<T>.ErrorResponse("Academic enrollment not found.", 404);
 }
