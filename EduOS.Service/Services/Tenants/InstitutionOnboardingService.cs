@@ -24,6 +24,7 @@ public sealed class InstitutionOnboardingService : IInstitutionOnboardingService
     private readonly UserManager<ApplicationUser> _users;
     private readonly IGenericRepository<Tenant> _tenants;
     private readonly IGenericRepository<TenantSetting> _settings;
+    private readonly IGenericRepository<TenantMembership> _memberships;
     private readonly IGenericRepository<Campus> _campuses;
     private readonly IGenericRepository<AcademicYear> _years;
     private readonly IGenericRepository<AcademicTerm> _terms;
@@ -41,7 +42,8 @@ public sealed class InstitutionOnboardingService : IInstitutionOnboardingService
     private readonly string _baseDomain;
 
     public InstitutionOnboardingService(UserManager<ApplicationUser> users, IGenericRepository<Tenant> tenants,
-        IGenericRepository<TenantSetting> settings, IGenericRepository<Campus> campuses,
+        IGenericRepository<TenantSetting> settings, IGenericRepository<TenantMembership> memberships,
+        IGenericRepository<Campus> campuses,
         IGenericRepository<AcademicYear> years, IGenericRepository<AcademicTerm> terms,
         IGenericRepository<AcademicBatch> batches, IGenericRepository<AdmissionIntakeForm> forms,
         IGenericRepository<InstitutionTypeDefinition> institutionTypes,
@@ -50,7 +52,7 @@ public sealed class InstitutionOnboardingService : IInstitutionOnboardingService
         ITenantModuleService tenantModuleService, IUnitOfWork unitOfWork, ICurrentUserService currentUser,
         IOptions<TenantPortalSettings> portalSettings, ILogger<InstitutionOnboardingService> logger)
     {
-        _users = users; _tenants = tenants; _settings = settings; _campuses = campuses;
+        _users = users; _tenants = tenants; _settings = settings; _memberships = memberships; _campuses = campuses;
         _years = years; _terms = terms; _batches = batches; _forms = forms;
         _institutionTypes = institutionTypes; _presets = presets; _modules = modules;
         _subscriptions = subscriptions; _plans = plans; _tenantModuleService = tenantModuleService;
@@ -63,7 +65,8 @@ public sealed class InstitutionOnboardingService : IInstitutionOnboardingService
         if (dto == null || string.IsNullOrWhiteSpace(dto.InstitutionName) || dto.InstitutionName.Trim().Length > 200 ||
             string.IsNullOrWhiteSpace(dto.OwnerName) || dto.OwnerName.Trim().Length > 150 ||
             string.IsNullOrWhiteSpace(dto.Email) || dto.Email.Length > 200 ||
-            dto.Password?.Length < 6 || dto.Password != dto.ConfirmPassword || !dto.AgreeTerms)
+            string.IsNullOrWhiteSpace(dto.Password) || dto.Password.Length < 6 ||
+            dto.Password != dto.ConfirmPassword || !dto.AgreeTerms)
             return Fail<InstitutionSignupResponseDto>("Institution, owner, email, password and agreement are required.");
         var email = dto.Email.Trim().ToLowerInvariant();
         if (!System.Net.Mail.MailAddress.TryCreate(email, out var parsed) ||
@@ -82,6 +85,7 @@ public sealed class InstitutionOnboardingService : IInstitutionOnboardingService
             var response = await strategy.ExecuteAsync(async () =>
             {
                 await _uow.BeginTransactionAsync();
+                var committed = false;
                 try
                 {
                     var now = DateTime.UtcNow;
@@ -101,8 +105,7 @@ public sealed class InstitutionOnboardingService : IInstitutionOnboardingService
                     var account = new ApplicationUser
                     {
                         UserName = email, Email = email, FullName = dto.OwnerName.Trim(),
-                        TenantId = tenant.Id, UserType = "TenantAdmin", EmailConfirmed = false,
-                        IsActive = true, CreatedAt = now
+                        EmailConfirmed = false, IsActive = true, CreatedAt = now
                     };
                     var created = await _users.CreateAsync(account, dto.Password);
                     if (!created.Succeeded)
@@ -110,6 +113,11 @@ public sealed class InstitutionOnboardingService : IInstitutionOnboardingService
                     var assigned = await _users.AddToRoleAsync(account, "TenantAdmin");
                     if (!assigned.Succeeded)
                         return Fail<InstitutionSignupResponseDto>("Tenant administrator role could not be assigned.");
+                    await _memberships.AddAsync(new TenantMembership
+                    {
+                        TenantId = tenant.Id, UserId = account.Id, IsOwner = true,
+                        Status = MembershipStatus.Active, JoinedAt = now, CreatedAt = now
+                    });
                     await UpsertAsync(tenant.Id, "Profile", new Dictionary<string, string?>
                     {
                         ["OwnerName"] = dto.OwnerName.Trim(), ["OwnerEmail"] = email,
@@ -118,6 +126,7 @@ public sealed class InstitutionOnboardingService : IInstitutionOnboardingService
                     await ApplyPresetAsync(tenant.Id, type.Id);
                     await _uow.SaveChangesAsync();
                     await _uow.CommitTransactionAsync();
+                    committed = true;
                     return Ok(new InstitutionSignupResponseDto
                     {
                         Success = true, Email = account.Email, TenantId = tenant.Id, UserId = account.Id,
@@ -126,14 +135,14 @@ public sealed class InstitutionOnboardingService : IInstitutionOnboardingService
                 }
                 finally
                 {
-                    // Safe after CommitTransactionAsync as the unit of work owns the transaction state.
-                    await SafeRollbackAsync();
+                    if (!committed) await SafeRollbackAsync();
                 }
             });
-            if (response.Success && response.Data?.UserId is long accountId)
+            if (response.Success && response.Data != null && response.Data.UserId.HasValue)
             {
                 try
                 {
+                    var accountId = response.Data.UserId.Value;
                     var account = await _users.FindByIdAsync(accountId.ToString());
                     if (account != null)
                     {
@@ -170,11 +179,20 @@ public sealed class InstitutionOnboardingService : IInstitutionOnboardingService
         try
         {
             var user = await _users.FindByEmailAsync(email);
-            if (user?.TenantId is not long tenantId) return false;
+            if (user == null) return false;
             var result = await _users.ConfirmEmailAsync(user, token);
             if (!result.Succeeded) return false;
-            var tenant = await _tenants.GetQueryable().FirstOrDefaultAsync(x => x.Id == tenantId);
-            if (tenant == null || tenant.State is TenantState.Suspended or TenantState.Closed) return false;
+            var matching = await (from membership in _memberships.GetQueryable().IgnoreQueryFilters().AsNoTracking()
+                join tenant in _tenants.GetQueryable().IgnoreQueryFilters() on membership.TenantId equals tenant.Id
+                where membership.UserId == user.Id && membership.IsOwner &&
+                    membership.Status == MembershipStatus.Active && tenant.IsActive &&
+                    tenant.State != TenantState.Suspended && tenant.State != TenantState.Closed &&
+                    tenant.Email == user.Email
+                select tenant.Id).Take(2).ToListAsync();
+            if (matching.Count != 1) return false;
+            var tenant = await _tenants.GetQueryable().IgnoreQueryFilters()
+                .FirstOrDefaultAsync(x => x.Id == matching[0]);
+            if (tenant == null) return false;
             tenant.IsEmailVerified = true;
             tenant.EmailVerifiedAt ??= DateTime.UtcNow;
             if (tenant.OnboardingStage == OnboardingStage.EmailVerification)
