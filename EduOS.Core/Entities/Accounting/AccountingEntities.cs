@@ -7,7 +7,10 @@ public class Account : BaseTenantEntity
     public long? ParentAccountId { get; set; }
     [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
     [Required, MaxLength(200)] public string Name { get; set; } = string.Empty;
-    public long? ParentId { get; set; }
+    // Compatibility alias only: ParentAccountId is the one authoritative hierarchy FK.
+    // This property must remain unmapped; do not reintroduce a ParentId column.
+    [NotMapped]
+    public long? ParentId { get => ParentAccountId; set => ParentAccountId = value; }
     public AccountType AccountType { get; set; }
     [MaxLength(10)] public string CurrencyCode { get; set; } = "BDT";
     public bool IsGroup { get; set; }
