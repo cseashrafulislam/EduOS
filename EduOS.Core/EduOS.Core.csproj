@@ -16,7 +16,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Remove="DTOs\Auth\RoleSetupDto.cs" />
     <Compile Remove="Entities\Academic\AcademicsModels.cs" />
     <Compile Remove="Entities\Academic\Department.cs" />
   </ItemGroup>
@@ -40,8 +39,5 @@
     <Folder Include="Events\" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Include="DTOs\Auth\RoleSetupDto.cs" />
-  </ItemGroup>
 
 </Project>
