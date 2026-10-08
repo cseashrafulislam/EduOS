@@ -5,6 +5,7 @@ using EduOS.Core.Entities.Admission;
 using EduOS.Core.Entities.Learners;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Enums;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
@@ -16,208 +17,306 @@ namespace EduOS.Service.Services.Admission;
 
 public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
 {
-    private readonly IGenericRepository<AdmissionApplicant> _applications;
+    private readonly IGenericRepository<AdmissionApplicant> _applicants;
+    private readonly IGenericRepository<AdmissionIntakeForm> _forms;
+    private readonly IGenericRepository<AdmissionDecision> _decisions;
+    private readonly IGenericRepository<AdmissionApplicantGuardian> _applicantGuardians;
     private readonly IGenericRepository<Student> _students;
-    private readonly IGenericRepository<Guardian> _guardians;
     private readonly IGenericRepository<StudentEnrollment> _enrollments;
+    private readonly IGenericRepository<Guardian> _guardians;
+    private readonly IGenericRepository<StudentGuardian> _studentGuardians;
     private readonly IGenericRepository<Person> _persons;
     private readonly IGenericRepository<StudentPersonLink> _personLinks;
-    private readonly IGenericRepository<AcademicBatch> _sections;
-    private readonly IGenericRepository<AcademicTrack> _groups;
-    private readonly IUnitOfWork _unitOfWork;
-    private readonly ICurrentUserService _currentUser;
+    private readonly IGenericRepository<AcademicBatch> _batches;
+    private readonly IGenericRepository<AcademicTrack> _tracks;
+    private readonly IGenericRepository<AcademicCurriculum> _curricula;
+    private readonly IGenericRepository<AcademicYear> _years;
+    private readonly IUnitOfWork _uow;
+    private readonly ICurrentUserService _user;
     private readonly TimeProvider _clock;
     private readonly ILogger<AdmissionEnrollmentService> _logger;
 
-    public AdmissionEnrollmentService(IGenericRepository<AdmissionApplicant> applications, IGenericRepository<Student> students,
-        IGenericRepository<Guardian> guardians, IGenericRepository<StudentEnrollment> enrollments, IGenericRepository<Person> persons,
-        IGenericRepository<StudentPersonLink> personLinks, IGenericRepository<AcademicBatch> sections, IGenericRepository<AcademicTrack> groups,
-        IUnitOfWork unitOfWork, ICurrentUserService currentUser, TimeProvider clock, ILogger<AdmissionEnrollmentService> logger)
+    public AdmissionEnrollmentService(IGenericRepository<AdmissionApplicant> applicants,
+        IGenericRepository<AdmissionIntakeForm> forms, IGenericRepository<AdmissionDecision> decisions,
+        IGenericRepository<AdmissionApplicantGuardian> applicantGuardians,
+        IGenericRepository<Student> students, IGenericRepository<StudentEnrollment> enrollments,
+        IGenericRepository<Guardian> guardians, IGenericRepository<StudentGuardian> studentGuardians,
+        IGenericRepository<Person> persons, IGenericRepository<StudentPersonLink> personLinks,
+        IGenericRepository<AcademicBatch> batches, IGenericRepository<AcademicTrack> tracks,
+        IGenericRepository<AcademicCurriculum> curricula, IGenericRepository<AcademicYear> years,
+        IUnitOfWork unitOfWork, ICurrentUserService currentUser, TimeProvider clock,
+        ILogger<AdmissionEnrollmentService> logger)
     {
-        _applications = applications;
-        _students = students;
-        _guardians = guardians;
-        _enrollments = enrollments;
-        _persons = persons;
-        _personLinks = personLinks;
-        _sections = sections;
-        _groups = groups;
-        _unitOfWork = unitOfWork;
-        _currentUser = currentUser;
-        _clock = clock;
-        _logger = logger;
+        _applicants = applicants; _forms = forms; _decisions = decisions;
+        _applicantGuardians = applicantGuardians; _students = students;
+        _enrollments = enrollments; _guardians = guardians; _studentGuardians = studentGuardians;
+        _persons = persons; _personLinks = personLinks; _batches = batches;
+        _tracks = tracks; _curricula = curricula; _years = years;
+        _uow = unitOfWork; _user = currentUser; _clock = clock; _logger = logger;
     }
 
-    public async Task<ApiResponse<AdmissionEnrollmentOptionsDto>> GetOptionsAsync(Guid applicationReference, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<AdmissionEnrollmentOptionsDto>> GetOptionsAsync(Guid applicationReference,
+        CancellationToken cancellationToken = default)
     {
         if (!CanManage()) return Denied<AdmissionEnrollmentOptionsDto>();
-        var application = await _applications.GetQueryable().AsNoTracking()
-            .FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.PublicId == applicationReference, cancellationToken);
-        if (application == null) return ApiResponse<AdmissionEnrollmentOptionsDto>.ErrorResponse("Application not found.", 404);
-        if (application.Status is not (AdmissionApplicationStatus.Approved or AdmissionApplicationStatus.Admitted))
-            return ApiResponse<AdmissionEnrollmentOptionsDto>.ErrorResponse("Only an approved application can be admitted.", 409);
-        if (!TryLegacyId(application.AcademicUnitId, out var academicUnitId))
-            return ApiResponse<AdmissionEnrollmentOptionsDto>.ErrorResponse("Academic unit cannot be used for enrollment.", 409);
-
-        var sections = await _sections.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == _currentUser.TenantId && x.ClassId == academicUnitId && x.IsActive)
-            .OrderBy(x => x.Name)
-            .Select(x => new AdmissionReferenceOptionDto { Id = x.Id, Name = x.Name, ParentId = application.AcademicUnitId })
+        if (applicationReference == Guid.Empty)
+            return ApiResponse<AdmissionEnrollmentOptionsDto>.ErrorResponse("Applicant reference is required.");
+        var tenant = _user.TenantId;
+        var application = await _applicants.GetQueryable().AsNoTracking()
+            .FirstOrDefaultAsync(x => x.TenantId == tenant && x.PublicId == applicationReference, cancellationToken);
+        if (application == null) return ApiResponse<AdmissionEnrollmentOptionsDto>.ErrorResponse("Applicant not found.", 404);
+        if (application.State is not (AdmissionApplicantState.Qualified or AdmissionApplicantState.Admitted))
+            return ApiResponse<AdmissionEnrollmentOptionsDto>.ErrorResponse("Applicant must qualify before enrollment.", 409);
+        var form = await _forms.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.Id == application.AdmissionIntakeFormId, cancellationToken);
+        if (form == null) return ApiResponse<AdmissionEnrollmentOptionsDto>.ErrorResponse("Intake form not found.", 409);
+        var accepted = await _decisions.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
+            x.AdmissionApplicantId == application.Id && x.State == AdmissionDecisionState.Accepted)
+            .OrderByDescending(x => x.AcceptedAt).ThenByDescending(x => x.Id)
+            .Select(x => x.OfferedAcademicBatchId).FirstOrDefaultAsync(cancellationToken);
+        if (!accepted.HasValue && application.State != AdmissionApplicantState.Admitted)
+            return ApiResponse<AdmissionEnrollmentOptionsDto>.ErrorResponse("An accepted admission offer is required.", 409);
+        var sectionsQuery = _batches.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
+            x.IsActive && x.CampusId == form.CampusId && x.AcademicYearId == form.AcademicYearId &&
+            x.AcademicProgramId == form.AcademicProgramId && x.AcademicLevelId == form.AcademicLevelId);
+        if (form.AcademicTermId.HasValue)
+            sectionsQuery = sectionsQuery.Where(x => x.AcademicTermId == form.AcademicTermId);
+        if (form.AcademicTrackId.HasValue)
+            sectionsQuery = sectionsQuery.Where(x => x.AcademicTrackId == form.AcademicTrackId);
+        if (accepted.HasValue)
+            sectionsQuery = sectionsQuery.Where(x => x.Id == accepted.Value);
+        var sections = await sectionsQuery.OrderBy(x => x.Name).Select(x =>
+            new AdmissionReferenceOptionDto { Id = x.Id, Name = x.Name, ParentId = x.AcademicLevelId })
             .ToListAsync(cancellationToken);
-        var groups = await _groups.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == _currentUser.TenantId && x.IsActive)
-            .OrderBy(x => x.Name)
-            .Select(x => new AdmissionReferenceOptionDto { Id = x.Id, Name = x.Name })
+        var tracks = await _tracks.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant && x.IsActive &&
+            (x.AcademicProgramId == null || x.AcademicProgramId == form.AcademicProgramId))
+            .OrderBy(x => x.Name).Select(x => new AdmissionReferenceOptionDto { Id = x.Id, Name = x.Name })
             .ToListAsync(cancellationToken);
-        return ApiResponse<AdmissionEnrollmentOptionsDto>.SuccessResponse(new AdmissionEnrollmentOptionsDto { Sections = sections, Groups = groups });
+        return ApiResponse<AdmissionEnrollmentOptionsDto>.SuccessResponse(new AdmissionEnrollmentOptionsDto
+        {
+            Sections = sections, Groups = tracks
+        });
     }
 
-    public async Task<ApiResponse<AdmittedStudentDto>> AdmitAsync(Guid applicationReference, AdmitAdmissionApplicationDto request, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<AdmittedStudentDto>> AdmitAsync(Guid applicationReference,
+        AdmitAdmissionApplicationDto request, CancellationToken cancellationToken = default)
     {
         if (!CanManage()) return Denied<AdmittedStudentDto>();
-        if (applicationReference == Guid.Empty || request == null) return ApiResponse<AdmittedStudentDto>.ErrorResponse("Admission request is invalid.");
-        var roll = request.Roll?.Trim();
-        if (string.IsNullOrWhiteSpace(roll) || roll.Length > 50) return ApiResponse<AdmittedStudentDto>.ErrorResponse("Roll is required.");
-        if (!TryVersion(request.RowVersion, out var expectedVersion)) return ApiResponse<AdmittedStudentDto>.ErrorResponse("Row version is invalid.");
-
-        var tenantId = _currentUser.TenantId;
+        if (applicationReference == Guid.Empty || request == null || request.SectionId <= 0 ||
+            request.GroupId is <= 0 || string.IsNullOrWhiteSpace(request.Roll) || request.Roll.Trim().Length > 50 ||
+            !TryVersion(request.RowVersion, out var expected))
+            return ApiResponse<AdmittedStudentDto>.ErrorResponse("Valid applicant, batch, roll and row version are required.");
+        var tenant = _user.TenantId;
+        var roll = request.Roll.Trim();
         try
         {
-            var strategy = _unitOfWork.CreateExecutionStrategy();
+            var strategy = _uow.CreateExecutionStrategy();
             return await strategy.ExecuteAsync(async () =>
             {
+                var started = false;
                 try
                 {
-            var existing = await _students.GetQueryable().AsNoTracking()
-                .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.AdmissionApplicationId != null
-                                          && x.AdmissionApplication!.PublicId == applicationReference, cancellationToken);
-            if (existing != null)
-            {
-                if (existing.Id > int.MaxValue) throw new InvalidOperationException("Student reference exceeds the legacy enrollment range.");
-                var existingStudentId = checked((int)existing.Id);
-                var existingEnrollment = await _enrollments.GetQueryable().AsNoTracking()
-                    .Where(x => x.TenantId == tenantId && x.StudentId == existingStudentId)
-                    .OrderByDescending(x => x.Id).FirstOrDefaultAsync(cancellationToken);
-                return ApiResponse<AdmittedStudentDto>.SuccessResponse(Map(existing, existingEnrollment), "Applicant is already admitted.");
-            }
+                    await _uow.BeginTransactionAsync();
+                    started = true;
+                    var application = await _applicants.GetQueryable().FirstOrDefaultAsync(x =>
+                        x.TenantId == tenant && x.PublicId == applicationReference, cancellationToken);
+                    if (application == null) return ApiResponse<AdmittedStudentDto>.ErrorResponse("Applicant not found.", 404);
+                    if (application.ConvertedStudentId.HasValue && application.ConvertedEnrollmentId.HasValue)
+                    {
+                        var existingStudent = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                            x.TenantId == tenant && x.Id == application.ConvertedStudentId.Value, cancellationToken);
+                        var existingEnrollment = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                            x.TenantId == tenant && x.Id == application.ConvertedEnrollmentId.Value, cancellationToken);
+                        if (existingStudent == null || existingEnrollment == null ||
+                            existingStudent.AdmissionApplicantId != application.Id ||
+                            existingEnrollment.StudentId != existingStudent.Id)
+                            return ApiResponse<AdmittedStudentDto>.ErrorResponse("Applicant conversion has inconsistent references.", 409);
+                        return ApiResponse<AdmittedStudentDto>.SuccessResponse(Map(existingStudent, existingEnrollment),
+                            "Applicant was already admitted.");
+                    }
+                    if (application.State != AdmissionApplicantState.Qualified)
+                        return ApiResponse<AdmittedStudentDto>.ErrorResponse("Only a qualified applicant can be admitted.", 409);
+                    if (!VersionsMatch(application.RowVersion, expected))
+                        return ApiResponse<AdmittedStudentDto>.ErrorResponse("Applicant changed. Reload and retry.", 409);
+                    if (await _students.GetQueryable().AsNoTracking().AnyAsync(x =>
+                        x.TenantId == tenant && x.AdmissionApplicantId == application.Id, cancellationToken))
+                        return ApiResponse<AdmittedStudentDto>.ErrorResponse("Applicant has an existing student record.", 409);
 
-            var application = await _applications.GetQueryable()
-                .Include(x => x.AcademicYear).Include(x => x.AcademicTerm).Include(x => x.Campus).Include(x => x.AcademicUnit)
-                .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.PublicId == applicationReference, cancellationToken);
-            if (application == null) return ApiResponse<AdmittedStudentDto>.ErrorResponse("Application not found.", 404);
-            if (application.Status != AdmissionApplicationStatus.Approved)
-                return ApiResponse<AdmittedStudentDto>.ErrorResponse("Only an approved application can be admitted.", 409);
-            if (!VersionsMatch(application.RowVersion, expectedVersion))
-                return ApiResponse<AdmittedStudentDto>.ErrorResponse("The application was changed by another user. Reload and try again.", 409);
-            if (!TryLegacyId(application.AcademicYearId, out var yearId) || !TryLegacyId(application.AcademicUnitId, out var unitId)
-                || !TryLegacyId(request.SectionId, out var sectionId) || !TryNullableLegacyId(request.GroupId, out var groupId))
-                return ApiResponse<AdmittedStudentDto>.ErrorResponse("StudentEnrollment reference is invalid.", 409);
+                    var form = await _forms.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                        x.TenantId == tenant && x.Id == application.AdmissionIntakeFormId, cancellationToken);
+                    if (form == null) return ApiResponse<AdmittedStudentDto>.ErrorResponse("Intake form not found.", 409);
+                    var decision = await _decisions.GetQueryable().AsNoTracking().Where(x =>
+                        x.TenantId == tenant && x.AdmissionApplicantId == application.Id)
+                        .OrderByDescending(x => x.Id).FirstOrDefaultAsync(cancellationToken);
+                    if (decision == null || decision.State != AdmissionDecisionState.Accepted ||
+                        decision.OfferedAcademicBatchId != request.SectionId ||
+                        (decision.ExpiresAt.HasValue && decision.ExpiresAt.Value < _clock.GetUtcNow().UtcDateTime))
+                        return ApiResponse<AdmittedStudentDto>.ErrorResponse("An accepted offer for the selected batch is required.", 409);
 
-            var section = await _sections.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.SectionId
-                                                                                  && x.ClassId == unitId && x.IsActive, cancellationToken);
-            if (section == null) return ApiResponse<AdmittedStudentDto>.ErrorResponse("AcademicBatch does not belong to the selected academic unit.", 409);
-            AcademicTrack? group = null;
-            if (request.GroupId.HasValue)
-            {
-                group = await _groups.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.GroupId.Value && x.IsActive, cancellationToken);
-                if (group == null) return ApiResponse<AdmittedStudentDto>.ErrorResponse("AcademicTrack is unavailable.", 409);
-            }
-            if (await _enrollments.AnyAsync(x => x.TenantId == tenantId && x.AcademicYearId == yearId && x.ClassId == unitId
-                                                 && x.SectionId == sectionId && x.Roll == roll && x.IsActive))
-                return ApiResponse<AdmittedStudentDto>.ErrorResponse("Roll is already assigned in this section.", 409);
+                    var batch = await _batches.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                        x.TenantId == tenant && x.Id == request.SectionId && x.IsActive &&
+                        x.CampusId == form.CampusId && x.AcademicYearId == form.AcademicYearId &&
+                        x.AcademicProgramId == form.AcademicProgramId && x.AcademicLevelId == form.AcademicLevelId &&
+                        (!form.AcademicTermId.HasValue || x.AcademicTermId == form.AcademicTermId) &&
+                        (!form.AcademicTrackId.HasValue || x.AcademicTrackId == form.AcademicTrackId),
+                        cancellationToken);
+                    if (batch == null) return ApiResponse<AdmittedStudentDto>.ErrorResponse("Batch is not eligible for this intake.", 409);
+                    if (request.GroupId.HasValue && request.GroupId != batch.AcademicTrackId)
+                        return ApiResponse<AdmittedStudentDto>.ErrorResponse("Selected academic track does not match the batch.", 409);
+                    var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+                    var yearActive = await _years.GetQueryable().AsNoTracking().AnyAsync(x =>
+                        x.TenantId == tenant && x.Id == batch.AcademicYearId && x.IsActive &&
+                        today >= x.StartDate && today <= x.EndDate, cancellationToken);
+                    if (!yearActive) return ApiResponse<AdmittedStudentDto>.ErrorResponse("Academic year is not active for today's admission date.", 409);
+                    var curricula = await _curricula.GetQueryable().AsNoTracking().Where(x =>
+                        x.TenantId == tenant && x.AcademicProgramId == batch.AcademicProgramId &&
+                        x.IsCurrent && x.IsActive && x.AcademicTrackId == batch.AcademicTrackId &&
+                        x.MediumId == batch.MediumId && x.EffectiveFrom <= today &&
+                        (!x.EffectiveTo.HasValue || x.EffectiveTo >= today))
+                        .Take(2).Select(x => x.Id).ToArrayAsync(cancellationToken);
+                    if (curricula.Length != 1)
+                        return ApiResponse<AdmittedStudentDto>.ErrorResponse("Exactly one active curriculum must match the batch.", 409);
+                    if (batch.Capacity > 0 && await _enrollments.GetQueryable().AsNoTracking().CountAsync(x =>
+                        x.TenantId == tenant && x.AcademicBatchId == batch.Id &&
+                        x.IsCurrent && x.IsActive && x.State == EnrollmentState.Active, cancellationToken) >= batch.Capacity)
+                        return ApiResponse<AdmittedStudentDto>.ErrorResponse("The batch is at capacity.", 409);
+                    if (await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
+                        x.AcademicBatchId == batch.Id && x.RollNo == roll && x.IsCurrent && x.IsActive, cancellationToken))
+                        return ApiResponse<AdmittedStudentDto>.ErrorResponse("Roll is already assigned in this batch.", 409);
 
-            await _unitOfWork.BeginTransactionAsync();
-            var now = _clock.GetUtcNow().UtcDateTime;
-            var student = BuildStudent(application, section, group, yearId, unitId, sectionId, groupId, roll, now);
-            var person = new Person { PublicId = Guid.NewGuid(), FullName = student.FullName, FullNameBangla = student.FullNameBangla,
-                DateOfBirth = student.DOB.Date, Gender = student.Gender };
-            await _students.AddAsync(student);
-            await _persons.AddAsync(person);
-            await _personLinks.AddAsync(new StudentPersonLink { TenantId = tenantId, Student = student, Person = person,
-                Status = StudentPersonLinkStatus.Active, LinkedAt = now, LinkedByUserId = _currentUser.UserId });
+                    var now = _clock.GetUtcNow().UtcDateTime;
+                    var person = application.PersonId.HasValue
+                        ? await _persons.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                            x.Id == application.PersonId.Value, cancellationToken)
+                        : null;
+                    if (application.PersonId.HasValue && person == null)
+                        return ApiResponse<AdmittedStudentDto>.ErrorResponse("Linked person record is missing.", 409);
+                    if (person == null)
+                    {
+                        person = new Person
+                        {
+                            FullName = application.FullName, FullNameBangla = application.FullNameBangla,
+                            DateOfBirth = application.DateOfBirth, Gender = application.Gender,
+                            Phone = application.Phone, Email = application.Email, CreatedAt = now
+                        };
+                        await _persons.AddAsync(person);
+                        await _uow.SaveChangesAsync(cancellationToken);
+                        application.PersonId = person.Id;
+                    }
+                    var student = new Student
+                    {
+                        TenantId = tenant, PublicId = Guid.NewGuid(), PersonId = person.Id,
+                        AdmissionApplicantId = application.Id, StudentCode = "STU-" + application.PublicId.ToString("N").ToUpperInvariant(),
+                        FullName = application.FullName, FullNameBangla = application.FullNameBangla,
+                        DateOfBirth = application.DateOfBirth, Gender = application.Gender,
+                        Phone = application.Phone, Email = application.Email, Address = application.Address,
+                        AdmissionDate = today, PreferredLanguage = person.PreferredLanguage,
+                        StatusCode = "Active", IsActive = true, CreatedAt = now, CreatedBy = _user.UserId
+                    };
+                    await _students.AddAsync(student);
+                    await _uow.SaveChangesAsync(cancellationToken);
+                    await _personLinks.AddAsync(new StudentPersonLink
+                    {
+                        TenantId = tenant, StudentId = student.Id, PersonId = person.Id,
+                        IsPrimary = true, LinkedAt = now, LinkedByUserId = _user.UserId,
+                        CreatedAt = now, CreatedBy = _user.UserId
+                    });
+                    var guardianInputs = await _applicantGuardians.GetQueryable().AsNoTracking().Where(x =>
+                        x.TenantId == tenant && x.AdmissionApplicantId == application.Id).OrderByDescending(x => x.IsPrimary)
+                        .ToListAsync(cancellationToken);
+                    foreach (var input in guardianInputs)
+                    {
+                        var guardianPerson = new Person
+                        {
+                            FullName = input.FullName, Phone = input.Phone, Email = input.Email,
+                            CreatedAt = now
+                        };
+                        await _persons.AddAsync(guardianPerson);
+                        await _uow.SaveChangesAsync(cancellationToken);
+                        var guardian = new Guardian
+                        {
+                            TenantId = tenant, PersonId = guardianPerson.Id, FullName = input.FullName,
+                            Phone = input.Phone, Email = input.Email, Occupation = input.Occupation,
+                            CreatedAt = now, CreatedBy = _user.UserId
+                        };
+                        await _guardians.AddAsync(guardian);
+                        await _uow.SaveChangesAsync(cancellationToken);
+                        await _studentGuardians.AddAsync(new StudentGuardian
+                        {
+                            TenantId = tenant, StudentId = student.Id, GuardianId = guardian.Id,
+                            RelationCode = input.RelationCode, IsPrimary = input.IsPrimary,
+                            CreatedAt = now, CreatedBy = _user.UserId
+                        });
+                    }
 
-            if (!string.IsNullOrWhiteSpace(application.GuardianName) && !string.IsNullOrWhiteSpace(application.GuardianMobile))
-            {
-                await _guardians.AddAsync(new Guardian { TenantId = tenantId, PublicId = Guid.NewGuid(), Student = student,
-                    Name = application.GuardianName, Relation = application.GuardianRelation ?? "Guardian", Phone = application.GuardianMobile,
-                    Address = application.PermanentAddress ?? application.PresentAddress, IsPrimary = true });
-            }
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            if (student.Id > int.MaxValue) throw new InvalidOperationException("Student reference exceeds the legacy enrollment range.");
-
-            var enrollment = new StudentEnrollment { TenantId = tenantId, StudentId = checked((int)student.Id), Student = student,
-                AcademicYearId = yearId, AcademicYear = application.AcademicYear, ClassId = unitId, AcademicLevel = application.AcademicUnit,
-                SectionId = sectionId, AcademicBatch = section, GroupId = groupId, AcademicTrack = group, CampusId = application.CampusId,
-                Campus = application.Campus, AcademicTermId = application.AcademicTermId, AcademicTerm = application.AcademicTerm,
-                Roll = roll, EnrollmentDate = now, IsActive = true };
-            await _enrollments.AddAsync(enrollment);
-            application.Status = AdmissionApplicationStatus.Admitted;
-            application.UpdatedAt = now;
-            application.UpdatedBy = _currentUser.UserId;
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            await _unitOfWork.CommitTransactionAsync();
-
-                    return new ApiResponse<AdmittedStudentDto> { Success = true, StatusCode = 201, Message = "Applicant admitted.", Data = Map(student, enrollment) };
+                    var enrollment = new StudentEnrollment
+                    {
+                        TenantId = tenant, PublicId = Guid.NewGuid(), ClientRequestId = Guid.NewGuid(),
+                        StudentId = student.Id, CampusId = batch.CampusId,
+                        AcademicYearId = batch.AcademicYearId, AcademicTermId = batch.AcademicTermId,
+                        AcademicProgramId = batch.AcademicProgramId, AcademicLevelId = batch.AcademicLevelId,
+                        AcademicBatchId = batch.Id, AcademicCurriculumId = curricula[0],
+                        AcademicTrackId = batch.AcademicTrackId, MediumId = batch.MediumId, ShiftId = batch.ShiftId,
+                        RollNo = roll, EnrollmentDate = today, State = EnrollmentState.Active,
+                        IsCurrent = true, IsActive = true, CreatedAt = now, CreatedBy = _user.UserId
+                    };
+                    await _enrollments.AddAsync(enrollment);
+                    await _uow.SaveChangesAsync(cancellationToken);
+                    application.State = AdmissionApplicantState.Admitted;
+                    application.ConvertedStudentId = student.Id;
+                    application.ConvertedEnrollmentId = enrollment.Id;
+                    application.ConvertedAt = now;
+                    application.UpdatedAt = now;
+                    application.UpdatedBy = _user.UserId;
+                    await _uow.SaveChangesAsync(cancellationToken);
+                    var result = Map(student, enrollment);
+                    await _uow.CommitTransactionAsync();
+                    started = false;
+                    return new ApiResponse<AdmittedStudentDto>
+                    {
+                        Success = true, StatusCode = 201, Message = "Applicant admitted.", Data = result
+                    };
                 }
-                catch
+                finally
                 {
-                    await SafeRollbackAsync();
-                    throw;
+                    if (started) await _uow.RollbackTransactionAsync();
                 }
             });
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            await SafeRollbackAsync();
-            _logger.LogWarning(ex, "Concurrent admission conversion {Reference} for tenant {TenantId}", applicationReference, tenantId);
-            return ApiResponse<AdmittedStudentDto>.ErrorResponse("The application was changed by another user. Reload and try again.", 409);
+            _logger.LogWarning(ex, "Admission conversion version conflict for tenant {TenantId}", tenant);
+            return ApiResponse<AdmittedStudentDto>.ErrorResponse("Applicant changed. Reload and retry.", 409);
         }
         catch (DbUpdateException ex)
         {
-            await SafeRollbackAsync();
-            _logger.LogWarning(ex, "Conflicting admission conversion {Reference} for tenant {TenantId}", applicationReference, tenantId);
-            return ApiResponse<AdmittedStudentDto>.ErrorResponse("The applicant or roll was already admitted. Reload and try again.", 409);
+            _logger.LogWarning(ex, "Admission conversion integrity conflict for tenant {TenantId}", tenant);
+            return ApiResponse<AdmittedStudentDto>.ErrorResponse("Conversion conflicts with an existing student or roll.", 409);
         }
         catch (Exception ex)
         {
-            await SafeRollbackAsync();
-            _logger.LogError(ex, "Admission conversion failed for {Reference} in tenant {TenantId}", applicationReference, tenantId);
+            _logger.LogError(ex, "Admission conversion failed for tenant {TenantId}", tenant);
             return ApiResponse<AdmittedStudentDto>.ErrorResponse("Applicant could not be admitted.", 500);
         }
     }
 
-    private Student BuildStudent(AdmissionApplicant application, AcademicBatch section, AcademicTrack? group, int yearId, int unitId,
-        int sectionId, int? groupId, string roll, DateTime now)
+    private static AdmittedStudentDto Map(Student student, StudentEnrollment enrollment) => new()
     {
-        var relation = application.GuardianRelation?.Trim();
-        return new Student
-        {
-            TenantId = _currentUser.TenantId, PublicId = Guid.NewGuid(), AdmissionApplicationId = application.Id,
-            AdmissionApplication = application, StudentCode = $"STU-{application.PublicId:N}".ToUpperInvariant(), Roll = roll,
-            FullName = application.ApplicantName, FullNameBangla = application.ApplicantNameBangla,
-            FatherName = IsRelation(relation, "father", "পিতা") ? application.GuardianName ?? string.Empty : string.Empty,
-            MotherName = IsRelation(relation, "mother", "মাতা") ? application.GuardianName ?? string.Empty : string.Empty,
-            DOB = application.DateOfBirth.Date, Gender = application.Gender.ToString(), Phone = application.PrimaryMobile,
-            Email = application.Email, Address = application.PermanentAddress ?? application.PresentAddress,
-            ClassId = unitId, AcademicLevel = application.AcademicUnit, SectionId = sectionId, AcademicBatch = section, GroupId = groupId, AcademicTrack = group,
-            AcademicYearId = yearId, AcademicYear = application.AcademicYear, AdmissionDate = now,
-            PreferredLanguage = application.PreferredLanguage, Status = "Active", IsActive = true
-        };
-    }
-
-    private static AdmittedStudentDto Map(Student student, StudentEnrollment? enrollment) => new()
-    {
-        StudentReference = student.PublicId, StudentCode = student.StudentCode, Roll = student.Roll, StudentId = student.Id,
-        EnrollmentId = enrollment?.Id ?? 0, ApplicationStatus = AdmissionApplicationStatus.Admitted
+        StudentReference = student.PublicId, StudentCode = student.StudentCode,
+        StudentId = student.Id, EnrollmentId = enrollment.Id, Roll = enrollment.RollNo,
+        ApplicationStatus = AdmissionApplicationStatus.Admitted
     };
 
-    private bool CanManage() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0
-                                && (_currentUser.IsTenantAdmin || _currentUser.IsInRole("AdmissionOfficer"));
+    private bool CanManage() => _user.IsAuthenticated && _user.TenantId > 0 &&
+        (_user.IsTenantAdmin || _user.IsInRole("AdmissionOfficer"));
     private static ApiResponse<T> Denied<T>() => ApiResponse<T>.ErrorResponse("Admission officer access is required.", 403);
-    private static bool TryLegacyId(long value, out int result) { result = 0; return value > 0 && value <= int.MaxValue && (result = (int)value) > 0; }
-    private static bool TryNullableLegacyId(long? value, out int? result) { result = null; if (!value.HasValue) return true; if (!TryLegacyId(value.Value, out var parsed)) return false; result = parsed; return true; }
-    private static bool TryVersion(string? value, out byte[] version) { try { version = Convert.FromBase64String(value ?? string.Empty); return true; } catch (FormatException) { version = []; return false; } }
-    private static bool VersionsMatch(byte[] actual, byte[] expected) => actual.Length == expected.Length && CryptographicOperations.FixedTimeEquals(actual, expected);
-    private static bool IsRelation(string? value, string english, string bangla) => string.Equals(value, english, StringComparison.OrdinalIgnoreCase) || string.Equals(value, bangla, StringComparison.Ordinal);
-    private async Task SafeRollbackAsync() { try { await _unitOfWork.RollbackTransactionAsync(); } catch (Exception ex) { _logger.LogError(ex, "Admission rollback failed."); } }
+    private static bool TryVersion(string? supplied, out byte[] version)
+    {
+        version = Array.Empty<byte>();
+        if (string.IsNullOrWhiteSpace(supplied)) return false;
+        try { version = Convert.FromBase64String(supplied); return version.Length > 0; }
+        catch (FormatException) { return false; }
+    }
+    private static bool VersionsMatch(byte[] actual, byte[] expected) =>
+        actual.Length == expected.Length && CryptographicOperations.FixedTimeEquals(actual, expected);
 }
