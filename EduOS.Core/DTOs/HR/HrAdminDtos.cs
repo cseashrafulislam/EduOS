@@ -15,7 +15,7 @@ public sealed class HrLeaveQueryDto
 }
 public sealed class HrLeaveRowDto
 {
- public long Id{get;set;}public Guid EmployeeReference{get;set;}public string EmployeeCode{get;set;}=string.Empty;public string EmployeeName{get;set;}=string.Empty;public string LeaveType{get;set;}=string.Empty;public DateTime FromDate{get;set;}public DateTime ToDate{get;set;}public int TotalDays{get;set;}public string Reason{get;set;}=string.Empty;public string Status{get;set;}=string.Empty;public string? Remarks{get;set;}
+ public long Id{get;set;}public Guid EmployeeReference{get;set;}public string EmployeeCode{get;set;}=string.Empty;public string EmployeeName{get;set;}=string.Empty;public string LeaveType{get;set;}=string.Empty;public DateTime FromDate{get;set;}public DateTime ToDate{get;set;}public decimal TotalDays{get;set;}public string Reason{get;set;}=string.Empty;public string Status{get;set;}=string.Empty;public string? Remarks{get;set;}
 }
 public sealed class ReviewEmployeeLeaveDto
 {
