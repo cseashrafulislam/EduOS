@@ -43,16 +43,16 @@ namespace EduOS.Service.Services
                     query = query.Where(a => a.UserId == filter.UserId.Value);
 
                 if (!string.IsNullOrEmpty(filter.TableName))
-                    query = query.Where(a => a.TableName == filter.TableName);
+                    query = query.Where(a => a.EntityName == filter.TableName);
 
                 if (!string.IsNullOrEmpty(filter.Action))
                     query = query.Where(a => a.Action == filter.Action);
 
                 if (filter.FromDate.HasValue)
-                    query = query.Where(a => a.CreatedAt >= filter.FromDate.Value);
+                    query = query.Where(a => a.OccurredAt >= filter.FromDate.Value);
 
                 if (filter.ToDate.HasValue)
-                    query = query.Where(a => a.CreatedAt <= filter.ToDate.Value);
+                    query = query.Where(a => a.OccurredAt <= filter.ToDate.Value);
 
                 if (!string.IsNullOrEmpty(filter.IpAddress))
                     query = query.Where(a => a.IpAddress == filter.IpAddress);
@@ -63,7 +63,7 @@ namespace EduOS.Service.Services
                 var totalCount = await query.CountAsync();
 
                 var items = await query
-                    .OrderByDescending(a => a.CreatedAt)
+                    .OrderByDescending(a => a.OccurredAt)
                     .Skip((filter.Page - 1) * filter.PageSize)
                     .Take(filter.PageSize)
                     .ToListAsync();
@@ -126,9 +126,9 @@ namespace EduOS.Service.Services
             {
                 var logs = await _auditLogRepository.GetQueryable()
                     .Where(a => a.TenantId == _currentUser.TenantId
-                        && a.CreatedAt >= fromDate
-                        && a.CreatedAt <= toDate)
-                    .OrderByDescending(a => a.CreatedAt)
+                        && a.OccurredAt >= fromDate
+                        && a.OccurredAt <= toDate)
+                    .OrderByDescending(a => a.OccurredAt)
                     .ToListAsync();
 
                 var dtos = _mapper.Map<List<AuditLogDto>>(logs);
@@ -148,7 +148,7 @@ namespace EduOS.Service.Services
                 var logs = await _auditLogRepository.GetQueryable()
                     .Where(a => a.TenantId == _currentUser.TenantId
                         && a.Action == action)
-                    .OrderByDescending(a => a.CreatedAt)
+                    .OrderByDescending(a => a.OccurredAt)
                     .Take(100)
                     .ToListAsync();
 
@@ -193,9 +193,9 @@ namespace EduOS.Service.Services
                 var stats = new AuditLogStatisticsDto
                 {
                     TotalLogs = await query.CountAsync(),
-                    TodayLogs = await query.Where(a => a.CreatedAt >= today).CountAsync(),
-                    ThisWeekLogs = await query.Where(a => a.CreatedAt >= weekAgo).CountAsync(),
-                    ThisMonthLogs = await query.Where(a => a.CreatedAt >= monthAgo).CountAsync(),
+                    TodayLogs = await query.Where(a => a.OccurredAt >= today).CountAsync(),
+                    ThisWeekLogs = await query.Where(a => a.OccurredAt >= weekAgo).CountAsync(),
+                    ThisMonthLogs = await query.Where(a => a.OccurredAt >= monthAgo).CountAsync(),
 
                     CreateActions = await query.Where(a => a.Action == "Create").CountAsync(),
                     UpdateActions = await query.Where(a => a.Action == "Update").CountAsync(),
@@ -205,7 +205,7 @@ namespace EduOS.Service.Services
                     FailedOperations = await query.Where(a => !a.IsSuccess).CountAsync(),
 
                     TopTables = await query
-                        .GroupBy(a => a.TableName)
+                        .GroupBy(a => a.EntityName)
                         .OrderByDescending(g => g.Count())
                         .Take(10)
                         .Select(g => new TableActivityDto
@@ -250,19 +250,19 @@ namespace EduOS.Service.Services
                     query = query.Where(a => a.UserId == filter.UserId.Value);
 
                 if (!string.IsNullOrEmpty(filter.TableName))
-                    query = query.Where(a => a.TableName == filter.TableName);
+                    query = query.Where(a => a.EntityName == filter.TableName);
 
                 if (!string.IsNullOrEmpty(filter.Action))
                     query = query.Where(a => a.Action == filter.Action);
 
                 if (filter.FromDate.HasValue)
-                    query = query.Where(a => a.CreatedAt >= filter.FromDate.Value);
+                    query = query.Where(a => a.OccurredAt >= filter.FromDate.Value);
 
                 if (filter.ToDate.HasValue)
-                    query = query.Where(a => a.CreatedAt <= filter.ToDate.Value);
+                    query = query.Where(a => a.OccurredAt <= filter.ToDate.Value);
 
                 var logs = await query
-                    .OrderByDescending(a => a.CreatedAt)
+                    .OrderByDescending(a => a.OccurredAt)
                     .Take(10000) // Limit export to 10000 records
                     .ToListAsync();
 
@@ -287,11 +287,11 @@ namespace EduOS.Service.Services
                     var log = logs[i];
                     var row = i + 2;
 
-                    worksheet.Cells[row, 1].Value = log.CreatedAt;
+                    worksheet.Cells[row, 1].Value = log.OccurredAt;
                     worksheet.Cells[row, 2].Value = log.UserName;
                     worksheet.Cells[row, 3].Value = log.Action;
-                    worksheet.Cells[row, 4].Value = log.TableName;
-                    worksheet.Cells[row, 5].Value = log.RecordId;
+                    worksheet.Cells[row, 4].Value = log.EntityName;
+                    worksheet.Cells[row, 5].Value = log.EntityId;
                     worksheet.Cells[row, 6].Value = log.IpAddress;
                     worksheet.Cells[row, 7].Value = log.IsSuccess ? "Yes" : "No";
                 }
@@ -321,7 +321,7 @@ namespace EduOS.Service.Services
                 }
 
                 var oldLogs = await _auditLogRepository.GetQueryable()
-                    .Where(a => a.CreatedAt < olderThan)
+                    .Where(a => a.OccurredAt < olderThan)
                     .ToListAsync();
 
                 _auditLogRepository.DeleteRange(oldLogs);
