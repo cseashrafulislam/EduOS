@@ -1,362 +1,185 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Dashboard;
+using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Finance;
+using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.SaaS;
+using EduOS.Core.Entities.Students;
 using EduOS.Core.Enums;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
-namespace EduOS.Service.Services.SaaS
+namespace EduOS.Service.Services.SaaS;
+
+public sealed class DashboardService : IDashboardService
 {
-    public class DashboardService : IDashboardService
+    private readonly IGenericRepository<Tenant> _tenants;
+    private readonly IGenericRepository<InstitutionTypeDefinition> _institutionTypes;
+    private readonly IGenericRepository<SubscriptionPlan> _plans;
+    private readonly IGenericRepository<PlanFeature> _planFeatures;
+    private readonly ITenantSubscriptionRepository _subscriptions;
+    private readonly IGenericRepository<Student> _students;
+    private readonly IGenericRepository<Employee> _employees;
+    private readonly IGenericRepository<Campus> _campuses;
+    private readonly IGenericRepository<AcademicLevel> _levels;
+    private readonly IGenericRepository<StudentPayment> _payments;
+    private readonly IGenericRepository<StudentInvoice> _invoices;
+    private readonly ICurrentUserService _currentUser;
+    private readonly ILogger<DashboardService> _logger;
+
+    public DashboardService(IGenericRepository<Tenant> tenants,
+        IGenericRepository<InstitutionTypeDefinition> institutionTypes,
+        IGenericRepository<SubscriptionPlan> plans, IGenericRepository<PlanFeature> planFeatures,
+        ITenantSubscriptionRepository subscriptions,
+        IGenericRepository<Student> students, IGenericRepository<Employee> employees,
+        IGenericRepository<Campus> campuses, IGenericRepository<AcademicLevel> levels,
+        IGenericRepository<StudentPayment> payments, IGenericRepository<StudentInvoice> invoices,
+        ICurrentUserService currentUser, ILogger<DashboardService> logger)
     {
-        private readonly IGenericRepository<Tenant> _tenantRepo;
-        private readonly ICurrentUserService _currentUser;
-        private readonly ILogger<DashboardService> _logger;
+        _tenants = tenants; _institutionTypes = institutionTypes;
+        _plans = plans; _planFeatures = planFeatures; _subscriptions = subscriptions;
+        _students = students; _employees = employees; _campuses = campuses;
+        _levels = levels; _payments = payments; _invoices = invoices;
+        _currentUser = currentUser; _logger = logger;
+    }
 
-        // Feature count query — reads PlanFeatures for the tenant's active plan
-        private readonly ISubscriptionPlanRepository _planRepo;
-        private readonly ITenantSubscriptionRepository _subscriptionRepo;
+    public async Task<ApiResponse<DashboardVm>> GetDashboardAsync()
+    {
+        if (!_currentUser.IsAuthenticated || _currentUser.TenantId <= 0)
+            return ApiResponse<DashboardVm>.ErrorResponse("Tenant access is required.", 403);
 
-        // These are optional — if you don't have them yet, comment out
-        // private readonly IGenericRepository<Student> _studentRepo;
-        // private readonly IGenericRepository<HREmployee> _employeeRepo;
-        // private readonly IGenericRepository<Payment> _paymentRepo;
-        // private readonly IGenericRepository<StudentInvoice> _invoiceRepo;
-        // private readonly IGenericRepository<Campus> _campusRepo;
-        // private readonly IGenericRepository<Class> _classRepo;
-
-        public DashboardService(
-            IGenericRepository<Tenant> tenantRepo,
-            ICurrentUserService currentUser,
-            ILogger<DashboardService> logger,
-            ISubscriptionPlanRepository planRepo,
-            ITenantSubscriptionRepository subscriptionRepo)
+        var tenantId = _currentUser.TenantId;
+        try
         {
-            _tenantRepo = tenantRepo;
-            _currentUser = currentUser;
-            _logger = logger;
-            _planRepo = planRepo;
-            _subscriptionRepo = subscriptionRepo;
-        }
+            var tenant = await _tenants.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.Id == tenantId);
+            if (tenant == null) return ApiResponse<DashboardVm>.ErrorResponse("Institution was not found.", 404);
+            var subscription = await _subscriptions.GetActiveByTenantAsync(tenantId);
+            var plan = subscription == null ? null : await _plans.GetQueryable().AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == subscription.SubscriptionPlanId);
+            var institutionType = tenant.InstitutionTypeDefinitionId.HasValue
+                ? await _institutionTypes.GetQueryable().AsNoTracking().Where(x => x.Id == tenant.InstitutionTypeDefinitionId.Value)
+                    .Select(x => x.Name).FirstOrDefaultAsync()
+                : null;
+            var enabledFeatures = plan == null ? 0 : await _planFeatures.GetQueryable().AsNoTracking()
+                .CountAsync(x => x.SubscriptionPlanId == plan.Id && x.IsEnabled);
 
-        public async Task<ApiResponse<DashboardVm>> GetDashboardAsync()
-        {
+            var totalStudents = await _students.GetQueryable().AsNoTracking()
+                .CountAsync(x => x.TenantId == tenantId && x.IsActive);
+            var activeEmployees = _employees.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.State == EmployeeState.Active);
+            var totalTeachers = await activeEmployees.CountAsync(x => x.CanTeach);
+            var totalEmployees = await activeEmployees.CountAsync();
+            var totalCampuses = await _campuses.GetQueryable().AsNoTracking()
+                .CountAsync(x => x.TenantId == tenantId && x.IsActive);
+            var totalLevels = await _levels.GetQueryable().AsNoTracking()
+                .CountAsync(x => x.TenantId == tenantId && x.IsActive);
+
+            var nowUtc = DateTime.UtcNow;
+            var localNow = nowUtc;
             try
             {
-                var tenantId = _currentUser.TenantId;
-                if (tenantId <= 0)
-                    return ApiResponse<DashboardVm>.ErrorResponse("Tenant not found", 401);
-
-                // ── 1. Load tenant ─────────────────────────────────────────
-                var tenant = await _tenantRepo.GetByIdAsync(tenantId);
-                if (tenant == null)
-                    return ApiResponse<DashboardVm>.ErrorResponse("Institution not found", 404);
-
-                // ── 2. Load active subscription ────────────────────────────
-                var subscription = await _subscriptionRepo.GetActiveByTenantAsync(tenantId);
-                string planName = "No plan";
-                string? planNameBangla = null;
-                string planCode = string.Empty;
-                int featureCount = 0;
-
-                if (subscription?.SubscriptionPlan != null)
-                {
-                    planName = subscription.SubscriptionPlan.Name;
-                    planNameBangla = subscription.SubscriptionPlan.NameBangla;
-                    planCode = subscription.SubscriptionPlan.Code;
-                    featureCount = subscription.SubscriptionPlan.PlanFeatures
-                        .Count(pf => pf.IsEnabled);
-                }
-                else if (subscription != null)
-                {
-                    // Load plan separately if not included
-                    var plan = await _planRepo.GetWithFeaturesAsync(subscription.SubscriptionPlanId);
-                    if (plan != null)
-                    {
-                        planName = plan.Name;
-                        planNameBangla = plan.NameBangla;
-                        planCode = plan.Code;
-                        featureCount = plan.PlanFeatures.Count(pf => pf.IsEnabled);
-                    }
-                }
-
-                // ── 3. Calculate trial / expiry info ───────────────────────
-                int? trialDaysRemaining = null;
-                int daysUntilExpiry = 0;
-
-                if (subscription != null)
-                {
-                    if (subscription.IsTrial && subscription.TrialEndDate.HasValue)
-                    {
-                        var diff = (subscription.TrialEndDate.Value - DateTime.UtcNow).TotalDays;
-                        trialDaysRemaining = Math.Max(0, (int)Math.Ceiling(diff));
-                    }
-
-                    if (subscription.EndDate > DateTime.UtcNow)
-                    {
-                        var diff = (subscription.EndDate - DateTime.UtcNow).TotalDays;
-                        daysUntilExpiry = (int)Math.Ceiling(diff);
-                    }
-                }
-
-                // ── 4. Onboarding progress ─────────────────────────────────
-                var onboardingPercent = CalculateOnboardingPercent(tenant);
-
-                // ── 5. Stats (real counts — extend when repos are available) 
-                // For now we use cached counts on the Tenant entity.
-                // When you inject the actual repositories, replace these.
-                var totalStudents = tenant.CurrentStudents;
-                var totalTeachers = tenant.CurrentTeachers;
-
-                // ── 6. Build alerts ────────────────────────────────────────
-                var alerts = BuildAlerts(tenant, subscription, trialDaysRemaining, daysUntilExpiry);
-
-                // ── 7. Compose view model ──────────────────────────────────
-                var vm = new DashboardVm
-                {
-                    // Institution
-                    InstitutionName = tenant.Name,
-                    InstitutionType = tenant.InstitutionType,
-                    OwnerName = tenant.OwnerName,
-                    LogoUrl = tenant.LogoUrl,
-
-                    // Subscription
-                    PlanName = planName,
-                    PlanNameBangla = planNameBangla,
-                    PlanCode = planCode,
-                    IsTrialActive = tenant.IsTrialActive,
-                    TrialEndDate = subscription?.TrialEndDate,
-                    TrialDaysRemaining = trialDaysRemaining,
-                    SubscriptionEndDate = subscription?.EndDate,
-                    DaysUntilExpiry = daysUntilExpiry,
-                    SubscriptionStatus = subscription?.Status.ToString() ?? "None",
-
-                    // Onboarding
-                    EmailVerified = tenant.IsEmailVerified,
-                    OnboardingComplete = tenant.IsOnboardingComplete,
-                    OnboardingStep = (int)tenant.OnboardingStep,
-                    OnboardingPercent = onboardingPercent,
-
-                    // Limits
-                    MaxStudents = tenant.MaxStudents,
-                    CurrentStudents = tenant.CurrentStudents,
-                    MaxTeachers = tenant.MaxTeachers,
-                    CurrentTeachers = tenant.CurrentTeachers,
-                    MaxCampuses = tenant.MaxCampuses,
-                    ActiveFeatures = featureCount,
-
-                    // Stats
-                    TotalStudents = totalStudents,
-                    TotalTeachers = totalTeachers,
-                    TotalStaff = 0,         // Extend: await _employeeRepo...
-                    TotalCampuses = 0,      // Extend: await _campusRepo...
-                    TotalClasses = 0,       // Extend: await _classRepo...
-                    MonthlyCollection = 0,  // Extend: await _paymentRepo...
-                    TotalDues = 0,          // Extend: await _invoiceRepo...
-
-                    Alerts = alerts
-                };
-
-                return ApiResponse<DashboardVm>.SuccessResponse(vm);
+                if (!string.IsNullOrWhiteSpace(tenant.TimeZoneId))
+                    localNow = TimeZoneInfo.ConvertTimeFromUtc(nowUtc, TimeZoneInfo.FindSystemTimeZoneById(tenant.TimeZoneId));
             }
-            catch (Exception ex)
+            catch (TimeZoneNotFoundException)
             {
-                _logger.LogError(ex, "DashboardService.GetDashboardAsync failed for tenant {TenantId}",
-                    _currentUser.TenantId);
-                return ApiResponse<DashboardVm>.ErrorResponse("Failed to load dashboard", 500);
+                _logger.LogWarning("Tenant {TenantId} has an unknown timezone; UTC fallback used.", tenantId);
             }
-        }
-
-        // ── Onboarding percent ────────────────────────────────────────────
-        private static int CalculateOnboardingPercent(Tenant tenant)
-        {
-            if (tenant.IsOnboardingComplete) return 100;
-
-            const int totalSteps = 10;
-            var completedSteps = tenant.OnboardingStep switch
+            catch (InvalidTimeZoneException)
             {
-                OnboardingStep.EmailVerification => 0,
-                OnboardingStep.InstitutionProfile => 1,
-                OnboardingStep.PlanSelection => 2,
-                OnboardingStep.Payment => 3,
-                OnboardingStep.CampusSetup => 4,
-                OnboardingStep.AcademicSetup => 5,
-                OnboardingStep.ModuleSetup => 6,
-                OnboardingStep.BrandingSetup => 7,
-                OnboardingStep.GeneralSettings => 8,
-                OnboardingStep.GatewaySetup => 9,
-                OnboardingStep.Completed => totalSteps,
-                _ => 0
+                _logger.LogWarning("Tenant {TenantId} has invalid timezone configuration; UTC fallback used.", tenantId);
+            }
+            var monthStart = new DateOnly(localNow.Year, localNow.Month, 1);
+            var nextMonth = monthStart.AddMonths(1);
+            var monthlyCollection = await _payments.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.State == PaymentState.Successful &&
+                    x.PaymentDate >= monthStart && x.PaymentDate < nextMonth)
+                .SumAsync(x => (decimal?)x.Amount) ?? 0m;
+            var totalDues = await _invoices.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.State != InvoiceState.Cancelled &&
+                    x.State != InvoiceState.Refunded && x.DueAmount > 0m)
+                .SumAsync(x => (decimal?)x.DueAmount) ?? 0m;
+
+            var expiryDays = subscription == null ? 0 : Math.Max(0, (int)Math.Ceiling((subscription.EndsAt - nowUtc).TotalDays));
+            var trialDays = subscription?.IsTrial == true ? expiryDays : (int?)null;
+            var onboardingStep = Enum.TryParse<OnboardingStep>(tenant.OnboardingStage.ToString(), out var legacyStep)
+                ? legacyStep : OnboardingStep.EmailVerification;
+            var stageNo = Math.Clamp((int)tenant.OnboardingStage - 1, 0, 10);
+
+            var vm = new DashboardVm
+            {
+                InstitutionName = tenant.Name, InstitutionType = institutionType,
+                LogoUrl = tenant.LogoUrl, OwnerName = null,
+                PlanName = plan?.Name ?? "No plan", PlanCode = plan?.Code ?? string.Empty,
+                IsTrialActive = subscription?.IsTrial == true,
+                TrialEndDate = subscription?.IsTrial == true ? subscription.EndsAt : null,
+                TrialDaysRemaining = trialDays, SubscriptionEndDate = subscription?.EndsAt,
+                DaysUntilExpiry = expiryDays, SubscriptionStatus = subscription?.State.ToString() ?? "None",
+                EmailVerified = tenant.IsEmailVerified, OnboardingComplete = tenant.IsOnboardingComplete,
+                OnboardingStep = (int)onboardingStep,
+                OnboardingPercent = tenant.IsOnboardingComplete ? 100 : stageNo * 10,
+                MaxStudents = plan?.MaxStudents ?? 0, CurrentStudents = totalStudents,
+                MaxTeachers = 0, CurrentTeachers = totalTeachers,
+                MaxCampuses = plan?.MaxCampuses ?? 0, ActiveFeatures = enabledFeatures,
+                TotalStudents = totalStudents, TotalTeachers = totalTeachers,
+                TotalStaff = Math.Max(0, totalEmployees - totalTeachers),
+                TotalCampuses = totalCampuses, TotalClasses = totalLevels,
+                MonthlyCollection = monthlyCollection, TotalDues = totalDues
             };
-
-            return (int)Math.Round(completedSteps * 100.0 / totalSteps);
+            vm.Alerts = BuildAlerts(tenant, subscription, plan, totalStudents, trialDays, expiryDays);
+            return ApiResponse<DashboardVm>.SuccessResponse(vm);
         }
-
-        // ── Smart alerts builder ──────────────────────────────────────────
-        private static List<DashboardAlert> BuildAlerts(
-            Tenant tenant,
-            EduOS.Core.Entities.SaaS.TenantSubscription? subscription,
-            int? trialDaysRemaining,
-            int daysUntilExpiry)
+        catch (Exception ex)
         {
-            var alerts = new List<DashboardAlert>();
-
-            // Email not verified
-            if (!tenant.IsEmailVerified)
-            {
-                alerts.Add(new DashboardAlert
-                {
-                    Code = "EMAIL_UNVERIFIED",
-                    Type = "warning",
-                    Message = "Please verify your email address to unlock all features.",
-                    ActionUrl = "/Account/VerifyEmail",
-                    ActionCode = "VERIFY_EMAIL",
-                    ActionLabel = "Verify email"
-                });
-            }
-
-            // Onboarding incomplete
-            if (!tenant.IsOnboardingComplete)
-            {
-                alerts.Add(new DashboardAlert
-                {
-                    Code = "ONBOARDING_INCOMPLETE",
-                    Type = "info",
-                    Message = "Your institution setup is not complete. Some features may be limited.",
-                    ActionUrl = "/Account/InstitutionProfile",
-                    ActionCode = "CONTINUE_SETUP",
-                    ActionLabel = "Continue setup"
-                });
-            }
-
-            // No subscription
-            if (subscription == null)
-            {
-                alerts.Add(new DashboardAlert
-                {
-                    Code = "SUBSCRIPTION_MISSING",
-                    Type = "danger",
-                    Message = "No active subscription found. Please choose a plan to continue using EduOS.",
-                    ActionUrl = "/Account/PlanSelection",
-                    ActionCode = "CHOOSE_PLAN",
-                    ActionLabel = "Choose a plan"
-                });
-                return alerts; // No point showing other alerts
-            }
-
-            // Trial expiring soon (≤ 3 days)
-            if (tenant.IsTrialActive && trialDaysRemaining.HasValue)
-            {
-                if (trialDaysRemaining.Value == 0)
-                {
-                    alerts.Add(new DashboardAlert
-                    {
-                        Code = "TRIAL_EXPIRED",
-                        Type = "danger",
-                        Message = "Your free trial has expired. Upgrade now to keep your data.",
-                        ActionUrl = "/Account/PlanSelection",
-                        ActionCode = "UPGRADE_NOW",
-                        ActionLabel = "Upgrade now"
-                    });
-                }
-                else if (trialDaysRemaining.Value <= 3)
-                {
-                    alerts.Add(new DashboardAlert
-                    {
-                        Code = "TRIAL_EXPIRING",
-                        Type = "warning",
-                        Message = $"Your free trial expires in {trialDaysRemaining.Value} day(s). Upgrade to keep access.",
-                        ActionUrl = "/Account/PlanSelection",
-                        ActionCode = "UPGRADE_NOW",
-                        Days = trialDaysRemaining.Value,
-                        ActionLabel = "Upgrade now"
-                    });
-                }
-                else if (trialDaysRemaining.Value <= 7)
-                {
-                    alerts.Add(new DashboardAlert
-                    {
-                        Code = "TRIAL_ENDING",
-                        Type = "info",
-                        Message = $"Your free trial ends in {trialDaysRemaining.Value} days.",
-                        ActionUrl = "/Account/PlanSelection",
-                        ActionCode = "VIEW_PLANS",
-                        Days = trialDaysRemaining.Value,
-                        ActionLabel = "View plans"
-                    });
-                }
-            }
-
-            // Paid subscription expiring soon (≤ 7 days)
-            if (!tenant.IsTrialActive && daysUntilExpiry > 0 && daysUntilExpiry <= 7)
-            {
-                alerts.Add(new DashboardAlert
-                {
-                    Code = "SUBSCRIPTION_EXPIRING",
-                    Type = daysUntilExpiry <= 3 ? "danger" : "warning",
-                    Message = $"Your subscription expires in {daysUntilExpiry} day(s). Renew to avoid interruption.",
-                    ActionUrl = "/Account/PlanSelection",
-                    ActionCode = "RENEW_NOW",
-                    Days = daysUntilExpiry,
-                    ActionLabel = "Renew now"
-                });
-            }
-
-            // Subscription expired
-            if (subscription.Status == EduOS.Core.Enums.SubscriptionStatus.Expired)
-            {
-                alerts.Add(new DashboardAlert
-                {
-                    Code = "SUBSCRIPTION_EXPIRED",
-                    Type = "danger",
-                    Message = "Your subscription has expired. Renew now to restore full access.",
-                    ActionUrl = "/Account/PlanSelection",
-                    ActionCode = "RENEW_SUBSCRIPTION",
-                    ActionLabel = "Renew subscription"
-                });
-            }
-
-            // Awaiting manual payment verification
-            if (subscription.Status == EduOS.Core.Enums.SubscriptionStatus.PendingPayment)
-            {
-                alerts.Add(new DashboardAlert
-                {
-                    Code = "PAYMENT_PENDING",
-                    Type = "warning",
-                    Message = "Your payment is being verified. Access will activate once confirmed.",
-                    ActionUrl = "/Account/PlanSelection",
-                    ActionCode = "VIEW_PAYMENT_STATUS",
-                    ActionLabel = "View payment status"
-                });
-            }
-
-            // Student limit warning (>= 90%)
-            if (tenant.MaxStudents > 0)
-            {
-                var pct = (double)tenant.CurrentStudents / tenant.MaxStudents * 100;
-                if (pct >= 90)
-                {
-                    alerts.Add(new DashboardAlert
-                    {
-                        Code = pct >= 100 ? "STUDENT_LIMIT_REACHED" : "STUDENT_LIMIT_WARNING",
-                        Type = pct >= 100 ? "danger" : "warning",
-                        Message = pct >= 100
-                            ? $"Student limit reached ({tenant.CurrentStudents}/{tenant.MaxStudents}). Upgrade your plan."
-                            : $"You are at {(int)pct}% of your student limit ({tenant.CurrentStudents}/{tenant.MaxStudents}).",
-                        ActionUrl = "/Account/PlanSelection",
-                        ActionCode = "UPGRADE_PLAN",
-                        Percentage = (int)pct,
-                        CurrentValue = tenant.CurrentStudents,
-                        LimitValue = tenant.MaxStudents,
-                        ActionLabel = "Upgrade plan"
-                    });
-                }
-            }
-
-            return alerts;
+            _logger.LogError(ex, "Tenant dashboard query failed for tenant {TenantId}", tenantId);
+            return ApiResponse<DashboardVm>.ErrorResponse("Dashboard could not be loaded.", 500);
         }
+    }
+
+    private static List<DashboardAlert> BuildAlerts(Tenant tenant, TenantSubscription? subscription,
+        SubscriptionPlan? plan, int studentCount, int? trialDays, int expiryDays)
+    {
+        var items = new List<DashboardAlert>();
+        if (!tenant.IsEmailVerified)
+            items.Add(new DashboardAlert { Code = "EMAIL_UNVERIFIED", Type = "warning",
+                Message = "Verify your institution email.", ActionUrl = "/Account/VerifyEmail", ActionLabel = "Verify email" });
+        if (!tenant.IsOnboardingComplete)
+            items.Add(new DashboardAlert { Code = "ONBOARDING_INCOMPLETE", Type = "info",
+                Message = "Complete the institution setup.", ActionUrl = "/Account/InstitutionProfile", ActionLabel = "Continue setup" });
+        if (subscription == null)
+        {
+            items.Add(new DashboardAlert { Code = "SUBSCRIPTION_MISSING", Type = "danger",
+                Message = "No active subscription found.", ActionUrl = "/Account/PlanSelection", ActionLabel = "Choose plan" });
+            return items;
+        }
+        if (subscription.State == SubscriptionState.Expired || subscription.EndsAt <= DateTime.UtcNow)
+            items.Add(new DashboardAlert { Code = "SUBSCRIPTION_EXPIRED", Type = "danger",
+                Message = "Subscription has expired.", ActionUrl = "/Account/PlanSelection", ActionLabel = "Renew" });
+        else if (subscription.IsTrial && trialDays <= 7)
+            items.Add(new DashboardAlert { Code = "TRIAL_EXPIRING", Type = trialDays <= 3 ? "warning" : "info",
+                Message = $"Trial expires in {trialDays} day(s).", Days = trialDays,
+                ActionUrl = "/Account/PlanSelection", ActionLabel = "Upgrade" });
+        else if (!subscription.IsTrial && expiryDays <= 7)
+            items.Add(new DashboardAlert { Code = "SUBSCRIPTION_EXPIRING", Type = expiryDays <= 3 ? "danger" : "warning",
+                Message = $"Subscription expires in {expiryDays} day(s).", Days = expiryDays,
+                ActionUrl = "/Account/PlanSelection", ActionLabel = "Renew" });
+        if (subscription.State == SubscriptionState.Grace)
+            items.Add(new DashboardAlert { Code = "PAYMENT_GRACE", Type = "warning",
+                Message = "Subscription is in its payment grace period.", ActionUrl = "/Account/PlanSelection",
+                ActionLabel = "Review payment" });
+        if (plan != null && plan.MaxStudents > 0 && studentCount * 10L >= plan.MaxStudents * 9L)
+        {
+            var percent = Math.Min(100, (int)(studentCount * 100L / plan.MaxStudents));
+            items.Add(new DashboardAlert { Code = studentCount >= plan.MaxStudents ? "STUDENT_LIMIT_REACHED" : "STUDENT_LIMIT_WARNING",
+                Type = studentCount >= plan.MaxStudents ? "danger" : "warning",
+                Message = $"Student plan capacity: {studentCount}/{plan.MaxStudents}.",
+                CurrentValue = studentCount, LimitValue = plan.MaxStudents, Percentage = percent,
+                ActionUrl = "/Account/PlanSelection", ActionLabel = "Upgrade plan" });
+        }
+        return items;
     }
 }
