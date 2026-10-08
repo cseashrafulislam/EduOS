@@ -3,7 +3,7 @@ using EduOS.Core.DTOs.Student;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.Students;
-using EduOS.Core.Enums.Academics;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
@@ -18,7 +18,6 @@ public sealed class StudentExitService : IStudentExitService
 {
     private readonly IGenericRepository<Student> _students;
     private readonly IGenericRepository<StudentEnrollment> _enrollments;
-    private readonly IGenericRepository<StudentEnrollment> _academicEnrollments;
     private readonly IGenericRepository<StudentExitRecord> _exits;
     private readonly IGenericRepository<TransferCertificate> _certificates;
     private readonly IGenericRepository<StudentInvoice> _invoices;
@@ -27,115 +26,203 @@ public sealed class StudentExitService : IStudentExitService
     private readonly TimeProvider _clock;
     private readonly ILogger<StudentExitService> _logger;
 
-    public StudentExitService(IGenericRepository<Student> students, IGenericRepository<StudentEnrollment> enrollments,
-        IGenericRepository<StudentEnrollment> academicEnrollments,
-        IGenericRepository<StudentExitRecord> exits, IGenericRepository<TransferCertificate> certificates,
-        IGenericRepository<StudentInvoice> invoices, IUnitOfWork unitOfWork, ICurrentUserService currentUser,
-        TimeProvider clock, ILogger<StudentExitService> logger)
+    public StudentExitService(IGenericRepository<Student> students,
+        IGenericRepository<StudentEnrollment> enrollments, IGenericRepository<StudentExitRecord> exits,
+        IGenericRepository<TransferCertificate> certificates, IGenericRepository<StudentInvoice> invoices,
+        IUnitOfWork unitOfWork, ICurrentUserService currentUser, TimeProvider clock,
+        ILogger<StudentExitService> logger)
     {
-        _students = students; _enrollments = enrollments; _academicEnrollments = academicEnrollments; _exits = exits; _certificates = certificates;
-        _invoices = invoices; _unitOfWork = unitOfWork; _currentUser = currentUser; _clock = clock; _logger = logger;
+        _students = students; _enrollments = enrollments; _exits = exits;
+        _certificates = certificates; _invoices = invoices; _unitOfWork = unitOfWork;
+        _currentUser = currentUser; _clock = clock; _logger = logger;
     }
 
-    public async Task<ApiResponse<StudentExitResultDto>> ProcessAsync(ProcessStudentExitDto request, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<StudentExitResultDto>> ProcessAsync(ProcessStudentExitDto request,
+        CancellationToken cancellationToken = default)
     {
-        if (!CanManage()) return ApiResponse<StudentExitResultDto>.ErrorResponse("Student exit access is required.", 403);
-        if (request.ClientRequestId == Guid.Empty || request.StudentReference == Guid.Empty || !TryVersion(request.StudentRowVersion, out var version)) return ApiResponse<StudentExitResultDto>.ErrorResponse("Student exit request is invalid.");
-        var exitType = NormalizeExitType(request.ExitType);
-        if (exitType == null) return ApiResponse<StudentExitResultDto>.ErrorResponse("Exit type is invalid.");
-        if (exitType == "Transfer" && string.IsNullOrWhiteSpace(request.Reason)) return ApiResponse<StudentExitResultDto>.ErrorResponse("Transfer reason is required.");
+        if (!CanManage()) return ApiResponse<StudentExitResultDto>.ErrorResponse("Student exit permission required.", 403);
+        if (request == null || request.ClientRequestId == Guid.Empty || request.StudentReference == Guid.Empty ||
+            !TryVersion(request.StudentRowVersion, out var expectedVersion))
+            return ApiResponse<StudentExitResultDto>.ErrorResponse("Student exit request is invalid.");
+        if (!Enum.TryParse<StudentExitType>(request.ExitType, true, out var type) ||
+            type is StudentExitType.Withdrawn || !Enum.IsDefined(type))
+            return ApiResponse<StudentExitResultDto>.ErrorResponse("Exit type must be Transfer, Completed or Dropout.");
+        if (type == StudentExitType.Transfer && string.IsNullOrWhiteSpace(request.Reason))
+            return ApiResponse<StudentExitResultDto>.ErrorResponse("Transfer reason is required.");
+        if (request.Reason?.Length > 1000 || request.ConductRemark?.Length > 1000)
+            return ApiResponse<StudentExitResultDto>.ErrorResponse("Exit comments are too long.");
+
         var tenantId = _currentUser.TenantId;
-        var existing = await _exits.GetQueryable().AsNoTracking().Include(x => x.Student).FirstOrDefaultAsync(x => x.TenantId == tenantId && x.ClientRequestId == request.ClientRequestId, cancellationToken);
-        if (existing != null)
-        {
-            if (existing.Student?.PublicId != request.StudentReference || !string.Equals(existing.ExitType, exitType, StringComparison.OrdinalIgnoreCase)) return ApiResponse<StudentExitResultDto>.ErrorResponse("Client request reference was already used for a different exit.", 409);
-            return ApiResponse<StudentExitResultDto>.SuccessResponse(Map(existing, existing.Student!), "Student exit was already processed.");
-        }
         try
         {
             using var scope = new TransactionScope(TransactionScopeOption.Required,
                 new TransactionOptions { IsolationLevel = IsolationLevel.Serializable },
                 TransactionScopeAsyncFlowOption.Enabled);
-            var concurrentReplay = await _exits.GetQueryable().AsNoTracking().Include(x => x.Student)
-                .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.ClientRequestId == request.ClientRequestId, cancellationToken);
-            if (concurrentReplay != null)
+            var replay = await _exits.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenantId &&
+                x.ClientRequestId == request.ClientRequestId, cancellationToken);
+            if (replay != null)
             {
-                if (concurrentReplay.Student?.PublicId != request.StudentReference || !string.Equals(concurrentReplay.ExitType, exitType, StringComparison.OrdinalIgnoreCase))
-                    return ApiResponse<StudentExitResultDto>.ErrorResponse("Client request reference was already used for a different exit.", 409);
-                return ApiResponse<StudentExitResultDto>.SuccessResponse(Map(concurrentReplay, concurrentReplay.Student!), "Student exit was already processed.");
+                var oldStudent = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenantId &&
+                    x.Id == replay.StudentId, cancellationToken);
+                if (oldStudent == null || oldStudent.PublicId != request.StudentReference || replay.ExitType != type)
+                    return ApiResponse<StudentExitResultDto>.ErrorResponse("Request ID is already used for a different exit.", 409);
+                var oldCertificate = await CertificateNoAsync(replay, cancellationToken);
+                scope.Complete();
+                return ApiResponse<StudentExitResultDto>.SuccessResponse(Map(replay, oldStudent, oldCertificate), "Exit already processed.");
             }
-            var student = await _students.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.PublicId == request.StudentReference, cancellationToken);
+            var student = await _students.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId &&
+                x.PublicId == request.StudentReference, cancellationToken);
             if (student == null) return ApiResponse<StudentExitResultDto>.ErrorResponse("Student not found.", 404);
-            if (!student.IsActive || !string.Equals(student.Status, "Active", StringComparison.OrdinalIgnoreCase)) return ApiResponse<StudentExitResultDto>.ErrorResponse("Only an active student can be processed.", 409);
-            if (!VersionsMatch(student.RowVersion, version)) return ApiResponse<StudentExitResultDto>.ErrorResponse("Student changed by another user. Reload and try again.", 409);
-            if (await _exits.AnyAsync(x => x.TenantId == tenantId && x.StudentId == student.Id)) return ApiResponse<StudentExitResultDto>.ErrorResponse("Student already has a final exit record.", 409);
-            var active = await _enrollments.GetQueryable().Where(x => x.TenantId == tenantId && x.StudentId == student.Id && x.IsActive).OrderByDescending(x => x.EnrollmentDate).ToListAsync(cancellationToken);
-            var canonical = await _academicEnrollments.GetQueryable().Where(x => x.TenantId == tenantId && x.StudentId == student.Id && x.IsCurrent && x.IsActive).ToListAsync(cancellationToken);
-            var placement = active.FirstOrDefault();
-            var due = await _invoices.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenantId && x.StudentId == student.Id).SumAsync(x => (decimal?)x.DueAmount, cancellationToken) ?? 0m;
-            var feesCleared = due <= 0m;
-            if (exitType is "Transfer" or "Completed" && !feesCleared) return ApiResponse<StudentExitResultDto>.ErrorResponse("Outstanding fees must be cleared before transfer or completion.", 409);
+            if (!student.IsActive || student.StatusCode != "Active")
+                return ApiResponse<StudentExitResultDto>.ErrorResponse("Only an active student can exit.", 409);
+            if (!VersionsMatch(student.RowVersion, expectedVersion))
+                return ApiResponse<StudentExitResultDto>.ErrorResponse("Student changed. Reload and retry.", 409);
+            if (await _exits.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenantId &&
+                x.StudentId == student.Id, cancellationToken))
+                return ApiResponse<StudentExitResultDto>.ErrorResponse("Student has an existing final exit.", 409);
+
+            var enrollments = await _enrollments.GetQueryable().Where(x => x.TenantId == tenantId &&
+                x.StudentId == student.Id && (x.IsActive || x.IsCurrent)).OrderByDescending(x => x.EnrollmentDate)
+                .ToListAsync(cancellationToken);
+            var current = enrollments.FirstOrDefault(x => x.IsCurrent && x.IsActive && x.State == EnrollmentState.Active);
+            if (current == null)
+                return ApiResponse<StudentExitResultDto>.ErrorResponse("An active current enrollment is required.", 409);
+            var due = await (from invoice in _invoices.GetQueryable().AsNoTracking()
+                join enrollment in _enrollments.GetQueryable().AsNoTracking() on invoice.StudentEnrollmentId equals enrollment.Id
+                where invoice.TenantId == tenantId && enrollment.TenantId == tenantId &&
+                    enrollment.StudentId == student.Id && invoice.State != InvoiceState.Cancelled &&
+                    invoice.State != InvoiceState.Refunded && invoice.DueAmount > 0
+                select invoice.DueAmount).SumAsync(cancellationToken);
+            var feesCleared = due <= 0;
+            if ((type == StudentExitType.Transfer || type == StudentExitType.Completed) && !feesCleared)
+                return ApiResponse<StudentExitResultDto>.ErrorResponse("Outstanding fees must be settled.", 409);
+
             var now = _clock.GetUtcNow().UtcDateTime;
-            var publicId = Guid.NewGuid();
-            var certificateNo = exitType == "Dropout" ? null : $"{(exitType == "Transfer" ? "TC" : "COMP")}-{now:yyyy}-{publicId:N}"[..18].ToUpperInvariant();
+            var endDate = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
             var record = new StudentExitRecord
             {
-                TenantId = tenantId, PublicId = publicId, ClientRequestId = request.ClientRequestId, StudentId = student.Id, Student = student,
-                EnrollmentId = placement?.Id, StudentEnrollment = placement, ExitType = exitType, CertificateNo = certificateNo,
-                AcademicYearId = placement?.AcademicYearId ?? student.AcademicYearId, ClassId = placement?.ClassId ?? student.ClassId,
-                SectionId = placement?.SectionId ?? student.SectionId, GroupId = placement?.GroupId ?? student.GroupId,
-                Roll = placement?.Roll ?? student.Roll, DueAtExit = due, FeesCleared = feesCleared, ProcessedAtUtc = now,
-                ProcessedByUserId = _currentUser.UserId, Reason = Trim(request.Reason), ConductRemark = Trim(request.ConductRemark), CreatedAt = now, CreatedBy = _currentUser.UserId
+                TenantId = tenantId, PublicId = Guid.NewGuid(), ClientRequestId = request.ClientRequestId,
+                StudentId = student.Id, StudentEnrollmentId = current.Id, ExitType = type,
+                DueAtExit = due, FeesCleared = feesCleared,
+                ProcessedAt = now, ProcessedByUserId = _currentUser.UserId,
+                Reason = Trim(request.Reason), ConductRemark = Trim(request.ConductRemark),
+                CreatedAt = now, CreatedBy = _currentUser.UserId
             };
             await _exits.AddAsync(record);
-            if (exitType == "Transfer")
+
+            string? certificateNo = null;
+            if (type == StudentExitType.Transfer)
             {
-                await _certificates.AddAsync(new TransferCertificate
+                certificateNo = "TC-" + now.ToString("yyyy") + "-" + record.PublicId.ToString("N")[..20].ToUpperInvariant();
+                var certificate = new TransferCertificate
                 {
-                    TenantId = tenantId, PublicId = publicId, ClientRequestId = request.ClientRequestId, StudentId = student.Id, Student = student,
-                    TcNo = certificateNo!, IssueDate = now, Reason = record.Reason, LastAcademicYearId = record.AcademicYearId,
-                    LastClassId = record.ClassId, LastSectionId = record.SectionId, LastRoll = record.Roll,
-                    ConductRemark = record.ConductRemark, FeesCleared = feesCleared, IssuedBy = _currentUser.UserId, CreatedAt = now, CreatedBy = _currentUser.UserId
-                });
+                    TenantId = tenantId, PublicId = Guid.NewGuid(), ClientRequestId = request.ClientRequestId,
+                    StudentId = student.Id, StudentEnrollmentId = current.Id,
+                    CertificateNumber = certificateNo, IssueDate = endDate,
+                    Reason = record.Reason, ConductRemark = record.ConductRemark, FeesCleared = feesCleared,
+                    IssuedByUserId = _currentUser.UserId, CreatedAt = now, CreatedBy = _currentUser.UserId
+                };
+                await _certificates.AddAsync(certificate);
             }
-            foreach (var enrollment in active) { enrollment.IsActive = false; enrollment.UpdatedAt = now; enrollment.UpdatedBy = _currentUser.UserId; }
-            var canonicalStatus = exitType switch { "Transfer" => EnrollmentStatus.Transferred, "Completed" => EnrollmentStatus.Completed, _ => EnrollmentStatus.Dropped };
-            foreach (var enrollment in canonical) { enrollment.IsCurrent = false; enrollment.IsActive = false; enrollment.EnrollmentStatus = canonicalStatus; enrollment.UpdatedAt = now; enrollment.UpdatedBy = _currentUser.UserId; }
-            student.IsActive = false; student.Status = exitType switch { "Transfer" => "TC", "Completed" => "Passed", _ => "Dropout" }; student.UpdatedAt = now; student.UpdatedBy = _currentUser.UserId;
-            await _unitOfWork.SaveChangesAsync(cancellationToken); scope.Complete();
-            return new ApiResponse<StudentExitResultDto> { Success = true, StatusCode = 201, Message = "Student exit processed.", Data = Map(record, student) };
+
+            foreach (var enrollment in enrollments)
+            {
+                enrollment.IsCurrent = false;
+                enrollment.IsActive = false;
+                enrollment.State = type switch
+                {
+                    StudentExitType.Transfer => EnrollmentState.Transferred,
+                    StudentExitType.Completed => EnrollmentState.Completed,
+                    _ => EnrollmentState.Dropped
+                };
+                enrollment.EndDate ??= endDate;
+                enrollment.UpdatedAt = now;
+                enrollment.UpdatedBy = _currentUser.UserId;
+            }
+            student.IsActive = false;
+            student.StatusCode = type switch
+            {
+                StudentExitType.Transfer => "TC",
+                StudentExitType.Completed => "Passed",
+                _ => "Dropout"
+            };
+            student.UpdatedAt = now;
+            student.UpdatedBy = _currentUser.UserId;
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            scope.Complete();
+            return new ApiResponse<StudentExitResultDto>
+            {
+                Success = true, StatusCode = 201, Message = "Student exit processed.",
+                Data = Map(record, student, certificateNo)
+            };
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            _logger.LogWarning(ex, "Concurrent student exit {Reference}", request.StudentReference); return ApiResponse<StudentExitResultDto>.ErrorResponse("Student changed by another user. Reload and try again.", 409);
+            _logger.LogWarning(ex, "Concurrent exit of student {Reference} in tenant {TenantId}", request.StudentReference, tenantId);
+            return ApiResponse<StudentExitResultDto>.ErrorResponse("Student changed. Reload and retry.", 409);
         }
         catch (DbUpdateException ex)
         {
-            _logger.LogWarning(ex, "Student exit conflict {Reference}", request.StudentReference); return ApiResponse<StudentExitResultDto>.ErrorResponse("Student exit conflicts with an existing record.", 409);
+            _logger.LogWarning(ex, "Student exit database conflict for tenant {TenantId}", tenantId);
+            return ApiResponse<StudentExitResultDto>.ErrorResponse("Exit conflicts with an existing transaction.", 409);
         }
         catch (TransactionAbortedException ex)
         {
-            _logger.LogWarning(ex, "Serialized student exit conflict {Reference}", request.StudentReference); return ApiResponse<StudentExitResultDto>.ErrorResponse("Student exit conflicts with another update. Reload and try again.", 409);
+            _logger.LogWarning(ex, "Student exit transaction aborted for tenant {TenantId}", tenantId);
+            return ApiResponse<StudentExitResultDto>.ErrorResponse("Exit transaction conflicted with another update.", 409);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Student exit failed {Reference}", request.StudentReference); return ApiResponse<StudentExitResultDto>.ErrorResponse("Student exit could not be processed.", 500);
+            _logger.LogError(ex, "Student exit failed for tenant {TenantId}", tenantId);
+            return ApiResponse<StudentExitResultDto>.ErrorResponse("Student exit could not be processed.", 500);
         }
     }
 
-    public async Task<ApiResponse<IReadOnlyList<StudentExitResultDto>>> GetHistoryAsync(Guid studentReference, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<IReadOnlyList<StudentExitResultDto>>> GetHistoryAsync(Guid studentReference,
+        CancellationToken cancellationToken = default)
     {
-        if (!CanManage()) return ApiResponse<IReadOnlyList<StudentExitResultDto>>.ErrorResponse("Student exit access is required.", 403);
-        var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.PublicId == studentReference, cancellationToken);
+        if (!CanManage()) return ApiResponse<IReadOnlyList<StudentExitResultDto>>.ErrorResponse("Student exit permission required.", 403);
+        var tenantId = _currentUser.TenantId;
+        var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenantId &&
+            x.PublicId == studentReference, cancellationToken);
         if (student == null) return ApiResponse<IReadOnlyList<StudentExitResultDto>>.ErrorResponse("Student not found.", 404);
-        IReadOnlyList<StudentExitResultDto> rows = await _exits.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId && x.StudentId == student.Id).OrderByDescending(x => x.ProcessedAtUtc).Select(x => new StudentExitResultDto { Reference = x.PublicId, StudentReference = student.PublicId, StudentCode = student.StudentCode, StudentName = student.FullName, ExitType = x.ExitType, FinalStatus = x.ExitType == "Transfer" ? "TC" : x.ExitType == "Completed" ? "Passed" : "Dropout", CertificateNo = x.CertificateNo, DueAtExit = x.DueAtExit, FeesCleared = x.FeesCleared, ProcessedAtUtc = x.ProcessedAtUtc }).ToListAsync(cancellationToken);
-        return ApiResponse<IReadOnlyList<StudentExitResultDto>>.SuccessResponse(rows);
+        var records = await _exits.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenantId &&
+            x.StudentId == student.Id).OrderByDescending(x => x.ProcessedAt).ToListAsync(cancellationToken);
+        var requestIds = records.Select(x => x.ClientRequestId).ToArray();
+        var certificates = await _certificates.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenantId &&
+            x.StudentId == student.Id && requestIds.Contains(x.ClientRequestId))
+            .ToDictionaryAsync(x => x.ClientRequestId, x => x.CertificateNumber, cancellationToken);
+        IReadOnlyList<StudentExitResultDto> result = records.Select(x =>
+            Map(x, student, certificates.GetValueOrDefault(x.ClientRequestId))).ToList();
+        return ApiResponse<IReadOnlyList<StudentExitResultDto>>.SuccessResponse(result);
     }
 
-    private bool CanManage() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0 && (_currentUser.IsTenantAdmin || _currentUser.IsInRole("Principal") || _currentUser.IsInRole("Registrar"));
-    private static string? NormalizeExitType(string? value) => value?.Trim().ToLowerInvariant() switch { "transfer" => "Transfer", "completed" => "Completed", "dropout" => "Dropout", _ => null };
-    private static StudentExitResultDto Map(StudentExitRecord x, Student s) => new() { Reference = x.PublicId, StudentReference = s.PublicId, StudentCode = s.StudentCode, StudentName = s.FullName, ExitType = x.ExitType, FinalStatus = s.Status, CertificateNo = x.CertificateNo, DueAtExit = x.DueAtExit, FeesCleared = x.FeesCleared, ProcessedAtUtc = x.ProcessedAtUtc };
+    private async Task<string?> CertificateNoAsync(StudentExitRecord record, CancellationToken ct) =>
+        await _certificates.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId &&
+            x.StudentId == record.StudentId && x.ClientRequestId == record.ClientRequestId)
+            .Select(x => x.CertificateNumber).FirstOrDefaultAsync(ct);
+
+    private static StudentExitResultDto Map(StudentExitRecord record, Student student, string? certificateNo) => new()
+    {
+        Reference = record.PublicId, StudentReference = student.PublicId, StudentCode = student.StudentCode,
+        StudentName = student.FullName, ExitType = record.ExitType.ToString(),
+        FinalStatus = record.ExitType switch
+        {
+            StudentExitType.Transfer => "TC",
+            StudentExitType.Completed => "Passed",
+            _ => "Dropout"
+        },
+        CertificateNo = certificateNo, DueAtExit = record.DueAtExit, FeesCleared = record.FeesCleared,
+        ProcessedAtUtc = record.ProcessedAt
+    };
+    private bool CanManage() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0 &&
+        (_currentUser.IsTenantAdmin || _currentUser.IsInRole("Principal") || _currentUser.IsInRole("Registrar"));
     private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-    private static bool TryVersion(string? value, out byte[] version) { try { version = Convert.FromBase64String(value ?? string.Empty); return version.Length > 0; } catch (FormatException) { version = []; return false; } }
-    private static bool VersionsMatch(byte[] a, byte[] b) => a.Length == b.Length && CryptographicOperations.FixedTimeEquals(a, b);
+    private static bool TryVersion(string? value, out byte[] version)
+    {
+        try { version = Convert.FromBase64String(value ?? string.Empty); return version.Length > 0; }
+        catch (FormatException) { version = Array.Empty<byte>(); return false; }
+    }
+    private static bool VersionsMatch(byte[] a, byte[] b) => a.Length == b.Length &&
+        CryptographicOperations.FixedTimeEquals(a, b);
 }
