@@ -2,6 +2,8 @@ using EduOS.Core.Common;
 using EduOS.Core.DTOs.Academic;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.SaaS;
+using EduOS.Core.Enums.Academics;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
@@ -85,6 +87,13 @@ public sealed class AcademicSetupService : IAcademicSetupService
             .OrderBy(x => x.DisplayOrder).ThenBy(x => x.Name)
             .ToListAsync(cancellationToken);
         var programs = programRows.Select(MapProgram).ToList();
+        var programIds = programs.Select(x => x.Id).ToArray();
+        var campusesByProgram = await _programCampuses.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenantId && x.IsActive && programIds.Contains(x.AcademicProgramId))
+            .Select(x => new { x.AcademicProgramId, x.CampusId }).ToListAsync(cancellationToken);
+        foreach (var program in programs)
+            program.CampusIds = campusesByProgram.Where(x => x.AcademicProgramId == program.Id)
+                .Select(x => x.CampusId).ToArray();
         var levelRows = await _levels.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == tenantId && x.IsActive)
             .OrderBy(x => x.AcademicProgramId).ThenBy(x => x.LevelNo).ThenBy(x => x.DisplayOrder)
@@ -96,7 +105,7 @@ public sealed class AcademicSetupService : IAcademicSetupService
             .ToListAsync(cancellationToken);
         var tracks = trackRows.Select(MapTrack).ToList();
         var subjectRows = await _subjects.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && x.ClassId == null && x.IsActive)
+            .Where(x => x.TenantId == tenantId && x.IsActive)
             .OrderBy(x => x.DisplayOrder).ThenBy(x => x.Name)
             .ToListAsync(cancellationToken);
         var subjects = subjectRows.Select(MapSubject).ToList();
@@ -198,21 +207,25 @@ public sealed class AcademicSetupService : IAcademicSetupService
             {
                 department = await _departments.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.DepartmentId.Value && x.IsActive, cancellationToken);
                 if (department == null) return Error<AcademicProgramDto>("AcademicDepartment not found.", 404);
-                if (campus != null && department.CampusId.HasValue && department.CampusId != campus.Id)
-                    return Error<AcademicProgramDto>("AcademicDepartment belongs to a different campus.", 409);
+
             }
             var existing = await _programs.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Code == code, cancellationToken);
             if (existing != null)
             {
-                if (existing.Name != name || existing.CampusId != request.CampusId || existing.DepartmentId != request.DepartmentId || existing.DurationInMonths != request.DurationInMonths)
+                if (existing.Name != name || existing.AcademicDepartmentId != request.DepartmentId || existing.DurationInMonths != request.DurationInMonths)
                     return Error<AcademicProgramDto>("Programme code is already in use with different settings.", 409);
-                return ApiResponse<AcademicProgramDto>.SuccessResponse(MapProgram(existing), "Programme already exists.");
+                var oldDto = MapProgram(existing);
+                oldDto.CampusIds = await _programCampuses.GetQueryable().AsNoTracking()
+                    .Where(x => x.TenantId == tenantId && x.AcademicProgramId == existing.Id && x.IsActive)
+                    .Select(x => x.CampusId).ToArrayAsync(cancellationToken);
+                if (request.CampusId.HasValue && !oldDto.CampusIds.Contains(request.CampusId.Value))
+                    return Error<AcademicProgramDto>("Programme already exists but is not assigned to that campus.", 409);
+                return ApiResponse<AcademicProgramDto>.SuccessResponse(oldDto, "Programme already exists.");
             }
             var row = new AcademicProgram
             {
                 TenantId = tenantId,
-                CampusId = campus?.Id,
-                DepartmentId = department?.Id,
+                AcademicDepartmentId = department?.Id,
                 Name = name,
                 Code = code,
                 ShortName = Trim(request.ShortName),
@@ -223,19 +236,19 @@ public sealed class AcademicSetupService : IAcademicSetupService
                 IsActive = true
             };
             await _programs.AddAsync(row);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
             if (campus != null)
             {
                 await _programCampuses.AddAsync(new ProgramCampus
                 {
-                    TenantId = tenantId,
-                    AcademicProgram = row,
-                    CampusId = campus.Id,
-                    IsAdmissionOpen = request.IsAdmissionOpen,
+                    TenantId = tenantId, AcademicProgramId = row.Id, CampusId = campus.Id, IsPrimary = true,
                     IsActive = true
                 });
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
             }
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            return Created(MapProgram(row), "Programme created.");
+            var programDto = MapProgram(row);
+            programDto.CampusIds = campus == null ? Array.Empty<long>() : new[] { campus.Id };
+            return Created(programDto, "Programme created.");
         });
     }
 
@@ -270,33 +283,27 @@ public sealed class AcademicSetupService : IAcademicSetupService
         if (!CanManage()) return Task.FromResult(Denied<AcademicSubjectDto>());
         if (request == null || string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Code) || !Enum.IsDefined(typeof(SubjectType), request.SubjectType) || request.DefaultFullMarks <= 0 || request.DefaultPassMarks < 0 || request.DefaultPassMarks > request.DefaultFullMarks || request.DefaultCreditHours < 0)
             return Task.FromResult(Error<AcademicSubjectDto>("Subject name, code, type and valid mark settings are required."));
+        if (request.SubjectType != SubjectType.Core || request.HasPractical || request.DefaultFullMarks != 100m || request.DefaultPassMarks != 33m)
+            return Task.FromResult(Error<AcademicSubjectDto>("Optional/practical classification and marks belong to CurriculumSubject. Create the subject with standard defaults, then configure its curriculum."));
         return ExecuteWriteAsync("create subject", async () =>
         {
             var tenantId = _currentUser.TenantId;
             var name = request.Name.Trim();
             var code = NormalizeCode(request.Code);
-            var existing = await _subjects.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.ClassId == null && x.Code == code, cancellationToken);
+            var existing = await _subjects.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Code == code, cancellationToken);
             if (existing != null)
             {
-                if (existing.Name != name || existing.SubjectType != request.SubjectType || existing.DefaultFullMarks != request.DefaultFullMarks || existing.DefaultPassMarks != request.DefaultPassMarks || existing.DefaultCreditHours != request.DefaultCreditHours || existing.HasPractical != request.HasPractical)
+                if (existing.Name != name || existing.DefaultCreditHours != request.DefaultCreditHours)
                     return Error<AcademicSubjectDto>("Subject code is already in use with different settings.", 409);
                 return ApiResponse<AcademicSubjectDto>.SuccessResponse(MapSubject(existing), "Subject already exists.");
             }
             var row = new Subject
             {
                 TenantId = tenantId,
-                ClassId = null,
                 Name = name,
                 Code = code,
                 ShortName = Trim(request.ShortName),
-                SubjectType = request.SubjectType,
                 DefaultCreditHours = request.DefaultCreditHours,
-                DefaultFullMarks = request.DefaultFullMarks,
-                DefaultPassMarks = request.DefaultPassMarks,
-                FullMark = DecimalToLegacyMark(request.DefaultFullMarks),
-                PassMark = DecimalToLegacyMark(request.DefaultPassMarks),
-                IsOptional = request.SubjectType == SubjectType.Optional,
-                HasPractical = request.HasPractical,
                 IsActive = true
             };
             await _subjects.AddAsync(row);
@@ -310,6 +317,10 @@ public sealed class AcademicSetupService : IAcademicSetupService
         if (!CanManage()) return Task.FromResult(Denied<AcademicCurriculumDto>());
         if (request == null || request.AcademicProgramId <= 0 || string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Code))
             return Task.FromResult(Error<AcademicCurriculumDto>("Programme, curriculum name and code are required."));
+        if (!string.IsNullOrWhiteSpace(request.Remarks))
+            return Task.FromResult(Error<AcademicCurriculumDto>("Curriculum remarks are not persisted in the canonical curriculum model."));
+        if (!request.EffectiveFromAcademicYearId.HasValue)
+            return Task.FromResult(Error<AcademicCurriculumDto>("A starting academic year is required to establish the curriculum effective date."));
         return ExecuteWriteAsync("create curriculum", async () =>
         {
             var tenantId = _currentUser.TenantId;
@@ -319,14 +330,14 @@ public sealed class AcademicSetupService : IAcademicSetupService
             if (request.EffectiveFromAcademicYearId.HasValue && fromYear == null) return Error<AcademicCurriculumDto>("Effective-from academic year not found.", 404);
             var toYear = await ResolveYearAsync(request.EffectiveToAcademicYearId, cancellationToken);
             if (request.EffectiveToAcademicYearId.HasValue && toYear == null) return Error<AcademicCurriculumDto>("Effective-to academic year not found.", 404);
-            if (fromYear != null && toYear != null && toYear.EndDate.Date < fromYear.StartDate.Date)
+            if (fromYear != null && toYear != null && toYear.EndDate < fromYear.StartDate)
                 return Error<AcademicCurriculumDto>("Curriculum effective years are out of order.");
             var name = request.Name.Trim();
             var code = NormalizeCode(request.Code);
             var existing = await _curricula.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Code == code, cancellationToken);
             if (existing != null)
             {
-                if (existing.AcademicProgramId != request.AcademicProgramId || existing.Name != name || existing.EffectiveFromAcademicYearId != request.EffectiveFromAcademicYearId || existing.EffectiveToAcademicYearId != request.EffectiveToAcademicYearId || existing.IsCurrent != request.IsCurrent)
+                if (existing.AcademicProgramId != request.AcademicProgramId || existing.Name != name || existing.EffectiveFrom != (fromYear?.StartDate ?? DateOnly.FromDateTime(DateTime.UtcNow)) || existing.EffectiveTo != toYear?.EndDate || existing.IsCurrent != request.IsCurrent)
                     return Error<AcademicCurriculumDto>("Curriculum code is already in use with different settings.", 409);
                 return ApiResponse<AcademicCurriculumDto>.SuccessResponse(MapCurriculum(existing), "Curriculum already exists.");
             }
@@ -338,11 +349,10 @@ public sealed class AcademicSetupService : IAcademicSetupService
                 AcademicProgramId = request.AcademicProgramId,
                 Name = name,
                 Code = code,
-                EffectiveFromAcademicYearId = request.EffectiveFromAcademicYearId,
-                EffectiveToAcademicYearId = request.EffectiveToAcademicYearId,
+                EffectiveFrom = fromYear!.StartDate,
+                EffectiveTo = toYear?.EndDate,
                 IsCurrent = request.IsCurrent,
-                IsActive = true,
-                Remarks = Trim(request.Remarks)
+                IsActive = true
             };
             await _curricula.AddAsync(row);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -365,11 +375,11 @@ public sealed class AcademicSetupService : IAcademicSetupService
             if (level.AcademicProgramId != curriculum.AcademicProgramId) return Error<CurriculumSubjectDto>("Academic level belongs to a different programme.", 409);
             if (!await _subjects.GetQueryable().AnyAsync(x => x.TenantId == tenantId && x.Id == request.SubjectId && x.IsActive, cancellationToken))
                 return Error<CurriculumSubjectDto>("Subject not found.", 404);
-            if (request.AcademicTrackId.HasValue && !await _tracks.GetQueryable().AnyAsync(x => x.TenantId == tenantId && x.Id == request.AcademicTrackId.Value && x.IsActive && (!x.AcademicProgramId.HasValue || x.AcademicProgramId == curriculum.AcademicProgramId), cancellationToken))
-                return Error<CurriculumSubjectDto>("Academic track is unavailable for this programme.", 409);
-            if (request.MediumId.HasValue && !await _mediums.GetQueryable().AnyAsync(x => x.TenantId == tenantId && x.Id == request.MediumId.Value && x.IsActive, cancellationToken))
-                return Error<CurriculumSubjectDto>("Medium not found.", 404);
-            var existing = await _curriculumSubjects.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.AcademicCurriculumId == academicCurriculumId && x.AcademicLevelId == request.AcademicLevelId && x.SubjectId == request.SubjectId && x.AcademicTrackId == request.AcademicTrackId && x.MediumId == request.MediumId && x.IsActive, cancellationToken);
+            if (request.AcademicTrackId.HasValue && request.AcademicTrackId != curriculum.AcademicTrackId)
+                return Error<CurriculumSubjectDto>("Track is fixed by the parent curriculum.", 409);
+            if (request.MediumId.HasValue && request.MediumId != curriculum.MediumId)
+                return Error<CurriculumSubjectDto>("Medium is fixed by the parent curriculum.", 409);
+            var existing = await _curriculumSubjects.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.AcademicCurriculumId == academicCurriculumId && x.AcademicLevelId == request.AcademicLevelId && x.SubjectId == request.SubjectId && x.IsActive, cancellationToken);
             if (existing != null)
             {
                 if (existing.FullMarks != request.FullMarks || existing.PassMarks != request.PassMarks || existing.CreditHours != request.CreditHours || existing.IsOptional != request.IsOptional || existing.HasPractical != request.HasPractical)
@@ -382,8 +392,6 @@ public sealed class AcademicSetupService : IAcademicSetupService
                 AcademicCurriculumId = academicCurriculumId,
                 AcademicLevelId = request.AcademicLevelId,
                 SubjectId = request.SubjectId,
-                AcademicTrackId = request.AcademicTrackId,
-                MediumId = request.MediumId,
                 FullMarks = request.FullMarks,
                 PassMarks = request.PassMarks,
                 CreditHours = request.CreditHours,
@@ -404,6 +412,8 @@ public sealed class AcademicSetupService : IAcademicSetupService
             return Task.FromResult(Error<AcademicBatchDto>("Campus, academic year, programme, level, batch identity, delivery mode and capacity are required."));
         if (request.StartDate.HasValue && request.EndDate.HasValue && request.EndDate.Value.Date < request.StartDate.Value.Date)
             return Task.FromResult(Error<AcademicBatchDto>("Batch end date cannot precede its start date."));
+        if (!string.IsNullOrWhiteSpace(request.Remarks))
+            return Task.FromResult(Error<AcademicBatchDto>("Batch remarks are not supported by the canonical model."));
         return ExecuteWriteAsync("create academic batch", async () =>
         {
             var tenantId = _currentUser.TenantId;
@@ -415,7 +425,10 @@ public sealed class AcademicSetupService : IAcademicSetupService
                 return Error<AcademicBatchDto>("Academic term does not belong to the selected academic year.", 409);
             var program = await _programs.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.AcademicProgramId && x.IsActive, cancellationToken);
             if (program == null) return Error<AcademicBatchDto>("Programme not found.", 404);
-            var hasCampusAssignment = program.CampusId == null || program.CampusId == request.CampusId || await _programCampuses.GetQueryable().AnyAsync(x => x.TenantId == tenantId && x.AcademicProgramId == program.Id && x.CampusId == request.CampusId && x.IsActive, cancellationToken);
+            var scopedCampuses = await _programCampuses.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.AcademicProgramId == program.Id && x.IsActive)
+                .Select(x => x.CampusId).ToArrayAsync(cancellationToken);
+            var hasCampusAssignment = scopedCampuses.Length == 0 || scopedCampuses.Contains(request.CampusId);
             if (!hasCampusAssignment) return Error<AcademicBatchDto>("Programme is unavailable at the selected campus.", 409);
             if (!await _levels.GetQueryable().AnyAsync(x => x.TenantId == tenantId && x.Id == request.AcademicLevelId && x.AcademicProgramId == program.Id && x.IsActive, cancellationToken))
                 return Error<AcademicBatchDto>("Academic level does not belong to the selected programme.", 409);
@@ -425,16 +438,16 @@ public sealed class AcademicSetupService : IAcademicSetupService
                 return Error<AcademicBatchDto>("Medium not found.", 404);
             if (request.ShiftId.HasValue && !await _shifts.GetQueryable().AnyAsync(x => x.TenantId == tenantId && x.Id == request.ShiftId.Value && x.IsActive, cancellationToken))
                 return Error<AcademicBatchDto>("Shift not found.", 404);
-            var startDate = request.StartDate?.Date;
-            var endDate = request.EndDate?.Date;
-            if (startDate.HasValue && startDate.Value < year.StartDate.Date || endDate.HasValue && endDate.Value > year.EndDate.Date)
+            var startDate = request.StartDate.HasValue ? DateOnly.FromDateTime(request.StartDate.Value) : (DateOnly?)null;
+            var endDate = request.EndDate.HasValue ? DateOnly.FromDateTime(request.EndDate.Value) : (DateOnly?)null;
+            if (startDate.HasValue && startDate.Value < year.StartDate || endDate.HasValue && endDate.Value > year.EndDate)
                 return Error<AcademicBatchDto>("Batch dates must fall within the selected academic year.", 409);
             var name = request.Name.Trim();
             var code = NormalizeCode(request.Code);
             var existing = await _batches.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.AcademicYearId == year.Id && x.Code == code, cancellationToken);
             if (existing != null)
             {
-                if (existing.Name != name || existing.CampusId != request.CampusId || existing.AcademicProgramId != program.Id || existing.AcademicLevelId != request.AcademicLevelId || existing.AcademicTermId != request.AcademicTermId || existing.AcademicTrackId != request.AcademicTrackId || existing.MediumId != request.MediumId || existing.ShiftId != request.ShiftId || existing.DeliveryMode != request.DeliveryMode || existing.Capacity != request.Capacity || existing.StartDate?.Date != startDate || existing.EndDate?.Date != endDate)
+                if (existing.Name != name || existing.CampusId != request.CampusId || existing.AcademicProgramId != program.Id || existing.AcademicLevelId != request.AcademicLevelId || existing.AcademicTermId != request.AcademicTermId || existing.AcademicTrackId != request.AcademicTrackId || existing.MediumId != request.MediumId || existing.ShiftId != request.ShiftId || existing.DeliveryMode.ToString() != request.DeliveryMode.ToString() || existing.Capacity != request.Capacity || existing.StartDate != startDate || existing.EndDate != endDate)
                     return Error<AcademicBatchDto>("Batch code is already in use with different settings.", 409);
                 return ApiResponse<AcademicBatchDto>.SuccessResponse(MapBatch(existing), "Academic batch already exists.");
             }
@@ -451,11 +464,10 @@ public sealed class AcademicSetupService : IAcademicSetupService
                 ShiftId = request.ShiftId,
                 Name = name,
                 Code = code,
-                DeliveryMode = request.DeliveryMode,
+                DeliveryMode = Enum.Parse<DeliveryModeType>(request.DeliveryMode.ToString()),
                 Capacity = request.Capacity,
                 StartDate = startDate,
                 EndDate = endDate,
-                Remarks = Trim(request.Remarks),
                 IsActive = true
             };
             await _batches.AddAsync(row);
@@ -469,6 +481,10 @@ public sealed class AcademicSetupService : IAcademicSetupService
         if (!CanManage()) return Task.FromResult(Denied<AcademicRoomDto>());
         if (request == null || string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Code) || request.Capacity <= 0 || request.Capacity > 100000)
             return Task.FromResult(Error<AcademicRoomDto>("Room name, code and capacity are required."));
+        if (!request.CampusId.HasValue || request.CampusId <= 0)
+            return Task.FromResult(Error<AcademicRoomDto>("Campus must be selected for a room."));
+        if (request.IsLab || !string.IsNullOrWhiteSpace(request.BuildingName) || !string.IsNullOrWhiteSpace(request.Floor))
+            return Task.FromResult(Error<AcademicRoomDto>("Lab/building/floor metadata is not supported by the current room model."));
         return ExecuteWriteAsync("create room", async () =>
         {
             var tenantId = _currentUser.TenantId;
@@ -479,11 +495,11 @@ public sealed class AcademicSetupService : IAcademicSetupService
             var existing = await _rooms.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Code == code, cancellationToken);
             if (existing != null)
             {
-                if (existing.Name != name || existing.CampusId != request.CampusId || existing.Capacity != request.Capacity || existing.IsLab != request.IsLab || existing.BuildingName != Trim(request.BuildingName) || existing.Floor != Trim(request.Floor))
+                if (existing.Name != name || existing.CampusId != request.CampusId || existing.Capacity != request.Capacity || false)
                     return Error<AcademicRoomDto>("Room code is already in use with different settings.", 409);
                 return ApiResponse<AcademicRoomDto>.SuccessResponse(MapRoom(existing), "Room already exists.");
             }
-            var row = new Room { TenantId = tenantId, CampusId = request.CampusId, Name = name, Code = code, BuildingName = Trim(request.BuildingName), Floor = Trim(request.Floor), Capacity = request.Capacity, IsLab = request.IsLab, IsActive = true };
+            var row = new Room { TenantId = tenantId, CampusId = request.CampusId.Value, Name = name, Code = code, Capacity = request.Capacity, IsActive = true };
             await _rooms.AddAsync(row);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             return Created(MapRoom(row), "Room created.");
@@ -527,14 +543,14 @@ public sealed class AcademicSetupService : IAcademicSetupService
     private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     private static int DecimalToLegacyMark(decimal value) => value > int.MaxValue ? int.MaxValue : decimal.ToInt32(decimal.Truncate(value));
 
-    private static AcademicProgramDto MapProgram(AcademicProgram x) => new() { Id = x.Id, CampusId = x.CampusId, DepartmentId = x.DepartmentId, Name = x.Name, Code = x.Code, ShortName = x.ShortName, DurationInMonths = x.DurationInMonths, AwardTitle = x.AwardTitle, IsAdmissionOpen = x.IsAdmissionOpen, IsActive = x.IsActive };
+    private static AcademicProgramDto MapProgram(AcademicProgram x) => new() { Id = x.Id, AcademicDepartmentId = x.AcademicDepartmentId, Name = x.Name, Code = x.Code, ShortName = x.ShortName, DurationInMonths = x.DurationInMonths, AwardTitle = x.AwardTitle, Description = x.Description, IsAdmissionOpen = x.IsAdmissionOpen, IsActive = x.IsActive, DisplayOrder = x.DisplayOrder, RowVersion = Convert.ToBase64String(x.RowVersion) };
     private static AcademicLevelDto MapLevel(AcademicLevel x) => new() { Id = x.Id, AcademicProgramId = x.AcademicProgramId, Name = x.Name, Code = x.Code, LevelNo = x.LevelNo, IsPromotable = x.IsPromotable, IsTerminalLevel = x.IsTerminalLevel, IsActive = x.IsActive };
     private static AcademicTrackDto MapTrack(AcademicTrack x) => new() { Id = x.Id, AcademicProgramId = x.AcademicProgramId, Name = x.Name, Code = x.Code, Description = x.Description, IsDefault = x.IsDefault, DisplayOrder = x.DisplayOrder, IsActive = x.IsActive };
-    private static AcademicSubjectDto MapSubject(Subject x) => new() { Id = x.Id, Name = x.Name, Code = x.Code, ShortName = x.ShortName, SubjectType = x.SubjectType, DefaultCreditHours = x.DefaultCreditHours, DefaultFullMarks = x.DefaultFullMarks, DefaultPassMarks = x.DefaultPassMarks, HasPractical = x.HasPractical, IsActive = x.IsActive };
-    private static AcademicCurriculumDto MapCurriculum(AcademicCurriculum x) => new() { Id = x.Id, AcademicProgramId = x.AcademicProgramId, Name = x.Name, Code = x.Code, EffectiveFromAcademicYearId = x.EffectiveFromAcademicYearId, EffectiveToAcademicYearId = x.EffectiveToAcademicYearId, IsCurrent = x.IsCurrent, IsActive = x.IsActive };
-    private static CurriculumSubjectDto MapCurriculumSubject(CurriculumSubject x) => new() { Id = x.Id, AcademicCurriculumId = x.AcademicCurriculumId, AcademicLevelId = x.AcademicLevelId, SubjectId = x.SubjectId, AcademicTrackId = x.AcademicTrackId, MediumId = x.MediumId, FullMarks = x.FullMarks, PassMarks = x.PassMarks, CreditHours = x.CreditHours, IsOptional = x.IsOptional, HasPractical = x.HasPractical, IsActive = x.IsActive };
-    private static AcademicBatchDto MapBatch(AcademicBatch x) => new() { Id = x.Id, CampusId = x.CampusId, AcademicYearId = x.AcademicYearId, AcademicTermId = x.AcademicTermId, AcademicProgramId = x.AcademicProgramId, AcademicLevelId = x.AcademicLevelId, AcademicTrackId = x.AcademicTrackId, MediumId = x.MediumId, ShiftId = x.ShiftId, Name = x.Name, Code = x.Code, DeliveryMode = x.DeliveryMode, Capacity = x.Capacity, StartDate = x.StartDate, EndDate = x.EndDate, IsActive = x.IsActive };
-    private static AcademicRoomDto MapRoom(Room x) => new() { Id = x.Id, CampusId = x.CampusId, Name = x.Name, Code = x.Code, BuildingName = x.BuildingName, Floor = x.Floor, Capacity = x.Capacity, IsLab = x.IsLab, IsActive = x.IsActive };
+    private static AcademicSubjectDto MapSubject(Subject x) => new() { Id = x.Id, Name = x.Name, Code = x.Code, ShortName = x.ShortName, SubjectType = SubjectType.Core, DefaultCreditHours = x.DefaultCreditHours, DefaultFullMarks = 100m, DefaultPassMarks = 33m, HasPractical = false, IsActive = x.IsActive };
+    private static AcademicCurriculumDto MapCurriculum(AcademicCurriculum x) => new() { Id = x.Id, AcademicProgramId = x.AcademicProgramId, AcademicTrackId = x.AcademicTrackId, MediumId = x.MediumId, Name = x.Name, Code = x.Code, VersionNo = x.VersionNo, EffectiveFrom = x.EffectiveFrom, EffectiveTo = x.EffectiveTo, IsCurrent = x.IsCurrent, IsActive = x.IsActive, RowVersion = Convert.ToBase64String(x.RowVersion) };
+    private static CurriculumSubjectDto MapCurriculumSubject(CurriculumSubject x) => new() { Id = x.Id, AcademicCurriculumId = x.AcademicCurriculumId, AcademicLevelId = x.AcademicLevelId, SubjectId = x.SubjectId, FullMarks = x.FullMarks, PassMarks = x.PassMarks, CreditHours = x.CreditHours, IsOptional = x.IsOptional, HasPractical = x.HasPractical, IsActive = x.IsActive, DisplayOrder = x.DisplayOrder, RowVersion = Convert.ToBase64String(x.RowVersion) };
+    private static AcademicBatchDto MapBatch(AcademicBatch x) => new() { Id = x.Id, CampusId = x.CampusId, AcademicYearId = x.AcademicYearId, AcademicTermId = x.AcademicTermId, AcademicProgramId = x.AcademicProgramId, AcademicLevelId = x.AcademicLevelId, AcademicTrackId = x.AcademicTrackId, MediumId = x.MediumId, ShiftId = x.ShiftId, Name = x.Name, Code = x.Code, DeliveryMode = x.DeliveryMode, Capacity = x.Capacity, StartDate = x.StartDate, EndDate = x.EndDate, IsDefault = x.IsDefault, DisplayOrder = x.DisplayOrder, IsActive = x.IsActive, RowVersion = Convert.ToBase64String(x.RowVersion) };
+    private static AcademicRoomDto MapRoom(Room x) => new() { Id = x.Id, CampusId = x.CampusId, Name = x.Name, Code = x.Code, Capacity = x.Capacity, IsLab = false, IsActive = x.IsActive };
     private static ApiResponse<T> Created<T>(T data, string message) => new() { Success = true, StatusCode = 201, Message = message, Data = data };
     private static ApiResponse<T> Error<T>(string message, int statusCode = 400) => ApiResponse<T>.ErrorResponse(message, statusCode);
     private static ApiResponse<T> Denied<T>() => ApiResponse<T>.ErrorResponse("Academic setup access is required.", 403);
