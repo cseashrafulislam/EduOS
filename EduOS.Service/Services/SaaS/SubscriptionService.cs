@@ -71,7 +71,7 @@ public sealed class SubscriptionService : ISubscriptionService
                     var history = await _subscriptions.GetQueryable().AsNoTracking().Where(x =>
                         x.TenantId == tenantId).Select(x => new { x.Id, x.State, x.EndsAt, x.IsTrial })
                         .OrderByDescending(x => x.Id).Take(100).ToListAsync();
-                    if (history.Any(x => x.State == SubscriptionState.Suspended ||
+                    if (history.Any(x => x.State == SubscriptionState.PendingPayment ||
                         ((x.State == SubscriptionState.Active || x.State == SubscriptionState.Trial ||
                           x.State == SubscriptionState.Grace) && x.EndsAt > DateTime.UtcNow)))
                         return ApiResponse<CreateSubscriptionResponseDto>.ErrorResponse("A current or pending subscription already exists.", 409);
@@ -81,7 +81,7 @@ public sealed class SubscriptionService : ISubscriptionService
                     var amount = trial ? 0m : SubscriptionCalculator.GetPriceForCycle(plan, request.BillingCycle);
                     if (amount < 0m) return ApiResponse<CreateSubscriptionResponseDto>.ErrorResponse("Plan price is invalid.", 409);
                     var end = trial ? now.AddDays(plan.TrialDays) : SubscriptionCalculator.CalculateEndDate(now, request.BillingCycle);
-                    var state = trial ? SubscriptionState.Trial : amount == 0m ? SubscriptionState.Active : SubscriptionState.Suspended;
+                    var state = trial ? SubscriptionState.Trial : amount == 0m ? SubscriptionState.Active : SubscriptionState.PendingPayment;
                     var row = new TenantSubscription
                     {
                         TenantId = tenantId, SubscriptionPlanId = plan.Id,
@@ -117,7 +117,7 @@ public sealed class SubscriptionService : ISubscriptionService
                         await _uow.SaveChangesAsync();
                     }
                     if (tenant.OnboardingStage == OnboardingStage.PlanSelection)
-                        tenant.OnboardingStage = state == SubscriptionState.Suspended
+                        tenant.OnboardingStage = state == SubscriptionState.PendingPayment
                             ? OnboardingStage.Payment : OnboardingStage.CampusSetup;
                     tenant.UpdatedAt = now; tenant.UpdatedBy = _user.UserId;
                     await _uow.SaveChangesAsync();
@@ -170,13 +170,13 @@ public sealed class SubscriptionService : ISubscriptionService
         var row = await _subscriptions.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == tenantId && (x.State == SubscriptionState.Trial ||
                 x.State == SubscriptionState.Active || x.State == SubscriptionState.Grace ||
-                x.State == SubscriptionState.Suspended))
+                x.State == SubscriptionState.Suspended || x.State == SubscriptionState.PendingPayment))
             .OrderByDescending(x => x.StartsAt).FirstOrDefaultAsync();
         if (row == null) return ApiResponse<CurrentSubscriptionDto>.ErrorResponse("Subscription not found.", 404);
         var plan = await _plans.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.Id == row.SubscriptionPlanId);
         var now = DateTime.UtcNow;
         var activeStudents = await _students.GetQueryable().AsNoTracking().CountAsync(x => x.TenantId == tenantId && x.IsActive);
-        var activeTeachers = await _employees.GetQueryable().AsNoTracking().CountAsync(x => x.TenantId == tenantId && x.CanTeach && x.IsActive);
+        var activeTeachers = await _employees.GetQueryable().AsNoTracking().CountAsync(x => x.TenantId == tenantId && x.CanTeach && x.State == EmployeeState.Active);
         var campuses = await _campuses.GetQueryable().AsNoTracking().CountAsync(x => x.TenantId == tenantId && x.IsActive);
         var effectiveState = row.EndsAt <= now ? SubscriptionStatus.Expired : LegacyState(row);
         return ApiResponse<CurrentSubscriptionDto>.SuccessResponse(new CurrentSubscriptionDto
@@ -262,7 +262,7 @@ public sealed class SubscriptionService : ISubscriptionService
             var row = await _subscriptions.GetQueryable().FirstOrDefaultAsync(x =>
                 x.TenantId == tenantId && x.Id == subscriptionId);
             if (row == null) return ApiResponse<bool>.ErrorResponse("Subscription not found.", 404);
-            if (row.State is SubscriptionState.Cancelled or SubscriptionState.Expired or SubscriptionState.Suspended)
+            if (row.State is SubscriptionState.Cancelled or SubscriptionState.Expired or SubscriptionState.Suspended or SubscriptionState.PendingPayment)
                 return ApiResponse<bool>.ErrorResponse("Auto-renew cannot be changed for this subscription.", 409);
             row.AutoRenew = autoRenew; row.UpdatedAt = DateTime.UtcNow; row.UpdatedBy = _user.UserId;
             await _uow.SaveChangesAsync();
@@ -336,7 +336,8 @@ public sealed class SubscriptionService : ISubscriptionService
         SubscriptionState.Trial => SubscriptionStatus.Trialing,
         SubscriptionState.Active => !x.AutoRenew ? SubscriptionStatus.CancelAtPeriodEnd : SubscriptionStatus.Active,
         SubscriptionState.Grace => SubscriptionStatus.PastDue,
-        SubscriptionState.Suspended => SubscriptionStatus.PendingPayment,
+        SubscriptionState.PendingPayment => SubscriptionStatus.PendingPayment,
+        SubscriptionState.Suspended => SubscriptionStatus.PastDue,
         SubscriptionState.Cancelled => SubscriptionStatus.Cancelled,
         SubscriptionState.Expired => SubscriptionStatus.Expired,
         _ => SubscriptionStatus.PendingPayment

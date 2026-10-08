@@ -3,7 +3,7 @@ namespace EduOS.Core.Enums.Domain;
 public enum TenantState { PendingVerification = 1, Active = 2, Suspended = 3, Closed = 4 }
 public enum OnboardingStage { EmailVerification = 1, InstitutionProfile = 2, PlanSelection = 3, Payment = 4, CampusSetup = 5, AcademicSetup = 6, ModuleSetup = 7, BrandingSetup = 8, GeneralSettings = 9, GatewaySetup = 10, Completed = 11 }
 public enum MembershipStatus { Invited = 1, Active = 2, Suspended = 3, Left = 4 }
-public enum SubscriptionState { Trial = 1, Active = 2, Grace = 3, Suspended = 4, Cancelled = 5, Expired = 6 }
+public enum SubscriptionState { Trial = 1, Active = 2, Grace = 3, Suspended = 4, Cancelled = 5, Expired = 6, PendingPayment = 7 }
 public enum InvoiceState { Draft = 1, Issued = 2, PartiallyPaid = 3, Paid = 4, Cancelled = 5, Refunded = 6 }
 public enum PaymentState { Initiated = 1, AwaitingVerification = 2, Successful = 3, Failed = 4, Cancelled = 5, Refunded = 6 }
 public enum PaymentMethodType { Cash = 1, BankTransfer = 2, Card = 3, MobileFinancialService = 4, Gateway = 5, Cheque = 6, Other = 99 }
