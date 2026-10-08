@@ -106,7 +106,7 @@ public sealed class AcademicSetupService : IAcademicSetupService
         var tracks = trackRows.Select(MapTrack).ToList();
         var subjectRows = await _subjects.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == tenantId && x.IsActive)
-            .OrderBy(x => x.DisplayOrder).ThenBy(x => x.Name)
+            .OrderBy(x => x.Name)
             .ToListAsync(cancellationToken);
         var subjects = subjectRows.Select(MapSubject).ToList();
         var curriculumRows = await _curricula.GetQueryable().AsNoTracking()
