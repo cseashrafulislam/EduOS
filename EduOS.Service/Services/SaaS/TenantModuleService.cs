@@ -156,7 +156,8 @@ public sealed class TenantModuleService : ITenantModuleService
 
     public async Task<Result> ApplyInstitutionPresetAsync(long tenantId, long institutionTypeDefinitionId)
     {
-        if (!CanManage() || (!_currentUser.IsSuperAdmin && _currentUser.TenantId != tenantId))
+        if (!_currentUser.IsAuthenticated || !(_currentUser.IsSuperAdmin ||
+            (_currentUser.IsTenantAdmin && _currentUser.TenantId == tenantId)))
             return Result.Failure("Not authorized to configure modules for this institution.");
         if (tenantId <= 0 || institutionTypeDefinitionId <= 0)
             return Result.Failure("Valid institution type and tenant are required.");
