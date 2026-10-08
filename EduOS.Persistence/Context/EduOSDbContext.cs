@@ -1094,6 +1094,12 @@ public class EduOSDbContext :
         modelBuilder.Entity<InstitutionTypeModule>().HasIndex(x => new { x.InstitutionTypeDefinitionId, x.ProductModuleId }).IsUnique().HasFilter("[IsDeleted] = 0");
         modelBuilder.Entity<PlanFeature>().HasIndex(x => new { x.SubscriptionPlanId, x.FeatureId }).IsUnique().HasFilter("[IsDeleted] = 0");
         modelBuilder.Entity<TenantDomain>().HasIndex(x => x.HostName).IsUnique();
+        // A tenant may register multiple hostnames, but only one non-deleted,
+        // active hostname may be primary at any time.
+        modelBuilder.Entity<TenantDomain>().HasIndex(x => x.TenantId)
+            .HasDatabaseName("UX_TenantDomains_OneActivePrimary")
+            .IsUnique()
+            .HasFilter("[IsDeleted] = 0 AND [IsActive] = 1 AND [IsPrimary] = 1");
         UniqueTenant<Campus>(modelBuilder, nameof(Campus.Code));
         UniqueTenant<TenantSetting>(modelBuilder, nameof(TenantSetting.Key));
         UniqueTenant<TenantTerminology>(modelBuilder, nameof(TenantTerminology.Key));
