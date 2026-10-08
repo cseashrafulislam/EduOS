@@ -149,8 +149,7 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
                         x.TenantId == tenant && x.AdmissionApplicantId == application.Id)
                         .OrderByDescending(x => x.Id).FirstOrDefaultAsync(cancellationToken);
                     if (decision == null || decision.State != AdmissionDecisionState.Accepted ||
-                        decision.OfferedAcademicBatchId != request.SectionId ||
-                        (decision.ExpiresAt.HasValue && decision.ExpiresAt.Value < _clock.GetUtcNow().UtcDateTime))
+                        decision.OfferedAcademicBatchId != request.SectionId)
                         return ApiResponse<AdmittedStudentDto>.ErrorResponse("An accepted offer for the selected batch is required.", 409);
 
                     var batch = await _batches.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
