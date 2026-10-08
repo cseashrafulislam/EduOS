@@ -4,6 +4,7 @@ namespace EduOS.Core.DTOs.LMS;
 
 public sealed class SaveCourseDto
 {
+    public string? RowVersion { get; set; }
     public Guid? Reference { get; set; }
     [Range(1,long.MaxValue)] public long AcademicYearId { get; set; }
     [Range(1,long.MaxValue)] public long ClassId { get; set; }
@@ -16,6 +17,7 @@ public sealed class SaveCourseDto
 }
 public sealed class SaveLessonDto
 {
+    public string? RowVersion { get; set; }
     public Guid CourseReference { get; set; }
     public Guid? Reference { get; set; }
     [Required,StringLength(200)] public string Title { get; set; } = string.Empty;
@@ -27,6 +29,7 @@ public sealed class SaveLessonDto
 }
 public sealed class SaveAssignmentDto
 {
+    public string? RowVersion { get; set; }
     public Guid CourseReference { get; set; }
     public Guid? Reference { get; set; }
     [Required,StringLength(200)] public string Title { get; set; } = string.Empty;
@@ -51,6 +54,7 @@ public sealed class ReviewSubmissionDto
 public sealed class CompleteLessonDto { public Guid LessonReference { get; set; } }
 public sealed class LmsCourseDto
 {
+    public string? RowVersion { get; set; }
     public Guid Reference { get; set; }
     public string Title { get; set; } = string.Empty;
     public long AcademicYearId { get; set; }
@@ -64,6 +68,7 @@ public sealed class LmsCourseDto
 }
 public sealed class LmsLessonDto
 {
+    public string? RowVersion { get; set; }
     public Guid Reference { get; set; }
     public string Title { get; set; } = string.Empty;
     public string? Content { get; set; }
@@ -75,6 +80,7 @@ public sealed class LmsLessonDto
 }
 public sealed class LmsAssignmentDto
 {
+    public string? RowVersion { get; set; }
     public Guid Reference { get; set; }
     public string Title { get; set; } = string.Empty;
     public string? Description { get; set; }
