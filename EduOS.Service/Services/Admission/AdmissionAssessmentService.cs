@@ -1,8 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Admission;
-using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Admission;
-using EduOS.Core.Entities.SaaS;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
@@ -15,33 +14,22 @@ public sealed class AdmissionAssessmentService : IAdmissionAssessmentService
 {
     private readonly IGenericRepository<AdmissionTest> _tests;
     private readonly IGenericRepository<AdmissionResult> _results;
-    private readonly IGenericRepository<AdmissionApplicant> _applications;
-    private readonly IGenericRepository<AcademicYear> _academicYears;
-    private readonly IGenericRepository<Campus> _campuses;
-    private readonly IGenericRepository<AcademicLevel> _academicUnits;
+    private readonly IGenericRepository<AdmissionApplicant> _applicants;
+    private readonly IGenericRepository<AdmissionIntakeForm> _forms;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUser;
     private readonly TimeProvider _clock;
     private readonly ILogger<AdmissionAssessmentService> _logger;
 
-    public AdmissionAssessmentService(
-        IGenericRepository<AdmissionTest> tests,
-        IGenericRepository<AdmissionResult> results,
-        IGenericRepository<AdmissionApplicant> applications,
-        IGenericRepository<AcademicYear> academicYears,
-        IGenericRepository<Campus> campuses,
-        IGenericRepository<AcademicLevel> academicUnits,
-        IUnitOfWork unitOfWork,
-        ICurrentUserService currentUser,
-        TimeProvider clock,
+    public AdmissionAssessmentService(IGenericRepository<AdmissionTest> tests, IGenericRepository<AdmissionResult> results,
+        IGenericRepository<AdmissionApplicant> applicants, IGenericRepository<AdmissionIntakeForm> forms,
+        IUnitOfWork unitOfWork, ICurrentUserService currentUser, TimeProvider clock,
         ILogger<AdmissionAssessmentService> logger)
     {
         _tests = tests;
         _results = results;
-        _applications = applications;
-        _academicYears = academicYears;
-        _campuses = campuses;
-        _academicUnits = academicUnits;
+        _applicants = applicants;
+        _forms = forms;
         _unitOfWork = unitOfWork;
         _currentUser = currentUser;
         _clock = clock;
@@ -51,348 +39,312 @@ public sealed class AdmissionAssessmentService : IAdmissionAssessmentService
     public async Task<ApiResponse<IReadOnlyList<AdmissionTestDto>>> GetTestsAsync(CancellationToken cancellationToken = default)
     {
         if (!CanManage()) return Denied<IReadOnlyList<AdmissionTestDto>>();
-
-        var tenantId = _currentUser.TenantId;
+        var tenant = _currentUser.TenantId;
         try
         {
-            var rows = await _tests.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenantId)
-                .OrderByDescending(x => x.TestDate)
-                .ThenByDescending(x => x.Id)
-                .Select(x => MapTest(x))
-                .ToListAsync(cancellationToken);
-
-            return ApiResponse<IReadOnlyList<AdmissionTestDto>>.SuccessResponse(rows);
+            var rows = await (from test in _tests.GetQueryable().AsNoTracking()
+                join form in _forms.GetQueryable().AsNoTracking() on test.AdmissionIntakeFormId equals form.Id
+                where test.TenantId == tenant && form.TenantId == tenant
+                orderby test.TestDate descending, test.Id descending
+                select new { Test = test, FormReference = form.PublicId }).ToListAsync(cancellationToken);
+            IReadOnlyList<AdmissionTestDto> result = rows.Select(x => MapTest(x.Test, x.FormReference)).ToList();
+            return ApiResponse<IReadOnlyList<AdmissionTestDto>>.SuccessResponse(result);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Admission test list failed for tenant {TenantId}", tenantId);
+            _logger.LogError(ex, "Admission test listing failed for tenant {TenantId}", tenant);
             return ApiResponse<IReadOnlyList<AdmissionTestDto>>.ErrorResponse("Admission tests could not be loaded.", 500);
         }
     }
 
-    public async Task<ApiResponse<AdmissionTestDto>> CreateTestAsync(SaveAdmissionTestDto request, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<AdmissionTestDto>> CreateTestAsync(SaveAdmissionTestDto request,
+        CancellationToken cancellationToken = default)
     {
         if (!CanManage()) return Denied<AdmissionTestDto>();
-
-        var tenantId = _currentUser.TenantId;
-        var validation = await ValidateTestRequestAsync(request, tenantId, cancellationToken);
-        if (validation != null) return ApiResponse<AdmissionTestDto>.ErrorResponse(validation, 409);
-
+        var tenant = _currentUser.TenantId;
         try
         {
+            var selection = await ResolveFormAsync(request, cancellationToken);
+            if (selection.Error != null) return ApiResponse<AdmissionTestDto>.ErrorResponse(selection.Error, 409);
+            var form = selection.Form!;
+            if (await _tests.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
+                x.AdmissionIntakeFormId == form.Id && x.Name == request.Name.Trim(), cancellationToken))
+                return ApiResponse<AdmissionTestDto>.ErrorResponse("An admission test with this name already exists.", 409);
             var now = _clock.GetUtcNow().UtcDateTime;
-            var entity = new AdmissionTest
+            var test = new AdmissionTest
             {
-                TenantId = tenantId,
-                Name = request.Name.Trim(),
-                AcademicYearId = request.AcademicYearId,
-                CampusId = request.CampusId,
-                AcademicUnitId = request.AcademicUnitId,
-                TestDate = request.TestDate,
-                TotalMarks = request.TotalMarks,
-                PassMarks = request.PassMarks,
-                Venue = TrimToNull(request.Venue),
-                DurationMinutes = request.DurationMinutes,
-                IsPublished = false,
-                CreatedAt = now,
-                CreatedBy = _currentUser.UserId
+                TenantId = tenant, AdmissionIntakeFormId = form.Id, Name = request.Name.Trim(),
+                TestDate = DateOnly.FromDateTime(request.TestDate), DurationMinutes = request.DurationMinutes,
+                TotalMarks = request.TotalMarks, PassMarks = request.PassMarks,
+                Venue = Trim(request.Venue), IsPublished = false,
+                CreatedAt = now, CreatedBy = _currentUser.UserId
             };
-
-            await _tests.AddAsync(entity);
+            await _tests.AddAsync(test);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
-
             return new ApiResponse<AdmissionTestDto>
             {
-                Success = true,
-                Message = "Admission test created.",
-                Data = MapTest(entity),
-                StatusCode = 201
+                Success = true, StatusCode = 201, Message = "Admission test created.",
+                Data = MapTest(test, form.PublicId)
             };
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Admission test creation conflict for tenant {TenantId}", tenant);
+            return ApiResponse<AdmissionTestDto>.ErrorResponse("Admission test already exists or contains invalid references.", 409);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Admission test creation failed for tenant {TenantId}", tenantId);
+            _logger.LogError(ex, "Admission test creation failed for tenant {TenantId}", tenant);
             return ApiResponse<AdmissionTestDto>.ErrorResponse("Admission test could not be created.", 500);
         }
     }
 
-    public async Task<ApiResponse<AdmissionTestDto>> UpdateTestAsync(long id, SaveAdmissionTestDto request, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<AdmissionTestDto>> UpdateTestAsync(long id, SaveAdmissionTestDto request,
+        CancellationToken cancellationToken = default)
     {
         if (!CanManage()) return Denied<AdmissionTestDto>();
-        if (id <= 0) return ApiResponse<AdmissionTestDto>.ErrorResponse("Admission test is invalid.");
-
-        var tenantId = _currentUser.TenantId;
+        if (id <= 0 || request == null) return ApiResponse<AdmissionTestDto>.ErrorResponse("Admission test is invalid.");
+        var tenant = _currentUser.TenantId;
         try
         {
-            var entity = await _tests.GetQueryable()
-                .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, cancellationToken);
-            if (entity == null) return ApiResponse<AdmissionTestDto>.ErrorResponse("Admission test not found.", 404);
-            if (entity.IsPublished) return ApiResponse<AdmissionTestDto>.ErrorResponse("Published admission tests cannot be edited.", 409);
-
-            var validation = await ValidateTestRequestAsync(request, tenantId, cancellationToken);
-            if (validation != null) return ApiResponse<AdmissionTestDto>.ErrorResponse(validation, 409);
-
-            entity.Name = request.Name.Trim();
-            entity.AcademicYearId = request.AcademicYearId;
-            entity.CampusId = request.CampusId;
-            entity.AcademicUnitId = request.AcademicUnitId;
-            entity.TestDate = request.TestDate;
-            entity.TotalMarks = request.TotalMarks;
-            entity.PassMarks = request.PassMarks;
-            entity.Venue = TrimToNull(request.Venue);
-            entity.DurationMinutes = request.DurationMinutes;
-            entity.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
-            entity.UpdatedBy = _currentUser.UserId;
-
+            var test = await _tests.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenant && x.Id == id,
+                cancellationToken);
+            if (test == null) return ApiResponse<AdmissionTestDto>.ErrorResponse("Admission test not found.", 404);
+            if (test.IsPublished) return ApiResponse<AdmissionTestDto>.ErrorResponse("Published admission tests cannot be edited.", 409);
+            if (string.IsNullOrWhiteSpace(request.RowVersion) || !MatchesVersion(test.RowVersion, request.RowVersion))
+                return ApiResponse<AdmissionTestDto>.ErrorResponse("Admission test was changed or RowVersion was not supplied.", 409);
+            var selection = await ResolveFormAsync(request, cancellationToken);
+            if (selection.Error != null) return ApiResponse<AdmissionTestDto>.ErrorResponse(selection.Error, 409);
+            if (test.AdmissionIntakeFormId != selection.Form!.Id)
+                return ApiResponse<AdmissionTestDto>.ErrorResponse("A test cannot be transferred to another admission form.", 409);
+            test.Name = request.Name.Trim();
+            test.TestDate = DateOnly.FromDateTime(request.TestDate);
+            test.TotalMarks = request.TotalMarks;
+            test.PassMarks = request.PassMarks;
+            test.DurationMinutes = request.DurationMinutes;
+            test.Venue = Trim(request.Venue);
+            test.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
+            test.UpdatedBy = _currentUser.UserId;
             await _unitOfWork.SaveChangesAsync(cancellationToken);
-            return ApiResponse<AdmissionTestDto>.SuccessResponse(MapTest(entity), "Admission test updated.");
+            return ApiResponse<AdmissionTestDto>.SuccessResponse(MapTest(test, selection.Form.PublicId), "Admission test updated.");
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return ApiResponse<AdmissionTestDto>.ErrorResponse("Admission test changed. Reload and retry.", 409);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Admission test update failed for {TestId} tenant {TenantId}", id, tenantId);
+            _logger.LogError(ex, "Admission test update failed for tenant {TenantId} test {Id}", tenant, id);
             return ApiResponse<AdmissionTestDto>.ErrorResponse("Admission test could not be updated.", 500);
         }
     }
 
-    public async Task<ApiResponse<IReadOnlyList<AdmissionResultDto>>> SaveResultsAsync(long testId, SaveAdmissionResultsDto request, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<IReadOnlyList<AdmissionResultDto>>> SaveResultsAsync(long testId,
+        SaveAdmissionResultsDto request, CancellationToken cancellationToken = default)
     {
         if (!CanManage()) return Denied<IReadOnlyList<AdmissionResultDto>>();
-        if (testId <= 0 || request.Results.Count == 0)
+        if (testId <= 0 || request?.Results == null || request.Results.Count == 0)
             return ApiResponse<IReadOnlyList<AdmissionResultDto>>.ErrorResponse("Assessment results are required.");
-        if (request.Results.GroupBy(x => x.ApplicantId).Any(x => x.Count() > 1))
-            return ApiResponse<IReadOnlyList<AdmissionResultDto>>.ErrorResponse("The same applicant cannot appear more than once.");
-
-        var tenantId = _currentUser.TenantId;
+        if (request.Results.Any(x => x == null || x.ApplicantId <= 0) ||
+            request.Results.Select(x => x.ApplicantId).Distinct().Count() != request.Results.Count)
+            return ApiResponse<IReadOnlyList<AdmissionResultDto>>.ErrorResponse("Applicant references must be valid and unique.");
+        var tenant = _currentUser.TenantId;
         try
         {
-            var test = await _tests.GetQueryable()
-                .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == testId, cancellationToken);
+            var test = await _tests.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenant &&
+                x.Id == testId, cancellationToken);
             if (test == null) return ApiResponse<IReadOnlyList<AdmissionResultDto>>.ErrorResponse("Admission test not found.", 404);
-            if (test.IsPublished) return ApiResponse<IReadOnlyList<AdmissionResultDto>>.ErrorResponse("Published merit results cannot be changed.", 409);
-
-            if (request.Results.Any(x => x.ObtainedMarks < 0 || x.ObtainedMarks > test.TotalMarks))
-                return ApiResponse<IReadOnlyList<AdmissionResultDto>>.ErrorResponse("Obtained marks must be between zero and total marks.");
-
-            var applicantIds = request.Results.Select(x => x.ApplicantId).Distinct().ToArray();
-            var applicants = await _applications.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenantId && applicantIds.Contains(x.Id))
-                .ToListAsync(cancellationToken);
-
-            if (applicants.Count != applicantIds.Length)
-                return ApiResponse<IReadOnlyList<AdmissionResultDto>>.ErrorResponse("One or more applicants were not found.", 404);
-
-            var invalidApplicant = applicants.FirstOrDefault(x =>
-                x.AcademicYearId != test.AcademicYearId ||
-                x.CampusId != test.CampusId ||
-                x.AcademicUnitId != test.AcademicUnitId);
-            if (invalidApplicant != null)
-                return ApiResponse<IReadOnlyList<AdmissionResultDto>>.ErrorResponse("All applicants must belong to the test academic year, campus and academic unit.", 409);
-
-            var existing = await _results.GetQueryable()
-                .Where(x => x.TenantId == tenantId && x.AdmissionTestId == testId && applicantIds.Contains(x.ApplicantId))
-                .ToListAsync(cancellationToken);
-            var existingByApplicant = existing.ToDictionary(x => x.ApplicantId);
+            if (test.IsPublished) return ApiResponse<IReadOnlyList<AdmissionResultDto>>.ErrorResponse("Published marks cannot be changed.", 409);
+            if (test.TotalMarks <= 0 || request.Results.Any(x => x.ObtainedMarks < 0 || x.ObtainedMarks > test.TotalMarks))
+                return ApiResponse<IReadOnlyList<AdmissionResultDto>>.ErrorResponse("Marks are outside the valid range.");
+            var ids = request.Results.Select(x => x.ApplicantId).ToArray();
+            var validCount = await _applicants.GetQueryable().AsNoTracking().CountAsync(x => x.TenantId == tenant &&
+                x.AdmissionIntakeFormId == test.AdmissionIntakeFormId && ids.Contains(x.Id), cancellationToken);
+            if (validCount != ids.Length)
+                return ApiResponse<IReadOnlyList<AdmissionResultDto>>.ErrorResponse("Every applicant must belong to the same admission form.", 409);
+            var existing = await _results.GetQueryable().Where(x => x.TenantId == tenant &&
+                x.AdmissionTestId == testId && ids.Contains(x.AdmissionApplicantId))
+                .ToDictionaryAsync(x => x.AdmissionApplicantId, cancellationToken);
             var now = _clock.GetUtcNow().UtcDateTime;
-
             foreach (var item in request.Results)
             {
-                if (!existingByApplicant.TryGetValue(item.ApplicantId, out var result))
+                if (!existing.TryGetValue(item.ApplicantId, out var row))
                 {
-                    result = new AdmissionResult
+                    row = new AdmissionResult
                     {
-                        TenantId = tenantId,
-                        AdmissionTestId = testId,
-                        ApplicantId = item.ApplicantId,
-                        CreatedAt = now,
-                        CreatedBy = _currentUser.UserId
+                        TenantId = tenant, AdmissionTestId = testId, AdmissionApplicantId = item.ApplicantId,
+                        CreatedAt = now, CreatedBy = _currentUser.UserId
                     };
-                    await _results.AddAsync(result);
-                    existingByApplicant[item.ApplicantId] = result;
+                    await _results.AddAsync(row);
                 }
-                else
-                {
-                    result.UpdatedAt = now;
-                    result.UpdatedBy = _currentUser.UserId;
-                }
-
-                result.ObtainedMarks = item.ObtainedMarks;
-                result.Percentage = test.TotalMarks == 0 ? 0 : Math.Round(item.ObtainedMarks / test.TotalMarks * 100m, 2);
-                result.IsPassed = item.ObtainedMarks >= test.PassMarks;
-                result.ResultStatus = result.IsPassed ? "Passed" : "Failed";
-                result.MeritPosition = null;
-                result.Grade = TrimToNull(item.Grade);
-                result.Remarks = TrimToNull(item.Remarks);
+                row.ObtainedMarks = item.ObtainedMarks;
+                row.IsPassed = row.ObtainedMarks >= test.PassMarks;
+                row.MeritPosition = null;
+                row.Grade = Trim(item.Grade);
+                row.Remarks = Trim(item.Remarks);
+                row.UpdatedAt = now;
+                row.UpdatedBy = _currentUser.UserId;
             }
-
             await _unitOfWork.SaveChangesAsync(cancellationToken);
-            var response = await LoadResultsAsync(testId, tenantId, cancellationToken);
-            return ApiResponse<IReadOnlyList<AdmissionResultDto>>.SuccessResponse(response, "Assessment results saved.");
+            var rows = await LoadResultsAsync(testId, tenant, cancellationToken);
+            return ApiResponse<IReadOnlyList<AdmissionResultDto>>.SuccessResponse(rows, "Marks saved.");
         }
         catch (DbUpdateException ex)
         {
-            _logger.LogWarning(ex, "Admission result conflict for test {TestId} tenant {TenantId}", testId, tenantId);
-            return ApiResponse<IReadOnlyList<AdmissionResultDto>>.ErrorResponse("Assessment results conflict with another update. Reload and try again.", 409);
+            _logger.LogWarning(ex, "Admission marks conflict for tenant {TenantId}", tenant);
+            return ApiResponse<IReadOnlyList<AdmissionResultDto>>.ErrorResponse("Marks conflict with another update. Reload and retry.", 409);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Admission result save failed for test {TestId} tenant {TenantId}", testId, tenantId);
-            return ApiResponse<IReadOnlyList<AdmissionResultDto>>.ErrorResponse("Assessment results could not be saved.", 500);
+            _logger.LogError(ex, "Admission marks save failed for tenant {TenantId}", tenant);
+            return ApiResponse<IReadOnlyList<AdmissionResultDto>>.ErrorResponse("Marks could not be saved.", 500);
         }
     }
 
-    public async Task<ApiResponse<AdmissionMeritListDto>> GetMeritListAsync(long testId, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<AdmissionMeritListDto>> GetMeritListAsync(long testId,
+        CancellationToken cancellationToken = default)
     {
         if (!CanManage()) return Denied<AdmissionMeritListDto>();
-
-        var tenantId = _currentUser.TenantId;
+        var tenant = _currentUser.TenantId;
         try
         {
-            var test = await _tests.GetQueryable().AsNoTracking()
-                .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == testId, cancellationToken);
+            var test = await _tests.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
+                x.Id == testId, cancellationToken);
             if (test == null) return ApiResponse<AdmissionMeritListDto>.ErrorResponse("Admission test not found.", 404);
-
-            var results = await LoadResultsAsync(testId, tenantId, cancellationToken);
+            var formReference = await _forms.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
+                x.Id == test.AdmissionIntakeFormId).Select(x => x.PublicId).FirstOrDefaultAsync(cancellationToken);
+            if (formReference == Guid.Empty) return ApiResponse<AdmissionMeritListDto>.ErrorResponse("Admission form not found.", 404);
+            var rows = await LoadResultsAsync(testId, tenant, cancellationToken);
             return ApiResponse<AdmissionMeritListDto>.SuccessResponse(new AdmissionMeritListDto
             {
-                Test = MapTest(test),
-                Results = results.ToList()
+                Test = MapTest(test, formReference), Results = rows.ToList()
             });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Admission merit list load failed for test {TestId} tenant {TenantId}", testId, tenantId);
+            _logger.LogError(ex, "Merit list failed for tenant {TenantId}", tenant);
             return ApiResponse<AdmissionMeritListDto>.ErrorResponse("Merit list could not be loaded.", 500);
         }
     }
 
-    public async Task<ApiResponse<AdmissionMeritListDto>> PublishMeritListAsync(long testId, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<AdmissionMeritListDto>> PublishMeritListAsync(long testId,
+        CancellationToken cancellationToken = default)
     {
         if (!CanManage()) return Denied<AdmissionMeritListDto>();
-
-        var tenantId = _currentUser.TenantId;
+        var tenant = _currentUser.TenantId;
+        var transactionStarted = false;
         try
         {
-            var test = await _tests.GetQueryable()
-                .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == testId, cancellationToken);
+            await _unitOfWork.BeginTransactionAsync();
+            transactionStarted = true;
+            var test = await _tests.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenant && x.Id == testId, cancellationToken);
             if (test == null) return ApiResponse<AdmissionMeritListDto>.ErrorResponse("Admission test not found.", 404);
-            if (test.IsPublished) return await GetMeritListAsync(testId, cancellationToken);
-
-            var results = await _results.GetQueryable()
-                .Include(x => x.Applicant)
-                .Where(x => x.TenantId == tenantId && x.AdmissionTestId == testId)
-                .ToListAsync(cancellationToken);
-            if (results.Count == 0) return ApiResponse<AdmissionMeritListDto>.ErrorResponse("At least one assessment result is required before publishing.", 409);
-
-            var ranked = results
-                .Where(x => x.IsPassed)
-                .OrderByDescending(x => x.ObtainedMarks)
-                .ThenBy(x => x.Applicant!.SubmittedAtUtc)
-                .ThenBy(x => x.ApplicantId)
-                .ToList();
-            for (var i = 0; i < ranked.Count; i++) ranked[i].MeritPosition = i + 1;
-            foreach (var failed in results.Where(x => !x.IsPassed)) failed.MeritPosition = null;
-
-            var now = _clock.GetUtcNow().UtcDateTime;
+            if (test.IsPublished)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                transactionStarted = false;
+                return await GetMeritListAsync(testId, cancellationToken);
+            }
+            var applicants = _applicants.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
+                x.AdmissionIntakeFormId == test.AdmissionIntakeFormId);
+            var records = await (from result in _results.GetQueryable()
+                join applicant in applicants on result.AdmissionApplicantId equals applicant.Id
+                where result.TenantId == tenant && result.AdmissionTestId == testId
+                select new { Result = result, applicant.SubmittedAt }).ToListAsync(cancellationToken);
+            if (records.Count == 0) return ApiResponse<AdmissionMeritListDto>.ErrorResponse("At least one result is required.", 409);
+            var ranked = records.Where(x => x.Result.IsPassed).OrderByDescending(x => x.Result.ObtainedMarks)
+                .ThenBy(x => x.SubmittedAt).ThenBy(x => x.Result.AdmissionApplicantId).ToArray();
+            for (var i = 0; i < ranked.Length; i++) ranked[i].Result.MeritPosition = i + 1;
+            foreach (var failed in records.Where(x => !x.Result.IsPassed)) failed.Result.MeritPosition = null;
             test.IsPublished = true;
-            test.PublishedAtUtc = now;
-            test.PublishedByUserId = _currentUser.UserId;
-            test.UpdatedAt = now;
+            test.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
             test.UpdatedBy = _currentUser.UserId;
             await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-            var published = await LoadResultsAsync(testId, tenantId, cancellationToken);
-            return ApiResponse<AdmissionMeritListDto>.SuccessResponse(new AdmissionMeritListDto
-            {
-                Test = MapTest(test),
-                Results = published.ToList()
-            }, "Merit list published.");
+            await _unitOfWork.CommitTransactionAsync();
+            transactionStarted = false;
+            return await GetMeritListAsync(testId, cancellationToken);
         }
-        catch (DbUpdateConcurrencyException ex)
+        catch (DbUpdateConcurrencyException)
         {
-            _logger.LogWarning(ex, "Admission merit publish conflict for test {TestId} tenant {TenantId}", testId, tenantId);
-            return ApiResponse<AdmissionMeritListDto>.ErrorResponse("The merit list changed during publishing. Reload and try again.", 409);
+            return ApiResponse<AdmissionMeritListDto>.ErrorResponse("Merit list changed. Reload and retry.", 409);
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Merit publish conflict for tenant {TenantId}", tenant);
+            return ApiResponse<AdmissionMeritListDto>.ErrorResponse("Merit publish conflicts with another update.", 409);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Admission merit publish failed for test {TestId} tenant {TenantId}", testId, tenantId);
+            _logger.LogError(ex, "Merit publish failed for tenant {TenantId}", tenant);
             return ApiResponse<AdmissionMeritListDto>.ErrorResponse("Merit list could not be published.", 500);
+        }
+        finally
+        {
+            if (transactionStarted) await _unitOfWork.RollbackTransactionAsync();
         }
     }
 
-    private async Task<string?> ValidateTestRequestAsync(SaveAdmissionTestDto request, long tenantId, CancellationToken cancellationToken)
+    private async Task<(AdmissionIntakeForm? Form, string? Error)> ResolveFormAsync(
+        SaveAdmissionTestDto request, CancellationToken ct)
     {
-        var name = TrimToNull(request.Name);
-        if (name == null || name.Length > 200) return "Test name is required.";
-        if (request.TotalMarks <= 0) return "Total marks must be greater than zero.";
-        if (request.PassMarks < 0 || request.PassMarks > request.TotalMarks) return "Pass marks must be between zero and total marks.";
-        if (request.DurationMinutes is < 1 or > 1440) return "Test duration is invalid.";
-
-        var year = await _academicYears.GetQueryable().AsNoTracking()
-            .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.AcademicYearId && x.IsActive, cancellationToken);
-        if (year == null) return "Academic year is invalid.";
-        if (request.TestDate.Date < year.StartDate.Date || request.TestDate.Date > year.EndDate.Date)
-            return "Test date must be inside the academic year.";
-        if (!await _campuses.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenantId && x.Id == request.CampusId && x.IsActive, cancellationToken))
-            return "Campus is invalid.";
-        if (!await _academicUnits.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenantId && x.Id == request.AcademicUnitId && x.IsActive, cancellationToken))
-            return "Academic unit is invalid.";
-
-        return null;
+        if (request == null || string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 150 ||
+            request.TotalMarks <= 0 || request.PassMarks < 0 || request.PassMarks > request.TotalMarks ||
+            request.DurationMinutes is < 1 or > 1440 || request.AcademicYearId <= 0 ||
+            request.CampusId <= 0 || request.AcademicUnitId <= 0)
+            return (null, "Admission test request is invalid.");
+        var date = DateOnly.FromDateTime(request.TestDate);
+        var formQuery = _forms.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId &&
+            x.AcademicYearId == request.AcademicYearId && x.CampusId == request.CampusId &&
+            x.AcademicLevelId == request.AcademicUnitId &&
+            x.State != AdmissionFormState.Archived);
+        if (request.AdmissionIntakeFormReference.HasValue)
+            formQuery = formQuery.Where(x => x.PublicId == request.AdmissionIntakeFormReference.Value);
+        var matches = await formQuery.Take(2).ToListAsync(ct);
+        if (matches.Count != 1)
+            return (null, matches.Count == 0 ? "Matching admission form was not found." :
+                "Multiple admission forms match; supply AdmissionIntakeFormReference.");
+        var form = matches[0];
+        if (date.Year < 2000) return (null, "Test date is invalid.");
+        if (request.TotalMarks > 1_000_000m) return (null, "Test total marks exceed the maximum.");
+        return (form, null);
     }
 
-    private async Task<IReadOnlyList<AdmissionResultDto>> LoadResultsAsync(long testId, long tenantId, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<AdmissionResultDto>> LoadResultsAsync(long testId, long tenant, CancellationToken ct)
     {
-        return await _results.GetQueryable().AsNoTracking()
-            .Include(x => x.Applicant)
-            .Where(x => x.TenantId == tenantId && x.AdmissionTestId == testId)
-            .OrderBy(x => x.MeritPosition == null)
-            .ThenBy(x => x.MeritPosition)
-            .ThenByDescending(x => x.ObtainedMarks)
-            .ThenBy(x => x.ApplicantId)
-            .Select(x => new AdmissionResultDto
-            {
-                Id = x.Id,
-                AdmissionTestId = x.AdmissionTestId,
-                ApplicantId = x.ApplicantId,
-                ApplicantReference = x.Applicant!.PublicId,
-                ApplicationNumber = x.Applicant.ApplicationNumber,
-                ApplicantName = x.Applicant.ApplicantName,
-                ObtainedMarks = x.ObtainedMarks,
-                Percentage = x.Percentage,
-                IsPassed = x.IsPassed,
-                MeritPosition = x.MeritPosition,
-                ResultStatus = x.ResultStatus,
-                Grade = x.Grade,
-                Remarks = x.Remarks
-            })
-            .ToListAsync(cancellationToken);
+        var query = from result in _results.GetQueryable().AsNoTracking()
+            join applicant in _applicants.GetQueryable().AsNoTracking()
+                on result.AdmissionApplicantId equals applicant.Id
+            where result.TenantId == tenant && applicant.TenantId == tenant && result.AdmissionTestId == testId
+            orderby result.MeritPosition == null, result.MeritPosition, result.ObtainedMarks descending, result.AdmissionApplicantId
+            select new { Result = result, applicant.PublicId, applicant.FullName };
+        var rows = await query.ToListAsync(ct);
+        return rows.Select(x => new AdmissionResultDto
+        {
+            Id = x.Result.Id, AdmissionTestId = x.Result.AdmissionTestId,
+            AdmissionApplicantReference = x.PublicId, ApplicantName = x.FullName,
+            ObtainedMarks = x.Result.ObtainedMarks, IsPassed = x.Result.IsPassed,
+            MeritPosition = x.Result.MeritPosition, Grade = x.Result.Grade, Remarks = x.Result.Remarks,
+            RowVersion = Convert.ToBase64String(x.Result.RowVersion)
+        }).ToList();
     }
 
-    private bool CanManage() => _currentUser.IsAuthenticated
-        && (_currentUser.IsInRole("TenantAdmin") || _currentUser.IsInRole("AdmissionOfficer"));
-
-    private static AdmissionTestDto MapTest(AdmissionTest x) => new()
+    private static AdmissionTestDto MapTest(AdmissionTest row, Guid formReference) => new()
     {
-        Id = x.Id,
-        Name = x.Name,
-        AcademicYearId = x.AcademicYearId,
-        CampusId = x.CampusId,
-        AcademicUnitId = x.AcademicUnitId,
-        TestDate = x.TestDate,
-        TotalMarks = x.TotalMarks,
-        PassMarks = x.PassMarks,
-        Venue = x.Venue,
-        DurationMinutes = x.DurationMinutes,
-        IsPublished = x.IsPublished,
-        PublishedAtUtc = x.PublishedAtUtc
+        Id = row.Id, AdmissionIntakeFormReference = formReference,
+        Name = row.Name, TestDate = row.TestDate, StartTime = row.StartTime,
+        DurationMinutes = row.DurationMinutes, TotalMarks = row.TotalMarks,
+        PassMarks = row.PassMarks, Venue = row.Venue,
+        IsPublished = row.IsPublished, RowVersion = Convert.ToBase64String(row.RowVersion)
     };
 
-    private static string? TrimToNull(string? value)
+    private static bool MatchesVersion(byte[] current, string supplied)
     {
-        var trimmed = value?.Trim();
-        return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
+        try { return current.AsSpan().SequenceEqual(Convert.FromBase64String(supplied)); }
+        catch (FormatException) { return false; }
     }
-
-    private static ApiResponse<T> Denied<T>() => ApiResponse<T>.ErrorResponse("You do not have permission to manage admission assessments.", 403);
+    private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    private bool CanManage() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0 &&
+        (_currentUser.IsTenantAdmin || _currentUser.IsInRole("AdmissionOfficer"));
+    private static ApiResponse<T> Denied<T>() =>
+        ApiResponse<T>.ErrorResponse("Admission assessment management permission is required.", 403);
 }

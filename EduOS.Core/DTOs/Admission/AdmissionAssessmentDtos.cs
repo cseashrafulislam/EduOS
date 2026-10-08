@@ -4,6 +4,9 @@ namespace EduOS.Core.DTOs.Admission;
 
 public class SaveAdmissionTestDto
 {
+    public Guid? AdmissionIntakeFormReference { get; set; }
+    public string? RowVersion { get; set; }
+
     [Required, StringLength(200, MinimumLength = 2)]
     public string Name { get; set; } = string.Empty;
 
