@@ -1,5 +1,5 @@
 using EduOS.Core.DTOs.Portals;
-using EduOS.Core.Entities.Employees;
+using EduOS.Core.Entities.HR;
 using Xunit;
 
 namespace EduOS.Tests;
