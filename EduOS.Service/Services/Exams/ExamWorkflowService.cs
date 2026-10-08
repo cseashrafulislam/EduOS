@@ -1,274 +1,552 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Exams;
 using EduOS.Core.Entities.Academic;
-using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.Assessment;
+using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.Students;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Transactions;
 
 namespace EduOS.Service.Services.Exams;
 
 public sealed class ExamWorkflowService : IExamWorkflowService
 {
-    private readonly IGenericRepository<Assessment> _exams;
+    private readonly IGenericRepository<Assessment> _assessments;
+    private readonly IGenericRepository<AssessmentSubject> _subjects;
     private readonly IGenericRepository<AssessmentSchedule> _schedules;
     private readonly IGenericRepository<StudentAssessmentMark> _marks;
-    private readonly IGenericRepository<StudentResultSummary> _results;
-    private readonly IGenericRepository<GradeRule> _gradeRules;
+    private readonly IGenericRepository<ResultPublication> _publications;
+    private readonly IGenericRepository<StudentResultSummary> _summaries;
+    private readonly IGenericRepository<GradeRule> _grades;
     private readonly IGenericRepository<StudentEnrollment> _enrollments;
-    private readonly IGenericRepository<AcademicBatch> _sections;
+    private readonly IGenericRepository<EduOS.Core.Entities.Academic.Subject> _subjectNames;
+    private readonly IGenericRepository<StudentSubjectRegistration> _registrations;
+    private readonly IGenericRepository<SubjectOffering> _offerings;
+    private readonly IGenericRepository<CurriculumSubject> _curriculumSubjects;
+    private readonly IGenericRepository<AcademicBatch> _batches;
+    private readonly IGenericRepository<Student> _students;
     private readonly IGenericRepository<Employee> _employees;
-    private readonly IGenericRepository<InstructorAssignment> _subjectTeachers;
-    private readonly IUnitOfWork _unitOfWork;
-    private readonly ICurrentUserService _currentUser;
+    private readonly IGenericRepository<InstructorAssignment> _instructors;
+    private readonly IUnitOfWork _uow;
+    private readonly ICurrentUserService _user;
     private readonly TimeProvider _clock;
     private readonly ILogger<ExamWorkflowService> _logger;
 
-    public ExamWorkflowService(IGenericRepository<Assessment> exams, IGenericRepository<AssessmentSchedule> schedules,
-        IGenericRepository<StudentAssessmentMark> marks, IGenericRepository<StudentResultSummary> results, IGenericRepository<GradeRule> gradeRules,
-        IGenericRepository<StudentEnrollment> enrollments, IGenericRepository<AcademicBatch> sections,
-        IGenericRepository<Employee> employees, IGenericRepository<InstructorAssignment> subjectTeachers, IUnitOfWork unitOfWork,
-        ICurrentUserService currentUser, TimeProvider clock, ILogger<ExamWorkflowService> logger)
+    public ExamWorkflowService(IGenericRepository<Assessment> assessments,
+        IGenericRepository<AssessmentSubject> subjects, IGenericRepository<AssessmentSchedule> schedules,
+        IGenericRepository<StudentAssessmentMark> marks,
+        IGenericRepository<ResultPublication> publications,
+        IGenericRepository<StudentResultSummary> summaries,
+        IGenericRepository<GradeRule> grades,
+        IGenericRepository<StudentEnrollment> enrollments,
+        IGenericRepository<EduOS.Core.Entities.Academic.Subject> subjectNames,
+        IGenericRepository<StudentSubjectRegistration> registrations,
+        IGenericRepository<SubjectOffering> offerings,
+        IGenericRepository<CurriculumSubject> curriculumSubjects,
+        IGenericRepository<AcademicBatch> batches,
+        IGenericRepository<Student> students, IGenericRepository<Employee> employees,
+        IGenericRepository<InstructorAssignment> instructors,
+        IUnitOfWork unitOfWork, ICurrentUserService currentUser,
+        TimeProvider clock, ILogger<ExamWorkflowService> logger)
     {
-        _exams = exams; _schedules = schedules; _marks = marks; _results = results; _gradeRules = gradeRules;
-        _enrollments = enrollments; _sections = sections; _employees = employees; _subjectTeachers = subjectTeachers;
-        _unitOfWork = unitOfWork; _currentUser = currentUser;
-        _clock = clock; _logger = logger;
+        _assessments = assessments; _subjects = subjects; _schedules = schedules;
+        _marks = marks; _publications = publications; _summaries = summaries; _grades = grades;
+        _enrollments = enrollments; _subjectNames = subjectNames; _registrations = registrations; _offerings = offerings;
+        _curriculumSubjects = curriculumSubjects; _batches = batches; _students = students;
+        _employees = employees; _instructors = instructors;
+        _uow = unitOfWork; _user = currentUser; _clock = clock; _logger = logger;
     }
 
-    public async Task<ApiResponse<ExamMarkRosterDto>> GetMarkRosterAsync(ExamMarkRosterQueryDto request, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<ExamMarkRosterDto>> GetMarkRosterAsync(ExamMarkRosterQueryDto request,
+        CancellationToken ct = default)
     {
-        if (!CanMark()) return ApiResponse<ExamMarkRosterDto>.ErrorResponse("Assessment access is required.", 403);
-        var context = await LoadMarkContextAsync(request, cancellationToken);
-        if (context.Error != null) return ApiResponse<ExamMarkRosterDto>.ErrorResponse(context.Error, context.StatusCode);
-        return ApiResponse<ExamMarkRosterDto>.SuccessResponse(await BuildMarkRosterAsync(context.Assessment!, context.Schedule!, context.Enrollments!, request, cancellationToken));
+        if (!CanAccess()) return Fail<ExamMarkRosterDto>("Assessment access is required.", 403);
+        var loaded = await LoadScopeAsync(request, ct);
+        if (loaded.Error != null) return Fail<ExamMarkRosterDto>(loaded.Error, loaded.Code);
+        var subject = await LoadSubjectAsync(request, ct);
+        if (subject == null) return Fail<ExamMarkRosterDto>("Subject is not scheduled for the selected assessment and batch.", 409);
+        if (!await CanEnterMarksAsync(subject.Value.Offering.Id, ct))
+            return Fail<ExamMarkRosterDto>("Not authorized for the selected subject offering.", 403);
+        return ApiResponse<ExamMarkRosterDto>.SuccessResponse(
+            await RosterAsync(request, loaded.Assessment!, subject.Value.Subject, subject.Value.Offering, ct));
     }
 
-    public async Task<ApiResponse<ExamMarkRosterDto>> SaveMarksAsync(SaveExamMarksDto request, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<ExamMarkRosterDto>> SaveMarksAsync(SaveExamMarksDto request,
+        CancellationToken ct = default)
     {
-        if (!CanMark()) return ApiResponse<ExamMarkRosterDto>.ErrorResponse("Assessment mark-entry access is required.", 403);
-        if (request.Items.Count == 0 || request.Items.GroupBy(x => x.StudentId).Any(g => g.Count() > 1)) return ApiResponse<ExamMarkRosterDto>.ErrorResponse("Mark entries are invalid.");
-        var context = await LoadMarkContextAsync(request, cancellationToken);
-        if (context.Error != null) return ApiResponse<ExamMarkRosterDto>.ErrorResponse(context.Error, context.StatusCode);
-        var exam = context.Assessment!; var schedule = context.Schedule!; var enrollments = context.Enrollments!;
-        var enrolledIds = enrollments.Select(x => x.StudentId).ToHashSet();
-        if (request.Items.Any(x => !enrolledIds.Contains(x.StudentId))) return ApiResponse<ExamMarkRosterDto>.ErrorResponse("One or more students are not active in the selected class and section.", 409);
-        if (request.Items.Any(x => !x.IsAbsent && x.ObtainedMark > schedule.FullMark)) return ApiResponse<ExamMarkRosterDto>.ErrorResponse("Obtained mark cannot exceed the scheduled full mark.");
-        var studentIds = request.Items.Select(x => x.StudentId).ToArray();
-        if (await _results.AnyAsync(x => x.TenantId == _currentUser.TenantId && x.ExamId == request.ExamId && x.IsPublished && studentIds.Contains(x.StudentId))) return ApiResponse<ExamMarkRosterDto>.ErrorResponse("Published results cannot be edited.", 409);
-
+        if (!CanAccess()) return Fail<ExamMarkRosterDto>("Assessment access is required.", 403);
+        if (request?.Items == null || request.Items.Count == 0 || request.Items.Count > 250 ||
+            request.Items.Any(x => x.StudentId <= 0 && x.StudentReference == Guid.Empty))
+            return Fail<ExamMarkRosterDto>("Valid marks and student references are required.");
+        var loaded = await LoadScopeAsync(request, ct);
+        if (loaded.Error != null) return Fail<ExamMarkRosterDto>(loaded.Error, loaded.Code);
+        var subject = await LoadSubjectAsync(request, ct);
+        if (subject == null) return Fail<ExamMarkRosterDto>("Assessment subject is unavailable.", 409);
+        if (!await CanEnterMarksAsync(subject.Value.Offering.Id, ct))
+            return Fail<ExamMarkRosterDto>("Not authorized to submit marks for this subject.", 403);
+        var tenant = _user.TenantId;
         try
         {
-            var rules = await _gradeRules.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId).OrderBy(x => x.MinMark).ToListAsync(cancellationToken);
-            var existing = await _marks.GetQueryable().Where(x => x.TenantId == _currentUser.TenantId && x.ExamId == request.ExamId && x.SubjectId == request.SubjectId && studentIds.Contains(x.StudentId)).ToListAsync(cancellationToken);
-            var byStudent = existing.GroupBy(x => x.StudentId).ToDictionary(x => x.Key, x => x.First());
-            var now = _clock.GetUtcNow().UtcDateTime;
+            using var tx = SerializableScope();
+            var assessment = await _assessments.GetQueryable().FirstAsync(x =>
+                x.Id == request.ExamId && x.TenantId == tenant, ct);
+            if (assessment.State is AssessmentState.Published or AssessmentState.Cancelled or AssessmentState.Locked)
+                return Fail<ExamMarkRosterDto>("Marks are locked for this assessment.", 409);
+            if (await _publications.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
+                x.AssessmentId == assessment.Id && x.AcademicBatchId == request.SectionId &&
+                x.State == ResultPublicationState.Published, ct))
+                return Fail<ExamMarkRosterDto>("Published results are immutable.", 409);
+            var eligible = await EligibleAsync(subject.Value.Offering.Id, request.SectionId, ct);
+            var byId = eligible.ToDictionary(x => x.StudentId);
+            var byReference = eligible.ToDictionary(x => x.StudentReference);
+            var normalized = new List<(long RegistrationId, long StudentId, decimal Marks, bool Absent)>();
             foreach (var item in request.Items)
             {
-                var mark = item.IsAbsent ? 0m : item.ObtainedMark;
-                var percentage = schedule.FullMark <= 0 ? 0 : mark / schedule.FullMark * 100m;
-                var rule = FindGrade(rules, percentage);
-                if (!byStudent.TryGetValue(item.StudentId, out var entity))
-                {
-                    entity = new StudentAssessmentMark { TenantId = _currentUser.TenantId, ExamId = exam.Id > int.MaxValue ? request.ExamId : (int)exam.Id, StudentId = item.StudentId, SubjectId = request.SubjectId, CreatedAt = now, CreatedBy = _currentUser.UserId };
-                    await _marks.AddAsync(entity);
-                }
-                entity.ObtainedMark = mark; entity.FullMark = schedule.FullMark; entity.IsAbsent = item.IsAbsent;
-                entity.Grade = rule?.Grade; entity.GPA = rule?.GPA; entity.EnteredBy = _currentUser.UserId; entity.EntryDate = now;
-                entity.UpdatedAt = now; entity.UpdatedBy = _currentUser.UserId;
+                EligibleRow? student = null;
+                if (item.StudentReference != Guid.Empty) byReference.TryGetValue(item.StudentReference, out student);
+                else byId.TryGetValue(item.StudentId, out student);
+                if (student == null || item.StudentId > 0 && item.StudentId != student.StudentId ||
+                    item.ObtainedMark < 0m || !item.IsAbsent && item.ObtainedMark > subject.Value.Subject.FullMarks)
+                    return Fail<ExamMarkRosterDto>("Mark entry contains an unregistered student or invalid score.", 409);
+                normalized.Add((student.RegistrationId, student.StudentId,
+                    item.IsAbsent ? 0m : item.ObtainedMark, item.IsAbsent));
             }
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            return ApiResponse<ExamMarkRosterDto>.SuccessResponse(await BuildMarkRosterAsync(exam, schedule, enrollments, request, cancellationToken), "Marks saved successfully.");
-        }
-        catch (DbUpdateException ex)
-        {
-            _logger.LogWarning(ex, "Conflicting mark entry for tenant {TenantId}, exam {ExamId}, subject {SubjectId}", _currentUser.TenantId, request.ExamId, request.SubjectId);
-            return ApiResponse<ExamMarkRosterDto>.ErrorResponse("Marks conflict with another update. Reload and try again.", 409);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Mark entry failed for tenant {TenantId}, exam {ExamId}, subject {SubjectId}", _currentUser.TenantId, request.ExamId, request.SubjectId);
-            return ApiResponse<ExamMarkRosterDto>.ErrorResponse("Marks could not be saved.", 500);
-        }
-    }
-
-    public async Task<ApiResponse<ExamResultSheetDto>> GenerateResultsAsync(ExamScopeDto request, CancellationToken cancellationToken = default)
-    {
-        if (!CanPublish()) return ApiResponse<ExamResultSheetDto>.ErrorResponse("Assessment result access is required.", 403);
-        var scope = await LoadResultScopeAsync(request, cancellationToken);
-        if (scope.Error != null) return ApiResponse<ExamResultSheetDto>.ErrorResponse(scope.Error, scope.StatusCode);
-        var exam = scope.Assessment!; var schedules = scope.Schedules!; var enrollments = scope.Enrollments!;
-        var studentIds = enrollments.Select(x => x.StudentId).Distinct().ToArray();
-        if (studentIds.Length == 0) return ApiResponse<ExamResultSheetDto>.ErrorResponse("No active students were found for this section.", 409);
-        if (await _results.AnyAsync(x => x.TenantId == _currentUser.TenantId && x.ExamId == request.ExamId && x.ClassId == request.ClassId && x.SectionId == request.SectionId && x.IsPublished)) return ApiResponse<ExamResultSheetDto>.ErrorResponse("Published results cannot be regenerated.", 409);
-
-        try
-        {
-            var subjectIds = schedules.Select(x => x.SubjectId).Distinct().ToArray();
-            var marks = await _marks.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId && x.ExamId == request.ExamId && studentIds.Contains(x.StudentId) && subjectIds.Contains(x.SubjectId)).ToListAsync(cancellationToken);
-            var markLookup = marks.GroupBy(x => x.StudentId).ToDictionary(g => g.Key, g => g.GroupBy(x => x.SubjectId).ToDictionary(s => s.Key, s => s.OrderByDescending(x => x.Id).First()));
-            var incomplete = enrollments.Count(e => !markLookup.TryGetValue(e.StudentId, out var map) || subjectIds.Any(s => !map.ContainsKey(s)));
-            if (incomplete > 0) return ApiResponse<ExamResultSheetDto>.ErrorResponse($"Marks are incomplete for {incomplete} student(s).", 409);
-
-            var rules = await _gradeRules.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId).OrderBy(x => x.MinMark).ToListAsync(cancellationToken);
-            var existing = await _results.GetQueryable().Where(x => x.TenantId == _currentUser.TenantId && x.ExamId == request.ExamId && studentIds.Contains(x.StudentId)).ToListAsync(cancellationToken);
-            var byStudent = existing.GroupBy(x => x.StudentId).ToDictionary(x => x.Key, x => x.First());
-            var computed = new List<(StudentEnrollment StudentEnrollment, decimal Total, decimal Full, decimal Gpa, decimal Percentage, string? Grade, bool Passed)>();
-            foreach (var enrollment in enrollments.GroupBy(x => x.StudentId).Select(x => x.First()))
-            {
-                var studentMarks = markLookup[enrollment.StudentId];
-                var total = subjectIds.Sum(id => studentMarks[id].ObtainedMark);
-                var full = schedules.GroupBy(x => x.SubjectId).Select(x => x.First()).Sum(x => (decimal)x.FullMark);
-                var passed = schedules.GroupBy(x => x.SubjectId).Select(x => x.First()).All(s => !studentMarks[s.SubjectId].IsAbsent && studentMarks[s.SubjectId].ObtainedMark >= s.PassMark);
-                var gpa = subjectIds.Average(id => studentMarks[id].GPA ?? 0m);
-                var percentage = full <= 0 ? 0 : Math.Round(total / full * 100m, 2);
-                computed.Add((enrollment, total, full, Math.Round(gpa, 2), percentage, FindGrade(rules, percentage)?.Grade, passed));
-            }
-            var ranked = computed.OrderByDescending(x => x.Passed).ThenByDescending(x => x.Total).ThenByDescending(x => x.Gpa).ThenBy(x => x.StudentEnrollment.Roll).ToList();
+            if (normalized.Select(x => x.RegistrationId).Distinct().Count() != normalized.Count)
+                return Fail<ExamMarkRosterDto>("A student appears more than once in the mark request.");
+            var registrations = normalized.Select(x => x.RegistrationId).ToArray();
+            var existing = await _marks.GetQueryable().Where(x => x.TenantId == tenant &&
+                x.AssessmentSubjectId == subject.Value.Subject.Id &&
+                registrations.Contains(x.StudentSubjectRegistrationId)).ToListAsync(ct);
+            var byRegistration = existing.ToDictionary(x => x.StudentSubjectRegistrationId);
             var now = _clock.GetUtcNow().UtcDateTime;
-            for (var i = 0; i < ranked.Count; i++)
+            var gradeRules = await GradeRulesAsync(assessment, subject.Value.Subject, ct);
+            foreach (var entry in normalized)
             {
-                var row = ranked[i];
-                if (!byStudent.TryGetValue(row.StudentEnrollment.StudentId, out var result))
+                var grade = GradeFor(gradeRules, subject.Value.Subject.FullMarks == 0m
+                    ? 0m : entry.Marks / subject.Value.Subject.FullMarks * 100m);
+                if (!byRegistration.TryGetValue(entry.RegistrationId, out var row))
                 {
-                    result = new StudentResultSummary { TenantId = _currentUser.TenantId, ExamId = request.ExamId, StudentId = row.StudentEnrollment.StudentId, CreatedAt = now, CreatedBy = _currentUser.UserId };
-                    await _results.AddAsync(result);
+                    row = new StudentAssessmentMark
+                    {
+                        TenantId = tenant, AssessmentSubjectId = subject.Value.Subject.Id,
+                        StudentSubjectRegistrationId = entry.RegistrationId,
+                        CreatedAt = now, CreatedBy = _user.UserId
+                    };
+                    await _marks.AddAsync(row);
                 }
-                result.AcademicYearId = exam.AcademicYearId; result.ClassId = request.ClassId; result.SectionId = request.SectionId; result.GroupId = row.StudentEnrollment.GroupId;
-                result.TotalMark = row.Total; result.TotalFullMark = row.Full; result.Percentage = row.Percentage; result.TotalGPA = row.Gpa; result.FinalGrade = row.Grade;
-                result.Position = i + 1; result.IsPassed = row.Passed; result.IsPublished = false; result.PublishedAtUtc = null; result.PublishedByUserId = null; result.UpdatedAt = now; result.UpdatedBy = _currentUser.UserId;
+                row.ObtainedMarks = entry.Marks;
+                row.IsAbsent = entry.Absent; row.IsWithheld = false;
+                row.GradeLetter = grade?.GradeLetter; row.GradePoint = grade?.GradePoint;
+                row.EnteredByUserId = _user.UserId; row.EnteredAt = now;
+                row.UpdatedAt = now; row.UpdatedBy = _user.UserId;
             }
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            return await GetResultsInternalAsync(exam, request, schedules.Count, cancellationToken, "Results generated for review.");
+            await _uow.SaveChangesAsync(ct);
+            tx.Complete();
+            return ApiResponse<ExamMarkRosterDto>.SuccessResponse(
+                await RosterAsync(request, assessment, subject.Value.Subject, subject.Value.Offering, ct),
+                "Marks saved.");
         }
+        catch (DbUpdateConcurrencyException) { return Fail<ExamMarkRosterDto>("Marks changed concurrently. Reload and retry.", 409); }
         catch (DbUpdateException ex)
         {
-            _logger.LogWarning(ex, "Concurrent result generation for tenant {TenantId}, exam {ExamId}, class {ClassId}, section {SectionId}", _currentUser.TenantId, request.ExamId, request.ClassId, request.SectionId);
-            return ApiResponse<ExamResultSheetDto>.ErrorResponse("Results conflict with another update. Reload and try again.", 409);
+            _logger.LogWarning(ex, "Concurrent mark write for tenant {TenantId}", tenant);
+            return Fail<ExamMarkRosterDto>("Marks conflict with another entry.", 409);
         }
+        catch (TransactionAbortedException) { return Fail<ExamMarkRosterDto>("Concurrent mark transaction was rejected.", 409); }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Result generation failed for tenant {TenantId}, exam {ExamId}, class {ClassId}, section {SectionId}", _currentUser.TenantId, request.ExamId, request.ClassId, request.SectionId);
-            return ApiResponse<ExamResultSheetDto>.ErrorResponse("Results could not be generated.", 500);
+            _logger.LogError(ex, "Mark save failed in tenant {TenantId}", tenant);
+            return Fail<ExamMarkRosterDto>("Marks could not be saved.", 500);
         }
     }
 
-    public async Task<ApiResponse<ExamResultSheetDto>> PublishResultsAsync(ExamScopeDto request, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<ExamResultSheetDto>> GenerateResultsAsync(ExamScopeDto request,
+        CancellationToken ct = default)
     {
-        if (!CanPublish()) return ApiResponse<ExamResultSheetDto>.ErrorResponse("Assessment publishing access is required.", 403);
-        var scope = await LoadResultScopeAsync(request, cancellationToken);
-        if (scope.Error != null) return ApiResponse<ExamResultSheetDto>.ErrorResponse(scope.Error, scope.StatusCode);
-        var exam = scope.Assessment!; var schedules = scope.Schedules!; var enrollments = scope.Enrollments!;
+        if (!CanPublish()) return Fail<ExamResultSheetDto>("Result generation requires a principal or administrator.", 403);
+        var loaded = await LoadScopeAsync(request, ct);
+        if (loaded.Error != null) return Fail<ExamResultSheetDto>(loaded.Error, loaded.Code);
+        var assessment = loaded.Assessment!;
+        var tenant = _user.TenantId;
         try
         {
-            var strategy = _unitOfWork.CreateExecutionStrategy();
-            return await strategy.ExecuteAsync(async () =>
+            using var tx = SerializableScope();
+            var publication = await _publications.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenant &&
+                x.AssessmentId == assessment.Id && x.AcademicBatchId == request.SectionId &&
+                x.VersionNo == 1, ct);
+            if (publication?.State == ResultPublicationState.Published)
+                return Fail<ExamResultSheetDto>("Published results must not be regenerated.", 409);
+            if (publication?.State == ResultPublicationState.Withdrawn)
+                return Fail<ExamResultSheetDto>("Withdrawn results require a new controlled publication version.", 409);
+            if (assessment.State is AssessmentState.Cancelled or AssessmentState.Published)
+                return Fail<ExamResultSheetDto>("Assessment is not editable.", 409);
+            var subjects = await (from assessmentSubject in _subjects.GetQueryable().AsNoTracking()
+                join offering in _offerings.GetQueryable().AsNoTracking()
+                    on assessmentSubject.SubjectOfferingId equals offering.Id
+                where assessmentSubject.TenantId == tenant && offering.TenantId == tenant &&
+                    assessmentSubject.AssessmentId == assessment.Id && offering.AcademicBatchId == request.SectionId
+                select new { assessmentSubject, offering }).ToListAsync(ct);
+            if (subjects.Count == 0)
+                return Fail<ExamResultSheetDto>("Assessment has no subject offerings for the selected batch.", 409);
+            var subjectIds = subjects.Select(x => x.assessmentSubject.Id).ToArray();
+            var offerings = subjects.Select(x => x.offering.Id).ToArray();
+            var students = await EligibleEnrollmentsAsync(request.SectionId, ct);
+            if (students.Count == 0) return Fail<ExamResultSheetDto>("No active students in the selected batch.", 409);
+            var enrollmentIds = students.Select(x => x.Id).ToArray();
+            var registrations = await _registrations.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
+                enrollmentIds.Contains(x.StudentEnrollmentId) && offerings.Contains(x.SubjectOfferingId) &&
+                x.State == SubjectRegistrationState.Approved).ToListAsync(ct);
+            var registrationIds = registrations.Select(x => x.Id).ToArray();
+            var marks = await _marks.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
+                subjectIds.Contains(x.AssessmentSubjectId) &&
+                registrationIds.Contains(x.StudentSubjectRegistrationId)).ToListAsync(ct);
+            var markMap = marks.ToDictionary(x => (x.AssessmentSubjectId, x.StudentSubjectRegistrationId));
+            var regMap = registrations.ToDictionary(x => (x.StudentEnrollmentId, x.SubjectOfferingId));
+            var gradeRules = await GradeRulesAsync(assessment, null, ct);
+            if (gradeRules.Count == 0)
+                return Fail<ExamResultSheetDto>("A grade scheme must be configured before generating results.", 409);
+            var computed = new List<(StudentEnrollment Enrollment, decimal Marks, decimal Full, decimal Percent,
+                decimal Gpa, string? Grade, bool Passed, bool Withheld)>();
+            foreach (var enrollment in students)
             {
-                await _unitOfWork.BeginTransactionAsync();
-                try
+                decimal marksTotal = 0m, fullTotal = 0m, weighted = 0m, weightTotal = 0m;
+                var passed = true; var withheld = false;
+                foreach (var subject in subjects)
                 {
-                    var studentIds = enrollments.Select(x => x.StudentId).Distinct().ToArray();
-                    if (studentIds.Length == 0) { await _unitOfWork.RollbackTransactionAsync(); return ApiResponse<ExamResultSheetDto>.ErrorResponse("No active students were found for this section.", 409); }
-                    var results = await _results.GetQueryable().Where(x => x.TenantId == _currentUser.TenantId && x.ExamId == request.ExamId && x.ClassId == request.ClassId && x.SectionId == request.SectionId && studentIds.Contains(x.StudentId)).ToListAsync(cancellationToken);
-                    if (results.Count != studentIds.Length) { await _unitOfWork.RollbackTransactionAsync(); return ApiResponse<ExamResultSheetDto>.ErrorResponse("Generate complete results before publishing.", 409); }
-                    if (results.All(x => x.IsPublished)) { await _unitOfWork.CommitTransactionAsync(); return await GetResultsInternalAsync(exam, request, schedules.Count, cancellationToken, "Results were already published."); }
-                    var now = _clock.GetUtcNow().UtcDateTime;
-                    foreach (var result in results) { result.IsPublished = true; result.PublishedAtUtc = now; result.PublishedByUserId = _currentUser.UserId; result.UpdatedAt = now; result.UpdatedBy = _currentUser.UserId; }
-
-                    var scheduledClassIds = await _schedules.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId && x.ExamId == request.ExamId).Select(x => x.ClassId).Distinct().ToListAsync(cancellationToken);
-                    var expectedIds = await _enrollments.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId && x.IsActive && x.AcademicYearId == exam.AcademicYearId && scheduledClassIds.Contains(x.ClassId) && x.Student != null && x.Student.IsActive).Select(x => x.StudentId).Distinct().ToListAsync(cancellationToken);
-                    var publishedElsewhere = await _results.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId && x.ExamId == request.ExamId && x.IsPublished && !studentIds.Contains(x.StudentId)).Select(x => x.StudentId).Distinct().ToListAsync(cancellationToken);
-                    exam.IsPublished = expectedIds.Count > 0 && expectedIds.All(x => studentIds.Contains(x) || publishedElsewhere.Contains(x)); exam.UpdatedAt = now; exam.UpdatedBy = _currentUser.UserId;
-                    await _unitOfWork.SaveChangesAsync(cancellationToken);
-                    await _unitOfWork.CommitTransactionAsync();
-                    return await GetResultsInternalAsync(exam, request, schedules.Count, cancellationToken, "Results published successfully.");
+                    if (!regMap.TryGetValue((enrollment.Id, subject.offering.Id), out var reg) ||
+                        !markMap.TryGetValue((subject.assessmentSubject.Id, reg.Id), out var mark))
+                        return Fail<ExamResultSheetDto>("Marks and subject registrations must be complete for all students.", 409);
+                    marksTotal += mark.ObtainedMarks; fullTotal += subject.assessmentSubject.FullMarks;
+                    weighted += mark.ObtainedMarks / subject.assessmentSubject.FullMarks * subject.assessmentSubject.Weightage;
+                    weightTotal += subject.assessmentSubject.Weightage;
+                    passed &= !mark.IsAbsent && !mark.IsWithheld &&
+                        mark.ObtainedMarks >= subject.assessmentSubject.PassMarks;
+                    withheld |= mark.IsWithheld;
                 }
-                catch { await _unitOfWork.RollbackTransactionAsync(); throw; }
-            });
+                var percent = weightTotal <= 0 ? 0m : Math.Round(weighted / weightTotal * 100m, 4);
+                var grade = GradeFor(gradeRules, percent);
+                if (grade == null)
+                    return Fail<ExamResultSheetDto>("No grade rule matches the computed result.", 409);
+                computed.Add((enrollment, marksTotal, fullTotal, percent,
+                    grade.GradePoint, grade.GradeLetter, passed && !grade.IsFailGrade, withheld));
+            }
+            publication ??= new ResultPublication
+            {
+                TenantId = tenant, AssessmentId = assessment.Id, AcademicBatchId = request.SectionId,
+                VersionNo = 1, State = ResultPublicationState.Draft,
+                CreatedAt = _clock.GetUtcNow().UtcDateTime, CreatedBy = _user.UserId
+            };
+            if (publication.Id == 0)
+            {
+                await _publications.AddAsync(publication);
+                await _uow.SaveChangesAsync(ct);
+            }
+            var existingRows = await _summaries.GetQueryable().Where(x => x.TenantId == tenant &&
+                x.ResultPublicationId == publication.Id).ToListAsync(ct);
+            var byEnrollment = existingRows.ToDictionary(x => x.StudentEnrollmentId);
+            var ranked = computed.OrderBy(x => x.Withheld).ThenByDescending(x => x.Passed)
+                .ThenByDescending(x => x.Marks).ThenByDescending(x => x.Gpa)
+                .ThenBy(x => x.Enrollment.RollNo).ToList();
+            var rank = 0;
+            var now = _clock.GetUtcNow().UtcDateTime;
+            foreach (var item in ranked)
+            {
+                if (!byEnrollment.TryGetValue(item.Enrollment.Id, out var row))
+                {
+                    row = new StudentResultSummary
+                    {
+                        TenantId = tenant, ResultPublicationId = publication.Id,
+                        AssessmentId = assessment.Id, StudentEnrollmentId = item.Enrollment.Id,
+                        PublicationVersionNo = publication.VersionNo,
+                        CreatedAt = now, CreatedBy = _user.UserId
+                    };
+                    await _summaries.AddAsync(row);
+                }
+                row.TotalMarks = item.Full; row.ObtainedMarks = item.Marks;
+                row.Percentage = item.Percent; row.GPA = item.Gpa; row.CGPA = null;
+                row.GradeLetter = item.Grade; row.MeritPosition = item.Withheld ? null : ++rank;
+                row.IsPassed = item.Passed; row.IsWithheld = item.Withheld;
+                row.CalculatedAt = now; row.UpdatedAt = now; row.UpdatedBy = _user.UserId;
+            }
+            await _uow.SaveChangesAsync(ct);
+            tx.Complete();
+            return await GetResultsInternalAsync(assessment, request, subjects.Count, ct, "Draft results generated.");
         }
+        catch (DbUpdateConcurrencyException) { return Fail<ExamResultSheetDto>("Result data changed concurrently.", 409); }
         catch (DbUpdateException ex)
         {
-            _logger.LogWarning(ex, "Concurrent result publication for tenant {TenantId}, exam {ExamId}, class {ClassId}, section {SectionId}", _currentUser.TenantId, request.ExamId, request.ClassId, request.SectionId);
-            return ApiResponse<ExamResultSheetDto>.ErrorResponse("Results conflict with another publication. Reload and try again.", 409);
+            _logger.LogWarning(ex, "Result generation conflict for tenant {TenantId}", tenant);
+            return Fail<ExamResultSheetDto>("Result generation conflicted with another transaction.", 409);
         }
+        catch (TransactionAbortedException) { return Fail<ExamResultSheetDto>("Concurrent result generation rejected.", 409); }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Result publication failed for tenant {TenantId}, exam {ExamId}, class {ClassId}, section {SectionId}", _currentUser.TenantId, request.ExamId, request.ClassId, request.SectionId);
-            return ApiResponse<ExamResultSheetDto>.ErrorResponse("Results could not be published.", 500);
+            _logger.LogError(ex, "Result generation failed for tenant {TenantId}", tenant);
+            return Fail<ExamResultSheetDto>("Results could not be generated.", 500);
         }
     }
 
-    public async Task<ApiResponse<ExamResultSheetDto>> GetResultsAsync(ExamScopeDto request, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<ExamResultSheetDto>> PublishResultsAsync(ExamScopeDto request,
+        CancellationToken ct = default)
     {
-        if (!CanMark()) return ApiResponse<ExamResultSheetDto>.ErrorResponse("Assessment access is required.", 403);
-        var scope = await LoadResultScopeAsync(request, cancellationToken);
-        if (scope.Error != null) return ApiResponse<ExamResultSheetDto>.ErrorResponse(scope.Error, scope.StatusCode);
-        if (!await CanViewResultScopeAsync(scope.Assessment!.AcademicYearId, request.ClassId, request.SectionId, cancellationToken)) return ApiResponse<ExamResultSheetDto>.ErrorResponse("Assessment result access is required.", 403);
-        return await GetResultsInternalAsync(scope.Assessment!, request, scope.Schedules!.Count, cancellationToken);
+        if (!CanPublish()) return Fail<ExamResultSheetDto>("Result publication requires a principal or administrator.", 403);
+        var loaded = await LoadScopeAsync(request, ct);
+        if (loaded.Error != null) return Fail<ExamResultSheetDto>(loaded.Error, loaded.Code);
+        var assessment = loaded.Assessment!;
+        var tenant = _user.TenantId;
+        try
+        {
+            using var tx = SerializableScope();
+            var publication = await _publications.GetQueryable().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.AssessmentId == request.ExamId &&
+                x.AcademicBatchId == request.SectionId && x.VersionNo == 1, ct);
+            if (publication == null) return Fail<ExamResultSheetDto>("Generate complete results before publishing.", 409);
+            if (publication.State == ResultPublicationState.Withdrawn)
+                return Fail<ExamResultSheetDto>("Withdrawn results cannot be republished.", 409);
+            if (publication.State == ResultPublicationState.Published)
+            {
+                tx.Complete();
+                return await GetResultsInternalAsync(assessment, request, 0, ct, "Results were already published.");
+            }
+            var ids = await _enrollments.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
+                x.AcademicBatchId == request.SectionId && x.IsCurrent && x.IsActive)
+                .Select(x => x.Id).ToListAsync(ct);
+            var resultIds = await _summaries.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
+                x.ResultPublicationId == publication.Id).Select(x => x.StudentEnrollmentId).ToListAsync(ct);
+            if (ids.Count == 0 || resultIds.Count != ids.Count || ids.Except(resultIds).Any())
+                return Fail<ExamResultSheetDto>("Results are incomplete for the current batch roster.", 409);
+            var now = _clock.GetUtcNow().UtcDateTime;
+            publication.State = ResultPublicationState.Published;
+            publication.PublishedAt = now; publication.PublishedByUserId = _user.UserId;
+            publication.UpdatedAt = now; publication.UpdatedBy = _user.UserId;
+            var subjectBatchIds = await (from subject in _subjects.GetQueryable().AsNoTracking()
+                join offering in _offerings.GetQueryable().AsNoTracking()
+                    on subject.SubjectOfferingId equals offering.Id
+                where subject.TenantId == tenant && offering.TenantId == tenant &&
+                    subject.AssessmentId == assessment.Id
+                select offering.AcademicBatchId).Distinct().ToArrayAsync(ct);
+            var publishedBatchIds = await _publications.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenant && x.AssessmentId == assessment.Id &&
+                    x.State == ResultPublicationState.Published)
+                .Select(x => x.AcademicBatchId).ToListAsync(ct);
+            if (subjectBatchIds.All(x => x == request.SectionId || publishedBatchIds.Contains(x)))
+            {
+                var liveAssessment = await _assessments.GetQueryable().FirstAsync(x =>
+                    x.TenantId == tenant && x.Id == assessment.Id, ct);
+                liveAssessment.State = AssessmentState.Published;
+                liveAssessment.UpdatedAt = now; liveAssessment.UpdatedBy = _user.UserId;
+            }
+            await _uow.SaveChangesAsync(ct);
+            tx.Complete();
+            return await GetResultsInternalAsync(assessment, request, 0, ct, "Results published.");
+        }
+        catch (DbUpdateConcurrencyException) { return Fail<ExamResultSheetDto>("Publication changed concurrently.", 409); }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Result publication conflict for tenant {TenantId}", tenant);
+            return Fail<ExamResultSheetDto>("Publication conflicts with another transaction.", 409);
+        }
+        catch (TransactionAbortedException) { return Fail<ExamResultSheetDto>("Concurrent result publication rejected.", 409); }
     }
 
-    private async Task<(Assessment? Assessment, AssessmentSchedule? Schedule, List<StudentEnrollment>? Enrollments, string? Error, int StatusCode)> LoadMarkContextAsync(ExamMarkRosterQueryDto request, CancellationToken cancellationToken)
+    public async Task<ApiResponse<ExamResultSheetDto>> GetResultsAsync(ExamScopeDto request,
+        CancellationToken ct = default)
     {
-        var exam = await _exams.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.Id == request.ExamId && x.IsActive, cancellationToken);
-        if (exam == null) return (null, null, null, "Assessment is unavailable.", 404);
-        if (!await _sections.AnyAsync(x => x.TenantId == _currentUser.TenantId && x.Id == request.SectionId && x.ClassId == request.ClassId && x.IsActive)) return (null, null, null, "AcademicBatch is unavailable for the selected class.", 409);
-        var schedule = await _schedules.GetQueryable().AsNoTracking().Include(x => x.Subject).FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.ExamId == request.ExamId && x.ClassId == request.ClassId && x.SubjectId == request.SubjectId, cancellationToken);
-        if (schedule == null) return (null, null, null, "Subject is not scheduled for this exam and class.", 409);
-        if (!await CanAccessMarkScopeAsync(exam.AcademicYearId, request.ClassId, request.SectionId, request.SubjectId, cancellationToken)) return (null, null, null, "Assessment mark-entry access is required.", 403);
-        var enrollments = await _enrollments.GetQueryable().AsNoTracking().Include(x => x.Student).Where(x => x.TenantId == _currentUser.TenantId && x.IsActive && x.AcademicYearId == exam.AcademicYearId && x.ClassId == request.ClassId && x.SectionId == request.SectionId && x.Student != null && x.Student.IsActive).OrderBy(x => x.Roll).ToListAsync(cancellationToken);
-        return (exam, schedule, enrollments, null, 200);
+        if (!CanPublish()) return Fail<ExamResultSheetDto>("Class result-sheet access requires an administrator or principal.", 403);
+        var loaded = await LoadScopeAsync(request, ct);
+        if (loaded.Error != null) return Fail<ExamResultSheetDto>(loaded.Error, loaded.Code);
+        return await GetResultsInternalAsync(loaded.Assessment!, request, 0, ct);
     }
 
-    private async Task<(Assessment? Assessment, List<AssessmentSchedule>? Schedules, List<StudentEnrollment>? Enrollments, string? Error, int StatusCode)> LoadResultScopeAsync(ExamScopeDto request, CancellationToken cancellationToken)
+    private async Task<(Assessment? Assessment, AcademicBatch? Batch, string? Error, int Code)> LoadScopeAsync(
+        ExamScopeDto request, CancellationToken ct)
     {
-        var exam = await _exams.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.Id == request.ExamId && x.IsActive, cancellationToken);
-        if (exam == null) return (null, null, null, "Assessment is unavailable.", 404);
-        if (!await _sections.AnyAsync(x => x.TenantId == _currentUser.TenantId && x.Id == request.SectionId && x.ClassId == request.ClassId && x.IsActive)) return (null, null, null, "AcademicBatch is unavailable for the selected class.", 409);
-        var schedules = await _schedules.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId && x.ExamId == request.ExamId && x.ClassId == request.ClassId).OrderBy(x => x.ExamDate).ThenBy(x => x.SubjectId).ToListAsync(cancellationToken);
-        if (schedules.Count == 0) return (null, null, null, "No exam schedule was found for the selected class.", 409);
-        var enrollments = await _enrollments.GetQueryable().AsNoTracking().Include(x => x.Student).Where(x => x.TenantId == _currentUser.TenantId && x.IsActive && x.AcademicYearId == exam.AcademicYearId && x.ClassId == request.ClassId && x.SectionId == request.SectionId && x.Student != null && x.Student.IsActive).OrderBy(x => x.Roll).ToListAsync(cancellationToken);
-        return (exam, schedules, enrollments, null, 200);
+        if (request == null || request.ExamId <= 0 || request.ClassId <= 0 || request.SectionId <= 0)
+            return (null, null, "Assessment reference, level and batch are required.", 400);
+        var t = _user.TenantId;
+        var assessment = await _assessments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == t && x.Id == request.ExamId, ct);
+        if (assessment == null) return (null, null, "Assessment not found.", 404);
+        var batch = await _batches.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == t &&
+            x.Id == request.SectionId && x.AcademicLevelId == request.ClassId &&
+            x.AcademicYearId == assessment.AcademicYearId && x.CampusId == assessment.CampusId &&
+            x.IsActive, ct);
+        if (batch == null) return (null, null, "Selected batch is not within the assessment scope.", 409);
+        return (assessment, batch, null, 200);
     }
 
-    private async Task<ExamMarkRosterDto> BuildMarkRosterAsync(Assessment exam, AssessmentSchedule schedule, List<StudentEnrollment> enrollments, ExamMarkRosterQueryDto request, CancellationToken cancellationToken)
+    private async Task<(AssessmentSubject Subject, SubjectOffering Offering)?> LoadSubjectAsync(
+        ExamMarkRosterQueryDto request, CancellationToken ct)
     {
-        var studentIds = enrollments.Select(x => x.StudentId).Distinct().ToArray();
-        var marks = studentIds.Length == 0 ? new List<StudentAssessmentMark>() : await _marks.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId && x.ExamId == request.ExamId && x.SubjectId == request.SubjectId && studentIds.Contains(x.StudentId)).ToListAsync(cancellationToken);
-        var byStudent = marks.GroupBy(x => x.StudentId).ToDictionary(x => x.Key, x => x.OrderByDescending(y => y.Id).First());
+        var t = _user.TenantId;
+        var list = await (from assessmentSubject in _subjects.GetQueryable().AsNoTracking()
+            join offering in _offerings.GetQueryable().AsNoTracking()
+                on assessmentSubject.SubjectOfferingId equals offering.Id
+            join curriculum in _curriculumSubjects.GetQueryable().AsNoTracking()
+                on offering.CurriculumSubjectId equals curriculum.Id
+            where assessmentSubject.TenantId == t && offering.TenantId == t && curriculum.TenantId == t &&
+                assessmentSubject.AssessmentId == request.ExamId &&
+                offering.AcademicBatchId == request.SectionId && curriculum.SubjectId == request.SubjectId
+            select new { Subject = assessmentSubject, Offering = offering }).Take(2).ToListAsync(ct);
+        if (list.Count != 1) return null;
+        return (list[0].Subject, list[0].Offering);
+    }
+
+    private async Task<bool> CanEnterMarksAsync(long offeringId, CancellationToken ct)
+    {
+        if (CanPublish()) return true;
+        if (!_user.IsInRole("Teacher")) return false;
+        var t = _user.TenantId;
+        var teacher = await _employees.GetQueryable().AsNoTracking().Where(x => x.TenantId == t &&
+            x.UserId == _user.UserId && x.CanTeach && x.State == EmployeeState.Active)
+            .Select(x => x.Id).FirstOrDefaultAsync(ct);
+        return teacher != 0 && await _instructors.GetQueryable().AsNoTracking().AnyAsync(x =>
+            x.TenantId == t && x.SubjectOfferingId == offeringId && x.EmployeeId == teacher && x.IsActive, ct);
+    }
+
+    private async Task<List<EligibleRow>> EligibleAsync(long offeringId, long batchId, CancellationToken ct)
+    {
+        var t = _user.TenantId;
+        return await (from reg in _registrations.GetQueryable().AsNoTracking()
+            join enrollment in _enrollments.GetQueryable().AsNoTracking()
+                on reg.StudentEnrollmentId equals enrollment.Id
+            join student in _students.GetQueryable().AsNoTracking() on enrollment.StudentId equals student.Id
+            where reg.TenantId == t && enrollment.TenantId == t && student.TenantId == t &&
+                reg.SubjectOfferingId == offeringId && reg.State == SubjectRegistrationState.Approved &&
+                enrollment.AcademicBatchId == batchId && enrollment.IsCurrent && enrollment.IsActive &&
+                student.IsActive
+            orderby enrollment.RollNo, student.Id
+            select new EligibleRow
+            {
+                RegistrationId = reg.Id, EnrollmentId = enrollment.Id, StudentId = student.Id,
+                StudentReference = student.PublicId, StudentCode = student.StudentCode,
+                StudentName = student.FullName, Roll = enrollment.RollNo
+            }).ToListAsync(ct);
+    }
+
+    private async Task<List<StudentEnrollment>> EligibleEnrollmentsAsync(long batchId, CancellationToken ct)
+    {
+        var t = _user.TenantId;
+        return await _enrollments.GetQueryable().AsNoTracking().Where(x => x.TenantId == t &&
+            x.AcademicBatchId == batchId && x.IsCurrent && x.IsActive &&
+            x.State == EnrollmentState.Active).OrderBy(x => x.RollNo).ToListAsync(ct);
+    }
+
+    private async Task<ExamMarkRosterDto> RosterAsync(ExamMarkRosterQueryDto request, Assessment exam,
+        AssessmentSubject assessmentSubject, SubjectOffering offering, CancellationToken ct)
+    {
+        var students = await EligibleAsync(offering.Id, request.SectionId, ct);
+        var ids = students.Select(x => x.RegistrationId).ToArray();
+        var marks = await _marks.GetQueryable().AsNoTracking().Where(x => x.TenantId == _user.TenantId &&
+            x.AssessmentSubjectId == assessmentSubject.Id && ids.Contains(x.StudentSubjectRegistrationId))
+            .ToDictionaryAsync(x => x.StudentSubjectRegistrationId, ct);
+        var curriculumName = await (from entry in _curriculumSubjects.GetQueryable().AsNoTracking()
+            join subject in _subjectsForNames() on entry.SubjectId equals subject.Id
+            where entry.TenantId == _user.TenantId && entry.Id == offering.CurriculumSubjectId
+            select subject.Name).FirstOrDefaultAsync(ct);
+        var published = await _publications.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == _user.TenantId &&
+            x.AssessmentId == exam.Id && x.AcademicBatchId == request.SectionId &&
+            x.State == ResultPublicationState.Published, ct);
         return new ExamMarkRosterDto
         {
-            ExamId = request.ExamId, ExamName = exam.Name, ClassId = request.ClassId, SectionId = request.SectionId, SubjectId = request.SubjectId,
-            SubjectName = schedule.Subject?.Name ?? string.Empty, FullMark = schedule.FullMark, PassMark = schedule.PassMark,
-            IsResultPublished = await _results.AnyAsync(x => x.TenantId == _currentUser.TenantId && x.ExamId == request.ExamId && x.ClassId == request.ClassId && x.SectionId == request.SectionId && x.IsPublished),
-            Students = enrollments.GroupBy(x => x.StudentId).Select(x => x.First()).Select(x => { byStudent.TryGetValue(x.StudentId, out var m); return new ExamMarkRosterItemDto { StudentId = x.StudentId, StudentReference = x.Student?.PublicId ?? Guid.Empty, StudentCode = x.Student?.StudentCode ?? string.Empty, Roll = x.Roll, StudentName = x.Student?.FullName ?? string.Empty, ObtainedMark = m?.ObtainedMark, IsAbsent = m?.IsAbsent ?? false, Grade = m?.Grade, GPA = m?.GPA }; }).ToList()
+            ExamId = exam.Id, ExamName = exam.Name, ClassId = request.ClassId,
+            SectionId = request.SectionId, SubjectId = request.SubjectId,
+            SubjectName = curriculumName ?? "",
+            FullMark = DecimalAsInt(assessmentSubject.FullMarks),
+            PassMark = DecimalAsInt(assessmentSubject.PassMarks),
+            IsResultPublished = published,
+            Students = students.Select(x =>
+            {
+                marks.TryGetValue(x.RegistrationId, out var mark);
+                return new ExamMarkRosterItemDto
+                {
+                    StudentId = x.StudentId, StudentReference = x.StudentReference,
+                    StudentCode = x.StudentCode, Roll = x.Roll, StudentName = x.StudentName,
+                    ObtainedMark = mark?.ObtainedMarks, IsAbsent = mark?.IsAbsent ?? false,
+                    Grade = mark?.GradeLetter, GPA = mark?.GradePoint
+                };
+            }).ToList()
         };
     }
 
-    private async Task<ApiResponse<ExamResultSheetDto>> GetResultsInternalAsync(Assessment exam, ExamScopeDto request, int subjectCount, CancellationToken cancellationToken, string? message = null)
+    private IQueryable<EduOS.Core.Entities.Academic.Subject> _subjectsForNames() =>
+        _subjectNames.GetQueryable().AsNoTracking();
+
+    private async Task<List<GradeRule>> GradeRulesAsync(Assessment exam, AssessmentSubject? subject, CancellationToken ct)
     {
-        var rows = await _results.GetQueryable().AsNoTracking().Include(x => x.Student).Where(x => x.TenantId == _currentUser.TenantId && x.ExamId == request.ExamId && x.ClassId == request.ClassId && x.SectionId == request.SectionId).OrderBy(x => x.Position).ThenBy(x => x.Student!.Roll).ToListAsync(cancellationToken);
-        return ApiResponse<ExamResultSheetDto>.SuccessResponse(new ExamResultSheetDto { ExamId = request.ExamId, ExamName = exam.Name, AcademicYearId = exam.AcademicYearId, ClassId = request.ClassId, SectionId = request.SectionId, SubjectCount = subjectCount, Results = rows.Select(x => new ExamResultItemDto { StudentId = x.StudentId, StudentReference = x.Student?.PublicId ?? Guid.Empty, StudentCode = x.Student?.StudentCode ?? string.Empty, Roll = x.Student?.Roll ?? string.Empty, StudentName = x.Student?.FullName ?? string.Empty, TotalMark = x.TotalMark, TotalFullMark = x.TotalFullMark, Percentage = x.Percentage, TotalGPA = x.TotalGPA, FinalGrade = x.FinalGrade, Position = x.Position, IsPassed = x.IsPassed, IsPublished = x.IsPublished, PublishedAtUtc = x.PublishedAtUtc }).ToList() }, message);
+        var schemeId = subject?.GradeSchemeId ?? exam.GradeSchemeId;
+        if (!schemeId.HasValue) return new List<GradeRule>();
+        return await _grades.GetQueryable().AsNoTracking().Where(x => x.TenantId == _user.TenantId &&
+            x.GradeSchemeId == schemeId.Value).OrderByDescending(x => x.MinMarks).ToListAsync(ct);
+    }
+    private static GradeRule? GradeFor(IEnumerable<GradeRule> rules, decimal percent) =>
+        rules.FirstOrDefault(x => percent >= x.MinMarks && percent <= x.MaxMarks);
+    private async Task<ExamResultSheetDto> ReadSheetAsync(Assessment exam, ExamScopeDto request,
+        int subjectCount, CancellationToken ct)
+    {
+        var pub = await _publications.GetQueryable().AsNoTracking().Where(x => x.TenantId == _user.TenantId &&
+            x.AssessmentId == exam.Id && x.AcademicBatchId == request.SectionId)
+            .OrderByDescending(x => x.VersionNo).FirstOrDefaultAsync(ct);
+        if (pub == null) return new ExamResultSheetDto
+        {
+            ExamId = exam.Id, ExamName = exam.Name, AcademicYearId = exam.AcademicYearId,
+            ClassId = request.ClassId, SectionId = request.SectionId, SubjectCount = subjectCount
+        };
+        var rows = await (from row in _summaries.GetQueryable().AsNoTracking()
+            join enrollment in _enrollments.GetQueryable().AsNoTracking()
+                on row.StudentEnrollmentId equals enrollment.Id
+            join student in _students.GetQueryable().AsNoTracking()
+                on enrollment.StudentId equals student.Id
+            where row.TenantId == _user.TenantId && enrollment.TenantId == _user.TenantId &&
+                student.TenantId == _user.TenantId && row.ResultPublicationId == pub.Id
+            orderby row.MeritPosition, enrollment.RollNo
+            select new { row, enrollment, student }).Take(5000).ToListAsync(ct);
+        return new ExamResultSheetDto
+        {
+            ExamId = exam.Id, ExamName = exam.Name, AcademicYearId = exam.AcademicYearId,
+            ClassId = request.ClassId, SectionId = request.SectionId, SubjectCount = subjectCount,
+            Results = rows.Select(x => new ExamResultItemDto
+            {
+                StudentId = x.student.Id, StudentReference = x.student.PublicId,
+                StudentCode = x.student.StudentCode, StudentName = x.student.FullName,
+                Roll = x.enrollment.RollNo,
+                TotalMark = x.row.ObtainedMarks, TotalFullMark = x.row.TotalMarks,
+                Percentage = x.row.Percentage ?? 0m, TotalGPA = x.row.GPA ?? 0m,
+                FinalGrade = x.row.GradeLetter, Position = x.row.MeritPosition,
+                IsPassed = x.row.IsPassed, IsPublished = pub.State == ResultPublicationState.Published,
+                PublishedAtUtc = pub.PublishedAt
+            }).ToList()
+        };
+    }
+    private async Task<ApiResponse<ExamResultSheetDto>> GetResultsInternalAsync(Assessment exam,
+        ExamScopeDto request, int subjectCount, CancellationToken ct, string? message = null)
+    {
+        var result = await ReadSheetAsync(exam, request, subjectCount, ct);
+        return ApiResponse<ExamResultSheetDto>.SuccessResponse(result, message);
     }
 
-    private bool CanMark() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0 && (_currentUser.IsTenantAdmin || _currentUser.IsInRole("Principal") || _currentUser.IsInRole("VicePrincipal") || _currentUser.IsInRole("Teacher") || _currentUser.IsInRole("ExamController"));
-    private bool CanPublish() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0 && (_currentUser.IsTenantAdmin || _currentUser.IsInRole("Principal") || _currentUser.IsInRole("VicePrincipal") || _currentUser.IsInRole("ExamController"));
-    private bool IsManager() => _currentUser.IsTenantAdmin || _currentUser.IsInRole("Principal") || _currentUser.IsInRole("VicePrincipal") || _currentUser.IsInRole("ExamController");
-    private async Task<bool> CanAccessMarkScopeAsync(long academicYearId, long classId, long sectionId, long subjectId, CancellationToken cancellationToken)
+    private sealed class EligibleRow
     {
-        if (IsManager()) return true;
-        var employeeId = await GetLinkedTeacherIdAsync(cancellationToken);
-        return employeeId.HasValue && await _subjectTeachers.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == _currentUser.TenantId && x.AcademicYearId == academicYearId && x.ClassId == classId && x.SectionId == sectionId && x.SubjectId == subjectId && x.TeacherId == employeeId.Value, cancellationToken);
+        public long RegistrationId { get; set; }
+        public long EnrollmentId { get; set; }
+        public long StudentId { get; set; }
+        public Guid StudentReference { get; set; }
+        public string StudentCode { get; set; } = "";
+        public string StudentName { get; set; } = "";
+        public string Roll { get; set; } = "";
     }
-    private async Task<bool> CanViewResultScopeAsync(long academicYearId, long classId, long sectionId, CancellationToken cancellationToken)
-    {
-        if (IsManager()) return true;
-        var employeeId = await GetLinkedTeacherIdAsync(cancellationToken);
-        return employeeId.HasValue && await _subjectTeachers.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == _currentUser.TenantId && x.AcademicYearId == academicYearId && x.ClassId == classId && x.SectionId == sectionId && x.TeacherId == employeeId.Value && x.IsClassTeacher, cancellationToken);
-    }
-    private async Task<long?> GetLinkedTeacherIdAsync(CancellationToken cancellationToken) => await _employees.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId && x.UserId == _currentUser.UserId && x.IsActive && x.IsTeacher).Select(x => (long?)x.Id).FirstOrDefaultAsync(cancellationToken);
-    private static GradeRule? FindGrade(IEnumerable<GradeRule> rules, decimal percentage) => rules.FirstOrDefault(x => percentage >= x.MinMark && percentage <= x.MaxMark);
+    private static int DecimalAsInt(decimal value) => decimal.ToInt32(decimal.Truncate(value));
+    private static TransactionScope SerializableScope() => new(TransactionScopeOption.Required,
+        new TransactionOptions { IsolationLevel = IsolationLevel.Serializable }, TransactionScopeAsyncFlowOption.Enabled);
+    private bool CanAccess() => _user.IsAuthenticated && _user.TenantId > 0 &&
+        (CanPublish() || _user.IsInRole("Teacher"));
+    private bool CanPublish() => _user.IsAuthenticated && _user.TenantId > 0 &&
+        (_user.IsTenantAdmin || _user.IsInRole("Principal"));
+    private static ApiResponse<T> Fail<T>(string message, int code = 400) =>
+        ApiResponse<T>.ErrorResponse(message, code);
 }

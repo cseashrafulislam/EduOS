@@ -17,7 +17,9 @@ public class ExamMarkRosterQueryDto : ExamScopeDto
 
 public sealed class SaveExamMarkItemDto
 {
-    [Range(1, long.MaxValue)] public long StudentId { get; set; }
+    // Public reference is accepted; internal database ID remains optional for backward compatibility.
+    public Guid StudentReference { get; set; }
+    [Range(0, long.MaxValue)] public long StudentId { get; set; }
     [Range(typeof(decimal), "0", "1000000")] public decimal ObtainedMark { get; set; }
     public bool IsAbsent { get; set; }
 }
