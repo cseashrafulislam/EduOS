@@ -1,915 +1,661 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.SaaS;
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Admission;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.SaaS;
-using EduOS.Core.Entities.SaaS;
-using EduOS.Core.Enums;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
 using EduOS.Core.Interfaces.Jobs;
+using EduOS.Core.Settings;
 using Hangfire;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using System.Transactions;
 
-namespace EduOS.Service.Services.Tenants
+namespace EduOS.Service.Services.Tenants;
+
+public sealed class InstitutionOnboardingService : IInstitutionOnboardingService
 {
-    public class InstitutionOnboardingService : IInstitutionOnboardingService
+    private readonly UserManager<ApplicationUser> _users;
+    private readonly IGenericRepository<Tenant> _tenants;
+    private readonly IGenericRepository<TenantSetting> _settings;
+    private readonly IGenericRepository<Campus> _campuses;
+    private readonly IGenericRepository<AcademicYear> _years;
+    private readonly IGenericRepository<AcademicTerm> _terms;
+    private readonly IGenericRepository<AcademicBatch> _batches;
+    private readonly IGenericRepository<AdmissionIntakeForm> _forms;
+    private readonly IGenericRepository<InstitutionTypeDefinition> _institutionTypes;
+    private readonly IGenericRepository<InstitutionTypeModule> _presets;
+    private readonly IGenericRepository<TenantModule> _modules;
+    private readonly IGenericRepository<TenantSubscription> _subscriptions;
+    private readonly IGenericRepository<SubscriptionPlan> _plans;
+    private readonly ITenantModuleService _tenantModuleService;
+    private readonly IUnitOfWork _uow;
+    private readonly ICurrentUserService _user;
+    private readonly ILogger<InstitutionOnboardingService> _logger;
+    private readonly string _baseDomain;
+
+    public InstitutionOnboardingService(UserManager<ApplicationUser> users, IGenericRepository<Tenant> tenants,
+        IGenericRepository<TenantSetting> settings, IGenericRepository<Campus> campuses,
+        IGenericRepository<AcademicYear> years, IGenericRepository<AcademicTerm> terms,
+        IGenericRepository<AcademicBatch> batches, IGenericRepository<AdmissionIntakeForm> forms,
+        IGenericRepository<InstitutionTypeDefinition> institutionTypes,
+        IGenericRepository<InstitutionTypeModule> presets, IGenericRepository<TenantModule> modules,
+        IGenericRepository<TenantSubscription> subscriptions, IGenericRepository<SubscriptionPlan> plans,
+        ITenantModuleService tenantModuleService, IUnitOfWork unitOfWork, ICurrentUserService currentUser,
+        IOptions<TenantPortalSettings> portalSettings, ILogger<InstitutionOnboardingService> logger)
     {
-        private readonly UserManager<ApplicationUser> _userManager;
-        private readonly IGenericRepository<Tenant> _tenantRepo;
-        private readonly IGenericRepository<Campus> _campusRepo;
-        private readonly IGenericRepository<AcademicYear> _yearRepo;
-        private readonly IGenericRepository<AcademicTerm> _termRepo;
-        private readonly IGenericRepository<InstitutionTypeDefinition> _institutionTypeRepo;
-        private readonly ITenantModuleService _tenantModuleService;
-        private readonly IUnitOfWork _unitOfWork;
-        private readonly ICurrentUserService _currentUser;
-        private readonly ILogger<InstitutionOnboardingService> _logger;
+        _users = users; _tenants = tenants; _settings = settings; _campuses = campuses;
+        _years = years; _terms = terms; _batches = batches; _forms = forms;
+        _institutionTypes = institutionTypes; _presets = presets; _modules = modules;
+        _subscriptions = subscriptions; _plans = plans; _tenantModuleService = tenantModuleService;
+        _uow = unitOfWork; _user = currentUser; _logger = logger;
+        _baseDomain = portalSettings.Value.BaseDomain;
+    }
 
-        public InstitutionOnboardingService(
-            UserManager<ApplicationUser> userManager,
-            IGenericRepository<Tenant> tenantRepo,
-            IGenericRepository<Campus> campusRepo,
-            IGenericRepository<AcademicYear> yearRepo,
-            IGenericRepository<AcademicTerm> termRepo,
-            IGenericRepository<InstitutionTypeDefinition> institutionTypeRepo,
-            ITenantModuleService tenantModuleService,
-            IUnitOfWork unitOfWork,
-            ICurrentUserService currentUser,
-            ILogger<InstitutionOnboardingService> logger)
+    public async Task<ApiResponse<InstitutionSignupResponseDto>> RegisterInstitutionAsync(InstitutionSignupRequestDto dto, string baseUrl)
+    {
+        if (dto == null || string.IsNullOrWhiteSpace(dto.InstitutionName) || dto.InstitutionName.Trim().Length > 200 ||
+            string.IsNullOrWhiteSpace(dto.OwnerName) || dto.OwnerName.Trim().Length > 150 ||
+            string.IsNullOrWhiteSpace(dto.Email) || dto.Email.Length > 200 ||
+            dto.Password?.Length < 6 || dto.Password != dto.ConfirmPassword || !dto.AgreeTerms)
+            return Fail<InstitutionSignupResponseDto>("Institution, owner, email, password and agreement are required.");
+        var email = dto.Email.Trim().ToLowerInvariant();
+        if (!System.Net.Mail.MailAddress.TryCreate(email, out var parsed) ||
+            !string.Equals(parsed.Address, email, StringComparison.OrdinalIgnoreCase))
+            return Fail<InstitutionSignupResponseDto>("Email address is invalid.");
+        var typeCode = dto.InstitutionType?.Trim().ToUpperInvariant();
+        if (string.IsNullOrWhiteSpace(typeCode)) return Fail<InstitutionSignupResponseDto>("Institution type is required.");
+        var type = await _institutionTypes.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.Code == typeCode && x.IsActive);
+        if (type == null) return Fail<InstitutionSignupResponseDto>("Institution type is unavailable.");
+        if (await _users.FindByEmailAsync(email) != null)
+            return Fail<InstitutionSignupResponseDto>("An account already exists with this email.", 409);
+        try
         {
-            _userManager = userManager;
-            _tenantRepo = tenantRepo;
-            _campusRepo = campusRepo;
-            _yearRepo = yearRepo;
-            _termRepo = termRepo;
-            _institutionTypeRepo = institutionTypeRepo;
-            _tenantModuleService = tenantModuleService;
-            _unitOfWork = unitOfWork;
-            _currentUser = currentUser;
-            _logger = logger;
-        }
-
-        // ============================================================
-        // SIGNUP
-        // ============================================================
-        public async Task<ApiResponse<InstitutionSignupResponseDto>> RegisterInstitutionAsync(
-            InstitutionSignupRequestDto dto, string baseUrl)
-        {
-            // Validate
-            if (dto.Password != dto.ConfirmPassword)
-                return Fail<InstitutionSignupResponseDto>("Passwords do not match");
-
-            if (!dto.AgreeTerms)
-                return Fail<InstitutionSignupResponseDto>("You must agree to the terms of service");
-
-            InstitutionTypeDefinition? institutionType = null;
-            if (!string.IsNullOrWhiteSpace(dto.InstitutionType))
+            var strategy = _uow.CreateExecutionStrategy();
+            var response = await strategy.ExecuteAsync(async () =>
             {
-                if (!TryNormalizeCatalogCode(dto.InstitutionType, out var institutionTypeCode))
-                    return Fail<InstitutionSignupResponseDto>("Select a valid institution type");
-
-                institutionType = await _institutionTypeRepo.FirstOrDefaultAsync(x =>
-                    x.Code == institutionTypeCode && x.IsActive && x.IsPubliclyVisible);
-                if (institutionType == null)
-                    return Fail<InstitutionSignupResponseDto>("Select a valid institution type");
-            }
-
-            // Check duplicate email
-            var existing = await _userManager.FindByEmailAsync(dto.Email);
-            if (existing != null)
-                return Fail<InstitutionSignupResponseDto>(
-                    "An account with this email already exists. Please login or use forgot password.");
-
-            var strategy = _unitOfWork.CreateExecutionStrategy();
-            return await strategy.ExecuteAsync(async () =>
-            {
-                await _unitOfWork.BeginTransactionAsync();
-
+                await _uow.BeginTransactionAsync();
                 try
                 {
-
-                    // 1. Create Tenant
+                    var now = DateTime.UtcNow;
                     var tenant = new Tenant
                     {
-                        Name = dto.InstitutionName.Trim(),
-                        Code = GenerateTenantCode(dto.InstitutionName),
-                        Email = dto.Email.Trim().ToLower(),
-                        OwnerName = dto.OwnerName.Trim(),
-                        OwnerEmail = dto.Email.Trim().ToLower(),
-                        OwnerPhone = dto.Phone?.Trim(),
-                        InstitutionType = institutionType?.Code,
-                        InstitutionTypeDefinitionId = institutionType?.Id,
-                        Status = TenantStatus.PendingVerification,
-                        OnboardingStep = OnboardingStep.EmailVerification,
-                        IsOnboardingComplete = false,
-                        IsEmailVerified = false,
-                        IsActive = true,
-                        Currency = "BDT",
-                        CurrencySymbol = "৳",
-                        TimeZone = "Asia/Dhaka",
-                        Language = "en",
-                        DateFormat = "dd-MM-yyyy",
-                        PrimaryColor = "#1E40AF",
-                        SecondaryColor = "#64748B",
-                        AccentColor = "#F59E0B",
-                        CreatedAt = DateTime.UtcNow
+                        PublicId = Guid.NewGuid(), Name = dto.InstitutionName.Trim(),
+                        Code = "TN-" + Guid.NewGuid().ToString("N")[..16].ToUpperInvariant(),
+                        Email = email, Phone = Trim(dto.Phone), InstitutionTypeDefinitionId = type.Id,
+                        State = TenantState.PendingVerification,
+                        OnboardingStage = OnboardingStage.EmailVerification,
+                        IsEmailVerified = false, IsOnboardingComplete = false,
+                        CurrencyCode = "BDT", TimeZoneId = "Asia/Dhaka", DefaultLanguage = "bn-BD",
+                        IsActive = true, CreatedAt = now
                     };
-
-                    await _tenantRepo.AddAsync(tenant);
-                    await _unitOfWork.SaveChangesAsync();
-
-                    // 2. Create Application User
-                    var user = new ApplicationUser
+                    await _tenants.AddAsync(tenant);
+                    await _uow.SaveChangesAsync();
+                    var account = new ApplicationUser
                     {
-                        UserName = dto.Email.Trim().ToLower(),
-                        Email = dto.Email.Trim().ToLower(),
-                        FullName = dto.OwnerName.Trim(),
-                        TenantId = tenant.Id,
-                        UserType = "TenantAdmin",
-                        IsActive = true,
-                        EmailConfirmed = false,
-                        CreatedAt = DateTime.UtcNow
+                        UserName = email, Email = email, FullName = dto.OwnerName.Trim(),
+                        TenantId = tenant.Id, UserType = "TenantAdmin", EmailConfirmed = false,
+                        IsActive = true, CreatedAt = now
                     };
-
-                    var createResult = await _userManager.CreateAsync(user, dto.Password);
-                    if (!createResult.Succeeded)
+                    var created = await _users.CreateAsync(account, dto.Password);
+                    if (!created.Succeeded)
+                        return Fail<InstitutionSignupResponseDto>(string.Join("; ", created.Errors.Select(x => x.Description)));
+                    var assigned = await _users.AddToRoleAsync(account, "TenantAdmin");
+                    if (!assigned.Succeeded)
+                        return Fail<InstitutionSignupResponseDto>("Tenant administrator role could not be assigned.");
+                    await UpsertAsync(tenant.Id, "Profile", new Dictionary<string, string?>
                     {
-                        await _unitOfWork.RollbackTransactionAsync();
-                        var errors = string.Join(", ", createResult.Errors.Select(e => e.Description));
-                        _logger.LogWarning("Signup failed for {Email}: {Errors}", dto.Email, errors);
-                        return Fail<InstitutionSignupResponseDto>(errors);
-                    }
-
-                    // Assign TenantAdmin role
-                    await _userManager.AddToRoleAsync(user, "TenantAdmin");
-
-                    // Update tenant with owner user ID
-                    tenant.OwnerUserId = user.Id;
-                    _tenantRepo.Update(tenant);
-                    await _unitOfWork.SaveChangesAsync();
-
-                    if (institutionType != null)
-                    {
-                        var presetResult = await _tenantModuleService.ApplyInstitutionPresetAsync(
-                            tenant.Id,
-                            institutionType.Id);
-                        if (!presetResult.Succeeded)
-                        {
-                            await _unitOfWork.RollbackTransactionAsync();
-                            return Fail<InstitutionSignupResponseDto>(presetResult.Message!);
-                        }
-                    }
-
-                    await _unitOfWork.CommitTransactionAsync();
-
-                    // 3. Send verification email (background job)
-                    var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
-                    var verifyUrl = $"{baseUrl}/api/institution-onboarding/verify-email" +
-                                    $"?email={Uri.EscapeDataString(user.Email!)}" +
-                                    $"&token={Uri.EscapeDataString(token)}";
-
-                    BackgroundJob.Enqueue<IEmailJob>(x =>
-                        x.SendVerificationEmailAsync(user.Email!, dto.InstitutionName, user.FullName, verifyUrl));
-
-                    _logger.LogInformation("Institution registered: {Name} ({Email})", dto.InstitutionName, dto.Email);
-
+                        ["OwnerName"] = dto.OwnerName.Trim(), ["OwnerEmail"] = email,
+                        ["OwnerPhone"] = Trim(dto.Phone)
+                    });
+                    await ApplyPresetAsync(tenant.Id, type.Id);
+                    await _uow.SaveChangesAsync();
+                    await _uow.CommitTransactionAsync();
                     return Ok(new InstitutionSignupResponseDto
                     {
-                        Success = true,
-                        Message = "Account created! Please check your email to verify your account.",
-                        Email = user.Email,
-                        TenantId = tenant.Id,
-                        UserId = user.Id
+                        Success = true, Email = account.Email, TenantId = tenant.Id, UserId = account.Id,
+                        Message = "Account created. Verify your email to continue."
                     });
+                }
+                finally
+                {
+                    // Safe after CommitTransactionAsync as the unit of work owns the transaction state.
+                    await SafeRollbackAsync();
+                }
+            });
+            if (response.Success && response.Data?.UserId is long accountId)
+            {
+                try
+                {
+                    var account = await _users.FindByIdAsync(accountId.ToString());
+                    if (account != null)
+                    {
+                        var token = await _users.GenerateEmailConfirmationTokenAsync(account);
+                        var trustedOrigin = TrustedOrigin();
+                        var link = trustedOrigin + "/api/institution-onboarding/verify-email?email=" +
+                            Uri.EscapeDataString(email) + "&token=" + Uri.EscapeDataString(token);
+                        BackgroundJob.Enqueue<IEmailJob>(job => job.SendVerificationEmailAsync(
+                            email, dto.InstitutionName.Trim(), dto.OwnerName.Trim(), link));
+                    }
                 }
                 catch (Exception ex)
                 {
-                    await _unitOfWork.RollbackTransactionAsync();
-                    _logger.LogError(ex, "Signup failed for {Email}", dto.Email);
-                    return Fail<InstitutionSignupResponseDto>("Registration failed. Please try again.");
+                    _logger.LogError(ex, "Verification notification could not be queued for tenant {TenantId}", response.Data.TenantId);
                 }
-            });
+            }
+            return response;
         }
-
-        // ============================================================
-        // EMAIL VERIFY
-        // ============================================================
-        public async Task<bool> VerifyEmailAsync(string email, string token, string baseUrl)
+        catch (DbUpdateException ex)
         {
-            try
-            {
-                var user = await _userManager.FindByEmailAsync(email);
-                if (user == null) return false;
-
-                var result = await _userManager.ConfirmEmailAsync(user, token);
-                if (!result.Succeeded)
-                {
-                    _logger.LogWarning("Email verify failed for {Email}", email);
-                    return false;
-                }
-
-                // Update tenant
-                if (user.TenantId.HasValue)
-                {
-                    var tenant = await _tenantRepo.GetByIdAsync(user.TenantId.Value);
-                    if (tenant != null)
-                    {
-                        tenant.IsEmailVerified = true;
-                        tenant.EmailVerifiedAt = DateTime.UtcNow;
-                        tenant.Status = TenantStatus.Onboarding;
-                        tenant.OnboardingStep = OnboardingStep.InstitutionProfile;
-                        _tenantRepo.Update(tenant);
-                        await _unitOfWork.SaveChangesAsync();
-                    }
-                }
-
-                _logger.LogInformation("Email verified: {Email}", email);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Email verify error for {Email}", email);
-                return false;
-            }
+            _logger.LogWarning(ex, "Institution signup conflicts with an existing record");
+            return Fail<InstitutionSignupResponseDto>("Institution or account reference already exists.", 409);
         }
-
-        // ============================================================
-        // INSTITUTION PROFILE
-        // ============================================================
-        public async Task<ApiResponse<InstitutionProfileSetupDto?>> GetInstitutionProfileAsync()
+        catch (Exception ex)
         {
-            try
-            {
-                var tenant = await GetCurrentTenantAsync();
-                if (tenant == null)
-                    return Fail<InstitutionProfileSetupDto?>("Tenant not found");
-
-                return Ok<InstitutionProfileSetupDto?>(new InstitutionProfileSetupDto
-                {
-                    InstitutionName = tenant.Name,
-                    InstitutionType = tenant.InstitutionType,
-                    OwnerName = tenant.OwnerName,
-                    OwnerPhone = tenant.OwnerPhone,
-                    OwnerEmail = tenant.OwnerEmail,
-                    OwnerDesignation = tenant.OwnerDesignation,
-                    Phone = tenant.Phone,
-                    Website = tenant.Website,
-                    Address = tenant.Address,
-                    City = tenant.City,
-                    State = tenant.State,
-                    Country = tenant.Country,
-                    PostalCode = tenant.PostalCode,
-                    Email = tenant.Email
-                });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "GetInstitutionProfile error");
-                return Fail<InstitutionProfileSetupDto?>("Failed to load profile");
-            }
-        }
-
-        public async Task<ApiResponse<bool>> SaveInstitutionProfileAsync(InstitutionProfileSetupDto dto)
-        {
-            try
-            {
-                if (string.IsNullOrWhiteSpace(dto.InstitutionName))
-                    return Fail<bool>("Institution name is required");
-
-                if (string.IsNullOrWhiteSpace(dto.OwnerName))
-                    return Fail<bool>("Owner name is required");
-
-                if (!TryNormalizeCatalogCode(dto.InstitutionType, out var institutionTypeCode))
-                    return Fail<bool>("Institution type is required");
-
-                var institutionType = await _institutionTypeRepo.FirstOrDefaultAsync(x =>
-                    x.Code == institutionTypeCode && x.IsActive && x.IsPubliclyVisible);
-                if (institutionType == null)
-                    return Fail<bool>("Select a valid institution type");
-
-                var tenant = await GetCurrentTenantAsync();
-                if (tenant == null)
-                    return Fail<bool>("Tenant not found", 404);
-
-                tenant.Name = dto.InstitutionName.Trim();
-                tenant.InstitutionType = institutionType.Code;
-                tenant.InstitutionTypeDefinitionId = institutionType.Id;
-                tenant.OwnerName = dto.OwnerName.Trim();
-                tenant.OwnerPhone = dto.OwnerPhone?.Trim();
-                tenant.OwnerEmail = dto.OwnerEmail?.Trim();
-                tenant.OwnerDesignation = dto.OwnerDesignation?.Trim();
-                tenant.Phone = dto.Phone?.Trim();
-                tenant.Website = dto.Website?.Trim();
-                tenant.Address = dto.Address?.Trim();
-                tenant.City = dto.City?.Trim();
-                tenant.State = dto.State?.Trim();
-                tenant.Country = dto.Country?.Trim() ?? "Bangladesh";
-                tenant.PostalCode = dto.PostalCode?.Trim();
-                tenant.UpdatedAt = DateTime.UtcNow;
-
-                _tenantRepo.Update(tenant);
-                var presetResult = await _tenantModuleService.ApplyInstitutionPresetAsync(
-                    tenant.Id,
-                    institutionType.Id);
-                if (!presetResult.Succeeded)
-                    return Fail<bool>(presetResult.Message!);
-
-                return Ok(true, "Profile saved successfully");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "SaveInstitutionProfile error");
-                return Fail<bool>("Failed to save profile");
-            }
-        }
-
-        // ============================================================
-        // CAMPUS
-        // ============================================================
-        public async Task<ApiResponse<List<CampusListItemDto>>> GetCampusListAsync()
-        {
-            try
-            {
-                var campuses = await _campusRepo.GetQueryable()
-                    .Where(c => c.TenantId == _currentUser.TenantId)
-                    .OrderByDescending(c => c.IsHeadOffice)
-                    .ThenBy(c => c.Name)
-                    .ToListAsync();
-
-                var dtos = campuses.Select(c => new CampusListItemDto
-                {
-                    Id = c.Id,
-                    Name = c.Name,
-                    Code = c.Code,
-                    Address = c.Address,
-                    Phone = c.Phone,
-                    HeadName = c.HeadName,
-                    IsHeadOffice = c.IsHeadOffice,
-                    IsActive = c.IsActive
-                }).ToList();
-
-                return Ok(dtos);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "GetCampusList error");
-                return Fail<List<CampusListItemDto>>("Failed to load campuses");
-            }
-        }
-
-        public async Task<ApiResponse<CampusSetupDto?>> GetCampusByIdAsync(long id)
-        {
-            try
-            {
-                var c = await _campusRepo.GetByIdAsync(id);
-                if (c == null || c.TenantId != _currentUser.TenantId)
-                    return Fail<CampusSetupDto?>("Campus not found", 404);
-
-                return Ok<CampusSetupDto?>(new CampusSetupDto
-                {
-                    Id = c.Id, Name = c.Name, Code = c.Code,
-                    Address = c.Address, Phone = c.Phone,
-                    Email = c.Email, HeadName = c.HeadName,
-                    IsHeadOffice = c.IsHeadOffice
-                });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "GetCampusById error");
-                return Fail<CampusSetupDto?>("Failed to load campus");
-            }
-        }
-
-        public async Task<ApiResponse<bool>> SaveCampusAsync(CampusSetupDto dto)
-        {
-            try
-            {
-                if (string.IsNullOrWhiteSpace(dto.Name))
-                    return Fail<bool>("Campus name is required");
-
-                var tenant = await GetCurrentTenantAsync();
-                if (tenant == null)
-                    return Fail<bool>("Tenant not found", 404);
-
-                var isNewCampus = !dto.Id.HasValue || dto.Id <= 0;
-                var currentCampusCount = await _campusRepo.GetQueryable()
-                    .CountAsync(c => c.TenantId == _currentUser.TenantId);
-
-                if (isNewCampus && tenant.MaxCampuses > 0
-                    && currentCampusCount >= tenant.MaxCampuses)
-                {
-                    return Fail<bool>("Campus limit reached for the active plan", 409);
-                }
-
-                var normalizedCode = string.IsNullOrWhiteSpace(dto.Code)
-                    ? null
-                    : dto.Code.Trim().ToUpperInvariant();
-                if (normalizedCode != null)
-                {
-                    var codeInUse = await _campusRepo.GetQueryable().AnyAsync(c =>
-                        c.TenantId == _currentUser.TenantId
-                        && c.Id != (dto.Id ?? 0)
-                        && c.Code != null
-                        && c.Code.ToUpper() == normalizedCode);
-                    if (codeInUse)
-                        return Fail<bool>("Campus code is already in use", 409);
-                }
-
-                var shouldBeHeadOffice = dto.IsHeadOffice || (isNewCampus && currentCampusCount == 0);
-
-                // If marking as head office, unmark others
-                if (shouldBeHeadOffice)
-                {
-                    var others = await _campusRepo.GetQueryable()
-                        .Where(c => c.TenantId == _currentUser.TenantId
-                                 && c.IsHeadOffice
-                                 && c.Id != (dto.Id ?? 0))
-                        .ToListAsync();
-
-                    foreach (var o in others)
-                    {
-                        o.IsHeadOffice = false;
-                        _campusRepo.Update(o);
-                    }
-                }
-
-                if (dto.Id.HasValue && dto.Id > 0)
-                {
-                    // Update
-                    var campus = await _campusRepo.GetByIdAsync(dto.Id.Value);
-                    if (campus == null || campus.TenantId != _currentUser.TenantId)
-                        return Fail<bool>("Campus not found", 404);
-
-                    campus.Name = dto.Name.Trim();
-                    campus.Code = normalizedCode ?? string.Empty;
-                    campus.Address = dto.Address?.Trim();
-                    campus.Phone = dto.Phone?.Trim();
-                    campus.Email = dto.Email?.Trim();
-                    campus.HeadName = dto.HeadName?.Trim();
-                    campus.IsHeadOffice = shouldBeHeadOffice;
-                    campus.UpdatedAt = DateTime.UtcNow;
-                    campus.UpdatedBy = _currentUser.UserId;
-                    _campusRepo.Update(campus);
-                }
-                else
-                {
-                    // Create
-                    var campus = new Campus
-                    {
-                        TenantId = _currentUser.TenantId,
-                        Name = dto.Name.Trim(),
-                        Code = normalizedCode ?? string.Empty,
-                        Address = dto.Address?.Trim(),
-                        Phone = dto.Phone?.Trim(),
-                        Email = dto.Email?.Trim(),
-                        HeadName = dto.HeadName?.Trim(),
-                        IsHeadOffice = shouldBeHeadOffice,
-                        IsActive = true,
-                        CreatedAt = DateTime.UtcNow,
-                        CreatedBy = _currentUser.UserId
-                    };
-                    await _campusRepo.AddAsync(campus);
-                }
-
-                await _unitOfWork.SaveChangesAsync();
-                return Ok(true, dto.Id.HasValue ? "Campus updated" : "Campus added");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "SaveCampus error");
-                return Fail<bool>("Failed to save campus");
-            }
-        }
-
-        public async Task<ApiResponse<bool>> DeleteCampusAsync(long id)
-        {
-            try
-            {
-                var campus = await _campusRepo.GetByIdAsync(id);
-                if (campus == null || campus.TenantId != _currentUser.TenantId)
-                    return Fail<bool>("Campus not found", 404);
-
-                campus.IsDeleted = true;
-                campus.UpdatedAt = DateTime.UtcNow;
-                campus.UpdatedBy = _currentUser.UserId;
-                _campusRepo.Update(campus);
-
-                if (campus.IsHeadOffice)
-                {
-                    var replacement = await _campusRepo.GetQueryable()
-                        .Where(c => c.TenantId == _currentUser.TenantId && c.Id != id)
-                        .OrderBy(c => c.Id)
-                        .FirstOrDefaultAsync();
-                    if (replacement != null)
-                    {
-                        replacement.IsHeadOffice = true;
-                        replacement.UpdatedAt = DateTime.UtcNow;
-                        replacement.UpdatedBy = _currentUser.UserId;
-                        _campusRepo.Update(replacement);
-                    }
-                }
-
-                await _unitOfWork.SaveChangesAsync();
-
-                return Ok(true, "Campus deleted");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "DeleteCampus error");
-                return Fail<bool>("Failed to delete campus");
-            }
-        }
-
-        // ============================================================
-        // ACADEMIC YEAR
-        // ============================================================
-        public async Task<ApiResponse<List<AcademicYearListItemDto>>> GetAcademicYearListAsync()
-        {
-            try
-            {
-                var years = await _yearRepo.GetQueryable()
-                    .Where(y => y.TenantId == _currentUser.TenantId)
-                    .OrderByDescending(y => y.IsCurrent)
-                    .ThenByDescending(y => y.StartDate)
-                    .ToListAsync();
-
-                return Ok(years.Select(y => new AcademicYearListItemDto
-                {
-                    Id = y.Id, Name = y.Name,
-                    StartDate = y.StartDate, EndDate = y.EndDate,
-                    IsCurrent = y.IsCurrent
-                }).ToList());
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "GetAcademicYearList error");
-                return Fail<List<AcademicYearListItemDto>>("Failed to load academic years");
-            }
-        }
-
-        public async Task<ApiResponse<AcademicYearSetupDto?>> GetAcademicYearByIdAsync(long id)
-        {
-            try
-            {
-                var y = await _yearRepo.GetByIdAsync(id);
-                if (y == null || y.TenantId != _currentUser.TenantId)
-                    return Fail<AcademicYearSetupDto?>("Academic year not found", 404);
-
-                return Ok<AcademicYearSetupDto?>(new AcademicYearSetupDto
-                {
-                    Id = y.Id, Name = y.Name,
-                    StartDate = y.StartDate, EndDate = y.EndDate,
-                    IsCurrent = y.IsCurrent
-                });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "GetAcademicYearById error");
-                return Fail<AcademicYearSetupDto?>("Failed to load academic year");
-            }
-        }
-
-        public async Task<ApiResponse<bool>> SaveAcademicYearAsync(AcademicYearSetupDto dto)
-        {
-            try
-            {
-                if (string.IsNullOrWhiteSpace(dto.Name))
-                    return Fail<bool>("Academic year name is required");
-
-                if (dto.StartDate >= dto.EndDate)
-                    return Fail<bool>("End date must be after start date");
-
-                var normalizedName = dto.Name.Trim();
-                var nameInUse = await _yearRepo.GetQueryable().AnyAsync(y =>
-                    y.TenantId == _currentUser.TenantId
-                    && y.Id != (dto.Id ?? 0)
-                    && y.Name.ToUpper() == normalizedName.ToUpper());
-                if (nameInUse)
-                    return Fail<bool>("Academic year name is already in use", 409);
-
-                if (dto.Id.HasValue && dto.Id > 0)
-                {
-                    var hasTermOutsideRange = await _termRepo.GetQueryable().AnyAsync(t =>
-                        t.AcademicYearId == dto.Id.Value
-                        && ((t.StartDate.HasValue && t.StartDate.Value < dto.StartDate)
-                            || (t.EndDate.HasValue && t.EndDate.Value > dto.EndDate)));
-                    if (hasTermOutsideRange)
-                        return Fail<bool>("Academic year dates must include all existing terms", 409);
-                }
-
-                // If marking as current, unmark others
-                if (dto.IsCurrent)
-                {
-                    var others = await _yearRepo.GetQueryable()
-                        .Where(y => y.TenantId == _currentUser.TenantId
-                                 && y.IsCurrent && y.Id != (dto.Id ?? 0))
-                        .ToListAsync();
-
-                    foreach (var o in others) { o.IsCurrent = false; _yearRepo.Update(o); }
-                }
-
-                if (dto.Id.HasValue && dto.Id > 0)
-                {
-                    var year = await _yearRepo.GetByIdAsync(dto.Id.Value);
-                    if (year == null || year.TenantId != _currentUser.TenantId)
-                        return Fail<bool>("Academic year not found", 404);
-
-                    year.Name = normalizedName;
-                    year.StartDate = dto.StartDate;
-                    year.EndDate = dto.EndDate;
-                    year.IsCurrent = dto.IsCurrent;
-                    year.UpdatedAt = DateTime.UtcNow;
-                    year.UpdatedBy = _currentUser.UserId;
-                    _yearRepo.Update(year);
-                }
-                else
-                {
-                    await _yearRepo.AddAsync(new AcademicYear
-                    {
-                        TenantId = _currentUser.TenantId,
-                        Name = normalizedName,
-                        StartDate = dto.StartDate,
-                        EndDate = dto.EndDate,
-                        IsCurrent = dto.IsCurrent,
-                        IsActive = true,
-                        CreatedAt = DateTime.UtcNow,
-                        CreatedBy = _currentUser.UserId
-                    });
-                }
-
-                await _unitOfWork.SaveChangesAsync();
-                return Ok(true, dto.Id.HasValue ? "Academic year updated" : "Academic year added");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "SaveAcademicYear error");
-                return Fail<bool>("Failed to save academic year");
-            }
-        }
-
-        public async Task<ApiResponse<bool>> DeleteAcademicYearAsync(long id)
-        {
-            try
-            {
-                var year = await _yearRepo.GetByIdAsync(id);
-                if (year == null || year.TenantId != _currentUser.TenantId)
-                    return Fail<bool>("Academic year not found", 404);
-
-                // Check if any terms exist
-                var hasTerms = await _termRepo.GetQueryable()
-                    .AnyAsync(t => t.AcademicYearId == id);
-
-                if (hasTerms)
-                    return Fail<bool>("Remove all terms first before deleting this year");
-
-                year.IsDeleted = true;
-                year.UpdatedAt = DateTime.UtcNow;
-                _yearRepo.Update(year);
-                await _unitOfWork.SaveChangesAsync();
-                return Ok(true, "Academic year deleted");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "DeleteAcademicYear error");
-                return Fail<bool>("Failed to delete academic year");
-            }
-        }
-
-        // ============================================================
-        // ACADEMIC TERM
-        // ============================================================
-        public async Task<ApiResponse<List<AcademicTermListItemDto>>> GetAcademicTermListAsync()
-        {
-            try
-            {
-                var terms = await _termRepo.GetQueryable()
-                    .Include(t => t.AcademicYear)
-                    .Where(t => t.TenantId == _currentUser.TenantId)
-                    .OrderBy(t => t.AcademicYearId)
-                    .ThenBy(t => t.StartDate)
-                    .ToListAsync();
-
-                return Ok(terms.Select(t => new AcademicTermListItemDto
-                {
-                    Id = t.Id,
-                    AcademicYearId = t.AcademicYearId,
-                    AcademicYearName = t.AcademicYear?.Name ?? string.Empty,
-                    Name = t.Name,
-                    StartDate = t.StartDate,
-                    EndDate = t.EndDate
-                }).ToList());
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "GetAcademicTermList error");
-                return Fail<List<AcademicTermListItemDto>>("Failed to load terms");
-            }
-        }
-
-        public async Task<ApiResponse<AcademicTermSetupDto?>> GetAcademicTermByIdAsync(long id)
-        {
-            try
-            {
-                var t = await _termRepo.GetByIdAsync(id);
-                if (t == null || t.TenantId != _currentUser.TenantId)
-                    return Fail<AcademicTermSetupDto?>("Term not found", 404);
-
-                return Ok<AcademicTermSetupDto?>(new AcademicTermSetupDto
-                {
-                    Id = t.Id, AcademicYearId = t.AcademicYearId,
-                    Name = t.Name, StartDate = t.StartDate, EndDate = t.EndDate
-                });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "GetAcademicTermById error");
-                return Fail<AcademicTermSetupDto?>("Failed to load term");
-            }
-        }
-
-        public async Task<ApiResponse<bool>> SaveAcademicTermAsync(AcademicTermSetupDto dto)
-        {
-            try
-            {
-                if (dto.AcademicYearId <= 0)
-                    return Fail<bool>("Academic year is required");
-
-                if (string.IsNullOrWhiteSpace(dto.Name))
-                    return Fail<bool>("Term name is required");
-
-                if (dto.StartDate.HasValue != dto.EndDate.HasValue)
-                    return Fail<bool>("Provide both term dates or leave both empty");
-
-                if (dto.StartDate.HasValue && dto.StartDate.Value >= dto.EndDate!.Value)
-                    return Fail<bool>("Term end date must be after start date");
-
-                // Validate academic year belongs to this tenant
-                var year = await _yearRepo.GetByIdAsync(dto.AcademicYearId);
-                if (year == null || year.TenantId != _currentUser.TenantId)
-                    return Fail<bool>("Academic year not found", 404);
-
-                if (dto.StartDate.HasValue
-                    && (dto.StartDate.Value < year.StartDate || dto.EndDate!.Value > year.EndDate))
-                {
-                    return Fail<bool>("Term dates must be within the academic year", 409);
-                }
-
-                var normalizedName = dto.Name.Trim();
-                var nameInUse = await _termRepo.GetQueryable().AnyAsync(t =>
-                    t.AcademicYearId == dto.AcademicYearId
-                    && t.Id != (dto.Id ?? 0)
-                    && t.Name.ToUpper() == normalizedName.ToUpper());
-                if (nameInUse)
-                    return Fail<bool>("Term name is already in use for this academic year", 409);
-
-                if (dto.Id.HasValue && dto.Id > 0)
-                {
-                    var term = await _termRepo.GetByIdAsync(dto.Id.Value);
-                    if (term == null || term.TenantId != _currentUser.TenantId)
-                        return Fail<bool>("Term not found", 404);
-
-                    term.Name = normalizedName;
-                    term.AcademicYearId = dto.AcademicYearId;
-                    term.StartDate = dto.StartDate;
-                    term.EndDate = dto.EndDate;
-                    term.UpdatedAt = DateTime.UtcNow;
-                    term.UpdatedBy = _currentUser.UserId;
-                    _termRepo.Update(term);
-                }
-                else
-                {
-                    await _termRepo.AddAsync(new AcademicTerm
-                    {
-                        TenantId = _currentUser.TenantId,
-                        AcademicYearId = dto.AcademicYearId,
-                        Name = normalizedName,
-                        StartDate = dto.StartDate,
-                        EndDate = dto.EndDate,
-                        IsActive = true,
-                        CreatedAt = DateTime.UtcNow,
-                        CreatedBy = _currentUser.UserId
-                    });
-                }
-
-                await _unitOfWork.SaveChangesAsync();
-                return Ok(true, dto.Id.HasValue ? "Term updated" : "Term added");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "SaveAcademicTerm error");
-                return Fail<bool>("Failed to save term");
-            }
-        }
-
-        public async Task<ApiResponse<bool>> DeleteAcademicTermAsync(long id)
-        {
-            try
-            {
-                var term = await _termRepo.GetByIdAsync(id);
-                if (term == null || term.TenantId != _currentUser.TenantId)
-                    return Fail<bool>("Term not found", 404);
-
-                term.IsDeleted = true;
-                term.UpdatedAt = DateTime.UtcNow;
-                _termRepo.Update(term);
-                await _unitOfWork.SaveChangesAsync();
-                return Ok(true, "Term deleted");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "DeleteAcademicTerm error");
-                return Fail<bool>("Failed to delete term");
-            }
-        }
-
-        // ============================================================
-        // FINAL COMPLETE
-        // ============================================================
-        public async Task<ApiResponse<bool>> FinalCompleteAsync()
-        {
-            try
-            {
-                var tenant = await GetCurrentTenantAsync();
-                if (tenant == null)
-                    return Fail<bool>("Tenant not found", 404);
-
-                // Validate minimum requirements
-                if (!tenant.InstitutionTypeDefinitionId.HasValue)
-                    return Fail<bool>("Please select a valid institution type before completing setup");
-
-                var hasCampus = await _campusRepo.GetQueryable()
-                    .AnyAsync(c => c.TenantId == _currentUser.TenantId);
-
-                if (!hasCampus)
-                    return Fail<bool>("Please add at least one campus before completing setup");
-
-                var hasYear = await _yearRepo.GetQueryable()
-                    .AnyAsync(y => y.TenantId == _currentUser.TenantId);
-
-                if (!hasYear)
-                    return Fail<bool>("Please add at least one academic year before completing setup");
-
-                if (tenant.OnboardingStep != OnboardingStep.GatewaySetup)
-                    return Fail<bool>("Complete each onboarding step before finishing setup", 409);
-
-                var moduleValidation = await _tenantModuleService.ValidateCurrentTenantSelectionAsync();
-                if (!moduleValidation.Success)
-                {
-                    return Fail<bool>(
-                        moduleValidation.Message ?? "Please review the required modules",
-                        moduleValidation.StatusCode);
-                }
-
-                if (string.IsNullOrWhiteSpace(tenant.Subdomain))
-                    return Fail<bool>("Please set your institution subdomain before completing setup", 409);
-
-                tenant.IsOnboardingComplete = true;
-                tenant.OnboardingStep = OnboardingStep.Completed;
-                tenant.OnboardingCompletedAt = DateTime.UtcNow;
-                if (tenant.Status == TenantStatus.Onboarding)
-                    tenant.Status = TenantStatus.Active;
-
-                _tenantRepo.Update(tenant);
-                await _unitOfWork.SaveChangesAsync();
-
-                _logger.LogInformation("Onboarding complete for tenant {TenantId}", _currentUser.TenantId);
-                return Ok(true, "Onboarding complete! Welcome to EduOS.");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "FinalComplete error");
-                return Fail<bool>("Failed to complete onboarding");
-            }
-        }
-
-        // ============================================================
-        // PRIVATE HELPERS
-        // ============================================================
-        private async Task<Tenant?> GetCurrentTenantAsync()
-            => await _tenantRepo.GetByIdAsync(_currentUser.TenantId);
-
-        private static string GenerateTenantCode(string name)
-        {
-            var clean = new string(name.Where(char.IsLetterOrDigit).Take(6).ToArray()).ToUpperInvariant();
-            return $"{clean}-{DateTime.UtcNow:yyMMdd}";
-        }
-
-        private static ApiResponse<T> Ok<T>(T data, string message = "Success")
-            => ApiResponse<T>.SuccessResponse(data, message);
-
-        private static ApiResponse<T> Fail<T>(string message, int statusCode = 400)
-            => ApiResponse<T>.ErrorResponse(message, statusCode);
-
-        private static bool TryNormalizeCatalogCode(string? code, out string normalizedCode)
-        {
-            normalizedCode = code?.Trim().ToUpperInvariant() ?? string.Empty;
-            return normalizedCode.Length is > 0 and <= 50
-                   && normalizedCode.All(character =>
-                       char.IsAsciiLetterOrDigit(character) || character is '_' or '-');
+            _logger.LogError(ex, "Institution registration failed");
+            return Fail<InstitutionSignupResponseDto>("Registration could not be completed.", 500);
         }
     }
+
+    public async Task<bool> VerifyEmailAsync(string email, string token, string baseUrl)
+    {
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(token)) return false;
+        try
+        {
+            var user = await _users.FindByEmailAsync(email);
+            if (user?.TenantId is not long tenantId) return false;
+            var result = await _users.ConfirmEmailAsync(user, token);
+            if (!result.Succeeded) return false;
+            var tenant = await _tenants.GetQueryable().FirstOrDefaultAsync(x => x.Id == tenantId);
+            if (tenant == null || tenant.State is TenantState.Suspended or TenantState.Closed) return false;
+            tenant.IsEmailVerified = true;
+            tenant.EmailVerifiedAt ??= DateTime.UtcNow;
+            if (tenant.OnboardingStage == OnboardingStage.EmailVerification)
+                tenant.OnboardingStage = OnboardingStage.InstitutionProfile;
+            tenant.UpdatedAt = DateTime.UtcNow;
+            await _uow.SaveChangesAsync();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Email verification failed");
+            return false;
+        }
+    }
+
+    public async Task<ApiResponse<InstitutionProfileSetupDto?>> GetInstitutionProfileAsync()
+    {
+        if (!CanRead()) return Denied<InstitutionProfileSetupDto?>();
+        var tenant = await CurrentTenantAsync();
+        if (tenant == null) return Fail<InstitutionProfileSetupDto?>("Institution not found.", 404);
+        var settings = await ReadProfileAsync(tenant.Id);
+        var code = tenant.InstitutionTypeDefinitionId.HasValue
+            ? await _institutionTypes.GetQueryable().AsNoTracking().Where(x =>
+                x.Id == tenant.InstitutionTypeDefinitionId.Value).Select(x => x.Code).FirstOrDefaultAsync() : null;
+        return Ok<InstitutionProfileSetupDto?>(new InstitutionProfileSetupDto
+        {
+            InstitutionName = tenant.Name, InstitutionType = code,
+            OwnerName = Get(settings, "OwnerName") ?? string.Empty,
+            OwnerEmail = Get(settings, "OwnerEmail"), OwnerPhone = Get(settings, "OwnerPhone"),
+            OwnerDesignation = Get(settings, "OwnerDesignation"),
+            Phone = tenant.Phone, Email = tenant.Email, Address = tenant.Address,
+            Website = Get(settings, "Website"), City = Get(settings, "City"),
+            State = Get(settings, "State"), Country = Get(settings, "Country"),
+            PostalCode = Get(settings, "PostalCode")
+        });
+    }
+
+    public async Task<ApiResponse<bool>> SaveInstitutionProfileAsync(InstitutionProfileSetupDto dto)
+    {
+        if (!CanManage()) return Denied<bool>();
+        if (dto == null || string.IsNullOrWhiteSpace(dto.InstitutionName) || dto.InstitutionName.Trim().Length > 200 ||
+            string.IsNullOrWhiteSpace(dto.OwnerName) || dto.OwnerName.Trim().Length > 150 ||
+            string.IsNullOrWhiteSpace(dto.InstitutionType))
+            return Fail<bool>("Institution name, owner and type are required.");
+        var code = dto.InstitutionType.Trim().ToUpperInvariant();
+        var type = await _institutionTypes.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.Code == code && x.IsActive);
+        if (type == null) return Fail<bool>("Institution type is invalid.");
+        try
+        {
+            var tenant = await CurrentTenantAsync();
+            if (tenant == null) return Fail<bool>("Institution not found.", 404);
+            if (tenant.IsOnboardingComplete && tenant.InstitutionTypeDefinitionId != type.Id)
+                return Fail<bool>("Changing an established institution type requires a controlled migration.", 409);
+            tenant.Name = dto.InstitutionName.Trim();
+            tenant.InstitutionTypeDefinitionId = type.Id;
+            tenant.Phone = Trim(dto.Phone); tenant.Address = Trim(dto.Address);
+            tenant.UpdatedAt = DateTime.UtcNow; tenant.UpdatedBy = _user.UserId;
+            await UpsertAsync(tenant.Id, "Profile", new Dictionary<string, string?>
+            {
+                ["OwnerName"] = dto.OwnerName.Trim(), ["OwnerEmail"] = Trim(dto.OwnerEmail),
+                ["OwnerPhone"] = Trim(dto.OwnerPhone), ["OwnerDesignation"] = Trim(dto.OwnerDesignation),
+                ["Website"] = Trim(dto.Website), ["City"] = Trim(dto.City), ["State"] = Trim(dto.State),
+                ["Country"] = Trim(dto.Country), ["PostalCode"] = Trim(dto.PostalCode)
+            });
+            await ApplyPresetAsync(tenant.Id, type.Id);
+            await _uow.SaveChangesAsync();
+            return Ok(true, "Institution profile saved.");
+        }
+        catch (DbUpdateException) { return Fail<bool>("Profile changed concurrently.", 409); }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Institution profile save failed for tenant {TenantId}", _user.TenantId);
+            return Fail<bool>("Institution profile could not be saved.", 500);
+        }
+    }
+
+    public async Task<ApiResponse<List<CampusListItemDto>>> GetCampusListAsync()
+    {
+        if (!CanRead()) return Denied<List<CampusListItemDto>>();
+        var t = _user.TenantId;
+        var rows = await _campuses.GetQueryable().AsNoTracking().Where(x => x.TenantId == t && x.IsActive)
+            .OrderByDescending(x => x.IsHeadOffice).ThenBy(x => x.Name).Take(500).ToListAsync();
+        var ids = rows.Select(x => "Campus." + x.Id + ".HeadName").ToArray();
+        var headNames = await _settings.GetQueryable().AsNoTracking().Where(x => x.TenantId == t &&
+            ids.Contains(x.Key)).ToDictionaryAsync(x => x.Key, x => x.Value);
+        return Ok(rows.Select(x => new CampusListItemDto
+        {
+            Id = x.Id, Name = x.Name, Code = x.Code, Address = x.Address, Phone = x.Phone,
+            IsHeadOffice = x.IsHeadOffice, IsActive = x.IsActive,
+            HeadName = headNames.GetValueOrDefault("Campus." + x.Id + ".HeadName")
+        }).ToList());
+    }
+
+    public async Task<ApiResponse<CampusSetupDto?>> GetCampusByIdAsync(long id)
+    {
+        if (!CanRead()) return Denied<CampusSetupDto?>();
+        var row = await _campuses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == _user.TenantId && x.Id == id && x.IsActive);
+        if (row == null) return Fail<CampusSetupDto?>("Campus not found.", 404);
+        var headName = await _settings.GetQueryable().AsNoTracking().Where(x => x.TenantId == _user.TenantId &&
+            x.Key == "Campus." + row.Id + ".HeadName").Select(x => x.Value).FirstOrDefaultAsync();
+        return Ok<CampusSetupDto?>(new CampusSetupDto
+        {
+            Id = row.Id, Name = row.Name, Code = row.Code, Phone = row.Phone,
+            Email = row.Email, Address = row.Address, HeadName = headName, IsHeadOffice = row.IsHeadOffice
+        });
+    }
+
+    public async Task<ApiResponse<bool>> SaveCampusAsync(CampusSetupDto dto)
+    {
+        if (!CanManage()) return Denied<bool>();
+        if (dto == null || string.IsNullOrWhiteSpace(dto.Name) || dto.Name.Trim().Length > 150 ||
+            dto.HeadName?.Length > 150) return Fail<bool>("Campus name or head name is invalid.");
+        var t = _user.TenantId;
+        try
+        {
+            using var scope = SerializableScope();
+            var tenant = await CurrentTenantAsync();
+            if (tenant == null) return Fail<bool>("Institution not found.", 404);
+            var isNew = dto.Id is null or <= 0;
+            var existing = isNew ? null : await _campuses.GetQueryable().FirstOrDefaultAsync(x =>
+                x.TenantId == t && x.Id == dto.Id && x.IsActive);
+            if (!isNew && existing == null) return Fail<bool>("Campus not found.", 404);
+            var currentCount = await _campuses.GetQueryable().AsNoTracking().CountAsync(x => x.TenantId == t && x.IsActive);
+            if (isNew)
+            {
+                var now = DateTime.UtcNow;
+                var sub = await _subscriptions.GetQueryable().AsNoTracking().Where(x => x.TenantId == t &&
+                    x.StartsAt <= now && x.EndsAt > now &&
+                    (x.State == SubscriptionState.Active || x.State == SubscriptionState.Trial ||
+                     x.State == SubscriptionState.Grace)).OrderByDescending(x => x.StartsAt)
+                    .Select(x => (long?)x.SubscriptionPlanId).FirstOrDefaultAsync();
+                var max = sub.HasValue ? await _plans.GetQueryable().AsNoTracking()
+                    .Where(x => x.Id == sub.Value).Select(x => x.MaxCampuses).FirstOrDefaultAsync() : 1;
+                if (max > 0 && currentCount >= max) return Fail<bool>("Subscription campus limit reached.", 409);
+            }
+            var code = string.IsNullOrWhiteSpace(dto.Code)
+                ? existing?.Code ?? ("C-" + Guid.NewGuid().ToString("N")[..12].ToUpperInvariant())
+                : dto.Code.Trim().ToUpperInvariant();
+            if (code.Length > 50 || await _campuses.GetQueryable().AnyAsync(x =>
+                x.TenantId == t && x.Code == code && x.Id != (dto.Id ?? 0)))
+                return Fail<bool>("Campus code is invalid or already registered.", 409);
+            var row = existing ?? new Campus
+            {
+                TenantId = t, PublicId = Guid.NewGuid(), CreatedAt = DateTime.UtcNow, CreatedBy = _user.UserId
+            };
+            row.Name = dto.Name.Trim(); row.Code = code; row.Phone = Trim(dto.Phone);
+            row.Email = Trim(dto.Email); row.Address = Trim(dto.Address);
+            row.IsHeadOffice = dto.IsHeadOffice || isNew && currentCount == 0;
+            row.IsActive = true; row.UpdatedAt = DateTime.UtcNow; row.UpdatedBy = _user.UserId;
+            if (row.IsHeadOffice)
+            {
+                var previous = await _campuses.GetQueryable().Where(x => x.TenantId == t &&
+                    x.Id != (dto.Id ?? 0) && x.IsHeadOffice).ToListAsync();
+                foreach (var x in previous) { x.IsHeadOffice = false; x.UpdatedAt = DateTime.UtcNow; x.UpdatedBy = _user.UserId; }
+            }
+            if (existing == null) await _campuses.AddAsync(row);
+            await _uow.SaveChangesAsync();
+            await UpsertAsync(t, "Campus", new Dictionary<string, string?>
+            { [row.Id + ".HeadName"] = Trim(dto.HeadName) });
+            await _uow.SaveChangesAsync();
+            scope.Complete();
+            return Ok(true, "Campus saved.");
+        }
+        catch (DbUpdateException) { return Fail<bool>("Campus change conflicts with another update.", 409); }
+        catch (TransactionAbortedException) { return Fail<bool>("Concurrent campus configuration conflict.", 409); }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Campus save failed for tenant {TenantId}", t);
+            return Fail<bool>("Campus could not be saved.", 500);
+        }
+    }
+
+    public async Task<ApiResponse<bool>> DeleteCampusAsync(long id)
+    {
+        if (!CanManage()) return Denied<bool>();
+        var t = _user.TenantId;
+        try
+        {
+            using var scope = SerializableScope();
+            var row = await _campuses.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == t && x.Id == id && x.IsActive);
+            if (row == null) return Fail<bool>("Campus not found.", 404);
+            if (await _years.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == t && x.CampusId == id) ||
+                await _batches.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == t && x.CampusId == id) ||
+                await _forms.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == t && x.CampusId == id))
+                return Fail<bool>("Campus has academic or admission records and cannot be removed.", 409);
+            row.IsActive = false; row.IsDeleted = true;
+            row.UpdatedAt = DateTime.UtcNow; row.UpdatedBy = _user.UserId;
+            if (row.IsHeadOffice)
+            {
+                var replacement = await _campuses.GetQueryable().Where(x => x.TenantId == t &&
+                    x.Id != id && x.IsActive).OrderBy(x => x.Id).FirstOrDefaultAsync();
+                if (replacement != null) replacement.IsHeadOffice = true;
+            }
+            await _uow.SaveChangesAsync();
+            scope.Complete();
+            return Ok(true, "Campus archived.");
+        }
+        catch (DbUpdateException) { return Fail<bool>("Campus is referenced by other records.", 409); }
+    }
+
+    public async Task<ApiResponse<List<AcademicYearListItemDto>>> GetAcademicYearListAsync()
+    {
+        if (!CanRead()) return Denied<List<AcademicYearListItemDto>>();
+        var rows = await _years.GetQueryable().AsNoTracking().Where(x => x.TenantId == _user.TenantId && x.IsActive)
+            .OrderByDescending(x => x.StartDate).Take(200).ToListAsync();
+        return Ok(rows.Select(x => new AcademicYearListItemDto
+        {
+            Id = x.Id, Name = x.Name, IsCurrent = x.IsCurrent,
+            StartDate = x.StartDate.ToDateTime(TimeOnly.MinValue),
+            EndDate = x.EndDate.ToDateTime(TimeOnly.MinValue)
+        }).ToList());
+    }
+
+    public async Task<ApiResponse<AcademicYearSetupDto?>> GetAcademicYearByIdAsync(long id)
+    {
+        if (!CanRead()) return Denied<AcademicYearSetupDto?>();
+        var row = await _years.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == _user.TenantId && x.Id == id && x.IsActive);
+        return row == null ? Fail<AcademicYearSetupDto?>("Academic year not found.", 404) :
+            Ok<AcademicYearSetupDto?>(new AcademicYearSetupDto
+            {
+                Id = row.Id, Name = row.Name, IsCurrent = row.IsCurrent,
+                StartDate = row.StartDate.ToDateTime(TimeOnly.MinValue),
+                EndDate = row.EndDate.ToDateTime(TimeOnly.MinValue)
+            });
+    }
+
+    public async Task<ApiResponse<bool>> SaveAcademicYearAsync(AcademicYearSetupDto dto)
+    {
+        if (!CanManage()) return Denied<bool>();
+        if (dto == null || string.IsNullOrWhiteSpace(dto.Name) || dto.Name.Trim().Length > 100 ||
+            dto.StartDate.Date >= dto.EndDate.Date)
+            return Fail<bool>("Academic year dates or name are invalid.");
+        var t = _user.TenantId;
+        try
+        {
+            using var scope = SerializableScope();
+            var start = DateOnly.FromDateTime(dto.StartDate.Date);
+            var end = DateOnly.FromDateTime(dto.EndDate.Date);
+            var existing = dto.Id is > 0 ? await _years.GetQueryable().FirstOrDefaultAsync(x =>
+                x.TenantId == t && x.Id == dto.Id.Value && x.IsActive) : null;
+            if (dto.Id is > 0 && existing == null) return Fail<bool>("Academic year not found.", 404);
+            var name = dto.Name.Trim();
+            if (await _years.GetQueryable().AnyAsync(x => x.TenantId == t && x.Name == name && x.Id != (dto.Id ?? 0)))
+                return Fail<bool>("Academic year name is already in use.", 409);
+            if (existing != null && await _terms.GetQueryable().AsNoTracking().AnyAsync(x =>
+                x.TenantId == t && x.AcademicYearId == existing.Id &&
+                (x.StartDate < start || x.EndDate > end)))
+                return Fail<bool>("Existing terms must remain within the academic year.", 409);
+            if (dto.IsCurrent)
+            {
+                var others = await _years.GetQueryable().Where(x => x.TenantId == t && x.IsCurrent &&
+                    x.Id != (dto.Id ?? 0)).ToListAsync();
+                foreach (var x in others) x.IsCurrent = false;
+            }
+            var row = existing ?? new AcademicYear
+            {
+                TenantId = t, Code = "AY-" + Guid.NewGuid().ToString("N")[..12].ToUpperInvariant(),
+                CreatedAt = DateTime.UtcNow, CreatedBy = _user.UserId
+            };
+            row.Name = name; row.StartDate = start; row.EndDate = end;
+            row.IsCurrent = dto.IsCurrent; row.IsActive = true;
+            row.UpdatedAt = DateTime.UtcNow; row.UpdatedBy = _user.UserId;
+            if (existing == null) await _years.AddAsync(row);
+            await _uow.SaveChangesAsync();
+            scope.Complete();
+            return Ok(true, "Academic year saved.");
+        }
+        catch (DbUpdateException) { return Fail<bool>("Academic year conflicts with another record.", 409); }
+        catch (TransactionAbortedException) { return Fail<bool>("Concurrent academic year update detected.", 409); }
+    }
+
+    public async Task<ApiResponse<bool>> DeleteAcademicYearAsync(long id)
+    {
+        if (!CanManage()) return Denied<bool>();
+        var t = _user.TenantId;
+        var row = await _years.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == t && x.Id == id && x.IsActive);
+        if (row == null) return Fail<bool>("Academic year not found.", 404);
+        if (await _terms.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == t && x.AcademicYearId == id) ||
+            await _batches.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == t && x.AcademicYearId == id) ||
+            await _forms.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == t && x.AcademicYearId == id))
+            return Fail<bool>("Academic year has dependent records and cannot be removed.", 409);
+        row.IsActive = false; row.IsDeleted = true;
+        row.UpdatedAt = DateTime.UtcNow; row.UpdatedBy = _user.UserId;
+        await _uow.SaveChangesAsync();
+        return Ok(true, "Academic year archived.");
+    }
+
+    public async Task<ApiResponse<List<AcademicTermListItemDto>>> GetAcademicTermListAsync()
+    {
+        if (!CanRead()) return Denied<List<AcademicTermListItemDto>>();
+        var t = _user.TenantId;
+        var rows = await (from term in _terms.GetQueryable().AsNoTracking()
+            join year in _years.GetQueryable().AsNoTracking() on term.AcademicYearId equals year.Id
+            where term.TenantId == t && year.TenantId == t && term.IsActive
+            orderby year.StartDate descending, term.StartDate
+            select new { term, year.Name }).Take(300).ToListAsync();
+        return Ok(rows.Select(x => new AcademicTermListItemDto
+        {
+            Id = x.term.Id, AcademicYearId = x.term.AcademicYearId,
+            AcademicYearName = x.Name, Name = x.term.Name,
+            StartDate = x.term.StartDate.ToDateTime(TimeOnly.MinValue),
+            EndDate = x.term.EndDate.ToDateTime(TimeOnly.MinValue)
+        }).ToList());
+    }
+
+    public async Task<ApiResponse<AcademicTermSetupDto?>> GetAcademicTermByIdAsync(long id)
+    {
+        if (!CanRead()) return Denied<AcademicTermSetupDto?>();
+        var row = await _terms.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == _user.TenantId && x.Id == id && x.IsActive);
+        return row == null ? Fail<AcademicTermSetupDto?>("Academic term not found.", 404) :
+            Ok<AcademicTermSetupDto?>(new AcademicTermSetupDto
+            {
+                Id = row.Id, Name = row.Name, AcademicYearId = row.AcademicYearId,
+                StartDate = row.StartDate.ToDateTime(TimeOnly.MinValue),
+                EndDate = row.EndDate.ToDateTime(TimeOnly.MinValue)
+            });
+    }
+
+    public async Task<ApiResponse<bool>> SaveAcademicTermAsync(AcademicTermSetupDto dto)
+    {
+        if (!CanManage()) return Denied<bool>();
+        if (dto == null || dto.AcademicYearId <= 0 || string.IsNullOrWhiteSpace(dto.Name) ||
+            dto.Name.Trim().Length > 100 || !dto.StartDate.HasValue || !dto.EndDate.HasValue ||
+            dto.StartDate.Value.Date >= dto.EndDate.Value.Date)
+            return Fail<bool>("Academic term requires a year, name and a valid date range.");
+        var t = _user.TenantId;
+        try
+        {
+            var start = DateOnly.FromDateTime(dto.StartDate.Value.Date);
+            var end = DateOnly.FromDateTime(dto.EndDate.Value.Date);
+            var year = await _years.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == t && x.Id == dto.AcademicYearId && x.IsActive);
+            if (year == null) return Fail<bool>("Academic year not found.", 404);
+            if (start < year.StartDate || end > year.EndDate)
+                return Fail<bool>("Term dates must fit within the year.", 409);
+            var name = dto.Name.Trim();
+            if (await _terms.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == t &&
+                x.AcademicYearId == dto.AcademicYearId && x.Name == name && x.Id != (dto.Id ?? 0)))
+                return Fail<bool>("Term name already exists in this year.", 409);
+            var row = dto.Id is > 0 ? await _terms.GetQueryable().FirstOrDefaultAsync(x =>
+                x.TenantId == t && x.Id == dto.Id.Value && x.IsActive) : null;
+            if (dto.Id is > 0 && row == null) return Fail<bool>("Term not found.", 404);
+            row ??= new AcademicTerm { TenantId = t, CreatedAt = DateTime.UtcNow, CreatedBy = _user.UserId };
+            row.Name = name; row.AcademicYearId = dto.AcademicYearId;
+            row.StartDate = start; row.EndDate = end; row.IsActive = true;
+            row.UpdatedAt = DateTime.UtcNow; row.UpdatedBy = _user.UserId;
+            if (dto.Id is not > 0) await _terms.AddAsync(row);
+            await _uow.SaveChangesAsync();
+            return Ok(true, "Academic term saved.");
+        }
+        catch (DbUpdateException) { return Fail<bool>("Term conflicts with existing records.", 409); }
+    }
+
+    public async Task<ApiResponse<bool>> DeleteAcademicTermAsync(long id)
+    {
+        if (!CanManage()) return Denied<bool>();
+        var t = _user.TenantId;
+        var row = await _terms.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == t && x.Id == id && x.IsActive);
+        if (row == null) return Fail<bool>("Academic term not found.", 404);
+        if (await _batches.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == t && x.AcademicTermId == id) ||
+            await _forms.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == t && x.AcademicTermId == id))
+            return Fail<bool>("Academic term is referenced and cannot be removed.", 409);
+        row.IsActive = false; row.IsDeleted = true;
+        row.UpdatedAt = DateTime.UtcNow; row.UpdatedBy = _user.UserId;
+        await _uow.SaveChangesAsync();
+        return Ok(true, "Academic term archived.");
+    }
+
+    public async Task<ApiResponse<bool>> FinalCompleteAsync()
+    {
+        if (!CanManage()) return Denied<bool>();
+        var t = _user.TenantId;
+        var tenant = await CurrentTenantAsync();
+        if (tenant == null) return Fail<bool>("Institution not found.", 404);
+        if (tenant.IsOnboardingComplete) return Ok(true, "Onboarding already completed.");
+        if (!tenant.IsEmailVerified || !tenant.InstitutionTypeDefinitionId.HasValue)
+            return Fail<bool>("Verify email and complete the institution profile first.", 409);
+        if (tenant.OnboardingStage != OnboardingStage.GatewaySetup)
+            return Fail<bool>("Complete all onboarding steps before finishing.", 409);
+        if (string.IsNullOrWhiteSpace(tenant.Subdomain))
+            return Fail<bool>("Configure the institution subdomain.", 409);
+        if (!await _campuses.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == t && x.IsActive && x.IsHeadOffice) ||
+            !await _years.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == t && x.IsActive))
+            return Fail<bool>("At least one head campus and academic year are required.", 409);
+        var now = DateTime.UtcNow;
+        if (!await _subscriptions.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == t &&
+            x.StartsAt <= now && x.EndsAt > now &&
+            (x.State == SubscriptionState.Active || x.State == SubscriptionState.Trial ||
+            x.State == SubscriptionState.Grace)))
+            return Fail<bool>("Select an active subscription plan first.", 409);
+        var modules = await _tenantModuleService.ValidateCurrentTenantSelectionAsync();
+        if (!modules.Success) return Fail<bool>(modules.Message, modules.StatusCode);
+        tenant.State = TenantState.Active;
+        tenant.IsOnboardingComplete = true;
+        tenant.OnboardingStage = OnboardingStage.Completed;
+        tenant.OnboardingCompletedAt = now; tenant.UpdatedAt = now; tenant.UpdatedBy = _user.UserId;
+        try
+        {
+            await _uow.SaveChangesAsync();
+            return Ok(true, "Institution onboarding completed.");
+        }
+        catch (DbUpdateConcurrencyException) { return Fail<bool>("Institution configuration changed. Reload and retry.", 409); }
+    }
+
+    private async Task<Tenant?> CurrentTenantAsync() =>
+        await _tenants.GetQueryable().FirstOrDefaultAsync(x => x.Id == _user.TenantId && x.IsActive);
+    private async Task<Dictionary<string, string>> ReadProfileAsync(long tenantId)
+    {
+        var data = await _settings.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenantId &&
+            x.Category == "Profile").ToListAsync();
+        return data.ToDictionary(x => x.Key, x => x.Value);
+    }
+    private async Task UpsertAsync(long tenantId, string category, IReadOnlyDictionary<string, string?> entries)
+    {
+        var keys = entries.Keys.Select(x => category + "." + x).ToArray();
+        var rows = await _settings.GetQueryable().Where(x => x.TenantId == tenantId &&
+            keys.Contains(x.Key)).ToDictionaryAsync(x => x.Key);
+        var now = DateTime.UtcNow;
+        foreach (var entry in entries)
+        {
+            var key = category + "." + entry.Key;
+            var value = entry.Value ?? string.Empty;
+            if (rows.TryGetValue(key, out var row))
+            {
+                row.Value = value; row.UpdatedAt = now; row.UpdatedBy = _user.IsAuthenticated ? _user.UserId : null;
+            }
+            else await _settings.AddAsync(new TenantSetting
+            {
+                TenantId = tenantId, Key = key, Value = value, Category = category,
+                CreatedAt = now, CreatedBy = _user.IsAuthenticated ? _user.UserId : null
+            });
+        }
+    }
+    private async Task ApplyPresetAsync(long tenantId, long typeId)
+    {
+        var configured = await _presets.GetQueryable().AsNoTracking().Where(x =>
+            x.InstitutionTypeDefinitionId == typeId && (x.IsRequired || x.IsDefaultEnabled)).ToListAsync();
+        var existing = await _modules.GetQueryable().Where(x => x.TenantId == tenantId).ToListAsync();
+        var byModule = existing.ToDictionary(x => x.ProductModuleId);
+        var now = DateTime.UtcNow;
+        foreach (var preset in configured)
+        {
+            if (byModule.TryGetValue(preset.ProductModuleId, out var selected))
+            {
+                if (preset.IsRequired && !selected.IsEnabled)
+                { selected.IsEnabled = true; selected.EnabledAt = now; selected.DisabledAt = null; }
+            }
+            else await _modules.AddAsync(new TenantModule
+            {
+                TenantId = tenantId, ProductModuleId = preset.ProductModuleId,
+                IsEnabled = true, EnabledAt = now, CreatedAt = now
+            });
+        }
+    }
+    private string TrustedOrigin()
+    {
+        var host = (_baseDomain ?? string.Empty).Trim().Trim('.').ToLowerInvariant();
+        if (host.Length < 4 || host.Any(x => !(char.IsAsciiLetterOrDigit(x) || x is '.' or '-')))
+            throw new InvalidOperationException("Tenant portal domain is not configured safely.");
+        return "https://app." + host;
+    }
+    private async Task SafeRollbackAsync()
+    {
+        try { await _uow.RollbackTransactionAsync(); }
+        catch (Exception ex) { _logger.LogDebug(ex, "Transaction cleanup was already completed."); }
+    }
+    private static TransactionScope SerializableScope() =>
+        new(TransactionScopeOption.Required, new TransactionOptions
+        { IsolationLevel = IsolationLevel.Serializable }, TransactionScopeAsyncFlowOption.Enabled);
+    private bool CanRead() => _user.IsAuthenticated && _user.TenantId > 0;
+    private bool CanManage() => CanRead() && _user.IsTenantAdmin;
+    private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    private static string? Get(IReadOnlyDictionary<string, string> values, string field) =>
+        values.GetValueOrDefault("Profile." + field) is string value && value.Length > 0 ? value : null;
+    private static ApiResponse<T> Ok<T>(T data, string message = "Success") =>
+        ApiResponse<T>.SuccessResponse(data, message);
+    private static ApiResponse<T> Fail<T>(string message, int code = 400) =>
+        ApiResponse<T>.ErrorResponse(message, code);
+    private static ApiResponse<T> Denied<T>() => Fail<T>("Tenant administrator access is required.", 403);
 }
