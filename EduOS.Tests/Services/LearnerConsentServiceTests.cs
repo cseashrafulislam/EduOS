@@ -32,7 +32,7 @@ public class LearnerConsentServiceTests
 
         var pending = await service.GetPendingAsync();
         var result = await service.ResolveAsync(scenario.RequestReference,
-            new ResolveLearnerConsentRequestDto { Decision = LearnerConsentDecision.Approve });
+            new ResolveLearnerIdentityConsentRequestDto { Decision = LearnerConsentDecision.Approve });
 
         pending.Success.Should().BeTrue();
         pending.Data.Should().ContainSingle();
@@ -69,7 +69,7 @@ public class LearnerConsentServiceTests
         var service = CreateService(context, new TestCurrentUser(101, 88, "Parent"));
 
         var result = await service.ResolveAsync(scenario.RequestReference,
-            new ResolveLearnerConsentRequestDto { Decision = LearnerConsentDecision.Approve });
+            new ResolveLearnerIdentityConsentRequestDto { Decision = LearnerConsentDecision.Approve });
 
         result.Success.Should().BeFalse();
         result.StatusCode.Should().Be(404);
@@ -86,7 +86,7 @@ public class LearnerConsentServiceTests
         var scenario = await SeedScenarioAsync(options);
         await using var context = CreateContext(options, 101, 77, "Parent");
         var service = CreateService(context, new TestCurrentUser(101, 77, "Parent"));
-        var decision = new ResolveLearnerConsentRequestDto { Decision = LearnerConsentDecision.Deny };
+        var decision = new ResolveLearnerIdentityConsentRequestDto { Decision = LearnerConsentDecision.Deny };
 
         var first = await service.ResolveAsync(scenario.RequestReference, decision);
         var second = await service.ResolveAsync(scenario.RequestReference, decision);
@@ -110,7 +110,7 @@ public class LearnerConsentServiceTests
         var service = CreateService(context, new TestCurrentUser(101, 77, "Parent"));
 
         var result = await service.ResolveAsync(scenario.RequestReference,
-            new ResolveLearnerConsentRequestDto { Decision = LearnerConsentDecision.Approve });
+            new ResolveLearnerIdentityConsentRequestDto { Decision = LearnerConsentDecision.Approve });
 
         result.Success.Should().BeFalse();
         result.StatusCode.Should().Be(410);
@@ -129,7 +129,7 @@ public class LearnerConsentServiceTests
         await using var context = CreateContext(options, 101, 77, "Parent");
         var service = CreateService(context, new TestCurrentUser(101, 77, "Parent"));
         var approval = await service.ResolveAsync(scenario.RequestReference,
-            new ResolveLearnerConsentRequestDto { Decision = LearnerConsentDecision.Approve });
+            new ResolveLearnerIdentityConsentRequestDto { Decision = LearnerConsentDecision.Approve });
         var grantReference = approval.Data!.GrantReference!.Value;
 
         var active = await service.GetActiveGrantsAsync();
@@ -157,7 +157,7 @@ public class LearnerConsentServiceTests
         var studentService = CreateService(studentContext, new TestCurrentUser(101, 66, "Student"));
 
         var approved = await studentService.ResolveAsync(scenario.RequestReference,
-            new ResolveLearnerConsentRequestDto { Decision = LearnerConsentDecision.Approve });
+            new ResolveLearnerIdentityConsentRequestDto { Decision = LearnerConsentDecision.Approve });
 
         approved.Success.Should().BeTrue();
 
@@ -166,7 +166,7 @@ public class LearnerConsentServiceTests
         await using var teacherContext = CreateContext(secondOptions, 101, 77, "Teacher");
         var teacherService = CreateService(teacherContext, new TestCurrentUser(101, 77, "Teacher"));
         var denied = await teacherService.ResolveAsync(secondScenario.RequestReference,
-            new ResolveLearnerConsentRequestDto { Decision = LearnerConsentDecision.Approve });
+            new ResolveLearnerIdentityConsentRequestDto { Decision = LearnerConsentDecision.Approve });
 
         denied.StatusCode.Should().Be(403);
         (await teacherContext.LearnerDataGrants.IgnoreQueryFilters().CountAsync()).Should().Be(0);

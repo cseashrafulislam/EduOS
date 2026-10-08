@@ -5,15 +5,15 @@ namespace EduOS.Core.Interfaces.IServices;
 
 public interface ILearnerConsentService
 {
-    Task<ApiResponse<IReadOnlyList<LearnerConsentRequestDto>>> GetPendingAsync(
+    Task<ApiResponse<IReadOnlyList<LearnerIdentityConsentSummaryDto>>> GetPendingAsync(
         CancellationToken cancellationToken = default);
 
-    Task<ApiResponse<IReadOnlyList<LearnerDataGrantDto>>> GetActiveGrantsAsync(
+    Task<ApiResponse<IReadOnlyList<LearnerIdentityGrantSummaryDto>>> GetActiveGrantsAsync(
         CancellationToken cancellationToken = default);
 
     Task<ApiResponse<LearnerConsentResolutionDto>> ResolveAsync(
         Guid requestReference,
-        ResolveLearnerConsentRequestDto request,
+        ResolveLearnerIdentityConsentRequestDto request,
         CancellationToken cancellationToken = default);
 
     Task<ApiResponse<LearnerConsentResolutionDto>> RevokeAsync(

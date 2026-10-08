@@ -38,7 +38,7 @@ public sealed class LearnerConsentsController : ControllerBase
     [HttpPost("{requestReference:guid}/decision")]
     public async Task<IActionResult> Resolve(
         Guid requestReference,
-        [FromBody] ResolveLearnerConsentRequestDto request,
+        [FromBody] ResolveLearnerIdentityConsentRequestDto request,
         CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid)

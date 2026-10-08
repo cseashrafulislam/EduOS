@@ -33,10 +33,10 @@ public sealed class LearnerConsentService : ILearnerConsentService
         _logger = logger;
     }
 
-    public async Task<ApiResponse<IReadOnlyList<LearnerConsentRequestDto>>> GetPendingAsync(
+    public async Task<ApiResponse<IReadOnlyList<LearnerIdentityConsentSummaryDto>>> GetPendingAsync(
         CancellationToken cancellationToken = default)
     {
-        if (!CanReview()) return Denied<IReadOnlyList<LearnerConsentRequestDto>>();
+        if (!CanReview()) return Denied<IReadOnlyList<LearnerIdentityConsentSummaryDto>>();
 
         try
         {
@@ -44,7 +44,7 @@ public sealed class LearnerConsentService : ILearnerConsentService
                 _currentUser.UserId,
                 UtcNow(),
                 cancellationToken);
-            IReadOnlyList<LearnerConsentRequestDto> data = records.Select(x => new LearnerConsentRequestDto
+            IReadOnlyList<LearnerIdentityConsentSummaryDto> data = records.Select(x => new LearnerIdentityConsentSummaryDto
             {
                 Reference = x.Reference,
                 RequestingInstitution = x.RequestingInstitution,
@@ -52,20 +52,20 @@ public sealed class LearnerConsentService : ILearnerConsentService
                 RequestedScopes = x.RequestedScopes,
                 ExpiresAt = x.ExpiresAt
             }).ToList();
-            return ApiResponse<IReadOnlyList<LearnerConsentRequestDto>>.SuccessResponse(data);
+            return ApiResponse<IReadOnlyList<LearnerIdentityConsentSummaryDto>>.SuccessResponse(data);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to load learner consent requests for user {UserId}", _currentUser.UserId);
-            return ApiResponse<IReadOnlyList<LearnerConsentRequestDto>>.ErrorResponse(
+            return ApiResponse<IReadOnlyList<LearnerIdentityConsentSummaryDto>>.ErrorResponse(
                 "Consent requests could not be loaded.", 500);
         }
     }
 
-    public async Task<ApiResponse<IReadOnlyList<LearnerDataGrantDto>>> GetActiveGrantsAsync(
+    public async Task<ApiResponse<IReadOnlyList<LearnerIdentityGrantSummaryDto>>> GetActiveGrantsAsync(
         CancellationToken cancellationToken = default)
     {
-        if (!CanReview()) return Denied<IReadOnlyList<LearnerDataGrantDto>>();
+        if (!CanReview()) return Denied<IReadOnlyList<LearnerIdentityGrantSummaryDto>>();
 
         try
         {
@@ -73,7 +73,7 @@ public sealed class LearnerConsentService : ILearnerConsentService
                 _currentUser.UserId,
                 UtcNow(),
                 cancellationToken);
-            IReadOnlyList<LearnerDataGrantDto> data = records.Select(x => new LearnerDataGrantDto
+            IReadOnlyList<LearnerIdentityGrantSummaryDto> data = records.Select(x => new LearnerIdentityGrantSummaryDto
             {
                 Reference = x.Reference,
                 Institution = x.Institution,
@@ -82,19 +82,19 @@ public sealed class LearnerConsentService : ILearnerConsentService
                 StartsAt = x.StartsAt,
                 ExpiresAt = x.ExpiresAt
             }).ToList();
-            return ApiResponse<IReadOnlyList<LearnerDataGrantDto>>.SuccessResponse(data);
+            return ApiResponse<IReadOnlyList<LearnerIdentityGrantSummaryDto>>.SuccessResponse(data);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to load learner data grants for user {UserId}", _currentUser.UserId);
-            return ApiResponse<IReadOnlyList<LearnerDataGrantDto>>.ErrorResponse(
+            return ApiResponse<IReadOnlyList<LearnerIdentityGrantSummaryDto>>.ErrorResponse(
                 "Data grants could not be loaded.", 500);
         }
     }
 
     public async Task<ApiResponse<LearnerConsentResolutionDto>> ResolveAsync(
         Guid requestReference,
-        ResolveLearnerConsentRequestDto request,
+        ResolveLearnerIdentityConsentRequestDto request,
         CancellationToken cancellationToken = default)
     {
         if (!CanReview()) return Denied<LearnerConsentResolutionDto>();
