@@ -6,14 +6,15 @@ namespace EduOS.Tests;
 public sealed class HostelIdContractTests
 {
     [Theory]
-    [InlineData(typeof(HostelStudent), nameof(HostelStudent.Id), typeof(long))]
-    [InlineData(typeof(HostelStudent), nameof(HostelStudent.TenantId), typeof(long))]
-    [InlineData(typeof(HostelStudent), nameof(HostelStudent.StudentId), typeof(long))]
-    [InlineData(typeof(HostelStudent), nameof(HostelStudent.HostelRoomId), typeof(long))]
-    public void Hostel_student_identifiers_remain_long(Type type, string propertyName, Type expectedType)
+    [InlineData(typeof(StudentHostelAllocation), nameof(StudentHostelAllocation.Id), typeof(long))]
+    [InlineData(typeof(StudentHostelAllocation), nameof(StudentHostelAllocation.TenantId), typeof(long))]
+    [InlineData(typeof(StudentHostelAllocation), nameof(StudentHostelAllocation.StudentId), typeof(long))]
+    [InlineData(typeof(StudentHostelAllocation), nameof(StudentHostelAllocation.StudentEnrollmentId), typeof(long))]
+    [InlineData(typeof(StudentHostelAllocation), nameof(StudentHostelAllocation.HostelBedId), typeof(long))]
+    [InlineData(typeof(HostelBed), nameof(HostelBed.HostelRoomId), typeof(long))]
+    public void Hostel_allocation_identifiers_remain_long(Type type, string propertyName, Type expectedType)
     {
         var property = type.GetProperty(propertyName);
-
         Assert.NotNull(property);
         Assert.Equal(expectedType, property!.PropertyType);
     }
