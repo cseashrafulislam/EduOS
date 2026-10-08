@@ -1,8 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.SaaS;
 using EduOS.Core.Entities.SaaS;
-using EduOS.Core.Entities.SaaS;
-using EduOS.Core.Enums;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
@@ -11,462 +10,261 @@ using Microsoft.Extensions.Logging;
 
 namespace EduOS.Service.Services.SaaS;
 
-public class TenantModuleService : ITenantModuleService
+public sealed class TenantModuleService : ITenantModuleService
 {
-    private readonly IGenericRepository<Tenant> _tenantRepository;
-    private readonly IGenericRepository<ProductModule> _moduleRepository;
-    private readonly IGenericRepository<InstitutionTypeModule> _presetModuleRepository;
-    private readonly IGenericRepository<TenantModule> _tenantModuleRepository;
-    private readonly IGenericRepository<ProductModuleFeature> _moduleFeatureRepository;
-    private readonly IGenericRepository<PlanFeature> _planFeatureRepository;
-    private readonly IGenericRepository<TenantSubscription> _subscriptionRepository;
+    private readonly IGenericRepository<Tenant> _tenants;
+    private readonly IGenericRepository<ProductModule> _modules;
+    private readonly IGenericRepository<InstitutionTypeModule> _presets;
+    private readonly IGenericRepository<TenantModule> _selections;
+    private readonly IGenericRepository<ProductModuleFeature> _moduleFeatures;
+    private readonly IGenericRepository<PlanFeature> _planFeatures;
+    private readonly IGenericRepository<TenantSubscription> _subscriptions;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUser;
     private readonly ILogger<TenantModuleService> _logger;
 
-    public TenantModuleService(
-        IGenericRepository<Tenant> tenantRepository,
-        IGenericRepository<ProductModule> moduleRepository,
-        IGenericRepository<InstitutionTypeModule> presetModuleRepository,
-        IGenericRepository<TenantModule> tenantModuleRepository,
-        IGenericRepository<ProductModuleFeature> moduleFeatureRepository,
-        IGenericRepository<PlanFeature> planFeatureRepository,
-        IGenericRepository<TenantSubscription> subscriptionRepository,
-        IUnitOfWork unitOfWork,
-        ICurrentUserService currentUser,
-        ILogger<TenantModuleService> logger)
+    public TenantModuleService(IGenericRepository<Tenant> tenants, IGenericRepository<ProductModule> modules,
+        IGenericRepository<InstitutionTypeModule> presets, IGenericRepository<TenantModule> selections,
+        IGenericRepository<ProductModuleFeature> moduleFeatures, IGenericRepository<PlanFeature> planFeatures,
+        IGenericRepository<TenantSubscription> subscriptions, IUnitOfWork unitOfWork,
+        ICurrentUserService currentUser, ILogger<TenantModuleService> logger)
     {
-        _tenantRepository = tenantRepository;
-        _moduleRepository = moduleRepository;
-        _presetModuleRepository = presetModuleRepository;
-        _tenantModuleRepository = tenantModuleRepository;
-        _moduleFeatureRepository = moduleFeatureRepository;
-        _planFeatureRepository = planFeatureRepository;
-        _subscriptionRepository = subscriptionRepository;
-        _unitOfWork = unitOfWork;
-        _currentUser = currentUser;
-        _logger = logger;
+        _tenants = tenants; _modules = modules; _presets = presets; _selections = selections;
+        _moduleFeatures = moduleFeatures; _planFeatures = planFeatures;
+        _subscriptions = subscriptions; _unitOfWork = unitOfWork;
+        _currentUser = currentUser; _logger = logger;
     }
 
     public async Task<ApiResponse<List<TenantModuleDto>>> GetCurrentTenantModulesAsync()
     {
-        if (_currentUser.TenantId <= 0)
-            return ApiResponse<List<TenantModuleDto>>.ErrorResponse("Tenant context is required", 403);
-
-        try
-        {
-            var items = await BuildModuleStateAsync(_currentUser.TenantId);
-            return ApiResponse<List<TenantModuleDto>>.SuccessResponse(items);
-        }
+        if (!CanRead()) return ApiResponse<List<TenantModuleDto>>.ErrorResponse("Tenant context is required.", 403);
+        try { return ApiResponse<List<TenantModuleDto>>.SuccessResponse(await BuildStateAsync(_currentUser.TenantId)); }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to evaluate modules for tenant {TenantId}", _currentUser.TenantId);
-            return ApiResponse<List<TenantModuleDto>>.ErrorResponse("Failed to load tenant modules", 500);
+            _logger.LogError(ex, "Module selection read failed for tenant {TenantId}", _currentUser.TenantId);
+            return ApiResponse<List<TenantModuleDto>>.ErrorResponse("Tenant modules could not be loaded.", 500);
         }
     }
 
-    public async Task<ApiResponse<TenantModuleDto>> UpdateCurrentTenantModuleAsync(
-        string moduleCode,
-        UpdateTenantModuleRequestDto request)
+    public async Task<ApiResponse<TenantModuleDto>> UpdateCurrentTenantModuleAsync(string moduleCode, UpdateTenantModuleRequestDto request)
     {
-        if (!_currentUser.IsTenantAdmin && !_currentUser.IsSuperAdmin)
-            return ApiResponse<TenantModuleDto>.ErrorResponse("Tenant administrator access is required", 403);
+        if (!CanManage()) return ApiResponse<TenantModuleDto>.ErrorResponse("Tenant administrator access is required.", 403);
+        if (request?.IsEnabled == null || !TryNormalizeCode(moduleCode, out var code))
+            return ApiResponse<TenantModuleDto>.ErrorResponse("Valid module code and enabled state are required.");
+        if (request.EffectiveFromUtc.HasValue || request.EffectiveUntilUtc.HasValue ||
+            !string.IsNullOrWhiteSpace(request.DisabledReason))
+            return ApiResponse<TenantModuleDto>.ErrorResponse("Scheduled activation and disable notes are not supported by the current module contract.");
 
-        if (_currentUser.TenantId <= 0)
-            return ApiResponse<TenantModuleDto>.ErrorResponse("Tenant context is required", 403);
-
-        if (!request.IsEnabled.HasValue)
-            return ApiResponse<TenantModuleDto>.ErrorResponse("Module enabled state is required");
-
-        if (!TryNormalizeCode(moduleCode, out var normalizedCode))
-            return ApiResponse<TenantModuleDto>.ErrorResponse("Module code is invalid");
-
-        if (request.EffectiveFromUtc.HasValue && request.EffectiveUntilUtc.HasValue
-            && request.EffectiveUntilUtc <= request.EffectiveFromUtc)
-        {
-            return ApiResponse<TenantModuleDto>
-                .ErrorResponse("Effective end must be after effective start");
-        }
-
+        var tenantId = _currentUser.TenantId;
         try
         {
-            var tenantId = _currentUser.TenantId;
-            var tenant = await _tenantRepository.GetByIdAsync(tenantId);
-            if (tenant == null)
-                return ApiResponse<TenantModuleDto>.ErrorResponse("Tenant not found", 404);
-
-            var module = await _moduleRepository.FirstOrDefaultAsync(x =>
-                x.Code == normalizedCode && x.IsActive);
-            if (module == null)
-                return ApiResponse<TenantModuleDto>.ErrorResponse("Module not found", 404);
-
-            InstitutionTypeModule? presetMapping = null;
-            if (tenant.InstitutionTypeDefinitionId.HasValue)
+            var tenant = await _tenants.GetQueryable().AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == tenantId);
+            if (tenant == null) return ApiResponse<TenantModuleDto>.ErrorResponse("Institution not found.", 404);
+            var module = await _modules.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.IsActive && x.Code == code);
+            if (module == null) return ApiResponse<TenantModuleDto>.ErrorResponse("Module not found.", 404);
+            var required = module.IsCore || (tenant.InstitutionTypeDefinitionId.HasValue &&
+                await _presets.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.InstitutionTypeDefinitionId == tenant.InstitutionTypeDefinitionId.Value &&
+                    x.ProductModuleId == module.Id && x.IsRequired));
+            if (!request.IsEnabled.Value && required)
+                return ApiResponse<TenantModuleDto>.ErrorResponse("Required modules cannot be disabled.", 409);
+            if (request.IsEnabled.Value && !module.IsCore)
             {
-                presetMapping = await _presetModuleRepository.FirstOrDefaultAsync(x =>
-                    x.InstitutionTypeDefinitionId == tenant.InstitutionTypeDefinitionId.Value
-                    && x.ProductModuleId == module.Id);
+                var entitled = await EntitledIdsAsync(tenantId);
+                if (!entitled.Contains(module.Id))
+                    return ApiResponse<TenantModuleDto>.ErrorResponse("Module is not included in the current subscription.", 403);
             }
-
-            if (!request.IsEnabled.Value && (module.IsCore || presetMapping?.IsRequired == true))
-            {
-                return ApiResponse<TenantModuleDto>
-                    .ErrorResponse("A required module cannot be disabled", 409);
-            }
-
-            if (request.IsEnabled.Value && !await IsModuleIncludedInCurrentPlanAsync(tenantId, module))
-            {
-                return ApiResponse<TenantModuleDto>
-                    .ErrorResponse("The active subscription does not include this module", 403);
-            }
-
-            var tenantModule = await _tenantModuleRepository.FirstOrDefaultAsync(x =>
-                x.TenantId == tenantId && x.ProductModuleId == module.Id);
             var now = DateTime.UtcNow;
-
-            if (tenantModule == null)
+            var record = await _selections.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId &&
+                x.ProductModuleId == module.Id);
+            if (record == null)
             {
-                tenantModule = new TenantModule
+                record = new TenantModule
                 {
-                    TenantId = tenantId,
-                    ProductModuleId = module.Id,
-                    CreatedAt = now
+                    TenantId = tenantId, ProductModuleId = module.Id, IsEnabled = request.IsEnabled.Value,
+                    CreatedAt = now, CreatedBy = _currentUser.UserId
                 };
-                await _tenantModuleRepository.AddAsync(tenantModule);
+                if (record.IsEnabled) record.EnabledAt = now;
+                else record.DisabledAt = now;
+                await _selections.AddAsync(record);
             }
             else
             {
-                if (string.IsNullOrWhiteSpace(request.RowVersion))
-                {
-                    return ApiResponse<TenantModuleDto>.ErrorResponse(
-                        "Reload the module selection before changing it.", 428);
-                }
-
-                if (!MatchesExpectedRowVersion(tenantModule, request.RowVersion))
-                {
-                    return ApiResponse<TenantModuleDto>
-                        .ErrorResponse("The module was changed by another request. Reload and try again.", 409);
-                }
-                _tenantModuleRepository.Update(tenantModule);
+                if (!MatchesVersion(record.RowVersion, request.RowVersion))
+                    return ApiResponse<TenantModuleDto>.ErrorResponse("Module configuration changed. Reload and retry.", 409);
+                record.IsEnabled = request.IsEnabled.Value;
+                if (record.IsEnabled) { record.EnabledAt = now; record.DisabledAt = null; }
+                else { record.DisabledAt = now; }
+                record.UpdatedAt = now;
+                record.UpdatedBy = _currentUser.UserId;
             }
-
-            tenantModule.IsEnabled = request.IsEnabled.Value;
-            tenantModule.ActivationSource = TenantModuleActivationSource.TenantChoice;
-            tenantModule.EffectiveFromUtc = request.EffectiveFromUtc;
-            tenantModule.EffectiveUntilUtc = request.EffectiveUntilUtc;
-            tenantModule.UpdatedAt = now;
-            tenantModule.UpdatedBy = _currentUser.UserId;
-
-            if (tenantModule.IsEnabled)
-            {
-                tenantModule.EnabledAt = now;
-                tenantModule.DisabledAt = null;
-                tenantModule.DisabledReason = null;
-            }
-            else
-            {
-                tenantModule.DisabledAt = now;
-                tenantModule.DisabledReason = request.DisabledReason?.Trim();
-            }
-
             await _unitOfWork.SaveChangesAsync();
-
-            var updated = (await BuildModuleStateAsync(tenantId))
-                .Single(x => x.Code == normalizedCode);
-            return ApiResponse<TenantModuleDto>.SuccessResponse(updated, "Module selection updated");
+            var updated = (await BuildStateAsync(tenantId)).Single(x => x.ModuleCode == code);
+            return ApiResponse<TenantModuleDto>.SuccessResponse(updated, "Module selection saved.");
         }
-        catch (FormatException)
+        catch (DbUpdateConcurrencyException)
         {
-            return ApiResponse<TenantModuleDto>.ErrorResponse("Row version is invalid", 400);
-        }
-        catch (DbUpdateConcurrencyException ex)
-        {
-            _logger.LogWarning(ex, "Concurrent tenant module update for {Code}", normalizedCode);
-            return ApiResponse<TenantModuleDto>
-                .ErrorResponse("The module was changed by another request. Reload and try again.", 409);
+            return ApiResponse<TenantModuleDto>.ErrorResponse("Module was modified. Reload and retry.", 409);
         }
         catch (DbUpdateException ex)
         {
-            _logger.LogWarning(ex, "Conflicting tenant module update for {Code}", normalizedCode);
-            return ApiResponse<TenantModuleDto>
-                .ErrorResponse("The module was changed by another request. Reload and try again.", 409);
+            _logger.LogWarning(ex, "Concurrent module change for tenant {TenantId}", tenantId);
+            return ApiResponse<TenantModuleDto>.ErrorResponse("Module selection conflicts with another update.", 409);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to update module {Code} for tenant {TenantId}", normalizedCode, _currentUser.TenantId);
-            return ApiResponse<TenantModuleDto>.ErrorResponse("Failed to update module", 500);
+            _logger.LogError(ex, "Module selection failed for tenant {TenantId}", tenantId);
+            return ApiResponse<TenantModuleDto>.ErrorResponse("Module selection could not be saved.", 500);
         }
     }
 
     public async Task<ApiResponse<bool>> ValidateCurrentTenantSelectionAsync()
     {
-        if (_currentUser.TenantId <= 0)
-            return ApiResponse<bool>.ErrorResponse("Tenant context is required", 403);
-
+        if (!CanRead()) return ApiResponse<bool>.ErrorResponse("Tenant context is required.", 403);
         try
         {
-            var modules = await BuildModuleStateAsync(_currentUser.TenantId);
-            if (modules.Count == 0)
-                return ApiResponse<bool>.ErrorResponse("No active modules are configured", 409);
-
-            var unavailableRequired = modules
-                .Where(x => x.IsRequiredForInstitution && !x.IsAvailable)
-                .Select(x => x.Code)
-                .ToArray();
-            if (unavailableRequired.Length > 0)
-            {
-                _logger.LogWarning(
-                    "Tenant {TenantId} cannot complete module setup because required modules are unavailable: {Codes}",
-                    _currentUser.TenantId,
-                    string.Join(",", unavailableRequired));
-                return ApiResponse<bool>.ErrorResponse(
-                    "One or more required modules are unavailable in the current plan", 409);
-            }
-
-            return ApiResponse<bool>.SuccessResponse(true, "Module selection is valid");
+            var tenant = await _tenants.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.Id == _currentUser.TenantId);
+            if (tenant == null) return ApiResponse<bool>.ErrorResponse("Institution not found.", 404);
+            var modules = await BuildStateAsync(_currentUser.TenantId);
+            if (modules.Count == 0) return ApiResponse<bool>.ErrorResponse("No enabled product modules exist.", 409);
+            if (modules.Any(x => x.IsRequiredByPreset && (!x.IsEnabled || !x.IsEntitledByPlan)))
+                return ApiResponse<bool>.ErrorResponse("Required institution modules must be enabled and included in the subscription.", 409);
+            return ApiResponse<bool>.SuccessResponse(true, "Module selection is valid.");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to validate modules for tenant {TenantId}", _currentUser.TenantId);
-            return ApiResponse<bool>.ErrorResponse("Failed to validate tenant modules", 500);
+            _logger.LogError(ex, "Module selection validation failed for tenant {TenantId}", _currentUser.TenantId);
+            return ApiResponse<bool>.ErrorResponse("Module selection could not be validated.", 500);
         }
     }
 
     public async Task<bool> IsCurrentTenantModuleAvailableAsync(string moduleCode)
     {
-        if (_currentUser.TenantId <= 0 || !TryNormalizeCode(moduleCode, out var normalizedCode))
-            return false;
-
+        if (!CanRead() || !TryNormalizeCode(moduleCode, out var code)) return false;
         try
         {
-            var state = await BuildModuleStateAsync(_currentUser.TenantId);
-            return state.Any(x => x.Code == normalizedCode && x.IsAvailable);
+            var rows = await BuildStateAsync(_currentUser.TenantId);
+            return rows.Any(x => x.ModuleCode == code && x.IsEnabled && x.IsEntitledByPlan);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Module authorization evaluation failed for {Code}", normalizedCode);
+            _logger.LogError(ex, "Module authorization evaluation failed for tenant {TenantId}", _currentUser.TenantId);
             return false;
         }
     }
 
-    public async Task<Result> ApplyInstitutionPresetAsync(
-        long tenantId,
-        long institutionTypeDefinitionId)
+    public async Task<Result> ApplyInstitutionPresetAsync(long tenantId, long institutionTypeDefinitionId)
     {
+        if (!CanManage() || (!_currentUser.IsSuperAdmin && _currentUser.TenantId != tenantId))
+            return Result.Failure("Not authorized to configure modules for this institution.");
         if (tenantId <= 0 || institutionTypeDefinitionId <= 0)
-            return Result.Failure("Tenant and institution type are required");
-
+            return Result.Failure("Valid institution type and tenant are required.");
         try
         {
-            var presetModules = await _presetModuleRepository.GetQueryable()
-                .AsNoTracking()
-                .Where(x => x.InstitutionTypeDefinitionId == institutionTypeDefinitionId
-                            && (x.IsRequired || x.IsEnabledByDefault))
-                .ToListAsync();
-            var desiredIds = presetModules.Select(x => x.ProductModuleId).ToHashSet();
-            var existing = await _tenantModuleRepository.GetQueryable()
-                .Where(x => x.TenantId == tenantId)
-                .ToListAsync();
-            var existingByModule = existing.ToDictionary(x => x.ProductModuleId);
+            var tenant = await _tenants.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.Id == tenantId);
+            if (tenant == null || tenant.InstitutionTypeDefinitionId != institutionTypeDefinitionId)
+                return Result.Failure("Institution type is not linked to the requested tenant.");
+            var preset = await _presets.GetQueryable().AsNoTracking().Where(x =>
+                x.InstitutionTypeDefinitionId == institutionTypeDefinitionId &&
+                (x.IsRequired || x.IsDefaultEnabled)).ToListAsync();
+            var existing = await _selections.GetQueryable().Where(x => x.TenantId == tenantId).ToListAsync();
+            var byModule = existing.ToDictionary(x => x.ProductModuleId);
             var now = DateTime.UtcNow;
-
-            foreach (var mapping in presetModules)
+            foreach (var item in preset)
             {
-                if (existingByModule.TryGetValue(mapping.ProductModuleId, out var tenantModule))
+                if (byModule.TryGetValue(item.ProductModuleId, out var selected))
                 {
-                    if (mapping.IsRequired && !tenantModule.IsEnabled)
+                    if (item.IsRequired && !selected.IsEnabled)
                     {
-                        tenantModule.IsEnabled = true;
-                        tenantModule.ActivationSource = TenantModuleActivationSource.InstitutionPreset;
-                        tenantModule.EnabledAt = now;
-                        tenantModule.DisabledAt = null;
-                        tenantModule.DisabledReason = null;
-                        tenantModule.UpdatedAt = now;
-                        _tenantModuleRepository.Update(tenantModule);
+                        selected.IsEnabled = true;
+                        selected.EnabledAt = now;
+                        selected.DisabledAt = null;
+                        selected.UpdatedAt = now;
+                        selected.UpdatedBy = _currentUser.UserId;
                     }
                     continue;
                 }
-
-                await _tenantModuleRepository.AddAsync(new TenantModule
+                await _selections.AddAsync(new TenantModule
                 {
-                    TenantId = tenantId,
-                    ProductModuleId = mapping.ProductModuleId,
-                    IsEnabled = true,
-                    ActivationSource = TenantModuleActivationSource.InstitutionPreset,
-                    EnabledAt = now,
-                    CreatedAt = now
+                    TenantId = tenantId, ProductModuleId = item.ProductModuleId, IsEnabled = true,
+                    EnabledAt = now, CreatedAt = now, CreatedBy = _currentUser.UserId
                 });
             }
-
-            foreach (var previousPresetModule in existing.Where(x =>
-                         x.ActivationSource == TenantModuleActivationSource.InstitutionPreset
-                         && !desiredIds.Contains(x.ProductModuleId)
-                         && x.IsEnabled))
-            {
-                previousPresetModule.IsEnabled = false;
-                previousPresetModule.DisabledAt = now;
-                previousPresetModule.DisabledReason = "INSTITUTION_PRESET_CHANGED";
-                previousPresetModule.UpdatedAt = now;
-                _tenantModuleRepository.Update(previousPresetModule);
-            }
-
             await _unitOfWork.SaveChangesAsync();
             return Result.Success();
         }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Preset conflict for tenant {TenantId}", tenantId);
+            return Result.Failure("Institution preset was updated concurrently.");
+        }
         catch (Exception ex)
         {
-            _logger.LogError(
-                ex,
-                "Failed to apply institution preset {InstitutionTypeId} to tenant {TenantId}",
-                institutionTypeDefinitionId,
-                tenantId);
-            return Result.Failure("Failed to apply institution module preset");
+            _logger.LogError(ex, "Institution preset failed for tenant {TenantId}", tenantId);
+            return Result.Failure("Institution preset could not be applied.");
         }
     }
 
-    private async Task<List<TenantModuleDto>> BuildModuleStateAsync(long tenantId)
+    private async Task<List<TenantModuleDto>> BuildStateAsync(long tenantId)
     {
-        var tenant = await _tenantRepository.GetByIdAsync(tenantId)
-                     ?? throw new InvalidOperationException("Tenant not found");
-        var now = DateTime.UtcNow;
-        var modules = await _moduleRepository.GetQueryable()
-            .AsNoTracking()
-            .Where(x => x.IsActive)
-            .OrderBy(x => x.DisplayOrder)
-            .ThenBy(x => x.Name)
-            .ToListAsync();
-        var selections = await _tenantModuleRepository.GetQueryable()
-            .AsNoTracking()
-            .Where(x => x.TenantId == tenantId)
+        var tenant = await _tenants.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.Id == tenantId)
+            ?? throw new InvalidOperationException("Institution not found.");
+        var modules = await _modules.GetQueryable().AsNoTracking().Where(x => x.IsActive)
+            .OrderBy(x => x.DisplayOrder).ThenBy(x => x.Name).ToListAsync();
+        var selections = await _selections.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenantId)
             .ToDictionaryAsync(x => x.ProductModuleId);
-
-        var presetMappings = tenant.InstitutionTypeDefinitionId.HasValue
-            ? await _presetModuleRepository.GetQueryable()
-                .AsNoTracking()
-                .Where(x => x.InstitutionTypeDefinitionId == tenant.InstitutionTypeDefinitionId.Value)
+        var required = tenant.InstitutionTypeDefinitionId.HasValue
+            ? await _presets.GetQueryable().AsNoTracking().Where(x =>
+                x.InstitutionTypeDefinitionId == tenant.InstitutionTypeDefinitionId.Value)
                 .ToDictionaryAsync(x => x.ProductModuleId)
             : new Dictionary<long, InstitutionTypeModule>();
-
-        var entitledModuleIds = await GetEntitledModuleIdsAsync(tenantId, modules, now);
-        var result = new List<TenantModuleDto>(modules.Count);
-
-        foreach (var module in modules)
+        var entitled = await EntitledIdsAsync(tenantId);
+        return modules.Select(module =>
         {
-            selections.TryGetValue(module.Id, out var selection);
-            presetMappings.TryGetValue(module.Id, out var preset);
-
-            var selected = module.IsCore
-                           || (selection?.IsEnabled
-                               ?? preset is { IsEnabledByDefault: true } or { IsRequired: true });
-            var inEffectivePeriod = selection == null
-                                    || (!selection.EffectiveFromUtc.HasValue || selection.EffectiveFromUtc <= now)
-                                    && (!selection.EffectiveUntilUtc.HasValue || selection.EffectiveUntilUtc > now);
-            var includedInPlan = module.IsCore || entitledModuleIds.Contains(module.Id);
-            var isAvailable = selected && inEffectivePeriod && includedInPlan;
-
-            result.Add(new TenantModuleDto
+            selections.TryGetValue(module.Id, out var selected);
+            required.TryGetValue(module.Id, out var preset);
+            var isRequired = module.IsCore || preset?.IsRequired == true;
+            var isEnabled = module.IsCore || (selected?.IsEnabled ?? (preset?.IsDefaultEnabled == true || isRequired));
+            return new TenantModuleDto
             {
-                ProductModuleId = module.Id,
-                Code = module.Code,
-                Name = module.Name,
-                NameBangla = module.NameBangla,
-                Category = module.Category,
-                IconName = module.IconName,
-                RoutePrefix = module.RoutePrefix,
-                IsCore = module.IsCore,
-                IsRequiredForInstitution = module.IsCore || preset?.IsRequired == true,
-                IsSelected = selected,
-                IsIncludedInPlan = includedInPlan,
-                IsAvailable = isAvailable,
-                CanEnable = includedInPlan,
-                CanDisable = !module.IsCore && preset?.IsRequired != true,
-                ActivationSource = selection?.ActivationSource.ToString()
-                                   ?? TenantModuleActivationSource.InstitutionPreset.ToString(),
-                EffectiveFromUtc = selection?.EffectiveFromUtc,
-                EffectiveUntilUtc = selection?.EffectiveUntilUtc,
-                AvailabilityReasonCode = ResolveReasonCode(
-                    selected,
-                    inEffectivePeriod,
-                    includedInPlan),
-                ConfigurationVersion = selection?.ConfigurationVersion ?? 1,
-                RowVersion = selection?.RowVersion.Length > 0
-                    ? Convert.ToBase64String(selection.RowVersion)
-                    : null
-            });
-        }
-
-        return result;
+                Id = selected?.Id ?? 0, ProductModuleId = module.Id,
+                ModuleCode = module.Code, ModuleName = module.Name,
+                IsEnabled = isEnabled, IsRequiredByPreset = isRequired,
+                IsEntitledByPlan = module.IsCore || entitled.Contains(module.Id),
+                EnabledAt = selected?.EnabledAt, DisabledAt = selected?.DisabledAt,
+                RowVersion = selected == null ? string.Empty : Convert.ToBase64String(selected.RowVersion)
+            };
+        }).ToList();
     }
 
-    private async Task<HashSet<long>> GetEntitledModuleIdsAsync(
-        long tenantId,
-        IReadOnlyCollection<ProductModule> modules,
-        DateTime now)
+    private async Task<HashSet<long>> EntitledIdsAsync(long tenantId)
     {
-        var activePlanId = await _subscriptionRepository.GetQueryable()
-            .AsNoTracking()
-            .Where(x => x.TenantId == tenantId
-                        && x.StartDate <= now
-                        && x.EndDate >= now
-                        && (x.Status == SubscriptionStatus.Active
-                            || x.Status == SubscriptionStatus.Trialing
-                            || x.Status == SubscriptionStatus.CancelAtPeriodEnd))
-            .OrderByDescending(x => x.CreatedAt)
-            .Select(x => (long?)x.SubscriptionPlanId)
-            .FirstOrDefaultAsync();
-
-        if (!activePlanId.HasValue) return new HashSet<long>();
-
-        var enabledFeatureIds = await _planFeatureRepository.GetQueryable()
-            .AsNoTracking()
-            .Where(x => x.SubscriptionPlanId == activePlanId.Value && x.IsEnabled)
-            .Select(x => x.FeatureId)
-            .ToListAsync();
-        if (enabledFeatureIds.Count == 0) return new HashSet<long>();
-
-        var moduleIds = modules.Select(x => x.Id).ToList();
-        var entitledIds = await _moduleFeatureRepository.GetQueryable()
-            .AsNoTracking()
-            .Where(x => moduleIds.Contains(x.ProductModuleId)
-                        && enabledFeatureIds.Contains(x.FeatureId))
-            .Select(x => x.ProductModuleId)
-            .Distinct()
-            .ToListAsync();
-        return entitledIds.ToHashSet();
+        var now = DateTime.UtcNow;
+        var planId = await _subscriptions.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenantId &&
+            x.StartsAt <= now && x.EndsAt > now &&
+            (x.State == SubscriptionState.Active || x.State == SubscriptionState.Trial || x.State == SubscriptionState.Grace))
+            .OrderByDescending(x => x.StartsAt).Select(x => (long?)x.SubscriptionPlanId).FirstOrDefaultAsync();
+        if (!planId.HasValue) return new HashSet<long>();
+        var features = await _planFeatures.GetQueryable().AsNoTracking().Where(x =>
+            x.SubscriptionPlanId == planId.Value && x.IsEnabled).Select(x => x.FeatureId).ToArrayAsync();
+        var result = await _moduleFeatures.GetQueryable().AsNoTracking().Where(x =>
+            features.Contains(x.FeatureId)).Select(x => x.ProductModuleId).Distinct().ToArrayAsync();
+        return result.ToHashSet();
     }
 
-    private async Task<bool> IsModuleIncludedInCurrentPlanAsync(long tenantId, ProductModule module)
+    private static bool MatchesVersion(byte[] stored, string? supplied)
     {
-        if (module.IsCore) return true;
-        var entitled = await GetEntitledModuleIdsAsync(tenantId, new[] { module }, DateTime.UtcNow);
-        return entitled.Contains(module.Id);
+        if (string.IsNullOrWhiteSpace(supplied)) return false;
+        try { return stored.AsSpan().SequenceEqual(Convert.FromBase64String(supplied)); }
+        catch (FormatException) { return false; }
     }
-
-    private static bool MatchesExpectedRowVersion(
-        TenantModule tenantModule,
-        string? encodedRowVersion)
+    private static bool TryNormalizeCode(string? value, out string code)
     {
-        if (string.IsNullOrWhiteSpace(encodedRowVersion)) return false;
-        var expected = Convert.FromBase64String(encodedRowVersion);
-        return expected.AsSpan().SequenceEqual(tenantModule.RowVersion);
+        code = value?.Trim().ToUpperInvariant() ?? string.Empty;
+        return code.Length is > 0 and <= 100 &&
+            code.All(x => char.IsAsciiLetterOrDigit(x) || x is '_' or '-');
     }
-
-    private static string ResolveReasonCode(
-        bool isSelected,
-        bool inEffectivePeriod,
-        bool includedInPlan)
-    {
-        if (!isSelected) return "MODULE_NOT_SELECTED";
-        if (!inEffectivePeriod) return "OUTSIDE_EFFECTIVE_PERIOD";
-        if (!includedInPlan) return "NOT_INCLUDED_IN_PLAN";
-        return "AVAILABLE";
-    }
-
-    private static bool TryNormalizeCode(string? code, out string normalizedCode)
-    {
-        normalizedCode = code?.Trim().ToUpperInvariant() ?? string.Empty;
-        return normalizedCode.Length is > 0 and <= 50
-               && normalizedCode.All(character =>
-                   char.IsAsciiLetterOrDigit(character) || character is '_' or '-');
-    }
+    private bool CanRead() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0;
+    private bool CanManage() => CanRead() && (_currentUser.IsTenantAdmin || _currentUser.IsSuperAdmin);
 }
