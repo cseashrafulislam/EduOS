@@ -233,7 +233,6 @@ namespace EduOS.Persistence.Repositories
 
             pageSize = Math.Clamp(pageSize, 1, 200);
             var offset = ((long)Math.Max(1, page) - 1) * pageSize;
-            if (offset > int.MaxValue) return (new List<T>(), 0);
 
             IQueryable<T> query = _dbSet;
 
@@ -248,6 +247,7 @@ namespace EduOS.Persistence.Repositories
             }
 
             var totalCount = await query.CountAsync();
+            if (offset > int.MaxValue) return (new List<T>(), totalCount);
 
             query = orderBy == null
                 ? query.OrderBy(x => EF.Property<long>(x, "Id"))

@@ -29,8 +29,11 @@ namespace EduOS.Persistence.Repositories
 
         public async Task SetCurrentAsync(long yearId, long tenantId)
         {
-            var allYears = await _dbSet.Where(y => y.TenantId == tenantId).ToListAsync();
-            foreach (var year in allYears)
+            var years = await _dbSet.Where(y => y.TenantId == tenantId && (y.Id == yearId || y.IsCurrent))
+                .ToListAsync();
+            if (!years.Any(y => y.Id == yearId))
+                throw new InvalidOperationException("The target academic year does not exist in the current tenant.");
+            foreach (var year in years)
                 year.IsCurrent = year.Id == yearId;
         }
     }

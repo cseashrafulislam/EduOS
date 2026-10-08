@@ -22,7 +22,8 @@ public class NotificationRepository : GenericRepository<Notification>, INotifica
 
     public async Task MarkAsReadAsync(long notificationId)
     {
-        var row = await _dbSet.FindAsync(notificationId);
+        // FindAsync can return a tracked notification without enforcing tenant/soft-delete filters.
+        var row = await _dbSet.FirstOrDefaultAsync(x => x.Id == notificationId);
         if (row == null || row.IsRead) return;
         row.IsRead = true;
         row.ReadAt = DateTime.UtcNow;
