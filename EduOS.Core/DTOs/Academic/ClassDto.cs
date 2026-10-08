@@ -6,7 +6,10 @@ namespace EduOS.Core.DTOs.Academic
 {
     public class ClassDto
     {
-        public int Id { get; set; }
+        public long Id { get; set; }
+        public long AcademicProgramId { get; set; }
+        public string Code { get; set; } = string.Empty;
+        public string RowVersion { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public int NumericValue { get; set; }
         public bool IsActive { get; set; }
@@ -17,6 +20,8 @@ namespace EduOS.Core.DTOs.Academic
 
     public class ClassCreateDto
     {
+        public long AcademicProgramId { get; set; }
+        public string Code { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public int NumericValue { get; set; }
         public bool IsActive { get; set; } = true;
@@ -24,6 +29,7 @@ namespace EduOS.Core.DTOs.Academic
 
     public class ClassUpdateDto
     {
+        public string RowVersion { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public int NumericValue { get; set; }
         public bool IsActive { get; set; }
