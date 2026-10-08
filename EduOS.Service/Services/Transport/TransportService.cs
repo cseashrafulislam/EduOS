@@ -177,11 +177,12 @@ public sealed class TransportService : ITransportService
             };
             await _assignments.AddAsync(entity);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+            var response = await MapAsync(entity, cancellationToken);
             scope.Complete();
             return new ApiResponse<StudentTransportDto>
             {
                 Success = true, StatusCode = 201, Message = "Transport assigned.",
-                Data = await MapAsync(entity, cancellationToken)
+                Data = response
             };
         }
         catch (DbUpdateException ex)
@@ -219,7 +220,7 @@ public sealed class TransportService : ITransportService
             var endDate = request.EndDate == default ? DateOnly.FromDateTime(_clock.GetLocalNow().DateTime) : request.EndDate;
             if (endDate < entity.StartDate) return Error("End date cannot precede start date.");
             entity.EndDate = endDate;
-            entity.State = TransportAssignmentState.Completed;
+            entity.State = TransportAssignmentState.Closed;
             entity.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
             entity.UpdatedBy = _currentUser.UserId;
             await _unitOfWork.SaveChangesAsync(cancellationToken);
