@@ -33,6 +33,14 @@ jobs:
       - name: Restore
         run: dotnet restore EduOS.slnx
 
+      # Independent release gates remain visible even while legacy Service/App contracts
+      # are being migrated. The whole-solution build must still pass for release.
+      - name: Build canonical Core
+        run: dotnet build EduOS.Core/EduOS.Core.csproj --configuration Release --no-restore
+
+      - name: Build Persistence
+        run: dotnet build EduOS.Persistence/EduOS.Persistence.csproj --configuration Release --no-restore
+
       - name: Build
         run: dotnet build EduOS.slnx --configuration Release --no-restore
 
