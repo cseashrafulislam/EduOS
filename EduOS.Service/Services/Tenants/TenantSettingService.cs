@@ -182,15 +182,16 @@ namespace EduOS.Service.Services.Tenants
         {
             try
             {
+                var storageKey = BuildStorageKey(category, key);
                 var settings = await _settingRepo.FindAsync(s =>
                     s.TenantId == _currentUser.TenantId &&
                     s.Category == category &&
-                    s.SettingKey == key);
+                    (s.Key == key || s.Key == storageKey));
 
                 var setting = settings?.FirstOrDefault();
                 var value = setting?.IsSensitive == true
-                    ? UnprotectSensitiveValue(setting.SettingValue)
-                    : setting?.SettingValue;
+                    ? UnprotectSensitiveValue(setting.Value)
+                    : setting?.Value;
 
                 return ApiResponse<string?>.SuccessResponse(value);
             }
@@ -240,28 +241,29 @@ namespace EduOS.Service.Services.Tenants
                 s.Category == category);
 
             return settings?
-                .Where(s => s.SettingValue != null)
-                .ToDictionary(
-                    s => s.SettingKey,
-                    s => s.IsSensitive ? SECRET_MASK : s.SettingValue!)
+                .GroupBy(s => s.Key.StartsWith(category + ":", StringComparison.Ordinal) ? s.Key[(category.Length + 1)..] : s.Key)
+                .ToDictionary(g => g.Key, g =>
+                {
+                    var item = g.OrderByDescending(x => x.Key.StartsWith(category + ":", StringComparison.Ordinal)).First();
+                    return item.IsSensitive ? SECRET_MASK : item.Value;
+                })
                 ?? new Dictionary<string, string>();
         }
 
         private async Task UpsertSettingAsync(string category, string key, string? value, bool isSensitive)
         {
+            var storageKey = BuildStorageKey(category, key);
             var existing = (await _settingRepo.FindAsync(s =>
                 s.TenantId == _currentUser.TenantId &&
                 s.Category == category &&
-                s.SettingKey == key))?.FirstOrDefault();
+                (s.Key == key || s.Key == storageKey)))?.FirstOrDefault();
 
             if (existing != null)
             {
                 if (isSensitive && IsUnchangedSecret(value))
                     return;
 
-                existing.SettingValue = isSensitive
-                    ? ProtectSensitiveValue(value)
-                    : value;
+                existing.Value = isSensitive ? ProtectSensitiveValue(value) ?? string.Empty : value ?? string.Empty;
                 existing.IsSensitive = isSensitive;
                 _settingRepo.Update(existing);
             }
@@ -274,16 +276,20 @@ namespace EduOS.Service.Services.Tenants
                 {
                     TenantId = _currentUser.TenantId,
                     Category = category,
-                    SettingKey = key,
-                    SettingValue = isSensitive
-                        ? ProtectSensitiveValue(value)
-                        : value,
-                    IsSensitive = isSensitive,
-                    IsEditable = true,
-                    DataType = "string"
+                    Key = storageKey,
+                    Value = isSensitive ? ProtectSensitiveValue(value) ?? string.Empty : value ?? string.Empty,
+                    IsSensitive = isSensitive
                 };
                 await _settingRepo.AddAsync(setting);
             }
+        }
+
+        private static string BuildStorageKey(string category, string key)
+        {
+            var storageKey = $"{category}:{key}";
+            if (string.IsNullOrWhiteSpace(category) || string.IsNullOrWhiteSpace(key) || storageKey.Length > 150)
+                throw new ArgumentException("Setting category and key must be non-empty and fit within 150 characters.");
+            return storageKey;
         }
 
         private static bool IsUnchangedSecret(string? value)
@@ -380,12 +386,13 @@ namespace EduOS.Service.Services.Tenants
 
         private async Task<bool> HasStoredSecretAsync(string category, string key)
         {
+            var storageKey = BuildStorageKey(category, key);
             var existing = (await _settingRepo.FindAsync(s =>
                 s.TenantId == _currentUser.TenantId
                 && s.Category == category
-                && s.SettingKey == key)).FirstOrDefault();
+                && (s.Key == key || s.Key == storageKey))).FirstOrDefault();
             return existing?.IsSensitive == true
-                   && !string.IsNullOrWhiteSpace(existing.SettingValue);
+                   && !string.IsNullOrWhiteSpace(existing.Value);
         }
 
         private static bool IsSafePublicHttpsUrl(string value)

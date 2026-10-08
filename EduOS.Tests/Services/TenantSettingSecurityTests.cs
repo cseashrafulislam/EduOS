@@ -32,15 +32,15 @@ public class TenantSettingSecurityTests
 
         saved.Success.Should().BeTrue(saved.Message);
         var stored = await setup.Context.TenantSettings
-            .SingleAsync(x => x.SettingKey == "ApiKey");
-        stored.SettingValue.Should().NotBe("a-real-secret-value");
-        stored.SettingValue.Should().StartWith("dp:v1:");
+            .SingleAsync(x => x.Key == "Sms:ApiKey");
+        stored.Value.Should().NotBe("a-real-secret-value");
+        stored.Value.Should().StartWith("dp:v1:");
 
         var response = await setup.Service.GetSmsGatewayAsync();
         response.Success.Should().BeTrue();
         response.Data!.ApiKey.Should().Be("********");
 
-        var protectedValue = stored.SettingValue;
+        var protectedValue = stored.Value;
         var updated = await setup.Service.SaveSmsGatewayAsync(new SmsGatewaySettingsDto
         {
             Provider = "Custom",
@@ -51,7 +51,40 @@ public class TenantSettingSecurityTests
         });
 
         updated.Success.Should().BeTrue(updated.Message);
-        stored.SettingValue.Should().Be(protectedValue);
+        stored.Value.Should().Be(protectedValue);
+    }
+
+    [Fact]
+    public async Task Gateway_categories_have_distinct_keys_and_readable_local_names()
+    {
+        await using var setup = CreateSetup();
+        var sms = await setup.Service.SaveSmsGatewayAsync(new SmsGatewaySettingsDto
+        {
+            Provider = "Custom",
+            ApiUrl = "https://sms.example.com/send",
+            SenderId = "EduOS",
+            IsEnabled = false
+        });
+        var email = await setup.Service.SaveEmailGatewayAsync(new EmailGatewaySettingsDto
+        {
+            FromEmail = "system@example.com",
+            IsEnabled = false
+        });
+
+        sms.Success.Should().BeTrue();
+        email.Success.Should().BeTrue();
+        var keys = await setup.Context.TenantSettings.Select(x => x.Key).ToListAsync();
+        keys.Should().Contain("Sms:IsEnabled");
+        keys.Should().Contain("Email:IsEnabled");
+        keys.Should().OnlyHaveUniqueItems();
+        var smsResult = await setup.Service.GetAllByCategoryAsync("Sms");
+        var emailResult = await setup.Service.GetAllByCategoryAsync("Email");
+        smsResult.Success.Should().BeTrue();
+        emailResult.Success.Should().BeTrue();
+        smsResult.Data!.Should().ContainKey("Provider");
+        smsResult.Data!.Should().ContainKey("IsEnabled");
+        emailResult.Data!.Should().ContainKey("FromEmail");
+        emailResult.Data!.Should().ContainKey("IsEnabled");
     }
 
     [Theory]
