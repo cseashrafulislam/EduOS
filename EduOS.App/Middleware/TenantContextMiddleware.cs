@@ -79,11 +79,45 @@ namespace EduOS.App.Middleware
                     return;
                 }
 
-                if (user.TenantId is not long tenantId || tenantId <= 0)
+                // TenantMembership is authoritative: ApplicationUser has no TenantId in the final model.
+                // An authenticated claim can select a tenant, but can never establish membership by itself.
+                var selectedClaims = context.User.Claims
+                    .Where(c => c.Type == "TenantId" || c.Type == "tenantId")
+                    .Select(c => c.Value)
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray();
+                if (selectedClaims.Length > 1)
                 {
-                    _logger.LogWarning("User {UserId} has no valid tenant assignment.", userId);
-                    await RejectAsync(context, StatusCodes.Status403Forbidden, "Your account is not assigned to an active institution.");
+                    await RejectAsync(context, StatusCodes.Status401Unauthorized, "Conflicting institution selections. Sign in again.");
                     return;
+                }
+
+                var memberships = dbContext.TenantMemberships.IgnoreQueryFilters().AsNoTracking()
+                    .Where(m => m.UserId == userId && !m.IsDeleted && m.Status == EduOS.Core.Enums.Domain.MembershipStatus.Active);
+                long tenantId;
+                if (selectedClaims.Length == 1)
+                {
+                    if (!long.TryParse(selectedClaims[0], out tenantId) || tenantId <= 0
+                        || !await memberships.AnyAsync(m => m.TenantId == tenantId))
+                    {
+                        _logger.LogWarning("User {UserId} has no active membership for the selected institution.", userId);
+                        await RejectAsync(context, StatusCodes.Status403Forbidden, "You do not have active access to this institution.");
+                        return;
+                    }
+                }
+                else
+                {
+                    // A single membership needs no new cookie field. Multiple memberships
+                    // require explicit server-issued tenant selection; never choose arbitrarily.
+                    var allowed = await memberships.Select(m => m.TenantId).Distinct().Take(2).ToListAsync();
+                    if (allowed.Count != 1)
+                    {
+                        _logger.LogWarning("User {UserId} has no unique active tenant selection.", userId);
+                        await RejectAsync(context, StatusCodes.Status403Forbidden,
+                            "Select an institution before accessing institution data.");
+                        return;
+                    }
+                    tenantId = allowed[0];
                 }
 
                 // Tenant state is deliberately checked per request. A disabled/deleted tenant must stop
