@@ -114,8 +114,7 @@ public class BookReservationDto
     public string StudentName { get; set; } = string.Empty;
     public DateTime ReservedAt { get; set; }
     public DateTime? ExpiresAt { get; set; }
-    public bool IsFulfilled { get; set; }
-    public bool IsCancelled { get; set; }
+    public BookReservationState State { get; set; }
     public string RowVersion { get; set; } = string.Empty;
 }
 
@@ -125,10 +124,3 @@ public class ReserveBookRequestDto
     public Guid BookReference { get; set; }
     public Guid StudentReference { get; set; }
 }
-
-// Backward-compatible API contract aliases; domain entities remain canonical.
-public class LibraryBookDto : BookDto { }
-public class SaveLibraryBookDto : SaveBookRequestDto { }
-public class LibraryIssueDto : BookIssueDto { }
-public class IssueBookDto : IssueBookRequestDto { }
-public class ReturnBookDto : ReturnBookRequestDto { }

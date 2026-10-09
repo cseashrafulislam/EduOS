@@ -36,6 +36,7 @@ public enum JournalState { Draft = 1, Submitted = 2, Approved = 3, Posted = 4, R
 public enum AccountType { Asset = 1, Liability = 2, Equity = 3, Income = 4, Expense = 5 }
 public enum BookCopyState { Available = 1, Issued = 2, Reserved = 3, Lost = 4, Damaged = 5, Retired = 6 }
 public enum BookIssueState { Issued = 1, Returned = 2, Lost = 3, Damaged = 4 }
+public enum BookReservationState { Pending = 1, Fulfilled = 2, Cancelled = 3, Expired = 4 }
 public enum TransportAssignmentState { Active = 1, Closed = 2, Cancelled = 3 }
 public enum HostelAllocationState { Active = 1, Closed = 2, Cancelled = 3 }
 public enum CourseEnrollmentState { Active = 1, Completed = 2, Expired = 3, Cancelled = 4 }
