@@ -610,6 +610,8 @@ public class SaveRoutineEntryRequestDto
 {
     public Guid ClientRequestId { get; set; }
     public Guid SubjectOfferingReference { get; set; }
+    /// <summary>Optional chosen assignment must belong to the supplied subject offering and cover the entry effective dates.</summary>
+    public long? InstructorAssignmentId { get; set; }
     public long RoutineTimeSlotId { get; set; }
     public long? RoomId { get; set; }
     public DayOfWeek DayOfWeek { get; set; }
