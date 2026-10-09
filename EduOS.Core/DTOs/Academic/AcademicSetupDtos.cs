@@ -110,7 +110,7 @@ public sealed class CreateAcademicBatchDto
     public long? ShiftId { get; set; }
     [Required, StringLength(150)] public string Name { get; set; } = string.Empty;
     [Required, StringLength(50)] public string Code { get; set; } = string.Empty;
-    public DeliveryMode DeliveryMode { get; set; } = DeliveryMode.OnCampus;
+    public DeliveryModeType DeliveryMode { get; set; } = DeliveryModeType.OnCampus;
     [Range(1, 100000)] public int Capacity { get; set; }
     public DateTime? StartDate { get; set; }
     public DateTime? EndDate { get; set; }
