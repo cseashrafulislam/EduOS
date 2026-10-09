@@ -53,8 +53,6 @@ namespace EduOS.Core.DTOs.SaaS
         public string? Note { get; set; }
     }
 
-long Length { get; }
-    }
 
     /// <summary>
     /// Admin verifies/rejects a manual payment
