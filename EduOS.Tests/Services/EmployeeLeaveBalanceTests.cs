@@ -19,7 +19,7 @@ public class EmployeeLeaveBalanceTests
     public async Task Leave_balances_are_scoped_to_current_employee_tenant_and_year()
     {
         await using var context = CreateContext(out var accessor);
-        var own = Employee(10, 99), another = Employee(10, 100, "OTHER"), foreign = Employee(20, 99, "FOREIGN");
+        var own = Employee(10, 99); var another = Employee(10, 100, "OTHER"); var foreign = Employee(20, 99, "FOREIGN");
         context.Set<Employee>().AddRange(own, another, foreign);
         var casual = new LeaveType { TenantId = 10, Code = "CAS", Name = "Casual", MaxDaysPerYear = 10, IsActive = true };
         var sick = new LeaveType { TenantId = 10, Code = "SICK", Name = "Sick", MaxDaysPerYear = 8, IsActive = true };

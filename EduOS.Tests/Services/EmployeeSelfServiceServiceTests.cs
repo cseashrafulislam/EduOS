@@ -20,7 +20,7 @@ public class EmployeeSelfServiceServiceTests
     public async Task Attendance_returns_only_current_users_rows_in_current_tenant()
     {
         await using var context = CreateContext(out var accessor);
-        var own = Employee(10, 99, "OWN"), other = Employee(10, 100, "OTHER"), foreign = Employee(20, 99, "FOREIGN");
+        var own = Employee(10, 99, "OWN"); var other = Employee(10, 100, "OTHER"); var foreign = Employee(20, 99, "FOREIGN");
         context.Set<Employee>().AddRange(own, other, foreign);
         await context.SaveChangesAsync();
         var date = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1));
@@ -60,7 +60,7 @@ public class EmployeeSelfServiceServiceTests
     public async Task Leave_history_returns_only_current_employee_user_in_current_tenant()
     {
         await using var context = CreateContext(out var accessor);
-        var own = Employee(10, 99, "OWN"), other = Employee(10, 100, "OTHER"), foreign = Employee(20, 99, "FOREIGN");
+        var own = Employee(10, 99, "OWN"); var other = Employee(10, 100, "OTHER"); var foreign = Employee(20, 99, "FOREIGN");
         context.Set<Employee>().AddRange(own, other, foreign);
         var ownType = new LeaveType { TenantId = 10, Code = "CAS", Name = "Casual", MaxDaysPerYear = 10, IsActive = true };
         var foreignType = new LeaveType { TenantId = 20, Code = "FOR", Name = "Foreign", MaxDaysPerYear = 10, IsActive = true };
