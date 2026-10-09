@@ -11,6 +11,9 @@
     {
         public string AccessToken { get; set; } = string.Empty;
         public string RefreshToken { get; set; } = string.Empty;
+        /// <summary>When true, no access/refresh tokens have been issued.</summary>
+        public bool RequiresMfa { get; set; }
+        public string? MfaChallengeToken { get; set; }
         public DateTime ExpiresAt { get; set; }
         public long UserId { get; set; }
         public string FullName { get; set; } = string.Empty;

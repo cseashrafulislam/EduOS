@@ -11,5 +11,5 @@ public interface ITenantModuleService
         UpdateTenantModuleRequestDto request);
     Task<ApiResponse<bool>> ValidateCurrentTenantSelectionAsync();
     Task<bool> IsCurrentTenantModuleAvailableAsync(string moduleCode);
-    Task<Result> ApplyInstitutionPresetAsync(long tenantId, long institutionTypeDefinitionId);
+    Task<ApiResponse<bool>> ApplyInstitutionPresetAsync(long tenantId, long institutionTypeDefinitionId, CancellationToken cancellationToken = default);
 }
