@@ -1,5 +1,6 @@
 using EduOS.Core.Common;
 using EduOS.Core.Enums;
+using EduOS.Core.Enums.Domain;
 using System.ComponentModel.DataAnnotations;
 
 namespace EduOS.Core.DTOs.Admission;
@@ -70,7 +71,7 @@ public class AdmissionApplicationQueryDto
     [StringLength(100)]
     public string? Search { get; set; }
 
-    public AdmissionApplicationStatus? Status { get; set; }
+    public AdmissionApplicantState? State { get; set; }
 
     [Range(1, long.MaxValue)]
     public long? AcademicYearId { get; set; }
@@ -84,7 +85,7 @@ public class AdmissionApplicationQueryDto
 
 public class ReviewAdmissionApplicationDto
 {
-    public AdmissionApplicationStatus Status { get; set; }
+    public AdmissionApplicantState State { get; set; }
 
     [Required]
     public string RowVersion { get; set; } = string.Empty;
@@ -97,7 +98,7 @@ public class AdmissionApplicationCreatedDto
 {
     public Guid Reference { get; set; }
     public string ApplicationNumber { get; set; } = string.Empty;
-    public AdmissionApplicationStatus Status { get; set; }
+    public AdmissionApplicantState State { get; set; }
     public string RowVersion { get; set; } = string.Empty;
 }
 
@@ -113,7 +114,7 @@ public class AdmissionApplicationListItemDto
     public string CampusName { get; set; } = string.Empty;
     public long AcademicUnitId { get; set; }
     public string AcademicUnitName { get; set; } = string.Empty;
-    public AdmissionApplicationStatus Status { get; set; }
+    public AdmissionApplicantState State { get; set; }
     public DateTime SubmittedAtUtc { get; set; }
     public string RowVersion { get; set; } = string.Empty;
 }
@@ -185,5 +186,5 @@ public class AdmittedStudentDto
     public string Roll { get; set; } = string.Empty;
     public long StudentId { get; set; }
     public long EnrollmentId { get; set; }
-    public AdmissionApplicationStatus ApplicationStatus { get; set; }
+    public AdmissionApplicantState ApplicationState { get; set; }
 }

@@ -1,13 +1,5 @@
 namespace EduOS.Core.Enums;
 
-public enum AdmissionIntakeFormStatus
-{
-    Draft = 1,
-    Published = 2,
-    Closed = 3,
-    Archived = 4
-}
-
 public enum AdmissionFormFieldType
 {
     Text = 1,

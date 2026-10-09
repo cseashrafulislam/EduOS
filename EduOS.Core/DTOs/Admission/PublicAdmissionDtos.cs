@@ -1,4 +1,4 @@
-using EduOS.Core.Enums;
+using EduOS.Core.Enums.Domain;
 using System.ComponentModel.DataAnnotations;
 
 namespace EduOS.Core.DTOs.Admission;
@@ -15,7 +15,7 @@ public sealed class PublicAdmissionStatusDto
     public string ApplicationNumber { get; set; } = string.Empty;
     public string ApplicantName { get; set; } = string.Empty;
     public string MaskedMobile { get; set; } = string.Empty;
-    public AdmissionApplicationStatus Status { get; set; }
+    public AdmissionApplicantState State { get; set; }
     public DateTime SubmittedAtUtc { get; set; }
     public string? DecisionNote { get; set; }
     public PublicAdmissionAssessmentStatusDto? Assessment { get; set; }

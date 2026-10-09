@@ -1,4 +1,4 @@
-using EduOS.Core.Enums;
+using EduOS.Core.Enums.Domain;
 using System.ComponentModel.DataAnnotations;
 
 namespace EduOS.Core.DTOs.SaaS
@@ -10,15 +10,15 @@ namespace EduOS.Core.DTOs.SaaS
     {
         [Range(1, long.MaxValue)]
         public long InvoiceId { get; set; }
-        [EnumDataType(typeof(PaymentMethod))]
-        public PaymentMethod PaymentMethod { get; set; }
+        [EnumDataType(typeof(PaymentMethodType))]
+        public PaymentMethodType PaymentMethod { get; set; }
     }
 
     public class InitiatePaymentResponseDto
     {
         public string TransactionId { get; set; } = string.Empty;
         public string? PaymentUrl { get; set; }
-        public PaymentStatus Status { get; set; }
+        public PaymentState State { get; set; }
         public string Message { get; set; } = string.Empty;
     }
 
