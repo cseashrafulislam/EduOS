@@ -1,6 +1,6 @@
 using EduOS.Core.DTOs.Academic;
 using EduOS.Core.Entities.Academic;
-using EduOS.Core.Entities.Employees;
+using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Interfaces;
