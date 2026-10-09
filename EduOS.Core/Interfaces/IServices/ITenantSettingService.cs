@@ -9,4 +9,6 @@ public interface ITenantSettingService
     Task<ApiResponse<PagedResult<TenantSettingDto>>> GetSettingsAsync(string? category, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<TenantSettingDto>> GetSettingAsync(string key, CancellationToken cancellationToken = default);
     Task<ApiResponse<TenantSettingDto>> SaveSettingAsync(long? settingId, SaveTenantSettingRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<IReadOnlyList<TenantTerminologyDto>>> GetTerminologyAsync(CancellationToken cancellationToken = default);
+    Task<ApiResponse<TenantTerminologyDto>> SaveTerminologyAsync(long? terminologyId, SaveTenantTerminologyRequestDto request, CancellationToken cancellationToken = default);
 }

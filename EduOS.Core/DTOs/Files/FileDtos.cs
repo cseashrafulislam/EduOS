@@ -71,3 +71,26 @@ public class SaveDocumentTemplateRequestDto
     public bool IsActive { get; set; } = true;
     public string? RowVersion { get; set; }
 }
+
+public sealed class DocumentTypeDefinitionDto
+{
+    public long Id { get; set; }
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public bool RequiresVerification { get; set; }
+    public bool IsSensitive { get; set; }
+    public bool IsActive { get; set; }
+    public string RowVersion { get; set; } = string.Empty;
+}
+
+public sealed class SaveDocumentTypeDefinitionRequestDto
+{
+    [Required, MaxLength(100)] public string Code { get; set; } = string.Empty;
+    [Required, MaxLength(200)] public string Name { get; set; } = string.Empty;
+    [MaxLength(1000)] public string? Description { get; set; }
+    public bool RequiresVerification { get; set; }
+    public bool IsSensitive { get; set; }
+    public bool IsActive { get; set; } = true;
+    public string? RowVersion { get; set; }
+}

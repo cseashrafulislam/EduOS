@@ -11,4 +11,6 @@ public interface IDocumentService
     Task<ApiResponse<DocumentDto>> DeactivateDocumentAsync(Guid documentReference, string rowVersion, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<DocumentTemplateDto>>> GetTemplatesAsync(CancellationToken cancellationToken = default);
     Task<ApiResponse<DocumentTemplateDto>> SaveTemplateAsync(long? templateId, SaveDocumentTemplateRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<IReadOnlyList<DocumentTypeDefinitionDto>>> GetDocumentTypesAsync(CancellationToken cancellationToken = default);
+    Task<ApiResponse<DocumentTypeDefinitionDto>> SaveDocumentTypeAsync(long? documentTypeId, SaveDocumentTypeDefinitionRequestDto request, CancellationToken cancellationToken = default);
 }
