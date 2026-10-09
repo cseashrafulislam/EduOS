@@ -7,6 +7,9 @@ using Microsoft.Extensions.Logging;
 namespace EduOS.Service.Services.Inventory;
 public sealed partial class InventoryCatalogService
 {
+    // Campus-scoped managers cannot create or mutate tenant-wide shared locations.
+    private Task<bool> CanManageLocationCampusAsync(long? campusId, CancellationToken ct) =>
+        campusId.HasValue ? CanAccessCampusAsync(campusId.Value, ct) : Task.FromResult(CanAccessAllCampuses());
     public async Task<ApiResponse<InventoryLocationDto>> SaveLocationAsync(long? locationId, SaveInventoryLocationRequestDto request, CancellationToken ct = default)
     {
         if (!CanWrite()) return Denied<InventoryLocationDto>();
@@ -15,6 +18,8 @@ public sealed partial class InventoryCatalogService
         if (code.Length is < 1 or > 50 || name == null || name.Length > 150 ||
             address?.Length > 500 || request.CampusId is <= 0 || locationId is <= 0)
             return ApiResponse<InventoryLocationDto>.ErrorResponse("Invalid inventory location details.");
+        // Authorize the requested destination before probing campus existence.
+        if (!await CanManageLocationCampusAsync(request.CampusId, ct)) return Denied<InventoryLocationDto>();
         var tenant = _user.TenantId;
         if (request.CampusId.HasValue && !await _db.Campuses.AsNoTracking().AnyAsync(x =>
             x.TenantId == tenant && x.Id == request.CampusId && !x.IsDeleted && x.IsActive, ct))
@@ -27,6 +32,8 @@ public sealed partial class InventoryCatalogService
             {
                 var found = await _db.InventoryLocations.FirstOrDefaultAsync(x => x.TenantId == tenant && x.Id == locationId && !x.IsDeleted, ct);
                 if (found == null) return ApiResponse<InventoryLocationDto>.ErrorResponse("Location not found.", 404);
+                // Editing or moving a location requires rights to its current campus too.
+                if (!await CanManageLocationCampusAsync(found.CampusId, ct)) return Denied<InventoryLocationDto>();
                 if (!VersionMatches(found.RowVersion, request.RowVersion))
                     return ApiResponse<InventoryLocationDto>.ErrorResponse("Location changed; reload before saving.", 409);
                 entity = found;
@@ -36,6 +43,8 @@ public sealed partial class InventoryCatalogService
                 var existing = await _db.InventoryLocations.AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant && x.Code == code && !x.IsDeleted, ct);
                 if (existing != null)
                 {
+                    // A retry cannot disclose or reuse a location outside the caller's grant.
+                    if (!await CanManageLocationCampusAsync(existing.CampusId, ct)) return Denied<InventoryLocationDto>();
                     if (existing.Name == name && existing.Address == address && existing.CampusId == request.CampusId && existing.IsActive == request.IsActive)
                         return ApiResponse<InventoryLocationDto>.SuccessResponse(Map(existing), "Location already exists.");
                     return ApiResponse<InventoryLocationDto>.ErrorResponse("Location code is already in use.", 409);
