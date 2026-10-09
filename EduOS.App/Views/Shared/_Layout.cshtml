@@ -90,22 +90,13 @@
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
                     <span>@T["Students"]</span>
                 </a>
-                <a class="nav-link @ActiveFor("/Teacher")" href="/Teacher/Index">
-                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#teacher" /></svg>
-                    <span>@T["Teachers"]</span>
-                </a>
-                <a class="nav-link @ActiveFor("/Class")" href="/Class/Index">
-                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
-                    <span>@T["Classes"]</span>
-                </a>
+
+
                 <a class="nav-link @ActiveFor("/Attendance")" href="/Attendance/Index">
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#attendance" /></svg>
                     <span>@T["Attendance"]</span>
                 </a>
-                <a class="nav-link @ActiveFor("/Exam")" href="/Exam/Index">
-                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#exam" /></svg>
-                    <span>@T["ExamsResults"]</span>
-                </a>
+
             </nav>
 
             <hr class="sidebar-divider" />
@@ -118,6 +109,10 @@
                         <span>HR Administration</span>
                     </a>
                 }
+                <a class="nav-link @ActiveFor("/Library")" href="/Library/Index">
+                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
+                    <span>Library</span>
+                </a>
                 @if (User?.IsInRole("Teacher") == true || User?.IsInRole("Staff") == true)
                 {
                     <a class="nav-link @ActiveFor("/EmployeePortal")" href="/EmployeePortal/Index">
@@ -125,22 +120,10 @@
                         <span>Employee self-service</span>
                     </a>
                 }
-                <a class="nav-link @ActiveFor("/Finance")" href="/Finance/Index">
-                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#finance" /></svg>
-                    <span>@T["Finance"]</span>
-                </a>
-                <a class="nav-link @ActiveFor("/UserManagement")" href="/UserManagement/Index">
-                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#users" /></svg>
-                    <span>@T["UserManagement"]</span>
-                </a>
-                <a class="nav-link @ActiveFor("/RolePermission")" href="/RolePermission/Index">
-                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#shield" /></svg>
-                    <span>@T["RolePermissions"]</span>
-                </a>
-                <a class="nav-link @ActiveFor("/Reports")" href="/Reports/Index">
-                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                    <span>@T["Reports"]</span>
-                </a>
+
+
+
+
             </nav>
         </aside>
 
@@ -189,7 +172,7 @@
 
                             <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-4 p-2">
                                 <li><a class="dropdown-item rounded-3" href="/Account/Profile">@T["Profile"]</a></li>
-                                <li><a class="dropdown-item rounded-3" href="/Account/ChangePassword">@T["ChangePassword"]</a></li>
+                                <li><a class="dropdown-item rounded-3" href="/Account/Profile#passwordForm">@T["ChangePassword"]</a></li>
                                 <li><hr class="dropdown-divider" /></li>
                                 <li>
                                     <form asp-controller="Account" asp-action="Logout" method="post" class="m-0">

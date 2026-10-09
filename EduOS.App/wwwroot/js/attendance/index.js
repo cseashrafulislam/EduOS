@@ -111,7 +111,7 @@
         } catch (error) { status('danger', error.message); }
     }
     function readRow(tr) {
-        const str = key => tr.querySelector('[data-' + key + ']')?.value || '';
+        const str = key => tr.querySelector('[data-' + key.replace(/[A-Z]/g, x => '-' + x.toLowerCase()) + ']')?.value || '';
         return { studentReference: tr.dataset.studentReference, status: str('status'),
             inTime: str('inTime') ? str('inTime') + ':00' : null, outTime: str('outTime') ? str('outTime') + ':00' : null,
             remarks: str('remarks').trim() || null };
