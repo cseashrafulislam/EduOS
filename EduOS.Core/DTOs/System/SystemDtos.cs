@@ -16,7 +16,6 @@ public class SaveNumberSeriesRequestDto
 {
     [Required, MaxLength(100)] public string Key { get; set; } = string.Empty;
     [MaxLength(50)] public string Prefix { get; set; } = string.Empty;
-    [Range(1, long.MaxValue)] public long NextValue { get; set; } = 1;
     [Range(1, 30)] public int Padding { get; set; } = 6;
     [MaxLength(50)] public string? Suffix { get; set; }
     public bool IsActive { get; set; } = true;
@@ -103,6 +102,16 @@ public class AuditLogDto
     public DateTime OccurredAt { get; set; }
 }
 
+public class ImportLogItemDto
+{
+    public long Id { get; set; }
+    public long ImportLogId { get; set; }
+    public int RowNumber { get; set; }
+    public string? BusinessKey { get; set; }
+    public bool IsSuccess { get; set; }
+    public string? ErrorMessage { get; set; }
+}
+
 public class ImportLogDto
 {
     public long Id { get; set; }
@@ -179,6 +188,7 @@ public class ApiCredentialDto
 
 public class CreateApiCredentialRequestDto
 {
+    public Guid ClientRequestId { get; set; }
     [Required, MaxLength(150)] public string Name { get; set; } = string.Empty;
     public IReadOnlyList<string> AllowedScopes { get; set; } = Array.Empty<string>();
     public DateTime? ExpiresAt { get; set; }
