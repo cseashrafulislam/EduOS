@@ -1,4 +1,5 @@
 using EduOS.Core.DTOs.SaaS;
+using EduOS.Core.DTOs.Files;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -119,7 +120,20 @@ namespace EduOS.App.Controllers.Api
                 Note = form.Note
             };
 
-            var result = await _paymentService.SubmitManualPaymentAsync(dto, form.DepositSlip);
+            if (form.DepositSlip == null)
+            {
+                var missing = await _paymentService.SubmitManualPaymentAsync(dto, null);
+                return StatusCode(missing.StatusCode, missing);
+            }
+            await using var stream = form.DepositSlip.OpenReadStream();
+            var upload = new PrivateFileUploadDto
+            {
+                FileName = form.DepositSlip.FileName,
+                ContentType = form.DepositSlip.ContentType,
+                Length = form.DepositSlip.Length,
+                Content = stream
+            };
+            var result = await _paymentService.SubmitManualPaymentAsync(dto, upload);
             return StatusCode(result.StatusCode, result);
         }
 

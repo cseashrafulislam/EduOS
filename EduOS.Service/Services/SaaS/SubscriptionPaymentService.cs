@@ -1,5 +1,6 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.SaaS;
+using EduOS.Core.DTOs.Files;
 using EduOS.Core.Entities.Files;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Enums;
@@ -194,6 +195,18 @@ public sealed class SubscriptionPaymentService : ISubscriptionPaymentService
             _logger.LogError(ex, "Subscription payment callback failed for {TransactionId}", callback.MerTxnid);
             return ApiResponse<bool>.ErrorResponse("Payment verification is pending reconciliation.", 500);
         }
+    }
+
+    public Task<ApiResponse<SubscriptionPaymentDto>> SubmitManualPaymentAsync(
+        ManualPaymentSubmitDto dto, PrivateFileUploadDto? depositSlip)
+    {
+        if (depositSlip == null) return SubmitManualPaymentAsync(dto, (IFormFile?)null);
+        var form = new FormFile(depositSlip.Content, 0, depositSlip.Length, "DepositSlip", depositSlip.FileName)
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = depositSlip.ContentType
+        };
+        return SubmitManualPaymentAsync(dto, form);
     }
 
     public async Task<ApiResponse<SubscriptionPaymentDto>> SubmitManualPaymentAsync(
