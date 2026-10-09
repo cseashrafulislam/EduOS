@@ -111,6 +111,13 @@
             <hr class="sidebar-divider" />
             <div class="menu-title">@T["Management"]</div>
             <nav class="nav flex-column">
+                @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true || User?.IsInRole("HR") == true)
+                {
+                    <a class="nav-link @ActiveFor("/HR")" href="/HR/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#users" /></svg>
+                        <span>HR Administration</span>
+                    </a>
+                }
                 <a class="nav-link @ActiveFor("/Finance")" href="/Finance/Index">
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#finance" /></svg>
                     <span>@T["Finance"]</span>
