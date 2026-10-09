@@ -56,6 +56,7 @@ public class BookCopyDto
     public long Id { get; set; }
     public Guid BookReference { get; set; }
     public string BookTitle { get; set; } = string.Empty;
+    public long? LibraryBranchId { get; set; }
     public string AccessionNumber { get; set; } = string.Empty;
     public string? Barcode { get; set; }
     public string? ShelfNumber { get; set; }
@@ -66,6 +67,7 @@ public class BookCopyDto
 public class SaveBookCopyRequestDto
 {
     public Guid BookReference { get; set; }
+    public long? LibraryBranchId { get; set; }
     [Required, MaxLength(100)] public string AccessionNumber { get; set; } = string.Empty;
     [MaxLength(100)] public string? Barcode { get; set; }
     [MaxLength(100)] public string? ShelfNumber { get; set; }

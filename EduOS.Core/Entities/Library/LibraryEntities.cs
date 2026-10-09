@@ -35,6 +35,7 @@ public class BookCopy : BaseTenantEntity
 
 public class BookIssue : BaseTenantEntity
 {
+    public Guid PublicId { get; set; } = Guid.NewGuid();
     public Guid ClientRequestId { get; set; }
     public long BookCopyId { get; set; }
     public long StudentId { get; set; }
