@@ -25,7 +25,7 @@ public class SelfServicePortalServiceTests
         await using var context = CreateContext(out var accessor); SetTenant(accessor, 10); var own = Student(10, 99, "OWN"); context.Students.Add(own); await context.SaveChangesAsync();
         context.Enrollments.AddRange(StudentEnrollment(10, own.Id, 1, 1, 1, false, DateTime.UtcNow.AddYears(-1)), StudentEnrollment(10, own.Id, 2, 2, 3, true, DateTime.UtcNow));
         context.Subjects.AddRange(new Subject { Id = 11, TenantId = 10, ClassId = 2, Name = "Bangla", Code = "BAN" }, new Subject { Id = 12, TenantId = 10, ClassId = 2, Name = "Math", Code = "MATH" });
-        context.Set<EduOS.Core.Entities.Employees.Employee>().Add(new EduOS.Core.Entities.Employees.Employee { Id = 21, TenantId = 10, EmployeeCode = "T-1", FullName = "Teacher One", Phone = "01700000000", DesignationId = 1, JoiningDate = DateTime.UtcNow.Date, Salary = 1, IsActive = true, IsTeacher = true });
+        context.Set<EduOS.Core.Entities.HR.Employee>().Add(new EduOS.Core.Entities.HR.Employee { Id = 21, TenantId = 10, EmployeeCode = "T-1", FullName = "Teacher One", Phone = "01700000000", DesignationId = 1, JoiningDate = DateOnly.FromDateTime(DateTime.UtcNow), State = EduOS.Core.Entities.HR.EmployeeState.Active, CanTeach = true });
         await context.SaveChangesAsync();
         context.ClassRoutines.AddRange(Routine(10, 2, 2, 3, 11, 21, "Sunday", new TimeSpan(9, 0, 0)), Routine(10, 2, 2, 3, 12, 21, "Saturday", new TimeSpan(10, 0, 0)), Routine(10, 1, 1, 1, 11, 21, "Saturday", new TimeSpan(8, 0, 0)));
         await context.SaveChangesAsync();
