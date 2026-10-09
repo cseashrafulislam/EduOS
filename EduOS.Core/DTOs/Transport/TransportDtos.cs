@@ -112,3 +112,21 @@ public class TransportRouteDto : RouteDto { }
 public class TransportVehicleDto : VehicleDto { }
 public class AssignTransportDto : AssignStudentTransportRequestDto { }
 public class CloseTransportDto : CloseStudentTransportRequestDto { }
+
+public sealed class TransportStudentOptionDto
+{
+    public Guid EnrollmentReference { get; set; }
+    public string StudentName { get; set; } = string.Empty;
+    public string StudentCode { get; set; } = string.Empty;
+    public string Roll { get; set; } = string.Empty;
+}
+
+public sealed class TransportAssignmentRowDto
+{
+    public Guid Reference { get; set; }
+    public string StudentName { get; set; } = string.Empty;
+    public string RouteName { get; set; } = string.Empty;
+    public string VehicleNumber { get; set; } = string.Empty;
+    public DateOnly StartDate { get; set; }
+    public string RowVersion { get; set; } = string.Empty;
+}

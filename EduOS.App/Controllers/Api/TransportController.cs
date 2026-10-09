@@ -24,6 +24,18 @@ public sealed class TransportController : ControllerBase
     [HttpGet("vehicles")]
     public async Task<IActionResult> Vehicles(CancellationToken ct) => ToAction(await _service.GetVehiclesAsync(ct));
 
+    [HttpGet("eligible-students")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    public async Task<IActionResult> EligibleStudents([FromQuery] int page = 1, [FromQuery] int pageSize = 25,
+        [FromQuery] string? search = null, CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetEligibleStudentsAsync(page, pageSize, search, cancellationToken));
+
+    [HttpGet("active-assignments")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    public async Task<IActionResult> ActiveAssignments([FromQuery] int page = 1, [FromQuery] int pageSize = 25,
+        [FromQuery] string? search = null, CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetActiveAssignmentsAsync(page, pageSize, search, cancellationToken));
+
     [HttpGet("my-assignment")]
     public async Task<IActionResult> MyAssignment(CancellationToken ct) => ToAction(await _service.GetMyAssignmentAsync(ct));
 

@@ -94,6 +94,74 @@ public sealed class TransportService : ITransportService
         return ApiResponse<IReadOnlyList<TransportVehicleDto>>.SuccessResponse(result);
     }
 
+    public async Task<ApiResponse<PagedResult<TransportStudentOptionDto>>> GetEligibleStudentsAsync(
+        int page, int pageSize, string? search, CancellationToken cancellationToken = default)
+    {
+        if (!CanManage()) return Denied<PagedResult<TransportStudentOptionDto>>();
+        if (page < 1 || pageSize is < 1 or > 100) return ApiResponse<PagedResult<TransportStudentOptionDto>>.ErrorResponse("Invalid paging parameters.");
+        var tenant = _currentUser.TenantId;
+        var query = from enrollment in _enrollments.GetQueryable().AsNoTracking()
+                    join student in _students.GetQueryable().AsNoTracking() on enrollment.StudentId equals student.Id
+                    where enrollment.TenantId == tenant && student.TenantId == tenant && student.IsActive &&
+                          enrollment.IsCurrent && enrollment.IsActive && enrollment.State == EnrollmentState.Active &&
+                          !_assignments.GetQueryable().Any(x => x.TenantId == tenant && x.StudentId == student.Id &&
+                              x.State == TransportAssignmentState.Active)
+                    select new { enrollment.PublicId, student.FullName, student.StudentCode, enrollment.RollNo };
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            if (term.Length > 100) return ApiResponse<PagedResult<TransportStudentOptionDto>>.ErrorResponse("Search is too long.");
+            query = query.Where(x => x.FullName.Contains(term) || x.StudentCode.Contains(term) || x.RollNo.Contains(term));
+        }
+        var total = await query.CountAsync(cancellationToken);
+        var items = await query.OrderBy(x => x.FullName).ThenBy(x => x.StudentCode)
+            .Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(x => new TransportStudentOptionDto
+            {
+                EnrollmentReference = x.PublicId, StudentName = x.FullName,
+                StudentCode = x.StudentCode, Roll = x.RollNo
+            }).ToListAsync(cancellationToken);
+        return ApiResponse<PagedResult<TransportStudentOptionDto>>.SuccessResponse(new PagedResult<TransportStudentOptionDto>
+        {
+            Items = items, TotalCount = total, Page = page, PageSize = pageSize
+        });
+    }
+
+    public async Task<ApiResponse<PagedResult<TransportAssignmentRowDto>>> GetActiveAssignmentsAsync(
+        int page, int pageSize, string? search, CancellationToken cancellationToken = default)
+    {
+        if (!CanManage()) return Denied<PagedResult<TransportAssignmentRowDto>>();
+        if (page < 1 || pageSize is < 1 or > 100) return ApiResponse<PagedResult<TransportAssignmentRowDto>>.ErrorResponse("Invalid paging parameters.");
+        var tenant = _currentUser.TenantId;
+        var query = from assignment in _assignments.GetQueryable().AsNoTracking()
+                    join student in _students.GetQueryable().AsNoTracking() on assignment.StudentId equals student.Id
+                    join route in _routes.GetQueryable().AsNoTracking() on assignment.RouteId equals route.Id
+                    join vehicle in _vehicles.GetQueryable().AsNoTracking() on assignment.VehicleId equals vehicle.Id
+                    where assignment.TenantId == tenant && student.TenantId == tenant &&
+                          route.TenantId == tenant && vehicle.TenantId == tenant &&
+                          assignment.State == TransportAssignmentState.Active
+                    select new { assignment.PublicId, assignment.StartDate, assignment.RowVersion,
+                        student.FullName, student.StudentCode, RouteName = route.Name, vehicle.VehicleNumber };
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            if (term.Length > 100) return ApiResponse<PagedResult<TransportAssignmentRowDto>>.ErrorResponse("Search is too long.");
+            query = query.Where(x => x.FullName.Contains(term) || x.StudentCode.Contains(term));
+        }
+        var total = await query.CountAsync(cancellationToken);
+        var records = await query.OrderBy(x => x.FullName).ThenBy(x => x.StudentCode)
+            .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
+        var items = records.Select(x => new TransportAssignmentRowDto
+        {
+            Reference = x.PublicId, StartDate = x.StartDate, RowVersion = Convert.ToBase64String(x.RowVersion),
+            StudentName = x.FullName, RouteName = x.RouteName, VehicleNumber = x.VehicleNumber
+        }).ToList();
+        return ApiResponse<PagedResult<TransportAssignmentRowDto>>.SuccessResponse(new PagedResult<TransportAssignmentRowDto>
+        {
+            Items = items, TotalCount = total, Page = page, PageSize = pageSize
+        });
+    }
+
     public async Task<ApiResponse<StudentTransportDto?>> GetMyAssignmentAsync(CancellationToken cancellationToken = default)
     {
         if (!CanRead()) return Denied<StudentTransportDto?>();
