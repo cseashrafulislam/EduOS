@@ -28,6 +28,7 @@ public class NoticeDto
     public DateTime PublishAt { get; set; }
     public DateTime? ExpiresAt { get; set; }
     public bool IsPublished { get; set; }
+    public IReadOnlyList<NoticeAudienceDto> Audiences { get; set; } = Array.Empty<NoticeAudienceDto>();
     public string RowVersion { get; set; } = string.Empty;
 }
 
@@ -39,6 +40,7 @@ public class SaveNoticeRequestDto
     public DateTime PublishAt { get; set; } = DateTime.UtcNow;
     public DateTime? ExpiresAt { get; set; }
     public bool IsPublished { get; set; }
+    [Required, MinLength(1)] public IReadOnlyList<SaveNoticeAudienceRequestDto> Audiences { get; set; } = Array.Empty<SaveNoticeAudienceRequestDto>();
     public string? RowVersion { get; set; }
 }
 
@@ -77,7 +79,6 @@ public class MessageThreadDto
     public Guid Reference { get; set; }
     public string? Subject { get; set; }
     public DateTime LastMessageAt { get; set; }
-    public IReadOnlyList<MessageDto> Messages { get; set; } = Array.Empty<MessageDto>();
 }
 
 public class MessageDto
@@ -175,4 +176,23 @@ public class CommunicationDeliveryDto
     public DateTime? SentAt { get; set; }
     public DateTime? DeliveredAt { get; set; }
     public string? FailureReason { get; set; }
+}
+
+public sealed class NoticeAudienceDto
+{
+    public long Id { get; set; }
+    public string AudienceTypeCode { get; set; } = string.Empty;
+    public long? CampusId { get; set; }
+    public long? AcademicProgramId { get; set; }
+    public long? AcademicBatchId { get; set; }
+    public long? UserId { get; set; }
+}
+
+public sealed class SaveNoticeAudienceRequestDto
+{
+    [Required, MaxLength(50)] public string AudienceTypeCode { get; set; } = string.Empty;
+    public long? CampusId { get; set; }
+    public long? AcademicProgramId { get; set; }
+    public long? AcademicBatchId { get; set; }
+    public long? UserId { get; set; }
 }
