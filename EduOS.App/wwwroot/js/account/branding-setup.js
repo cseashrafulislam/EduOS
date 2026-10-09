@@ -11,6 +11,7 @@
     let onboarding = null;
     let savedSubdomain = '';
     let rowVersion = '';
+    const colorSettings = new Map();
     let availableSubdomain = '';
     let checkTimer = 0;
 
@@ -62,9 +63,7 @@
             savedSubdomain = String(profile.subdomain || '').toLowerCase();
             if (subdomainInput) subdomainInput.value = savedSubdomain;
             if (savedSubdomain) setAvailability(i18n.subdomainSaved, 'ok');
-            setColor('primary', profile.primaryColor, '#1E40AF');
-            setColor('secondary', profile.secondaryColor, '#64748B');
-            setColor('accent', profile.accentColor, '#F59E0B');
+            await loadColors();
             renderAsset('logo', profile.logoUrl);
             renderAsset('favicon', profile.faviconUrl);
         } catch {
@@ -225,23 +224,41 @@
         if (removeButton) removeButton.hidden = !safeUrl;
     }
 
+    async function loadColors() {
+        const response = await fetch('/api/tenant-settings?category=Branding&page=1&pageSize=50',
+            { credentials: 'same-origin', cache: 'no-store' });
+        const result = await response.json().catch(() => null);
+        if (!response.ok || !result?.success) throw new Error('color settings');
+        colorSettings.clear();
+        for (const row of result.data?.items || []) colorSettings.set(row.key, row);
+        const value = name => colorSettings.get('Branding.' + name)?.value;
+        setColor('primary', value('PrimaryColor'), '#1E40AF');
+        setColor('secondary', value('SecondaryColor'), '#64748B');
+        setColor('accent', value('AccentColor'), '#F59E0B');
+    }
+
+    async function saveColor(name, value) {
+        if (!/^#[0-9a-f]{6}$/i.test(value)) throw new Error('Invalid color value.');
+        const key = 'Branding.' + name;
+        const existing = colorSettings.get(key);
+        const response = await fetch(existing?.id ? '/api/tenant-settings/' + existing.id : '/api/tenant-settings', {
+            method: existing?.id ? 'PUT' : 'POST',
+            cache: 'no-store', credentials: 'same-origin',
+            headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key, value, category: 'Branding', rowVersion: existing?.rowVersion || null, isSensitive: false })
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || !payload?.success || !payload.data) throw new Error(payload?.message || 'Color could not be saved.');
+        colorSettings.set(key, payload.data);
+    }
+
     async function saveBranding(event) {
         event.preventDefault();
         setButtonLoading(saveBrandingButton, true, i18n.saving);
         try {
-            const response = await fetch('/api/tenant-profile/branding', {
-                method: 'PUT',
-                cache: 'no-store',
-                credentials: 'same-origin',
-                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    primaryColor: valueOf('primaryColorText'),
-                    secondaryColor: valueOf('secondaryColorText'),
-                    accentColor: valueOf('accentColorText')
-                })
-            });
-            const payload = await response.json().catch(() => null);
-            if (!response.ok || !payload?.success) throw new Error('branding');
+            await saveColor('PrimaryColor', valueOf('primaryColorText'));
+            await saveColor('SecondaryColor', valueOf('secondaryColorText'));
+            await saveColor('AccentColor', valueOf('accentColorText'));
 
             if (onboarding?.isComplete) {
                 window.location.assign('/Dashboard/Index');

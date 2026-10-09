@@ -1,59 +1,74 @@
-using EduOS.Core.DTOs.Tenants;
+using EduOS.Core.DTOs.SaaS;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
-namespace EduOS.App.Controllers.Api
+namespace EduOS.App.Controllers.Api;
+
+[Authorize(Roles = "TenantAdmin,SuperAdmin")]
+[AutoValidateAntiforgeryToken]
+[EnableRateLimiting("ApiPolicy")]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+[ApiController]
+[Route("api/tenant-settings")]
+public sealed class TenantSettingController : ControllerBase
 {
-    [Authorize(Roles = "TenantAdmin,SuperAdmin")]
-    [AutoValidateAntiforgeryToken]
-    [EnableRateLimiting("ApiPolicy")]
-    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-    [ApiController]
-    [Route("api/tenant-settings")]
-    public class TenantSettingController : ControllerBase
+    private readonly ITenantSettingService _service;
+    public TenantSettingController(ITenantSettingService service) => _service = service;
+
+    [HttpGet]
+    public async Task<IActionResult> List([FromQuery] string? category, [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
     {
-        private readonly ITenantSettingService _settingService;
+        var response = await _service.GetSettingsAsync(category, page, pageSize, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
 
-        public TenantSettingController(ITenantSettingService settingService)
-        {
-            _settingService = settingService;
-        }
+    [HttpGet("key/{key}")]
+    public async Task<IActionResult> Get(string key, CancellationToken cancellationToken)
+    {
+        var response = await _service.GetSettingAsync(key, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
 
-        [HttpGet("sms-gateway")]
-        public async Task<IActionResult> GetSmsGateway()
-        {
-            var result = await _settingService.GetSmsGatewayAsync();
-            return StatusCode(result.StatusCode, result);
-        }
+    [HttpPost]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> Create([FromBody] SaveTenantSettingRequestDto request, CancellationToken cancellationToken)
+    {
+        var response = await _service.SaveSettingAsync(null, request, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
 
-        [HttpPut("sms-gateway")]
-        public async Task<IActionResult> SaveSmsGateway([FromBody] SmsGatewaySettingsDto dto)
-        {
-            var result = await _settingService.SaveSmsGatewayAsync(dto);
-            return StatusCode(result.StatusCode, result);
-        }
+    [HttpPut("{settingId:long}")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> Update(long settingId, [FromBody] SaveTenantSettingRequestDto request, CancellationToken cancellationToken)
+    {
+        var response = await _service.SaveSettingAsync(settingId, request, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
 
-        [HttpGet("email-gateway")]
-        public async Task<IActionResult> GetEmailGateway()
-        {
-            var result = await _settingService.GetEmailGatewayAsync();
-            return StatusCode(result.StatusCode, result);
-        }
+    [HttpGet("terminology")]
+    public async Task<IActionResult> Terminology(CancellationToken cancellationToken)
+    {
+        var response = await _service.GetTerminologyAsync(cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
 
-        [HttpPut("email-gateway")]
-        public async Task<IActionResult> SaveEmailGateway([FromBody] EmailGatewaySettingsDto dto)
-        {
-            var result = await _settingService.SaveEmailGatewayAsync(dto);
-            return StatusCode(result.StatusCode, result);
-        }
+    [HttpPost("terminology")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> CreateTerminology([FromBody] SaveTenantTerminologyRequestDto request, CancellationToken cancellationToken)
+    {
+        var response = await _service.SaveTerminologyAsync(null, request, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
 
-        [HttpGet("category/{category}")]
-        public async Task<IActionResult> GetByCategory(string category)
-        {
-            var result = await _settingService.GetAllByCategoryAsync(category);
-            return StatusCode(result.StatusCode, result);
-        }
+    [HttpPut("terminology/{terminologyId:long}")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> UpdateTerminology(long terminologyId, [FromBody] SaveTenantTerminologyRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var response = await _service.SaveTerminologyAsync(terminologyId, request, cancellationToken);
+        return StatusCode(response.StatusCode, response);
     }
 }
