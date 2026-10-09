@@ -28,7 +28,7 @@ public class EnrollmentRepository : GenericRepository<StudentEnrollment>, IStude
             .OrderByDescending(x => x.EnrollmentDate).ThenByDescending(x => x.Id).ToListAsync(cancellationToken);
     public Task<StudentEnrollment?> GetCurrentAsync(long studentId, CancellationToken cancellationToken) =>
         _dbSet.AsNoTracking().FirstOrDefaultAsync(x => x.StudentId == studentId && x.IsCurrent
-            && x.IsActive && x.State == EnrollmentState.Active, cancellationToken);
+            && x.State == EnrollmentState.Active && x.State == EnrollmentState.Active, cancellationToken);
     public Task<(List<StudentEnrollment> Items, int TotalCount)> GetByAcademicBatchAsync(long academicBatchId, int page, int pageSize, CancellationToken cancellationToken) =>
         PageAsync(_dbSet.AsNoTracking().Where(x => x.AcademicBatchId == academicBatchId)
             .OrderBy(x => x.RollNo).ThenBy(x => x.Id), page, pageSize, cancellationToken);

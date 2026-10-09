@@ -1,5 +1,6 @@
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Interfaces.IRepositories;
+using EduOS.Core.Enums.Domain;
 using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 
@@ -48,7 +49,7 @@ namespace EduOS.Persistence.Repositories
         public async Task<List<Tenant>> GetActiveTenantsAsync()
         {
             return await _dbSet
-                .Where(t => t.IsActive)
+                .Where(t => t.State == TenantState.Active)
                 .OrderBy(t => t.Name)
                 .ToListAsync();
         }

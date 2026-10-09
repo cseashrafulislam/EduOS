@@ -1085,7 +1085,6 @@ public class EduOSDbContext :
         modelBuilder.Entity<Tenant>().HasIndex(x => x.PublicId).IsUnique();
         modelBuilder.Entity<Tenant>().HasIndex(x => x.Code).IsUnique();
         modelBuilder.Entity<Tenant>().HasIndex(x => x.Subdomain).IsUnique().HasFilter("[Subdomain] IS NOT NULL");
-        modelBuilder.Entity<Tenant>().HasIndex(x => x.CustomDomain).IsUnique().HasFilter("[CustomDomain] IS NOT NULL");
         modelBuilder.Entity<InstitutionTypeDefinition>().HasIndex(x => x.Code).IsUnique();
         modelBuilder.Entity<ProductModule>().HasIndex(x => x.Code).IsUnique();
         modelBuilder.Entity<Feature>().HasIndex(x => x.Code).IsUnique();
@@ -1493,9 +1492,6 @@ public class EduOSDbContext :
 
     private static void ConfigureSpecialMappings(ModelBuilder modelBuilder)
     {
-        // ParentAccountId is the authoritative hierarchy FK. ParentId is a legacy duplicate and must not become a second source of truth.
-        modelBuilder.Entity<Account>().Ignore(x => x.ParentId);
-
         modelBuilder.Entity<TenantSetting>().Property(x => x.Value).HasColumnType("nvarchar(max)");
         modelBuilder.Entity<LegalDocument>().Property(x => x.Content).HasColumnType("nvarchar(max)");
         modelBuilder.Entity<CertificateTemplate>().Property(x => x.HtmlTemplate).HasColumnType("nvarchar(max)");

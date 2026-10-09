@@ -24,18 +24,18 @@ public class StudentRepository : GenericRepository<Student>, IStudentRepository
     {
         var studentIds = _context.Set<StudentEnrollment>()
             .Where(x => x.AcademicLevelId == classId && x.AcademicBatchId == sectionId
-                && x.IsCurrent && x.IsActive && x.State == EnrollmentState.Active)
+                && x.IsCurrent && x.State == EnrollmentState.Active)
             .Select(x => x.StudentId);
-        return await _dbSet.AsNoTracking().Where(x => studentIds.Contains(x.Id) && x.IsActive)
+        return await _dbSet.AsNoTracking().Where(x => studentIds.Contains(x.Id) && x.StatusCode == "Active")
             .OrderBy(x => x.StudentCode).ToListAsync();
     }
 
     public async Task<List<Student>> GetByAcademicYearAsync(long academicYearId)
     {
         var studentIds = _context.Set<StudentEnrollment>()
-            .Where(x => x.AcademicYearId == academicYearId && x.IsActive)
+            .Where(x => x.AcademicYearId == academicYearId && x.State == EnrollmentState.Active)
             .Select(x => x.StudentId).Distinct();
-        return await _dbSet.AsNoTracking().Where(x => studentIds.Contains(x.Id) && x.IsActive)
+        return await _dbSet.AsNoTracking().Where(x => studentIds.Contains(x.Id) && x.StatusCode == "Active")
             .OrderBy(x => x.StudentCode).ToListAsync();
     }
 
@@ -56,7 +56,7 @@ public class StudentRepository : GenericRepository<Student>, IStudentRepository
             && x.AcademicLevelId == classId
             && x.AcademicBatchId == sectionId
             && x.AcademicYearId == academicYearId
-            && x.IsActive);
+            && x.State == EnrollmentState.Active);
         if (excludeId.HasValue) query = query.Where(x => x.StudentId != excludeId.Value);
         return await query.AnyAsync();
     }
@@ -73,7 +73,7 @@ public class StudentRepository : GenericRepository<Student>, IStudentRepository
     }
 
     public Task<int> GetActiveCountAsync(long tenantId) =>
-        _dbSet.CountAsync(x => x.TenantId == tenantId && x.IsActive && x.StatusCode == "Active");
+        _dbSet.CountAsync(x => x.TenantId == tenantId && x.StatusCode == "Active" && x.StatusCode == "Active");
 
     public Task<Student?> GetByCodeAsync(string code, CancellationToken cancellationToken) =>
         _dbSet.AsNoTracking().FirstOrDefaultAsync(x => x.StudentCode == code, cancellationToken);
@@ -81,16 +81,16 @@ public class StudentRepository : GenericRepository<Student>, IStudentRepository
         _dbSet.AsNoTracking().FirstOrDefaultAsync(x => x.UserId == userId, cancellationToken);
     public Task<(List<Student> Items, int TotalCount)> GetByAcademicBatchAsync(long academicBatchId, bool currentOnly, int page, int pageSize, CancellationToken cancellationToken)
     {
-        var ids = _context.Set<StudentEnrollment>().Where(x => x.AcademicBatchId == academicBatchId && x.IsActive
+        var ids = _context.Set<StudentEnrollment>().Where(x => x.AcademicBatchId == academicBatchId && x.State == EnrollmentState.Active
             && (!currentOnly || x.IsCurrent)).Select(x => x.StudentId).Distinct();
-        return PageAsync(_dbSet.AsNoTracking().Where(x => ids.Contains(x.Id) && x.IsActive)
+        return PageAsync(_dbSet.AsNoTracking().Where(x => ids.Contains(x.Id) && x.StatusCode == "Active")
             .OrderBy(x => x.StudentCode).ThenBy(x => x.Id), page, pageSize, cancellationToken);
     }
     public Task<(List<Student> Items, int TotalCount)> GetByAcademicYearAsync(long academicYearId, int page, int pageSize, CancellationToken cancellationToken)
     {
-        var ids = _context.Set<StudentEnrollment>().Where(x => x.AcademicYearId == academicYearId && x.IsActive)
+        var ids = _context.Set<StudentEnrollment>().Where(x => x.AcademicYearId == academicYearId && x.State == EnrollmentState.Active)
             .Select(x => x.StudentId).Distinct();
-        return PageAsync(_dbSet.AsNoTracking().Where(x => ids.Contains(x.Id) && x.IsActive)
+        return PageAsync(_dbSet.AsNoTracking().Where(x => ids.Contains(x.Id) && x.StatusCode == "Active")
             .OrderBy(x => x.StudentCode).ThenBy(x => x.Id), page, pageSize, cancellationToken);
     }
     public Task<bool> IsCodeExistsAsync(string code, long tenantId, long? excludeId, CancellationToken cancellationToken)
@@ -103,8 +103,8 @@ public class StudentRepository : GenericRepository<Student>, IStudentRepository
     {
         var normalized = rollNo.Trim();
         return _context.Set<StudentEnrollment>().AnyAsync(x => x.AcademicBatchId == academicBatchId && x.RollNo == normalized
-            && x.IsActive && (!excludeEnrollmentId.HasValue || x.Id != excludeEnrollmentId.Value), cancellationToken);
+            && x.State == EnrollmentState.Active && (!excludeEnrollmentId.HasValue || x.Id != excludeEnrollmentId.Value), cancellationToken);
     }
     public Task<int> GetActiveCountAsync(long tenantId, CancellationToken cancellationToken) =>
-        _dbSet.CountAsync(x => x.TenantId == tenantId && x.IsActive && x.StatusCode == "Active", cancellationToken);
+        _dbSet.CountAsync(x => x.TenantId == tenantId && x.StatusCode == "Active" && x.StatusCode == "Active", cancellationToken);
 }

@@ -276,7 +276,7 @@ public sealed class LearnerConsentRepository : ILearnerConsentRepository
     private async Task<bool> UserControlsPersonAsync(long personId, long userId, CancellationToken cancellationToken)
     {
         if (await _context.Students.IgnoreQueryFilters().AsNoTracking()
-            .AnyAsync(x => !x.IsDeleted && x.PersonId == personId && x.UserId == userId && x.IsActive, cancellationToken))
+            .AnyAsync(x => !x.IsDeleted && x.PersonId == personId && x.UserId == userId && x.StatusCode == "Active", cancellationToken))
             return true;
 
         return await (
@@ -293,7 +293,7 @@ public sealed class LearnerConsentRepository : ILearnerConsentRepository
     private async Task<long[]> GetControlledPersonIdsAsync(long userId, CancellationToken cancellationToken)
     {
         var direct = _context.Students.IgnoreQueryFilters().AsNoTracking()
-            .Where(x => !x.IsDeleted && x.UserId == userId && x.IsActive)
+            .Where(x => !x.IsDeleted && x.UserId == userId && x.StatusCode == "Active")
             .Select(x => x.PersonId);
 
         var guardian =
