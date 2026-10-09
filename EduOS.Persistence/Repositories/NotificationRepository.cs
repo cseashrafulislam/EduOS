@@ -42,7 +42,7 @@ public class NotificationRepository : GenericRepository<Notification>, INotifica
 
     public Task<(List<Notification> Items, int TotalCount)> GetByUserAsync(long tenantId, long userId, int page, int pageSize, bool? unreadOnly, CancellationToken cancellationToken) =>
         PageAsync(_dbSet.AsNoTracking().Where(x => x.TenantId == tenantId && x.UserId == userId
-            && (!unreadOnly.HasValue || x.IsRead != unreadOnly.Value))
+            && (!unreadOnly.HasValue || !unreadOnly.Value || !x.IsRead))
             .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id), page, pageSize, cancellationToken);
     public Task<int> GetUnreadCountAsync(long tenantId, long userId, CancellationToken cancellationToken) =>
         _dbSet.CountAsync(x => x.TenantId == tenantId && x.UserId == userId && !x.IsRead, cancellationToken);
