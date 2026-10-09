@@ -103,11 +103,6 @@ public class CloseStudentTransportRequestDto
     [Required] public string RowVersion { get; set; } = string.Empty;
 }
 
-// Backward-compatible API contract aliases; domain entities remain canonical.
-public class TransportRouteDto : RouteDto { }
-public class TransportVehicleDto : VehicleDto { }
-public class AssignTransportDto : AssignStudentTransportRequestDto { }
-public class CloseTransportDto : CloseStudentTransportRequestDto { }
 
 public sealed class TransportStudentOptionDto
 {

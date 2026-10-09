@@ -101,10 +101,6 @@ public class CloseStudentHostelAllocationRequestDto
     [Required] public string RowVersion { get; set; } = string.Empty;
 }
 
-// Backward-compatible API contract aliases; domain entities remain canonical.
-public class StudentHostelDto : StudentHostelAllocationDto { }
-public class AllocateHostelDto : AllocateStudentHostelRequestDto { }
-public class CloseHostelAllocationDto : CloseStudentHostelAllocationRequestDto { }
 
 public sealed class HostelStudentOptionDto
 {
