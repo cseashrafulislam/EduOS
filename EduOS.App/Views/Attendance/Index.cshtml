@@ -17,9 +17,9 @@
         <div class="content-card-heading"><h3 id="attendanceFilterTitle">Attendance register</h3></div>
         <form id="attendanceFilters" class="row g-3 align-items-end">
             <div class="col-md-3"><label class="form-label" for="attendanceDate">Date</label><input id="attendanceDate" class="form-control" type="date" required /></div>
-            <div class="col-md-3"><label class="form-label" for="academicYearId">Academic Year ID</label><input id="academicYearId" class="form-control" type="number" min="1" required /></div>
-            <div class="col-md-3"><label class="form-label" for="classId">Class ID</label><input id="classId" class="form-control" type="number" min="1" required /></div>
-            <div class="col-md-3"><label class="form-label" for="sectionId">Section ID</label><input id="sectionId" class="form-control" type="number" min="1" required /></div>
+            <div class="col-md-3"><label class="form-label" for="academicYearId">Academic year</label><select id="academicYearId" class="form-select" required><option value="">Loading academic years…</option></select></div>
+            <div class="col-md-3"><label class="form-label" for="classId">Academic level</label><select id="classId" class="form-select" required disabled><option value="">Select a year first</option></select></div>
+            <div class="col-md-3"><label class="form-label" for="sectionId">Academic batch / section</label><select id="sectionId" class="form-select" required disabled><option value="">Select a level first</option></select></div>
             <div class="col-12 d-flex gap-2 flex-wrap">
                 <button class="btn btn-primary" type="submit">Load roster</button>
                 <button id="markAllPresent" class="btn btn-outline-success" type="button" disabled>Mark all present</button>
