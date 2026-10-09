@@ -22,7 +22,7 @@ The retired DTO files only contained empty namespaces, excluded types, or simpli
 ## Outstanding compatibility migrations (not silently deleted)
 1. `Entities.Accounting.Account.ParentId` and `ParentAccountId`: first inspect deployed values, backfill canonical parent, update EF migration and dependent consumers; then retire `ParentId`.
 2. `Entities.SaaS.Tenant.CustomDomain` and `TenantDomain.HostName`: identify authoritative domain record and migrate/deprecate duplicate editable value safely.
-3. `DTOs.Academic.ClassDto` is an active compatibility contract for `IClassService`. `AcademicLevel` remains authoritative; change API/Service together before removing legacy name.
+3. The unregistered historical level-service and duplicate level DTO have been retired. `AcademicSetupService` is the authoritative academic-level creation workflow; administrative edit/deactivation requires canonical implementation with concurrency checks.
 4. `DTOs.Student` and `DTOs.Students` have distinct directory/management projections. Rename ambiguous output DTOs only with API and Service compatibility tests.
 5. `DTOs.Hostel` and `DTOs.Transport` have intentional adapter subclasses still needed by implemented services. Retire only after callers have switched.
 6. `DTOs.Admission`, `DTOs.Academic` and `DTOs.LMS` contain compatibility-oriented workflow DTOs whose shape differs from final entities; fix their consumer mappings rather than introducing duplicate entity properties.

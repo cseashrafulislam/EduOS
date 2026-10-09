@@ -68,8 +68,8 @@ namespace EduOS.Persistence.Extensions
         private static void RegisterAcademicRepositories(IServiceCollection s)
         {
             s.AddScoped<IAcademicYearRepository, AcademicYearRepository>();
-            s.AddScoped<IClassRepository, ClassRepository>();
-            s.AddScoped<ISectionRepository, SectionRepository>();
+            s.AddScoped<IAcademicLevelRepository, AcademicLevelRepository>();
+            s.AddScoped<IAcademicBatchRepository, AcademicBatchRepository>();
             s.AddScoped<IGroupRepository, GroupRepository>();
             s.AddScoped<ISubjectRepository, SubjectRepository>();
             s.AddScoped<IDepartmentRepository, DepartmentRepository>();
