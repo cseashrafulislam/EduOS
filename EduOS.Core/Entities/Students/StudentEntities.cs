@@ -23,7 +23,6 @@ public class Student : BaseTenantEntity
     [MaxLength(20)] public string PreferredLanguage { get; set; } = "bn-BD";
     [MaxLength(50)] public string StatusCode { get; set; } = "Active";
     public DateTime? PersonDataSnapshotAt { get; set; }
-    public bool IsActive { get; set; } = true;
 }
 
 public class Guardian : BaseTenantEntity

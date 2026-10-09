@@ -22,11 +22,8 @@ public class Tenant : BaseEntity
     [MaxLength(20)] public string DefaultLanguage { get; set; } = "bn-BD";
     public TenantState State { get; set; } = TenantState.PendingVerification;
     public OnboardingStage OnboardingStage { get; set; } = OnboardingStage.EmailVerification;
-    public bool IsOnboardingComplete { get; set; }
     public DateTime? OnboardingCompletedAt { get; set; }
-    public bool IsEmailVerified { get; set; }
     public DateTime? EmailVerifiedAt { get; set; }
-    public bool IsActive { get; set; } = true;
 }
 
 public class Campus : BaseTenantEntity

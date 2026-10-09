@@ -9,7 +9,7 @@ public class TenantDto
     public string Name { get; set; } = string.Empty;
     public string Code { get; set; } = string.Empty;
     public string? Subdomain { get; set; }
-    public string? CustomDomain { get; set; }
+    public string? PrimaryDomainHostName { get; set; }
     public string Email { get; set; } = string.Empty;
     public string? Phone { get; set; }
     public string? Address { get; set; }
@@ -21,9 +21,8 @@ public class TenantDto
     public string DefaultLanguage { get; set; } = "bn-BD";
     public TenantState State { get; set; }
     public OnboardingStage OnboardingStage { get; set; }
-    public bool IsOnboardingComplete { get; set; }
-    public bool IsEmailVerified { get; set; }
-    public bool IsActive { get; set; }
+    public DateTime? OnboardingCompletedAt { get; set; }
+    public DateTime? EmailVerifiedAt { get; set; }
     public string RowVersion { get; set; } = string.Empty;
 }
 

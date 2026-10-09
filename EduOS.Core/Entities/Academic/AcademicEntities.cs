@@ -211,7 +211,6 @@ public class StudentEnrollment : BaseTenantEntity
     public DateOnly? EndDate { get; set; }
     public EnrollmentState State { get; set; } = EnrollmentState.Active;
     public bool IsCurrent { get; set; } = true;
-    public bool IsActive { get; set; } = true;
     [MaxLength(500)] public string? Remarks { get; set; }
 }
 
