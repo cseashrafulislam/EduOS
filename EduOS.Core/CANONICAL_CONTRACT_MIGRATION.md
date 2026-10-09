@@ -125,3 +125,26 @@ Existing Persistence classes implement **old** signatures. This document does **
 ### Core-only completion boundary
 
 `EduOS.Core` Release Build PASS proves only that the contracts compile. It does **not** prove that 215 entities are covered by working services, that database migrations have been applied, that old implementations match the new repository signatures, or that tenant and concurrency invariants hold in persisted data. All of those must be verified before calling the entire EduOS solution production-ready.
+
+## Audit and academic DTO consolidation (Core-only)
+
+### Audit history
+
+- `IAuditLogService` is read-only: paged `SearchAsync` and bounded `GetStatisticsAsync`. No user-facing `DeleteOldLogsAsync` or unbounded `byte[]` export endpoint. Implement retention with a separately authorized, audited policy after checking legal retention and backup obligations.
+- `AuditLogFilterDto.EntityName` and `EntityId` align with `AuditLog.EntityName`/`EntityId`. Tenant scope comes from the authenticated server context, **never** from an untrusted filter value. `FromUtc`/`ToUtc` are UTC instants with validated chronological order and a server-defined maximum range.
+- `AuditLogStatisticsDto` uses 64-bit counters; list view is paged, and `CorrelationId`/`RequestId` are carried for diagnostic investigation. Restrict old/new value exposure to appropriately privileged users and redact personal secrets.
+- `IGenericRepository` retired unused `FindFirstOrDefaultAsync`, `ExistsAsync` and `DeleteByIdAsync` duplicates. Existing `GetAllAsync`/`FindAsync` and generic `Delete`/`DeleteRange` methods are marked obsolete rather than silently removed, because existing downstream code still calls them. Migrate callers to bounded projections and controlled domain operations before removal.
+
+### Academic authority
+
+- `AcademicSetupDtos.cs` was removed: `IAcademicSetupService` now consumes `SaveAcademicProgramRequestDto`, `SaveAcademicLevelRequestDto`, `SaveAcademicTrackRequestDto`, `SaveSubjectRequestDto`, `SaveAcademicCurriculumRequestDto`, `SaveCurriculumSubjectRequestDto`, `SaveAcademicBatchRequestDto`, and `SaveRoomRequestDto`. Setup option results have a configurable bounded `take` value; enforce a maximum on the server.
+- `AcademicEnrollmentDtos.cs` was removed. `StudentEnrollmentDto.State` is the lifecycle owner (do not reconstruct `IsActive`); `CreateStudentEnrollmentRequestDto` now accepts student reference, batch, curriculum, roll, enrollment business date and idempotency key. Resolve and snapshot campus, academic year/term, program, level, track, medium and shift **from the selected batch** and validate the curriculum relationship under the enrollment transaction.
+- `AcademicRoutineDtos.cs` and `AcademicInstructionDtos.cs` were retired: assignments, routine entries, substitutions and lesson plans use the canonical DTO family in `AcademicDtos.cs`. For routine entries, optional `InstructorAssignmentId` must match the specified `SubjectOffering`, tenant and effective date.
+- Lesson plans have `LessonDate` (`DateOnly`) and workflow `State`, not a parallel ChapterName/StartDate/EndDate or an independent editable progress percentage. Server-enforced state transitions and row version validation govern submit/review.
+- `AcademicCalendarDtos.cs` legacy date-typed write DTOs were removed. Campus calendar policy does **not** own `AcademicYearId`; events do. All business dates in calendar read/write requests are `DateOnly`. `AcademicWorkingDayDto` is a derived calendar projection, not a persistent entity.
+- The old institution onboarding service duplicated canonical tenant profile, campus, academic year and term operations. Only `IInstitutionRegistrationService` owns institution registration/email verification; `ITenantProfileService`, `IAcademicSetupService`, and `IOnboardingService` own the rest. The obsolete seven SaaS setup/list DTO files were removed.
+- `InstitutionSignupRequestDto.ClientRequestId` is a server-validated retry key. Normalize email, enforce tenant/user uniqueness, verify `AgreeTerms` against a versioned terms document and store secure password hashes, never plaintext. Public verification origin must come from trusted configuration, not a caller-supplied `baseUrl`. Do not disclose sequential tenant/user IDs in public signup responses.
+
+### Release requirements
+
+Any consumers of removed DTOs/interfaces must migrate in coordinated later work, rather than restoring legacy aliases in Core. Preserve issued invoices, historical enrollments and published results across migrations. Backfill and verify existing data before enforcing new constraints, and dry-run migrations against a restored production backup. A passing Core compile does not mean Persistence/Service/API are compatible.
