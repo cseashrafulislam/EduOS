@@ -19,7 +19,7 @@
         public string InstitutionName { get; set; } = string.Empty;
         public IList<string> Roles { get; set; } = new List<string>();
         public bool IsOnboardingComplete { get; set; }
-        public int CurrentOnboardingStep { get; set; }
+        public EduOS.Core.Enums.Domain.OnboardingStage OnboardingStage { get; set; }
     }
     public class RefreshTokenRequestDto
     {

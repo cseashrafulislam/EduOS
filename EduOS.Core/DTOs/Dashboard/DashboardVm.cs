@@ -22,7 +22,7 @@ namespace EduOS.Core.DTOs.Dashboard
         // ── Onboarding ─────────────────────────────────────────
         public bool EmailVerified { get; set; }
         public bool OnboardingComplete { get; set; }
-        public int OnboardingStep { get; set; }
+        public EduOS.Core.Enums.Domain.OnboardingStage OnboardingStage { get; set; }
         public int OnboardingPercent { get; set; }
 
         // ── Limits & Usage ─────────────────────────────────────
