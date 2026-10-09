@@ -25,9 +25,9 @@
         if (userId && (!/^[1-9]\d*$/.test(userId) || !Number.isSafeInteger(Number(userId)))) throw new Error('Enter a valid positive User ID.');
         const q = new URLSearchParams();
         if (includePage) { q.set('page', String(state.page)); q.set('pageSize', String(state.pageSize)); }
-        if (from) q.set('fromDate', from + 'T00:00:00Z');
-        if (to) q.set('toDate', to + 'T23:59:59.9999999Z');
-        if (el('auditEntity').value.trim()) q.set('tableName', el('auditEntity').value.trim());
+        if (from) q.set('fromUtc', from + 'T00:00:00Z');
+        if (to) q.set('toUtc', to + 'T23:59:59.999Z');
+        if (el('auditEntity').value.trim()) q.set('entityName', el('auditEntity').value.trim());
         if (el('auditAction').value) q.set('action', el('auditAction').value);
         if (userId) q.set('userId', userId);
         if (el('auditStatus').value) q.set('isSuccess', el('auditStatus').value);
@@ -71,26 +71,9 @@
             if (state.controller === abort) { state.controller = null; state.loading = false; el('auditPrevious').disabled = state.page <= 1; el('auditNext').disabled = state.page >= state.totalPages; }
         }
     }
-    async function exportLogs() {
-        let q; try { q = params(false); } catch (error) { alertMessage(error.message); return; }
-        const button = el('auditExport'); button.disabled = true; clearAlert();
-        try {
-            const response = await fetch('/api/v1/AuditLog/export?' + q.toString(), { credentials: 'same-origin', cache: 'no-store' });
-            if (!response.ok) {
-                const payload = await response.json().catch(() => null);
-                throw new Error(payload?.message || 'Audit export failed.');
-            }
-            const blob = await response.blob();
-            const objectUrl = URL.createObjectURL(blob), a = document.createElement('a');
-            a.href = objectUrl; a.download = 'audit-logs-utc-' + new Date().toISOString().slice(0, 10) + '.xlsx';
-            document.body.append(a); a.click(); a.remove();
-            setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-        } catch (error) { alertMessage(error.message); } finally { button.disabled = false; }
-    }
     el('auditFilterForm').addEventListener('submit', e => { e.preventDefault(); state.page = 1; load(); });
     el('auditClear').addEventListener('click', () => { el('auditFilterForm').reset(); state.page = 1; load(); });
     el('auditPrevious').addEventListener('click', () => { if (!state.loading && state.page > 1) { state.page--; load(); } });
     el('auditNext').addEventListener('click', () => { if (!state.loading && state.page < state.totalPages) { state.page++; load(); } });
-    el('auditExport').addEventListener('click', exportLogs);
     load();
 })();

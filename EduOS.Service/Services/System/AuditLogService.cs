@@ -1,344 +1,131 @@
-﻿using AutoMapper;
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.System;
+using EduOS.Core.Entities.System;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
-using global::System.ComponentModel;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using OfficeOpenXml; // For Excel export (EPPlus package)
-using System.Text;
 
-namespace EduOS.Service.Services
+namespace EduOS.Service.Services;
+
+public sealed class AuditLogService : IAuditLogService
 {
-    public class AuditLogService : IAuditLogService
+    private readonly IAuditLogRepository _repository;
+    private readonly ICurrentUserService _user;
+    private readonly ILogger<AuditLogService> _logger;
+
+    public AuditLogService(IAuditLogRepository repository, ICurrentUserService user, ILogger<AuditLogService> logger)
     {
-        private readonly IAuditLogRepository _auditLogRepository;
-        private readonly ICurrentUserService _currentUser;
-        private readonly ILogger<AuditLogService> _logger;
-        private readonly IMapper _mapper;
+        _repository = repository;
+        _user = user;
+        _logger = logger;
+    }
 
-        public AuditLogService(
-            IAuditLogRepository auditLogRepository,
-            ICurrentUserService currentUser,
-            ILogger<AuditLogService> logger,
-            IMapper mapper)
+    public async Task<ApiResponse<PagedResult<AuditLogDto>>> SearchAsync(AuditLogFilterDto filter, CancellationToken cancellationToken = default)
+    {
+        if (!CanRead()) return ApiResponse<PagedResult<AuditLogDto>>.ErrorResponse("Tenant audit permission is required.", 403);
+        if (filter == null) return ApiResponse<PagedResult<AuditLogDto>>.ErrorResponse("A valid audit filter is required.");
+        if (!ValidRange(filter)) return ApiResponse<PagedResult<AuditLogDto>>.ErrorResponse("UTC date range is invalid.");
+        try
         {
-            _auditLogRepository = auditLogRepository;
-            _currentUser = currentUser;
-            _logger = logger;
-            _mapper = mapper;
-        }
-
-        public async Task<ApiResponse<PagedResult<AuditLogDto>>> GetAllAsync(AuditLogFilterDto filter)
-        {
-            try
-            {
-                var query = _auditLogRepository.GetQueryable()
-                    .Where(a => a.TenantId == _currentUser.TenantId);
-
-                // Apply filters
-                if (filter.UserId.HasValue)
-                    query = query.Where(a => a.UserId == filter.UserId.Value);
-
-                if (!string.IsNullOrEmpty(filter.TableName))
-                    query = query.Where(a => a.EntityName == filter.TableName);
-
-                if (!string.IsNullOrEmpty(filter.Action))
-                    query = query.Where(a => a.Action == filter.Action);
-
-                if (filter.FromDate.HasValue)
-                    query = query.Where(a => a.OccurredAt >= filter.FromDate.Value);
-
-                if (filter.ToDate.HasValue)
-                    query = query.Where(a => a.OccurredAt <= filter.ToDate.Value);
-
-                if (!string.IsNullOrEmpty(filter.IpAddress))
-                    query = query.Where(a => a.IpAddress == filter.IpAddress);
-
-                if (filter.IsSuccess.HasValue)
-                    query = query.Where(a => a.IsSuccess == filter.IsSuccess.Value);
-
-                var totalCount = await query.CountAsync();
-
-                var items = await query
-                    .OrderByDescending(a => a.OccurredAt)
-                    .Skip((filter.Page - 1) * filter.PageSize)
-                    .Take(filter.PageSize)
-                    .ToListAsync();
-
-                var dtos = _mapper.Map<List<AuditLogDto>>(items);
-
-                var result = new PagedResult<AuditLogDto>
+            var query = FilterQuery(filter);
+            var count = await query.CountAsync(cancellationToken);
+            var offset = ((long)filter.Page - 1) * filter.PageSize;
+            var items = offset > int.MaxValue ? new List<AuditLogDto>() : await query
+                .OrderByDescending(x => x.OccurredAt).ThenByDescending(x => x.Id)
+                .Skip((int)offset).Take(filter.PageSize)
+                .Select(x => new AuditLogDto
                 {
-                    Items = dtos,
-                    TotalCount = totalCount,
-                    Page = filter.Page,
-                    PageSize = filter.PageSize
-                };
-
-                return ApiResponse<PagedResult<AuditLogDto>>.SuccessResponse(result);
-            }
-            catch (Exception ex)
+                    Id = x.Id, TenantId = x.TenantId, UserId = x.UserId, UserName = x.UserName,
+                    Action = x.Action, EntityName = x.EntityName, EntityId = x.EntityId,
+                    IpAddress = x.IpAddress, Endpoint = x.Endpoint, IsSuccess = x.IsSuccess,
+                    OccurredAt = x.OccurredAt, CorrelationId = x.CorrelationId, RequestId = x.RequestId
+                }).ToListAsync(cancellationToken);
+            return ApiResponse<PagedResult<AuditLogDto>>.SuccessResponse(new PagedResult<AuditLogDto>
             {
-                _logger.LogError(ex, "Error fetching audit logs");
-                return ApiResponse<PagedResult<AuditLogDto>>.ErrorResponse("Failed to fetch audit logs", 500);
-            }
+                Items = items, TotalCount = count, Page = filter.Page, PageSize = filter.PageSize
+            });
         }
-
-        public async Task<ApiResponse<List<AuditLogDto>>> GetByRecordAsync(string tableName, long recordId)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception ex)
         {
-            try
-            {
-                var logs = await _auditLogRepository.GetByRecordIdAsync(
-                    tableName, recordId, _currentUser.TenantId);
-
-                var dtos = _mapper.Map<List<AuditLogDto>>(logs);
-                return ApiResponse<List<AuditLogDto>>.SuccessResponse(dtos);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error fetching audit logs for record {Table}/{Id}", tableName, recordId);
-                return ApiResponse<List<AuditLogDto>>.ErrorResponse("Failed to fetch audit logs", 500);
-            }
-        }
-
-        public async Task<ApiResponse<List<AuditLogDto>>> GetByUserAsync(long userId)
-        {
-            try
-            {
-                var logs = await _auditLogRepository.GetByUserIdAsync(userId, _currentUser.TenantId);
-
-                var dtos = _mapper.Map<List<AuditLogDto>>(logs);
-                return ApiResponse<List<AuditLogDto>>.SuccessResponse(dtos);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error fetching audit logs for user {UserId}", userId);
-                return ApiResponse<List<AuditLogDto>>.ErrorResponse("Failed to fetch audit logs", 500);
-            }
-        }
-
-        public async Task<ApiResponse<List<AuditLogDto>>> GetByDateRangeAsync(DateTime fromDate, DateTime toDate)
-        {
-            try
-            {
-                var logs = await _auditLogRepository.GetQueryable()
-                    .Where(a => a.TenantId == _currentUser.TenantId
-                        && a.OccurredAt >= fromDate
-                        && a.OccurredAt <= toDate)
-                    .OrderByDescending(a => a.OccurredAt)
-                    .ToListAsync();
-
-                var dtos = _mapper.Map<List<AuditLogDto>>(logs);
-                return ApiResponse<List<AuditLogDto>>.SuccessResponse(dtos);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error fetching audit logs for date range");
-                return ApiResponse<List<AuditLogDto>>.ErrorResponse("Failed to fetch audit logs", 500);
-            }
-        }
-
-        public async Task<ApiResponse<List<AuditLogDto>>> GetByActionAsync(string action)
-        {
-            try
-            {
-                var logs = await _auditLogRepository.GetQueryable()
-                    .Where(a => a.TenantId == _currentUser.TenantId
-                        && a.Action == action)
-                    .OrderByDescending(a => a.OccurredAt)
-                    .Take(100)
-                    .ToListAsync();
-
-                var dtos = _mapper.Map<List<AuditLogDto>>(logs);
-                return ApiResponse<List<AuditLogDto>>.SuccessResponse(dtos);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error fetching audit logs for action {Action}", action);
-                return ApiResponse<List<AuditLogDto>>.ErrorResponse("Failed to fetch audit logs", 500);
-            }
-        }
-
-        public async Task<ApiResponse<List<AuditLogDto>>> GetByTableNameAsync(string tableName)
-        {
-            try
-            {
-                var logs = await _auditLogRepository.GetByTableNameAsync(tableName, _currentUser.TenantId);
-
-                var dtos = _mapper.Map<List<AuditLogDto>>(logs);
-                return ApiResponse<List<AuditLogDto>>.SuccessResponse(dtos);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error fetching audit logs for table {Table}", tableName);
-                return ApiResponse<List<AuditLogDto>>.ErrorResponse("Failed to fetch audit logs", 500);
-            }
-        }
-
-        public async Task<ApiResponse<AuditLogStatisticsDto>> GetStatisticsAsync()
-        {
-            try
-            {
-                var now = DateTime.UtcNow;
-                var today = new DateTime(now.Year, now.Month, now.Day);
-                var weekAgo = now.AddDays(-7);
-                var monthAgo = now.AddMonths(-1);
-
-                var query = _auditLogRepository.GetQueryable()
-                    .Where(a => a.TenantId == _currentUser.TenantId);
-
-                var stats = new AuditLogStatisticsDto
-                {
-                    TotalLogs = await query.CountAsync(),
-                    TodayLogs = await query.Where(a => a.OccurredAt >= today).CountAsync(),
-                    ThisWeekLogs = await query.Where(a => a.OccurredAt >= weekAgo).CountAsync(),
-                    ThisMonthLogs = await query.Where(a => a.OccurredAt >= monthAgo).CountAsync(),
-
-                    CreateActions = await query.Where(a => a.Action == "Create").CountAsync(),
-                    UpdateActions = await query.Where(a => a.Action == "Update").CountAsync(),
-                    DeleteActions = await query.Where(a => a.Action == "Delete").CountAsync(),
-
-                    SuccessfulOperations = await query.Where(a => a.IsSuccess).CountAsync(),
-                    FailedOperations = await query.Where(a => !a.IsSuccess).CountAsync(),
-
-                    TopTables = await query
-                        .GroupBy(a => a.EntityName)
-                        .OrderByDescending(g => g.Count())
-                        .Take(10)
-                        .Select(g => new TableActivityDto
-                        {
-                            TableName = g.Key,
-                            ActivityCount = g.Count()
-                        })
-                        .ToListAsync(),
-
-                    TopUsers = await query
-                        .Where(a => a.UserId.HasValue)
-                        .GroupBy(a => new { a.UserId, a.UserName })
-                        .OrderByDescending(g => g.Count())
-                        .Take(10)
-                        .Select(g => new UserActivityDto
-                        {
-                            UserId = g.Key.UserId.HasValue ? g.Key.UserId.Value : 0,
-                            UserName = g.Key.UserName,
-                            ActivityCount = g.Count()
-                        })
-                        .ToListAsync()
-                };
-
-                return ApiResponse<AuditLogStatisticsDto>.SuccessResponse(stats);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error fetching audit log statistics");
-                return ApiResponse<AuditLogStatisticsDto>.ErrorResponse("Failed to fetch statistics", 500);
-            }
-        }
-
-        public async Task<ApiResponse<byte[]>> ExportAsync(AuditLogFilterDto filter)
-        {
-            try
-            {
-                var query = _auditLogRepository.GetQueryable()
-                    .Where(a => a.TenantId == _currentUser.TenantId);
-
-                // Apply filters (same as GetAllAsync)
-                if (filter.UserId.HasValue)
-                    query = query.Where(a => a.UserId == filter.UserId.Value);
-
-                if (!string.IsNullOrEmpty(filter.TableName))
-                    query = query.Where(a => a.EntityName == filter.TableName);
-
-                if (!string.IsNullOrEmpty(filter.Action))
-                    query = query.Where(a => a.Action == filter.Action);
-
-                if (filter.FromDate.HasValue)
-                    query = query.Where(a => a.OccurredAt >= filter.FromDate.Value);
-
-                if (filter.ToDate.HasValue)
-                    query = query.Where(a => a.OccurredAt <= filter.ToDate.Value);
-
-                var logs = await query
-                    .OrderByDescending(a => a.OccurredAt)
-                    .Take(10000) // Limit export to 10000 records
-                    .ToListAsync();
-
-                // Generate Excel file
-                //ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
-
-                using var package = new ExcelPackage();
-                var worksheet = package.Workbook.Worksheets.Add("Audit Logs");
-
-                // Headers
-                worksheet.Cells[1, 1].Value = "Date";
-                worksheet.Cells[1, 2].Value = "User";
-                worksheet.Cells[1, 3].Value = "Action";
-                worksheet.Cells[1, 4].Value = "Table";
-                worksheet.Cells[1, 5].Value = "Record ID";
-                worksheet.Cells[1, 6].Value = "IP Address";
-                worksheet.Cells[1, 7].Value = "Success";
-
-                // Data
-                for (int i = 0; i < logs.Count; i++)
-                {
-                    var log = logs[i];
-                    var row = i + 2;
-
-                    worksheet.Cells[row, 1].Value = log.OccurredAt;
-                    worksheet.Cells[row, 2].Value = log.UserName;
-                    worksheet.Cells[row, 3].Value = log.Action;
-                    worksheet.Cells[row, 4].Value = log.EntityName;
-                    worksheet.Cells[row, 5].Value = log.EntityId;
-                    worksheet.Cells[row, 6].Value = log.IpAddress;
-                    worksheet.Cells[row, 7].Value = log.IsSuccess ? "Yes" : "No";
-                }
-
-                // Auto-fit columns
-                worksheet.Cells[worksheet.Dimension.Address].AutoFitColumns();
-
-                return ApiResponse<byte[]>.SuccessResponse(
-                    package.GetAsByteArray(),
-                    "Audit logs exported successfully");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error exporting audit logs");
-                return ApiResponse<byte[]>.ErrorResponse("Failed to export audit logs", 500);
-            }
-        }
-
-        public async Task<ApiResponse<int>> DeleteOldLogsAsync(DateTime olderThan)
-        {
-            try
-            {
-                // Only SuperAdmin can delete audit logs
-                if (!_currentUser.IsSuperAdmin)
-                {
-                    return ApiResponse<int>.ErrorResponse("Only SuperAdmin can delete audit logs", 403);
-                }
-
-                var oldLogs = await _auditLogRepository.GetQueryable()
-                    .Where(a => a.OccurredAt < olderThan)
-                    .ToListAsync();
-
-                _auditLogRepository.DeleteRange(oldLogs);
-                await _auditLogRepository.UnitOfWork.SaveChangesAsync();
-
-                _logger.LogInformation("Deleted {Count} old audit logs older than {Date}",
-                    oldLogs.Count, olderThan);
-
-                return ApiResponse<int>.SuccessResponse(oldLogs.Count,
-                    $"Deleted {oldLogs.Count} audit logs");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error deleting old audit logs");
-                return ApiResponse<int>.ErrorResponse("Failed to delete audit logs", 500);
-            }
+            _logger.LogError(ex, "Tenant audit query failed for {TenantId}", _user.TenantId);
+            return ApiResponse<PagedResult<AuditLogDto>>.ErrorResponse("Could not load audit records.", 500);
         }
     }
-}
 
+    public async Task<ApiResponse<AuditLogStatisticsDto>> GetStatisticsAsync(AuditLogFilterDto filter, CancellationToken cancellationToken = default)
+    {
+        if (!CanRead()) return ApiResponse<AuditLogStatisticsDto>.ErrorResponse("Tenant audit permission is required.", 403);
+        if (filter == null || !ValidRange(filter)) return ApiResponse<AuditLogStatisticsDto>.ErrorResponse("UTC date range is invalid.");
+        try
+        {
+            var now = DateTime.UtcNow;
+            var today = now.Date;
+            var week = now.AddDays(-7);
+            var month = now.AddMonths(-1);
+            var query = FilterQuery(filter);
+            var totals = await query.GroupBy(x => 1).Select(g => new
+            {
+                Total = g.Count(), Today = g.Count(x => x.OccurredAt >= today),
+                Week = g.Count(x => x.OccurredAt >= week),
+                Month = g.Count(x => x.OccurredAt >= month),
+                Created = g.Count(x => x.Action == "Create"),
+                Updated = g.Count(x => x.Action == "Update"),
+                Deleted = g.Count(x => x.Action == "Delete"),
+                Successful = g.Count(x => x.IsSuccess),
+                Failed = g.Count(x => !x.IsSuccess)
+            }).FirstOrDefaultAsync(cancellationToken);
+            var entities = await query.GroupBy(x => x.EntityName)
+                .Select(g => new AuditEntityActivityDto { EntityName = g.Key, ActivityCount = g.LongCount() })
+                .OrderByDescending(x => x.ActivityCount).ThenBy(x => x.EntityName).Take(10)
+                .ToListAsync(cancellationToken);
+            var users = await query.Where(x => x.UserId.HasValue)
+                .GroupBy(x => new { x.UserId, x.UserName })
+                .Select(g => new AuditUserActivityDto
+                {
+                    UserId = g.Key.UserId ?? 0, UserName = g.Key.UserName ?? string.Empty,
+                    ActivityCount = g.LongCount()
+                }).OrderByDescending(x => x.ActivityCount).ThenBy(x => x.UserId)
+                .Take(10).ToListAsync(cancellationToken);
+            return ApiResponse<AuditLogStatisticsDto>.SuccessResponse(new AuditLogStatisticsDto
+            {
+                TotalLogs = totals?.Total ?? 0, TodayLogs = totals?.Today ?? 0,
+                ThisWeekLogs = totals?.Week ?? 0, ThisMonthLogs = totals?.Month ?? 0,
+                CreateActions = totals?.Created ?? 0, UpdateActions = totals?.Updated ?? 0,
+                DeleteActions = totals?.Deleted ?? 0, SuccessfulOperations = totals?.Successful ?? 0,
+                FailedOperations = totals?.Failed ?? 0, TopEntities = entities, TopUsers = users
+            });
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Tenant audit statistics failed for {TenantId}", _user.TenantId);
+            return ApiResponse<AuditLogStatisticsDto>.ErrorResponse("Could not load audit statistics.", 500);
+        }
+    }
+
+    private IQueryable<AuditLog> FilterQuery(AuditLogFilterDto filter)
+    {
+        IQueryable<AuditLog> query = _repository.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == _user.TenantId);
+        if (filter.UserId.HasValue) query = query.Where(x => x.UserId == filter.UserId);
+        if (!string.IsNullOrWhiteSpace(filter.EntityName)) query = query.Where(x => x.EntityName == filter.EntityName.Trim());
+        if (filter.EntityId.HasValue) query = query.Where(x => x.EntityId == filter.EntityId);
+        if (!string.IsNullOrWhiteSpace(filter.Action)) query = query.Where(x => x.Action == filter.Action.Trim());
+        if (filter.FromUtc.HasValue) query = query.Where(x => x.OccurredAt >= filter.FromUtc.Value);
+        if (filter.ToUtc.HasValue) query = query.Where(x => x.OccurredAt <= filter.ToUtc.Value);
+        if (!string.IsNullOrWhiteSpace(filter.IpAddress)) query = query.Where(x => x.IpAddress == filter.IpAddress.Trim());
+        if (filter.IsSuccess.HasValue) query = query.Where(x => x.IsSuccess == filter.IsSuccess.Value);
+        return query;
+    }
+
+    private bool CanRead() => _user.IsAuthenticated && _user.TenantId > 0 &&
+        (_user.IsTenantAdmin || _user.IsInRole("Principal"));
+
+    private static bool ValidRange(AuditLogFilterDto filter) =>
+        (!filter.FromUtc.HasValue || filter.FromUtc.Value.Kind == DateTimeKind.Utc) &&
+        (!filter.ToUtc.HasValue || filter.ToUtc.Value.Kind == DateTimeKind.Utc) &&
+        (!filter.FromUtc.HasValue || !filter.ToUtc.HasValue || filter.FromUtc <= filter.ToUtc);
+}
