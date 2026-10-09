@@ -64,6 +64,108 @@ public sealed class HostelService : IHostelService
         return ApiResponse<IReadOnlyList<HostelRoomDto>>.SuccessResponse(rows);
     }
 
+    public async Task<ApiResponse<PagedResult<HostelStudentOptionDto>>> GetEligibleStudentsAsync(
+        int page, int pageSize, string? search, CancellationToken cancellationToken = default)
+    {
+        if (!CanManage()) return Denied<PagedResult<HostelStudentOptionDto>>();
+        if (page < 1 || pageSize is < 1 or > 100) return ApiResponse<PagedResult<HostelStudentOptionDto>>.ErrorResponse("Invalid paging parameters.");
+        var tenant = _currentUser.TenantId;
+        var query = from enrollment in _enrollments.GetQueryable().AsNoTracking()
+                    join student in _students.GetQueryable().AsNoTracking() on enrollment.StudentId equals student.Id
+                    where enrollment.TenantId == tenant && student.TenantId == tenant &&
+                        enrollment.IsCurrent && enrollment.IsActive && enrollment.State == EnrollmentState.Active && student.IsActive &&
+                        !_allocations.GetQueryable().Any(x => x.TenantId == tenant && x.StudentId == student.Id &&
+                            x.State == HostelAllocationState.Active)
+                    select new { enrollment.PublicId, student.FullName, student.StudentCode, enrollment.RollNo };
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            if (term.Length > 100) return ApiResponse<PagedResult<HostelStudentOptionDto>>.ErrorResponse("Search term is too long.");
+            query = query.Where(x => x.FullName.Contains(term) || x.StudentCode.Contains(term) || x.RollNo.Contains(term));
+        }
+        var total = await query.CountAsync(cancellationToken);
+        var items = await query.OrderBy(x => x.FullName).ThenBy(x => x.StudentCode).Skip((page - 1) * pageSize)
+            .Take(pageSize).Select(x => new HostelStudentOptionDto
+            {
+                EnrollmentReference = x.PublicId, StudentName = x.FullName,
+                StudentCode = x.StudentCode, Roll = x.RollNo
+            }).ToListAsync(cancellationToken);
+        return ApiResponse<PagedResult<HostelStudentOptionDto>>.SuccessResponse(new PagedResult<HostelStudentOptionDto>
+        {
+            Items = items, TotalCount = total, Page = page, PageSize = pageSize
+        });
+    }
+
+    public async Task<ApiResponse<PagedResult<HostelBedOptionDto>>> GetAvailableBedsAsync(
+        int page, int pageSize, string? search, CancellationToken cancellationToken = default)
+    {
+        if (!CanManage()) return Denied<PagedResult<HostelBedOptionDto>>();
+        if (page < 1 || pageSize is < 1 or > 100) return ApiResponse<PagedResult<HostelBedOptionDto>>.ErrorResponse("Invalid paging parameters.");
+        var tenant = _currentUser.TenantId;
+        var query = from bed in _beds.GetQueryable().AsNoTracking()
+                    join room in _rooms.GetQueryable().AsNoTracking() on bed.HostelRoomId equals room.Id
+                    join hostel in _hostels.GetQueryable().AsNoTracking() on room.HostelId equals hostel.Id
+                    where bed.TenantId == tenant && room.TenantId == tenant && hostel.TenantId == tenant &&
+                        bed.IsActive && room.IsActive && hostel.IsActive &&
+                        !_allocations.GetQueryable().Any(x => x.TenantId == tenant && x.HostelBedId == bed.Id &&
+                            x.State == HostelAllocationState.Active)
+                    select new { BedId = bed.Id, bed.BedNumber, room.RoomNumber, room.RentPerBed,
+                        HostelName = hostel.Name, hostel.GenderRestriction };
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            if (term.Length > 100) return ApiResponse<PagedResult<HostelBedOptionDto>>.ErrorResponse("Search term is too long.");
+            query = query.Where(x => x.HostelName.Contains(term) || x.RoomNumber.Contains(term) || x.BedNumber.Contains(term));
+        }
+        var total = await query.CountAsync(cancellationToken);
+        var items = await query.OrderBy(x => x.HostelName).ThenBy(x => x.RoomNumber).ThenBy(x => x.BedNumber)
+            .Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(x => new HostelBedOptionDto
+            {
+                BedId = x.BedId, HostelName = x.HostelName, RoomNumber = x.RoomNumber,
+                BedNumber = x.BedNumber, RentPerBed = x.RentPerBed, GenderRestriction = x.GenderRestriction
+            }).ToListAsync(cancellationToken);
+        return ApiResponse<PagedResult<HostelBedOptionDto>>.SuccessResponse(new PagedResult<HostelBedOptionDto>
+        {
+            Items = items, TotalCount = total, Page = page, PageSize = pageSize
+        });
+    }
+
+    public async Task<ApiResponse<PagedResult<HostelAllocationRowDto>>> GetActiveAllocationsAsync(
+        int page, int pageSize, string? search, CancellationToken cancellationToken = default)
+    {
+        if (!CanManage()) return Denied<PagedResult<HostelAllocationRowDto>>();
+        if (page < 1 || pageSize is < 1 or > 100) return ApiResponse<PagedResult<HostelAllocationRowDto>>.ErrorResponse("Invalid paging parameters.");
+        var tenant = _currentUser.TenantId;
+        var query = from allocation in _allocations.GetQueryable().AsNoTracking()
+                    join student in _students.GetQueryable().AsNoTracking() on allocation.StudentId equals student.Id
+                    join bed in _beds.GetQueryable().AsNoTracking() on allocation.HostelBedId equals bed.Id
+                    join room in _rooms.GetQueryable().AsNoTracking() on bed.HostelRoomId equals room.Id
+                    join hostel in _hostels.GetQueryable().AsNoTracking() on room.HostelId equals hostel.Id
+                    where allocation.TenantId == tenant && student.TenantId == tenant && bed.TenantId == tenant &&
+                        room.TenantId == tenant && hostel.TenantId == tenant && allocation.State == HostelAllocationState.Active
+                    select new { allocation.Id, allocation.StartDate, allocation.RowVersion,
+                        student.FullName, student.StudentCode, HostelName = hostel.Name, room.RoomNumber, bed.BedNumber };
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            if (term.Length > 100) return ApiResponse<PagedResult<HostelAllocationRowDto>>.ErrorResponse("Search term is too long.");
+            query = query.Where(x => x.FullName.Contains(term) || x.StudentCode.Contains(term));
+        }
+        var total = await query.CountAsync(cancellationToken);
+        var data = await query.OrderBy(x => x.FullName).ThenBy(x => x.StudentCode)
+            .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
+        var items = data.Select(x => new HostelAllocationRowDto
+        {
+            Id = x.Id, StudentName = x.FullName, HostelName = x.HostelName, RoomNumber = x.RoomNumber,
+            BedNumber = x.BedNumber, StartDate = x.StartDate, RowVersion = Convert.ToBase64String(x.RowVersion)
+        }).ToList();
+        return ApiResponse<PagedResult<HostelAllocationRowDto>>.SuccessResponse(new PagedResult<HostelAllocationRowDto>
+        {
+            Items = items, TotalCount = total, Page = page, PageSize = pageSize
+        });
+    }
+
     public async Task<ApiResponse<StudentHostelDto?>> GetMyAllocationAsync(CancellationToken cancellationToken = default)
     {
         if (!CanRead()) return Denied<StudentHostelDto?>();

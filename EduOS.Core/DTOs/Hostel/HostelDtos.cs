@@ -105,3 +105,30 @@ public class CloseStudentHostelAllocationRequestDto
 public class StudentHostelDto : StudentHostelAllocationDto { }
 public class AllocateHostelDto : AllocateStudentHostelRequestDto { }
 public class CloseHostelAllocationDto : CloseStudentHostelAllocationRequestDto { }
+
+public sealed class HostelStudentOptionDto
+{
+    public Guid EnrollmentReference { get; set; }
+    public string StudentName { get; set; } = string.Empty;
+    public string StudentCode { get; set; } = string.Empty;
+    public string Roll { get; set; } = string.Empty;
+}
+public sealed class HostelBedOptionDto
+{
+    public long BedId { get; set; }
+    public string HostelName { get; set; } = string.Empty;
+    public string RoomNumber { get; set; } = string.Empty;
+    public string BedNumber { get; set; } = string.Empty;
+    public decimal RentPerBed { get; set; }
+    public string? GenderRestriction { get; set; }
+}
+public sealed class HostelAllocationRowDto
+{
+    public long Id { get; set; }
+    public string StudentName { get; set; } = string.Empty;
+    public string HostelName { get; set; } = string.Empty;
+    public string RoomNumber { get; set; } = string.Empty;
+    public string BedNumber { get; set; } = string.Empty;
+    public DateOnly StartDate { get; set; }
+    public string RowVersion { get; set; } = string.Empty;
+}

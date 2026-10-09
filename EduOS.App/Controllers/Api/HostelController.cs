@@ -21,6 +21,24 @@ public sealed class HostelController : ControllerBase
     [HttpGet("rooms")]
     public async Task<IActionResult> Rooms(CancellationToken ct) => ToAction(await _service.GetRoomsAsync(ct));
 
+    [HttpGet("eligible-students")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    public async Task<IActionResult> EligibleStudents([FromQuery] int page = 1, [FromQuery] int pageSize = 25,
+        [FromQuery] string? search = null, CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetEligibleStudentsAsync(page, pageSize, search, cancellationToken));
+
+    [HttpGet("available-beds")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    public async Task<IActionResult> AvailableBeds([FromQuery] int page = 1, [FromQuery] int pageSize = 25,
+        [FromQuery] string? search = null, CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetAvailableBedsAsync(page, pageSize, search, cancellationToken));
+
+    [HttpGet("active-allocations")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    public async Task<IActionResult> ActiveAllocations([FromQuery] int page = 1, [FromQuery] int pageSize = 25,
+        [FromQuery] string? search = null, CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetActiveAllocationsAsync(page, pageSize, search, cancellationToken));
+
     [HttpGet("my-allocation")]
     public async Task<IActionResult> MyAllocation(CancellationToken ct) => ToAction(await _service.GetMyAllocationAsync(ct));
 
