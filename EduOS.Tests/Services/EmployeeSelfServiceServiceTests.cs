@@ -1,8 +1,9 @@
 using EduOS.Core.DTOs.Portals;
 using EduOS.Core.Entities.Attendance;
 using EduOS.Core.Entities.HR;
+using EduOS.Core.Entities.Payroll;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
-using EduOS.Core.Interfaces.IServices;
 using EduOS.Persistence.Context;
 using EduOS.Persistence.Repositories;
 using EduOS.Service.Services.Portals;
@@ -13,27 +14,23 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace EduOS.Tests.Services;
-
 public class EmployeeSelfServiceServiceTests
 {
     [Fact]
     public async Task Attendance_returns_only_current_users_rows_in_current_tenant()
     {
-        await using var context = CreateContext(out var httpContextAccessor);
-        var own = Employee(10, 99, "OWN-1");
-        var other = Employee(10, 100, "OTHER-1");
-        var otherTenant = Employee(20, 99, "OTHER-TENANT");
-        context.Set<Employee>().AddRange(own, other, otherTenant);
+        await using var context = CreateContext(out var accessor);
+        var own = Employee(10, 99, "OWN"), other = Employee(10, 100, "OTHER"), foreign = Employee(20, 99, "FOREIGN");
+        context.Set<Employee>().AddRange(own, other, foreign);
         await context.SaveChangesAsync();
-        context.EmployeeAttendances.AddRange(
-            Attendance(10, own.Id, DateTime.UtcNow.Date.AddDays(-1), "Present"),
-            Attendance(10, other.Id, DateTime.UtcNow.Date.AddDays(-1), "Absent"),
-            Attendance(20, otherTenant.Id, DateTime.UtcNow.Date.AddDays(-1), "Late"));
+        var date = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1));
+        context.Set<EmployeeAttendance>().AddRange(
+            Attendance(10, own.Id, date, AttendanceState.Present),
+            Attendance(10, other.Id, date, AttendanceState.Absent),
+            Attendance(20, foreign.Id, date, AttendanceState.Late));
         await context.SaveChangesAsync();
-        SetTenant(httpContextAccessor, 10);
-
+        SetTenant(accessor, 10);
         var result = await CreateService(context, new TestCurrentUser(10, 99)).GetAttendanceAsync();
-
         result.Success.Should().BeTrue();
         result.Data.Should().ContainSingle();
         result.Data![0].Status.Should().Be("Present");
@@ -42,145 +39,130 @@ public class EmployeeSelfServiceServiceTests
     [Fact]
     public async Task Attendance_rejects_inactive_employee_link()
     {
-        await using var context = CreateContext(out var httpContextAccessor);
-        var employee = Employee(10, 99, "INACTIVE");
-        employee.IsActive = false;
+        await using var context = CreateContext(out var accessor);
+        var employee = Employee(10, 99, "INACTIVE"); employee.State = EmployeeState.Suspended;
         context.Set<Employee>().Add(employee);
-        await context.SaveChangesAsync();
-        SetTenant(httpContextAccessor, 10);
-
+        await context.SaveChangesAsync(); SetTenant(accessor, 10);
         var result = await CreateService(context, new TestCurrentUser(10, 99)).GetAttendanceAsync();
-
-        result.Success.Should().BeFalse();
-        result.StatusCode.Should().Be(404);
+        result.Success.Should().BeFalse(); result.StatusCode.Should().Be(404);
     }
 
     [Fact]
     public async Task Attendance_rejects_ranges_longer_than_one_year()
     {
-        await using var context = CreateContext(out var httpContextAccessor);
-        SetTenant(httpContextAccessor, 10);
-        var service = CreateService(context, new TestCurrentUser(10, 99));
-
-        var result = await service.GetAttendanceAsync(DateTime.UtcNow.Date.AddDays(-367), DateTime.UtcNow.Date);
-
-        result.Success.Should().BeFalse();
-        result.StatusCode.Should().Be(400);
+        await using var context = CreateContext(out var accessor); SetTenant(accessor, 10);
+        var result = await CreateService(context, new TestCurrentUser(10, 99))
+            .GetAttendanceAsync(DateTime.UtcNow.Date.AddDays(-367), DateTime.UtcNow.Date);
+        result.Success.Should().BeFalse(); result.StatusCode.Should().Be(400);
     }
 
     [Fact]
     public async Task Leave_history_returns_only_current_employee_user_in_current_tenant()
     {
-        await using var context = CreateContext(out var httpContextAccessor);
-        context.Set<Employee>().Add(Employee(10, 99, "OWN-LEAVE"));
-        var ownType = new LeaveType { TenantId = 10, Name = "Casual", MaxDaysPerYear = 10 };
-        var otherType = new LeaveType { TenantId = 20, Name = "Other tenant", MaxDaysPerYear = 10 };
-        context.LeaveTypes.AddRange(ownType, otherType);
+        await using var context = CreateContext(out var accessor);
+        var own = Employee(10, 99, "OWN"), other = Employee(10, 100, "OTHER"), foreign = Employee(20, 99, "FOREIGN");
+        context.Set<Employee>().AddRange(own, other, foreign);
+        var ownType = new LeaveType { TenantId = 10, Code = "CAS", Name = "Casual", MaxDaysPerYear = 10, IsActive = true };
+        var foreignType = new LeaveType { TenantId = 20, Code = "FOR", Name = "Foreign", MaxDaysPerYear = 10, IsActive = true };
+        context.Set<LeaveType>().AddRange(ownType, foreignType);
         await context.SaveChangesAsync();
-        context.LeaveApplications.AddRange(
-            Leave(10, 99, ownType.Id, "Employee", "Own leave"),
-            Leave(10, 100, ownType.Id, "Employee", "Other user"),
-            Leave(10, 99, ownType.Id, "Student", "Student leave"),
-            Leave(20, 99, otherType.Id, "Employee", "Other tenant"));
-        await context.SaveChangesAsync();
-        SetTenant(httpContextAccessor, 10);
-
+        context.Set<EmployeeLeaveApplication>().AddRange(
+            Leave(10, own.Id, ownType.Id, "Own leave"),
+            Leave(10, other.Id, ownType.Id, "Other user"),
+            Leave(20, foreign.Id, foreignType.Id, "Other tenant"));
+        await context.SaveChangesAsync(); SetTenant(accessor, 10);
         var result = await CreateService(context, new TestCurrentUser(10, 99)).GetLeaveHistoryAsync();
-
-        result.Success.Should().BeTrue();
-        result.Data.Should().ContainSingle();
-        result.Data![0].LeaveType.Should().Be("Casual");
-        result.Data[0].Reason.Should().Be("Own leave");
+        result.Success.Should().BeTrue(); result.Data.Should().ContainSingle();
+        result.Data![0].LeaveType.Should().Be("Casual"); result.Data[0].Reason.Should().Be("Own leave");
     }
 
     [Fact]
     public async Task Apply_leave_rejects_when_annual_entitlement_is_exhausted()
     {
-        await using var context = CreateContext(out var httpContextAccessor);
-        context.Set<Employee>().Add(Employee(10, 99, "ENTITLEMENT"));
-        var leaveType = new LeaveType { TenantId = 10, Name = "Casual", MaxDaysPerYear = 5, IsActive = true };
-        context.LeaveTypes.Add(leaveType);
-        await context.SaveChangesAsync();
+        await using var context = CreateContext(out var accessor);
+        var employee = Employee(10, 99, "OWN"); context.Set<Employee>().Add(employee);
+        var type = new LeaveType { TenantId = 10, Code = "CAS", Name = "Casual", MaxDaysPerYear = 5, IsActive = true };
+        context.Set<LeaveType>().Add(type); await context.SaveChangesAsync();
         var year = DateTime.UtcNow.Year;
-        context.LeaveApplications.Add(new LeaveApplication { TenantId = 10, UserId = 99, UserType = "Employee", LeaveTypeId = leaveType.Id, FromDate = new DateTime(year, 1, 10), ToDate = new DateTime(year, 1, 13), TotalDays = 4, Reason = "Existing approved leave", Status = "Approved" });
-        await context.SaveChangesAsync();
-        SetTenant(httpContextAccessor, 10);
-
-        var result = await CreateService(context, new TestCurrentUser(10, 99)).ApplyLeaveAsync(new EmployeePortalLeaveApplyDto { LeaveTypeId = leaveType.Id, FromDate = new DateTime(year, 2, 10), ToDate = new DateTime(year, 2, 11), Reason = "Need two more days" });
-
-        result.Success.Should().BeFalse();
-        result.StatusCode.Should().Be(400);
-        context.LeaveApplications.Count(x => x.TenantId == 10 && x.UserId == 99).Should().Be(1);
+        context.Set<EmployeeLeaveApplication>().Add(new EmployeeLeaveApplication
+        {
+            TenantId = 10, EmployeeId = employee.Id, LeaveTypeId = type.Id,
+            FromDate = new DateOnly(year, 1, 10), ToDate = new DateOnly(year, 1, 13), TotalDays = 4,
+            Reason = "Approved existing leave", State = LeaveState.Approved, ClientRequestId = Guid.NewGuid()
+        });
+        await context.SaveChangesAsync(); SetTenant(accessor, 10);
+        var result = await CreateService(context, new TestCurrentUser(10, 99)).ApplyLeaveAsync(new EmployeePortalLeaveApplyDto
+        {
+            LeaveTypeId = type.Id, FromDate = new DateTime(year, 2, 10), ToDate = new DateTime(year, 2, 11),
+            Reason = "Need two more days"
+        });
+        result.Success.Should().BeFalse(); result.StatusCode.Should().Be(400);
+        context.Set<EmployeeLeaveApplication>().Count(x => x.TenantId == 10 && x.EmployeeId == employee.Id).Should().Be(1);
     }
 
     [Fact]
-    public async Task Apply_leave_rejects_overlapping_pending_leave()
+    public async Task Apply_leave_rejects_overlapping_submitted_leave()
     {
-        await using var context = CreateContext(out var httpContextAccessor);
-        context.Set<Employee>().Add(Employee(10, 99, "OVERLAP"));
-        var leaveType = new LeaveType { TenantId = 10, Name = "Casual", MaxDaysPerYear = 20, IsActive = true };
-        context.LeaveTypes.Add(leaveType);
-        await context.SaveChangesAsync();
+        await using var context = CreateContext(out var accessor);
+        var employee = Employee(10, 99, "OWN"); context.Set<Employee>().Add(employee);
+        var type = new LeaveType { TenantId = 10, Code = "CAS", Name = "Casual", MaxDaysPerYear = 20, IsActive = true };
+        context.Set<LeaveType>().Add(type); await context.SaveChangesAsync();
         var year = DateTime.UtcNow.Year;
-        context.LeaveApplications.Add(new LeaveApplication { TenantId = 10, UserId = 99, UserType = "Employee", LeaveTypeId = leaveType.Id, FromDate = new DateTime(year, 3, 10), ToDate = new DateTime(year, 3, 12), TotalDays = 3, Reason = "Existing pending leave", Status = "Pending" });
-        await context.SaveChangesAsync();
-        SetTenant(httpContextAccessor, 10);
-
-        var result = await CreateService(context, new TestCurrentUser(10, 99)).ApplyLeaveAsync(new EmployeePortalLeaveApplyDto { LeaveTypeId = leaveType.Id, FromDate = new DateTime(year, 3, 12), ToDate = new DateTime(year, 3, 13), Reason = "Overlapping request" });
-
-        result.Success.Should().BeFalse();
-        result.StatusCode.Should().Be(409);
-        context.LeaveApplications.Count(x => x.TenantId == 10 && x.UserId == 99).Should().Be(1);
+        context.Set<EmployeeLeaveApplication>().Add(new EmployeeLeaveApplication
+        {
+            TenantId = 10, EmployeeId = employee.Id, LeaveTypeId = type.Id,
+            FromDate = new DateOnly(year, 3, 10), ToDate = new DateOnly(year, 3, 12), TotalDays = 3,
+            Reason = "Submitted leave", State = LeaveState.Submitted, ClientRequestId = Guid.NewGuid()
+        });
+        await context.SaveChangesAsync(); SetTenant(accessor, 10);
+        var result = await CreateService(context, new TestCurrentUser(10, 99)).ApplyLeaveAsync(new EmployeePortalLeaveApplyDto
+        {
+            LeaveTypeId = type.Id, FromDate = new DateTime(year, 3, 12), ToDate = new DateTime(year, 3, 13),
+            Reason = "Overlapping request"
+        });
+        result.Success.Should().BeFalse(); result.StatusCode.Should().Be(409);
+        context.Set<EmployeeLeaveApplication>().Count(x => x.TenantId == 10 && x.EmployeeId == employee.Id).Should().Be(1);
     }
 
-    private static EduOSDbContext CreateContext(out HttpContextAccessor httpContextAccessor)
+    private static EmployeeAttendance Attendance(long tenant, long employeeId, DateOnly date, AttendanceState state) => new()
     {
-        httpContextAccessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
+        TenantId = tenant, EmployeeId = employeeId, AttendanceDate = date, State = state
+    };
+
+    private static EmployeeLeaveApplication Leave(long tenant, long employeeId, long leaveTypeId, string reason) => new()
+    {
+        TenantId = tenant, EmployeeId = employeeId, LeaveTypeId = leaveTypeId,
+        FromDate = DateOnly.FromDateTime(DateTime.UtcNow),
+        ToDate = DateOnly.FromDateTime(DateTime.UtcNow),
+        TotalDays = 1, Reason = reason, State = LeaveState.Submitted, ClientRequestId = Guid.NewGuid()
+    };
+
+    private static EduOSDbContext CreateContext(out HttpContextAccessor accessor)
+    {
+        accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
         return new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
-            .UseInMemoryDatabase($"employee-portal-{Guid.NewGuid():N}").Options, httpContextAccessor);
+            .UseInMemoryDatabase("employee-self-service-" + Guid.NewGuid().ToString("N")).Options, accessor);
     }
 
     private static void SetTenant(HttpContextAccessor accessor, long tenantId) => accessor.HttpContext!.Items["TenantId"] = tenantId;
 
-    private static EmployeeSelfServiceService CreateService(EduOSDbContext context, ICurrentUserService currentUser) => new(
+    private static EmployeeSelfServiceService CreateService(EduOSDbContext context, ICurrentUserService user) => new(
         new GenericRepository<Employee>(context),
         new GenericRepository<EmployeeAttendance>(context),
-        new GenericRepository<LeaveApplication>(context),
+        new GenericRepository<EmployeeLeaveApplication>(context),
         new GenericRepository<LeaveType>(context),
-        currentUser,
-        NullLogger<EmployeeSelfServiceService>.Instance);
+        new GenericRepository<EmployeeLeaveEntitlement>(context),
+        new GenericRepository<EmployeeLeaveAdjustment>(context),
+        new GenericRepository<SalaryStructure>(context),
+        new GenericRepository<SalaryStructureLine>(context),
+        new GenericRepository<SalaryComponent>(context),
+        user, NullLogger<EmployeeSelfServiceService>.Instance);
 
-    private static Employee Employee(long tenantId, long userId, string code) => new()
+    private static Employee Employee(long tenant, long userId, string code = "EMP") => new()
     {
-        TenantId = tenantId,
-        UserId = userId,
-        EmployeeCode = code,
-        FullName = code,
-        Phone = "01700000000",
-        DesignationId = 1,
-        JoiningDate = DateOnly.FromDateTime(DateTime.UtcNow),
-        IsActive = true
-    };
-
-    private static EmployeeAttendance Attendance(long tenantId, long employeeId, DateTime date, string status) => new()
-    {
-        TenantId = tenantId,
-        EmployeeId = employeeId,
-        Date = date,
-        Status = status
-    };
-
-    private static LeaveApplication Leave(long tenantId, long userId, long leaveTypeId, string userType, string reason) => new()
-    {
-        TenantId = tenantId,
-        UserId = userId,
-        UserType = userType,
-        LeaveTypeId = leaveTypeId,
-        FromDate = DateTime.UtcNow.Date,
-        ToDate = DateTime.UtcNow.Date,
-        TotalDays = 1,
-        Reason = reason,
-        Status = "Pending"
+        TenantId = tenant, UserId = userId, EmployeeCode = code, FullName = code,
+        PersonId = 1, DesignationId = 1, JoiningDate = DateOnly.FromDateTime(DateTime.UtcNow),
+        State = EmployeeState.Active
     };
 
     private sealed class TestCurrentUser(long tenantId, long userId) : ICurrentUserService
