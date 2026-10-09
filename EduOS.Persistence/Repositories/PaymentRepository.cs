@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EduOS.Persistence.Repositories;
 
-public class PaymentRepository : GenericRepository<StudentPayment>, IPaymentRepository
+public class PaymentRepository : GenericRepository<StudentPayment>, IStudentPaymentRepository
 {
     public PaymentRepository(EduOSDbContext context) : base(context) { }
 
@@ -56,4 +56,23 @@ public class PaymentRepository : GenericRepository<StudentPayment>, IPaymentRepo
         var suffix = Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
         return Task.FromResult($"RCP-{tenantId}-{suffix}");
     }
+
+    public Task<StudentPayment?> GetByReceiptNoAsync(string receiptNo, CancellationToken cancellationToken) =>
+        _dbSet.AsNoTracking().FirstOrDefaultAsync(x => x.ReceiptNumber == receiptNo, cancellationToken);
+    public Task<(List<StudentPayment> Items, int TotalCount)> GetByInvoiceAllocationAsync(long studentInvoiceId, int page, int pageSize, CancellationToken cancellationToken)
+    {
+        var ids = _context.Set<PaymentAllocation>().Where(x => x.StudentInvoiceId == studentInvoiceId).Select(x => x.StudentPaymentId);
+        return PageAsync(_dbSet.AsNoTracking().Where(x => ids.Contains(x.Id))
+            .OrderByDescending(x => x.PaymentDate).ThenByDescending(x => x.Id), page, pageSize, cancellationToken);
+    }
+    public Task<(List<StudentPayment> Items, int TotalCount)> GetByStudentAsync(long studentId, int page, int pageSize, CancellationToken cancellationToken) =>
+        PageAsync(_dbSet.AsNoTracking().Where(x => x.StudentId == studentId)
+            .OrderByDescending(x => x.PaymentDate).ThenByDescending(x => x.Id), page, pageSize, cancellationToken);
+    public Task<(List<StudentPayment> Items, int TotalCount)> GetByPaymentDateRangeAsync(DateOnly fromDate, DateOnly toDate, PaymentState? state, int page, int pageSize, CancellationToken cancellationToken) =>
+        PageAsync(_dbSet.AsNoTracking().Where(x => x.PaymentDate >= fromDate && x.PaymentDate <= toDate
+            && (!state.HasValue || x.State == state.Value))
+            .OrderByDescending(x => x.PaymentDate).ThenByDescending(x => x.Id), page, pageSize, cancellationToken);
+    public Task<decimal> GetSuccessfulCollectionAsync(DateOnly fromDate, DateOnly toDate, CancellationToken cancellationToken) =>
+        _dbSet.AsNoTracking().Where(x => x.PaymentDate >= fromDate && x.PaymentDate <= toDate
+            && x.State == PaymentState.Successful).SumAsync(x => x.Amount, cancellationToken);
 }

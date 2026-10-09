@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EduOS.Persistence.Repositories;
 
-public class ResultRepository : GenericRepository<StudentResultSummary>, IResultRepository
+public class ResultRepository : GenericRepository<StudentResultSummary>, IStudentResultSummaryRepository
 {
     public ResultRepository(EduOSDbContext context) : base(context) { }
 
@@ -44,4 +44,15 @@ public class ResultRepository : GenericRepository<StudentResultSummary>, IResult
             select result;
         return await query.Take(take).ToListAsync();
     }
+
+    public Task<StudentResultSummary?> GetByPublicationAndEnrollmentAsync(long resultPublicationId, long studentEnrollmentId, CancellationToken cancellationToken) =>
+        _dbSet.AsNoTracking().FirstOrDefaultAsync(x => x.ResultPublicationId == resultPublicationId
+            && x.StudentEnrollmentId == studentEnrollmentId, cancellationToken);
+    public Task<(List<StudentResultSummary> Items, int TotalCount)> GetByPublicationAsync(long resultPublicationId, int page, int pageSize, CancellationToken cancellationToken) =>
+        PageAsync(_dbSet.AsNoTracking().Where(x => x.ResultPublicationId == resultPublicationId)
+            .OrderBy(x => x.MeritPosition ?? int.MaxValue).ThenBy(x => x.Id), page, pageSize, cancellationToken);
+    public Task<List<StudentResultSummary>> GetTopRankersAsync(long resultPublicationId, int top, CancellationToken cancellationToken) =>
+        _dbSet.AsNoTracking().Where(x => x.ResultPublicationId == resultPublicationId
+            && x.IsPassed && !x.IsWithheld && x.MeritPosition != null)
+            .OrderBy(x => x.MeritPosition).ThenBy(x => x.Id).Take(Math.Clamp(top, 1, 100)).ToListAsync(cancellationToken);
 }

@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EduOS.Persistence.Repositories;
 
-public class ExamScheduleRepository : GenericRepository<AssessmentSchedule>, IExamScheduleRepository
+public class ExamScheduleRepository : GenericRepository<AssessmentSchedule>, IAssessmentScheduleRepository
 {
     public ExamScheduleRepository(EduOSDbContext context) : base(context) { }
 
@@ -29,4 +29,11 @@ public class ExamScheduleRepository : GenericRepository<AssessmentSchedule>, IEx
         return _dbSet.AsNoTracking().Where(x => x.TenantId == tenantId && x.AssessmentDate == target)
             .OrderBy(x => x.StartTime).ToListAsync();
     }
+
+    public Task<List<AssessmentSchedule>> GetByAssessmentSubjectAsync(long assessmentSubjectId, CancellationToken cancellationToken) =>
+        _dbSet.AsNoTracking().Where(x => x.AssessmentSubjectId == assessmentSubjectId)
+            .OrderBy(x => x.AssessmentDate).ThenBy(x => x.Id).ToListAsync(cancellationToken);
+    public Task<(List<AssessmentSchedule> Items, int TotalCount)> GetByDateAsync(DateOnly assessmentDate, int page, int pageSize, CancellationToken cancellationToken) =>
+        PageAsync(_dbSet.AsNoTracking().Where(x => x.AssessmentDate == assessmentDate)
+            .OrderBy(x => x.StartTime).ThenBy(x => x.Id), page, pageSize, cancellationToken);
 }
