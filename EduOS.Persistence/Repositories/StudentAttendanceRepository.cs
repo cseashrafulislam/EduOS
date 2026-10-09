@@ -99,4 +99,25 @@ public class StudentAttendanceRepository : GenericRepository<StudentAttendance>,
             select attendance.Id;
         return await query.CountAsync();
     }
+
+    public Task<(List<StudentAttendance> Items, int TotalCount)> GetBySessionAsync(long attendanceSessionId, int page, int pageSize, CancellationToken cancellationToken) =>
+        PageAsync(_dbSet.AsNoTracking().Where(x => x.AttendanceSessionId == attendanceSessionId)
+            .OrderBy(x => x.StudentEnrollmentId).ThenBy(x => x.Id), page, pageSize, cancellationToken);
+    public Task<(List<StudentAttendance> Items, int TotalCount)> GetByEnrollmentRangeAsync(long studentEnrollmentId, DateOnly fromDate, DateOnly toDate, int page, int pageSize, CancellationToken cancellationToken)
+    {
+        var sessionIds = _context.Set<AttendanceSession>().Where(x => x.AttendanceDate >= fromDate && x.AttendanceDate <= toDate).Select(x => x.Id);
+        return PageAsync(_dbSet.AsNoTracking().Where(x => x.StudentEnrollmentId == studentEnrollmentId && sessionIds.Contains(x.AttendanceSessionId))
+            .OrderBy(x => x.AttendanceSessionId).ThenBy(x => x.Id), page, pageSize, cancellationToken);
+    }
+    public Task<StudentAttendance?> GetBySessionAndEnrollmentAsync(long attendanceSessionId, long studentEnrollmentId, CancellationToken cancellationToken) =>
+        _dbSet.AsNoTracking().FirstOrDefaultAsync(x => x.AttendanceSessionId == attendanceSessionId && x.StudentEnrollmentId == studentEnrollmentId, cancellationToken);
+    public Task<bool> IsAlreadyMarkedAsync(long attendanceSessionId, long studentEnrollmentId, CancellationToken cancellationToken) =>
+        _dbSet.AnyAsync(x => x.AttendanceSessionId == attendanceSessionId && x.StudentEnrollmentId == studentEnrollmentId, cancellationToken);
+    public async Task<IReadOnlyDictionary<AttendanceState, int>> GetStateCountsAsync(long studentEnrollmentId, DateOnly fromDate, DateOnly toDate, CancellationToken cancellationToken)
+    {
+        var sessions = _context.Set<AttendanceSession>().Where(x => x.AttendanceDate >= fromDate && x.AttendanceDate <= toDate).Select(x => x.Id);
+        var rows = await _dbSet.AsNoTracking().Where(x => x.StudentEnrollmentId == studentEnrollmentId && sessions.Contains(x.AttendanceSessionId))
+            .GroupBy(x => x.State).Select(x => new { State = x.Key, Count = x.Count() }).ToListAsync(cancellationToken);
+        return rows.ToDictionary(x => x.State, x => x.Count);
+    }
 }

@@ -44,4 +44,16 @@ public class EmployeeAttendanceRepository : GenericRepository<EmployeeAttendance
             && x.AttendanceDate >= start && x.AttendanceDate < end
             && x.State == AttendanceState.Present);
     }
+
+    public Task<(List<EmployeeAttendance> Items, int TotalCount)> GetByDateAsync(DateOnly attendanceDate, int page, int pageSize, CancellationToken cancellationToken) =>
+        PageAsync(_dbSet.AsNoTracking().Where(x => x.AttendanceDate == attendanceDate)
+            .OrderBy(x => x.EmployeeId).ThenBy(x => x.Id), page, pageSize, cancellationToken);
+    public Task<(List<EmployeeAttendance> Items, int TotalCount)> GetByEmployeeRangeAsync(long employeeId, DateOnly fromDate, DateOnly toDate, int page, int pageSize, CancellationToken cancellationToken) =>
+        PageAsync(_dbSet.AsNoTracking().Where(x => x.EmployeeId == employeeId && x.AttendanceDate >= fromDate && x.AttendanceDate <= toDate)
+            .OrderBy(x => x.AttendanceDate).ThenBy(x => x.Id), page, pageSize, cancellationToken);
+    public Task<EmployeeAttendance?> GetByEmployeeAndDateAsync(long employeeId, DateOnly attendanceDate, CancellationToken cancellationToken) =>
+        _dbSet.AsNoTracking().FirstOrDefaultAsync(x => x.EmployeeId == employeeId && x.AttendanceDate == attendanceDate, cancellationToken);
+    public Task<int> GetPresentCountAsync(long employeeId, DateOnly fromDate, DateOnly toDate, CancellationToken cancellationToken) =>
+        _dbSet.CountAsync(x => x.EmployeeId == employeeId && x.AttendanceDate >= fromDate && x.AttendanceDate <= toDate
+            && x.State == AttendanceState.Present, cancellationToken);
 }

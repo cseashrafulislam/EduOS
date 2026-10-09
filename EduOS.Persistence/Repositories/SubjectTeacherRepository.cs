@@ -43,4 +43,20 @@ public class InstructorAssignmentRepository : GenericRepository<InstructorAssign
             select assignment;
         return await query.FirstOrDefaultAsync();
     }
+
+    public Task<List<InstructorAssignment>> GetByEmployeeAsync(long employeeId, DateOnly effectiveOn, CancellationToken cancellationToken) =>
+        _dbSet.AsNoTracking().Where(x => x.EmployeeId == employeeId && x.IsActive
+            && x.EffectiveFrom <= effectiveOn && (x.EffectiveTo == null || x.EffectiveTo >= effectiveOn))
+            .OrderBy(x => x.SubjectOfferingId).ThenBy(x => x.Id).ToListAsync(cancellationToken);
+    public async Task<List<InstructorAssignment>> GetByAcademicBatchAsync(long academicBatchId, DateOnly effectiveOn, CancellationToken cancellationToken)
+    {
+        var offerings = _context.Set<SubjectOffering>().Where(x => x.AcademicBatchId == academicBatchId).Select(x => x.Id);
+        return await _dbSet.AsNoTracking().Where(x => offerings.Contains(x.SubjectOfferingId) && x.IsActive
+            && x.EffectiveFrom <= effectiveOn && (x.EffectiveTo == null || x.EffectiveTo >= effectiveOn))
+            .OrderByDescending(x => x.IsPrimary).ThenBy(x => x.SubjectOfferingId).ThenBy(x => x.Id).ToListAsync(cancellationToken);
+    }
+    public Task<InstructorAssignment?> GetPrimaryBySubjectOfferingAsync(long subjectOfferingId, DateOnly effectiveOn, CancellationToken cancellationToken) =>
+        _dbSet.AsNoTracking().Where(x => x.SubjectOfferingId == subjectOfferingId && x.IsPrimary && x.IsActive
+            && x.EffectiveFrom <= effectiveOn && (x.EffectiveTo == null || x.EffectiveTo >= effectiveOn))
+            .OrderByDescending(x => x.EffectiveFrom).ThenByDescending(x => x.Id).FirstOrDefaultAsync(cancellationToken);
 }
