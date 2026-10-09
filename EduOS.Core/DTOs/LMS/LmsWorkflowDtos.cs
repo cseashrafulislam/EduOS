@@ -98,3 +98,10 @@ public sealed class LmsCourseDetailsDto
     public List<LmsLessonDto> Lessons { get; set; } = new();
     public List<LmsAssignmentDto> Assignments { get; set; } = new();
 }
+
+public sealed class LmsInstructorOptionDto
+{
+    public long Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string EmployeeCode { get; set; } = string.Empty;
+}

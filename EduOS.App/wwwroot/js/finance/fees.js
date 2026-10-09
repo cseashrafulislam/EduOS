@@ -16,7 +16,7 @@
  }
  async function init(){
    const now=new Date();el('feeMonth').value=String(now.getMonth()+1);el('feeBillingYear').value=String(now.getFullYear());
-   el('feeDueDate').value=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-28';
+   // Due date is a financial term: require an explicit choice instead of a silent default.
    try{const data=await api('/api/finance/fees/options');state.options=data;
      options('feeYear',data.academicYears,'Choose academic year');options('feeLevel',data.academicLevels,'Choose academic level');
      options('feeHead',data.feeHeads,'Choose fee head');options('feeBatch',data.academicBatches.map(x=>({...x,name:x.name+' / Year '+x.academicYearId})),'Choose active batch');

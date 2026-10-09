@@ -24,6 +24,12 @@ public sealed class LmsWorkflowController:ControllerBase
     public async Task<IActionResult> SaveAssignment([FromBody]SaveAssignmentDto r,CancellationToken ct){if(!ModelState.IsValid)return ValidationProblem(ModelState);var x=await _service.SaveAssignmentAsync(r,ct);return StatusCode(x.StatusCode,x);}
     [HttpPost("courses/{reference:guid}/sync-enrollment")][Authorize(Roles="TenantAdmin,Principal,Teacher")]
     public async Task<IActionResult> Enroll(Guid reference,CancellationToken ct){var x=await _service.EnrollClassAsync(reference,ct);return StatusCode(x.StatusCode,x);}
+    [HttpGet("instructors")][Authorize(Roles="TenantAdmin,Principal")]
+    public async Task<IActionResult> Instructors([FromQuery]string? search,CancellationToken ct)
+    {
+        var result=await _service.GetInstructorOptionsAsync(search,ct);
+        return StatusCode(result.StatusCode,result);
+    }
     [HttpGet("courses")]
     public async Task<IActionResult> Courses(CancellationToken ct){var x=await _service.GetMyCoursesAsync(ct);return StatusCode(x.StatusCode,x);}
     [HttpGet("courses/{reference:guid}")]

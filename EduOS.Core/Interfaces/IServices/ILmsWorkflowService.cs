@@ -8,6 +8,7 @@ public interface ILmsWorkflowService
     Task<ApiResponse<LmsLessonDto>> SaveLessonAsync(SaveLessonDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<LmsAssignmentDto>> SaveAssignmentAsync(SaveAssignmentDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<int>> EnrollClassAsync(Guid courseReference, CancellationToken cancellationToken = default);
+    Task<ApiResponse<IReadOnlyList<LmsInstructorOptionDto>>> GetInstructorOptionsAsync(string? search, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<LmsCourseDto>>> GetMyCoursesAsync(CancellationToken cancellationToken = default);
     Task<ApiResponse<LmsCourseDetailsDto>> GetCourseAsync(Guid courseReference, CancellationToken cancellationToken = default);
     Task<ApiResponse<LmsAssignmentDto>> SubmitAssignmentAsync(SubmitAssignmentDto request, CancellationToken cancellationToken = default);

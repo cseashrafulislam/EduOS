@@ -140,7 +140,11 @@ public sealed class LmsWorkflowService : ILmsWorkflowService
     {
         if (request == null || request.CourseReference == Guid.Empty || string.IsNullOrWhiteSpace(request.Title) ||
             request.Title.Trim().Length > 200 || request.Content?.Length > 4000 ||
-            request.VideoUrl?.Length > 500 || request.AttachmentUrl?.Length > 1000 ||
+            request.VideoUrl?.Length > 500 ||
+            (!string.IsNullOrWhiteSpace(request.VideoUrl) &&
+             (!Uri.TryCreate(request.VideoUrl, UriKind.Absolute, out var validatedVideo) ||
+              validatedVideo.Scheme is not ("http" or "https"))) ||
+            request.AttachmentUrl?.Length > 1000 ||
             request.OrderNo < 1 || request.Duration != 0)
             return Fail<LmsLessonDto>("Lesson title, content and ordering are invalid. Duration requires a canonical lesson extension.");
         var course = await EditableCourseAsync(request.CourseReference, ct);
@@ -255,6 +259,23 @@ public sealed class LmsWorkflowService : ILmsWorkflowService
         }
         catch (DbUpdateException) { return Fail<int>("Course enrollment conflicts with existing records.", 409); }
         catch (TransactionAbortedException) { return Fail<int>("Concurrent course enrollment rejected.", 409); }
+    }
+
+    public async Task<ApiResponse<IReadOnlyList<LmsInstructorOptionDto>>> GetInstructorOptionsAsync(string? search, CancellationToken ct = default)
+    {
+        if (!IsManager() || !_user.IsAuthenticated || _user.TenantId <= 0)
+            return Fail<IReadOnlyList<LmsInstructorOptionDto>>("LMS management permission required.", 403);
+        if (search?.Length > 100)
+            return Fail<IReadOnlyList<LmsInstructorOptionDto>>("Instructor search is too long.");
+        var term = search?.Trim();
+        var query = _employees.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == _user.TenantId && x.CanTeach && x.State == EmployeeState.Active);
+        if (!string.IsNullOrWhiteSpace(term))
+            query = query.Where(x => x.FullName.StartsWith(term) || x.EmployeeCode.StartsWith(term));
+        IReadOnlyList<LmsInstructorOptionDto> rows = await query.OrderBy(x => x.EmployeeCode).ThenBy(x => x.Id)
+            .Select(x => new LmsInstructorOptionDto { Id = x.Id, Name = x.FullName, EmployeeCode = x.EmployeeCode })
+            .Take(100).ToListAsync(ct);
+        return ApiResponse<IReadOnlyList<LmsInstructorOptionDto>>.SuccessResponse(rows);
     }
 
     public async Task<ApiResponse<IReadOnlyList<LmsCourseDto>>> GetMyCoursesAsync(CancellationToken ct = default)

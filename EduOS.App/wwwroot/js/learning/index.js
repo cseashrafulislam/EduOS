@@ -1,6 +1,6 @@
 (() => {
  'use strict';const root=document.getElementById('learningApp');if(!root)return;
- const el=id=>document.getElementById(id),author=root.dataset.author==='true',student=root.dataset.student==='true';
+ const el=id=>document.getElementById(id),author=root.dataset.author==='true',student=root.dataset.student==='true',manager=root.dataset.manager==='true';
  const state={courses:[],detail:null,batches:[],subjects:[],editingLesson:null,editingAssignment:null,editingCourse:null};
  const option=(value,label)=>{const x=document.createElement('option');x.value=String(value);x.textContent=label;return x;};
  const cell=value=>{const x=document.createElement('td');x.textContent=value==null?'':String(value);return x;};
@@ -32,6 +32,24 @@
      choices('learningSubject',state.subjects.map(x=>({id:x.id,name:x.name+' ('+x.code+')'})),'Select subject');
    }catch(e){msg('warning','Academic catalog unavailable: '+e.message);}
  }
+ async function instructors(){
+   if(!manager)return;
+   try{
+     const rows=await api('/api/lms/instructors');
+     choices('learningInstructor',(rows||[]).map(x=>({id:x.id,name:x.name+' ('+x.employeeCode+')'})),'Select active instructor');
+     if(rows?.length===100)msg('warning','Showing the first 100 instructors.');
+   }catch(e){msg('warning','Instructor lookup unavailable: '+e.message);}
+ }
+ function editCourse(){
+   const course=selected();if(!course)return msg('warning','Select a course first.');
+   state.editingCourse=course;
+   el('learningBatch').value=String(course.sectionId||'');
+   el('learningSubject').value=String(course.subjectId||'');
+   if(manager)el('learningInstructor').value=String(course.teacherId||'');
+   el('learningTitle').value=course.title;
+   el('learningDescription').value='';
+   el('learningTitle').focus();
+ }
  async function load(){
    const course=selected();if(!course)return;
    try{state.detail=await api('/api/lms/courses/'+encodeURIComponent(course.reference));el('learningProgress').textContent=(Number(state.detail.course.progressPercentage)||0)+'% completed';
@@ -43,7 +61,14 @@
    const lessons=el('learningLessons'),assignments=el('learningAssignments');lessons.replaceChildren();assignments.replaceChildren();
    for(const x of state.detail?.lessons||[]){
      const tr=document.createElement('tr'),content=cell((x.content||'').slice(0,180)),action=document.createElement('td');
-     if(x.videoUrl){const a=document.createElement('a');a.href=x.videoUrl;a.target='_blank';a.rel='noopener noreferrer';a.textContent=' Open video';content.append(a);}
+     if(x.videoUrl){
+       try{
+         const url=new URL(x.videoUrl);
+         if(url.protocol==='https:'||url.protocol==='http:'){
+           const a=document.createElement('a');a.href=url.href;a.target='_blank';a.rel='noopener noreferrer';a.textContent=' Open video';content.append(a);
+         }
+       }catch{}
+     }
      if(student&&!x.isCompleted)action.append(button('Mark completed',()=>complete(x)));
      if(student&&x.isCompleted)action.textContent='Completed';
      if(author)action.append(button('Edit',()=>editLesson(x)));
@@ -62,7 +87,7 @@
    e.preventDefault();if(!e.currentTarget.reportValidity())return;
    const batch=state.batches.find(x=>String(x.id)===el('learningBatch').value);if(!batch)return msg('danger','Select active academic batch.');
    const x=state.editingCourse,body={academicYearId:batch.academicYearId,classId:batch.academicLevelId,sectionId:batch.id,subjectId:Number(el('learningSubject').value),
-     teacherId:null,title:el('learningTitle').value.trim(),description:el('learningDescription').value.trim()||null,reference:x?.reference||null,rowVersion:x?.rowVersion||null};
+     teacherId:manager?Number(el('learningInstructor').value)||null:null,title:el('learningTitle').value.trim(),description:el('learningDescription').value.trim()||null,reference:x?.reference||null,rowVersion:x?.rowVersion||null};
    el('learningSaveCourse').disabled=true;
    try{const c=await api('/api/lms/courses','PUT',body);state.editingCourse=null;await courses();el('learningCourse').value=c.reference;await load();msg('success','Course saved.');}
    catch(e){msg('danger',e.message);}finally{el('learningSaveCourse').disabled=false;}
@@ -111,10 +136,11 @@
    catch(e){msg('danger',e.message);}
  }
  el('learningCourse').addEventListener('change',load);el('learningRefresh').addEventListener('click',courses);
+ el('learningEditCourse')?.addEventListener('click',editCourse);
  el('learningCourseForm')?.addEventListener('submit',saveCourse);
  el('learningLessonForm')?.addEventListener('submit',saveLesson);
  el('learningAssignmentForm')?.addEventListener('submit',saveAssignment);
  el('learningResetLesson')?.addEventListener('click',()=>{state.editingLesson=null;el('learningLessonForm').reset();});
  el('learningSync')?.addEventListener('click',sync);
- courses();catalog();
+ courses();catalog();instructors();
 })();
