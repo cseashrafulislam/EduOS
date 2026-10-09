@@ -1,43 +1,10 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
-
   <ItemGroup>
-    <Compile Remove="Entities\Common\**" />
-    <Compile Remove="Helpers\**" />
-    <EmbeddedResource Remove="Entities\Common\**" />
-    <EmbeddedResource Remove="Helpers\**" />
-    <None Remove="Entities\Common\**" />
-    <None Remove="Helpers\**" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Remove="Entities\Academic\AcademicsModels.cs" />
-    <Compile Remove="Entities\Academic\Department.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.3.11" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.10" />
   </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="DTOs\Admission\" />
-    <Folder Include="DTOs\AI\" />
-    <Folder Include="DTOs\Common\" />
-    <Folder Include="DTOs\Exam\" />
-    <Folder Include="DTOs\Finance\" />
-    <Folder Include="DTOs\Hostel\" />
-    <Folder Include="DTOs\HR\" />
-    <Folder Include="DTOs\Inventory\" />
-    <Folder Include="DTOs\Library\" />
-    <Folder Include="DTOs\Transport\" />
-    <Folder Include="Events\" />
-  </ItemGroup>
-
-
 </Project>
