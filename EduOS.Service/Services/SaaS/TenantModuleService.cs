@@ -154,22 +154,22 @@ public sealed class TenantModuleService : ITenantModuleService
         }
     }
 
-    public async Task<Result> ApplyInstitutionPresetAsync(long tenantId, long institutionTypeDefinitionId)
+    public async Task<ApiResponse<bool>> ApplyInstitutionPresetAsync(long tenantId, long institutionTypeDefinitionId, CancellationToken cancellationToken = default)
     {
         if (!_currentUser.IsAuthenticated || !(_currentUser.IsSuperAdmin ||
             (_currentUser.IsTenantAdmin && _currentUser.TenantId == tenantId)))
-            return Result.Failure("Not authorized to configure modules for this institution.");
+            return ApiResponse<bool>.ErrorResponse("Not authorized to configure modules for this institution.");
         if (tenantId <= 0 || institutionTypeDefinitionId <= 0)
-            return Result.Failure("Valid institution type and tenant are required.");
+            return ApiResponse<bool>.ErrorResponse("Valid institution type and tenant are required.");
         try
         {
             var tenant = await _tenants.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.Id == tenantId);
             if (tenant == null || tenant.InstitutionTypeDefinitionId != institutionTypeDefinitionId)
-                return Result.Failure("Institution type is not linked to the requested tenant.");
+                return ApiResponse<bool>.ErrorResponse("Institution type is not linked to the requested tenant.");
             var preset = await _presets.GetQueryable().AsNoTracking().Where(x =>
                 x.InstitutionTypeDefinitionId == institutionTypeDefinitionId &&
-                (x.IsRequired || x.IsDefaultEnabled)).ToListAsync();
-            var existing = await _selections.GetQueryable().Where(x => x.TenantId == tenantId).ToListAsync();
+                (x.IsRequired || x.IsDefaultEnabled)).ToListAsync(cancellationToken);
+            var existing = await _selections.GetQueryable().Where(x => x.TenantId == tenantId).ToListAsync(cancellationToken);
             var byModule = existing.ToDictionary(x => x.ProductModuleId);
             var now = DateTime.UtcNow;
             foreach (var item in preset)
@@ -192,18 +192,18 @@ public sealed class TenantModuleService : ITenantModuleService
                     EnabledAt = now, CreatedAt = now, CreatedBy = _currentUser.UserId
                 });
             }
-            await _unitOfWork.SaveChangesAsync();
-            return Result.Success();
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            return ApiResponse<bool>.SuccessResponse(true);
         }
         catch (DbUpdateException ex)
         {
             _logger.LogWarning(ex, "Preset conflict for tenant {TenantId}", tenantId);
-            return Result.Failure("Institution preset was updated concurrently.");
+            return ApiResponse<bool>.ErrorResponse("Institution preset was updated concurrently.");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Institution preset failed for tenant {TenantId}", tenantId);
-            return Result.Failure("Institution preset could not be applied.");
+            return ApiResponse<bool>.ErrorResponse("Institution preset could not be applied.");
         }
     }
 
