@@ -5,7 +5,7 @@ namespace EduOS.Core.DTOs.Finance;
 public sealed class SaveFeeStructureDto
 {
     [Range(1, long.MaxValue)] public long AcademicYearId { get; set; }
-    [Range(1, long.MaxValue)] public long ClassId { get; set; }
+    [Range(1, long.MaxValue)] public long AcademicLevelId { get; set; }
     [Range(1, long.MaxValue)] public long FeeHeadId { get; set; }
     [Range(typeof(decimal), "0", "1000000000")] public decimal Amount { get; set; }
 }
@@ -14,8 +14,8 @@ public sealed class GenerateStudentInvoicesDto
 {
     public Guid ClientRequestId { get; set; }
     [Range(1, long.MaxValue)] public long AcademicYearId { get; set; }
-    [Range(1, long.MaxValue)] public long ClassId { get; set; }
-    [Range(1, long.MaxValue)] public long SectionId { get; set; }
+    [Range(1, long.MaxValue)] public long AcademicLevelId { get; set; }
+    [Range(1, long.MaxValue)] public long AcademicBatchId { get; set; }
     [Range(1, 12)] public int Month { get; set; }
     [Range(2000, 2200)] public int Year { get; set; }
     public DateTime DueDate { get; set; }

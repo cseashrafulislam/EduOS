@@ -14,12 +14,12 @@ public sealed class PromoteStudentWorkflowRequestDto
     public long TargetAcademicYearId { get; set; }
 
     [Range(1, long.MaxValue)]
-    public long TargetClassId { get; set; }
+    public long TargetAcademicLevelId { get; set; }
 
     [Range(1, long.MaxValue)]
-    public long TargetSectionId { get; set; }
+    public long TargetAcademicBatchId { get; set; }
 
-    public long? TargetGroupId { get; set; }
+    public long? TargetAcademicTrackId { get; set; }
 
     [Required, StringLength(50)]
     public string TargetRoll { get; set; } = string.Empty;
@@ -40,9 +40,9 @@ public sealed class StudentPromotionResultDto
     public long ToEnrollmentId { get; set; }
     public StudentProgressionDecisionType Decision { get; set; }
     public long AcademicYearId { get; set; }
-    public long ClassId { get; set; }
-    public long SectionId { get; set; }
-    public long? GroupId { get; set; }
+    public long AcademicLevelId { get; set; }
+    public long AcademicBatchId { get; set; }
+    public long? AcademicTrackId { get; set; }
     public string Roll { get; set; } = string.Empty;
     public DateTime ProcessedAt { get; set; }
     public string StudentRowVersion { get; set; } = string.Empty;
@@ -55,12 +55,12 @@ public sealed class StudentPromotionHistoryDto
     public StudentProgressionDecisionType Decision { get; set; }
     public long FromAcademicYearId { get; set; }
     public long ToAcademicYearId { get; set; }
-    public long FromClassId { get; set; }
-    public long ToClassId { get; set; }
-    public long FromSectionId { get; set; }
-    public long ToSectionId { get; set; }
-    public long? FromGroupId { get; set; }
-    public long? ToGroupId { get; set; }
+    public long FromAcademicLevelId { get; set; }
+    public long ToAcademicLevelId { get; set; }
+    public long FromAcademicBatchId { get; set; }
+    public long ToAcademicBatchId { get; set; }
+    public long? FromAcademicTrackId { get; set; }
+    public long? ToAcademicTrackId { get; set; }
     public string FromRoll { get; set; } = string.Empty;
     public string ToRoll { get; set; } = string.Empty;
     public DateTime ProcessedAt { get; set; }

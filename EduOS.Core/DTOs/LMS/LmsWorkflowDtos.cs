@@ -7,8 +7,8 @@ public sealed class SaveCourseDto
     public string? RowVersion { get; set; }
     public Guid? Reference { get; set; }
     [Range(1,long.MaxValue)] public long AcademicYearId { get; set; }
-    [Range(1,long.MaxValue)] public long ClassId { get; set; }
-    [Range(1,long.MaxValue)] public long? SectionId { get; set; }
+    [Range(1,long.MaxValue)] public long AcademicLevelId { get; set; }
+    [Range(1,long.MaxValue)] public long? AcademicBatchId { get; set; }
     [Range(1,long.MaxValue)] public long SubjectId { get; set; }
     [Range(1,long.MaxValue)] public long? TeacherId { get; set; }
     [Required,StringLength(200)] public string Title { get; set; } = string.Empty;
@@ -58,8 +58,8 @@ public sealed class LmsCourseDto
     public Guid Reference { get; set; }
     public string Title { get; set; } = string.Empty;
     public long AcademicYearId { get; set; }
-    public long ClassId { get; set; }
-    public long? SectionId { get; set; }
+    public long AcademicLevelId { get; set; }
+    public long? AcademicBatchId { get; set; }
     public long SubjectId { get; set; }
     public string SubjectName { get; set; } = string.Empty;
     public long TeacherId { get; set; }

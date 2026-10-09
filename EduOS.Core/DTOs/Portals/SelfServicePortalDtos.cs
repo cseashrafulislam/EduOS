@@ -7,8 +7,8 @@ public sealed class PortalStudentDto
     public string Roll { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public long AcademicYearId { get; set; }
-    public long ClassId { get; set; }
-    public long SectionId { get; set; }
+    public long AcademicLevelId { get; set; }
+    public long AcademicBatchId { get; set; }
 }
 
 public sealed class PortalTimetableEntryDto
@@ -34,7 +34,7 @@ public sealed class PortalAttendanceDto
 
 public sealed class PortalResultDto
 {
-    public long ExamId { get; set; }
+    public long AssessmentId { get; set; }
     public string ExamName { get; set; } = string.Empty;
     public decimal TotalMark { get; set; }
     public decimal TotalFullMark { get; set; }
