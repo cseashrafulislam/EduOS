@@ -2,7 +2,7 @@ using EduOS.Core.Entities.Finance;
 
 namespace EduOS.Core.Interfaces.IRepositories;
 
-public interface IPaymentRepository : IGenericRepository<StudentPayment>
+public interface IStudentPaymentRepository : IGenericRepository<StudentPayment>
 {
     Task<StudentPayment?> GetByReceiptNoAsync(string receiptNo);
     Task<List<StudentPayment>> GetByInvoiceAsync(long invoiceId);
