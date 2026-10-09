@@ -140,6 +140,15 @@
                         <span>HR Administration</span>
                     </a>
                 }
+                @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
+                     User?.IsInRole("HR") == true || User?.IsInRole("Accountant") == true ||
+                     User?.IsInRole("Staff") == true || User?.IsInRole("Teacher") == true)
+                {
+                    <a class="nav-link @ActiveFor("/PayrollOperations")" href="/PayrollOperations/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                        <span>Payroll</span>
+                    </a>
+                }
                 <a class="nav-link @ActiveFor("/HostelOperations")" href="/HostelOperations/Index">
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#campus" /></svg>
                     <span>Hostel</span>

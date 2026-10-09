@@ -1,0 +1,43 @@
+@{
+    ViewData["Title"] = "Payroll Operations";
+    var manager = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("HR") || User.IsInRole("Accountant");
+}
+<section id="payrollApp" data-manager="@manager.ToString().ToLowerInvariant()" class="container-fluid py-3">
+    <header class="mb-3"><h2 class="h4 mb-1">Payroll Operations</h2><p class="text-muted mb-0">Salary structures, monthly payroll, payments and employee payslips.</p></header>
+    <div id="payrollAlert" class="d-none" role="alert" tabindex="-1" aria-live="polite"></div>
+    @if(manager)
+    {
+        <div class="row g-3 mb-3">
+            <div class="col-xl-6">
+                <section class="card h-100"><div class="card-header"><h3 class="h6 mb-0">Employee salary structure</h3></div>
+                <form id="payrollSalaryForm" class="card-body row g-2 align-items-end">
+                    <div class="col-12"><label class="form-label" for="payrollSearchInput">Employee lookup</label><div class="input-group"><input id="payrollSearchInput" maxlength="100" class="form-control" placeholder="Name or employee code" /><button id="payrollSearch" type="button" class="btn btn-outline-secondary">Search</button></div></div>
+                    <div class="col-12"><label for="payrollEmployee" class="form-label">Employee</label><select id="payrollEmployee" class="form-select" required><option value="">Select employee</option></select></div>
+                    <div class="col-6"><label for="payrollBasic" class="form-label">Basic</label><input id="payrollBasic" type="number" min="0" step=".01" class="form-control" required /></div>
+                    <div class="col-6"><label for="payrollHouse" class="form-label">House rent</label><input id="payrollHouse" type="number" min="0" step=".01" class="form-control" value="0" required /></div>
+                    <div class="col-4"><label for="payrollMedical" class="form-label">Medical</label><input id="payrollMedical" type="number" min="0" step=".01" class="form-control" value="0" required /></div>
+                    <div class="col-4"><label for="payrollTransport" class="form-label">Transport</label><input id="payrollTransport" type="number" min="0" step=".01" class="form-control" value="0" required /></div>
+                    <div class="col-4"><label for="payrollOthers" class="form-label">Others</label><input id="payrollOthers" type="number" min="0" step=".01" class="form-control" value="0" required /></div>
+                    <div class="col-7"><label for="payrollEffectiveFrom" class="form-label">Effective from</label><input id="payrollEffectiveFrom" type="date" class="form-control" required /></div>
+                    <div class="col-5"><button id="payrollSaveSalary" type="submit" class="btn btn-primary w-100">Save structure</button></div>
+                </form></section>
+            </div>
+            <div class="col-xl-6">
+                <section class="card h-100"><div class="card-header"><h3 class="h6 mb-0">Monthly payroll</h3></div><div class="card-body">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-4"><label for="payrollMonth" class="form-label">Month</label><select id="payrollMonth" class="form-select">@for(var m=1;m<=12;m++){<option value="@m">@System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(m)</option>}</select></div>
+                        <div class="col-4"><label for="payrollYear" class="form-label">Year</label><input id="payrollYear" type="number" min="2000" max="2200" class="form-control" required /></div>
+                        <div class="col-4"><label for="payrollPage" class="form-label">Page</label><input id="payrollPage" type="number" min="1" value="1" class="form-control" /></div>
+                        <div class="col-12 d-flex gap-2"><button id="payrollLoad" type="button" class="btn btn-outline-primary">Load period</button><button id="payrollGenerate" type="button" class="btn btn-primary">Generate payroll</button></div>
+                    </div><p id="payrollSummary" class="small text-muted mt-3 mb-0">Review salary and attendance before generating payroll.</p>
+                </div></section>
+            </div>
+        </div>
+    }
+    <section class="card">
+        <div class="card-header d-flex justify-content-between align-items-center"><h3 class="h6 m-0">Payroll history</h3><button id="payrollMy" type="button" class="btn btn-sm btn-outline-secondary">My payslips</button></div>
+        <div class="table-responsive"><table class="table table-hover table-sm align-middle mb-0"><thead><tr><th>Employee</th><th>Period</th><th>Gross</th><th>Deductions</th><th>Net</th><th>Status</th>@if(manager){<th>Action</th>}</tr></thead><tbody id="payrollRows"><tr><td colspan="7" class="text-muted text-center p-3">Select a report.</td></tr></tbody></table></div>
+        <div class="card-footer small text-muted" id="payrollCount"></div>
+    </section>
+</section>
+@section Scripts { <script src="~/js/payroll/index.js" asp-append-version="true"></script> }

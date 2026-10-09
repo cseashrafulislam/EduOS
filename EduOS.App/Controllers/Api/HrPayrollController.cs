@@ -17,6 +17,10 @@ public sealed class HrPayrollController:ControllerBase
  public async Task<IActionResult> Generate([FromBody]GeneratePayrollDto r,CancellationToken ct){if(!ModelState.IsValid)return ValidationProblem(ModelState);var x=await _service.GeneratePayrollAsync(r,ct);return StatusCode(x.StatusCode,x);}
  [HttpPost("pay")][Authorize(Roles="TenantAdmin,Principal,HR,Accountant")][RequireModule("PAYROLL")]
  public async Task<IActionResult> Pay([FromBody]PayPayrollDto r,CancellationToken ct){if(!ModelState.IsValid)return ValidationProblem(ModelState);var x=await _service.PayAsync(r,ct);return StatusCode(x.StatusCode,x);}
+ [HttpGet("employee-options")][Authorize(Roles="TenantAdmin,Principal,HR,Accountant")][RequireModule("PAYROLL")]
+ public async Task<IActionResult> EmployeeOptions([FromQuery]string? search,CancellationToken ct){var x=await _service.GetEmployeeOptionsAsync(search,ct);return StatusCode(x.StatusCode,x);}
+ [HttpGet("period")][Authorize(Roles="TenantAdmin,Principal,HR,Accountant")][RequireModule("PAYROLL")]
+ public async Task<IActionResult> Period([FromQuery]int year,[FromQuery]int month,[FromQuery]int page=1,[FromQuery]int pageSize=25,CancellationToken ct=default){var x=await _service.GetPeriodAsync(year,month,page,pageSize,ct);return StatusCode(x.StatusCode,x);}
  [HttpGet("my")][Authorize(Roles="Staff,Teacher,HR,Principal,TenantAdmin")][RequireModule("PAYROLL")]
  public async Task<IActionResult> My(CancellationToken ct){var x=await _service.GetMyPayrollAsync(ct);return StatusCode(x.StatusCode,x);}
 }

@@ -522,6 +522,39 @@ public sealed class HrPayrollService : IHrPayrollService
         }
     }
 
+    public async Task<ApiResponse<IReadOnlyList<PayrollEmployeeOptionDto>>> GetEmployeeOptionsAsync(string? search,CancellationToken ct=default)
+    {
+        if (!CanManage()) return ApiResponse<IReadOnlyList<PayrollEmployeeOptionDto>>.ErrorResponse("Payroll permission required.",403);
+        if (search?.Length>100) return ApiResponse<IReadOnlyList<PayrollEmployeeOptionDto>>.ErrorResponse("Search exceeds 100 characters.");
+        var term=search?.Trim();
+        var query=_employees.GetQueryable().AsNoTracking().Where(x=>x.TenantId==_user.TenantId&&x.State==EmployeeState.Active);
+        if (!string.IsNullOrWhiteSpace(term))
+            query=query.Where(x=>x.FullName.StartsWith(term)||x.EmployeeCode.StartsWith(term));
+        IReadOnlyList<PayrollEmployeeOptionDto> rows=await query.OrderBy(x=>x.EmployeeCode).ThenBy(x=>x.Id)
+            .Select(x=>new PayrollEmployeeOptionDto{Reference=x.PublicId,EmployeeCode=x.EmployeeCode,Name=x.FullName})
+            .Take(100).ToListAsync(ct);
+        return ApiResponse<IReadOnlyList<PayrollEmployeeOptionDto>>.SuccessResponse(rows);
+    }
+
+    public async Task<ApiResponse<PayrollPeriodPageDto>> GetPeriodAsync(int year,int month,int page,int pageSize,CancellationToken ct=default)
+    {
+        if (!CanManage()) return ApiResponse<PayrollPeriodPageDto>.ErrorResponse("Payroll permission required.",403);
+        if (year is < 2000 or > 2200||month is < 1 or > 12||page<1||pageSize is < 1 or > 50)
+            return ApiResponse<PayrollPeriodPageDto>.ErrorResponse("Invalid payroll period or pagination.");
+        var tenant=_user.TenantId;
+        var run=await _payrollRuns.GetQueryable().AsNoTracking()
+            .Where(x=>x.TenantId==tenant&&x.Year==year&&x.Month==month&&x.State!=PayrollRunState.Cancelled)
+            .OrderByDescending(x=>x.Id).FirstOrDefaultAsync(ct);
+        var response=new PayrollPeriodPageDto{Page=page,PageSize=pageSize};
+        if (run==null) return ApiResponse<PayrollPeriodPageDto>.SuccessResponse(response);
+        var query=_payrollEmployees.GetQueryable().AsNoTracking().Where(x=>x.TenantId==tenant&&x.PayrollRunId==run.Id);
+        response.TotalCount=await query.CountAsync(ct);
+        if ((long)(page-1)*pageSize>=response.TotalCount) return ApiResponse<PayrollPeriodPageDto>.SuccessResponse(response);
+        var entries=await query.OrderBy(x=>x.EmployeeCodeSnapshot).ThenBy(x=>x.Id).Skip((page-1)*pageSize).Take(pageSize).ToListAsync(ct);
+        foreach(var entry in entries) response.Rows.Add(await BuildRowAsync(run,entry,ct));
+        return ApiResponse<PayrollPeriodPageDto>.SuccessResponse(response);
+    }
+
     public async Task<ApiResponse<IReadOnlyList<PayrollRowDto>>> GetMyPayrollAsync(CancellationToken ct = default)
     {
         if (!_user.IsAuthenticated || _user.TenantId <= 0)

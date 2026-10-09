@@ -52,3 +52,17 @@ public sealed class PayrollBatchDto
  public Guid ClientRequestId { get; set; } public int Generated { get; set; } public int Existing { get; set; }
  public List<PayrollRowDto> Rows { get; set; }=new();
 }
+
+public sealed class PayrollEmployeeOptionDto
+{
+ public Guid Reference { get; set; }
+ public string EmployeeCode { get; set; } = string.Empty;
+ public string Name { get; set; } = string.Empty;
+}
+public sealed class PayrollPeriodPageDto
+{
+ public int Page { get; set; }
+ public int PageSize { get; set; }
+ public int TotalCount { get; set; }
+ public List<PayrollRowDto> Rows { get; set; } = new();
+}
