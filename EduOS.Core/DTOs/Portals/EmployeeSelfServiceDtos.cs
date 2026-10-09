@@ -5,24 +5,22 @@ public sealed class EmployeePortalProfileDto
     public Guid Reference { get; set; }
     public string EmployeeCode { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
-    public string Phone { get; set; } = string.Empty;
+    public string? Phone { get; set; }
     public string? Email { get; set; }
     public long DesignationId { get; set; }
-    public long? DepartmentId { get; set; }
-    public DateTime JoiningDate { get; set; }
-    public decimal Salary { get; set; }
+    public long? OrganizationUnitId { get; set; }
+    public DateOnly JoiningDate { get; set; }
     public string? PhotoUrl { get; set; }
-    public string? Qualification { get; set; }
-    public string? Experience { get; set; }
-    public bool IsTeacher { get; set; }
+    public bool CanTeach { get; set; }
+    public EmployeeState State { get; set; }
 }
 
 public sealed class EmployeePortalAttendanceDto
 {
-    public DateTime Date { get; set; }
-    public string Status { get; set; } = string.Empty;
-    public TimeSpan? InTime { get; set; }
-    public TimeSpan? OutTime { get; set; }
+    public DateOnly AttendanceDate { get; set; }
+    public AttendanceState State { get; set; }
+    public TimeOnly? InTime { get; set; }
+    public TimeOnly? OutTime { get; set; }
     public decimal? OvertimeHours { get; set; }
     public string? Remarks { get; set; }
 }
@@ -30,29 +28,30 @@ public sealed class EmployeePortalAttendanceDto
 public sealed class EmployeePortalLeaveDto
 {
     public long Id { get; set; }
-    public string LeaveType { get; set; } = string.Empty;
-    public DateTime FromDate { get; set; }
-    public DateTime ToDate { get; set; }
-    public int TotalDays { get; set; }
+    public string LeaveTypeName { get; set; } = string.Empty;
+    public DateOnly FromDate { get; set; }
+    public DateOnly ToDate { get; set; }
+    public decimal TotalDays { get; set; }
     public string Reason { get; set; } = string.Empty;
-    public string Status { get; set; } = string.Empty;
-    public string? Remarks { get; set; }
+    public LeaveState State { get; set; }
+    public string? ReviewNote { get; set; }
 }
 
 public sealed class EmployeePortalLeaveBalanceDto
 {
     public long LeaveTypeId { get; set; }
-    public string LeaveType { get; set; } = string.Empty;
-    public int AnnualEntitlement { get; set; }
-    public int UsedDays { get; set; }
-    public int PendingDays { get; set; }
-    public int RemainingDays { get; set; }
+    public string LeaveTypeName { get; set; } = string.Empty;
+    public decimal AnnualEntitlement { get; set; }
+    public decimal UsedDays { get; set; }
+    public decimal PendingDays { get; set; }
+    public decimal RemainingDays { get; set; }
 }
 
 public sealed class EmployeePortalLeaveApplyDto
 {
-    public long LeaveTypeId { get; set; }
-    public DateTime FromDate { get; set; }
-    public DateTime ToDate { get; set; }
-    public string Reason { get; set; } = string.Empty;
+    public Guid ClientRequestId { get; set; }
+    [Range(1, long.MaxValue)] public long LeaveTypeId { get; set; }
+    public DateOnly FromDate { get; set; }
+    public DateOnly ToDate { get; set; }
+    [Required, MaxLength(2000)] public string Reason { get; set; } = string.Empty;
 }
