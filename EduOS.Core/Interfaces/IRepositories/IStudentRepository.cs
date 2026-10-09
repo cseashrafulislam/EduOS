@@ -7,8 +7,8 @@ public interface IStudentRepository : IGenericRepository<Student>
 {
     Task<Student?> GetByCodeAsync(string code, CancellationToken cancellationToken = default);
     Task<Student?> GetByUserIdAsync(long userId, CancellationToken cancellationToken = default);
-    Task<List<Student>> GetByAcademicBatchAsync(long academicBatchId, bool currentOnly = true, CancellationToken cancellationToken = default);
-    Task<List<Student>> GetByAcademicYearAsync(long academicYearId, CancellationToken cancellationToken = default);
+    Task<(List<Student> Items, int TotalCount)> GetByAcademicBatchAsync(long academicBatchId, bool currentOnly, int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<(List<Student> Items, int TotalCount)> GetByAcademicYearAsync(long academicYearId, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<bool> IsCodeExistsAsync(string code, long tenantId, long? excludeId = null, CancellationToken cancellationToken = default);
     Task<bool> IsRollAssignedInBatchAsync(string rollNo, long academicBatchId, long? excludeEnrollmentId = null, CancellationToken cancellationToken = default);
     Task<int> GetActiveCountAsync(long tenantId, CancellationToken cancellationToken = default);
