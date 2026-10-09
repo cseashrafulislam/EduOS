@@ -40,4 +40,17 @@ public class AdmissionRepository : GenericRepository<AdmissionApplicant>, IAdmis
             return 0;
         return await _dbSet.CountAsync(x => x.TenantId == tenantId && x.State == state);
     }
+
+    public Task<AdmissionApplicant?> GetByApplicationNoAsync(string applicationNumber, CancellationToken cancellationToken) =>
+        _dbSet.AsNoTracking().FirstOrDefaultAsync(x => x.ApplicationNumber == applicationNumber, cancellationToken);
+    public Task<(List<AdmissionApplicant> Items, int TotalCount)> GetByStateAsync(AdmissionApplicantState state, int page, int pageSize, CancellationToken cancellationToken) =>
+        PageAsync(_dbSet.AsNoTracking().Where(x => x.State == state).OrderByDescending(x => x.SubmittedAt ?? x.CreatedAt).ThenBy(x => x.Id), page, pageSize, cancellationToken);
+    public Task<(List<AdmissionApplicant> Items, int TotalCount)> GetByAcademicYearAsync(long academicYearId, int page, int pageSize, CancellationToken cancellationToken)
+    {
+        var intakeIds = _context.Set<AdmissionIntakeForm>().Where(x => x.AcademicYearId == academicYearId).Select(x => x.Id);
+        return PageAsync(_dbSet.AsNoTracking().Where(x => intakeIds.Contains(x.AdmissionIntakeFormId))
+            .OrderByDescending(x => x.SubmittedAt ?? x.CreatedAt).ThenBy(x => x.Id), page, pageSize, cancellationToken);
+    }
+    public Task<int> GetCountByStateAsync(AdmissionApplicantState state, CancellationToken cancellationToken) =>
+        _dbSet.CountAsync(x => x.State == state, cancellationToken);
 }

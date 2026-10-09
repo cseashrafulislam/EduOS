@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EduOS.Persistence.Repositories;
 
-public class MarkEntryRepository : GenericRepository<StudentAssessmentMark>, IMarkEntryRepository
+public class MarkEntryRepository : GenericRepository<StudentAssessmentMark>, IStudentAssessmentMarkRepository
 {
     public MarkEntryRepository(EduOSDbContext context) : base(context) { }
 
@@ -70,5 +70,32 @@ public class MarkEntryRepository : GenericRepository<StudentAssessmentMark>, IMa
         return !await expected.AnyAsync(item => !_dbSet.Any(mark =>
             mark.AssessmentSubjectId == item.Id &&
             mark.StudentSubjectRegistrationId == item.RegistrationId));
+    }
+
+    public async Task<List<StudentAssessmentMark>> GetByAssessmentAndEnrollmentAsync(long assessmentId, long studentEnrollmentId, CancellationToken cancellationToken)
+    {
+        var ids = _context.Set<StudentSubjectRegistration>().Where(x => x.StudentEnrollmentId == studentEnrollmentId).Select(x => x.Id);
+        var subjects = _context.Set<AssessmentSubject>().Where(x => x.AssessmentId == assessmentId).Select(x => x.Id);
+        return await _dbSet.AsNoTracking().Where(x => ids.Contains(x.StudentSubjectRegistrationId)
+            && subjects.Contains(x.AssessmentSubjectId)).OrderBy(x => x.AssessmentSubjectId).ThenBy(x => x.Id).ToListAsync(cancellationToken);
+    }
+    public Task<(List<StudentAssessmentMark> Items, int TotalCount)> GetByAssessmentSubjectAsync(long assessmentSubjectId, int page, int pageSize, CancellationToken cancellationToken) =>
+        PageAsync(_dbSet.AsNoTracking().Where(x => x.AssessmentSubjectId == assessmentSubjectId)
+            .OrderBy(x => x.StudentSubjectRegistrationId).ThenBy(x => x.Id), page, pageSize, cancellationToken);
+    public Task<StudentAssessmentMark?> GetExistingAsync(long assessmentSubjectId, long studentSubjectRegistrationId, CancellationToken cancellationToken) =>
+        _dbSet.FirstOrDefaultAsync(x => x.AssessmentSubjectId == assessmentSubjectId
+            && x.StudentSubjectRegistrationId == studentSubjectRegistrationId, cancellationToken);
+    public async Task<bool> AreRequiredMarksEnteredAsync(long assessmentId, long academicBatchId, CancellationToken cancellationToken)
+    {
+        var required = from subject in _context.Set<AssessmentSubject>()
+                       join offering in _context.Set<SubjectOffering>() on subject.SubjectOfferingId equals offering.Id
+                       join registration in _context.Set<StudentSubjectRegistration>() on offering.Id equals registration.SubjectOfferingId
+                       join enrollment in _context.Set<StudentEnrollment>() on registration.StudentEnrollmentId equals enrollment.Id
+                       where subject.AssessmentId == assessmentId && offering.AcademicBatchId == academicBatchId
+                           && enrollment.AcademicBatchId == academicBatchId && registration.State == SubjectRegistrationState.Approved
+                       select new { SubjectId = subject.Id, RegistrationId = registration.Id };
+        if (!await required.AnyAsync(cancellationToken)) return false;
+        return !await required.AnyAsync(x => !_dbSet.Any(mark => mark.AssessmentSubjectId == x.SubjectId
+            && mark.StudentSubjectRegistrationId == x.RegistrationId), cancellationToken);
     }
 }
