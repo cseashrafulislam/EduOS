@@ -47,7 +47,7 @@ public static class SuperAdminSeeder
                 NormalizedName = roleName.ToUpperInvariant(),
                 Description = "Platform-level Super Administrator",
                 IsSystemRole = true,
-                IsActive = true,
+
                 TenantId = null
             });
             if (!roleResult.Succeeded)
@@ -68,9 +68,9 @@ public static class SuperAdminSeeder
                 DefaultLanguage = "en",
                 State = TenantState.Active,
                 OnboardingStage = OnboardingStage.Completed,
-                IsOnboardingComplete = true,
+
                 OnboardingCompletedAt = DateTime.UtcNow,
-                IsEmailVerified = true,
+
                 EmailVerifiedAt = DateTime.UtcNow,
                 IsActive = true
             };
@@ -90,7 +90,7 @@ public static class SuperAdminSeeder
                 Email = email,
                 FullName = fullName,
                 EmailConfirmed = true,
-                IsActive = true,
+
                 PreferredLanguage = "en"
             };
             var result = await userManager.CreateAsync(user, password);
