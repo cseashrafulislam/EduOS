@@ -82,6 +82,13 @@
             <hr class="sidebar-divider" />
             <div class="menu-title">@T["Academics"]</div>
             <nav class="nav flex-column">
+                @if (User?.IsInRole("Student") == true || User?.IsInRole("Guardian") == true || User?.IsInRole("Parent") == true)
+                {
+                    <a class="nav-link @ActiveFor("/StudentPortal")" href="/StudentPortal/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
+                        <span>Student / Guardian Portal</span>
+                    </a>
+                }
                 <a class="nav-link @ActiveFor("/Admissions")" href="/Admissions/Index">
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#institution" /></svg>
                     <span>@T["AdmissionApplications"]</span>
