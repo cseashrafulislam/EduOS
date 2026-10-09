@@ -1,0 +1,84 @@
+@{
+    ViewData["Title"] = "Academic Calendar";
+    var canManage = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal");
+}
+<section id="academicCalendarApp" data-can-manage="@canManage.ToString().ToLowerInvariant()" class="container-fluid py-3">
+    <header class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+        <div><h2 class="h4 mb-1">Academic Calendar</h2><p class="text-muted mb-0">Manage holidays and events, weekend policy, and working-day reports.</p></div>
+        @if (canManage) { <button id="calendarNewEvent" type="button" class="btn btn-primary" disabled>New event</button> }
+    </header>
+    <div id="calendarAlert" class="d-none" role="alert" tabindex="-1" aria-live="polite"></div>
+    <form id="calendarFilters" class="card card-body mb-3">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-3"><label class="form-label" for="calendarYear">Academic year</label><select id="calendarYear" class="form-select" required><option value="">Loading…</option></select></div>
+            <div class="col-md-3"><label class="form-label" for="calendarCampus">Campus</label><select id="calendarCampus" class="form-select"><option value="">Institution-wide</option></select></div>
+            <div class="col-md-2"><label class="form-label" for="calendarFrom">From</label><input id="calendarFrom" type="date" class="form-control" required /></div>
+            <div class="col-md-2"><label class="form-label" for="calendarTo">To</label><input id="calendarTo" type="date" class="form-control" required /></div>
+            <div class="col-md-2"><button type="submit" id="calendarLoad" class="btn btn-primary w-100">Load</button></div>
+        </div>
+    </form>
+    <div class="row g-3">
+        <div class="col-xl-8">
+            <section class="card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center"><h3 class="h6 m-0">Calendar events</h3><span id="calendarCount" class="text-muted small"></span></div>
+                <div class="table-responsive"><table class="table table-hover align-middle mb-0">
+                    <thead><tr><th scope="col">Date(s)</th><th scope="col">Event</th><th scope="col">Type</th><th scope="col">Holiday</th><th scope="col">Campus</th>@if(canManage){<th scope="col">Action</th>}</tr></thead>
+                    <tbody id="calendarEvents"><tr><td colspan="6" class="text-center text-muted p-4">Choose an academic year to load events.</td></tr></tbody>
+                </table></div>
+            </section>
+            @if (canManage)
+            {
+                <section id="calendarEditorPanel" class="card mb-3 d-none" aria-labelledby="calendarEditorTitle">
+                    <div class="card-header"><h3 id="calendarEditorTitle" class="h6 m-0">New calendar event</h3></div>
+                    <div class="card-body">
+                        <form id="calendarEventForm">
+                            <div class="row g-3">
+                                <div class="col-md-7"><label class="form-label" for="calendarEventTitle">Title</label><input id="calendarEventTitle" maxlength="200" class="form-control" required /></div>
+                                <div class="col-md-5"><label class="form-label" for="calendarEventType">Type</label><select id="calendarEventType" class="form-select"><option value="1">Academic</option><option value="2">Holiday</option><option value="3">Examination</option><option value="4">Admission</option><option value="5">Sports</option><option value="6">Cultural</option><option value="7">Meeting</option><option value="99">Other</option></select></div>
+                                <div class="col-md-6"><label class="form-label" for="calendarEventStart">Start</label><input id="calendarEventStart" type="date" class="form-control" required /></div>
+                                <div class="col-md-6"><label class="form-label" for="calendarEventEnd">End</label><input id="calendarEventEnd" type="date" class="form-control" required /></div>
+                                <div class="col-12"><label class="form-label" for="calendarEventDescription">Description</label><textarea id="calendarEventDescription" class="form-control" rows="2" maxlength="1000"></textarea></div>
+                                <div class="col-12 d-flex flex-wrap gap-3">
+                                    <label class="form-check"><input id="calendarEventHoliday" class="form-check-input" type="checkbox" /> <span class="form-check-label">Holiday / non-working day</span></label>
+                                    <label class="form-check"><input id="calendarEventVisible" class="form-check-input" type="checkbox" checked /> <span class="form-check-label">Publicly visible</span></label>
+                                </div>
+                                <div class="col-12 d-flex gap-2"><button id="calendarSaveEvent" type="submit" class="btn btn-primary">Save event</button><button id="calendarCancelEvent" type="button" class="btn btn-outline-secondary">Cancel</button></div>
+                            </div>
+                        </form>
+                    </div>
+                </section>
+            }
+        </div>
+        <div class="col-xl-4">
+            <section class="card mb-3">
+                <div class="card-header"><h3 class="h6 m-0">Weekend policy</h3></div>
+                <div class="card-body">
+                    <p id="calendarPolicySummary" class="text-muted">Not loaded.</p>
+                    @if(canManage)
+                    {
+                        <form id="calendarPolicyForm">
+                            <p class="small text-muted">Select one or two weekend days.</p>
+                            <div id="calendarWeekendDays" class="row g-2">
+                                @foreach (var day in Enum.GetValues<DayOfWeek>())
+                                {
+                                    <div class="col-6"><label class="form-check"><input class="form-check-input" type="checkbox" name="weekendDay" value="@((int)day)" /><span class="form-check-label">@day</span></label></div>
+                                }
+                            </div>
+                            <button id="calendarSavePolicy" type="submit" class="btn btn-outline-primary mt-3">Save weekend policy</button>
+                        </form>
+                    }
+                </div>
+            </section>
+            <section class="card mb-3">
+                <div class="card-header"><h3 class="h6 m-0">Working day report</h3></div>
+                <div class="card-body">
+                    <p id="calendarWorkingSummary" class="fw-semibold">Not loaded.</p>
+                    <div class="table-responsive" style="max-height:350px;overflow:auto"><table class="table table-sm"><thead><tr><th>Date</th><th>Day</th><th>Status</th></tr></thead><tbody id="calendarWorkingDays"></tbody></table></div>
+                </div>
+            </section>
+        </div>
+    </div>
+</section>
+@section Scripts {
+    <script src="~/js/academic/calendar.js" asp-append-version="true"></script>
+}
