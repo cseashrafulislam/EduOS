@@ -99,6 +99,14 @@
                 </a>
 
 
+                @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
+                     User?.IsInRole("Teacher") == true || User?.IsInRole("Student") == true)
+                {
+                    <a class="nav-link @ActiveFor("/Learning")" href="/Learning/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
+                        <span>Learning Management</span>
+                    </a>
+                }
                 <a class="nav-link @ActiveFor("/ExamOperations")" href="/ExamOperations/Index">
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
                     <span>Exam Marks &amp; Results</span>
