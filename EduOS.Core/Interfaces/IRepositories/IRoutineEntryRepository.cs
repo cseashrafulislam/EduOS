@@ -1,12 +1,13 @@
 using EduOS.Core.Entities.Academic;
 
-namespace EduOS.Core.Interfaces.IRepositories
+namespace EduOS.Core.Interfaces.IRepositories;
+
+/// <summary>RoutineEntry belongs to SubjectOffering + RoutineTimeSlot; effective-dated slot/instructor conflicts must be checked transactionally.</summary>
+public interface IRoutineEntryRepository : IGenericRepository<RoutineEntry>
 {
-    public interface IRoutineEntryRepository : IGenericRepository<RoutineEntry>
-    {
-        Task<List<RoutineEntry>> GetByBatchAsync(long academicBatchId, long academicYearId);
-        Task<List<RoutineEntry>> GetByEmployeeAsync(long employeeId, long academicYearId);
-        Task<List<RoutineEntry>> GetByDayAsync(DayOfWeek dayOfWeek, long academicBatchId);
-        Task<bool> HasConflictAsync(long employeeId, DayOfWeek dayOfWeek, TimeSpan startTime, TimeSpan endTime, long? excludeId = null);
-    }
+    Task<List<RoutineEntry>> GetByAcademicBatchAsync(long academicBatchId, DateOnly effectiveOn, CancellationToken cancellationToken = default);
+    Task<List<RoutineEntry>> GetByInstructorAsync(long employeeId, DateOnly effectiveOn, CancellationToken cancellationToken = default);
+    Task<List<RoutineEntry>> GetByDayAsync(DayOfWeek dayOfWeek, long academicBatchId, DateOnly effectiveOn, CancellationToken cancellationToken = default);
+    Task<bool> HasInstructorConflictAsync(long employeeId, DayOfWeek dayOfWeek, TimeOnly startTime, TimeOnly endTime, DateOnly effectiveFrom, DateOnly? effectiveTo, long? excludeRoutineEntryId = null, CancellationToken cancellationToken = default);
+    Task<bool> HasRoomConflictAsync(long roomId, DayOfWeek dayOfWeek, TimeOnly startTime, TimeOnly endTime, DateOnly effectiveFrom, DateOnly? effectiveTo, long? excludeRoutineEntryId = null, CancellationToken cancellationToken = default);
 }
