@@ -25,7 +25,7 @@ public class SelfServicePortalServiceTests
     public async Task Student_portal_lists_only_current_tenant_student_linked_to_user()
     {
         await using var context = CreateContext(out var accessor);
-        var own = Student(10, 99, "OWN"), other = Student(10, 100, "OTHER"), foreign = Student(20, 99, "FOREIGN");
+        var own = Student(10, 99, "OWN"); var other = Student(10, 100, "OTHER"); var foreign = Student(20, 99, "FOREIGN");
         context.Set<Student>().AddRange(own, other, foreign);
         await context.SaveChangesAsync();
         SetTenant(accessor, 10);
@@ -39,7 +39,7 @@ public class SelfServicePortalServiceTests
     public async Task Guardian_portal_lists_only_students_with_explicit_guardian_link()
     {
         await using var context = CreateContext(out var accessor);
-        var linked = Student(10, null, "LINKED"), unlinked = Student(10, null, "UNLINKED");
+        var linked = Student(10, null, "LINKED"); var unlinked = Student(10, null, "UNLINKED");
         var guardian = new Guardian { TenantId = 10, PersonId = 1, UserId = 99, FullName = "Guardian", IsActive = true };
         context.Set<Student>().AddRange(linked, unlinked);
         context.Set<Guardian>().Add(guardian);
@@ -63,7 +63,7 @@ public class SelfServicePortalServiceTests
     public async Task Portal_does_not_disclose_unlinked_or_cross_tenant_student_data()
     {
         await using var context = CreateContext(out var accessor);
-        var linked = Student(10, 99, "OWN"), unrelated = Student(10, 100, "OTHER"), foreign = Student(20, 99, "FOREIGN");
+        var linked = Student(10, 99, "OWN"); var unrelated = Student(10, 100, "OTHER"); var foreign = Student(20, 99, "FOREIGN");
         context.Set<Student>().AddRange(linked, unrelated, foreign);
         await context.SaveChangesAsync(); SetTenant(accessor, 10);
         var service = CreateService(context, new TestCurrentUser(10, 99, "Student"));
@@ -109,13 +109,13 @@ public class SelfServicePortalServiceTests
     {
         await using var context = CreateContext(out var accessor);
         var student = Student(10, 99, "OWN");
-        var active = Course(10, "Active course"), inactive = Course(10, "Inactive course");
+        var active = Course(10, "Active course"); var inactive = Course(10, "Inactive course");
         context.Set<Student>().Add(student);
         context.Set<Course>().AddRange(active, inactive);
         await context.SaveChangesAsync();
         context.Set<CourseEnrollment>().AddRange(
             new CourseEnrollment { TenantId = 10, StudentId = student.Id, CourseId = active.Id, State = CourseEnrollmentState.Active, ClientRequestId = Guid.NewGuid() },
-            new CourseEnrollment { TenantId = 10, StudentId = student.Id, CourseId = inactive.Id, State = CourseEnrollmentState.Dropped, ClientRequestId = Guid.NewGuid() });
+            new CourseEnrollment { TenantId = 10, StudentId = student.Id, CourseId = inactive.Id, State = CourseEnrollmentState.Cancelled, ClientRequestId = Guid.NewGuid() });
         context.Set<Assignment>().AddRange(
             Assignment(10, active.Id, "Visible", LearningTaskType.Assignment, true),
             Assignment(10, active.Id, "Draft", LearningTaskType.Assignment, false),
@@ -131,7 +131,7 @@ public class SelfServicePortalServiceTests
     public async Task Timetable_returns_active_current_enrollment_subject_in_correct_day_order()
     {
         await using var context = CreateContext(out var accessor);
-        var student = Student(10, 99, "OWN"), subject = new Subject { TenantId = 10, Name = "Bangla", Code = "BAN" };
+        var student = Student(10, 99, "OWN"); var subject = new Subject { TenantId = 10, Name = "Bangla", Code = "BAN" };
         var employee = new Employee { TenantId = 10, PersonId = 1, DesignationId = 1, EmployeeCode = "T-1", FullName = "Teacher",
             JoiningDate = DateOnly.FromDateTime(DateTime.UtcNow), State = EmployeeState.Active, CanTeach = true };
         var curriculumSubject = new CurriculumSubject { TenantId = 10, SubjectId = 1, AcademicCurriculumId = 1, AcademicLevelId = 1 };
