@@ -13,7 +13,6 @@ public sealed class LmsIdContractTests
     [InlineData(typeof(QuizAttempt), nameof(QuizAttempt.TenantId), typeof(long))]
     [InlineData(typeof(QuizAttempt), nameof(QuizAttempt.QuizId), typeof(long))]
     [InlineData(typeof(QuizAttempt), nameof(QuizAttempt.CourseEnrollmentId), typeof(long))]
-    [InlineData(typeof(QuizAttempt), nameof(QuizAttempt.CourseEnrollmentId), typeof(long))]
     public void Quiz_identifiers_remain_long(Type type, string propertyName, Type expectedType)
     {
         var property = type.GetProperty(propertyName);
