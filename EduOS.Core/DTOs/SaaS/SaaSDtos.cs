@@ -206,6 +206,7 @@ public class TenantSubscriptionDto
     public long Id { get; set; }
     public Guid Reference { get; set; }
     public long SubscriptionPlanId { get; set; }
+    public string BillingCycleCode { get; set; } = "Monthly";
     public string PlanName { get; set; } = string.Empty;
     public SubscriptionState State { get; set; }
     public bool IsTrial { get; set; }
@@ -222,7 +223,7 @@ public class StartSubscriptionRequestDto
 {
     public Guid ClientRequestId { get; set; }
     public long SubscriptionPlanId { get; set; }
-    [Required, MaxLength(20)] public string BillingCycle { get; set; } = "Monthly";
+    [Required, MaxLength(30), RegularExpression("^(Monthly|Quarterly|HalfYearly|Yearly|Lifetime)$")] public string BillingCycleCode { get; set; } = "Monthly";
     public bool StartTrialIfEligible { get; set; }
 }
 

@@ -36,6 +36,18 @@ namespace EduOS.Core.DTOs.SaaS
     /// <summary>
     /// Submit manual bank transfer details
     /// </summary>
+    /// <summary>Instructions generated from authorized platform banking configuration, never client-entered.</summary>
+    public sealed class ManualPaymentInstructionsDto
+    {
+        public string BankName { get; set; } = string.Empty;
+        public string AccountName { get; set; } = string.Empty;
+        public string AccountNumber { get; set; } = string.Empty;
+        public string? RoutingNumber { get; set; }
+        public string? BranchName { get; set; }
+        public string Reference { get; set; } = string.Empty;
+        public string Instructions { get; set; } = string.Empty;
+    }
+
     public class ManualPaymentSubmitDto
     {
         [Range(1, long.MaxValue)]
