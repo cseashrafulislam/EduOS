@@ -1,8 +1,7 @@
 using EduOS.Core.Common;
-using EduOS.Core.DTOs.Tenants;
+using EduOS.Core.DTOs.Files;
+using EduOS.Core.DTOs.SaaS;
 using EduOS.Core.Entities.SaaS;
-using EduOS.Core.Enums;
-using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
@@ -18,384 +17,276 @@ namespace EduOS.Service.Services.Tenants;
 
 public sealed class TenantProfileService : ITenantProfileService
 {
-    private readonly IGenericRepository<Tenant> _tenants;
-    private readonly IGenericRepository<TenantSetting> _settings;
-    private readonly IGenericRepository<InstitutionTypeDefinition> _institutionTypes;
-    private readonly IUnitOfWork _unitOfWork;
-    private readonly ICurrentUserService _currentUser;
-    private readonly IFileUploadService _fileStorage;
-    private readonly FileUploadSettings _fileSettings;
-    private readonly string _baseDomain;
-    private readonly ILogger<TenantProfileService> _logger;
-
-    private static readonly HashSet<string> Reserved = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> ReservedSubdomains = new(StringComparer.OrdinalIgnoreCase)
     {
         "www", "api", "admin", "app", "mail", "ftp", "test", "staging", "dev", "demo",
-        "blog", "shop", "store", "support", "help", "docs", "status", "eduos",
-        "dashboard", "portal", "login", "signup", "billing", "secure"
+        "blog", "shop", "support", "docs", "status", "eduos", "portal", "login", "billing"
     };
-    private static readonly HashSet<string> Currencies = new(StringComparer.OrdinalIgnoreCase)
-    { "BDT", "USD", "INR", "GBP", "EUR", "AUD", "CAD", "SGD", "MYR", "AED" };
-    private static readonly HashSet<string> TimeZones = new(StringComparer.Ordinal)
-    { "Asia/Dhaka", "Asia/Kolkata", "Asia/Karachi", "Asia/Dubai", "UTC", "America/New_York", "Europe/London" };
-    private static readonly HashSet<string> DateFormats = new(StringComparer.Ordinal)
-    { "dd-MM-yyyy", "MM-dd-yyyy", "yyyy-MM-dd", "dd/MM/yyyy" };
+    private readonly IGenericRepository<Tenant> _tenants;
+    private readonly IGenericRepository<TenantDomain> _domains;
+    private readonly IGenericRepository<InstitutionTypeDefinition> _institutionTypes;
+    private readonly ICurrentUserService _user;
+    private readonly IFileUploadService _storage;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly FileUploadSettings _settings;
+    private readonly ILogger<TenantProfileService> _logger;
 
-    public TenantProfileService(IGenericRepository<Tenant> tenants, IGenericRepository<TenantSetting> settings,
-        IGenericRepository<InstitutionTypeDefinition> institutionTypes, IUnitOfWork unitOfWork,
-        ICurrentUserService currentUser, IFileUploadService fileStorage,
-        IOptions<FileUploadSettings> fileSettings, IOptions<TenantPortalSettings> portalSettings,
+    public TenantProfileService(IGenericRepository<Tenant> tenants, IGenericRepository<TenantDomain> domains,
+        IGenericRepository<InstitutionTypeDefinition> institutionTypes, ICurrentUserService user,
+        IFileUploadService storage, IUnitOfWork unitOfWork, IOptions<FileUploadSettings> options,
         ILogger<TenantProfileService> logger)
     {
-        _tenants = tenants; _settings = settings; _institutionTypes = institutionTypes;
-        _unitOfWork = unitOfWork; _currentUser = currentUser; _fileStorage = fileStorage;
-        _fileSettings = fileSettings.Value;
-        _baseDomain = NormalizeBaseDomain(portalSettings.Value.BaseDomain);
-        _logger = logger;
+        _tenants = tenants; _domains = domains; _institutionTypes = institutionTypes;
+        _user = user; _storage = storage; _unitOfWork = unitOfWork; _settings = options.Value; _logger = logger;
     }
 
-    public async Task<ApiResponse<TenantProfileDto>> GetProfileAsync()
+    public async Task<ApiResponse<TenantDto>> GetProfileAsync(CancellationToken cancellationToken = default)
     {
-        if (!CanRead()) return ApiResponse<TenantProfileDto>.ErrorResponse("Tenant access is required.", 403);
-        try
-        {
-            var tenant = await CurrentTenantAsync();
-            if (tenant == null) return ApiResponse<TenantProfileDto>.ErrorResponse("Institution not found.", 404);
-            var extras = await ReadSettingsAsync(tenant.Id);
-            var type = tenant.InstitutionTypeDefinitionId.HasValue
-                ? await _institutionTypes.GetQueryable().AsNoTracking().Where(x => x.Id == tenant.InstitutionTypeDefinitionId.Value)
-                    .Select(x => x.Name).FirstOrDefaultAsync() : null;
-            var step = Enum.TryParse<OnboardingStep>(tenant.OnboardingStage.ToString(), out var legacyStep)
-                ? (int)legacyStep : (int)OnboardingStep.EmailVerification;
-            return ApiResponse<TenantProfileDto>.SuccessResponse(new TenantProfileDto
-            {
-                Id = tenant.Id, Name = tenant.Name, Code = tenant.Code,
-                Subdomain = tenant.Subdomain, CustomDomain = tenant.CustomDomain,
-                InstitutionType = type, Email = tenant.Email, Phone = tenant.Phone,
-                Address = tenant.Address, Website = Get(extras, "Profile.Website"),
-                City = Get(extras, "Profile.City"), State = Get(extras, "Profile.State"),
-                Country = Get(extras, "Profile.Country") ?? tenant.CountryCode,
-                PostalCode = Get(extras, "Profile.PostalCode"),
-                OwnerName = Get(extras, "Profile.OwnerName") ?? string.Empty,
-                OwnerPhone = Get(extras, "Profile.OwnerPhone"), OwnerEmail = Get(extras, "Profile.OwnerEmail"),
-                OwnerDesignation = Get(extras, "Profile.OwnerDesignation"),
-                LogoUrl = tenant.LogoUrl, FaviconUrl = tenant.FaviconUrl,
-                PrimaryColor = Get(extras, "Branding.PrimaryColor"),
-                SecondaryColor = Get(extras, "Branding.SecondaryColor"),
-                AccentColor = Get(extras, "Branding.AccentColor"),
-                Currency = tenant.CurrencyCode, CurrencySymbol = Get(extras, "General.CurrencySymbol"),
-                TimeZone = tenant.TimeZoneId, Language = tenant.DefaultLanguage,
-                DateFormat = Get(extras, "General.DateFormat"),
-                IsEmailVerified = tenant.IsEmailVerified,
-                IsOnboardingComplete = tenant.IsOnboardingComplete,
-                OnboardingStep = step, Status = tenant.State.ToString()
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Tenant profile read failed for {TenantId}", _currentUser.TenantId);
-            return ApiResponse<TenantProfileDto>.ErrorResponse("Institution profile could not be loaded.", 500);
-        }
+        if (!CanRead()) return ApiResponse<TenantDto>.ErrorResponse("Tenant access is required.", 403);
+        var tenant = await GetTenantAsync(cancellationToken);
+        if (tenant == null) return ApiResponse<TenantDto>.ErrorResponse("Institution not found.", 404);
+        return ApiResponse<TenantDto>.SuccessResponse(await MapAsync(tenant, cancellationToken));
     }
 
-    public async Task<ApiResponse<bool>> UpdateProfileAsync(UpdateTenantProfileDto request)
+    public async Task<ApiResponse<TenantDto>> UpdateProfileAsync(UpdateTenantProfileRequestDto request, CancellationToken cancellationToken = default)
     {
-        if (!CanManage()) return Denied();
+        if (!CanManage()) return ApiResponse<TenantDto>.ErrorResponse("Tenant administrator access is required.", 403);
         if (request == null || string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 200 ||
-            string.IsNullOrWhiteSpace(request.OwnerName) || request.OwnerName.Trim().Length > 150)
-            return ApiResponse<bool>.ErrorResponse("Institution and owner names are required.");
+            string.IsNullOrWhiteSpace(request.Email) || request.CountryCode.Length is < 2 or > 10)
+            return ApiResponse<TenantDto>.ErrorResponse("Profile data is invalid.");
         try
         {
-            var tenant = await CurrentTenantAsync();
-            if (tenant == null) return ApiResponse<bool>.ErrorResponse("Institution not found.", 404);
-            if (!string.IsNullOrWhiteSpace(request.InstitutionType))
-            {
-                var input = request.InstitutionType.Trim();
-                var type = await _institutionTypes.GetQueryable().AsNoTracking()
-                    .FirstOrDefaultAsync(x => x.IsActive && (x.Code == input || x.Name == input));
-                if (type == null) return ApiResponse<bool>.ErrorResponse("Institution type is invalid.");
-                tenant.InstitutionTypeDefinitionId = type.Id;
-            }
+            var tenant = await GetTenantAsync(cancellationToken);
+            if (tenant == null) return ApiResponse<TenantDto>.ErrorResponse("Institution not found.", 404);
+            if (!MatchesVersion(tenant.RowVersion, request.RowVersion))
+                return ApiResponse<TenantDto>.ErrorResponse("Profile changed. Reload and retry.", 409);
+            if (!string.Equals(tenant.Email, request.Email.Trim(), StringComparison.OrdinalIgnoreCase))
+                return ApiResponse<TenantDto>.ErrorResponse("Institution email changes require a verified email-change workflow.", 409);
+            if (tenant.InstitutionTypeDefinitionId != request.InstitutionTypeDefinitionId)
+                return ApiResponse<TenantDto>.ErrorResponse("Changing institution type requires a controlled onboarding workflow.", 409);
             tenant.Name = request.Name.Trim();
             tenant.Phone = Trim(request.Phone);
             tenant.Address = Trim(request.Address);
-            tenant.UpdatedAt = DateTime.UtcNow;
-            tenant.UpdatedBy = _currentUser.UserId;
-            await UpsertSettingsAsync(tenant.Id, "Profile", new Dictionary<string, string?>
-            {
-                ["Website"] = Trim(request.Website), ["City"] = Trim(request.City),
-                ["State"] = Trim(request.State), ["Country"] = Trim(request.Country),
-                ["PostalCode"] = Trim(request.PostalCode),
-                ["OwnerName"] = request.OwnerName.Trim(),
-                ["OwnerPhone"] = Trim(request.OwnerPhone),
-                ["OwnerEmail"] = Trim(request.OwnerEmail),
-                ["OwnerDesignation"] = Trim(request.OwnerDesignation)
-            });
-            await _unitOfWork.SaveChangesAsync();
-            return ApiResponse<bool>.SuccessResponse(true, "Institution profile updated.");
+            tenant.CountryCode = request.CountryCode.Trim().ToUpperInvariant();
+            tenant.UpdatedAt = DateTime.UtcNow; tenant.UpdatedBy = _user.UserId;
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            return ApiResponse<TenantDto>.SuccessResponse(await MapAsync(tenant, cancellationToken));
         }
-        catch (DbUpdateConcurrencyException) { return ApiResponse<bool>.ErrorResponse("Institution profile changed. Reload and retry.", 409); }
-        catch (DbUpdateException ex)
+        catch (DbUpdateConcurrencyException)
         {
-            _logger.LogWarning(ex, "Concurrent profile update for {TenantId}", _currentUser.TenantId);
-            return ApiResponse<bool>.ErrorResponse("Institution profile update conflicts with another request.", 409);
+            return ApiResponse<TenantDto>.ErrorResponse("Profile changed. Reload and retry.", 409);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogError(ex, "Institution profile save failed for {TenantId}", _currentUser.TenantId);
-            return ApiResponse<bool>.ErrorResponse("Institution profile could not be saved.", 500);
+            _logger.LogError(ex, "Tenant profile update failed for {TenantId}", _user.TenantId);
+            return ApiResponse<TenantDto>.ErrorResponse("Profile could not be updated.", 500);
         }
     }
 
-    public async Task<ApiResponse<bool>> UpdateBrandingAsync(UpdateBrandingDto request)
+    public async Task<ApiResponse<TenantDto>> UpdateRegionalSettingsAsync(UpdateTenantRegionalSettingsRequestDto request, CancellationToken cancellationToken = default)
     {
-        if (!CanManage()) return Denied();
-        if (request == null) return ApiResponse<bool>.ErrorResponse("Branding details are required.");
-        foreach (var color in new[] { request.PrimaryColor, request.SecondaryColor, request.AccentColor })
-            if (color != null && !Regex.IsMatch(color, "^#(?:[0-9a-fA-F]{6})$"))
-                return ApiResponse<bool>.ErrorResponse("Brand colors must use #RRGGBB.");
+        if (!CanManage()) return ApiResponse<TenantDto>.ErrorResponse("Tenant administrator access is required.", 403);
+        if (request == null || !Regex.IsMatch(request.CurrencyCode ?? "", "^[A-Z]{3}$") ||
+            string.IsNullOrWhiteSpace(request.TimeZoneId) || string.IsNullOrWhiteSpace(request.DefaultLanguage))
+            return ApiResponse<TenantDto>.ErrorResponse("Regional settings are invalid.");
         try
         {
-            var tenant = await CurrentTenantAsync();
-            if (tenant == null) return ApiResponse<bool>.ErrorResponse("Institution not found.", 404);
-            await UpsertSettingsAsync(tenant.Id, "Branding", new Dictionary<string, string?>
-            {
-                ["PrimaryColor"] = request.PrimaryColor, ["SecondaryColor"] = request.SecondaryColor,
-                ["AccentColor"] = request.AccentColor
-            }, ignoreNulls: true);
-            await _unitOfWork.SaveChangesAsync();
-            return ApiResponse<bool>.SuccessResponse(true, "Branding colors saved.");
+            var tenant = await GetTenantAsync(cancellationToken);
+            if (tenant == null) return ApiResponse<TenantDto>.ErrorResponse("Institution not found.", 404);
+            if (!MatchesVersion(tenant.RowVersion, request.RowVersion))
+                return ApiResponse<TenantDto>.ErrorResponse("Settings changed. Reload and retry.", 409);
+            try { TimeZoneInfo.FindSystemTimeZoneById(request.TimeZoneId); }
+            catch (TimeZoneNotFoundException) { return ApiResponse<TenantDto>.ErrorResponse("Time zone is not recognized."); }
+            catch (InvalidTimeZoneException) { return ApiResponse<TenantDto>.ErrorResponse("Time zone is invalid."); }
+            tenant.CurrencyCode = request.CurrencyCode;
+            tenant.TimeZoneId = request.TimeZoneId.Trim();
+            tenant.DefaultLanguage = request.DefaultLanguage.Trim();
+            tenant.UpdatedAt = DateTime.UtcNow; tenant.UpdatedBy = _user.UserId;
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            return ApiResponse<TenantDto>.SuccessResponse(await MapAsync(tenant, cancellationToken));
         }
-        catch (DbUpdateException)
+        catch (DbUpdateConcurrencyException)
         {
-            return ApiResponse<bool>.ErrorResponse("Branding was changed. Reload and retry.", 409);
+            return ApiResponse<TenantDto>.ErrorResponse("Settings changed. Reload and retry.", 409);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogError(ex, "Branding save failed for {TenantId}", _currentUser.TenantId);
-            return ApiResponse<bool>.ErrorResponse("Branding could not be saved.", 500);
+            _logger.LogError(ex, "Regional settings update failed for {TenantId}", _user.TenantId);
+            return ApiResponse<TenantDto>.ErrorResponse("Regional settings could not be updated.", 500);
         }
     }
 
-    public Task<ApiResponse<string>> UploadLogoAsync(IFormFile file) => UploadBrandAssetAsync(file, false);
-    public Task<ApiResponse<string>> UploadFaviconAsync(IFormFile file) => UploadBrandAssetAsync(file, true);
-    public Task<ApiResponse<bool>> RemoveLogoAsync() => RemoveBrandAssetAsync(false);
-    public Task<ApiResponse<bool>> RemoveFaviconAsync() => RemoveBrandAssetAsync(true);
+    public Task<ApiResponse<string>> UploadLogoAsync(PrivateFileUploadDto file, CancellationToken cancellationToken = default) =>
+        UploadBrandAssetAsync(file, false, cancellationToken);
 
-    public async Task<ApiResponse<SubdomainCheckResult>> CheckSubdomainAvailabilityAsync(string subdomain)
+    public Task<ApiResponse<string>> UploadFaviconAsync(PrivateFileUploadDto file, CancellationToken cancellationToken = default) =>
+        UploadBrandAssetAsync(file, true, cancellationToken);
+
+    public Task<ApiResponse<bool>> RemoveLogoAsync(string rowVersion, CancellationToken cancellationToken = default) =>
+        RemoveBrandAssetAsync(false, rowVersion, cancellationToken);
+
+    public Task<ApiResponse<bool>> RemoveFaviconAsync(string rowVersion, CancellationToken cancellationToken = default) =>
+        RemoveBrandAssetAsync(true, rowVersion, cancellationToken);
+
+    public async Task<ApiResponse<SubdomainAvailabilityDto>> CheckSubdomainAvailabilityAsync(string subdomain, CancellationToken cancellationToken = default)
     {
-        if (!CanRead()) return ApiResponse<SubdomainCheckResult>.ErrorResponse("Tenant access is required.", 403);
-        var normalized = subdomain?.Trim().ToLowerInvariant() ?? string.Empty;
-        var result = new SubdomainCheckResult { Subdomain = normalized };
-        if (normalized.Length is < 3 or > 50 || !Regex.IsMatch(normalized, "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$"))
+        if (!CanRead()) return ApiResponse<SubdomainAvailabilityDto>.ErrorResponse("Tenant access is required.", 403);
+        var value = subdomain?.Trim().ToLowerInvariant() ?? "";
+        var result = new SubdomainAvailabilityDto { Subdomain = value };
+        if (value.Length is < 3 or > 100 || !Regex.IsMatch(value, "^[a-z0-9]+(?:-[a-z0-9]+)*$"))
         {
-            result.Message = "Use 3–50 lowercase letters, numbers and hyphens.";
-            return ApiResponse<SubdomainCheckResult>.SuccessResponse(result);
+            result.Reason = "Use 3–100 lowercase letters, numbers and internal hyphens.";
+            return ApiResponse<SubdomainAvailabilityDto>.SuccessResponse(result);
         }
-        if (Reserved.Contains(normalized))
+        if (ReservedSubdomains.Contains(value))
         {
-            result.Message = "This subdomain is reserved.";
-            return ApiResponse<SubdomainCheckResult>.SuccessResponse(result);
+            result.Reason = "Subdomain is reserved.";
+            return ApiResponse<SubdomainAvailabilityDto>.SuccessResponse(result);
         }
         result.IsValid = true;
-        var exists = await _tenants.GetQueryable().AsNoTracking().AnyAsync(x =>
-            x.Subdomain == normalized && x.Id != _currentUser.TenantId);
-        result.IsAvailable = !exists;
-        result.Message = exists ? "This subdomain is already registered." : "Available.";
-        result.FullUrl = exists ? null : $"https://{normalized}.{_baseDomain}";
-        return ApiResponse<SubdomainCheckResult>.SuccessResponse(result);
+        result.IsAvailable = !await _tenants.GetQueryable().AsNoTracking().AnyAsync(x =>
+            x.Subdomain == value && x.Id != _user.TenantId, cancellationToken);
+        if (!result.IsAvailable) result.Reason = "Subdomain is already registered.";
+        return ApiResponse<SubdomainAvailabilityDto>.SuccessResponse(result);
     }
 
-    public async Task<ApiResponse<bool>> UpdateSubdomainAsync(UpdateSubdomainDto request)
+    public async Task<ApiResponse<TenantDto>> UpdateSubdomainAsync(UpdateTenantSubdomainRequestDto request, CancellationToken cancellationToken = default)
     {
-        if (!CanManage()) return Denied();
-        if (request == null) return ApiResponse<bool>.ErrorResponse("Subdomain is required.");
-        var check = await CheckSubdomainAvailabilityAsync(request.Subdomain);
-        if (check.Data?.IsAvailable != true) return ApiResponse<bool>.ErrorResponse(check.Data?.Message ?? "Subdomain unavailable.");
+        if (!CanManage()) return ApiResponse<TenantDto>.ErrorResponse("Tenant administrator access is required.", 403);
+        if (request == null) return ApiResponse<TenantDto>.ErrorResponse("A subdomain is required.");
+        var availability = await CheckSubdomainAvailabilityAsync(request.Subdomain, cancellationToken);
+        if (availability.Data?.IsAvailable != true)
+            return ApiResponse<TenantDto>.ErrorResponse(availability.Data?.Reason ?? "Subdomain is not available.", 409);
         try
         {
-            var tenant = await CurrentTenantAsync();
-            if (tenant == null) return ApiResponse<bool>.ErrorResponse("Institution not found.", 404);
-            tenant.Subdomain = check.Data.Subdomain;
-            tenant.UpdatedAt = DateTime.UtcNow;
-            tenant.UpdatedBy = _currentUser.UserId;
-            await _unitOfWork.SaveChangesAsync();
-            return ApiResponse<bool>.SuccessResponse(true, "Subdomain saved.");
+            var tenant = await GetTenantAsync(cancellationToken);
+            if (tenant == null) return ApiResponse<TenantDto>.ErrorResponse("Institution not found.", 404);
+            if (!MatchesVersion(tenant.RowVersion, request.RowVersion))
+                return ApiResponse<TenantDto>.ErrorResponse("Profile changed. Reload and retry.", 409);
+            tenant.Subdomain = availability.Data.Subdomain;
+            tenant.UpdatedAt = DateTime.UtcNow; tenant.UpdatedBy = _user.UserId;
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            return ApiResponse<TenantDto>.SuccessResponse(await MapAsync(tenant, cancellationToken));
         }
-        catch (DbUpdateException)
+        catch (DbUpdateConcurrencyException) { return ApiResponse<TenantDto>.ErrorResponse("Profile changed. Reload and retry.", 409); }
+        catch (DbUpdateException) { return ApiResponse<TenantDto>.ErrorResponse("Subdomain is already taken.", 409); }
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            return ApiResponse<bool>.ErrorResponse("Subdomain is already registered. Choose another one.", 409);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Subdomain save failed for {TenantId}", _currentUser.TenantId);
-            return ApiResponse<bool>.ErrorResponse("Subdomain could not be saved.", 500);
+            _logger.LogError(ex, "Subdomain update failed for tenant {TenantId}", _user.TenantId);
+            return ApiResponse<TenantDto>.ErrorResponse("Subdomain could not be saved.", 500);
         }
     }
 
-    public async Task<ApiResponse<bool>> UpdateGeneralSettingsAsync(UpdateGeneralSettingsDto request)
-    {
-        if (!CanManage()) return Denied();
-        if (request == null) return ApiResponse<bool>.ErrorResponse("General settings are required.");
-        var currency = request.Currency?.Trim().ToUpperInvariant() ?? string.Empty;
-        var symbol = request.CurrencySymbol?.Trim() ?? string.Empty;
-        var timezone = request.TimeZone?.Trim() ?? string.Empty;
-        var language = request.Language?.Trim() ?? string.Empty;
-        var dateFormat = request.DateFormat?.Trim() ?? string.Empty;
-        if (!Currencies.Contains(currency) || symbol.Length is < 1 or > 10 ||
-            !TimeZones.Contains(timezone) || !DateFormats.Contains(dateFormat) ||
-            language is not ("en" or "en-BD" or "bn" or "bn-BD"))
-            return ApiResponse<bool>.ErrorResponse("One or more general settings are invalid.");
-        try
-        {
-            var tenant = await CurrentTenantAsync();
-            if (tenant == null) return ApiResponse<bool>.ErrorResponse("Institution not found.", 404);
-            tenant.CurrencyCode = currency;
-            tenant.TimeZoneId = timezone;
-            tenant.DefaultLanguage = language is "bn" or "bn-BD" ? "bn-BD" : "en-BD";
-            tenant.UpdatedAt = DateTime.UtcNow;
-            tenant.UpdatedBy = _currentUser.UserId;
-            await UpsertSettingsAsync(tenant.Id, "General", new Dictionary<string, string?>
-            {
-                ["CurrencySymbol"] = symbol, ["DateFormat"] = dateFormat
-            });
-            await _unitOfWork.SaveChangesAsync();
-            return ApiResponse<bool>.SuccessResponse(true, "General settings saved.");
-        }
-        catch (DbUpdateException)
-        {
-            return ApiResponse<bool>.ErrorResponse("General settings were changed. Reload and retry.", 409);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "General settings failed for {TenantId}", _currentUser.TenantId);
-            return ApiResponse<bool>.ErrorResponse("General settings could not be saved.", 500);
-        }
-    }
-
-    private async Task<ApiResponse<string>> UploadBrandAssetAsync(IFormFile file, bool favicon)
+    private async Task<ApiResponse<string>> UploadBrandAssetAsync(PrivateFileUploadDto file, bool favicon, CancellationToken ct)
     {
         if (!CanManage()) return ApiResponse<string>.ErrorResponse("Tenant administrator access is required.", 403);
-        if (file == null || file.Length <= 0) return ApiResponse<string>.ErrorResponse("A valid image is required.");
-        var allowed = favicon ? new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".png", ".jpg", ".jpeg" } :
-            new HashSet<string>(_fileSettings.AllowedImageExtensions, StringComparer.OrdinalIgnoreCase);
-        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
-        if (file.Length > Math.Max(1, _fileSettings.MaxFileSizeMb) * 1024L * 1024L ||
-            !allowed.Contains(extension) || !_fileStorage.ValidateFile(file))
-            return ApiResponse<string>.ErrorResponse("Image format or file size is invalid.");
+        if (file == null || file.Content == Stream.Null || file.Length <= 0 ||
+            file.Length > Math.Max(1, _settings.MaxFileSizeMb) * 1024L * 1024L)
+            return ApiResponse<string>.ErrorResponse("Image size is invalid.");
+        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (!new[] { ".png", ".jpg", ".jpeg", ".webp" }.Contains(ext) ||
+            !new[] { "image/png", "image/jpeg", "image/webp" }.Contains(file.ContentType.ToLowerInvariant()) ||
+            (favicon && ext == ".webp"))
+            return ApiResponse<string>.ErrorResponse("Unsupported image type.");
+        var form = new FormFile(file.Content, 0, file.Length, "file", Path.GetFileName(file.FileName))
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = file.ContentType
+        };
+        if (!_storage.ValidateFile(form)) return ApiResponse<string>.ErrorResponse("Image content is invalid.");
+        string? uploaded = null;
         try
         {
-            var tenant = await CurrentTenantAsync();
+            var tenant = await GetTenantAsync(ct);
             if (tenant == null) return ApiResponse<string>.ErrorResponse("Institution not found.", 404);
-            var upload = await _fileStorage.UploadAsync(file, $"tenants/{tenant.Id}/branding");
-            if (!upload.Success || string.IsNullOrWhiteSpace(upload.FileUrl))
-                return ApiResponse<string>.ErrorResponse(upload.ErrorMessage ?? "Image upload failed.");
-            var old = favicon ? tenant.FaviconUrl : tenant.LogoUrl;
-            if (favicon) tenant.FaviconUrl = upload.FileUrl;
-            else tenant.LogoUrl = upload.FileUrl;
-            tenant.UpdatedAt = DateTime.UtcNow;
-            tenant.UpdatedBy = _currentUser.UserId;
-            try { await _unitOfWork.SaveChangesAsync(); }
-            catch
-            {
-                await _fileStorage.DeleteAsync(upload.FileUrl);
-                throw;
-            }
-            if (old != null && old != upload.FileUrl) await DeleteReplacedAssetAsync(old, tenant.Id);
-            return ApiResponse<string>.SuccessResponse(upload.FileUrl, "Brand image updated.");
+            var result = await _storage.UploadAsync(form, $"tenants/{tenant.Id}/branding");
+            if (!result.Success || string.IsNullOrWhiteSpace(result.FileUrl))
+                return ApiResponse<string>.ErrorResponse(result.ErrorMessage ?? "Image could not be uploaded.");
+            uploaded = result.FileUrl;
+            var previous = favicon ? tenant.FaviconUrl : tenant.LogoUrl;
+            if (favicon) tenant.FaviconUrl = uploaded;
+            else tenant.LogoUrl = uploaded;
+            tenant.UpdatedAt = DateTime.UtcNow; tenant.UpdatedBy = _user.UserId;
+            await _unitOfWork.SaveChangesAsync(ct);
+            if (!string.IsNullOrEmpty(previous) && previous != uploaded &&
+                !await _storage.DeleteAsync(previous))
+                _logger.LogWarning("Previous branding file could not be deleted for {TenantId}", tenant.Id);
+            return ApiResponse<string>.SuccessResponse(uploaded);
         }
         catch (DbUpdateConcurrencyException)
         {
-            return ApiResponse<string>.ErrorResponse("Branding was modified. Reload and retry.", 409);
+            if (uploaded != null) await _storage.DeleteAsync(uploaded);
+            return ApiResponse<string>.ErrorResponse("Branding changed. Reload and retry.", 409);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogError(ex, "Brand image upload failed for {TenantId}", _currentUser.TenantId);
-            return ApiResponse<string>.ErrorResponse("Brand image could not be uploaded.", 500);
+            if (uploaded != null) await _storage.DeleteAsync(uploaded);
+            _logger.LogError(ex, "Branding upload failed for {TenantId}", _user.TenantId);
+            return ApiResponse<string>.ErrorResponse("Brand image could not be saved.", 500);
         }
     }
 
-    private async Task<ApiResponse<bool>> RemoveBrandAssetAsync(bool favicon)
+    private async Task<ApiResponse<bool>> RemoveBrandAssetAsync(bool favicon, string rowVersion, CancellationToken ct)
     {
-        if (!CanManage()) return Denied();
+        if (!CanManage()) return ApiResponse<bool>.ErrorResponse("Tenant administrator access is required.", 403);
         try
         {
-            var tenant = await CurrentTenantAsync();
+            var tenant = await GetTenantAsync(ct);
             if (tenant == null) return ApiResponse<bool>.ErrorResponse("Institution not found.", 404);
-            var old = favicon ? tenant.FaviconUrl : tenant.LogoUrl;
-            if (old == null) return ApiResponse<bool>.SuccessResponse(true);
+            if (!MatchesVersion(tenant.RowVersion, rowVersion))
+                return ApiResponse<bool>.ErrorResponse("Branding changed. Reload and retry.", 409);
+            var previous = favicon ? tenant.FaviconUrl : tenant.LogoUrl;
+            if (previous == null) return ApiResponse<bool>.SuccessResponse(true);
             if (favicon) tenant.FaviconUrl = null;
             else tenant.LogoUrl = null;
-            tenant.UpdatedAt = DateTime.UtcNow;
-            tenant.UpdatedBy = _currentUser.UserId;
-            await _unitOfWork.SaveChangesAsync();
-            await DeleteReplacedAssetAsync(old, tenant.Id);
-            return ApiResponse<bool>.SuccessResponse(true, "Brand image removed.");
+            tenant.UpdatedAt = DateTime.UtcNow; tenant.UpdatedBy = _user.UserId;
+            await _unitOfWork.SaveChangesAsync(ct);
+            if (!await _storage.DeleteAsync(previous))
+                _logger.LogWarning("Previous branding file could not be deleted for {TenantId}", tenant.Id);
+            return ApiResponse<bool>.SuccessResponse(true);
         }
-        catch (DbUpdateConcurrencyException)
+        catch (DbUpdateConcurrencyException) { return ApiResponse<bool>.ErrorResponse("Branding changed. Reload and retry.", 409); }
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            return ApiResponse<bool>.ErrorResponse("Branding changed. Reload and retry.", 409);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Brand image removal failed for {TenantId}", _currentUser.TenantId);
-            return ApiResponse<bool>.ErrorResponse("Brand image could not be removed.", 500);
+            _logger.LogError(ex, "Branding removal failed for {TenantId}", _user.TenantId);
+            return ApiResponse<bool>.ErrorResponse("Branding could not be updated.", 500);
         }
     }
 
-    private async Task DeleteReplacedAssetAsync(string url, long tenantId)
+    private Task<Tenant?> GetTenantAsync(CancellationToken ct) =>
+        _tenants.GetQueryable().FirstOrDefaultAsync(x => x.Id == _user.TenantId, ct);
+
+    private async Task<TenantDto> MapAsync(Tenant tenant, CancellationToken ct)
     {
-        if (!await _fileStorage.DeleteAsync(url))
-            _logger.LogWarning("Previous brand image could not be removed for tenant {TenantId}", tenantId);
-    }
-
-    private async Task<Tenant?> CurrentTenantAsync() =>
-        await _tenants.GetQueryable().FirstOrDefaultAsync(x => x.Id == _currentUser.TenantId);
-
-    private async Task<Dictionary<string, string>> ReadSettingsAsync(long tenantId) =>
-        await _settings.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenantId &&
-            (x.Category == "Profile" || x.Category == "Branding" || x.Category == "General"))
-            .ToDictionaryAsync(x => x.Key, x => x.Value);
-
-    private async Task UpsertSettingsAsync(long tenantId, string category,
-        IReadOnlyDictionary<string, string?> values, bool ignoreNulls = false)
-    {
-        var names = values.Keys.Select(x => category + "." + x).ToArray();
-        var records = await _settings.GetQueryable().Where(x => x.TenantId == tenantId &&
-            names.Contains(x.Key)).ToDictionaryAsync(x => x.Key);
-        foreach (var value in values)
+        var name = tenant.InstitutionTypeDefinitionId.HasValue ?
+            await _institutionTypes.GetQueryable().AsNoTracking()
+                .Where(x => x.Id == tenant.InstitutionTypeDefinitionId.Value)
+                .Select(x => x.Name).FirstOrDefaultAsync(ct) : null;
+        var domain = await _domains.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant.Id && x.IsActive && x.IsPrimary)
+            .Select(x => x.HostName).FirstOrDefaultAsync(ct);
+        return new TenantDto
         {
-            if (ignoreNulls && value.Value == null) continue;
-            var key = category + "." + value.Key;
-            var newValue = value.Value ?? string.Empty;
-            if (records.TryGetValue(key, out var record))
-            {
-                if (record.Value == newValue) continue;
-                record.Value = newValue;
-                record.UpdatedAt = DateTime.UtcNow;
-                record.UpdatedBy = _currentUser.UserId;
-            }
-            else
-            {
-                await _settings.AddAsync(new TenantSetting
-                {
-                    TenantId = tenantId, Key = key, Value = newValue, Category = category,
-                    IsSensitive = false, CreatedAt = DateTime.UtcNow, CreatedBy = _currentUser.UserId
-                });
-            }
-        }
+            Id = tenant.Id, Reference = tenant.PublicId,
+            InstitutionTypeDefinitionId = tenant.InstitutionTypeDefinitionId,
+            InstitutionTypeName = name, Name = tenant.Name, Code = tenant.Code,
+            Subdomain = tenant.Subdomain, PrimaryDomainHostName = domain,
+            Email = tenant.Email, Phone = tenant.Phone, Address = tenant.Address,
+            CountryCode = tenant.CountryCode, LogoUrl = tenant.LogoUrl, FaviconUrl = tenant.FaviconUrl,
+            CurrencyCode = tenant.CurrencyCode, TimeZoneId = tenant.TimeZoneId,
+            DefaultLanguage = tenant.DefaultLanguage, State = tenant.State,
+            OnboardingStage = tenant.OnboardingStage, OnboardingCompletedAt = tenant.OnboardingCompletedAt,
+            EmailVerifiedAt = tenant.EmailVerifiedAt, RowVersion = Convert.ToBase64String(tenant.RowVersion)
+        };
     }
 
-    private static string? Get(IReadOnlyDictionary<string, string> records, string key) =>
-        records.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value) ? value : null;
+    private static bool MatchesVersion(byte[] stored, string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return false;
+        try { return stored.AsSpan().SequenceEqual(Convert.FromBase64String(value)); }
+        catch (FormatException) { return false; }
+    }
     private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-    private static string NormalizeBaseDomain(string? value)
-    {
-        var normalized = (value ?? string.Empty).Trim().Trim('.').ToLowerInvariant();
-        return Regex.IsMatch(normalized, "^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$")
-            ? normalized : "eduos.com";
-    }
-    private bool CanRead() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0;
-    private bool CanManage() => CanRead() && _currentUser.IsTenantAdmin;
-    private static ApiResponse<bool> Denied() => ApiResponse<bool>.ErrorResponse("Tenant administrator access is required.", 403);
+    private bool CanRead() => _user.IsAuthenticated && _user.TenantId > 0;
+    private bool CanManage() => CanRead() && _user.IsTenantAdmin;
 }

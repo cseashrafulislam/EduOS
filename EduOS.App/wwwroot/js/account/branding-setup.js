@@ -10,6 +10,7 @@
     const saveBrandingButton = document.getElementById('saveBrandingBtn');
     let onboarding = null;
     let savedSubdomain = '';
+    let rowVersion = '';
     let availableSubdomain = '';
     let checkTimer = 0;
 
@@ -57,6 +58,7 @@
             if (!response.ok || !payload?.success || !payload.data) throw new Error('profile');
 
             const profile = payload.data;
+            rowVersion = profile.rowVersion || '';
             savedSubdomain = String(profile.subdomain || '').toLowerCase();
             if (subdomainInput) subdomainInput.value = savedSubdomain;
             if (savedSubdomain) setAvailability(i18n.subdomainSaved, 'ok');
@@ -134,11 +136,12 @@
                 cache: 'no-store',
                 credentials: 'same-origin',
                 headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                body: JSON.stringify({ subdomain })
+                body: JSON.stringify({ subdomain, rowVersion })
             });
             const payload = await response.json().catch(() => null);
             if (!response.ok || !payload?.success) throw new Error('save');
             savedSubdomain = subdomain;
+            rowVersion = payload.data?.rowVersion || rowVersion;
             availableSubdomain = '';
             setAvailability(i18n.subdomainSaved, 'ok');
             showAlert('success', i18n.subdomainSaved);
@@ -171,6 +174,7 @@
                 const payload = await response.json().catch(() => null);
                 if (!response.ok || !payload?.success || !payload.data) throw new Error('upload');
                 renderAsset(type, payload.data);
+                await loadProfile();
                 showAlert('success', i18n.uploadSuccess);
             } catch {
                 showAlert('danger', i18n.uploadFailed);
@@ -183,7 +187,7 @@
     async function removeAsset(type, endpoint, confirmation) {
         if (!window.confirm(confirmation || '')) return;
         try {
-            const response = await fetch(endpoint, {
+            const response = await fetch(endpoint + '?rowVersion=' + encodeURIComponent(rowVersion), {
                 method: 'DELETE',
                 cache: 'no-store',
                 credentials: 'same-origin',
@@ -192,6 +196,7 @@
             const payload = await response.json().catch(() => null);
             if (!response.ok || !payload?.success) throw new Error('remove');
             renderAsset(type, null);
+            await loadProfile();
         } catch {
             showAlert('danger', i18n.removeFailed);
         }

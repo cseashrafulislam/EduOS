@@ -1,105 +1,102 @@
-using EduOS.Core.DTOs.Tenants;
+using EduOS.Core.DTOs.Files;
+using EduOS.Core.DTOs.SaaS;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
-namespace EduOS.App.Controllers.Api
+namespace EduOS.App.Controllers.Api;
+
+[Authorize(Roles = "TenantAdmin,SuperAdmin")]
+[AutoValidateAntiforgeryToken]
+[EnableRateLimiting("ApiPolicy")]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+[ApiController]
+[Route("api/tenant-profile")]
+public sealed class TenantProfileController : ControllerBase
 {
-    [Authorize(Roles = "TenantAdmin,SuperAdmin")]
-    [AutoValidateAntiforgeryToken]
-    [EnableRateLimiting("ApiPolicy")]
-    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-    [ApiController]
-    [Route("api/tenant-profile")]
-    public class TenantProfileController : ControllerBase
+    private readonly ITenantProfileService _service;
+    public TenantProfileController(ITenantProfileService service) => _service = service;
+
+    [HttpGet]
+    public async Task<IActionResult> Get(CancellationToken cancellationToken)
     {
-        private readonly ITenantProfileService _profileService;
+        var result = await _service.GetProfileAsync(cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
 
-        public TenantProfileController(ITenantProfileService profileService)
-        {
-            _profileService = profileService;
-        }
+    [HttpPut]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> Update([FromBody] UpdateTenantProfileRequestDto request, CancellationToken cancellationToken)
+    {
+        var result = await _service.UpdateProfileAsync(request, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
 
-        [HttpGet]
-        public async Task<IActionResult> Get()
-        {
-            var result = await _profileService.GetProfileAsync();
-            return StatusCode(result.StatusCode, result);
-        }
+    [HttpPut("regional-settings")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> UpdateRegionalSettings([FromBody] UpdateTenantRegionalSettingsRequestDto request, CancellationToken cancellationToken)
+    {
+        var result = await _service.UpdateRegionalSettingsAsync(request, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
 
-        [HttpPut]
-        [Authorize(Roles = "TenantAdmin,SuperAdmin")]
-        public async Task<IActionResult> Update([FromBody] UpdateTenantProfileDto dto)
-        {
-            var result = await _profileService.UpdateProfileAsync(dto);
-            return StatusCode(result.StatusCode, result);
-        }
+    [HttpPost("logo")]
+    [Authorize(Roles = "TenantAdmin")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> UploadLogo(IFormFile file, CancellationToken cancellationToken) =>
+        await UploadAsync(file, false, cancellationToken);
 
-        [HttpPut("branding")]
-        [Authorize(Roles = "TenantAdmin,SuperAdmin")]
-        public async Task<IActionResult> UpdateBranding([FromBody] UpdateBrandingDto dto)
-        {
-            var result = await _profileService.UpdateBrandingAsync(dto);
-            return StatusCode(result.StatusCode, result);
-        }
+    [HttpPost("favicon")]
+    [Authorize(Roles = "TenantAdmin")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> UploadFavicon(IFormFile file, CancellationToken cancellationToken) =>
+        await UploadAsync(file, true, cancellationToken);
 
-        [HttpPost("logo")]
-        [Authorize(Roles = "TenantAdmin,SuperAdmin")]
-        [Consumes("multipart/form-data")]
-        public async Task<IActionResult> UploadLogo(IFormFile file)
-        {
-            var result = await _profileService.UploadLogoAsync(file);
-            return StatusCode(result.StatusCode, result);
-        }
+    [HttpDelete("logo")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> RemoveLogo([FromQuery] string rowVersion, CancellationToken cancellationToken)
+    {
+        var result = await _service.RemoveLogoAsync(rowVersion, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
 
-        [HttpDelete("logo")]
-        [Authorize(Roles = "TenantAdmin,SuperAdmin")]
-        public async Task<IActionResult> RemoveLogo()
-        {
-            var result = await _profileService.RemoveLogoAsync();
-            return StatusCode(result.StatusCode, result);
-        }
+    [HttpDelete("favicon")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> RemoveFavicon([FromQuery] string rowVersion, CancellationToken cancellationToken)
+    {
+        var result = await _service.RemoveFaviconAsync(rowVersion, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
 
-        [HttpPost("favicon")]
-        [Authorize(Roles = "TenantAdmin,SuperAdmin")]
-        [Consumes("multipart/form-data")]
-        public async Task<IActionResult> UploadFavicon(IFormFile file)
-        {
-            var result = await _profileService.UploadFaviconAsync(file);
-            return StatusCode(result.StatusCode, result);
-        }
+    [HttpGet("subdomain/check")]
+    public async Task<IActionResult> CheckSubdomain([FromQuery] string subdomain, CancellationToken cancellationToken)
+    {
+        var result = await _service.CheckSubdomainAvailabilityAsync(subdomain, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
 
-        [HttpDelete("favicon")]
-        [Authorize(Roles = "TenantAdmin,SuperAdmin")]
-        public async Task<IActionResult> RemoveFavicon()
-        {
-            var result = await _profileService.RemoveFaviconAsync();
-            return StatusCode(result.StatusCode, result);
-        }
+    [HttpPut("subdomain")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> UpdateSubdomain([FromBody] UpdateTenantSubdomainRequestDto request, CancellationToken cancellationToken)
+    {
+        var result = await _service.UpdateSubdomainAsync(request, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
 
-        [HttpGet("subdomain/check")]
-        public async Task<IActionResult> CheckSubdomain([FromQuery] string subdomain)
+    private async Task<IActionResult> UploadAsync(IFormFile file, bool favicon, CancellationToken ct)
+    {
+        if (file == null || file.Length <= 0 || file.Length > 5 * 1024L * 1024L)
+            return BadRequest(new { success = false, message = "Valid image (max 5MB) required." });
+        await using var stream = file.OpenReadStream();
+        var dto = new PrivateFileUploadDto
         {
-            var result = await _profileService.CheckSubdomainAvailabilityAsync(subdomain);
-            return StatusCode(result.StatusCode, result);
-        }
-
-        [HttpPut("subdomain")]
-        [Authorize(Roles = "TenantAdmin,SuperAdmin")]
-        public async Task<IActionResult> UpdateSubdomain([FromBody] UpdateSubdomainDto dto)
-        {
-            var result = await _profileService.UpdateSubdomainAsync(dto);
-            return StatusCode(result.StatusCode, result);
-        }
-
-        [HttpPut("general-settings")]
-        [Authorize(Roles = "TenantAdmin,SuperAdmin")]
-        public async Task<IActionResult> UpdateGeneralSettings([FromBody] UpdateGeneralSettingsDto dto)
-        {
-            var result = await _profileService.UpdateGeneralSettingsAsync(dto);
-            return StatusCode(result.StatusCode, result);
-        }
+            FileName = file.FileName, ContentType = file.ContentType,
+            Length = file.Length, Content = stream
+        };
+        var result = favicon
+            ? await _service.UploadFaviconAsync(dto, ct)
+            : await _service.UploadLogoAsync(dto, ct);
+        return StatusCode(result.StatusCode, result);
     }
 }
