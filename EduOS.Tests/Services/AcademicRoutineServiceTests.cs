@@ -106,7 +106,7 @@ public class AcademicRoutineServiceTests
         await context.SaveChangesAsync();
         var level = new AcademicLevel { TenantId = 101, AcademicProgramId = program.Id, AcademicProgram = program, Name = "Class Nine", Code = "C9", LevelNo = 9, IsActive = true };
         var subject = new Subject { TenantId = 101, ClassId = legacyClass.Id, Class = legacyClass, Name = "Mathematics", Code = "MATH", IsActive = true };
-        var teacher = new Employee { TenantId = 101, UserId = 70, EmployeeCode = "T-001", FullName = "Teacher One", Phone = "01700000000", DesignationId = 1, JoiningDate = new DateTime(2020, 1, 1), IsTeacher = true, IsActive = true };
+        var teacher = new Employee { TenantId = 101, UserId = 70, EmployeeCode = "T-001", FullName = "Teacher One", Phone = "01700000000", DesignationId = 1, JoiningDate = new DateOnly(2020, 1, 1), CanTeach = true };
         var room = new Room { TenantId = 101, CampusId = 1, Name = "Room 101", Code = "R101", Capacity = 40, IsActive = true };
         context.AddRange(level, subject, teacher, room);
         await context.SaveChangesAsync();
