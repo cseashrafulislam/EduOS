@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 namespace EduOS.Core.DTOs.Assessment;
 
 /// <summary>Read/query scope. Academic level and track are resolved from the selected batch, not supplied redundantly.</summary>
-public sealed class AssessmentScopeDto
+public class AssessmentScopeDto
 {
     [Range(1, long.MaxValue)] public long AssessmentId { get; set; }
     [Range(1, long.MaxValue)] public long AcademicBatchId { get; set; }
