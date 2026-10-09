@@ -117,6 +117,13 @@
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#campus" /></svg>
                     <span>Transport</span>
                 </a>
+                @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true)
+                {
+                    <a class="nav-link @ActiveFor("/AuditLogs")" href="/AuditLogs/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#shield" /></svg>
+                        <span>Audit Logs</span>
+                    </a>
+                }
                 <a class="nav-link @ActiveFor("/Library")" href="/Library/Index">
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
                     <span>Library</span>
