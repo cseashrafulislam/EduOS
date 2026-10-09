@@ -63,3 +63,47 @@ Determine whether an existing database column contains these **old wizard values
 - Old `IExamWorkflowService`: use `IAssessmentAdministrationService` with `Assessment` workflow read models.
 - Upload transport `IFormFile`: map web-layer uploads to `PrivateFileUploadDto` only at the boundary. Validate and stream safely, then authorize storage and downloads.
 - Redundant tenant-profile and OnboardingStep contracts: use `TenantDto`, `OnboardingStage`, domain setting and communication administration services.
+
+## Canonical repository contracts (October 2026 audit)
+
+Repository contracts were consolidated around the **actual identity of each business record**, rather than legacy display terminology. Update dependent implementations in a coordinated migration; no compatibility alias should be recreated in Core.
+
+| Area | Legacy API / ambiguity | Canonical contract |
+|---|---|---|
+| Subjects | GetByClassId / GetByClassAndGroup | GetByAcademicLevel / GetByCurriculumAndLevel |
+| Student directory | GetWithGuardians returning a bare Student; GetByClassSection | Guardian membership via StudentGuardian; GetByAcademicBatch |
+| Roll uniqueness | IsRollExistsInSection | IsRollAssignedInBatch using AcademicBatchId and excludeEnrollmentId |
+| Student code | GenerateStudentCode on repository | NumberSeries service with idempotency key |
+| Enrollment | GetCurrent(student, academicYear), GetByAcademicLevelAndBatch | GetCurrent(student), GetByAcademicBatch(page,size) |
+| Student attendance | IsAlreadyMarked(student,date) | IsAlreadyMarked(AttendanceSessionId, StudentEnrollmentId) |
+| Marks | GetExisting(assessment,student,subject) | GetExisting(AssessmentSubjectId,StudentSubjectRegistrationId) |
+| Published result | GetByAssessmentAndStudent | GetByPublicationAndEnrollment (historical publication version) |
+| Assessment schedule | GetByDate(DateTime), GetByAssessmentAndLevel | GetByDate(DateOnly), GetByAssessmentSubject |
+| Fee structure | GetByClass, GetTotalMonthlyFee (ignores frequency) | GetApplicable(Campus,Program,Level,Year,Batch,EffectiveOn) |
+| Invoice queries | status string, unbounded date lists, GenerateInvoiceNo | InvoiceState + DateOnly + paging + NumberSeries |
+| Payment queries | assumed direct StudentPayment.InvoiceId | follow PaymentAllocation to StudentInvoice |
+| Receipt numbers | GenerateReceiptNo | NumberSeries |
+| Admission | status string, GenerateApplicationNo | AdmissionApplicantState + paging + NumberSeries |
+| Grading | GetByMark(tenant) | ResolveGrade(GradeSchemeId, normalizedMarks) |
+| Employee identity | GetByDepartment, GetTeachers, GenerateEmployeeCode | GetByOrganizationUnit, GetTeachingStaff(page,size), NumberSeries |
+| Employee attendance | DateTime-based employee date ranges | DateOnly business dates, bounded queries |
+| Employee leave | GetByUser, integer used days | GetByEmployee, decimal approved used days, paged states |
+| Academic year | GetCurrent(tenant) | GetCurrent(tenant,campus), campus-scope current uniqueness |
+
+### Required database invariants / server revalidation
+
+- Unique effective attendance record by `(TenantId, AttendanceSessionId, StudentEnrollmentId)`. Check session, enrolled batch, permitted status and attendance finalization **under transaction**.
+- Unique student mark by `(TenantId, AssessmentSubjectId, StudentSubjectRegistrationId)`. Validate subject registration belongs to the assessment subject's `SubjectOffering`. Published/locked results require controlled correction and republishing.
+- Unique published result by `(TenantId, ResultPublicationId, StudentEnrollmentId)`; preserve `PublicationVersionNo` and previous releases. Rankings must apply within a single publication and controlled scope.
+- Unique active/current enrollment roll within `(TenantId, AcademicBatchId, normalized RollNo)` as defined by institution rules. Student code must be tenant-unique even under concurrent create requests.
+- Invoice number and receipt number are unique **per tenant**. ClientRequestId/idempotency keys prevent duplicate invoices, payments and journal postings after retries. Revalidate status and allocations transactionally.
+- A payment links to an invoice via `PaymentAllocation`; refund reversals and failed/refunded payments must not be counted as successful collections. `PaidAmount` and `DueAmount` are at most *transaction-maintained projections*, never independent editable sources of truth.
+- `FeeStructureLine.Frequency` determines billing; a default monthly amount cannot be inferred simply from the existence of a FeeStructure. Account for effective dates, batch specificity, overlapping rules and preexisting issued invoice snapshots.
+- `AcademicYear.IsCurrent` has an explicit campus dimension; nullable CampusId must have defined institution-wide precedence. Enforce a tenant/campus uniqueness invariant and change the current year atomically.
+- Grade rules are valid only under a particular `GradeSchemeId`. Define whether thresholds use percentages or normalized marks; reject overlap and gaps according to grading policy.
+- Repository queries must include tenant scope or be protected by verified tenant filters. Require paging on large lists; do not expose unbounded history or cross-tenant keys.
+- Issued numbers must come from a transactional `NumberSeries` allocator, never `MAX()+1`; store an idempotency record for the request and allocate the number at most once.
+
+### Compatibility guidance
+
+Existing Persistence classes implement **old** signatures. This document does **not** claim those implementations were updated. The correct order is: finalize Core contracts, update repository implementations and registrations, update Service, update API mapping, run schema/data migration, then verify tests and publish. Failing downstream builds are expected during this Core-only phase and should not be suppressed by reintroducing legacy interfaces.
