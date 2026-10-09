@@ -5,6 +5,7 @@ using EduOS.Core.Interfaces.IServices;
 using EduOS.Core.Interfaces.Jobs;
 using EduOS.Core.Settings;
 using EduOS.Service.Helpers;
+using EduOS.Service.Services;
 using EduOS.Service.Helpers.Payment;
 using EduOS.Service.Helpers.Storage;using EduOS.Service.Mappings;using EduOS.Service.Services.Academic;using EduOS.Service.Services.Auth;using EduOS.Service.Services.Admission;using EduOS.Service.Services.Attendance;using EduOS.Service.Services.Exams;using EduOS.Service.Services.Finance;using EduOS.Service.Services.HR;using EduOS.Service.Services.Hostel;using EduOS.Service.Services.Library;using EduOS.Service.Services.LMS;using EduOS.Service.Services.Portals;using EduOS.Service.Services.SaaS;using EduOS.Service.Services.Students;using EduOS.Service.Services.Tenants;using EduOS.Service.Services.Transport;using Microsoft.Extensions.Configuration;using Microsoft.Extensions.DependencyInjection;using Microsoft.AspNetCore.Authorization;
 namespace EduOS.App.Extensions
@@ -39,6 +40,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<IOnboardingService, OnboardingService>();
             s.AddScoped<IInstitutionOnboardingService, InstitutionOnboardingService>();
             s.AddScoped<IDashboardService, DashboardService>();
+            s.AddScoped<IAuditLogService, AuditLogService>();
             s.AddScoped<IEmailService, EmailService>();
             s.AddScoped<IEmailJob, EmailJob>();
             s.AddScoped<ILearnerIdentityService, LearnerIdentityService>();
@@ -62,6 +64,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<ISelfServicePortalService, SelfServicePortalService>();
             s.AddScoped<IEmployeeSelfServiceService, EmployeeSelfServiceService>();
             s.AddScoped<ILmsWorkflowService, LmsWorkflowService>();
+            s.AddScoped<IHrAdminService, HrAdminService>();
             s.AddScoped<IHrPayrollService, HrPayrollService>();
             s.AddScoped<ILibraryService, LibraryService>();
             s.AddScoped<ITransportService, TransportService>();
