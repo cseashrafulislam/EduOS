@@ -62,6 +62,10 @@ public class SaveSalaryStructureLineRequestDto
 public class PayrollRunDto
 {
     public long Id { get; set; }
+    public string RunNumber { get; set; } = string.Empty;
+    public long? CampusId { get; set; }
+    public DateOnly PeriodStart { get; set; }
+    public DateOnly PeriodEnd { get; set; }
     public Guid Reference { get; set; }
     public int Year { get; set; }
     public int Month { get; set; }
@@ -159,4 +163,33 @@ public class CreateLoanAdvanceRequestDto
     [Range(typeof(decimal), "0.01", "999999999999")] public decimal PrincipalAmount { get; set; }
     [Range(typeof(decimal), "0.01", "999999999999")] public decimal InstallmentAmount { get; set; }
     [MaxLength(500)] public string? Remarks { get; set; }
+}
+
+public sealed class PayrollPaymentDto
+{
+    public long Id { get; set; }
+    public Guid Reference { get; set; }
+    public long PayrollEmployeeId { get; set; }
+    public DateOnly PaymentDate { get; set; }
+    public PaymentMethodType PaymentMethod { get; set; }
+    public decimal Amount { get; set; }
+    public string CurrencyCode { get; set; } = "BDT";
+    public PaymentState State { get; set; }
+    public long? BankAccountId { get; set; }
+    public long? EmployeeBankAccountId { get; set; }
+    public string? ExternalReference { get; set; }
+    public long? JournalId { get; set; }
+}
+
+public sealed class RecordPayrollPaymentRequestDto
+{
+    public Guid ClientRequestId { get; set; }
+    [Range(1, long.MaxValue)] public long PayrollEmployeeId { get; set; }
+    public DateOnly PaymentDate { get; set; }
+    public PaymentMethodType PaymentMethod { get; set; }
+    [Range(typeof(decimal), "0.01", "999999999999")] public decimal Amount { get; set; }
+    public long? BankAccountId { get; set; }
+    public long? EmployeeBankAccountId { get; set; }
+    [MaxLength(150)] public string? ExternalReference { get; set; }
+    [Required] public string PayrollEmployeeRowVersion { get; set; } = string.Empty;
 }

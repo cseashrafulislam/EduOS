@@ -14,4 +14,8 @@ public interface IPayrollAdministrationService
     Task<ApiResponse<PayrollRunDto>> PostPayrollRunAsync(Guid runReference, PostPayrollRunRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<BonusDto>> SaveBonusAsync(long? bonusId, SaveBonusRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<LoanAdvanceDto>> CreateLoanAdvanceAsync(CreateLoanAdvanceRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<PayrollRunDto>>> GetPayrollRunsAsync(int? year, int? month, int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<PayrollEmployeeDto>>> GetPayrollEmployeesAsync(Guid runReference, int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<PayrollEmployeeDto>>> GetMyPayslipsAsync(int? year, int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PayrollPaymentDto>> RecordPayrollPaymentAsync(RecordPayrollPaymentRequestDto request, CancellationToken cancellationToken = default);
 }
