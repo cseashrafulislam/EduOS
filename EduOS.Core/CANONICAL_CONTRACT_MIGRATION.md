@@ -107,3 +107,21 @@ Repository contracts were consolidated around the **actual identity of each busi
 ### Compatibility guidance
 
 Existing Persistence classes implement **old** signatures. This document does **not** claim those implementations were updated. The correct order is: finalize Core contracts, update repository implementations and registrations, update Service, update API mapping, run schema/data migration, then verify tests and publish. Failing downstream builds are expected during this Core-only phase and should not be suppressed by reintroducing legacy interfaces.
+
+## Follow-up contracts: subscriptions, communication, scheduling and transactions
+
+- Subscription Core Repository contracts are now one interface per file: `ISubscriptionPlanRepository`, `ITenantSubscriptionRepository`, `ISubscriptionInvoiceRepository`, `ISubscriptionPaymentRepository`. Do not restore the old multi-interface `ISubscriptionRepositories.cs` file. Invoice-number allocation remains solely with `INumberSeriesService`.
+- Subscription expiration and manual-payment verification queries are explicitly *platform-only*. Require host-administrator authorization before resolving tenants and use paging to avoid loading all subscribers/payments into memory.
+- `INotificationRepository.MarkAsReadAsync` and `MarkAllAsReadAsync` now receive tenant/user ownership and UTC read timestamp. Marking another user's notification must fail without changing state. Read receipt insertion should be retry-safe.
+- `INoticeRepository.GetVisibleToUserAsync` must enforce `NoticeAudience` scope; publishing a notice does not make it visible to everyone. `NoticeReadReceipt` is the read source of truth. Verify campus/program/batch membership from server-side records, not client-selected IDs.
+- `IAuditLogRepository` now filters canonical `AuditLog.EntityName` and numeric `EntityId` rather than legacy table/record strings; every tenant query is paged. Records with null `TenantId` are host data and require privileged access.
+- `IRoutineEntryRepository` conflict checks must consider effective-date overlap, the exact `RoutineTimeSlot` time range, day of week, and teacher/room. Prevent overlaps transactionally and enforce uniqueness where the schema permits; `TimeOnly` is used for clock times and `DateOnly` for business dates.
+- `IInstructorAssignmentRepository` has a primary assignment only **per subject offering**. Do not treat it as an unrelated academic batch adviser. `IAcademicBatchRepository` code uniqueness must consider campus and year, not merely a level.
+- `IFeeHeadRepository.GetByDefaultFrequencyAsync` uses `FeeFrequencyType` because `FeeHead` has no string `Type`. Invoice generation must still read the frequency of each `FeeStructureLine`.
+- `IAssessmentRepository` state queries are paged and type-safe; the authoritative published result version remains `ResultPublication`.
+- `IUnitOfWork` now exposes one persistence-neutral `ExecuteInTransactionAsync` operation. The Persistence implementation **must** open, commit and rollback a transaction, and use EF/provider retry strategy internally when appropriate. The delegate is replayable only if all retry-sensitive actions have reliable idempotency keys and transactional uniqueness. Do not invoke email, SMS, webhooks, uploads, or external payments within a retryable database delegate.
+- The generic repository still exposes historical unbounded `GetAllAsync` / `FindAsync` methods and `IQueryable<T>`, inherited by existing callers. Treat those as **remaining architecture debt**: large-list features should exclusively use bounded, sorted SQL queries. A separate migration should remove unrestricted methods only after locating all consumers to avoid silently breaking maintenance jobs or reference lookups.
+
+### Core-only completion boundary
+
+`EduOS.Core` Release Build PASS proves only that the contracts compile. It does **not** prove that 215 entities are covered by working services, that database migrations have been applied, that old implementations match the new repository signatures, or that tenant and concurrency invariants hold in persisted data. All of those must be verified before calling the entire EduOS solution production-ready.
