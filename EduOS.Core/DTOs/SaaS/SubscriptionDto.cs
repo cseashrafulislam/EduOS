@@ -12,8 +12,8 @@ namespace EduOS.Core.DTOs.SaaS
         public long SubscriptionPlanId { get; set; }
         [EnumDataType(typeof(BillingCycle))]
         public BillingCycle BillingCycle { get; set; } = BillingCycle.Monthly;
-        [EnumDataType(typeof(PaymentMethod))]
-        public PaymentMethod PaymentMethod { get; set; } = PaymentMethod.ManualBankTransfer;
+        [EnumDataType(typeof(PaymentMethodType))]
+        public PaymentMethodType PaymentMethod { get; set; } = PaymentMethodType.BankTransfer;
         public bool AutoRenew { get; set; } = true;
 
         /// <summary>
