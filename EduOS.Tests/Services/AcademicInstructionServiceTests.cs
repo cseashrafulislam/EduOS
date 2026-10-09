@@ -1,6 +1,6 @@
 using EduOS.Core.DTOs.Academic;
 using EduOS.Core.Entities.Academic;
-using EduOS.Core.Entities.Employees;
+using EduOS.Core.Entities.HR;
 using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
 using EduOS.Persistence.Repositories;
@@ -276,7 +276,7 @@ public class AcademicInstructionServiceTests
 
     private static Employee Teacher(long userId, string code, string name) => new()
     {
-        TenantId = 101, UserId = userId, EmployeeCode = code, FullName = name, Phone = $"01700000{userId}", DesignationId = 1, JoiningDate = new DateTime(2020, 1, 1), IsTeacher = true, IsActive = true
+        TenantId = 101, UserId = userId, EmployeeCode = code, FullName = name, Phone = $"01700000{userId}", DesignationId = 1, JoiningDate = new DateOnly(2020, 1, 1), CanTeach = true
     };
 
     private static DbContextOptions<EduOSDbContext> CreateOptions() => new DbContextOptionsBuilder<EduOSDbContext>().UseInMemoryDatabase($"academic-instruction-{Guid.NewGuid():N}").Options;
