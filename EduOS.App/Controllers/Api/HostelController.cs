@@ -44,11 +44,11 @@ public sealed class HostelController : ControllerBase
 
     [HttpPost("allocations")]
     [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
-    public async Task<IActionResult> Allocate([FromBody] AllocateHostelDto request, CancellationToken ct) => ToAction(await _service.AllocateAsync(request, ct));
+    public async Task<IActionResult> Allocate([FromBody] AllocateStudentHostelRequestDto request, CancellationToken ct) => ToAction(await _service.AllocateAsync(request, ct));
 
     [HttpPost("allocations/{id:long}/close")]
     [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
-    public async Task<IActionResult> Close(long id, [FromBody] CloseHostelAllocationDto request, CancellationToken ct) => ToAction(await _service.CloseAsync(id, request, ct));
+    public async Task<IActionResult> Close(long id, [FromBody] CloseStudentHostelAllocationRequestDto request, CancellationToken ct) => ToAction(await _service.CloseAsync(id, request, ct));
 
     private IActionResult ToAction<T>(EduOS.Core.Common.ApiResponse<T> response) => StatusCode(response.StatusCode, response);
 }

@@ -166,21 +166,21 @@ public sealed class HostelService : IHostelService
         });
     }
 
-    public async Task<ApiResponse<StudentHostelDto?>> GetMyAllocationAsync(CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<StudentHostelAllocationDto?>> GetMyAllocationAsync(CancellationToken cancellationToken = default)
     {
-        if (!CanRead()) return Denied<StudentHostelDto?>();
+        if (!CanRead()) return Denied<StudentHostelAllocationDto?>();
         var tenant = _currentUser.TenantId;
         var studentIds = await _students.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
             x.UserId == _currentUser.UserId && x.IsActive).Select(x => x.Id).ToListAsync(cancellationToken);
         var row = await _allocations.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
             x.State == HostelAllocationState.Active && studentIds.Contains(x.StudentId))
             .OrderByDescending(x => x.StartDate).FirstOrDefaultAsync(cancellationToken);
-        return ApiResponse<StudentHostelDto?>.SuccessResponse(row == null ? null : await MapAsync(row, cancellationToken));
+        return ApiResponse<StudentHostelAllocationDto?>.SuccessResponse(row == null ? null : await MapAsync(row, cancellationToken));
     }
 
-    public async Task<ApiResponse<StudentHostelDto>> AllocateAsync(AllocateHostelDto request, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<StudentHostelAllocationDto>> AllocateAsync(AllocateStudentHostelRequestDto request, CancellationToken cancellationToken = default)
     {
-        if (!CanManage()) return Denied<StudentHostelDto>();
+        if (!CanManage()) return Denied<StudentHostelAllocationDto>();
         if (request == null || request.ClientRequestId == Guid.Empty || request.StudentEnrollmentReference == Guid.Empty ||
             request.HostelBedId <= 0) return Error("Enrollment, bed and client request references are required.");
         if (request.MonthlyRent.HasValue && request.MonthlyRent < 0) return Error("Monthly rent cannot be negative.");
@@ -196,11 +196,13 @@ public sealed class HostelService : IHostelService
             {
                 var enrollmentReference = await _enrollments.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
                     x.Id == existing.StudentEnrollmentId).Select(x => x.PublicId).FirstOrDefaultAsync(cancellationToken);
-                if (enrollmentReference != request.StudentEnrollmentReference || existing.HostelBedId != request.HostelBedId)
+                if (enrollmentReference != request.StudentEnrollmentReference || existing.HostelBedId != request.HostelBedId ||
+                    (request.StartDate != default && existing.StartDate != request.StartDate) ||
+                    (request.MonthlyRent.HasValue && existing.MonthlyRent != request.MonthlyRent.Value))
                     return Error("Client request ID was reused for different allocation data.", 409);
                 var replay = await MapAsync(existing, cancellationToken);
                 scope.Complete();
-                return ApiResponse<StudentHostelDto>.SuccessResponse(replay, "Hostel allocation already processed.");
+                return ApiResponse<StudentHostelAllocationDto>.SuccessResponse(replay, "Hostel allocation already processed.");
             }
             var enrollment = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
                 x.PublicId == request.StudentEnrollmentReference && x.IsActive && x.IsCurrent &&
@@ -248,7 +250,7 @@ public sealed class HostelService : IHostelService
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             var dto = await MapAsync(allocation, cancellationToken);
             scope.Complete();
-            return new ApiResponse<StudentHostelDto>
+            return new ApiResponse<StudentHostelAllocationDto>
             {
                 Success = true, StatusCode = 201, Message = "Hostel allocated.", Data = dto
             };
@@ -270,10 +272,10 @@ public sealed class HostelService : IHostelService
         }
     }
 
-    public async Task<ApiResponse<StudentHostelDto>> CloseAsync(long id, CloseHostelAllocationDto request,
+    public async Task<ApiResponse<StudentHostelAllocationDto>> CloseAsync(long id, CloseStudentHostelAllocationRequestDto request,
         CancellationToken cancellationToken = default)
     {
-        if (!CanManage()) return Denied<StudentHostelDto>();
+        if (!CanManage()) return Denied<StudentHostelAllocationDto>();
         if (id <= 0 || request == null) return Error("Invalid allocation close request.");
         var tenant = _currentUser.TenantId;
         try
@@ -282,7 +284,7 @@ public sealed class HostelService : IHostelService
                 x.Id == id, cancellationToken);
             if (allocation == null) return Error("Hostel allocation not found.", 404);
             if (allocation.State != HostelAllocationState.Active)
-                return ApiResponse<StudentHostelDto>.SuccessResponse(await MapAsync(allocation, cancellationToken), "Allocation already closed.");
+                return ApiResponse<StudentHostelAllocationDto>.SuccessResponse(await MapAsync(allocation, cancellationToken), "Allocation already closed.");
             if (!TryDecodeVersion(request.RowVersion, out var bytes) ||
                 !allocation.RowVersion.AsSpan().SequenceEqual(bytes))
                 return Error("Hostel allocation changed. Reload and retry.", 409);
@@ -293,7 +295,7 @@ public sealed class HostelService : IHostelService
             allocation.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
             allocation.UpdatedBy = _currentUser.UserId;
             await _unitOfWork.SaveChangesAsync(cancellationToken);
-            return ApiResponse<StudentHostelDto>.SuccessResponse(await MapAsync(allocation, cancellationToken), "Allocation closed.");
+            return ApiResponse<StudentHostelAllocationDto>.SuccessResponse(await MapAsync(allocation, cancellationToken), "Allocation closed.");
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -306,7 +308,7 @@ public sealed class HostelService : IHostelService
         }
     }
 
-    private async Task<StudentHostelDto> MapAsync(StudentHostelAllocation row, CancellationToken ct)
+    private async Task<StudentHostelAllocationDto> MapAsync(StudentHostelAllocation row, CancellationToken ct)
     {
         var tenant = _currentUser.TenantId;
         var student = await _students.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
@@ -320,7 +322,7 @@ public sealed class HostelService : IHostelService
                 bed.Id == row.HostelBedId
             select new { Bed = bed, RoomNumber = room.RoomNumber, hostel.PublicId, HostelName = hostel.Name, RoomId = room.Id })
             .FirstOrDefaultAsync(ct);
-        return new StudentHostelDto
+        return new StudentHostelAllocationDto
         {
             Id = row.Id, StudentReference = student?.PublicId ?? Guid.Empty,
             StudentEnrollmentReference = enrollmentReference, StudentName = student?.FullName ?? string.Empty,
@@ -343,6 +345,6 @@ public sealed class HostelService : IHostelService
         catch (FormatException) { return false; }
     }
     private static ApiResponse<T> Denied<T>() => ApiResponse<T>.ErrorResponse("Hostel permission is required.", 403);
-    private static ApiResponse<StudentHostelDto> Error(string message, int code = 400) =>
-        ApiResponse<StudentHostelDto>.ErrorResponse(message, code);
+    private static ApiResponse<StudentHostelAllocationDto> Error(string message, int code = 400) =>
+        ApiResponse<StudentHostelAllocationDto>.ErrorResponse(message, code);
 }

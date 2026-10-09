@@ -41,11 +41,11 @@ public sealed class TransportController : ControllerBase
 
     [HttpPost("assignments")]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
-    public async Task<IActionResult> Assign([FromBody] AssignTransportDto request, CancellationToken ct) => ToAction(await _service.AssignAsync(request, ct));
+    public async Task<IActionResult> Assign([FromBody] AssignStudentTransportRequestDto request, CancellationToken ct) => ToAction(await _service.AssignAsync(request, ct));
 
     [HttpPost("assignments/{reference:guid}/close")]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
-    public async Task<IActionResult> Close(Guid reference, [FromBody] CloseTransportDto request, CancellationToken ct) => ToAction(await _service.CloseAsync(reference, request, ct));
+    public async Task<IActionResult> Close(Guid reference, [FromBody] CloseStudentTransportRequestDto request, CancellationToken ct) => ToAction(await _service.CloseAsync(reference, request, ct));
 
     private IActionResult ToAction<T>(EduOS.Core.Common.ApiResponse<T> response) => StatusCode(response.StatusCode, response);
 }

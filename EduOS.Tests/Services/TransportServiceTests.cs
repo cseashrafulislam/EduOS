@@ -27,7 +27,7 @@ public class TransportServiceTests
         await using var context = CreateContext(CreateOptions(), 101);
         var assignment = await SeedAssignmentAsync(context, 101, true, [1,2,3,4,5,6,7,8]);
         var service = CreateService(context, 101);
-        var response = await service.CloseAsync(assignment.PublicId, new CloseTransportDto
+        var response = await service.CloseAsync(assignment.PublicId, new CloseStudentTransportRequestDto
         {
             EndDate = DateOnly.FromDateTime(DateTime.Today), RowVersion = Convert.ToBase64String(assignment.RowVersion)
         });
@@ -44,7 +44,7 @@ public class TransportServiceTests
         await using var context = CreateContext(CreateOptions(), 101);
         var assignment = await SeedAssignmentAsync(context, 101, true, [1,2,3,4,5,6,7,8]);
         var service = CreateService(context, 101);
-        var response = await service.CloseAsync(assignment.PublicId, new CloseTransportDto
+        var response = await service.CloseAsync(assignment.PublicId, new CloseStudentTransportRequestDto
         {
             EndDate = DateOnly.FromDateTime(DateTime.Today),
             RowVersion = Convert.ToBase64String(new byte[] { 8,7,6,5,4,3,2,1 })
@@ -62,7 +62,7 @@ public class TransportServiceTests
         await using var context = CreateContext(CreateOptions(), 101);
         var assignment = await SeedAssignmentAsync(context, 101, false, [1,2,3,4,5,6,7,8]);
         var service = CreateService(context, 101);
-        var response = await service.CloseAsync(assignment.PublicId, new CloseTransportDto
+        var response = await service.CloseAsync(assignment.PublicId, new CloseStudentTransportRequestDto
         {
             EndDate = DateOnly.FromDateTime(DateTime.Today),
             RowVersion = Convert.ToBase64String(new byte[] { 9,9,9,9,9,9,9,9 })
@@ -82,7 +82,7 @@ public class TransportServiceTests
             reference = foreign.PublicId;
         }
         await using var context101 = CreateContext(options, 101);
-        var response = await CreateService(context101, 101).CloseAsync(reference, new CloseTransportDto
+        var response = await CreateService(context101, 101).CloseAsync(reference, new CloseStudentTransportRequestDto
         {
             EndDate = DateOnly.FromDateTime(DateTime.Today),
             RowVersion = Convert.ToBase64String(new byte[] { 1,2,3,4,5,6,7,8 })

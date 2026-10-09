@@ -22,11 +22,13 @@ public class HostelWorkflowContractTests
         var source = File.ReadAllText(FindRepositoryFile("EduOS.Service", "Services", "Hostel", "HostelService.cs"));
         source.Should().Contain("IsolationLevel = IsolationLevel.Serializable");
         source.Should().Contain("TransactionScopeAsyncFlowOption.Enabled");
-        source.Should().Contain("x.TenantId == tenantId && x.StudentId == student.Id && x.IsActive");
-        source.Should().Contain("x.TenantId == tenantId && x.HostelRoomId == room.Id && x.IsActive");
-        source.Should().Contain("if (occupied >= room.Capacity)");
+        source.Should().Contain("x.TenantId == tenant &&");
+        source.Should().Contain("roomBedIds.Contains(x.HostelBedId)");
+        source.Should().Contain("if (occupied >= selection.Room.Capacity)");
         source.Should().Contain("scope.Complete();");
-        source.Should().Contain("catch (TransactionAbortedException)");
+        source.Should().Contain("x.StudentId == student.Id && x.State == HostelAllocationState.Active");
+        source.Should().Contain("Client request ID was reused for different allocation data.");
+        source.Should().Contain("catch (TransactionAbortedException ex)");
     }
 
     private static string FindRepositoryFile(params string[] segments)

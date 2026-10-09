@@ -18,9 +18,12 @@ public class TransportConcurrencyContractTests
 
         assignMethod.Should().Contain("IsolationLevel = IsolationLevel.Serializable");
         assignMethod.Should().Contain("TransactionScopeAsyncFlowOption.Enabled");
-        assignMethod.Should().Contain("CountAsync(x => x.TenantId == tenantId && x.VehicleId == vehicle.Id && x.IsActive");
-        assignMethod.Should().Contain("if (activeCount >= vehicle.Capacity)");
+        assignMethod.Should().Contain("CountAsync(x => x.TenantId == tenant &&");
+        assignMethod.Should().Contain("if (occupied >= vehicle.Capacity)");
         assignMethod.Should().Contain("scope.Complete();");
+        assignMethod.Should().Contain("x.State == TransportAssignmentState.Active");
+        assignMethod.Should().Contain("Client request ID was reused for different transport assignment data.");
+        assignMethod.Should().Contain("replay.RouteReference != request.RouteReference");
     }
 
     [Fact]
@@ -33,7 +36,7 @@ public class TransportConcurrencyContractTests
 
         assignMethod.Should().Contain("catch (DbUpdateException ex)");
         assignMethod.Should().Contain("catch (TransactionAbortedException ex)");
-        assignMethod.Should().Contain("Reload and try again.\", 409");
+        assignMethod.Should().Contain("Transport assignment conflicts with another update.\", 409");
     }
 
     private static string FindRepositoryFile(params string[] segments)
