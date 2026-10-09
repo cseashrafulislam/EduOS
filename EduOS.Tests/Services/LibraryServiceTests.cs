@@ -1,5 +1,5 @@
 using EduOS.Core.DTOs.Library;
-using EduOS.Core.Entities.Employees;
+using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.Library;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Interfaces;
