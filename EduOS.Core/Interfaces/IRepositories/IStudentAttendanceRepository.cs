@@ -1,15 +1,14 @@
 using EduOS.Core.Entities.Attendance;
+using EduOS.Core.Enums.Domain;
 
-namespace EduOS.Core.Interfaces.IRepositories
+namespace EduOS.Core.Interfaces.IRepositories;
+
+/// <summary>Attendance identity is (AttendanceSessionId, StudentEnrollmentId); a student may have multiple sessions on one date.</summary>
+public interface IStudentAttendanceRepository : IGenericRepository<StudentAttendance>
 {
-    public interface IStudentAttendanceRepository : IGenericRepository<StudentAttendance>
-    {
-        Task<List<StudentAttendance>> GetByDateAsync(DateTime date, long classId, long sectionId);
-        Task<List<StudentAttendance>> GetByStudentRangeAsync(long studentId, DateTime fromDate, DateTime toDate);
-        Task<StudentAttendance?> GetByStudentAndDateAsync(long studentId, DateTime date);
-        Task<bool> IsAlreadyMarkedAsync(long studentId, DateTime date);
-        Task<int> GetPresentCountAsync(long studentId, DateTime fromDate, DateTime toDate);
-        Task<int> GetAbsentCountAsync(long studentId, DateTime fromDate, DateTime toDate);
-        Task<Dictionary<string, int>> GetMonthlyStatsAsync(long studentId, int month, int year);
-    }
+    Task<List<StudentAttendance>> GetBySessionAsync(long attendanceSessionId, CancellationToken cancellationToken = default);
+    Task<List<StudentAttendance>> GetByEnrollmentRangeAsync(long studentEnrollmentId, DateOnly fromDate, DateOnly toDate, CancellationToken cancellationToken = default);
+    Task<StudentAttendance?> GetBySessionAndEnrollmentAsync(long attendanceSessionId, long studentEnrollmentId, CancellationToken cancellationToken = default);
+    Task<bool> IsAlreadyMarkedAsync(long attendanceSessionId, long studentEnrollmentId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyDictionary<AttendanceState, int>> GetStateCountsAsync(long studentEnrollmentId, DateOnly fromDate, DateOnly toDate, CancellationToken cancellationToken = default);
 }
