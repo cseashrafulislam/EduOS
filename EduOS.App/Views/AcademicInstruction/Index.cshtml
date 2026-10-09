@@ -1,0 +1,57 @@
+@{
+    ViewData["Title"] = "Academic Instruction";
+    var canManage = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal");
+}
+<section id="instructionApp" data-can-manage="@canManage.ToString().ToLowerInvariant()" class="container-fluid py-3">
+    <header class="mb-3"><h2 class="h4 mb-1">Academic Instruction</h2><p class="text-muted mb-0">Lesson planning, review, teaching progress and teacher substitutions.</p></header>
+    <div id="instructionAlert" class="d-none" tabindex="-1" role="alert" aria-live="polite"></div>
+    <form id="instructionFilters" class="card card-body mb-3">
+        <div class="row g-3 align-items-end">
+            <div class="col-lg-5"><label for="instructionBatch" class="form-label">Academic batch</label><select id="instructionBatch" class="form-select" required><option value="">Loading batches…</option></select></div>
+            <div class="col-lg-2"><label for="instructionFrom" class="form-label">From</label><input type="date" id="instructionFrom" class="form-control" required /></div>
+            <div class="col-lg-2"><label for="instructionTo" class="form-label">To</label><input type="date" id="instructionTo" class="form-control" required /></div>
+            <div class="col-lg-3"><button id="instructionLoad" type="submit" class="btn btn-primary w-100">Load instruction</button></div>
+        </div>
+    </form>
+    <div class="card mb-3">
+        <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <h3 class="h6 mb-0">Lesson plans</h3><button id="lessonNew" class="btn btn-sm btn-primary" type="button" disabled>New lesson plan</button>
+        </div>
+        <div class="table-responsive"><table class="table table-hover table-sm align-middle mb-0"><thead><tr><th>Lesson date</th><th>Subject</th><th>Chapter / Title</th><th>Teacher</th><th>Status</th><th>Actions</th></tr></thead><tbody id="lessonRows"><tr><td colspan="6" class="text-muted text-center p-3">Select a batch.</td></tr></tbody></table></div>
+    </div>
+    <section id="lessonEditor" class="card mb-3 d-none">
+        <div class="card-header"><h3 id="lessonEditorTitle" class="h6 m-0">New lesson plan</h3></div>
+        <form id="lessonForm" class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6"><label class="form-label" for="lessonAssignment">Instructor / subject</label><select id="lessonAssignment" class="form-select" required></select></div>
+                <div class="col-md-3"><label class="form-label" for="lessonDate">Lesson date</label><input id="lessonDate" type="date" class="form-control" required /></div>
+                <div class="col-md-3"><label class="form-label" for="lessonTitle">Chapter / title</label><input id="lessonTitle" maxlength="250" class="form-control" required /></div>
+                <div class="col-md-12"><label class="form-label" for="lessonObjectives">Learning objectives</label><textarea id="lessonObjectives" rows="2" class="form-control" maxlength="2000"></textarea></div>
+                <div class="col-md-12"><label class="form-label" for="lessonContent">Lesson content / teaching notes</label><textarea id="lessonContent" rows="3" class="form-control" maxlength="2000"></textarea></div>
+                <div class="col-md-12"><label class="form-label" for="lessonResources">Resources</label><textarea id="lessonResources" rows="2" class="form-control" maxlength="2000"></textarea></div>
+                <div class="col-12"><button id="lessonSave" type="submit" class="btn btn-primary">Save draft</button><button id="lessonCancel" type="button" class="btn btn-outline-secondary ms-2">Cancel</button></div>
+            </div>
+        </form>
+    </section>
+    <section class="card mb-3">
+        <div class="card-header"><h3 class="h6 m-0">Teacher substitutions</h3></div>
+        @if (canManage)
+        {
+            <div class="card-body border-bottom">
+                <h4 class="h6">Schedule a substitution</h4>
+                <form id="substitutionForm" class="row g-2 align-items-end">
+                    <div class="col-lg-4"><label for="substitutionRoutine" class="form-label">Routine entry</label><select id="substitutionRoutine" class="form-select" required><option value="">Choose a batch</option></select></div>
+                    <div class="col-lg-3"><label for="substitutionTeacher" class="form-label">Substitute teacher</label><select id="substitutionTeacher" class="form-select" required><option value="">Choose a batch</option></select></div>
+                    <div class="col-lg-2"><label for="substitutionDate" class="form-label">Date</label><input id="substitutionDate" type="date" class="form-control" required /></div>
+                    <div class="col-lg-3"><label for="substitutionReason" class="form-label">Reason</label><input id="substitutionReason" class="form-control" maxlength="500" /></div>
+                    <div class="col-12"><button id="substitutionSave" class="btn btn-primary" type="submit">Schedule substitution</button></div>
+                </form>
+            </div>
+        }
+        <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0"><thead><tr><th>Date</th><th>Batch / Subject</th><th>Time slot</th><th>Original teacher</th><th>Substitute</th><th>Reason</th><th>Status</th>@if(canManage){<th>Action</th>}</tr></thead><tbody id="substitutionRows"><tr><td colspan="8" class="p-3 text-muted text-center">Choose a batch.</td></tr></tbody></table></div>
+    </section>
+    <p class="text-muted small">All updates are authorized on the server. If another user updates a record, reload it before saving.</p>
+</section>
+@section Scripts {
+    <script src="~/js/academic/instruction.js" asp-append-version="true"></script>
+}
