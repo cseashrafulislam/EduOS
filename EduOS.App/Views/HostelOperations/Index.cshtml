@@ -1,0 +1,42 @@
+@{
+    ViewData["Title"] = "Hostel";
+    var canManage = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("HostelWarden");
+}
+<section class="container-fluid py-3" aria-labelledby="hostelTitle">
+    <header class="mb-3"><h2 id="hostelTitle">Hostel operations</h2><p class="text-muted">Tenant-scoped rooms, bed allocation and release.</p></header>
+    <div id="hostelAlert" class="d-none" role="alert" tabindex="-1"></div>
+    <section class="card mb-3"><div class="card-body"><h3 class="h5">My current allocation</h3><div id="hostelMine" class="text-muted">Loading…</div></div></section>
+    <section class="card mb-3"><div class="card-body">
+        <h3 class="h5">Rooms and occupancy</h3>
+        <div class="table-responsive"><table class="table table-hover align-middle"><thead><tr><th>Hostel</th><th>Room</th><th>Capacity</th><th>Occupied</th><th>Rent per bed</th></tr></thead>
+        <tbody id="hostelRoomRows"><tr><td colspan="5">Loading rooms…</td></tr></tbody></table></div>
+    </div></section>
+    @if (canManage)
+    {
+        <section class="card mb-3"><div class="card-body">
+            <h3 class="h5">Allocate a bed</h3>
+            <form id="hostelAllocationForm" class="row g-3">
+                <div class="col-md-6"><label for="hostelStudentSearch" class="form-label">Find student</label><input id="hostelStudentSearch" class="form-control" maxlength="100" placeholder="Name or student code" /></div>
+                <div class="col-md-6 d-flex align-items-end gap-2"><button id="hostelFindStudents" type="button" class="btn btn-outline-primary">Find</button><button id="hostelNextStudent" type="button" class="btn btn-outline-secondary">Next page</button></div>
+                <div class="col-12"><label for="hostelStudent" class="form-label">Student enrollment</label><select id="hostelStudent" class="form-select" required><option value="">Choose student</option></select></div>
+                <div class="col-md-6"><label for="hostelBedSearch" class="form-label">Find available bed</label><input id="hostelBedSearch" class="form-control" maxlength="100" placeholder="Hostel or room" /></div>
+                <div class="col-md-6 d-flex align-items-end gap-2"><button id="hostelFindBeds" type="button" class="btn btn-outline-primary">Find</button><button id="hostelNextBed" type="button" class="btn btn-outline-secondary">Next page</button></div>
+                <div class="col-12"><label for="hostelBed" class="form-label">Unoccupied bed</label><select id="hostelBed" class="form-select" required><option value="">Choose bed</option></select></div>
+                <div class="col-md-6"><label for="hostelStart" class="form-label">Start date</label><input id="hostelStart" type="date" class="form-control" required /></div>
+                <div class="col-md-6"><label for="hostelRent" class="form-label">Monthly rent (optional)</label><input id="hostelRent" type="number" min="0" step="0.01" class="form-control" placeholder="Use room default" /></div>
+                <div class="col-12"><button id="hostelAllocate" class="btn btn-primary" type="submit">Allocate bed</button></div>
+            </form>
+            <p class="small text-muted mt-2 mb-0">The service validates tenant, campus, student eligibility, occupancy, gender restriction and capacity before allocating.</p>
+        </div></section>
+        <section class="card"><div class="card-body">
+            <h3 class="h5">Active allocations</h3>
+            <form id="hostelAllocationSearch" class="d-flex gap-2"><input id="hostelAllocationTerm" maxlength="100" class="form-control" placeholder="Search student" /><button type="submit" class="btn btn-outline-primary">Search</button></form>
+            <div class="table-responsive mt-3"><table class="table table-hover align-middle"><thead><tr><th>Student</th><th>Hostel</th><th>Room / Bed</th><th>Start</th><th>Action</th></tr></thead>
+                <tbody id="hostelActiveRows"><tr><td colspan="5">Loading…</td></tr></tbody></table></div>
+            <div class="d-flex gap-3 justify-content-between align-items-center"><button id="hostelPrev" class="btn btn-outline-secondary btn-sm" type="button">Previous</button><span id="hostelPageInfo" class="small text-muted"></span><button id="hostelNext" class="btn btn-outline-secondary btn-sm" type="button">Next</button></div>
+        </div></section>
+    }
+</section>
+@section Scripts {
+    <script src="~/js/hostel-operations/index.js" asp-append-version="true"></script>
+}
