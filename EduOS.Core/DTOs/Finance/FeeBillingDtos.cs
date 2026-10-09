@@ -1,43 +1,15 @@
-using System.ComponentModel.DataAnnotations;
-
 namespace EduOS.Core.DTOs.Finance;
 
-public sealed class SaveFeeStructureDto
-{
-    [Range(1, long.MaxValue)] public long AcademicYearId { get; set; }
-    [Range(1, long.MaxValue)] public long AcademicLevelId { get; set; }
-    [Range(1, long.MaxValue)] public long FeeHeadId { get; set; }
-    [Range(typeof(decimal), "0", "1000000000")] public decimal Amount { get; set; }
-}
-
-public sealed class GenerateStudentInvoicesDto
+/// <summary>Idempotent bulk invoice generation for one batch and one configured fee structure.</summary>
+public sealed class GenerateStudentInvoiceBatchRequestDto
 {
     public Guid ClientRequestId { get; set; }
-    [Range(1, long.MaxValue)] public long AcademicYearId { get; set; }
-    [Range(1, long.MaxValue)] public long AcademicLevelId { get; set; }
     [Range(1, long.MaxValue)] public long AcademicBatchId { get; set; }
+    [Range(1, long.MaxValue)] public long FeeStructureId { get; set; }
     [Range(1, 12)] public int Month { get; set; }
     [Range(2000, 2200)] public int Year { get; set; }
-    public DateTime DueDate { get; set; }
-}
-
-public sealed class CollectStudentPaymentDto
-{
-    public Guid ClientRequestId { get; set; }
-    public Guid InvoiceReference { get; set; }
-    [Range(typeof(decimal), "0.01", "1000000000")] public decimal Amount { get; set; }
-    [Required, RegularExpression("^(Cash|Bkash|Nagad|Card|Bank)$")] public string PaymentMethod { get; set; } = "Cash";
-    [StringLength(100)] public string? TransactionId { get; set; }
-    [StringLength(500)] public string? Note { get; set; }
-    [Range(1, long.MaxValue)] public long? BankAccountId { get; set; }
-    [Required] public string InvoiceRowVersion { get; set; } = string.Empty;
-}
-
-public sealed class SetInvoiceFineDto
-{
-    public Guid InvoiceReference { get; set; }
-    [Range(typeof(decimal), "0", "1000000000")] public decimal FineAmount { get; set; }
-    [Required] public string InvoiceRowVersion { get; set; } = string.Empty;
+    public DateOnly InvoiceDate { get; set; }
+    public DateOnly DueDate { get; set; }
 }
 
 public sealed class InvoiceBatchResultDto
@@ -45,9 +17,10 @@ public sealed class InvoiceBatchResultDto
     public Guid ClientRequestId { get; set; }
     public int Generated { get; set; }
     public int Existing { get; set; }
-    public List<StudentInvoiceDto> Invoices { get; set; } = new();
+    public int Failed { get; set; }
 }
 
+/// <summary>Calculated report only; invoice and payment lines are retrieved with separate paged queries.</summary>
 public sealed class StudentLedgerDto
 {
     public Guid StudentReference { get; set; }
@@ -56,8 +29,6 @@ public sealed class StudentLedgerDto
     public decimal TotalBilled { get; set; }
     public decimal TotalPaid { get; set; }
     public decimal TotalDue { get; set; }
-    public List<StudentInvoiceDto> Invoices { get; set; } = new();
-    public List<StudentPaymentDto> Payments { get; set; } = new();
 }
 
 public sealed class FeeOptionDto
@@ -67,13 +38,15 @@ public sealed class FeeOptionDto
     public long? AcademicYearId { get; set; }
     public long? AcademicLevelId { get; set; }
 }
+
 public sealed class FeeBillingOptionsDto
 {
-    public List<FeeOptionDto> AcademicYears { get; set; } = new();
-    public List<FeeOptionDto> AcademicLevels { get; set; } = new();
-    public List<FeeOptionDto> AcademicBatches { get; set; } = new();
-    public List<FeeOptionDto> FeeHeads { get; set; } = new();
+    public IReadOnlyList<FeeOptionDto> AcademicYears { get; set; } = Array.Empty<FeeOptionDto>();
+    public IReadOnlyList<FeeOptionDto> AcademicLevels { get; set; } = Array.Empty<FeeOptionDto>();
+    public IReadOnlyList<FeeOptionDto> AcademicBatches { get; set; } = Array.Empty<FeeOptionDto>();
+    public IReadOnlyList<FeeOptionDto> FeeHeads { get; set; } = Array.Empty<FeeOptionDto>();
 }
+
 public sealed class FeeStudentOptionDto
 {
     public Guid Reference { get; set; }
