@@ -36,7 +36,6 @@ namespace EduOS.Persistence.Repositories
             foreach (var year in years)
                 year.IsCurrent = year.Id == yearId;
         }
-    }
 
         public Task<AcademicYear?> GetCurrentAsync(long tenantId, long? campusId, CancellationToken cancellationToken) =>
             _dbSet.AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.CampusId == campusId
@@ -65,4 +64,5 @@ namespace EduOS.Persistence.Repositories
                 return true;
             }, cancellationToken);
         }
+    }
 }
