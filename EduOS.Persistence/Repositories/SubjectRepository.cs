@@ -39,4 +39,25 @@ public class SubjectRepository : GenericRepository<Subject>, ISubjectRepository
         if (excludeId.HasValue) query = query.Where(x => x.Id != excludeId.Value);
         return await query.AnyAsync();
     }
+
+    public Task<List<Subject>> GetByAcademicLevelAsync(long academicLevelId, CancellationToken cancellationToken)
+    {
+        var ids = _context.Set<CurriculumSubject>().Where(x => x.AcademicLevelId == academicLevelId && x.IsActive)
+            .Select(x => x.SubjectId);
+        return _dbSet.AsNoTracking().Where(x => ids.Contains(x.Id) && x.IsActive).OrderBy(x => x.Name)
+            .ThenBy(x => x.Id).ToListAsync(cancellationToken);
+    }
+    public Task<List<Subject>> GetByCurriculumAndLevelAsync(long academicCurriculumId, long academicLevelId, CancellationToken cancellationToken)
+    {
+        var ids = _context.Set<CurriculumSubject>().Where(x => x.AcademicCurriculumId == academicCurriculumId
+            && x.AcademicLevelId == academicLevelId && x.IsActive).Select(x => x.SubjectId);
+        return _dbSet.AsNoTracking().Where(x => ids.Contains(x.Id) && x.IsActive).OrderBy(x => x.Name)
+            .ThenBy(x => x.Id).ToListAsync(cancellationToken);
+    }
+    public Task<bool> IsCodeExistsAsync(string code, long tenantId, long? excludeId, CancellationToken cancellationToken)
+    {
+        var normalized = code.Trim();
+        return _dbSet.AnyAsync(x => x.TenantId == tenantId && x.Code == normalized
+            && (!excludeId.HasValue || x.Id != excludeId.Value), cancellationToken);
+    }
 }

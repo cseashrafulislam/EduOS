@@ -21,4 +21,11 @@ public class FeeHeadRepository : GenericRepository<FeeHead>, IFeeHeadRepository
         return _dbSet.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive && x.DefaultFrequency == frequency)
             .OrderBy(x => x.Name).ToListAsync();
     }
+
+    public Task<List<FeeHead>> GetActiveAsync(long tenantId, CancellationToken cancellationToken) =>
+        _dbSet.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive).OrderBy(x => x.Name)
+            .ThenBy(x => x.Id).ToListAsync(cancellationToken);
+    public Task<List<FeeHead>> GetByDefaultFrequencyAsync(long tenantId, FeeFrequencyType frequency, CancellationToken cancellationToken) =>
+        _dbSet.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive && x.DefaultFrequency == frequency)
+            .OrderBy(x => x.Name).ThenBy(x => x.Id).ToListAsync(cancellationToken);
 }

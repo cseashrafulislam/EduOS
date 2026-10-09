@@ -23,4 +23,18 @@ public class AcademicBatchRepository : GenericRepository<AcademicBatch>, IAcadem
 
     public Task<int> GetTotalCapacityAsync(long academicLevelId) =>
         _dbSet.Where(x => x.AcademicLevelId == academicLevelId && x.IsActive).SumAsync(x => x.Capacity);
+
+    public Task<(List<AcademicBatch> Items, int TotalCount)> GetByAcademicLevelAsync(long academicLevelId, int page, int pageSize, CancellationToken cancellationToken) =>
+        PageAsync(_dbSet.AsNoTracking().Where(x => x.AcademicLevelId == academicLevelId && x.IsActive)
+            .OrderBy(x => x.DisplayOrder).ThenBy(x => x.Id), page, pageSize, cancellationToken);
+    public Task<bool> IsBatchCodeExistsAsync(long tenantId, long campusId, long academicYearId, string code, long? excludeId, CancellationToken cancellationToken)
+    {
+        var normalized = code.Trim();
+        return _dbSet.AnyAsync(x => x.TenantId == tenantId && x.CampusId == campusId
+            && x.AcademicYearId == academicYearId && x.Code == normalized
+            && (!excludeId.HasValue || x.Id != excludeId.Value), cancellationToken);
+    }
+    public Task<int> GetTotalCapacityAsync(long tenantId, long campusId, long academicYearId, long academicLevelId, CancellationToken cancellationToken) =>
+        _dbSet.Where(x => x.TenantId == tenantId && x.CampusId == campusId && x.AcademicYearId == academicYearId
+            && x.AcademicLevelId == academicLevelId && x.IsActive).SumAsync(x => x.Capacity, cancellationToken);
 }
