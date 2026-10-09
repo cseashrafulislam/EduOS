@@ -11,7 +11,7 @@ namespace EduOS.Core.DTOs.Tenants
         public string Name { get; set; } = string.Empty;
         public string Code { get; set; } = string.Empty;
         public string? Subdomain { get; set; }
-        public string? CustomDomain { get; set; }
+        public string? PrimaryDomainHostName { get; set; }
         public string? InstitutionType { get; set; }
 
         public string Email { get; set; } = string.Empty;
@@ -40,8 +40,8 @@ namespace EduOS.Core.DTOs.Tenants
         public string? Language { get; set; }
         public string? DateFormat { get; set; }
 
-        public bool IsEmailVerified { get; set; }
-        public bool IsOnboardingComplete { get; set; }
+        public DateTime? EmailVerifiedAt { get; set; }
+        public DateTime? OnboardingCompletedAt { get; set; }
         public int OnboardingStep { get; set; }
         public string Status { get; set; } = string.Empty;
     }

@@ -21,7 +21,6 @@ public class StudentDto
     public string? PhotoUrl { get; set; }
     public string PreferredLanguage { get; set; } = "bn-BD";
     public string StatusCode { get; set; } = "Active";
-    public bool IsActive { get; set; }
     public CurrentEnrollmentSummaryDto? CurrentEnrollment { get; set; }
     public IReadOnlyList<StudentGuardianDto> Guardians { get; set; } = Array.Empty<StudentGuardianDto>();
     public string RowVersion { get; set; } = string.Empty;
@@ -77,7 +76,6 @@ public class UpdateStudentRequestDto
 public class ChangeStudentStatusRequestDto
 {
     [Required, MaxLength(50)] public string StatusCode { get; set; } = string.Empty;
-    public bool IsActive { get; set; }
     [MaxLength(1000)] public string? Reason { get; set; }
     [Required] public string RowVersion { get; set; } = string.Empty;
 }

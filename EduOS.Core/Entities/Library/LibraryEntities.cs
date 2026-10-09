@@ -54,8 +54,7 @@ public class BookReservation : BaseTenantEntity
     public long StudentId { get; set; }
     public DateTime ReservedAt { get; set; } = DateTime.UtcNow;
     public DateTime? ExpiresAt { get; set; }
-    public bool IsFulfilled { get; set; }
-    public bool IsCancelled { get; set; }
+    public BookReservationState State { get; set; } = BookReservationState.Pending;
 }
 
 public class LibraryBranch : BaseTenantEntity

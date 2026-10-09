@@ -22,7 +22,6 @@ public sealed class AcademicStudentEnrollmentDto
     public DateTime EnrollmentDate { get; set; }
     public EnrollmentState State { get; set; }
     public bool IsCurrent { get; set; }
-    public bool IsActive { get; set; }
     public string RowVersion { get; set; } = string.Empty;
     public IReadOnlyList<StudentSubjectRegistrationDto> Subjects { get; set; } = [];
 }
