@@ -76,4 +76,30 @@ public class StudentInvoiceRepository : GenericRepository<StudentInvoice>, IStud
         return DateTime.TryParseExact(value, new[] { "MMM", "MMMM" }, CultureInfo.InvariantCulture,
             DateTimeStyles.AllowWhiteSpaces, out var parsed) ? parsed.Month : 0;
     }
+
+    public Task<StudentInvoice?> GetByInvoiceNoAsync(string invoiceNo, CancellationToken cancellationToken) =>
+        _dbSet.AsNoTracking().FirstOrDefaultAsync(x => x.InvoiceNumber == invoiceNo, cancellationToken);
+    public Task<(List<StudentInvoice> Items, int TotalCount)> GetByEnrollmentAsync(long studentEnrollmentId, int page, int pageSize, CancellationToken cancellationToken) =>
+        PageAsync(_dbSet.AsNoTracking().Where(x => x.StudentEnrollmentId == studentEnrollmentId)
+            .OrderByDescending(x => x.InvoiceDate).ThenByDescending(x => x.Id), page, pageSize, cancellationToken);
+    public Task<(List<StudentInvoice> Items, int TotalCount)> GetByStateAsync(InvoiceState state, int page, int pageSize, CancellationToken cancellationToken) =>
+        PageAsync(_dbSet.AsNoTracking().Where(x => x.State == state)
+            .OrderByDescending(x => x.InvoiceDate).ThenByDescending(x => x.Id), page, pageSize, cancellationToken);
+    public Task<(List<StudentInvoice> Items, int TotalCount)> GetByInvoiceDateRangeAsync(DateOnly fromDate, DateOnly toDate, int page, int pageSize, CancellationToken cancellationToken) =>
+        PageAsync(_dbSet.AsNoTracking().Where(x => x.InvoiceDate >= fromDate && x.InvoiceDate <= toDate)
+            .OrderByDescending(x => x.InvoiceDate).ThenByDescending(x => x.Id), page, pageSize, cancellationToken);
+    public Task<(List<StudentInvoice> Items, int TotalCount)> GetOutstandingByStudentAsync(long studentId, int page, int pageSize, CancellationToken cancellationToken)
+    {
+        var enrollments = _context.Set<StudentEnrollment>().Where(x => x.StudentId == studentId).Select(x => x.Id);
+        return PageAsync(_dbSet.AsNoTracking().Where(x => enrollments.Contains(x.StudentEnrollmentId)
+            && x.DueAmount > 0 && x.State != InvoiceState.Cancelled && x.State != InvoiceState.Refunded)
+            .OrderBy(x => x.DueDate).ThenBy(x => x.Id), page, pageSize, cancellationToken);
+    }
+    public Task<decimal> GetOutstandingTotalByStudentAsync(long studentId, CancellationToken cancellationToken)
+    {
+        var enrollments = _context.Set<StudentEnrollment>().Where(x => x.StudentId == studentId).Select(x => x.Id);
+        return _dbSet.AsNoTracking().Where(x => enrollments.Contains(x.StudentEnrollmentId)
+            && x.DueAmount > 0 && x.State != InvoiceState.Cancelled && x.State != InvoiceState.Refunded)
+            .SumAsync(x => x.DueAmount, cancellationToken);
+    }
 }

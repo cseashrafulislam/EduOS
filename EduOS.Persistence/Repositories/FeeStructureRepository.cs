@@ -24,4 +24,15 @@ public class FeeStructureRepository : GenericRepository<FeeStructure>, IFeeStruc
                 && x.Frequency == FeeFrequencyType.Monthly && x.IsMandatory)
             .SumAsync(x => x.Amount);
     }
+
+    public Task<List<FeeStructure>> GetApplicableAsync(long campusId, long academicProgramId, long academicLevelId, long academicYearId,
+        long? academicBatchId, DateOnly effectiveOn, CancellationToken cancellationToken) =>
+        _dbSet.AsNoTracking().Where(x => x.CampusId == campusId && x.AcademicYearId == academicYearId
+            && (x.AcademicProgramId == null || x.AcademicProgramId == academicProgramId)
+            && (x.AcademicLevelId == null || x.AcademicLevelId == academicLevelId)
+            && (x.AcademicBatchId == null || (academicBatchId.HasValue && x.AcademicBatchId == academicBatchId.Value))
+            && x.IsActive && x.EffectiveFrom <= effectiveOn && (x.EffectiveTo == null || x.EffectiveTo >= effectiveOn))
+            .OrderByDescending(x => x.AcademicBatchId != null).ThenByDescending(x => x.AcademicLevelId != null)
+            .ThenByDescending(x => x.AcademicProgramId != null).ThenByDescending(x => x.EffectiveFrom)
+            .ThenBy(x => x.Id).ToListAsync(cancellationToken);
 }

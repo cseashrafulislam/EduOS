@@ -39,4 +39,26 @@ public class NotificationRepository : GenericRepository<Notification>, INotifica
             row.ReadAt = now;
         }
     }
+
+    public Task<(List<Notification> Items, int TotalCount)> GetByUserAsync(long tenantId, long userId, int page, int pageSize, bool? unreadOnly, CancellationToken cancellationToken) =>
+        PageAsync(_dbSet.AsNoTracking().Where(x => x.TenantId == tenantId && x.UserId == userId
+            && (!unreadOnly.HasValue || x.IsRead != unreadOnly.Value))
+            .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id), page, pageSize, cancellationToken);
+    public Task<int> GetUnreadCountAsync(long tenantId, long userId, CancellationToken cancellationToken) =>
+        _dbSet.CountAsync(x => x.TenantId == tenantId && x.UserId == userId && !x.IsRead, cancellationToken);
+    public async Task<bool> MarkAsReadAsync(long tenantId, long userId, long notificationId, DateTime readAtUtc, CancellationToken cancellationToken)
+    {
+        if (readAtUtc.Kind != DateTimeKind.Utc) throw new ArgumentException("Read timestamp must be UTC.", nameof(readAtUtc));
+        var changed = await _dbSet.Where(x => x.TenantId == tenantId && x.UserId == userId
+            && x.Id == notificationId && !x.IsRead).ExecuteUpdateAsync(setters => setters
+            .SetProperty(x => x.IsRead, true).SetProperty(x => x.ReadAt, readAtUtc), cancellationToken);
+        return changed > 0;
+    }
+    public Task<int> MarkAllAsReadAsync(long tenantId, long userId, DateTime readAtUtc, CancellationToken cancellationToken)
+    {
+        if (readAtUtc.Kind != DateTimeKind.Utc) throw new ArgumentException("Read timestamp must be UTC.", nameof(readAtUtc));
+        return _dbSet.Where(x => x.TenantId == tenantId && x.UserId == userId && !x.IsRead)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.IsRead, true)
+                .SetProperty(x => x.ReadAt, readAtUtc), cancellationToken);
+    }
 }
