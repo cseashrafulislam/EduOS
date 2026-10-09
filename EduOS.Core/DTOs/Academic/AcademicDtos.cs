@@ -486,7 +486,6 @@ public class StudentEnrollmentDto
     public DateOnly EnrollmentDate { get; set; }
     public EnrollmentState State { get; set; }
     public bool IsCurrent { get; set; }
-    public bool IsActive { get; set; }
     public string? Remarks { get; set; }
     public string RowVersion { get; set; } = string.Empty;
 }
@@ -495,21 +494,14 @@ public class CreateStudentEnrollmentRequestDto
 {
     public Guid ClientRequestId { get; set; }
     public Guid StudentReference { get; set; }
-    public long CampusId { get; set; }
-    public long AcademicYearId { get; set; }
-    public long? AcademicTermId { get; set; }
-    public long AcademicProgramId { get; set; }
-    public long AcademicLevelId { get; set; }
-    public long AcademicBatchId { get; set; }
-    public long AcademicCurriculumId { get; set; }
-    public long? AcademicTrackId { get; set; }
-    public long? MediumId { get; set; }
-    public long? ShiftId { get; set; }
+    /// <summary>Campus, academic year, program, level, track, medium and shift are resolved from the selected batch.</summary>
+    [Range(1, long.MaxValue)] public long AcademicBatchId { get; set; }
+    /// <summary>Selected curriculum must be validated against the selected batch and enrollment date.</summary>
+    [Range(1, long.MaxValue)] public long AcademicCurriculumId { get; set; }
     [Required, MaxLength(50)] public string RollNo { get; set; } = string.Empty;
     public DateOnly EnrollmentDate { get; set; }
     [MaxLength(500)] public string? Remarks { get; set; }
 }
-
 public class CloseStudentEnrollmentRequestDto
 {
     public EnrollmentState FinalState { get; set; }
