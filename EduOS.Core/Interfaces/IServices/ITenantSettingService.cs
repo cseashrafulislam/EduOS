@@ -1,20 +1,12 @@
 using EduOS.Core.Common;
-using EduOS.Core.DTOs.Tenants;
+using EduOS.Core.DTOs.SaaS;
 
 namespace EduOS.Core.Interfaces.IServices;
 
+/// <summary>Tenant key/value settings. Secret material is never returned by value in read operations.</summary>
 public interface ITenantSettingService
-    {
-        // SMS Gateway
-        Task<ApiResponse<SmsGatewaySettingsDto>> GetSmsGatewayAsync();
-        Task<ApiResponse<bool>> SaveSmsGatewayAsync(SmsGatewaySettingsDto dto);
-
-        // Email Gateway
-        Task<ApiResponse<EmailGatewaySettingsDto>> GetEmailGatewayAsync();
-        Task<ApiResponse<bool>> SaveEmailGatewayAsync(EmailGatewaySettingsDto dto);
-
-        // Generic key-value operations
-        Task<ApiResponse<string?>> GetSettingAsync(string category, string key);
-        Task<ApiResponse<bool>> SaveSettingAsync(string category, string key, string value, bool isSensitive = false);
-        Task<ApiResponse<Dictionary<string, string>>> GetAllByCategoryAsync(string category);
-    }
+{
+    Task<ApiResponse<PagedResult<TenantSettingDto>>> GetSettingsAsync(string? category, int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<ApiResponse<TenantSettingDto>> GetSettingAsync(string key, CancellationToken cancellationToken = default);
+    Task<ApiResponse<TenantSettingDto>> SaveSettingAsync(long? settingId, SaveTenantSettingRequestDto request, CancellationToken cancellationToken = default);
+}
