@@ -30,7 +30,7 @@ public class AcademicSetupModelTests
         AssertUniqueIndex<Room>(context, nameof(Room.TenantId), nameof(Room.CampusId), nameof(Room.Code));
         AssertUniqueIndex<ProgramCampus>(context, nameof(ProgramCampus.TenantId), nameof(ProgramCampus.AcademicProgramId), nameof(ProgramCampus.CampusId));
         var curriculum = context.Model.FindEntityType(typeof(AcademicCurriculum))!;
-        curriculum.GetIndexes().Should().Contain(x => x.IsUnique && x.GetFilter()!.Contains("IsCurrent") &&
+        curriculum.GetIndexes().Should().Contain(x => x.IsUnique && x.GetFilter()?.Contains("IsCurrent") == true &&
             x.Properties.Select(p => p.Name).SequenceEqual(new[] { nameof(AcademicCurriculum.TenantId), nameof(AcademicCurriculum.AcademicProgramId), nameof(AcademicCurriculum.AcademicTrackId), nameof(AcademicCurriculum.MediumId) }));
     }
 
