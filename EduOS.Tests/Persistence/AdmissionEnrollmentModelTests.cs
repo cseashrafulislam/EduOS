@@ -1,8 +1,8 @@
+using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Students;
 using EduOS.Persistence.Context;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Metadata;
 using Xunit;
 
 namespace EduOS.Tests.Persistence;
@@ -16,15 +16,18 @@ public class AdmissionEnrollmentModelTests
             .UseInMemoryDatabase($"admission-enrollment-model-{Guid.NewGuid():N}").Options);
         var student = context.Model.FindEntityType(typeof(Student))!;
         var guardian = context.Model.FindEntityType(typeof(Guardian))!;
-        var enrollment = context.Model.FindEntityType(typeof(Enrollment))!;
+        var enrollment = context.Model.FindEntityType(typeof(StudentEnrollment))!;
 
         student.GetQueryFilter().Should().NotBeNull();
         guardian.GetQueryFilter().Should().NotBeNull();
         enrollment.GetQueryFilter().Should().NotBeNull();
         student.FindProperty(nameof(Student.RowVersion))!.IsConcurrencyToken.Should().BeTrue();
         guardian.FindProperty(nameof(Guardian.RowVersion))!.IsConcurrencyToken.Should().BeTrue();
-        enrollment.FindProperty(nameof(Enrollment.RowVersion))!.IsConcurrencyToken.Should().BeTrue();
-        student.GetIndexes().Should().Contain(x => x.IsUnique && x.Properties.Any(p => p.Name == nameof(Student.AdmissionApplicationId)));
-        enrollment.GetIndexes().Should().Contain(x => x.IsUnique && x.Properties.Any(p => p.Name == nameof(Enrollment.StudentId)));
+        enrollment.FindProperty(nameof(StudentEnrollment.RowVersion))!.IsConcurrencyToken.Should().BeTrue();
+        student.GetIndexes().Should().Contain(x => x.IsUnique &&
+            x.Properties.Select(p => p.Name).SequenceEqual(new[] { nameof(Student.TenantId), nameof(Student.AdmissionApplicantId) }));
+        enrollment.GetIndexes().Should().Contain(x => x.IsUnique &&
+            x.Properties.Select(p => p.Name).SequenceEqual(new[] { nameof(StudentEnrollment.TenantId), nameof(StudentEnrollment.StudentId) }) &&
+            x.GetFilter()!.Contains("IsCurrent"));
     }
 }

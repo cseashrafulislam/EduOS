@@ -36,8 +36,8 @@ public class OperationalTenantIsolationContractTests
 
         await using (var tenant101 = CreateContext(options, 101))
         {
-            tenant101.Books.Add(new Book { TenantId = 101, Title = "Tenant 101 book", TotalCopies = 1, AvailableCopies = 1 });
-            tenant101.Routes.Add(new Route { TenantId = 101, Name = "Tenant 101 route" });
+            tenant101.Books.Add(new Book { TenantId = 101, Title = "Tenant 101 book" });
+            tenant101.Routes.Add(new Route { TenantId = 101, Name = "Tenant 101 route", Code = "TENANT101" });
             await tenant101.SaveChangesAsync();
         }
 

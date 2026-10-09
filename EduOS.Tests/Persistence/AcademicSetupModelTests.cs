@@ -9,35 +9,35 @@ namespace EduOS.Tests.Persistence;
 public class AcademicSetupModelTests
 {
     [Fact]
-    public void Canonical_subjects_can_exist_without_a_legacy_class()
+    public void Canonical_subjects_use_tenant_scoped_codes_not_legacy_class_links()
     {
-        using var context = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
-            .UseInMemoryDatabase($"academic-setup-model-{Guid.NewGuid():N}").Options);
+        using var context = CreateContext();
         var subject = context.Model.FindEntityType(typeof(Subject))!;
-
-        subject.FindProperty(nameof(Subject.ClassId))!.ClrType.Should().Be(typeof(long?));
-        subject.GetForeignKeys().Single(x => x.PrincipalEntityType.ClrType == typeof(Class)).IsRequired.Should().BeFalse();
-        var canonicalCode = subject.GetIndexes().Single(x => x.GetDatabaseName() == "UX_Subjects_Tenant_CanonicalCode");
-        canonicalCode.IsUnique.Should().BeTrue();
-        canonicalCode.GetFilter().Should().Contain("ClassId");
+        subject.FindProperty("ClassId").Should().BeNull();
+        subject.GetForeignKeys().Should().NotContain(x => x.PrincipalEntityType.ClrType.Name == "Class");
+        AssertUniqueIndex<Subject>(context, nameof(Subject.TenantId), nameof(Subject.Code));
     }
 
     [Fact]
     public void Academic_setup_natural_keys_and_current_curriculum_are_database_enforced()
     {
-        using var context = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
-            .UseInMemoryDatabase($"academic-setup-indexes-{Guid.NewGuid():N}").Options);
-
-        AssertUniqueIndex<AcademicProgram>(context, "UX_AcademicPrograms_Tenant_Code");
-        AssertUniqueIndex<AcademicLevel>(context, "UX_AcademicLevels_Tenant_Program_Code");
-        AssertUniqueIndex<AcademicCurriculum>(context, "UX_AcademicCurriculums_Tenant_Code");
-        AssertUniqueIndex<AcademicCurriculum>(context, "UX_AcademicCurriculums_Tenant_CurrentProgram");
-        AssertUniqueIndex<CurriculumSubject>(context, "UX_CurriculumSubjects_Tenant_Scope");
-        AssertUniqueIndex<AcademicBatch>(context, "UX_AcademicBatches_Tenant_Year_Code");
-        AssertUniqueIndex<Room>(context, "UX_Rooms_Tenant_Code");
-        AssertUniqueIndex<ProgramCampus>(context, "UX_ProgramCampuses_Tenant_Program_Campus");
+        using var context = CreateContext();
+        AssertUniqueIndex<AcademicProgram>(context, nameof(AcademicProgram.TenantId), nameof(AcademicProgram.Code));
+        AssertUniqueIndex<AcademicLevel>(context, nameof(AcademicLevel.TenantId), nameof(AcademicLevel.AcademicProgramId), nameof(AcademicLevel.Code));
+        AssertUniqueIndex<AcademicCurriculum>(context, nameof(AcademicCurriculum.TenantId), nameof(AcademicCurriculum.Code));
+        AssertUniqueIndex<CurriculumSubject>(context, nameof(CurriculumSubject.TenantId), nameof(CurriculumSubject.AcademicCurriculumId), nameof(CurriculumSubject.AcademicLevelId), nameof(CurriculumSubject.SubjectId));
+        AssertUniqueIndex<AcademicBatch>(context, nameof(AcademicBatch.TenantId), nameof(AcademicBatch.CampusId), nameof(AcademicBatch.AcademicYearId), nameof(AcademicBatch.Code));
+        AssertUniqueIndex<Room>(context, nameof(Room.TenantId), nameof(Room.CampusId), nameof(Room.Code));
+        AssertUniqueIndex<ProgramCampus>(context, nameof(ProgramCampus.TenantId), nameof(ProgramCampus.AcademicProgramId), nameof(ProgramCampus.CampusId));
+        var curriculum = context.Model.FindEntityType(typeof(AcademicCurriculum))!;
+        curriculum.GetIndexes().Should().Contain(x => x.IsUnique && x.GetFilter()!.Contains("IsCurrent") &&
+            x.Properties.Select(p => p.Name).SequenceEqual(new[] { nameof(AcademicCurriculum.TenantId), nameof(AcademicCurriculum.AcademicProgramId), nameof(AcademicCurriculum.AcademicTrackId), nameof(AcademicCurriculum.MediumId) }));
     }
 
-    private static void AssertUniqueIndex<TEntity>(EduOSDbContext context, string name) where TEntity : class =>
-        context.Model.FindEntityType(typeof(TEntity))!.GetIndexes().Single(x => x.GetDatabaseName() == name).IsUnique.Should().BeTrue();
+    private static EduOSDbContext CreateContext() => new(new DbContextOptionsBuilder<EduOSDbContext>()
+        .UseInMemoryDatabase($"academic-setup-model-{Guid.NewGuid():N}").Options);
+
+    private static void AssertUniqueIndex<TEntity>(EduOSDbContext context, params string[] names) where TEntity : class =>
+        context.Model.FindEntityType(typeof(TEntity))!.GetIndexes().Should().Contain(x =>
+            x.IsUnique && x.Properties.Select(p => p.Name).SequenceEqual(names));
 }
