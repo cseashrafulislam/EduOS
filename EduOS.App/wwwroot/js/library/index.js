@@ -5,6 +5,7 @@
     if (!catalogRows || !issueRows || !query) return;
     const canManage = !!el('libraryBookForm');
     let books = [];
+    const paging = { catalog: 1, issues: 1, pageSize: 20 };
     const catalogColumns = canManage ? 6 : 5;
     function message(text, success = false) {
         const node = el('libraryAlert');
@@ -48,16 +49,19 @@
     async function loadCatalog() {
         try {
             const term = query.value.trim();
-            const result = await api('/api/library/catalog' + (term ? '?search=' + encodeURIComponent(term) : ''));
-            books = Array.isArray(result) ? result : [];
+            const result = await api('/api/library/catalog?' + new URLSearchParams({ search: term, page: paging.catalog, pageSize: paging.pageSize }));
+            books = Array.isArray(result?.items) ? result.items : [];
             renderCatalog();
-            el('catalogCount').textContent = books.length + ' matching books';
+            el('catalogCount').textContent = (result?.totalCount ?? 0) + ' matching books';
+            el('catalogPrevious').disabled = !result?.hasPreviousPage;
+            el('catalogNext').disabled = !result?.hasNextPage;
+            el('catalogPage').textContent = 'Page ' + paging.catalog + ' of ' + Math.max(1, result?.totalPages ?? 1);
         } catch (error) { renderEmpty(catalogRows, catalogColumns, 'Catalog could not be loaded.'); message(error.message); }
     }
     async function loadIssues() {
         try {
-            const result = await api('/api/library/my-issues');
-            const issues = Array.isArray(result) ? result : [];
+            const result = await api('/api/library/my-issues?' + new URLSearchParams({ page: paging.issues, pageSize: paging.pageSize }));
+            const issues = Array.isArray(result?.items) ? result.items : [];
             issueRows.replaceChildren();
             if (!issues.length) renderEmpty(issueRows, 7, 'No borrowing history.');
             issues.forEach(issue => {
@@ -66,7 +70,10 @@
                     .forEach((v, index) => { const td = cell(v); if (index === 6) td.className = 'text-end'; tr.append(td); });
                 issueRows.append(tr);
             });
-            el('issueCount').textContent = issues.length + ' records';
+            el('issueCount').textContent = (result?.totalCount ?? 0) + ' records';
+            el('issuePrevious').disabled = !result?.hasPreviousPage;
+            el('issueNext').disabled = !result?.hasNextPage;
+            el('issuePage').textContent = 'Page ' + paging.issues + ' of ' + Math.max(1, result?.totalPages ?? 1);
         } catch (error) { renderEmpty(issueRows, 7, 'Issue history could not be loaded.'); message(error.message); }
     }
     function formatMoney(value) {
@@ -115,8 +122,12 @@
             message('Book archived.', true); await loadCatalog();
         } catch (error) { message(error.message); button.disabled = false; }
     }
-    el('librarySearch').addEventListener('submit', e => { e.preventDefault(); clearMessage(); loadCatalog(); });
-    el('clearLibrarySearch').addEventListener('click', () => { query.value = ''; loadCatalog(); });
+    el('librarySearch').addEventListener('submit', e => { e.preventDefault(); paging.catalog = 1; clearMessage(); loadCatalog(); });
+    el('clearLibrarySearch').addEventListener('click', () => { query.value = ''; paging.catalog = 1; loadCatalog(); });
+    el('catalogPrevious').addEventListener('click', () => { if (paging.catalog > 1) { paging.catalog--; loadCatalog(); } });
+    el('catalogNext').addEventListener('click', () => { paging.catalog++; loadCatalog(); });
+    el('issuePrevious').addEventListener('click', () => { if (paging.issues > 1) { paging.issues--; loadIssues(); } });
+    el('issueNext').addEventListener('click', () => { paging.issues++; loadIssues(); });
     el('printLibrary')?.addEventListener('click', () => window.print());
     if (canManage) { el('libraryBookForm').addEventListener('submit', saveBook); el('bookReset').addEventListener('click', resetForm); }
     loadCatalog(); loadIssues();

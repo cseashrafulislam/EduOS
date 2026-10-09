@@ -5,7 +5,7 @@
 <section class="admission-page" aria-labelledby="libraryTitle">
     <header class="content-header-card d-flex justify-content-between align-items-center gap-3 flex-wrap">
         <div><p class="dashboard-eyebrow">Library Operations</p><h2 id="libraryTitle">Library</h2><p>Search books, check availability and review your borrowing history.</p></div>
-        <button id="printLibrary" type="button" class="btn btn-outline-secondary">Print report</button>
+        <button id="printLibrary" type="button" class="btn btn-outline-secondary">Print current page</button>
     </header>
     <div id="libraryAlert" class="d-none" role="alert" tabindex="-1"></div>
     <section class="content-card">
@@ -17,7 +17,7 @@
     <section class="content-card mt-3" aria-labelledby="catalogTitle">
         <div class="content-card-heading d-flex justify-content-between align-items-center"><h3 id="catalogTitle">Catalog</h3><span id="catalogCount" class="small text-muted"></span></div>
         <div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead><tr><th>Title</th><th>Author</th><th>ISBN</th><th>Category</th><th class="text-end">Available / Total</th>@if (canManage) { <th>Actions</th> }</tr></thead><tbody id="catalogRows"><tr><td colspan="@(canManage ? 6 : 5)" class="text-center text-muted py-4">Loading catalog…</td></tr></tbody></table></div>
-        <div class="small text-muted mt-2">The catalog currently shows up to 200 matching books. Refine the search to narrow results.</div>
+        <nav class="d-flex justify-content-end align-items-center gap-2 mt-3" aria-label="Catalog pagination"><button id="catalogPrevious" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous</button><span id="catalogPage" aria-live="polite">Page 1</span><button id="catalogNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next</button></nav>
     </section>
     @if (canManage)
     {
@@ -43,6 +43,7 @@
     <section class="content-card mt-3" aria-labelledby="issuesTitle">
         <div class="content-card-heading d-flex justify-content-between align-items-center"><h3 id="issuesTitle">My borrowing history</h3><span id="issueCount" class="small text-muted"></span></div>
         <div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead><tr><th>Book</th><th>Accession</th><th>Issued</th><th>Due</th><th>Returned</th><th>Status</th><th class="text-end">Fine</th></tr></thead><tbody id="issueRows"><tr><td colspan="7" class="text-center text-muted py-4">Loading issues…</td></tr></tbody></table></div>
+        <nav class="d-flex justify-content-end align-items-center gap-2 mt-3" aria-label="Borrowing history pagination"><button id="issuePrevious" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous</button><span id="issuePage" aria-live="polite">Page 1</span><button id="issueNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next</button></nav>
     </section>
 </section>
 @section Scripts {
