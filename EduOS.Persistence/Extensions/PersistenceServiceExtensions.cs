@@ -70,9 +70,9 @@ namespace EduOS.Persistence.Extensions
             s.AddScoped<IAcademicYearRepository, AcademicYearRepository>();
             s.AddScoped<IAcademicLevelRepository, AcademicLevelRepository>();
             s.AddScoped<IAcademicBatchRepository, AcademicBatchRepository>();
-            s.AddScoped<IGroupRepository, GroupRepository>();
+            s.AddScoped<IAcademicTrackRepository, GroupRepository>();
             s.AddScoped<ISubjectRepository, SubjectRepository>();
-            s.AddScoped<IDepartmentRepository, DepartmentRepository>();
+            s.AddScoped<IAcademicDepartmentRepository, DepartmentRepository>();
             s.AddScoped<IInstructorAssignmentRepository, InstructorAssignmentRepository>();
             s.AddScoped<IRoutineEntryRepository, RoutineEntryRepository>();
         }
@@ -82,7 +82,7 @@ namespace EduOS.Persistence.Extensions
             s.AddScoped<IStudentRepository, StudentRepository>();
             s.AddScoped<IGuardianRepository, GuardianRepository>();
             s.AddScoped<IAdmissionRepository, AdmissionRepository>();
-            s.AddScoped<IEnrollmentRepository, EnrollmentRepository>();
+            s.AddScoped<IStudentEnrollmentRepository, EnrollmentRepository>();
             s.AddScoped<ILearnerConsentRepository, LearnerConsentRepository>();
         }
 
@@ -96,15 +96,15 @@ namespace EduOS.Persistence.Extensions
         {
             s.AddScoped<IStudentAttendanceRepository, StudentAttendanceRepository>();
             s.AddScoped<IEmployeeAttendanceRepository, EmployeeAttendanceRepository>();
-            s.AddScoped<ILeaveApplicationRepository, LeaveApplicationRepository>();
+            s.AddScoped<IEmployeeLeaveApplicationRepository, LeaveApplicationRepository>();
         }
 
         private static void RegisterExamRepositories(IServiceCollection s)
         {
-            s.AddScoped<IExamRepository, ExamRepository>();
-            s.AddScoped<IExamScheduleRepository, ExamScheduleRepository>();
-            s.AddScoped<IMarkEntryRepository, MarkEntryRepository>();
-            s.AddScoped<IResultRepository, ResultRepository>();
+            s.AddScoped<IAssessmentRepository, ExamRepository>();
+            s.AddScoped<IAssessmentScheduleRepository, ExamScheduleRepository>();
+            s.AddScoped<IStudentAssessmentMarkRepository, MarkEntryRepository>();
+            s.AddScoped<IStudentResultSummaryRepository, ResultRepository>();
             s.AddScoped<IGradeRuleRepository, GradeRuleRepository>();
         }
 
@@ -113,7 +113,7 @@ namespace EduOS.Persistence.Extensions
             s.AddScoped<IFeeHeadRepository, FeeHeadRepository>();
             s.AddScoped<IFeeStructureRepository, FeeStructureRepository>();
             s.AddScoped<IStudentInvoiceRepository, StudentInvoiceRepository>();
-            s.AddScoped<IPaymentRepository, PaymentRepository>();
+            s.AddScoped<IStudentPaymentRepository, PaymentRepository>();
         }
 
         private static void RegisterCommunicationRepositories(IServiceCollection s)
@@ -127,7 +127,7 @@ namespace EduOS.Persistence.Extensions
             s.AddScoped<IAuditLogRepository, AuditLogRepository>();
             s.AddScoped<ILoginHistoryRepository, LoginHistoryRepository>();
             s.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
-            s.AddScoped<ITenantUserRepository, TenantUserRepository>();
+            s.AddScoped<ITenantMembershipRepository, TenantUserRepository>();
         }
 
         private static void RegisterSubscriptionRepositories(IServiceCollection s)
