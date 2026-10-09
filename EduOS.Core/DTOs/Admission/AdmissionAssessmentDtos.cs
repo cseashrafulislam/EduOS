@@ -17,7 +17,7 @@ public class SaveAdmissionTestDto
     public long CampusId { get; set; }
 
     [Range(1, long.MaxValue)]
-    public long AcademicUnitId { get; set; }
+    public long AcademicLevelId { get; set; }
 
     public DateTime TestDate { get; set; }
 

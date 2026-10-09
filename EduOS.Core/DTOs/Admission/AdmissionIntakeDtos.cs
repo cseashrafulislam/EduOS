@@ -19,7 +19,7 @@ public class AdmissionIntakeFormInputDto
     [Range(1, long.MaxValue)] public long AcademicYearId { get; set; }
     [Range(1, long.MaxValue)] public long? AcademicTermId { get; set; }
     [Range(1, long.MaxValue)] public long CampusId { get; set; }
-    [Range(1, long.MaxValue)] public long AcademicUnitId { get; set; }
+    [Range(1, long.MaxValue)] public long AcademicLevelId { get; set; }
     public DateTime OpensAtUtc { get; set; }
     public DateTime ClosesAtUtc { get; set; }
 
@@ -65,7 +65,7 @@ public sealed class PublicAdmissionIntakeFormDto
     public long AcademicYearId { get; set; }
     public long? AcademicTermId { get; set; }
     public long CampusId { get; set; }
-    public long AcademicUnitId { get; set; }
+    public long AcademicLevelId { get; set; }
     public DateTime OpensAtUtc { get; set; }
     public DateTime ClosesAtUtc { get; set; }
     public decimal ApplicationFee { get; set; }

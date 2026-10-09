@@ -21,7 +21,7 @@ public class CreateAdmissionApplicationDto
     public long CampusId { get; set; }
 
     [Range(1, long.MaxValue)]
-    public long AcademicUnitId { get; set; }
+    public long AcademicLevelId { get; set; }
 
     [Required, StringLength(200, MinimumLength = 2)]
     public string ApplicantName { get; set; } = string.Empty;
@@ -80,7 +80,7 @@ public class AdmissionApplicationQueryDto
     public long? CampusId { get; set; }
 
     [Range(1, long.MaxValue)]
-    public long? AcademicUnitId { get; set; }
+    public long? AcademicLevelId { get; set; }
 }
 
 public class ReviewAdmissionApplicationDto
@@ -112,8 +112,8 @@ public class AdmissionApplicationListItemDto
     public string AcademicYearName { get; set; } = string.Empty;
     public long CampusId { get; set; }
     public string CampusName { get; set; } = string.Empty;
-    public long AcademicUnitId { get; set; }
-    public string AcademicUnitName { get; set; } = string.Empty;
+    public long AcademicLevelId { get; set; }
+    public string AcademicLevelName { get; set; } = string.Empty;
     public AdmissionApplicantState State { get; set; }
     public DateTime SubmittedAtUtc { get; set; }
     public string RowVersion { get; set; } = string.Empty;
@@ -154,17 +154,17 @@ public class AdmissionApplicationOptionsDto
     public List<AdmissionReferenceOptionDto> AcademicYears { get; set; } = new();
     public List<AdmissionReferenceOptionDto> AcademicTerms { get; set; } = new();
     public List<AdmissionReferenceOptionDto> Campuses { get; set; } = new();
-    public List<AdmissionReferenceOptionDto> AcademicUnits { get; set; } = new();
+    public List<AdmissionReferenceOptionDto> AcademicLevels { get; set; } = new();
     public List<PublicAdmissionIntakeFormDto> OpenForms { get; set; } = new();
 }
 
 public class AdmitAdmissionApplicationDto
 {
     [Range(1, long.MaxValue)]
-    public long SectionId { get; set; }
+    public long AcademicBatchId { get; set; }
 
     [Range(1, long.MaxValue)]
-    public long? GroupId { get; set; }
+    public long? AcademicTrackId { get; set; }
 
     [Required, StringLength(50, MinimumLength = 1)]
     public string Roll { get; set; } = string.Empty;
@@ -175,8 +175,8 @@ public class AdmitAdmissionApplicationDto
 
 public class AdmissionEnrollmentOptionsDto
 {
-    public List<AdmissionReferenceOptionDto> Sections { get; set; } = new();
-    public List<AdmissionReferenceOptionDto> Groups { get; set; } = new();
+    public List<AdmissionReferenceOptionDto> AcademicBatches { get; set; } = new();
+    public List<AdmissionReferenceOptionDto> AcademicTracks { get; set; } = new();
 }
 
 public class AdmittedStudentDto
