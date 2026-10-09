@@ -1,18 +1,14 @@
-﻿using EduOS.Core.Common;
+using EduOS.Core.Common;
 using EduOS.Core.DTOs.System;
 
-namespace EduOS.Core.Interfaces.IServices
+namespace EduOS.Core.Interfaces.IServices;
+
+/// <summary>
+/// Privileged, tenant-scoped read-only audit reporting. Never expose arbitrary
+/// audit deletion or unbounded in-memory exports as an application endpoint.
+/// </summary>
+public interface IAuditLogService
 {
-    public interface IAuditLogService
-    {
-        Task<ApiResponse<PagedResult<AuditLogDto>>> GetAllAsync(AuditLogFilterDto filter);
-        Task<ApiResponse<List<AuditLogDto>>> GetByRecordAsync(string tableName, long recordId);
-        Task<ApiResponse<List<AuditLogDto>>> GetByUserAsync(long userId);
-        Task<ApiResponse<List<AuditLogDto>>> GetByDateRangeAsync(DateTime fromDate, DateTime toDate);
-        Task<ApiResponse<List<AuditLogDto>>> GetByActionAsync(string action);
-        Task<ApiResponse<List<AuditLogDto>>> GetByTableNameAsync(string tableName);
-        Task<ApiResponse<AuditLogStatisticsDto>> GetStatisticsAsync();
-        Task<ApiResponse<byte[]>> ExportAsync(AuditLogFilterDto filter);
-        Task<ApiResponse<int>> DeleteOldLogsAsync(DateTime olderThan);
-    }
+    Task<ApiResponse<PagedResult<AuditLogDto>>> SearchAsync(AuditLogFilterDto filter, CancellationToken cancellationToken = default);
+    Task<ApiResponse<AuditLogStatisticsDto>> GetStatisticsAsync(AuditLogFilterDto filter, CancellationToken cancellationToken = default);
 }

@@ -100,6 +100,8 @@ public class AuditLogDto
     public string? Endpoint { get; set; }
     public bool IsSuccess { get; set; }
     public DateTime OccurredAt { get; set; }
+    public string? CorrelationId { get; set; }
+    public string? RequestId { get; set; }
 }
 
 public class ImportLogItemDto
