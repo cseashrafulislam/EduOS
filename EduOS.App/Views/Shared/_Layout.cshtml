@@ -149,6 +149,14 @@
                         <span>Payroll</span>
                     </a>
                 }
+                @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
+                     User?.IsInRole("Accountant") == true)
+                {
+                    <a class="nav-link @ActiveFor("/FeeOperations")" href="/FeeOperations/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                        <span>Fees &amp; Billing</span>
+                    </a>
+                }
                 <a class="nav-link @ActiveFor("/HostelOperations")" href="/HostelOperations/Index">
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#campus" /></svg>
                     <span>Hostel</span>

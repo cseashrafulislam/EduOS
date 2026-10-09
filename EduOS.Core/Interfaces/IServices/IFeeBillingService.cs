@@ -5,6 +5,8 @@ namespace EduOS.Core.Interfaces.IServices;
 
 public interface IFeeBillingService
 {
+    Task<ApiResponse<FeeBillingOptionsDto>> GetOptionsAsync(CancellationToken cancellationToken = default);
+    Task<ApiResponse<IReadOnlyList<FeeStudentOptionDto>>> SearchStudentsAsync(string search, CancellationToken cancellationToken = default);
     Task<ApiResponse<bool>> SaveFeeStructureAsync(SaveFeeStructureDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<InvoiceBatchResultDto>> GenerateInvoicesAsync(GenerateStudentInvoicesDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentPaymentDto>> CollectPaymentAsync(CollectStudentPaymentDto request, CancellationToken cancellationToken = default);

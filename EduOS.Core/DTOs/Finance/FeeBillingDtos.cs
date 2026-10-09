@@ -59,3 +59,24 @@ public sealed class StudentLedgerDto
     public List<StudentInvoiceDto> Invoices { get; set; } = new();
     public List<StudentPaymentDto> Payments { get; set; } = new();
 }
+
+public sealed class FeeOptionDto
+{
+    public long Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public long? AcademicYearId { get; set; }
+    public long? AcademicLevelId { get; set; }
+}
+public sealed class FeeBillingOptionsDto
+{
+    public List<FeeOptionDto> AcademicYears { get; set; } = new();
+    public List<FeeOptionDto> AcademicLevels { get; set; } = new();
+    public List<FeeOptionDto> AcademicBatches { get; set; } = new();
+    public List<FeeOptionDto> FeeHeads { get; set; } = new();
+}
+public sealed class FeeStudentOptionDto
+{
+    public Guid Reference { get; set; }
+    public string StudentCode { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+}

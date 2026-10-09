@@ -60,6 +60,41 @@ public sealed class FeeBillingService : IFeeBillingService
         _uow = unitOfWork; _user = currentUser; _clock = clock; _logger = logger;
     }
 
+    public async Task<ApiResponse<FeeBillingOptionsDto>> GetOptionsAsync(CancellationToken ct = default)
+    {
+        if (!CanManage()) return Fail<FeeBillingOptionsDto>("Finance permission required.",403);
+        var tenant=_user.TenantId;
+        var years=await _years.GetQueryable().AsNoTracking().Where(x=>x.TenantId==tenant&&x.IsActive)
+            .OrderByDescending(x=>x.StartDate).Take(200)
+            .Select(x=>new FeeOptionDto{Id=x.Id,Name=x.Name}).ToListAsync(ct);
+        var levels=await _levels.GetQueryable().AsNoTracking().Where(x=>x.TenantId==tenant&&x.IsActive)
+            .OrderBy(x=>x.Name).Take(500)
+            .Select(x=>new FeeOptionDto{Id=x.Id,Name=x.Name}).ToListAsync(ct);
+        var batches=await _batches.GetQueryable().AsNoTracking().Where(x=>x.TenantId==tenant&&x.IsActive)
+            .OrderBy(x=>x.Name).Take(500)
+            .Select(x=>new FeeOptionDto{Id=x.Id,Name=x.Name,AcademicYearId=x.AcademicYearId,AcademicLevelId=x.AcademicLevelId}).ToListAsync(ct);
+        var heads=await _heads.GetQueryable().AsNoTracking().Where(x=>x.TenantId==tenant&&x.IsActive)
+            .OrderBy(x=>x.Name).Take(200)
+            .Select(x=>new FeeOptionDto{Id=x.Id,Name=x.Name}).ToListAsync(ct);
+        return ApiResponse<FeeBillingOptionsDto>.SuccessResponse(new FeeBillingOptionsDto
+        {AcademicYears=years,AcademicLevels=levels,AcademicBatches=batches,FeeHeads=heads});
+    }
+
+    public async Task<ApiResponse<IReadOnlyList<FeeStudentOptionDto>>> SearchStudentsAsync(string search,CancellationToken ct = default)
+    {
+        if (!CanManage()) return Fail<IReadOnlyList<FeeStudentOptionDto>>("Finance permission required.",403);
+        var term=search?.Trim();
+        if (string.IsNullOrWhiteSpace(term)||term.Length<2||term.Length>100)
+            return Fail<IReadOnlyList<FeeStudentOptionDto>>("Search requires 2–100 characters.");
+        IReadOnlyList<FeeStudentOptionDto> rows=await _students.GetQueryable().AsNoTracking()
+            .Where(x=>x.TenantId==_user.TenantId&&x.IsActive&&
+                (x.StudentCode.StartsWith(term)||x.FullName.StartsWith(term)))
+            .OrderBy(x=>x.StudentCode).ThenBy(x=>x.Id)
+            .Select(x=>new FeeStudentOptionDto{Reference=x.PublicId,StudentCode=x.StudentCode,Name=x.FullName})
+            .Take(25).ToListAsync(ct);
+        return ApiResponse<IReadOnlyList<FeeStudentOptionDto>>.SuccessResponse(rows);
+    }
+
     public async Task<ApiResponse<bool>> SaveFeeStructureAsync(SaveFeeStructureDto request, CancellationToken ct = default)
     {
         if (!CanManage()) return Fail<bool>("Finance management permission required.", 403);

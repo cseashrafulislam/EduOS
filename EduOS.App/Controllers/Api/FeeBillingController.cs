@@ -21,6 +21,22 @@ public sealed class FeeBillingController : ControllerBase
     private readonly IFeeBillingService _service;
     public FeeBillingController(IFeeBillingService service) => _service = service;
 
+    [HttpGet("options")]
+    [Authorize(Roles = "TenantAdmin,Principal,Accountant")]
+    public async Task<IActionResult> Options(CancellationToken cancellationToken)
+    {
+        var response=await _service.GetOptionsAsync(cancellationToken);
+        return StatusCode(response.StatusCode,response);
+    }
+
+    [HttpGet("students/search")]
+    [Authorize(Roles = "TenantAdmin,Principal,Accountant")]
+    public async Task<IActionResult> StudentOptions([FromQuery]string search,CancellationToken cancellationToken)
+    {
+        var response=await _service.SearchStudentsAsync(search,cancellationToken);
+        return StatusCode(response.StatusCode,response);
+    }
+
     [HttpPut("structure")]
     [Authorize(Roles = "TenantAdmin,Principal,Accountant")]
     public async Task<IActionResult> SaveStructure([FromBody] SaveFeeStructureDto request, CancellationToken cancellationToken)
