@@ -74,6 +74,27 @@ public class TenantSubscriptionRepository : GenericRepository<TenantSubscription
             .OrderBy(x => x.EndsAt)
             .ToListAsync(ct);
     }
+    public Task<(List<TenantSubscription> Items, int TotalCount)> GetHistoryByTenantAsync(long tenantId, int page, int pageSize, CancellationToken cancellationToken) =>
+        PageAsync(_context.TenantSubscriptions.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => !x.IsDeleted && x.TenantId == tenantId)
+            .OrderByDescending(x => x.StartsAt).ThenByDescending(x => x.Id), page, pageSize, cancellationToken);
+    public Task<(List<TenantSubscription> Items, int TotalCount)> GetExpiringSoonForPlatformAsync(DateTime utcCutoff, int page, int pageSize, CancellationToken cancellationToken)
+    {
+        if (utcCutoff.Kind != DateTimeKind.Utc) throw new ArgumentException("Cutoff must be UTC.", nameof(utcCutoff));
+        var now = DateTime.UtcNow;
+        return PageAsync(_context.TenantSubscriptions.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => !x.IsDeleted && (x.State == SubscriptionState.Active || x.State == SubscriptionState.Trial || x.State == SubscriptionState.Grace)
+                && x.EndsAt > now && x.EndsAt <= utcCutoff)
+            .OrderBy(x => x.EndsAt).ThenBy(x => x.Id), page, pageSize, cancellationToken);
+    }
+    public Task<(List<TenantSubscription> Items, int TotalCount)> GetExpiredForPlatformAsync(DateTime utcNow, int page, int pageSize, CancellationToken cancellationToken)
+    {
+        if (utcNow.Kind != DateTimeKind.Utc) throw new ArgumentException("Timestamp must be UTC.", nameof(utcNow));
+        return PageAsync(_context.TenantSubscriptions.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => !x.IsDeleted && (x.State == SubscriptionState.Active || x.State == SubscriptionState.Trial || x.State == SubscriptionState.Grace)
+                && x.EndsAt <= utcNow)
+            .OrderBy(x => x.EndsAt).ThenBy(x => x.Id), page, pageSize, cancellationToken);
+    }
 }
 
 public class SubscriptionInvoiceRepository : GenericRepository<SubscriptionInvoice>, ISubscriptionInvoiceRepository
@@ -119,6 +140,17 @@ public class SubscriptionInvoiceRepository : GenericRepository<SubscriptionInvoi
         ct.ThrowIfCancellationRequested();
         return Task.FromResult($"INV-{DateTime.UtcNow:yyyyMM}-{Guid.NewGuid():N}".ToUpperInvariant());
     }
+    public Task<SubscriptionInvoice?> GetByInvoiceNumberAsync(string invoiceNumber, long tenantId, CancellationToken cancellationToken) =>
+        _context.SubscriptionInvoices.IgnoreQueryFilters().AsNoTracking()
+            .FirstOrDefaultAsync(x => !x.IsDeleted && x.TenantId == tenantId && x.InvoiceNumber == invoiceNumber, cancellationToken);
+    public Task<(List<SubscriptionInvoice> Items, int TotalCount)> GetByTenantAsync(long tenantId, int page, int pageSize, CancellationToken cancellationToken) =>
+        PageAsync(_context.SubscriptionInvoices.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => !x.IsDeleted && x.TenantId == tenantId)
+            .OrderByDescending(x => x.InvoiceDate).ThenByDescending(x => x.Id), page, pageSize, cancellationToken);
+    public Task<(List<SubscriptionInvoice> Items, int TotalCount)> GetByStateAsync(long tenantId, InvoiceState state, int page, int pageSize, CancellationToken cancellationToken) =>
+        PageAsync(_context.SubscriptionInvoices.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => !x.IsDeleted && x.TenantId == tenantId && x.State == state)
+            .OrderByDescending(x => x.InvoiceDate).ThenByDescending(x => x.Id), page, pageSize, cancellationToken);
 }
 
 public class SubscriptionPaymentRepository : GenericRepository<SubscriptionPayment>, ISubscriptionPaymentRepository
@@ -156,4 +188,14 @@ public class SubscriptionPaymentRepository : GenericRepository<SubscriptionPayme
                 && x.State == PaymentState.AwaitingVerification)
             .OrderBy(x => x.InitiatedAt)
             .ToListAsync(ct);
+
+    public Task<(List<SubscriptionPayment> Items, int TotalCount)> GetByInvoiceAsync(long invoiceId, long tenantId, int page, int pageSize, CancellationToken cancellationToken) =>
+        PageAsync(_context.SubscriptionPayments.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => !x.IsDeleted && x.TenantId == tenantId && x.SubscriptionInvoiceId == invoiceId)
+            .OrderByDescending(x => x.InitiatedAt).ThenByDescending(x => x.Id), page, pageSize, cancellationToken);
+    public Task<(List<SubscriptionPayment> Items, int TotalCount)> GetPendingManualVerificationForPlatformAsync(int page, int pageSize, CancellationToken cancellationToken) =>
+        PageAsync(_context.SubscriptionPayments.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => !x.IsDeleted && x.PaymentMethod == PaymentMethodType.BankTransfer
+                && x.State == PaymentState.AwaitingVerification)
+            .OrderBy(x => x.InitiatedAt).ThenBy(x => x.Id), page, pageSize, cancellationToken);
 }
