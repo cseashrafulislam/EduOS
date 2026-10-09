@@ -2,7 +2,7 @@ using EduOS.Core.Entities.Attendance;
 
 namespace EduOS.Core.Interfaces.IRepositories;
 
-public interface ILeaveApplicationRepository : IGenericRepository<EmployeeLeaveApplication>
+public interface IEmployeeLeaveApplicationRepository : IGenericRepository<EmployeeLeaveApplication>
 {
     Task<List<EmployeeLeaveApplication>> GetByUserAsync(long userId);
     Task<List<EmployeeLeaveApplication>> GetPendingAsync(long tenantId);
