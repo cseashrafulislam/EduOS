@@ -10,7 +10,7 @@
             <div class="col-lg-4"><label for="examExam" class="form-label">Assessment</label><select id="examExam" class="form-select" required><option value="">Loading assessments…</option></select></div>
             <div class="col-lg-4"><label for="examBatch" class="form-label">Batch / Section</label><select id="examBatch" class="form-select" required><option value="">Select assessment first</option></select></div>
             <div class="col-lg-4"><label for="examSubject" class="form-label">Subject</label><select id="examSubject" class="form-select" required><option value="">Select batch first</option></select></div>
-            <div class="col-12 d-flex flex-wrap gap-2"><button id="examLoadRoster" type="submit" class="btn btn-primary">Load marks register</button><button id="examLoadResults" type="button" class="btn btn-outline-primary" @(canPublish ? "" : "hidden")>View results</button></div>
+            <div class="col-12 d-flex flex-wrap gap-2"><button id="examLoadRoster" type="submit" class="btn btn-primary">Load marks register</button>@if (canPublish) { <button id="examLoadResults" type="button" class="btn btn-outline-primary">View results</button> }</div>
         </div>
     </form>
     <section class="card mb-3" aria-labelledby="examRosterHeading">
