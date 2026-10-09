@@ -49,19 +49,11 @@ namespace EduOS.Core.DTOs.SaaS
         public DateTime DepositDate { get; set; }
         [Range(typeof(decimal), "0.01", "999999999999.99")]
         public decimal Amount { get; set; }
-        public IFormFileLite? DepositSlip { get; set; } // file upload (handled in controller)
         [MaxLength(500)]
         public string? Note { get; set; }
     }
 
-    /// <summary>
-    /// Stub interface so DTOs can reference IFormFile without Microsoft.AspNetCore reference
-    /// (actual upload handled in controller using IFormFile)
-    /// </summary>
-    public interface IFormFileLite
-    {
-        string FileName { get; }
-        long Length { get; }
+long Length { get; }
     }
 
     /// <summary>

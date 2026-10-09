@@ -1,5 +1,5 @@
 using EduOS.Core.Enums;
-using Microsoft.AspNetCore.Http;
+using EduOS.Core.DTOs.Files;
 using System.ComponentModel.DataAnnotations;
 
 namespace EduOS.Core.DTOs.Admission;
@@ -79,7 +79,7 @@ public sealed class AdmissionDocumentUploadDto
     public Guid ClientRequestId { get; set; }
     [Required, StringLength(30, MinimumLength = 8)] public string Mobile { get; set; } = string.Empty;
     [Required, StringLength(50)] public string DocumentType { get; set; } = string.Empty;
-    [Required] public IFormFile? File { get; set; }
+    [Required] public PrivateFileUploadDto? File { get; set; }
 }
 
 public sealed class ReviewAdmissionDocumentDto

@@ -1,6 +1,6 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.SaaS;
-using Microsoft.AspNetCore.Http;
+using EduOS.Core.DTOs.Files;
 
 namespace EduOS.Core.Interfaces.IServices
 {
@@ -28,7 +28,7 @@ namespace EduOS.Core.Interfaces.IServices
         /// </summary>
         Task<ApiResponse<SubscriptionPaymentDto>> SubmitManualPaymentAsync(
             ManualPaymentSubmitDto dto,
-            IFormFile? depositSlip);
+            PrivateFileUploadDto? depositSlip);
 
         Task<ApiResponse<ManualPaymentInstructionsDto>> GetManualPaymentInstructionsAsync(
             long invoiceId);
