@@ -227,7 +227,7 @@ public class AcademicEnrollmentServiceTests
         await context.SaveChangesAsync();
         var requiredRegistration = new CurriculumSubject { TenantId = 101, AcademicCurriculumId = curriculum.Id, AcademicLevelId = level.Id, SubjectId = required.Id, FullMarks = 100, PassMarks = 33, CreditHours = 4, IsActive = true };
         var optionalRegistration = new CurriculumSubject { TenantId = 101, AcademicCurriculumId = curriculum.Id, AcademicLevelId = level.Id, SubjectId = optional.Id, FullMarks = 50, PassMarks = 20, CreditHours = 2, IsOptional = true, IsActive = true };
-        var teacher = new Employee { TenantId = 101, EmployeeCode = "T-001", FullName = "Teacher One", Phone = "01700000002", DesignationId = 1, JoiningDate = new DateTime(2020, 1, 1), IsTeacher = true, IsActive = true };
+        var teacher = new Employee { TenantId = 101, EmployeeCode = "T-001", FullName = "Teacher One", Phone = "01700000002", DesignationId = 1, JoiningDate = new DateOnly(2020, 1, 1), CanTeach = true, State = EmployeeState.Active, IsActive = true };
         var slot = new RoutineTimeSlot { TenantId = 101, Name = "Period 1", StartTime = new TimeSpan(9, 0, 0), EndTime = new TimeSpan(9, 45, 0), IsActive = true };
         context.AddRange(requiredRegistration, optionalRegistration, teacher, slot);
         await context.SaveChangesAsync();
