@@ -20,6 +20,11 @@ public sealed class AcademicRoutinesController : ControllerBase
     private readonly IAcademicRoutineService _service;
     public AcademicRoutinesController(IAcademicRoutineService service) => _service = service;
 
+    [HttpGet("instructors")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
+    public async Task<IActionResult> Instructors([FromQuery] string? search, CancellationToken cancellationToken) =>
+        ToAction(await _service.GetInstructorChoicesAsync(search, cancellationToken));
+
     [HttpGet("time-slots")]
     public async Task<IActionResult> TimeSlots(CancellationToken cancellationToken) => ToAction(await _service.GetTimeSlotsAsync(cancellationToken));
 

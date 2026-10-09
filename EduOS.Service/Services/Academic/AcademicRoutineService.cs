@@ -63,6 +63,21 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
         _logger = logger;
     }
 
+    public async Task<ApiResponse<IReadOnlyList<AcademicInstructorChoiceDto>>> GetInstructorChoicesAsync(string? search, CancellationToken cancellationToken = default)
+    {
+        if (!CanManage()) return Denied<IReadOnlyList<AcademicInstructorChoiceDto>>();
+        if (search?.Length > 100) return Error<IReadOnlyList<AcademicInstructorChoiceDto>>("Search is too long.");
+        var term = search?.Trim();
+        var query = _employees.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == _currentUser.TenantId && x.CanTeach && x.State == EmployeeState.Active);
+        if (!string.IsNullOrEmpty(term))
+            query = query.Where(x => x.FullName.StartsWith(term) || x.EmployeeCode.StartsWith(term));
+        IReadOnlyList<AcademicInstructorChoiceDto> rows = await query.OrderBy(x => x.FullName).ThenBy(x => x.Id)
+            .Select(x => new AcademicInstructorChoiceDto { Id = x.Id, Name = x.FullName, EmployeeCode = x.EmployeeCode })
+            .Take(100).ToListAsync(cancellationToken);
+        return ApiResponse<IReadOnlyList<AcademicInstructorChoiceDto>>.SuccessResponse(rows);
+    }
+
     public async Task<ApiResponse<IReadOnlyList<RoutineTimeSlotDto>>> GetTimeSlotsAsync(CancellationToken cancellationToken = default)
     {
         if (!CanRead()) return Denied<IReadOnlyList<RoutineTimeSlotDto>>();

@@ -28,3 +28,10 @@ public sealed class CreateRoutineEntryDto
     public long? RoomId { get; set; }
     [StringLength(500)] public string? Remarks { get; set; }
 }
+
+public sealed class AcademicInstructorChoiceDto
+{
+    public long Id { get; set; }
+    public string EmployeeCode { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+}

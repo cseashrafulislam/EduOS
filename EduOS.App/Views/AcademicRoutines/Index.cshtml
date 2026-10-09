@@ -1,0 +1,68 @@
+@{
+    ViewData["Title"] = "Academic Routines";
+    var canManage = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal");
+}
+<section id="routineApp" class="container-fluid py-3" data-can-manage="@canManage.ToString().ToLowerInvariant()">
+    <header class="mb-3"><h2 class="h4 mb-1">Academic Routines</h2><p class="text-muted mb-0">Time slots, instructor assignments and class schedules.</p></header>
+    <div id="routineAlert" role="alert" tabindex="-1" aria-live="polite" class="d-none"></div>
+    <form id="routineFilters" class="card card-body mb-3">
+        <div class="row g-3 align-items-end">
+            <div class="col-lg-9"><label for="routineBatch" class="form-label">Active academic batch</label><select id="routineBatch" class="form-select" required><option value="">Loading academic batches…</option></select></div>
+            <div class="col-lg-3"><button type="submit" id="routineLoad" class="btn btn-primary w-100">Load routine</button></div>
+        </div>
+    </form>
+    <div class="card mb-3">
+        <div class="card-header"><h3 class="h6 m-0">Routine time slots</h3></div>
+        <div class="card-body">
+            <p id="routineSlotSummary" class="small text-muted">No time slots loaded.</p>
+            @if(canManage)
+            {
+                <form id="routineSlotForm" class="row g-2 align-items-end">
+                    <div class="col-md-4"><label for="routineSlotName" class="form-label">Name</label><input id="routineSlotName" maxlength="100" class="form-control" required /></div>
+                    <div class="col-md-2"><label for="routineStartTime" class="form-label">From</label><input id="routineStartTime" type="time" class="form-control" required /></div>
+                    <div class="col-md-2"><label for="routineEndTime" class="form-label">To</label><input id="routineEndTime" type="time" class="form-control" required /></div>
+                    <div class="col-md-2"><label class="form-check"><input id="routineIsBreak" class="form-check-input" type="checkbox" /><span class="form-check-label">Break</span></label></div>
+                    <div class="col-md-2"><button id="routineSaveSlot" type="submit" class="btn btn-outline-primary w-100">Add slot</button></div>
+                </form>
+            }
+        </div>
+    </div>
+    <div class="card mb-3">
+        <div class="card-header"><h3 class="h6 m-0">Assigned teachers</h3></div>
+        @if(canManage)
+        {
+            <form id="routineAssignmentForm" class="card-body border-bottom">
+                <div class="row g-2 align-items-end">
+                    <div class="col-lg-3"><label for="routineTeacherSearch" class="form-label">Search teacher</label><div class="input-group"><input id="routineTeacherSearch" class="form-control" maxlength="100" placeholder="Name/code prefix" /><button id="routineFindTeachers" class="btn btn-outline-secondary" type="button">Find</button></div></div>
+                    <div class="col-lg-3"><label for="routineTeacher" class="form-label">Active teacher</label><select id="routineTeacher" class="form-select" required><option value="">Search teachers</option></select></div>
+                    <div class="col-lg-3"><label for="routineSubject" class="form-label">Subject</label><select id="routineSubject" class="form-select" required><option value="">Select batch</option></select></div>
+                    <div class="col-lg-2"><label class="form-check"><input type="checkbox" class="form-check-input" id="routinePrimary" checked /><span class="form-check-label">Primary</span></label></div>
+                    <div class="col-lg-1"><button id="routineAssign" class="btn btn-primary w-100" type="submit">Assign</button></div>
+                </div>
+            </form>
+        }
+        <div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th>Teacher</th><th>Employee code</th><th>Offering ID</th><th>Role</th></tr></thead><tbody id="routineAssignments"><tr><td colspan="4" class="text-muted text-center p-3">Load a batch.</td></tr></tbody></table></div>
+    </div>
+    <div class="card mb-3">
+        <div class="card-header"><h3 class="h6 m-0">Class timetable</h3></div>
+        @if(canManage)
+        {
+            <form id="routineEntryForm" class="card-body border-bottom row g-2 align-items-end">
+                <div class="col-lg-3"><label for="routineAssignment" class="form-label">Instructor / offering</label><select id="routineAssignment" class="form-select" required><option value="">Select batch</option></select></div>
+                <div class="col-lg-2"><label for="routineSlot" class="form-label">Time slot</label><select id="routineSlot" class="form-select" required><option value="">Select a slot</option></select></div>
+                <div class="col-lg-2"><label for="routineDay" class="form-label">Day</label><select id="routineDay" class="form-select">@foreach(var day in Enum.GetValues<DayOfWeek>()){<option value="@((int)day)">@day</option>}</select></div>
+                <div class="col-lg-3"><label for="routineRoom" class="form-label">Room (optional)</label><select id="routineRoom" class="form-select"><option value="">No room</option></select></div>
+                <div class="col-lg-2"><button id="routineAddEntry" type="submit" class="btn btn-primary w-100">Add class</button></div>
+            </form>
+        }
+        <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0"><thead><tr><th>Day</th><th>Time slot</th><th>Subject</th><th>Room</th><th>Effective</th>@if(canManage){<th>Action</th>}</tr></thead><tbody id="routineEntries"><tr><td colspan="6" class="text-muted text-center p-3">Load a batch.</td></tr></tbody></table></div>
+    </div>
+    <div class="card mb-3">
+        <div class="card-header"><h3 class="h6 m-0">Teacher timetable</h3></div>
+        <div class="card-body">
+            <div class="row g-2 align-items-end mb-3"><div class="col-lg-8"><label for="routineTeacherTimetable" class="form-label">Teacher assigned to this batch</label><select id="routineTeacherTimetable" class="form-select"><option value="">Select batch</option></select></div><div class="col-lg-4"><button id="routineShowTeacher" class="btn btn-outline-primary w-100" type="button">View schedule</button></div></div>
+            <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Day</th><th>Slot</th><th>Subject</th><th>Room</th></tr></thead><tbody id="routineTeacherEntries"></tbody></table></div>
+        </div>
+    </div>
+</section>
+@section Scripts { <script src="~/js/academic/routines.js" asp-append-version="true"></script> }

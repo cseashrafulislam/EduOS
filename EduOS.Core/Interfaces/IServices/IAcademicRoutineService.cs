@@ -5,6 +5,7 @@ namespace EduOS.Core.Interfaces.IServices;
 
 public interface IAcademicRoutineService
 {
+    Task<ApiResponse<IReadOnlyList<AcademicInstructorChoiceDto>>> GetInstructorChoicesAsync(string? search, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<RoutineTimeSlotDto>>> GetTimeSlotsAsync(CancellationToken cancellationToken = default);
     Task<ApiResponse<RoutineTimeSlotDto>> CreateTimeSlotAsync(CreateRoutineTimeSlotDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<InstructorAssignmentDto>>> GetAssignmentsAsync(long academicBatchId, long? academicTermId, CancellationToken cancellationToken = default);
