@@ -1,0 +1,47 @@
+@{
+    ViewData["Title"] = "Employee Self-Service";
+}
+<section class="container-fluid py-3" aria-labelledby="employeePortalTitle">
+    <header class="mb-3"><h2 id="employeePortalTitle">Employee self-service</h2><p class="text-muted">View your profile, attendance and leave balances, and apply for leave.</p></header>
+    <div id="employeePortalAlert" class="d-none" role="alert" tabindex="-1"></div>
+    <section class="card mb-3"><div class="card-body">
+        <h3 class="h5">My profile</h3><dl class="row mb-0" id="employeeProfile"><dt class="col-sm-4">Status</dt><dd class="col-sm-8">Loading profile…</dd></dl>
+    </div></section>
+    <section class="card mb-3"><div class="card-body">
+        <h3 class="h5">Attendance</h3>
+        <form id="employeeAttendanceFilter" class="row g-3 align-items-end">
+            <div class="col-sm-5"><label class="form-label" for="employeeFromDate">From</label><input id="employeeFromDate" type="date" class="form-control" required /></div>
+            <div class="col-sm-5"><label class="form-label" for="employeeToDate">To</label><input id="employeeToDate" type="date" class="form-control" required /></div>
+            <div class="col-sm-2"><button type="submit" class="btn btn-outline-primary w-100">Refresh</button></div>
+        </form>
+        <div class="table-responsive mt-3"><table class="table table-hover align-middle">
+            <thead><tr><th>Date</th><th>Status</th><th>In</th><th>Out</th><th>Remarks</th></tr></thead>
+            <tbody id="employeeAttendanceRows"><tr><td colspan="5">Loading attendance…</td></tr></tbody>
+        </table></div>
+    </div></section>
+    <section class="card mb-3"><div class="card-body">
+        <div class="d-flex gap-2 align-items-center justify-content-between"><h3 class="h5">Leave balances</h3><button id="employeeRefreshLeave" type="button" class="btn btn-outline-secondary btn-sm">Refresh</button></div>
+        <div class="table-responsive"><table class="table table-hover align-middle">
+            <thead><tr><th>Leave type</th><th>Entitlement</th><th>Used</th><th>Pending</th><th>Remaining</th></tr></thead>
+            <tbody id="employeeLeaveBalances"><tr><td colspan="5">Loading balances…</td></tr></tbody>
+        </table></div>
+        <h4 class="h6 mt-3">New leave request</h4>
+        <form id="employeeLeaveForm" class="row g-3 align-items-end">
+            <div class="col-sm-4"><label class="form-label" for="employeeLeaveType">Leave type</label><select id="employeeLeaveType" class="form-select" required><option value="">Choose a type</option></select></div>
+            <div class="col-sm-4"><label class="form-label" for="employeeLeaveFrom">From</label><input id="employeeLeaveFrom" type="date" class="form-control" required /></div>
+            <div class="col-sm-4"><label class="form-label" for="employeeLeaveTo">To</label><input id="employeeLeaveTo" type="date" class="form-control" required /></div>
+            <div class="col-12"><label class="form-label" for="employeeLeaveReason">Reason</label><textarea id="employeeLeaveReason" class="form-control" rows="2" maxlength="1000" required></textarea></div>
+            <div class="col-12"><button id="employeeApplyLeave" type="submit" class="btn btn-primary">Apply for leave</button></div>
+        </form>
+    </div></section>
+    <section class="card"><div class="card-body">
+        <h3 class="h5">Leave history</h3>
+        <div class="table-responsive"><table class="table table-hover align-middle">
+            <thead><tr><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Status</th><th>Reason</th></tr></thead>
+            <tbody id="employeeLeaveHistory"><tr><td colspan="6">Loading leave history…</td></tr></tbody>
+        </table></div>
+    </div></section>
+</section>
+@section Scripts {
+    <script src="~/js/employee-portal/index.js" asp-append-version="true"></script>
+}
