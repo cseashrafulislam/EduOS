@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EduOS.Persistence.Repositories;
 
-public class GroupRepository : GenericRepository<AcademicTrack>, IGroupRepository
+public class GroupRepository : GenericRepository<AcademicTrack>, IAcademicTrackRepository
 {
     public GroupRepository(EduOSDbContext context) : base(context) { }
 
@@ -20,4 +20,8 @@ public class GroupRepository : GenericRepository<AcademicTrack>, IGroupRepositor
         if (excludeId.HasValue) query = query.Where(x => x.Id != excludeId.Value);
         return await query.AnyAsync();
     }
+
+    public Task<List<AcademicTrack>> GetActiveTracksAsync(long tenantId) =>
+        _dbSet.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
+            .OrderBy(x => x.DisplayOrder).ThenBy(x => x.Id).ToListAsync();
 }

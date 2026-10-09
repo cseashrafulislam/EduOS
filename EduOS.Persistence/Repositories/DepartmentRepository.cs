@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EduOS.Persistence.Repositories;
 
-public class DepartmentRepository : GenericRepository<AcademicDepartment>, IDepartmentRepository
+public class DepartmentRepository : GenericRepository<AcademicDepartment>, IAcademicDepartmentRepository
 {
     public DepartmentRepository(EduOSDbContext context) : base(context) { }
 

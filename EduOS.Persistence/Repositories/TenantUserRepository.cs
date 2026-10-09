@@ -4,7 +4,7 @@ using EduOS.Persistence.Context;
 
 namespace EduOS.Persistence.Repositories;
 
-public class TenantUserRepository : GenericRepository<TenantMembership>, ITenantUserRepository
+public class TenantUserRepository : GenericRepository<TenantMembership>, ITenantMembershipRepository
 {
     public TenantUserRepository(EduOSDbContext context) : base(context) { }
 }

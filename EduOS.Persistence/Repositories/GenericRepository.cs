@@ -263,4 +263,14 @@ namespace EduOS.Persistence.Repositories
             return (items, totalCount);
         }
     }
+
+        protected static async Task<(List<T> Items, int TotalCount)> PageAsync(IQueryable<T> orderedQuery, int page, int pageSize, CancellationToken cancellationToken)
+        {
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 200);
+            var total = await orderedQuery.CountAsync(cancellationToken);
+            var offset = ((long)page - 1) * pageSize;
+            if (offset > int.MaxValue) return (new List<T>(), total);
+            return (await orderedQuery.Skip((int)offset).Take(pageSize).ToListAsync(cancellationToken), total);
+        }
 }
