@@ -1,0 +1,56 @@
+@{
+    ViewData["Title"] = "Transport";
+    var canManage = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("TransportManager");
+}
+<section class="container-fluid py-3" aria-labelledby="transportTitle">
+    <header class="mb-3"><h2 id="transportTitle">Transport operations</h2><p class="text-muted">Routes, vehicles and student transport assignments.</p></header>
+    <div id="transportAlert" class="d-none" role="alert" tabindex="-1"></div>
+    <section class="card mb-3"><div class="card-body">
+        <h3 class="h5">My current assignment</h3><div id="transportMine" class="text-muted">Loading…</div>
+    </div></section>
+    <section class="card mb-3"><div class="card-body">
+        <h3 class="h5">Available routes and vehicles</h3>
+        <div class="row g-3">
+            <div class="col-lg-6"><h4 class="h6">Routes</h4><ul id="transportRouteList" class="list-group"><li class="list-group-item">Loading routes…</li></ul></div>
+            <div class="col-lg-6"><h4 class="h6">Vehicles</h4><ul id="transportVehicleList" class="list-group"><li class="list-group-item">Loading vehicles…</li></ul></div>
+        </div>
+    </div></section>
+    @if (canManage)
+    {
+        <section class="card mb-3"><div class="card-body">
+            <h3 class="h5">Assign transport</h3>
+            <form id="transportAssignmentForm" class="row g-3">
+                <div class="col-md-7"><label class="form-label" for="transportStudentSearch">Search eligible students</label><input id="transportStudentSearch" class="form-control" type="search" placeholder="Name or student code" maxlength="100" /></div>
+                <div class="col-md-5 d-flex align-items-end gap-2"><button id="transportFindStudents" type="button" class="btn btn-outline-primary">Find</button><button id="transportMoreStudents" type="button" class="btn btn-outline-secondary">Next page</button></div>
+                <div class="col-md-12"><label class="form-label" for="transportStudent">Student enrollment</label><select id="transportStudent" class="form-select" required><option value="">Search eligible students</option></select></div>
+                <div class="col-md-6"><label class="form-label" for="transportRoute">Route</label><select id="transportRoute" class="form-select" required><option value="">Select route</option></select></div>
+                <div class="col-md-6"><label class="form-label" for="transportVehicle">Vehicle</label><select id="transportVehicle" class="form-select" required><option value="">Select vehicle</option></select></div>
+                <div class="col-md-6"><label class="form-label" for="transportPickup">Pickup stop</label><select id="transportPickup" class="form-select"><option value="">No assigned pickup stop</option></select></div>
+                <div class="col-md-6"><label class="form-label" for="transportDrop">Drop stop</label><select id="transportDrop" class="form-select"><option value="">No assigned drop stop</option></select></div>
+                <div class="col-md-6"><label class="form-label" for="transportStart">Start date</label><input id="transportStart" type="date" class="form-control" required /></div>
+                <div class="col-md-6"><label class="form-label" for="transportFare">Monthly fare (optional)</label><input id="transportFare" type="number" step="0.01" min="0" class="form-control" placeholder="Use route default" /></div>
+                <div class="col-12"><button id="transportSave" class="btn btn-primary" type="submit">Assign transport</button></div>
+            </form>
+            <p class="small text-muted mb-0 mt-2">Only active enrolments are selectable. The server validates route, vehicle assignment, stop, campus and capacity before saving.</p>
+        </div></section>
+        <section class="card"><div class="card-body">
+            <h3 class="h5">Active assignments</h3>
+            <form id="transportActiveSearch" class="d-flex gap-2">
+                <input id="transportActiveTerm" class="form-control" maxlength="100" placeholder="Search student" />
+                <button type="submit" class="btn btn-outline-primary">Search</button>
+            </form>
+            <div class="table-responsive mt-3"><table class="table table-hover align-middle">
+                <thead><tr><th>Student</th><th>Route</th><th>Vehicle</th><th>Start</th><th>Action</th></tr></thead>
+                <tbody id="transportActiveRows"><tr><td colspan="5">Loading…</td></tr></tbody>
+            </table></div>
+            <div class="d-flex gap-3 align-items-center justify-content-between">
+                <button id="transportPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+                <span id="transportPageInfo" class="small text-muted"></span>
+                <button id="transportNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+            </div>
+        </div></section>
+    }
+</section>
+@section Scripts {
+    <script src="~/js/transport-operations/index.js" asp-append-version="true"></script>
+}
