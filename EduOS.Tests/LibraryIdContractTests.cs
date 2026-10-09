@@ -7,14 +7,14 @@ namespace EduOS.Tests;
 public sealed class LibraryIdContractTests
 {
     [Fact]
-    public void Issue_contract_uses_public_employee_reference()
+    public void Issue_contract_uses_public_student_reference()
     {
-        var employeeReference = typeof(IssueBookDto).GetProperty(nameof(IssueBookDto.EmployeeReference));
-        var internalEmployeeId = typeof(IssueBookDto).GetProperty("EmployeeId");
+        var studentReference = typeof(IssueBookDto).GetProperty(nameof(IssueBookDto.StudentReference));
+        var internalStudentId = typeof(IssueBookDto).GetProperty("StudentId");
 
-        Assert.NotNull(employeeReference);
-        Assert.Equal(typeof(Guid?), employeeReference!.PropertyType);
-        Assert.Null(internalEmployeeId);
+        Assert.NotNull(studentReference);
+        Assert.Equal(typeof(Guid), studentReference!.PropertyType);
+        Assert.Null(internalStudentId);
     }
 
     [Fact]

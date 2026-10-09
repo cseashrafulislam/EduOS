@@ -21,13 +21,13 @@ public class TenantIsolationTests
         // model-cache bug where the first request could permanently define filtering.
         await using (var seed = CreateContext(options))
         {
-            seed.Classes.AddRange(
-                new Class { Name = "Tenant 101", NumericValue = 1, TenantId = 101 },
-                new Class { Name = "Tenant 202", NumericValue = 1, TenantId = 202 },
-                new Class
+            seed.Set<AcademicLevel>().AddRange(
+                new AcademicLevel { Name = "Tenant 101", Code = "T101", LevelNo = 1, AcademicProgramId = 1, TenantId = 101 },
+                new AcademicLevel { Name = "Tenant 202", Code = "T202", LevelNo = 1, AcademicProgramId = 1, TenantId = 202 },
+                new AcademicLevel
                 {
                     Name = "Deleted tenant 101",
-                    NumericValue = 2,
+                    Code = "DEL", LevelNo = 2, AcademicProgramId = 1,
                     TenantId = 101,
                     IsDeleted = true
                 });
@@ -37,15 +37,15 @@ public class TenantIsolationTests
                 {
                     TenantId = 101,
                     Category = "Branding",
-                    SettingKey = "Name",
-                    SettingValue = "Tenant 101"
+                    Key = "Name",
+                    Value = "Tenant 101"
                 },
                 new TenantSetting
                 {
                     TenantId = 202,
                     Category = "Branding",
-                    SettingKey = "Name",
-                    SettingValue = "Tenant 202"
+                    Key = "Name",
+                    Value = "Tenant 202"
                 });
 
             await seed.SaveChangesAsync();
@@ -53,24 +53,24 @@ public class TenantIsolationTests
 
         await using (var tenant101 = CreateContext(options, 101))
         {
-            var classes = await tenant101.Classes.Select(x => x.Name).ToListAsync();
+            var classes = await tenant101.Set<AcademicLevel>().Select(x => x.Name).ToListAsync();
             classes.Should().Equal("Tenant 101");
 
             var settings = await tenant101.TenantSettings
-                .Select(x => x.SettingValue)
+                .Select(x => x.Value)
                 .ToListAsync();
             settings.Should().Equal("Tenant 101");
         }
 
         await using (var tenant202 = CreateContext(options, 202))
         {
-            var classes = await tenant202.Classes.Select(x => x.Name).ToListAsync();
+            var classes = await tenant202.Set<AcademicLevel>().Select(x => x.Name).ToListAsync();
             classes.Should().Equal("Tenant 202");
         }
 
         await using (var noTenant = CreateContext(options))
         {
-            (await noTenant.Classes.CountAsync()).Should().Be(0);
+            (await noTenant.Set<AcademicLevel>().CountAsync()).Should().Be(0);
             (await noTenant.TenantSettings.CountAsync()).Should().Be(0);
         }
     }
@@ -82,13 +82,13 @@ public class TenantIsolationTests
 
         await using (var seed = CreateContext(options))
         {
-            seed.Classes.Add(new Class { Name = "Private", NumericValue = 1, TenantId = 101 });
+            seed.Set<AcademicLevel>().Add(new AcademicLevel { Name = "Private", Code = "L1", LevelNo = 1, AcademicProgramId = 1, TenantId = 101 });
             await seed.SaveChangesAsync();
         }
 
         await using var staleClaim = CreateContextWithClaimOnly(options, 101);
 
-        (await staleClaim.Classes.CountAsync()).Should().Be(0);
+        (await staleClaim.Set<AcademicLevel>().CountAsync()).Should().Be(0);
     }
 
     [Fact]
@@ -99,14 +99,14 @@ public class TenantIsolationTests
 
         await using (var seed = CreateContext(options))
         {
-            var item = new Class { Name = "Private", NumericValue = 1, TenantId = 202 };
-            seed.Classes.Add(item);
+            var item = new AcademicLevel { Name = "Private", Code = "L1", LevelNo = 1, AcademicProgramId = 1, TenantId = 202 };
+            seed.Set<AcademicLevel>().Add(item);
             await seed.SaveChangesAsync();
             otherTenantClassId = item.Id;
         }
 
         await using var tenant101 = CreateContext(options, 101);
-        var repository = new GenericRepository<Class>(tenant101);
+        var repository = new GenericRepository<AcademicLevel>(tenant101);
 
         var result = await repository.GetByIdAsync(otherTenantClassId);
 
@@ -119,8 +119,8 @@ public class TenantIsolationTests
         var options = CreateOptions();
         await using var tenant101 = CreateContext(options, 101);
 
-        tenant101.Classes.Add(
-            new Class { Name = "Wrong tenant", NumericValue = 1, TenantId = 202 });
+        tenant101.Set<AcademicLevel>().Add(
+            new AcademicLevel { Name = "Wrong tenant", Code = "L1", LevelNo = 1, AcademicProgramId = 1, TenantId = 202 });
 
         var action = () => tenant101.SaveChangesAsync();
 
@@ -133,9 +133,9 @@ public class TenantIsolationTests
     {
         var options = CreateOptions();
         await using var tenant101 = CreateContext(options, 101);
-        var item = new Class { Name = "Current tenant", NumericValue = 1 };
+        var item = new AcademicLevel { Name = "Current tenant", Code = "L1", LevelNo = 1, AcademicProgramId = 1 };
 
-        tenant101.Classes.Add(item);
+        tenant101.Set<AcademicLevel>().Add(item);
         await tenant101.SaveChangesAsync();
 
         item.TenantId.Should().Be(101);
