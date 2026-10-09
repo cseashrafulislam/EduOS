@@ -86,3 +86,15 @@ public sealed class ExamResultSheetDto
     public int SubjectCount { get; set; }
     public List<ExamResultItemDto> Results { get; set; } = new();
 }
+public sealed class ExamWorkflowScopeOptionDto
+{
+    public long ExamId { get; set; }
+    public string ExamName { get; set; } = string.Empty;
+    public long AcademicYearId { get; set; }
+    public long ClassId { get; set; }
+    public long SectionId { get; set; }
+    public string SectionName { get; set; } = string.Empty;
+    public long SubjectId { get; set; }
+    public string SubjectName { get; set; } = string.Empty;
+    public int AssessmentState { get; set; }
+}

@@ -62,6 +62,66 @@ public sealed class ExamWorkflowService : IExamWorkflowService
         _uow = unitOfWork; _user = currentUser; _clock = clock; _logger = logger;
     }
 
+    public async Task<ApiResponse<IReadOnlyList<ExamWorkflowScopeOptionDto>>> GetScopeOptionsAsync(CancellationToken ct = default)
+    {
+        if (!CanAccess()) return Fail<IReadOnlyList<ExamWorkflowScopeOptionDto>>("Assessment access is required.", 403);
+        var tenant = _user.TenantId;
+        IQueryable<long>? assignedOfferings = null;
+        if (!CanPublish())
+        {
+            var employeeId = await _employees.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenant && x.UserId == _user.UserId &&
+                            x.CanTeach && x.State == EmployeeState.Active)
+                .Select(x => x.Id).FirstOrDefaultAsync(ct);
+            if (employeeId <= 0)
+                return ApiResponse<IReadOnlyList<ExamWorkflowScopeOptionDto>>.SuccessResponse(Array.Empty<ExamWorkflowScopeOptionDto>());
+            assignedOfferings = _instructors.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenant && x.EmployeeId == employeeId && x.IsActive)
+                .Select(x => x.SubjectOfferingId);
+        }
+
+        var query =
+            from exam in _assessments.GetQueryable().AsNoTracking()
+            join examSubject in _subjects.GetQueryable().AsNoTracking()
+                on exam.Id equals examSubject.AssessmentId
+            join offering in _offerings.GetQueryable().AsNoTracking()
+                on examSubject.SubjectOfferingId equals offering.Id
+            join batch in _batches.GetQueryable().AsNoTracking()
+                on offering.AcademicBatchId equals batch.Id
+            join curriculum in _curriculumSubjects.GetQueryable().AsNoTracking()
+                on offering.CurriculumSubjectId equals curriculum.Id
+            join subject in _subjectNames.GetQueryable().AsNoTracking()
+                on curriculum.SubjectId equals subject.Id
+            where exam.TenantId == tenant && examSubject.TenantId == tenant &&
+                  offering.TenantId == tenant && batch.TenantId == tenant &&
+                  curriculum.TenantId == tenant && subject.TenantId == tenant &&
+                  exam.State != AssessmentState.Cancelled && batch.IsActive && offering.IsActive &&
+                  exam.AcademicYearId == batch.AcademicYearId &&
+                  exam.CampusId == batch.CampusId &&
+                  offering.AcademicYearId == exam.AcademicYearId
+            select new { exam, examSubject, offering, batch, curriculum, subject };
+
+        if (assignedOfferings != null)
+            query = query.Where(x => assignedOfferings.Contains(x.offering.Id));
+        IReadOnlyList<ExamWorkflowScopeOptionDto> rows = await query
+            .OrderByDescending(x => x.exam.StartDate)
+            .ThenBy(x => x.exam.Id).ThenBy(x => x.batch.Name).ThenBy(x => x.subject.Name)
+            .Select(x => new ExamWorkflowScopeOptionDto
+            {
+                ExamId = x.exam.Id,
+                ExamName = x.exam.Name,
+                AcademicYearId = x.exam.AcademicYearId,
+                ClassId = x.batch.AcademicLevelId,
+                SectionId = x.batch.Id,
+                SectionName = x.batch.Name,
+                SubjectId = x.curriculum.SubjectId,
+                SubjectName = x.subject.Name,
+                AssessmentState = (int)x.exam.State
+            })
+            .Distinct().Take(500).ToListAsync(ct);
+        return ApiResponse<IReadOnlyList<ExamWorkflowScopeOptionDto>>.SuccessResponse(rows);
+    }
+
     public async Task<ApiResponse<ExamMarkRosterDto>> GetMarkRosterAsync(ExamMarkRosterQueryDto request,
         CancellationToken ct = default)
     {

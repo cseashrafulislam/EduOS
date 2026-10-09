@@ -19,6 +19,13 @@ public sealed class ExamWorkflowController : ControllerBase
     private readonly IExamWorkflowService _service;
     public ExamWorkflowController(IExamWorkflowService service) => _service = service;
 
+    [HttpGet("scopes")]
+    public async Task<IActionResult> ScopeOptions(CancellationToken cancellationToken)
+    {
+        var result = await _service.GetScopeOptionsAsync(cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet("mark-roster")]
     public async Task<IActionResult> GetMarkRoster([FromQuery] ExamMarkRosterQueryDto query, CancellationToken cancellationToken)
     {

@@ -1,0 +1,41 @@
+@{
+    ViewData["Title"] = "Exam Marks & Results";
+    var canPublish = User.IsInRole("TenantAdmin") || User.IsInRole("Principal");
+}
+<section class="container-fluid py-3" id="examWorkflow" data-can-publish="@canPublish.ToString().ToLowerInvariant()">
+    <header class="mb-3"><h2 class="h4 mb-1">Exam Marks & Results</h2><p class="text-muted mb-0">Enter subject marks, generate result sheets and publish approved results.</p></header>
+    <div id="examAlert" class="d-none" tabindex="-1" role="alert" aria-live="polite"></div>
+    <form id="examFilters" class="card card-body mb-3">
+        <div class="row g-3 align-items-end">
+            <div class="col-lg-4"><label for="examExam" class="form-label">Assessment</label><select id="examExam" class="form-select" required><option value="">Loading assessments…</option></select></div>
+            <div class="col-lg-4"><label for="examBatch" class="form-label">Batch / Section</label><select id="examBatch" class="form-select" required><option value="">Select assessment first</option></select></div>
+            <div class="col-lg-4"><label for="examSubject" class="form-label">Subject</label><select id="examSubject" class="form-select" required><option value="">Select batch first</option></select></div>
+            <div class="col-12 d-flex flex-wrap gap-2"><button id="examLoadRoster" type="submit" class="btn btn-primary">Load marks register</button><button id="examLoadResults" type="button" class="btn btn-outline-primary" @(canPublish ? "" : "hidden")>View results</button></div>
+        </div>
+    </form>
+    <section class="card mb-3" aria-labelledby="examRosterHeading">
+        <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <h3 id="examRosterHeading" class="h6 m-0">Subject marks register</h3><span id="examRosterInfo" class="small text-muted"></span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover table-sm align-middle mb-0">
+                <thead><tr><th scope="col">Roll</th><th scope="col">Student code</th><th scope="col">Student</th><th scope="col">Mark</th><th scope="col">Absent</th><th scope="col">Grade</th></tr></thead>
+                <tbody id="examRoster"><tr><td colspan="6" class="text-center text-muted p-4">Choose assessment, batch and subject.</td></tr></tbody>
+            </table>
+        </div>
+        <div class="card-footer d-flex flex-wrap justify-content-between gap-2">
+            <span class="text-muted small">Only explicitly changed marks are saved. Blank marks are not treated as zero.</span>
+            <button id="examSaveMarks" class="btn btn-primary" disabled type="button">Save changed marks</button>
+        </div>
+    </section>
+    @if (canPublish)
+    {
+        <section class="card mb-3" aria-labelledby="examResultsHeading">
+            <div class="card-header d-flex justify-content-between flex-wrap align-items-center gap-2"><h3 class="h6 m-0" id="examResultsHeading">Result sheet</h3><div class="d-flex gap-2"><button id="examGenerate" type="button" class="btn btn-outline-primary" disabled>Generate results</button><button id="examPublish" type="button" class="btn btn-danger" disabled>Publish results</button></div></div>
+            <div class="card-body"><p id="examResultSummary" class="small text-muted mb-2">Choose a batch to view or generate results.</p>
+                <div class="table-responsive"><table class="table table-sm table-hover"><thead><tr><th>Position</th><th>Roll</th><th>Student</th><th>Marks</th><th>Percentage</th><th>GPA</th><th>Grade</th><th>Status</th></tr></thead><tbody id="examResults"></tbody></table></div>
+            </div>
+        </section>
+    }
+</section>
+@section Scripts { <script src="~/js/exams/workflow.js" asp-append-version="true"></script> }
