@@ -11,7 +11,6 @@ public class Tenant : BaseEntity
     [MaxLength(100)] public string? RegistrationNumber { get; set; }
     [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
     [MaxLength(100)] public string? Subdomain { get; set; }
-    [MaxLength(255)] public string? CustomDomain { get; set; }
     [Required, MaxLength(200)] public string Email { get; set; } = string.Empty;
     [MaxLength(30)] public string? Phone { get; set; }
     [MaxLength(500)] public string? Address { get; set; }

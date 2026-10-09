@@ -28,8 +28,6 @@ public class Vehicle : BaseTenantEntity
     [Required, MaxLength(50)] public string VehicleNumber { get; set; } = string.Empty;
     [MaxLength(100)] public string? VehicleType { get; set; }
     public int Capacity { get; set; }
-    [MaxLength(150)] public string? DriverName { get; set; }
-    [MaxLength(30)] public string? DriverPhone { get; set; }
     public bool IsActive { get; set; } = true;
 }
 
