@@ -19,7 +19,7 @@ public sealed class CreateAcademicCalendarEventDto
     public long? CampusId { get; set; }
     [Range(1, long.MaxValue)] public long AcademicYearId { get; set; }
     public long? AcademicTermId { get; set; }
-    public AcademicCalendarEventType EventType { get; set; }
+    public CalendarEventKind EventType { get; set; }
     [Required, StringLength(200)] public string Title { get; set; } = string.Empty;
     [StringLength(1000)] public string? Description { get; set; }
     public DateTime StartDate { get; set; }
@@ -31,7 +31,7 @@ public sealed class CreateAcademicCalendarEventDto
 
 public sealed class UpdateAcademicCalendarEventDto
 {
-    public AcademicCalendarEventType EventType { get; set; }
+    public CalendarEventKind EventType { get; set; }
     [Required, StringLength(200)] public string Title { get; set; } = string.Empty;
     [StringLength(1000)] public string? Description { get; set; }
     public DateTime StartDate { get; set; }

@@ -20,7 +20,7 @@ public sealed class AcademicStudentEnrollmentDto
     public string CurriculumName { get; set; } = string.Empty;
     public string RollNo { get; set; } = string.Empty;
     public DateTime EnrollmentDate { get; set; }
-    public EnrollmentStatus EnrollmentStatus { get; set; }
+    public EnrollmentState State { get; set; }
     public bool IsCurrent { get; set; }
     public bool IsActive { get; set; }
     public string RowVersion { get; set; } = string.Empty;
@@ -46,7 +46,7 @@ public sealed class RequestOptionalSubjectDto
 
 public sealed class DecideSubjectRegistrationDto
 {
-    public SubjectRegistrationStatus Status { get; set; }
+    public SubjectRegistrationState State { get; set; }
     [Required] public string RowVersion { get; set; } = string.Empty;
     [StringLength(500)] public string? Remarks { get; set; }
 }

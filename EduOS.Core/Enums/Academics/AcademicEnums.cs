@@ -1,22 +1,5 @@
 ﻿namespace EduOS.Core.Enums.Academics
 {
-    public enum AcademicCycleType
-    {
-        Annual = 1,
-        Semester = 2,
-        Trimester = 3,
-        Quarterly = 4,
-        Modular = 5,
-        BatchBased = 6
-    }
-
-    public enum DeliveryMode
-    {
-        OnCampus = 1,
-        OnlineLive = 2,
-        OnlineSelfPaced = 3,
-        Hybrid = 4
-    }
 
     public enum SubjectType
     {
@@ -26,70 +9,6 @@
         Practical = 4,
         Lab = 5
     }
-
-    public enum EnrollmentStatus
-    {
-        Active = 1,
-        Completed = 2,
-        Promoted = 3,
-        Transferred = 4,
-        Withdrawn = 5,
-        Suspended = 6,
-        Dropped = 7
-    }
-
-    public enum AttendanceStatus
-    {
-        Present = 1,
-        Absent = 2,
-        Late = 3,
-        Leave = 4,
-        Excused = 5
-    }
-
-    public enum AssessmentType
-    {
-        Exam = 1,
-        Quiz = 2,
-        Assignment = 3,
-        ClassTest = 4,
-        Practical = 5,
-        Viva = 6,
-        Project = 7
-    }
-
-    public enum CalendarEventType
-    {
-        Academic = 1,
-        Holiday = 2,
-        Examination = 3,
-        Admission = 4,
-        Sports = 5,
-        Cultural = 6,
-        Meeting = 7,
-        Other = 8
-    }
-    public enum AcademicCalendarEventType
-    {
-        Academic = 1,
-        Holiday = 2,
-        Examination = 3,
-        Admission = 4,
-        Sports = 5,
-        Cultural = 6,
-        Meeting = 7,
-        Other = 99
-    }
-
-    public enum SubjectRegistrationStatus
-    {
-        Pending = 1,
-        Approved = 2,
-        Rejected = 3,
-        Dropped = 4,
-        Completed = 5
-    }
-
 
     public enum LearningContentType
     {
@@ -112,11 +31,4 @@
         InstitutionOnly = 4
     }
 
-    public enum CourseEnrollmentStatus
-    {
-        Active = 1,
-        Completed = 2,
-        Expired = 3,
-        Cancelled = 4
-    }
 }
