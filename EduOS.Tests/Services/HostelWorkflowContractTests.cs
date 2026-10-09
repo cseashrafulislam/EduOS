@@ -31,6 +31,18 @@ public class HostelWorkflowContractTests
         source.Should().Contain("catch (TransactionAbortedException ex)");
     }
 
+    [Fact]
+    public void Hostel_self_allocation_filters_current_enrollment_student_status_and_effective_dates()
+    {
+        var source = File.ReadAllText(FindRepositoryFile("EduOS.Service", "Services", "Hostel", "HostelService.cs"));
+        source.Should().Contain("student.StatusCode == \"Active\"");
+        source.Should().Contain("enrollment.IsCurrent && enrollment.State == EnrollmentState.Active");
+        source.Should().NotContain("student.IsActive");
+        source.Should().NotContain("enrollment.IsActive");
+        source.Should().Contain("e.StudentId == x.StudentId && e.IsCurrent && e.State == EnrollmentState.Active");
+        source.Should().Contain("x.StartDate <= today && (!x.EndDate.HasValue || x.EndDate >= today)");
+    }
+
     private static string FindRepositoryFile(params string[] segments)
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

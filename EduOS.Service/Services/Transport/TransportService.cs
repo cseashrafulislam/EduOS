@@ -101,8 +101,8 @@ public sealed class TransportService : ITransportService
         var tenant = _currentUser.TenantId;
         var query = from enrollment in _enrollments.GetQueryable().AsNoTracking()
                     join student in _students.GetQueryable().AsNoTracking() on enrollment.StudentId equals student.Id
-                    where enrollment.TenantId == tenant && student.TenantId == tenant && student.IsActive &&
-                          enrollment.IsCurrent && enrollment.IsActive && enrollment.State == EnrollmentState.Active &&
+                    where enrollment.TenantId == tenant && student.TenantId == tenant && student.StatusCode == "Active" &&
+                          enrollment.IsCurrent && enrollment.State == EnrollmentState.Active &&
                           !_assignments.GetQueryable().Any(x => x.TenantId == tenant && x.StudentId == student.Id &&
                               x.State == TransportAssignmentState.Active)
                     select new { enrollment.PublicId, student.FullName, student.StudentCode, enrollment.RollNo };
@@ -165,10 +165,14 @@ public sealed class TransportService : ITransportService
     {
         if (!CanRead()) return Denied<StudentTransportDto?>();
         var tenant = _currentUser.TenantId;
-        var studentIds = await _students.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
-            x.UserId == _currentUser.UserId && x.IsActive).Select(x => x.Id).ToListAsync(cancellationToken);
+        var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+        var studentIds = _students.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
+            x.UserId == _currentUser.UserId && x.StatusCode == "Active").Select(x => x.Id);
         var assignment = await _assignments.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
-            x.State == TransportAssignmentState.Active && studentIds.Contains(x.StudentId))
+            x.State == TransportAssignmentState.Active && studentIds.Contains(x.StudentId) &&
+            _enrollments.GetQueryable().Any(e => e.TenantId == tenant && e.Id == x.StudentEnrollmentId &&
+                e.StudentId == x.StudentId && e.IsCurrent && e.State == EnrollmentState.Active) &&
+            x.StartDate <= today && (!x.EndDate.HasValue || x.EndDate >= today))
             .OrderByDescending(x => x.StartDate).FirstOrDefaultAsync(cancellationToken);
         var result = assignment == null ? null : await MapAsync(assignment, cancellationToken);
         return ApiResponse<StudentTransportDto?>.SuccessResponse(result);
@@ -207,11 +211,11 @@ public sealed class TransportService : ITransportService
                 return ApiResponse<StudentTransportDto>.SuccessResponse(replay, "Transport assignment already processed.");
             }
             var enrollment = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
-                x.PublicId == request.StudentEnrollmentReference && x.IsCurrent && x.IsActive &&
+                x.PublicId == request.StudentEnrollmentReference && x.IsCurrent &&
                 x.State == EnrollmentState.Active, cancellationToken);
             if (enrollment == null) return Error("Active student enrollment not found.", 404);
             var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
-                x.Id == enrollment.StudentId && x.IsActive, cancellationToken);
+                x.Id == enrollment.StudentId && x.StatusCode == "Active", cancellationToken);
             if (student == null) return Error("Student not found.", 404);
             var route = await _routes.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
                 x.PublicId == request.RouteReference && x.IsActive, cancellationToken);

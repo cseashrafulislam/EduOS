@@ -95,6 +95,37 @@ public class TransportServiceTests
         saved.EndDate.Should().BeNull();
     }
 
+    [Fact]
+    public async Task My_assignment_requires_current_active_enrollment_and_student_status()
+    {
+        await using var db = CreateContext(CreateOptions(), 101);
+        var assignment = await SeedAssignmentAsync(db, 101, true, [1,2,3,4,5,6,7,8]);
+        var student = await db.Set<Student>().SingleAsync();
+        student.UserId = 7;
+        var enrollment = new StudentEnrollment
+        {
+            TenantId = 101, PublicId = Guid.NewGuid(), ClientRequestId = Guid.NewGuid(),
+            StudentId = student.Id, CampusId = 1, AcademicYearId = 1,
+            AcademicProgramId = 1, AcademicLevelId = 1, AcademicBatchId = 1,
+            AcademicCurriculumId = 1, RollNo = "7",
+            EnrollmentDate = DateOnly.FromDateTime(DateTime.UtcNow),
+            State = EnrollmentState.Active, IsCurrent = true
+        };
+        db.Add(enrollment);
+        await db.SaveChangesAsync();
+        assignment.StudentEnrollmentId = enrollment.Id;
+        await db.SaveChangesAsync();
+        var service = CreateService(db, 101);
+        (await service.GetMyAssignmentAsync()).Data.Should().NotBeNull();
+        enrollment.IsCurrent = false;
+        await db.SaveChangesAsync();
+        (await service.GetMyAssignmentAsync()).Data.Should().BeNull();
+        enrollment.IsCurrent = true;
+        student.StatusCode = "Transferred";
+        await db.SaveChangesAsync();
+        (await service.GetMyAssignmentAsync()).Data.Should().BeNull();
+    }
+
     private static TransportService CreateService(EduOSDbContext context, long tenant) => new(
         new GenericRepository<TransportRoute>(context),
         new GenericRepository<RouteStop>(context),
@@ -122,7 +153,7 @@ public class TransportServiceTests
         {
             TenantId = tenant, PublicId = Guid.NewGuid(), PersonId = 1,
             StudentCode = "STU-" + Guid.NewGuid().ToString("N"), FullName = "Transport Student",
-            StatusCode = "Active", AdmissionDate = DateOnly.FromDateTime(DateTime.Today), IsActive = true
+            StatusCode = "Active", AdmissionDate = DateOnly.FromDateTime(DateTime.Today)
         };
         context.AddRange(route, vehicle, student);
         await context.SaveChangesAsync();
