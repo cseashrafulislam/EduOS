@@ -1,5 +1,5 @@
 using EduOS.Core.Entities.Attendance;
-using EduOS.Core.Entities.Employees;
+using EduOS.Core.Entities.HR;
 using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
 using EduOS.Persistence.Repositories;
@@ -85,7 +85,7 @@ public class EmployeeLeaveBalanceTests
         FullName = "Employee",
         Phone = "01700000000",
         DesignationId = 1,
-        JoiningDate = DateTime.UtcNow.Date,
+        JoiningDate = DateOnly.FromDateTime(DateTime.UtcNow),
         IsActive = true
     };
 
