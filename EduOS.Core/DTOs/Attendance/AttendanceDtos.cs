@@ -126,3 +126,30 @@ public class LeaveBalanceDto
     public decimal UsedDays { get; set; }
     public decimal RemainingDays { get; set; }
 }
+
+public sealed class StudentAttendanceRosterQueryDto
+{
+    [Range(1, long.MaxValue)] public long AcademicBatchId { get; set; }
+    public DateOnly AttendanceDate { get; set; }
+    public long? SubjectOfferingId { get; set; }
+}
+
+public sealed class StudentAttendanceSummaryDto
+{
+    public int TotalStudents { get; set; }
+    public int Marked { get; set; }
+    public int Present { get; set; }
+    public int Absent { get; set; }
+    public int Late { get; set; }
+    public int Leave { get; set; }
+    public int Unmarked { get; set; }
+}
+
+public sealed class StudentAttendanceRosterDto
+{
+    public long AttendanceSessionId { get; set; }
+    public long AcademicBatchId { get; set; }
+    public DateOnly AttendanceDate { get; set; }
+    public StudentAttendanceSummaryDto Summary { get; set; } = new();
+    public IReadOnlyList<StudentAttendanceDto> Students { get; set; } = Array.Empty<StudentAttendanceDto>();
+}
