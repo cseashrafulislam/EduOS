@@ -73,7 +73,7 @@ public class StudentRepository : GenericRepository<Student>, IStudentRepository
     }
 
     public Task<int> GetActiveCountAsync(long tenantId) =>
-        _dbSet.CountAsync(x => x.TenantId == tenantId && x.StatusCode == "Active" && x.StatusCode == "Active");
+        _dbSet.CountAsync(x => x.TenantId == tenantId && x.StatusCode == "Active");
 
     public Task<Student?> GetByCodeAsync(string code, CancellationToken cancellationToken) =>
         _dbSet.AsNoTracking().FirstOrDefaultAsync(x => x.StudentCode == code, cancellationToken);
@@ -106,5 +106,5 @@ public class StudentRepository : GenericRepository<Student>, IStudentRepository
             && x.State == EnrollmentState.Active && (!excludeEnrollmentId.HasValue || x.Id != excludeEnrollmentId.Value), cancellationToken);
     }
     public Task<int> GetActiveCountAsync(long tenantId, CancellationToken cancellationToken) =>
-        _dbSet.CountAsync(x => x.TenantId == tenantId && x.StatusCode == "Active" && x.StatusCode == "Active", cancellationToken);
+        _dbSet.CountAsync(x => x.TenantId == tenantId && x.StatusCode == "Active", cancellationToken);
 }

@@ -69,8 +69,7 @@ public static class SuperAdminSeeder
                 State = TenantState.Active,
                 OnboardingStage = OnboardingStage.Completed,
                 OnboardingCompletedAt = DateTime.UtcNow,
-                EmailVerifiedAt = DateTime.UtcNow,
-                IsActive = true
+                EmailVerifiedAt = DateTime.UtcNow
             };
             dbContext.Tenants.Add(tenant);
             await dbContext.SaveChangesAsync();
