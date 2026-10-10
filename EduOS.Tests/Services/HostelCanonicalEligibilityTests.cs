@@ -103,6 +103,61 @@ public sealed class HostelCanonicalEligibilityTests
         response.StatusCode.Should().Be(403);
     }
 
+    [Theory]
+    [InlineData(0, 0, false)]
+    [InlineData(1, 0, true)]
+    [InlineData(1, 1, false)]
+    [InlineData(2, 1, true)]
+    [InlineData(2, 2, false)]
+    public async Task Available_beds_respect_active_allocation_count_and_room_capacity(
+        int capacity, int activeCount, bool expectedAvailable)
+    {
+        var options = new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("hostel-capacity-" + Guid.NewGuid().ToString("N")).Options;
+        await using var db = Context(101, options);
+        var hostel = new EduOS.Core.Entities.Hostel.Hostel
+        {
+            TenantId = 101, CampusId = 1, Name = "Main Hostel", Code = "MH"
+        };
+        db.Add(hostel);
+        await db.SaveChangesAsync();
+        var room = new HostelRoom
+        {
+            TenantId = 101, HostelId = hostel.Id, RoomNumber = "101",
+            Capacity = capacity, IsActive = true, RentPerBed = 100m
+        };
+        db.Add(room);
+        await db.SaveChangesAsync();
+        var occupiedBeds = Enumerable.Range(0, activeCount).Select(i => new HostelBed
+        {
+            TenantId = 101, HostelRoomId = room.Id, BedNumber = "O" + i, IsActive = true
+        }).ToList();
+        var availableBed = new HostelBed
+        {
+            TenantId = 101, HostelRoomId = room.Id, BedNumber = "AVAILABLE", IsActive = true
+        };
+        db.AddRange(occupiedBeds);
+        db.Add(availableBed);
+        await db.SaveChangesAsync();
+        for (var i = 0; i < occupiedBeds.Count; i++)
+            db.Add(new StudentHostelAllocation
+            {
+                TenantId = 101, StudentId = i + 100, StudentEnrollmentId = i + 200,
+                HostelBedId = occupiedBeds[i].Id, ClientRequestId = Guid.NewGuid(),
+                StartDate = new DateOnly(2026, 10, 1), State = HostelAllocationState.Active
+            });
+        await db.SaveChangesAsync();
+
+        var result = await Service(db).GetAvailableBedsAsync(1, 20, null);
+
+        result.Success.Should().BeTrue();
+        result.Data!.TotalCount.Should().Be(expectedAvailable ? 1 : 0);
+        if (expectedAvailable)
+            result.Data.Items.Should().ContainSingle(x => x.BedId == availableBed.Id);
+        else
+            result.Data.Items.Should().BeEmpty();
+    }
+
     [Fact]
     public async Task Tenant_admin_can_read_hostel_room_catalogue()
     {

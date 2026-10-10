@@ -122,9 +122,13 @@ public sealed class HostelService : IHostelService
                     join room in _rooms.GetQueryable().AsNoTracking() on bed.HostelRoomId equals room.Id
                     join hostel in _hostels.GetQueryable().AsNoTracking() on room.HostelId equals hostel.Id
                     where bed.TenantId == tenant && room.TenantId == tenant && hostel.TenantId == tenant &&
-                        bed.IsActive && room.IsActive && hostel.IsActive &&
+                        bed.IsActive && room.IsActive && hostel.IsActive && room.Capacity > 0 &&
                         !_allocations.GetQueryable().Any(x => x.TenantId == tenant && x.HostelBedId == bed.Id &&
-                            x.State == HostelAllocationState.Active)
+                            x.State == HostelAllocationState.Active) &&
+                        _allocations.GetQueryable().Count(x => x.TenantId == tenant &&
+                            x.State == HostelAllocationState.Active &&
+                            _beds.GetQueryable().Any(b => b.TenantId == tenant && b.Id == x.HostelBedId &&
+                                b.HostelRoomId == room.Id)) < room.Capacity
                     select new { BedId = bed.Id, bed.BedNumber, room.RoomNumber, room.RentPerBed,
                         HostelName = hostel.Name, hostel.GenderRestriction, hostel.CampusId };
         if (!_currentUser.IsTenantAdmin)
