@@ -1,6 +1,7 @@
 using AutoMapper;
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.SaaS;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
@@ -31,8 +32,13 @@ namespace EduOS.Service.Services.SaaS
         {
             try
             {
-                var invoices = await _invoiceRepo.GetByTenantAsync(_currentUser.TenantId);
-                var dtos = _mapper.Map<List<SubscriptionInvoiceDto>>(invoices);
+                if (!_currentUser.IsAuthenticated || _currentUser.TenantId <= 0)
+                    return ApiResponse<List<SubscriptionInvoiceDto>>.ErrorResponse("Tenant access required.", 403);
+                var page = await _invoiceRepo.GetByTenantAsync(_currentUser.TenantId, 1, 100);
+                if (page.TotalCount > 100)
+                    return ApiResponse<List<SubscriptionInvoiceDto>>.ErrorResponse(
+                        "More than 100 invoices exist. Use paged subscription invoice history.", 409);
+                var dtos = _mapper.Map<List<SubscriptionInvoiceDto>>(page.Items);
                 return ApiResponse<List<SubscriptionInvoiceDto>>.SuccessResponse(dtos);
             }
             catch (Exception ex)
@@ -69,7 +75,14 @@ namespace EduOS.Service.Services.SaaS
         {
             try
             {
-                var invoices = await _invoiceRepo.GetUnpaidByTenantAsync(_currentUser.TenantId);
+                if (!_currentUser.IsAuthenticated || _currentUser.TenantId <= 0)
+                    return ApiResponse<List<SubscriptionInvoiceDto>>.ErrorResponse("Tenant access required.", 403);
+                var issued = await _invoiceRepo.GetByStateAsync(_currentUser.TenantId, InvoiceState.Issued, 1, 100);
+                var partial = await _invoiceRepo.GetByStateAsync(_currentUser.TenantId, InvoiceState.PartiallyPaid, 1, 100);
+                if (issued.TotalCount > 100 || partial.TotalCount > 100)
+                    return ApiResponse<List<SubscriptionInvoiceDto>>.ErrorResponse(
+                        "Unpaid invoices exceed legacy list size. Use paged subscription invoices.", 409);
+                var invoices = issued.Items.Concat(partial.Items).OrderByDescending(x => x.InvoiceDate).ToList();
                 var dtos = _mapper.Map<List<SubscriptionInvoiceDto>>(invoices);
                 return ApiResponse<List<SubscriptionInvoiceDto>>.SuccessResponse(dtos);
             }
