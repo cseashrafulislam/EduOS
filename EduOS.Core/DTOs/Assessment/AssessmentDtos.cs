@@ -56,6 +56,7 @@ public class AssessmentSubjectDto
 
 public class SaveAssessmentSubjectRequestDto
 {
+    public Guid AssessmentReference { get; set; }
     public Guid SubjectOfferingReference { get; set; }
     [Range(typeof(decimal), "0", "100000")] public decimal FullMarks { get; set; } = 100;
     [Range(typeof(decimal), "0", "100000")] public decimal PassMarks { get; set; } = 33;
