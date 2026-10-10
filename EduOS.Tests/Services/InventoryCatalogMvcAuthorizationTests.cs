@@ -21,6 +21,9 @@ public sealed class InventoryCatalogMvcAuthorizationTests
             .Cast<AuthorizeAttribute>().Single(x => x.GetType() == typeof(AuthorizeAttribute)).Roles;
         pageRoles.Should().Be("TenantAdmin,Principal,InventoryManager,StoreKeeper,Accountant");
         pageRoles.Should().Be(apiRoles);
+        api.GetCustomAttributes(typeof(ResponseCacheAttribute), true)
+            .Cast<ResponseCacheAttribute>()
+            .Should().ContainSingle(x => x.NoStore && x.Location == ResponseCacheLocation.None);
         mvc.GetCustomAttributes(typeof(RequireModuleAttribute), true)
             .Cast<RequireModuleAttribute>().Should().ContainSingle(x => x.Policy == "EduOSModule:INVENTORY");
         mvc.GetMethod(nameof(InventoryCatalogController.Index))!
