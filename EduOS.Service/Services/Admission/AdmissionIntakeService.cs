@@ -353,16 +353,12 @@ public sealed class AdmissionIntakeService : IAdmissionIntakeService
     {
         try
         {
-            var strategy = _uow.CreateExecutionStrategy();
-            return await strategy.ExecuteAsync(async () =>
-            {
-                using var scope = new TransactionScope(TransactionScopeOption.Required,
-                    new TransactionOptions { IsolationLevel = IsolationLevel.Serializable },
-                    TransactionScopeAsyncFlowOption.Enabled);
-                var result = await action();
-                if (result.Success) scope.Complete();
-                return result;
-            });
+            using var scope = new TransactionScope(TransactionScopeOption.Required,
+                new TransactionOptions { IsolationLevel = IsolationLevel.Serializable },
+                TransactionScopeAsyncFlowOption.Enabled);
+            var result = await action();
+            if (result.Success) scope.Complete();
+            return result;
         }
         catch (DbUpdateConcurrencyException ex)
         {
