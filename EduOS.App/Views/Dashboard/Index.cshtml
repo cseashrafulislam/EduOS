@@ -27,11 +27,12 @@
         (Step: 3, Key: "Payment", Controller: "Account", Action: "PlanSelection"),
         (Step: 4, Key: "CampusSetup", Controller: "Account", Action: "CampusSetup"),
         (Step: 5, Key: "AcademicSetup", Controller: "Account", Action: "AcademicSetup"),
-        (Step: 6, Key: "BrandingSetup", Controller: "Account", Action: "BrandingSetup"),
-        (Step: 7, Key: "GeneralSettings", Controller: "Account", Action: "GeneralSettings"),
-        (Step: 8, Key: "GatewaySetup", Controller: "Account", Action: "GatewaySetup")
+        (Step: 6, Key: "ModuleSetup", Controller: "Account", Action: "ModuleSetup"),
+        (Step: 7, Key: "BrandingSetup", Controller: "Account", Action: "BrandingSetup"),
+        (Step: 8, Key: "GeneralSettings", Controller: "Account", Action: "GeneralSettings"),
+        (Step: 9, Key: "GatewaySetup", Controller: "Account", Action: "GatewaySetup")
     };
-    var currentStep = onboardingSteps.FirstOrDefault(x => x.Step == Model.OnboardingStep);
+    var currentStep = onboardingSteps.FirstOrDefault(x => x.Step == (int)Model.OnboardingStage - 1);
     var currentStepLabel = Model.OnboardingComplete
         ? T["Completed"].Value
         : T[$"Onboarding_{currentStep.Key ?? "EmailVerification"}_Name"].Value;
