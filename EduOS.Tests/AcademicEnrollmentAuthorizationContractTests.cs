@@ -28,7 +28,7 @@ public sealed class AcademicEnrollmentAuthorizationContractTests
 
     [Theory]
     [InlineData(nameof(AcademicEnrollmentsController.Enroll), "TenantAdmin,Principal,VicePrincipal")]
-    [InlineData(nameof(AcademicEnrollmentsController.RequestOptionalSubject), "Student,Guardian,Parent")]
+    [InlineData(nameof(AcademicEnrollmentsController.RequestOptionalSubject), "TenantAdmin,Principal,VicePrincipal,Student,Guardian,Parent")]
     [InlineData(nameof(AcademicEnrollmentsController.DecideSubject), "TenantAdmin,Principal,VicePrincipal")]
     public void Enrollment_mutations_are_post_only_and_role_scoped(string methodName, string roles)
     {
