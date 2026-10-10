@@ -48,6 +48,9 @@ jobs:
       - name: Build
         run: dotnet build EduOS.slnx --configuration Release --no-restore
 
+      - name: Test public admission regression
+        run: dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-build --filter "FullyQualifiedName~PublicAdmissionServiceTests" --logger "console;verbosity=normal"
+
       - name: Validate EF model snapshot
         run: |
           dotnet tool install --global dotnet-ef --version 10.0.12
