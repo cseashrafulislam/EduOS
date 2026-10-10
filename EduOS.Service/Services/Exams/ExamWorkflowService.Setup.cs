@@ -13,7 +13,7 @@ public sealed partial class ExamWorkflowService
     {
         if (!CanPublish()) return Error<AssessmentDto>("Assessment management permission required.", 403);
         if (request == null || request.ClientRequestId == Guid.Empty || request.CampusId <= 0 ||
-            request.AcademicYearId <= 0 || request.AcademicTermId is <= 0 ||
+            request.AcademicYearId <= 0 || request.AcademicTermId is <= 0 || request.GradeSchemeId is <= 0 ||
             string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 150 ||
             string.IsNullOrWhiteSpace(request.Code) || request.Code.Trim().Length > 50 ||
             request.StartDate == default || request.EndDate < request.StartDate ||
@@ -37,6 +37,10 @@ public sealed partial class ExamWorkflowService
                 if (term == null || request.StartDate < term.StartDate || request.EndDate > term.EndDate)
                     return Error<AssessmentDto>("Assessment is outside the academic term.", 409);
             }
+            if (request.GradeSchemeId.HasValue && !await _gradeSchemes.GetQueryable().AsNoTracking()
+                .AnyAsync(x => x.TenantId == tenant && x.Id == request.GradeSchemeId.Value &&
+                    x.IsActive && !x.IsDeleted, token))
+                return Error<AssessmentDto>("Grade scheme not found.", 404);
             var row = reference.HasValue ? await _assessments.GetQueryable().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.PublicId == reference && !x.IsDeleted, token) : null;
             if (reference.HasValue && row == null) return Error<AssessmentDto>("Assessment not found.", 404);
@@ -51,7 +55,7 @@ public sealed partial class ExamWorkflowService
             {
                 if (reference.HasValue || existing.CampusId != request.CampusId ||
                     existing.AcademicYearId != request.AcademicYearId ||
-                    existing.AcademicTermId != request.AcademicTermId ||
+                    existing.AcademicTermId != request.AcademicTermId || existing.GradeSchemeId != request.GradeSchemeId ||
                     existing.Name != request.Name.Trim() || existing.StartDate != request.StartDate ||
                     existing.EndDate != request.EndDate || existing.Type != request.Type ||
                     existing.Remarks != Trim(request.Remarks))
@@ -75,7 +79,7 @@ public sealed partial class ExamWorkflowService
             }
             row.Name = request.Name.Trim(); row.Code = code;
             row.CampusId = campus.Id; row.AcademicYearId = year.Id;
-            row.AcademicTermId = request.AcademicTermId;
+            row.AcademicTermId = request.AcademicTermId; row.GradeSchemeId = request.GradeSchemeId;
             row.Type = request.Type; row.StartDate = request.StartDate;
             row.EndDate = request.EndDate; row.Remarks = Trim(request.Remarks);
             await _uow.SaveChangesAsync(token);
@@ -346,7 +350,7 @@ public sealed partial class ExamWorkflowService
             Id = row.Id, Reference = row.PublicId, CampusId = row.CampusId,
             CampusName = campusName ?? string.Empty, AcademicYearId = row.AcademicYearId,
             AcademicYearName = yearName ?? string.Empty, AcademicTermId = row.AcademicTermId,
-            AcademicTermName = termName, Name = row.Name, Code = row.Code,
+            AcademicTermName = termName, GradeSchemeId = row.GradeSchemeId, Name = row.Name, Code = row.Code,
             Type = row.Type, State = row.State, StartDate = row.StartDate, EndDate = row.EndDate,
             Remarks = row.Remarks, RowVersion = Version(row.RowVersion), Subjects = mapped
         };
