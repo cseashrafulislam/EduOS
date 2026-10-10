@@ -28,9 +28,11 @@ public sealed class HrAdminSecurityContractTests
     public void Hr_api_enforces_roles_module_antiforgery_and_rate_limit()
     {
         var type = typeof(HrAdminController);
-        var authorize = type.GetCustomAttributes(typeof(AuthorizeAttribute), true)
-            .Cast<AuthorizeAttribute>().Single();
+        var attributes = type.GetCustomAttributes(typeof(AuthorizeAttribute), true)
+            .Cast<AuthorizeAttribute>().ToArray();
+        var authorize = attributes.Single(x => x.GetType() == typeof(AuthorizeAttribute));
         authorize.Roles.Should().Be("TenantAdmin,Principal,HR");
+        attributes.Should().Contain(x => x.Policy == "EduOSModule:HR");
         type.GetCustomAttributes(typeof(AutoValidateAntiforgeryTokenAttribute), true).Should().NotBeEmpty();
         type.GetCustomAttributes(typeof(EnableRateLimitingAttribute), true).Should().NotBeEmpty();
         type.GetCustomAttributes(typeof(ResponseCacheAttribute), true).Should().NotBeEmpty();
