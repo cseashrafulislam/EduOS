@@ -42,8 +42,8 @@ public class PlatformCatalogServiceTests
         result.Success.Should().BeTrue();
         result.Data!.Code.Should().Be("UNIVERSITY");
         result.Data.AcademicCycleType.Should().Be("Semester");
-        result.Data.Terminology.Should().Contain("program", "Program");
-        result.Data.DefaultSettings.Should().Contain("currency", "BDT");
+        result.Data.Terminology.Should().BeEmpty();
+        result.Data.DefaultSettings.Should().BeEmpty();
         result.Data.Modules.Should().HaveCount(20);
         result.Data.Modules.Should().Contain(x => x.Code == "LMS" && x.IsEnabledByDefault);
     }
@@ -70,7 +70,7 @@ public class PlatformCatalogServiceTests
         await PlatformCatalogSeeder.SeedAsync(context);
         var privateType = await context.InstitutionTypeDefinitions.SingleAsync(x => x.Code == "PRIVATE_TUTOR");
         var disabledModule = await context.ProductModules.SingleAsync(x => x.Code == "AI_INSIGHTS");
-        privateType.IsPubliclyVisible = false;
+        privateType.IsActive = false;
         disabledModule.IsActive = false;
         await context.SaveChangesAsync();
         var service = CreateService(context);
@@ -86,6 +86,7 @@ public class PlatformCatalogServiceTests
     {
         return new PlatformCatalogService(
             new GenericRepository<InstitutionTypeDefinition>(context),
+            new GenericRepository<InstitutionTypeModule>(context),
             new GenericRepository<ProductModule>(context),
             NullLogger<PlatformCatalogService>.Instance);
     }
