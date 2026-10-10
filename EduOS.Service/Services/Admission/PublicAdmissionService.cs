@@ -178,8 +178,37 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
             if (replay != null)
             {
                 if (replay.AdmissionIntakeFormId != form.Id || replay.FullName != request.ApplicantName.Trim() ||
-                    replay.Phone != phone)
+                    replay.FullNameBangla != Trim(request.ApplicantNameBangla) ||
+                    replay.DateOfBirth != DateOnly.FromDateTime(request.DateOfBirth.Date) ||
+                    replay.Gender != request.Gender.ToString() || replay.Phone != phone ||
+                    replay.Email != Trim(request.Email) ||
+                    replay.Address != (Trim(request.PermanentAddress) ?? Trim(request.PresentAddress)))
                     return Error<AdmissionApplicationCreatedDto>("Request ID was used for different application data.", 409);
+                var savedFields = await (from value in _values.GetQueryable().AsNoTracking()
+                    join field in _fields.GetQueryable().AsNoTracking()
+                        on value.AdmissionFormFieldId equals field.Id
+                    where value.TenantId == tenant.Id && field.TenantId == tenant.Id &&
+                        value.AdmissionApplicantId == replay.Id
+                    select new { field.FieldKey, value.Value }).ToListAsync(ct);
+                var normalizedFields = fields.Select(field => new
+                {
+                    field.FieldKey,
+                    Value = request.CustomResponses != null &&
+                        request.CustomResponses.TryGetValue(field.FieldKey, out var value)
+                        ? Trim(value) : null
+                }).Where(x => x.Value != null).ToList();
+                if (savedFields.Count != normalizedFields.Count ||
+                    normalizedFields.Any(x => !savedFields.Any(saved =>
+                        saved.FieldKey == x.FieldKey && saved.Value == x.Value)))
+                    return Error<AdmissionApplicationCreatedDto>("Request ID was used for different custom field values.", 409);
+                var savedGuardian = await _guardians.GetQueryable().AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.TenantId == tenant.Id &&
+                        x.AdmissionApplicantId == replay.Id && x.IsPrimary, ct);
+                if (savedGuardian == null && !string.IsNullOrWhiteSpace(request.GuardianName) ||
+                    savedGuardian != null && (savedGuardian.FullName != Trim(request.GuardianName) ||
+                        savedGuardian.RelationCode != (Trim(request.GuardianRelation) ?? "Guardian") ||
+                        savedGuardian.Phone != guardianPhone))
+                    return Error<AdmissionApplicationCreatedDto>("Request ID was used for different guardian details.", 409);
                 tx.Complete();
                 return ApiResponse<AdmissionApplicationCreatedDto>.SuccessResponse(MapCreated(replay),
                     "Application already received.");
