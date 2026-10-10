@@ -7,93 +7,63 @@ using Xunit;
 
 namespace EduOS.Tests.Persistence;
 
-public class PlatformCatalogSeederTests
+public sealed class PlatformCatalogSeederTests
 {
     [Fact]
-    public async Task Seeder_is_idempotent_and_creates_complete_catalog()
+    public async Task Seeder_is_idempotent_and_presets_reference_canonical_module_ids()
     {
-        await using var context = CreateContext();
-
-        await SubscriptionSeeder.SeedAsync(context);
-        await PlatformCatalogSeeder.SeedAsync(context);
-        await PlatformCatalogSeeder.SeedAsync(context);
-
-        (await context.InstitutionTypeDefinitions.CountAsync()).Should().Be(13);
-        (await context.ProductModules.CountAsync()).Should().Be(20);
-        (await context.InstitutionTypeModules.CountAsync()).Should().Be(212);
-        (await context.ProductModuleFeatures.CountAsync()).Should().Be(31);
-
-        var university = await context.InstitutionTypeDefinitions
-            .Include(x => x.Modules)
-            .ThenInclude(x => x.ProductModule)
-            .SingleAsync(x => x.Code == "UNIVERSITY");
-
-        university.Modules.Should().HaveCount(20);
-        university.Modules.Should().Contain(x => x.ProductModule!.Code == "LMS");
-        university.Modules.Where(x => x.IsRequired)
-            .Select(x => x.ProductModule!.Code)
+        await using var db = Context();
+        await SubscriptionSeeder.SeedAsync(db);
+        await PlatformCatalogSeeder.SeedAsync(db);
+        await PlatformCatalogSeeder.SeedAsync(db);
+        (await db.InstitutionTypeDefinitions.CountAsync()).Should().Be(13);
+        (await db.ProductModules.CountAsync()).Should().Be(20);
+        (await db.InstitutionTypeModules.CountAsync()).Should().Be(212);
+        (await db.ProductModuleFeatures.CountAsync()).Should().Be(31);
+        var university = await db.InstitutionTypeDefinitions.SingleAsync(x => x.Code == "UNIVERSITY");
+        var modules = await (from selected in db.InstitutionTypeModules
+            join module in db.ProductModules on selected.ProductModuleId equals module.Id
+            where selected.InstitutionTypeDefinitionId == university.Id
+            select new { module.Code, selected.IsRequired }).ToListAsync();
+        modules.Should().HaveCount(20);
+        modules.Select(x => x.Code).Should().Contain("LMS");
+        modules.Where(x => x.IsRequired).Select(x => x.Code)
             .Should().BeEquivalentTo("CORE_ADMIN", "STUDENT", "ACADEMIC");
     }
 
     [Fact]
-    public async Task Subscription_catalog_is_idempotent_and_backfills_missing_Bangla_text()
+    public async Task Subscription_seeder_preserves_custom_existing_names_and_backfills_blank_descriptions()
     {
-        await using var context = CreateContext();
-
-        await SubscriptionSeeder.SeedAsync(context);
-        var studentFeature = await context.Features.SingleAsync(x => x.Code == "STUDENT_MGMT");
-        var basicPlan = await context.SubscriptionPlans.SingleAsync(x => x.Code == "BASIC");
-        studentFeature.NameBangla = "নিজস্ব শিক্ষার্থী নাম";
-        basicPlan.NameBangla = null;
-        basicPlan.ShortDescriptionBangla = null;
-        await context.SaveChangesAsync();
-
-        await SubscriptionSeeder.SeedAsync(context);
-
-        (await context.Features.CountAsync()).Should().Be(29);
-        (await context.SubscriptionPlans.CountAsync()).Should().Be(4);
-        (await context.Features.SingleAsync(x => x.Code == "STUDENT_MGMT"))
-            .NameBangla.Should().Be("নিজস্ব শিক্ষার্থী নাম");
-        basicPlan.NameBangla.Should().Be("বেসিক");
-        basicPlan.ShortDescriptionBangla.Should().NotBeNullOrWhiteSpace();
-        (await context.Features.CountAsync(x => string.IsNullOrWhiteSpace(x.NameBangla)))
-            .Should().Be(0);
+        await using var db = Context();
+        await SubscriptionSeeder.SeedAsync(db);
+        var feature = await db.Features.SingleAsync(x => x.Code == "STUDENT_MGMT");
+        var plan = await db.SubscriptionPlans.SingleAsync(x => x.Code == "BASIC");
+        feature.Name = "Custom Student Label";
+        feature.Description = "";
+        plan.Name = "Custom Basic Plan";
+        await db.SaveChangesAsync();
+        await SubscriptionSeeder.SeedAsync(db);
+        (await db.Features.CountAsync()).Should().Be(29);
+        (await db.SubscriptionPlans.CountAsync()).Should().Be(4);
+        feature.Name.Should().Be("Custom Student Label");
+        feature.Description.Should().NotBeNullOrWhiteSpace();
+        plan.Name.Should().Be("Custom Basic Plan");
     }
 
     [Fact]
-    public async Task Seeder_backfills_recognized_legacy_tenant_type_without_changing_unknown_values()
+    public async Task Platform_catalog_seeding_does_not_infer_or_mutate_existing_tenant_types()
     {
-        await using var context = CreateContext();
-        var recognized = Tenant("Recognized", "university");
-        var custom = Tenant("Custom", "SPECIAL_INSTITUTE");
-        context.Tenants.AddRange(recognized, custom);
-        await context.SaveChangesAsync();
-
-        await PlatformCatalogSeeder.SeedAsync(context);
-
-        recognized.InstitutionType.Should().Be("UNIVERSITY");
-        recognized.InstitutionTypeDefinitionId.Should().NotBeNull();
-        custom.InstitutionType.Should().Be("SPECIAL_INSTITUTE");
-        custom.InstitutionTypeDefinitionId.Should().BeNull();
+        await using var db = Context();
+        var tenant = new Tenant { Name = "Custom", Code = "CUSTOM-01",
+            Email = "custom@example.test", InstitutionTypeDefinitionId = null };
+        db.Tenants.Add(tenant);
+        await db.SaveChangesAsync();
+        await PlatformCatalogSeeder.SeedAsync(db);
+        tenant.InstitutionTypeDefinitionId.Should().BeNull();
+        (await db.InstitutionTypeDefinitions.CountAsync()).Should().Be(13);
     }
 
-    private static EduOSDbContext CreateContext()
-    {
-        var options = new DbContextOptionsBuilder<EduOSDbContext>()
-            .UseInMemoryDatabase($"platform-catalog-seed-{Guid.NewGuid():N}")
-            .Options;
-        return new EduOSDbContext(options);
-    }
-
-    private static Tenant Tenant(string name, string institutionType)
-    {
-        return new Tenant
-        {
-            Name = name,
-            Code = $"{name.ToUpperInvariant()}-01",
-            Email = $"{name.ToLowerInvariant()}@example.test",
-            OwnerName = "Owner",
-            InstitutionType = institutionType
-        };
-    }
+    private static EduOSDbContext Context() => new(
+        new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("platform-catalog-" + Guid.NewGuid().ToString("N")).Options);
 }
