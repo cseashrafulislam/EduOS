@@ -26,7 +26,7 @@ public sealed class StudentDirectoryServiceTests
         var service = Service(db, 101);
         var page = await service.GetPageAsync(new StudentDirectoryQueryDto
         {
-            Search = student.StudentCode, AcademicLevelId = 3
+            Search = student.StudentCode, AcademicLevelId = await db.Set<AcademicLevel>().Select(x => x.Id).SingleAsync()
         });
         var details = await service.GetAsync(student.PublicId);
         page.Success.Should().BeTrue();
