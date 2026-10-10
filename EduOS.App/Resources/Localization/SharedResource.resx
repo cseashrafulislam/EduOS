@@ -423,7 +423,6 @@
   <data name="SetupFeeTemplate" xml:space="preserve"><value>One-time setup fee: {amount}</value></data>
   <data name="SelectPlanAriaTemplate" xml:space="preserve"><value>Select {name} plan</value></data>
   <data name="Selected" xml:space="preserve"><value>Selected</value></data>
-  <data name="Processing" xml:space="preserve"><value>Processing…</value></data>
   <data name="ContinueToPayment" xml:space="preserve"><value>Continue to payment</value></data>
   <data name="SubscriptionCreateFailed" xml:space="preserve"><value>The subscription could not be created. Review the plan and try again.</value></data>
   <data name="ExistingSubscriptionRedirecting" xml:space="preserve"><value>Your existing subscription was found. Taking you to the correct setup step…</value></data>
@@ -443,7 +442,6 @@
   <data name="PayerBankName" xml:space="preserve"><value>Your bank name</value></data>
   <data name="PayerAccountNumber" xml:space="preserve"><value>Your account number</value></data>
   <data name="DepositSlipNumber" xml:space="preserve"><value>Deposit or transaction reference</value></data>
-  <data name="DepositDate" xml:space="preserve"><value>Deposit date</value></data>
   <data name="AmountPaid" xml:space="preserve"><value>Amount to pay</value></data>
   <data name="NoteOptional" xml:space="preserve"><value>Note (optional)</value></data>
   <data name="UploadDepositSlip" xml:space="preserve"><value>Upload deposit receipt</value></data>
@@ -652,7 +650,6 @@
   <data name="Search" xml:space="preserve"><value>Search</value></data>
   <data name="SelectOption" xml:space="preserve"><value>Select</value></data>
   <data name="ApplicationNumber" xml:space="preserve"><value>Application number</value></data>
-  <data name="SubmittedAt" xml:space="preserve"><value>Submitted</value></data>
   <data name="Status" xml:space="preserve"><value>Status</value></data>
   <data name="Previous" xml:space="preserve"><value>Previous</value></data>
   <data name="Next" xml:space="preserve"><value>Next</value></data>

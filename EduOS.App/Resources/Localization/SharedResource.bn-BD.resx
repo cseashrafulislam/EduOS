@@ -423,7 +423,6 @@
   <data name="SetupFeeTemplate" xml:space="preserve"><value>এককালীন সেটআপ ফি: {amount}</value></data>
   <data name="SelectPlanAriaTemplate" xml:space="preserve"><value>{name} প্ল্যান বেছে নিন</value></data>
   <data name="Selected" xml:space="preserve"><value>নির্বাচিত</value></data>
-  <data name="Processing" xml:space="preserve"><value>প্রক্রিয়া চলছে…</value></data>
   <data name="ContinueToPayment" xml:space="preserve"><value>পেমেন্টে এগিয়ে যান</value></data>
   <data name="SubscriptionCreateFailed" xml:space="preserve"><value>সাবস্ক্রিপশন তৈরি করা যায়নি। প্ল্যানটি দেখে আবার চেষ্টা করুন।</value></data>
   <data name="ExistingSubscriptionRedirecting" xml:space="preserve"><value>আপনার চলমান সাবস্ক্রিপশন পাওয়া গেছে। সঠিক সেটআপ ধাপে নেওয়া হচ্ছে…</value></data>
@@ -443,7 +442,6 @@
   <data name="PayerBankName" xml:space="preserve"><value>আপনার ব্যাংকের নাম</value></data>
   <data name="PayerAccountNumber" xml:space="preserve"><value>আপনার অ্যাকাউন্ট নম্বর</value></data>
   <data name="DepositSlipNumber" xml:space="preserve"><value>জমা বা লেনদেনের রেফারেন্স</value></data>
-  <data name="DepositDate" xml:space="preserve"><value>টাকা জমার তারিখ</value></data>
   <data name="AmountPaid" xml:space="preserve"><value>পরিশোধের পরিমাণ</value></data>
   <data name="NoteOptional" xml:space="preserve"><value>নোট (ঐচ্ছিক)</value></data>
   <data name="UploadDepositSlip" xml:space="preserve"><value>টাকা জমার রসিদ আপলোড করুন</value></data>
@@ -652,7 +650,6 @@
   <data name="Search" xml:space="preserve"><value>খুঁজুন</value></data>
   <data name="SelectOption" xml:space="preserve"><value>নির্বাচন করুন</value></data>
   <data name="ApplicationNumber" xml:space="preserve"><value>আবেদন নম্বর</value></data>
-  <data name="SubmittedAt" xml:space="preserve"><value>জমার সময়</value></data>
   <data name="Status" xml:space="preserve"><value>অবস্থা</value></data>
   <data name="Previous" xml:space="preserve"><value>আগের</value></data>
   <data name="Next" xml:space="preserve"><value>পরের</value></data>
