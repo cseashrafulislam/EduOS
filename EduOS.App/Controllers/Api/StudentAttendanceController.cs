@@ -32,10 +32,20 @@ public sealed class StudentAttendanceController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<IActionResult> Save([FromBody] SaveStudentAttendanceDto request, CancellationToken cancellationToken)
+    public async Task<IActionResult> Save([FromBody] SaveAttendanceRegisterRequestDto request, CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         var result = await _service.SaveAsync(request, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+    
+    [HttpPost("{attendanceId:long}/correct")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
+    public async Task<IActionResult> Correct(long attendanceId, [FromBody] AttendanceCorrectionRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await _service.CorrectAttendanceAsync(attendanceId, request, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 }
