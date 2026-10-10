@@ -52,7 +52,7 @@ public sealed partial class ExamWorkflowService
             var now = _clock.GetUtcNow().UtcDateTime;
             var row = old ?? new AssessmentComponent
             {
-                TenantId = tenant, AssessmentSubjectId = subject.Id,
+                TenantId = tenant, AssessmentSubjectId = subject!.Id,
                 CreatedAt = now, CreatedBy = _user.UserId
             };
             row.Name = request.Name.Trim(); row.Code = request.Code.Trim().ToUpperInvariant();
