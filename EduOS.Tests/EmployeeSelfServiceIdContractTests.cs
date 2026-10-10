@@ -11,7 +11,7 @@ public sealed class EmployeeSelfServiceIdContractTests
     [InlineData(typeof(Employee), nameof(Employee.TenantId), typeof(long))]
     [InlineData(typeof(Employee), nameof(Employee.UserId), typeof(long?))]
     [InlineData(typeof(EmployeePortalProfileDto), nameof(EmployeePortalProfileDto.DesignationId), typeof(long))]
-    [InlineData(typeof(EmployeePortalProfileDto), nameof(EmployeePortalProfileDto.DepartmentId), typeof(long?))]
+    [InlineData(typeof(EmployeePortalProfileDto), nameof(EmployeePortalProfileDto.OrganizationUnitId), typeof(long?))]
     [InlineData(typeof(EmployeePortalLeaveDto), nameof(EmployeePortalLeaveDto.Id), typeof(long))]
     [InlineData(typeof(EmployeePortalLeaveBalanceDto), nameof(EmployeePortalLeaveBalanceDto.LeaveTypeId), typeof(long))]
     [InlineData(typeof(EmployeePortalLeaveApplyDto), nameof(EmployeePortalLeaveApplyDto.LeaveTypeId), typeof(long))]
