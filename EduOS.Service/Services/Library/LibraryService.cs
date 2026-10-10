@@ -82,6 +82,9 @@ public sealed class LibraryService : ILibraryService
             return ApiResponse<BookDto>.ErrorResponse("Book category is invalid.");
         try
         {
+            using var tx = new TransactionScope(TransactionScopeOption.Required,
+                new TransactionOptions { IsolationLevel = IsolationLevel.Serializable },
+                TransactionScopeAsyncFlowOption.Enabled);
             var now = _clock.GetUtcNow().UtcDateTime;
             Book book;
             if (request.Reference.HasValue)
@@ -99,6 +102,8 @@ public sealed class LibraryService : ILibraryService
                 book = new Book { TenantId = tenant, CreatedAt = now, CreatedBy = _user.UserId };
                 await _books.AddAsync(book);
             }
+            if (!request.IsActive && await HasOutstandingIssueAsync(tenant, book.Id, ct))
+                return ApiResponse<BookDto>.ErrorResponse("Return outstanding copies first.", 409);
             book.BookCategoryId = request.BookCategoryId;
             book.Title = request.Title.Trim();
             book.Author = Trim(request.Author); book.Publisher = Trim(request.Publisher);
@@ -112,12 +117,18 @@ public sealed class LibraryService : ILibraryService
             var categoryName = book.BookCategoryId.HasValue ?
                 await _categories.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
                     x.Id == book.BookCategoryId.Value).Select(x => x.Name).FirstOrDefaultAsync(ct) : null;
-            return ApiResponse<BookDto>.SuccessResponse(
+            var response = ApiResponse<BookDto>.SuccessResponse(
                 MapBook(book, categoryName, totals?.Total ?? 0, totals?.Available ?? 0), "Book metadata saved.");
+            tx.Complete();
+            return response;
         }
         catch (DbUpdateConcurrencyException)
         {
             return ApiResponse<BookDto>.ErrorResponse("Book changed. Reload and retry.", 409);
+        }
+        catch (TransactionAbortedException)
+        {
+            return ApiResponse<BookDto>.ErrorResponse("Concurrent book update was rejected.", 409);
         }
         catch (DbUpdateException ex)
         {
@@ -132,26 +143,42 @@ public sealed class LibraryService : ILibraryService
         var tenant = _user.TenantId;
         try
         {
+            using var tx = new TransactionScope(TransactionScopeOption.Required,
+                new TransactionOptions { IsolationLevel = IsolationLevel.Serializable },
+                TransactionScopeAsyncFlowOption.Enabled);
             var book = await _books.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenant &&
                 x.PublicId == reference && x.IsActive, ct);
             if (book == null) return ApiResponse<bool>.ErrorResponse("Book not found.", 404);
             if (!MatchesVersion(book.RowVersion, rowVersion))
                 return ApiResponse<bool>.ErrorResponse("Book changed. Reload and retry.", 409);
-            var hasOutstandingIssue = await (from issue in _issues.GetQueryable().AsNoTracking()
-                join copy in _copies.GetQueryable().AsNoTracking() on issue.BookCopyId equals copy.Id
-                where issue.TenantId == tenant && copy.TenantId == tenant && copy.BookId == book.Id &&
-                    issue.State == BookIssueState.Issued
-                select issue.Id).AnyAsync(ct);
-            if (hasOutstandingIssue) return ApiResponse<bool>.ErrorResponse("Return outstanding copies first.", 409);
+            if (await HasOutstandingIssueAsync(tenant, book.Id, ct))
+                return ApiResponse<bool>.ErrorResponse("Return outstanding copies first.", 409);
             book.IsActive = false; book.UpdatedAt = _clock.GetUtcNow().UtcDateTime; book.UpdatedBy = _user.UserId;
             await _uow.SaveChangesAsync(ct);
+            tx.Complete();
             return ApiResponse<bool>.SuccessResponse(true, "Book archived.");
         }
         catch (DbUpdateConcurrencyException)
         {
             return ApiResponse<bool>.ErrorResponse("Book was modified. Reload and retry.", 409);
         }
+        catch (TransactionAbortedException)
+        {
+            return ApiResponse<bool>.ErrorResponse("Concurrent book archive was rejected.", 409);
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Book archive conflict for tenant {TenantId}", tenant);
+            return ApiResponse<bool>.ErrorResponse("Book archive conflicts with another transaction.", 409);
+        }
     }
+
+    private Task<bool> HasOutstandingIssueAsync(long tenant, long bookId, CancellationToken ct) =>
+        (from issue in _issues.GetQueryable().AsNoTracking()
+         join copy in _copies.GetQueryable().AsNoTracking() on issue.BookCopyId equals copy.Id
+         where issue.TenantId == tenant && copy.TenantId == tenant && copy.BookId == bookId &&
+             issue.State == BookIssueState.Issued
+         select issue.Id).AnyAsync(ct);
 
     public async Task<ApiResponse<BookIssueDto>> IssueAsync(IssueBookRequestDto request, CancellationToken ct = default)
     {
