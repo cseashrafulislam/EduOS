@@ -1,19 +1,14 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.SaaS;
-using EduOS.Core.Entities.Academic;
-using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.SaaS;
-using EduOS.Core.Entities.Students;
-using EduOS.Core.Enums;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
-using EduOS.Core.Settings;
 using EduOS.Service.Helpers.Subscription;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
+using System.Security.Cryptography;
 
 namespace EduOS.Service.Services.SaaS;
 
@@ -24,322 +19,299 @@ public sealed class SubscriptionService : ISubscriptionService
     private readonly ISubscriptionInvoiceRepository _invoices;
     private readonly IGenericRepository<SubscriptionInvoiceLine> _invoiceLines;
     private readonly IGenericRepository<Tenant> _tenants;
-    private readonly IGenericRepository<Student> _students;
-    private readonly IGenericRepository<Employee> _employees;
-    private readonly IGenericRepository<Campus> _campuses;
     private readonly IUnitOfWork _uow;
     private readonly ICurrentUserService _user;
-    private readonly ManualPaymentSettings _manual;
+    private readonly TimeProvider _clock;
     private readonly ILogger<SubscriptionService> _logger;
 
     public SubscriptionService(ITenantSubscriptionRepository subscriptions, ISubscriptionPlanRepository plans,
         ISubscriptionInvoiceRepository invoices, IGenericRepository<SubscriptionInvoiceLine> invoiceLines,
-        IGenericRepository<Tenant> tenants, IGenericRepository<Student> students,
-        IGenericRepository<Employee> employees, IGenericRepository<Campus> campuses,
-        IUnitOfWork unitOfWork, ICurrentUserService currentUser,
-        IOptions<ManualPaymentSettings> manual, ILogger<SubscriptionService> logger)
+        IGenericRepository<Tenant> tenants, IUnitOfWork uow, ICurrentUserService user,
+        TimeProvider clock, ILogger<SubscriptionService> logger)
     {
-        _subscriptions = subscriptions; _plans = plans; _invoices = invoices; _invoiceLines = invoiceLines;
-        _tenants = tenants; _students = students; _employees = employees; _campuses = campuses;
-        _uow = unitOfWork; _user = currentUser; _manual = manual.Value; _logger = logger;
+        _subscriptions = subscriptions;
+        _plans = plans;
+        _invoices = invoices;
+        _invoiceLines = invoiceLines;
+        _tenants = tenants;
+        _uow = uow;
+        _user = user;
+        _clock = clock;
+        _logger = logger;
     }
 
-    public async Task<ApiResponse<CreateSubscriptionResponseDto>> CreateAsync(CreateSubscriptionRequestDto request)
+    public async Task<ApiResponse<TenantSubscriptionDto>> StartAsync(StartSubscriptionRequestDto request, CancellationToken ct = default)
     {
-        if (!CanManage()) return ApiResponse<CreateSubscriptionResponseDto>.ErrorResponse("Tenant administrator access is required.", 403);
-        if (request == null || request.SubscriptionPlanId <= 0 || !Enum.IsDefined(request.BillingCycle))
-            return ApiResponse<CreateSubscriptionResponseDto>.ErrorResponse("Plan and billing cycle are required.");
-        if (!string.IsNullOrWhiteSpace(request.CouponCode))
-            return ApiResponse<CreateSubscriptionResponseDto>.ErrorResponse("Coupons are not supported.");
+        if (!CanManage()) return Denied<TenantSubscriptionDto>();
+        if (request == null || request.ClientRequestId == Guid.Empty || request.SubscriptionPlanId <= 0 ||
+            !SubscriptionCalculator.IsSupportedCycle(request.BillingCycleCode))
+            return Error<TenantSubscriptionDto>("A valid plan, billing cycle and client request ID are required.");
         var tenantId = _user.TenantId;
         try
         {
-            var strategy = _uow.CreateExecutionStrategy();
-            return await strategy.ExecuteAsync(async () =>
+            return await _uow.ExecuteInTransactionAsync(async token =>
             {
-                await _uow.BeginTransactionAsync();
-                var open = true;
-                try
+                var previous = await _subscriptions.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenantId && x.PublicId == request.ClientRequestId && !x.IsDeleted, token);
+                if (previous != null)
                 {
-                    var tenant = await _tenants.GetQueryable().FirstOrDefaultAsync(x => x.Id == tenantId && x.IsActive);
-                    if (tenant == null) return ApiResponse<CreateSubscriptionResponseDto>.ErrorResponse("Institution not found.", 404);
-                    if (!tenant.IsEmailVerified)
-                        return ApiResponse<CreateSubscriptionResponseDto>.ErrorResponse("Verify institution email before subscribing.", 409);
-                    var plan = await _plans.GetQueryable().AsNoTracking()
-                        .FirstOrDefaultAsync(x => x.Id == request.SubscriptionPlanId && x.IsActive && x.IsPublic);
-                    if (plan == null) return ApiResponse<CreateSubscriptionResponseDto>.ErrorResponse("Plan not available.", 404);
-                    var history = await _subscriptions.GetQueryable().AsNoTracking().Where(x =>
-                        x.TenantId == tenantId).Select(x => new { x.Id, x.State, x.EndsAt, x.IsTrial })
-                        .OrderByDescending(x => x.Id).Take(100).ToListAsync();
-                    if (history.Any(x => x.State == SubscriptionState.PendingPayment ||
-                        ((x.State == SubscriptionState.Active || x.State == SubscriptionState.Trial ||
-                          x.State == SubscriptionState.Grace) && x.EndsAt > DateTime.UtcNow)))
-                        return ApiResponse<CreateSubscriptionResponseDto>.ErrorResponse("A current or pending subscription already exists.", 409);
-
-                    var now = DateTime.UtcNow;
-                    var trial = plan.TrialDays > 0 && !history.Any(x => x.IsTrial);
-                    var amount = trial ? 0m : SubscriptionCalculator.GetPriceForCycle(plan, request.BillingCycle);
-                    if (amount < 0m) return ApiResponse<CreateSubscriptionResponseDto>.ErrorResponse("Plan price is invalid.", 409);
-                    var end = trial ? now.AddDays(plan.TrialDays) : SubscriptionCalculator.CalculateEndDate(now, request.BillingCycle);
-                    var state = trial ? SubscriptionState.Trial : amount == 0m ? SubscriptionState.Active : SubscriptionState.PendingPayment;
-                    var row = new TenantSubscription
-                    {
-                        TenantId = tenantId, SubscriptionPlanId = plan.Id,
-                        BillingCycleCode = request.BillingCycle.ToString(), State = state,
-                        IsTrial = trial, StartsAt = now, EndsAt = end,
-                        AutoRenew = request.AutoRenew, PriceSnapshot = amount,
-                        CurrencyCode = plan.CurrencyCode, CreatedAt = now, CreatedBy = _user.UserId
-                    };
-                    await _subscriptions.AddAsync(row);
-                    await _uow.SaveChangesAsync();
-
-                    SubscriptionInvoice? invoice = null;
-                    if (amount > 0m)
-                    {
-                        invoice = new SubscriptionInvoice
-                        {
-                            TenantId = tenantId, TenantSubscriptionId = row.Id,
-                            InvoiceNumber = await _invoices.GenerateNextInvoiceNumberAsync(),
-                            InvoiceDate = DateOnly.FromDateTime(now), DueDate = DateOnly.FromDateTime(now.AddDays(7)),
-                            Subtotal = amount, TaxAmount = 0m, TotalAmount = amount,
-                            PaidAmount = 0m, DueAmount = amount, CurrencyCode = plan.CurrencyCode,
-                            State = InvoiceState.Issued, CreatedAt = now, CreatedBy = _user.UserId
-                        };
-                        await _invoices.AddAsync(invoice);
-                        await _uow.SaveChangesAsync();
-                        await _invoiceLines.AddAsync(new SubscriptionInvoiceLine
-                        {
-                            TenantId = tenantId, SubscriptionInvoiceId = invoice.Id,
-                            Description = plan.Name + " / " + request.BillingCycle,
-                            Quantity = 1m, UnitPrice = amount, Amount = amount,
-                            CreatedAt = now, CreatedBy = _user.UserId
-                        });
-                        await _uow.SaveChangesAsync();
-                    }
-                    if (tenant.OnboardingStage == OnboardingStage.PlanSelection)
-                        tenant.OnboardingStage = state == SubscriptionState.PendingPayment
-                            ? OnboardingStage.Payment : OnboardingStage.CampusSetup;
-                    tenant.UpdatedAt = now; tenant.UpdatedBy = _user.UserId;
-                    await _uow.SaveChangesAsync();
-                    await _uow.CommitTransactionAsync(); open = false;
-                    var result = new CreateSubscriptionResponseDto
-                    {
-                        SubscriptionId = row.Id, InvoiceId = invoice?.Id,
-                        InvoiceNumber = invoice?.InvoiceNumber, Amount = amount,
-                        Currency = row.CurrencyCode, Status = LegacyState(row),
-                        IsTrialActivated = trial, TrialEndsAt = trial ? end : null,
-                        Message = trial ? "Trial subscription started." : amount == 0m
-                            ? "Free subscription activated." : "Invoice created. Payment is required for activation."
-                    };
-                    if (invoice != null)
-                        result.ManualPaymentInstructions = new ManualPaymentInstructionsDto
-                        {
-                            BankName = _manual.BankName, AccountName = _manual.AccountName,
-                            AccountNumber = _manual.AccountNumber, BranchName = _manual.BranchName,
-                            RoutingNumber = _manual.RoutingNumber,
-                            Reference = invoice.InvoiceNumber, Instructions = _manual.Instructions
-                        };
-                    return ApiResponse<CreateSubscriptionResponseDto>.SuccessResponse(result, result.Message);
+                    if (previous.SubscriptionPlanId != request.SubscriptionPlanId ||
+                        previous.BillingCycleCode != request.BillingCycleCode)
+                        return Error<TenantSubscriptionDto>("Client request ID was used with different subscription details.", 409);
+                    return ApiResponse<TenantSubscriptionDto>.SuccessResponse(await MapAsync(previous, token),
+                        "Subscription request already processed.");
                 }
-                finally
+                var tenant = await _tenants.GetQueryable().FirstOrDefaultAsync(x =>
+                    x.Id == tenantId && !x.IsDeleted && x.State != TenantState.Closed, token);
+                if (tenant == null) return Error<TenantSubscriptionDto>("Institution not found.", 404);
+                if (!tenant.EmailVerifiedAt.HasValue)
+                    return Error<TenantSubscriptionDto>("Verify institution email before starting subscription.", 409);
+                var plan = await _plans.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.Id == request.SubscriptionPlanId && x.IsActive && x.IsPublic && !x.IsDeleted, token);
+                if (plan == null) return Error<TenantSubscriptionDto>("Subscription plan not available.", 404);
+                var now = _clock.GetUtcNow().UtcDateTime;
+                var hasCurrent = await _subscriptions.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenantId && !x.IsDeleted &&
+                    (x.State == SubscriptionState.PendingPayment ||
+                     ((x.State == SubscriptionState.Trial || x.State == SubscriptionState.Active ||
+                       x.State == SubscriptionState.Grace) && x.EndsAt > now)), token);
+                if (hasCurrent)
+                    return Error<TenantSubscriptionDto>("A current or pending subscription already exists.", 409);
+                var hasTrial = await _subscriptions.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenantId && x.IsTrial && !x.IsDeleted, token);
+                var trial = request.StartTrialIfEligible && plan.TrialDays > 0 && !hasTrial;
+                var amount = trial ? 0m : SubscriptionCalculator.GetPriceForCycle(plan, request.BillingCycleCode);
+                if (amount < 0m) return Error<TenantSubscriptionDto>("Subscription plan price is invalid.", 409);
+                var state = trial ? SubscriptionState.Trial :
+                    amount == 0m ? SubscriptionState.Active : SubscriptionState.PendingPayment;
+                var row = new TenantSubscription
                 {
-                    if (open) await _uow.RollbackTransactionAsync();
+                    PublicId = request.ClientRequestId, TenantId = tenantId, SubscriptionPlanId = plan.Id,
+                    BillingCycleCode = request.BillingCycleCode, State = state, IsTrial = trial,
+                    StartsAt = now,
+                    EndsAt = trial ? now.AddDays(plan.TrialDays) :
+                        SubscriptionCalculator.CalculateEndDate(now, request.BillingCycleCode),
+                    AutoRenew = false, PriceSnapshot = amount, CurrencyCode = plan.CurrencyCode,
+                    CreatedAt = now, CreatedBy = _user.UserId
+                };
+                await _subscriptions.AddAsync(row);
+                await _uow.SaveChangesAsync(token);
+                if (amount > 0m)
+                {
+                    // Client request UUID is an immutable, concurrency-safe invoice suffix.
+                    var invoice = new SubscriptionInvoice
+                    {
+                        TenantId = tenantId, TenantSubscriptionId = row.Id,
+                        InvoiceNumber = "INV-" + now.ToString("yyyyMM") + "-" + request.ClientRequestId.ToString("N"),
+                        InvoiceDate = DateOnly.FromDateTime(now), DueDate = DateOnly.FromDateTime(now.AddDays(7)),
+                        Subtotal = amount, TaxAmount = 0m, TotalAmount = amount, PaidAmount = 0m,
+                        DueAmount = amount, CurrencyCode = plan.CurrencyCode, State = InvoiceState.Issued,
+                        CreatedAt = now, CreatedBy = _user.UserId
+                    };
+                    await _invoices.AddAsync(invoice);
+                    await _uow.SaveChangesAsync(token);
+                    await _invoiceLines.AddAsync(new SubscriptionInvoiceLine
+                    {
+                        TenantId = tenantId, SubscriptionInvoiceId = invoice.Id,
+                        Description = plan.Name + " / " + request.BillingCycleCode,
+                        Quantity = 1m, UnitPrice = amount, Amount = amount,
+                        CreatedAt = now, CreatedBy = _user.UserId
+                    });
+                    await _uow.SaveChangesAsync(token);
                 }
-            });
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            return ApiResponse<CreateSubscriptionResponseDto>.ErrorResponse("Subscription changed. Reload and retry.", 409);
+                if (tenant.OnboardingStage == OnboardingStage.PlanSelection)
+                    tenant.OnboardingStage = OnboardingStage.Payment;
+                tenant.UpdatedAt = now;
+                tenant.UpdatedBy = _user.UserId;
+                _tenants.Update(tenant);
+                await _uow.SaveChangesAsync(token);
+                return ApiResponse<TenantSubscriptionDto>.SuccessResponse(
+                    await MapAsync(row, token), trial ? "Trial subscription started." :
+                    amount == 0m ? "Subscription activated." : "Subscription invoice issued; payment required.");
+            }, ct);
         }
         catch (DbUpdateException ex)
         {
-            _logger.LogWarning(ex, "Subscription conflict for tenant {TenantId}", tenantId);
-            return ApiResponse<CreateSubscriptionResponseDto>.ErrorResponse("Subscription already exists or conflicts with another request.", 409);
+            _logger.LogWarning(ex, "Subscription write conflict for tenant {TenantId}", tenantId);
+            return Error<TenantSubscriptionDto>("Subscription conflicts with another request. Reload and retry.", 409);
         }
-        catch (Exception ex)
+        catch (DbUpdateConcurrencyException ex)
         {
-            _logger.LogError(ex, "Subscription creation failed for tenant {TenantId}", tenantId);
-            return ApiResponse<CreateSubscriptionResponseDto>.ErrorResponse("Could not create subscription.", 500);
+            _logger.LogWarning(ex, "Subscription concurrency conflict for tenant {TenantId}", tenantId);
+            return Error<TenantSubscriptionDto>("Subscription was changed. Reload and retry.", 409);
         }
     }
 
-    public async Task<ApiResponse<CurrentSubscriptionDto>> GetCurrentAsync()
+    public async Task<ApiResponse<TenantSubscriptionDto?>> GetCurrentAsync(CancellationToken ct = default)
     {
-        if (!CanRead()) return ApiResponse<CurrentSubscriptionDto>.ErrorResponse("Tenant access is required.", 403);
-        var tenantId = _user.TenantId;
+        if (!CanRead()) return Denied<TenantSubscriptionDto?>();
+        var now = _clock.GetUtcNow().UtcDateTime;
         var row = await _subscriptions.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && (x.State == SubscriptionState.Trial ||
-                x.State == SubscriptionState.Active || x.State == SubscriptionState.Grace ||
-                x.State == SubscriptionState.Suspended || x.State == SubscriptionState.PendingPayment))
-            .OrderByDescending(x => x.StartsAt).FirstOrDefaultAsync();
-        if (row == null) return ApiResponse<CurrentSubscriptionDto>.ErrorResponse("Subscription not found.", 404);
-        var plan = await _plans.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.Id == row.SubscriptionPlanId);
-        var now = DateTime.UtcNow;
-        var activeStudents = await _students.GetQueryable().AsNoTracking().CountAsync(x => x.TenantId == tenantId && x.IsActive);
-        var activeTeachers = await _employees.GetQueryable().AsNoTracking().CountAsync(x => x.TenantId == tenantId && x.CanTeach && x.State == EmployeeState.Active);
-        var campuses = await _campuses.GetQueryable().AsNoTracking().CountAsync(x => x.TenantId == tenantId && x.IsActive);
-        var effectiveState = row.EndsAt <= now ? SubscriptionStatus.Expired : LegacyState(row);
-        return ApiResponse<CurrentSubscriptionDto>.SuccessResponse(new CurrentSubscriptionDto
-        {
-            Id = row.Id, PlanId = row.SubscriptionPlanId, PlanName = plan?.Name ?? string.Empty,
-            PlanCode = plan?.Code ?? string.Empty,
-            BillingCycle = ParseBillingCycle(row.BillingCycleCode), Status = effectiveState,
-            StartDate = row.StartsAt, EndDate = row.EndsAt,
-            NextBillingDate = row.AutoRenew ? row.EndsAt : null,
-            IsTrial = row.IsTrial, TrialEndDate = row.IsTrial ? row.EndsAt : null,
-            TrialDaysRemaining = row.IsTrial ? Math.Max(0, (int)Math.Ceiling((row.EndsAt - now).TotalDays)) : null,
-            Price = row.PriceSnapshot, FinalAmount = row.PriceSnapshot, Currency = row.CurrencyCode,
-            AutoRenew = row.AutoRenew, CancelAtPeriodEnd = !row.AutoRenew &&
-                row.State is SubscriptionState.Active or SubscriptionState.Trial,
-            MaxStudents = plan?.MaxStudents ?? 0, CurrentStudents = activeStudents,
-            MaxTeachers = plan?.MaxEmployees ?? 0, CurrentTeachers = activeTeachers,
-            MaxCampuses = plan?.MaxCampuses ?? 0, CurrentCampuses = campuses,
-            DaysRemaining = Math.Max(0, (int)Math.Ceiling((row.EndsAt - now).TotalDays))
-        });
+            .Where(x => x.TenantId == _user.TenantId && !x.IsDeleted &&
+                (x.State == SubscriptionState.PendingPayment || x.State == SubscriptionState.Suspended ||
+                 x.State == SubscriptionState.Trial || x.State == SubscriptionState.Active ||
+                 x.State == SubscriptionState.Grace))
+            .OrderByDescending(x => x.StartsAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+        return ApiResponse<TenantSubscriptionDto?>.SuccessResponse(row == null ? null : await MapAsync(row, ct));
     }
 
-    public async Task<ApiResponse<List<SubscriptionHistoryDto>>> GetHistoryAsync()
+    public async Task<ApiResponse<PagedResult<TenantSubscriptionDto>>> GetHistoryAsync(int page, int pageSize,
+        CancellationToken ct = default)
     {
-        if (!CanRead()) return ApiResponse<List<SubscriptionHistoryDto>>.ErrorResponse("Tenant access is required.", 403);
-        var tenantId = _user.TenantId;
-        var rows = await _subscriptions.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId).OrderByDescending(x => x.StartsAt).Take(200).ToListAsync();
-        var ids = rows.Select(x => x.SubscriptionPlanId).Distinct().ToArray();
-        var plans = await _plans.GetQueryable().AsNoTracking().Where(x => ids.Contains(x.Id))
-            .ToDictionaryAsync(x => x.Id, x => x.Name);
-        return ApiResponse<List<SubscriptionHistoryDto>>.SuccessResponse(rows.Select(x =>
-            new SubscriptionHistoryDto
-            {
-                Id = x.Id, PlanName = plans.GetValueOrDefault(x.SubscriptionPlanId) ?? string.Empty,
-                BillingCycle = ParseBillingCycle(x.BillingCycleCode), Status = LegacyState(x),
-                StartDate = x.StartsAt, EndDate = x.EndsAt,
-                FinalAmount = x.PriceSnapshot, Currency = x.CurrencyCode
-            }).ToList());
+        if (!CanRead()) return Denied<PagedResult<TenantSubscriptionDto>>();
+        if (page < 1 || pageSize is < 1 or > 100)
+            return Error<PagedResult<TenantSubscriptionDto>>("Page must be positive and page size at most 100.");
+        var q = _subscriptions.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == _user.TenantId && !x.IsDeleted);
+        var total = await q.CountAsync(ct);
+        var skip = (long)(page - 1) * pageSize;
+        if (skip > int.MaxValue) return Error<PagedResult<TenantSubscriptionDto>>("Page exceeds result range.");
+        var rows = await q.OrderByDescending(x => x.StartsAt).ThenByDescending(x => x.Id)
+            .Skip((int)skip).Take(pageSize).ToListAsync(ct);
+        var planIds = rows.Select(x => x.SubscriptionPlanId).Distinct().ToArray();
+        var plans = await _plans.GetQueryable().AsNoTracking().Where(x => planIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, x => x.Name, ct);
+        var result = new PagedResult<TenantSubscriptionDto>
+        {
+            Page = page, PageSize = pageSize, TotalCount = total,
+            Items = rows.Select(x => Map(x, plans.GetValueOrDefault(x.SubscriptionPlanId))).ToList()
+        };
+        return ApiResponse<PagedResult<TenantSubscriptionDto>>.SuccessResponse(result);
     }
 
-    public async Task<ApiResponse<bool>> CancelAsync(long subscriptionId, string? reason, bool cancelAtPeriodEnd = true)
+    public async Task<ApiResponse<TenantSubscriptionDto>> CancelAsync(Guid subscriptionReference,
+        CancelSubscriptionRequestDto request, CancellationToken ct = default)
     {
-        if (!CanManage()) return ApiResponse<bool>.ErrorResponse("Tenant administrator access is required.", 403);
-        if (!string.IsNullOrWhiteSpace(reason))
-            return ApiResponse<bool>.ErrorResponse("Cancellation reasons are not persisted by the current subscription model.");
-        var tenantId = _user.TenantId;
-        try
+        if (!CanManage()) return Denied<TenantSubscriptionDto>();
+        if (subscriptionReference == Guid.Empty || request == null ||
+            !TryVersion(request.RowVersion, out var version))
+            return Error<TenantSubscriptionDto>("Subscription reference and row version are required.");
+        if (!string.IsNullOrWhiteSpace(request.Reason))
+            return Error<TenantSubscriptionDto>("Cancellation reason cannot be retained by the current subscription model.", 409);
+        return await ChangeAsync(subscriptionReference, version, row =>
         {
-            var row = await _subscriptions.GetQueryable().FirstOrDefaultAsync(x =>
-                x.TenantId == tenantId && x.Id == subscriptionId);
-            if (row == null) return ApiResponse<bool>.ErrorResponse("Subscription not found.", 404);
             if (row.State is SubscriptionState.Expired or SubscriptionState.Cancelled)
-                return ApiResponse<bool>.ErrorResponse("Subscription has already ended.", 409);
+                return "Subscription has already ended.";
             row.AutoRenew = false;
-            if (!cancelAtPeriodEnd)
+            if (!request.AtPeriodEnd)
             {
                 row.State = SubscriptionState.Cancelled;
-                row.CancelledAt = DateTime.UtcNow;
+                row.CancelledAt = _clock.GetUtcNow().UtcDateTime;
                 row.EndsAt = row.CancelledAt.Value;
             }
-            row.UpdatedAt = DateTime.UtcNow; row.UpdatedBy = _user.UserId;
-            await _uow.SaveChangesAsync();
-            return ApiResponse<bool>.SuccessResponse(true,
-                cancelAtPeriodEnd ? "Auto-renew disabled; subscription continues until period end." : "Subscription cancelled.");
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            return ApiResponse<bool>.ErrorResponse("Subscription changed. Reload and retry.", 409);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Subscription cancellation failed for tenant {TenantId}", tenantId);
-            return ApiResponse<bool>.ErrorResponse("Cancellation failed.", 500);
-        }
+            return null;
+        }, ct);
     }
 
-    public async Task<ApiResponse<bool>> ToggleAutoRenewAsync(long subscriptionId, bool autoRenew)
+    public async Task<ApiResponse<TenantSubscriptionDto>> SetAutoRenewAsync(Guid subscriptionReference,
+        UpdateSubscriptionAutoRenewRequestDto request, CancellationToken ct = default)
     {
-        if (!CanManage()) return ApiResponse<bool>.ErrorResponse("Tenant administrator access is required.", 403);
-        var tenantId = _user.TenantId;
+        if (!CanManage()) return Denied<TenantSubscriptionDto>();
+        if (subscriptionReference == Guid.Empty || request == null ||
+            !TryVersion(request.RowVersion, out var version))
+            return Error<TenantSubscriptionDto>("Subscription reference and row version are required.");
+        return await ChangeAsync(subscriptionReference, version, row =>
+        {
+            if (row.State is not (SubscriptionState.Active or SubscriptionState.Trial or SubscriptionState.Grace) ||
+                row.EndsAt <= _clock.GetUtcNow().UtcDateTime)
+                return "Auto-renew cannot be changed for this subscription.";
+            row.AutoRenew = request.AutoRenew;
+            return null;
+        }, ct);
+    }
+
+    private async Task<ApiResponse<TenantSubscriptionDto>> ChangeAsync(Guid reference, byte[] version,
+        Func<TenantSubscription, string?> apply, CancellationToken ct)
+    {
         try
         {
             var row = await _subscriptions.GetQueryable().FirstOrDefaultAsync(x =>
-                x.TenantId == tenantId && x.Id == subscriptionId);
-            if (row == null) return ApiResponse<bool>.ErrorResponse("Subscription not found.", 404);
-            if (row.State is SubscriptionState.Cancelled or SubscriptionState.Expired or SubscriptionState.Suspended or SubscriptionState.PendingPayment)
-                return ApiResponse<bool>.ErrorResponse("Auto-renew cannot be changed for this subscription.", 409);
-            row.AutoRenew = autoRenew; row.UpdatedAt = DateTime.UtcNow; row.UpdatedBy = _user.UserId;
-            await _uow.SaveChangesAsync();
-            return ApiResponse<bool>.SuccessResponse(true, autoRenew ? "Auto-renew enabled." : "Auto-renew disabled.");
-        }
-        catch (DbUpdateConcurrencyException) { return ApiResponse<bool>.ErrorResponse("Subscription changed. Reload and retry.", 409); }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Auto-renew update failed for tenant {TenantId}", tenantId);
-            return ApiResponse<bool>.ErrorResponse("Could not update auto-renew.", 500);
-        }
-    }
-
-    public async Task<ApiResponse<bool>> ActivateAfterPaymentAsync(long subscriptionId, long tenantId)
-    {
-        if (subscriptionId <= 0 || tenantId <= 0) return ApiResponse<bool>.ErrorResponse("Subscription reference is invalid.");
-        try
-        {
-            var row = await _subscriptions.GetByIdForSystemAsync(subscriptionId, tenantId);
-            if (row == null) return ApiResponse<bool>.ErrorResponse("Subscription not found.", 404);
-            if (row.State == SubscriptionState.Active) return ApiResponse<bool>.SuccessResponse(true, "Subscription already active.");
-            if (row.State is SubscriptionState.Cancelled or SubscriptionState.Expired)
-                return ApiResponse<bool>.ErrorResponse("Ended subscription cannot be activated.", 409);
-            var settled = await _invoices.HasFullyPaidInvoiceForSubscriptionAsync(tenantId, subscriptionId);
-            if (!settled) return ApiResponse<bool>.ErrorResponse("Payment has not been fully settled.", 409);
-            row.State = SubscriptionState.Active;
-            row.IsTrial = false;
-            row.UpdatedAt = DateTime.UtcNow;
+                x.TenantId == _user.TenantId && x.PublicId == reference && !x.IsDeleted, ct);
+            if (row == null) return Error<TenantSubscriptionDto>("Subscription not found.", 404);
+            if (row.RowVersion.Length != version.Length ||
+                !CryptographicOperations.FixedTimeEquals(row.RowVersion, version))
+                return Error<TenantSubscriptionDto>("Subscription has changed. Reload and retry.", 409);
+            var reason = apply(row);
+            if (reason != null) return Error<TenantSubscriptionDto>(reason, 409);
+            row.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
+            row.UpdatedBy = _user.UserId;
             _subscriptions.Update(row);
-            await _uow.SaveChangesAsync();
-            return ApiResponse<bool>.SuccessResponse(true, "Subscription activated.");
+            await _uow.SaveChangesAsync(ct);
+            return ApiResponse<TenantSubscriptionDto>.SuccessResponse(await MapAsync(row, ct));
         }
         catch (DbUpdateConcurrencyException)
         {
-            return ApiResponse<bool>.ErrorResponse("Subscription changed while payment was being posted.", 409);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Activation failure for tenant {TenantId} subscription {Id}", tenantId, subscriptionId);
-            return ApiResponse<bool>.ErrorResponse("Subscription could not be activated.", 500);
+            return Error<TenantSubscriptionDto>("Subscription changed concurrently.", 409);
         }
     }
 
-    public async Task<ApiResponse<bool>> CheckExpiryAsync(long tenantId)
+    public async Task<ApiResponse<bool>> ActivateAfterPaymentAsync(long subscriptionId, long tenantId,
+        CancellationToken ct = default)
     {
-        if (tenantId <= 0) return ApiResponse<bool>.ErrorResponse("Tenant reference is invalid.");
+        if (subscriptionId <= 0 || tenantId <= 0) return Error<bool>("Subscription reference is invalid.");
         try
         {
-            var row = await _subscriptions.GetActiveByTenantAsync(tenantId);
-            if (row == null || row.EndsAt > DateTime.UtcNow) return ApiResponse<bool>.SuccessResponse(true);
-            row.State = SubscriptionState.Expired;
-            row.UpdatedAt = DateTime.UtcNow;
+            var paid = await _invoices.HasFullyPaidInvoiceForSubscriptionAsync(tenantId, subscriptionId, ct);
+            if (!paid) return Error<bool>("Subscription invoice is not fully settled.", 409);
+            var row = await _subscriptions.GetQueryable().FirstOrDefaultAsync(x =>
+                x.Id == subscriptionId && x.TenantId == tenantId && !x.IsDeleted, ct);
+            if (row == null) return Error<bool>("Subscription not found.", 404);
+            if (row.State == SubscriptionState.Active) return ApiResponse<bool>.SuccessResponse(true);
+            if (row.State != SubscriptionState.PendingPayment)
+                return Error<bool>("Subscription cannot be activated from its current state.", 409);
+            row.State = SubscriptionState.Active;
+            row.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
             _subscriptions.Update(row);
-            await _uow.SaveChangesAsync();
-            return ApiResponse<bool>.SuccessResponse(true, "Subscription expired.");
+            await _uow.SaveChangesAsync(ct);
+            return ApiResponse<bool>.SuccessResponse(true);
         }
-        catch (DbUpdateConcurrencyException) { return ApiResponse<bool>.SuccessResponse(true, "Subscription changed concurrently."); }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Subscription expiry processing failed for tenant {TenantId}", tenantId);
-            return ApiResponse<bool>.ErrorResponse("Expiry check failed.", 500);
-        }
+        catch (DbUpdateConcurrencyException) { return Error<bool>("Subscription changed concurrently.", 409); }
     }
 
-    private static BillingCycle ParseBillingCycle(string value) =>
-        Enum.TryParse<BillingCycle>(value, true, out var result) && Enum.IsDefined(result) ? result : BillingCycle.Monthly;
-    private static SubscriptionStatus LegacyState(TenantSubscription x) => x.State switch
+    public async Task<ApiResponse<bool>> CheckExpiryAsync(long tenantId, CancellationToken ct = default)
     {
-        SubscriptionState.Trial => SubscriptionStatus.Trialing,
-        SubscriptionState.Active => !x.AutoRenew ? SubscriptionStatus.CancelAtPeriodEnd : SubscriptionStatus.Active,
-        SubscriptionState.Grace => SubscriptionStatus.PastDue,
-        SubscriptionState.PendingPayment => SubscriptionStatus.PendingPayment,
-        SubscriptionState.Suspended => SubscriptionStatus.PastDue,
-        SubscriptionState.Cancelled => SubscriptionStatus.Cancelled,
-        SubscriptionState.Expired => SubscriptionStatus.Expired,
-        _ => SubscriptionStatus.PendingPayment
+        if (tenantId <= 0) return Error<bool>("Tenant reference is invalid.");
+        var now = _clock.GetUtcNow().UtcDateTime;
+        var row = await _subscriptions.GetQueryable().FirstOrDefaultAsync(x =>
+            x.TenantId == tenantId && !x.IsDeleted && x.EndsAt <= now &&
+            (x.State == SubscriptionState.Trial || x.State == SubscriptionState.Active ||
+             x.State == SubscriptionState.Grace), ct);
+        if (row == null) return ApiResponse<bool>.SuccessResponse(true);
+        row.State = SubscriptionState.Expired;
+        row.UpdatedAt = now;
+        _subscriptions.Update(row);
+        try { await _uow.SaveChangesAsync(ct); }
+        catch (DbUpdateConcurrencyException) { return Error<bool>("Subscription changed concurrently.", 409); }
+        return ApiResponse<bool>.SuccessResponse(true, "Subscription expired.");
+    }
+
+    private async Task<TenantSubscriptionDto> MapAsync(TenantSubscription row, CancellationToken ct)
+    {
+        var name = await _plans.GetQueryable().AsNoTracking().Where(x => x.Id == row.SubscriptionPlanId)
+            .Select(x => x.Name).FirstOrDefaultAsync(ct);
+        return Map(row, name);
+    }
+
+    private static TenantSubscriptionDto Map(TenantSubscription row, string? planName) => new()
+    {
+        Id = row.Id, Reference = row.PublicId, SubscriptionPlanId = row.SubscriptionPlanId,
+        BillingCycleCode = row.BillingCycleCode, PlanName = planName ?? string.Empty,
+        State = row.State, IsTrial = row.IsTrial, PriceSnapshot = row.PriceSnapshot,
+        CurrencyCode = row.CurrencyCode, StartsAt = row.StartsAt, EndsAt = row.EndsAt,
+        CancelledAt = row.CancelledAt, AutoRenew = row.AutoRenew,
+        RowVersion = Convert.ToBase64String(row.RowVersion)
     };
+
+    private static bool TryVersion(string? value, out byte[] result)
+    {
+        result = [];
+        if (string.IsNullOrWhiteSpace(value)) return false;
+        try { result = Convert.FromBase64String(value); return result.Length > 0; }
+        catch (FormatException) { return false; }
+    }
+
     private bool CanRead() => _user.IsAuthenticated && _user.TenantId > 0;
     private bool CanManage() => CanRead() && _user.IsTenantAdmin;
+    private static ApiResponse<T> Denied<T>() => Error<T>("Tenant administrator access is required.", 403);
+    private static ApiResponse<T> Error<T>(string message, int status = 400) => ApiResponse<T>.ErrorResponse(message, status);
 }
