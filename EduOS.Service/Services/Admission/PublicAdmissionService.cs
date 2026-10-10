@@ -124,7 +124,7 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
         var forms = await GetFormsAsync(tenantKey, ct);
         return ApiResponse<AdmissionApplicationOptionsDto>.SuccessResponse(new AdmissionApplicationOptionsDto
         {
-            AcademicYears = years, AcademicTerms = terms, Campuses = campuses, AcademicUnits = levels,
+            AcademicYears = years, AcademicTerms = terms, Campuses = campuses, AcademicLevels = levels,
             OpenForms = forms.Success && forms.Data != null ? forms.Data.ToList() : new List<PublicAdmissionIntakeFormDto>()
         });
     }
