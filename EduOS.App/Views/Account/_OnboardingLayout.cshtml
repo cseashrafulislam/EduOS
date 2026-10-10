@@ -102,6 +102,8 @@
             return paths[Number(stage) - 1] || '/Account/InstitutionProfile';
         }
 
+        window.eduosOnboardingStageUrl = stageUrl;
+
         function createStepLink(step) {
             const text = localizeStep(step);
             const link = document.createElement('a');
