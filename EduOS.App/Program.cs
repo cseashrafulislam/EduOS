@@ -1,3 +1,4 @@
+using EduOS.App.Hubs;
 using EduOS.App.Extensions;
 using EduOS.App.Filters;
 using EduOS.App.Health;
@@ -156,6 +157,7 @@ builder.Services.Configure<RequestLocalizationOptions>(
 
 builder.Services.AddRazorPages();
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddSignalR(options => options.MaximumReceiveMessageSize = 8 * 1024);
 
 var dataProtection =
     builder.Services
@@ -413,6 +415,9 @@ app.MapControllerRoute(
         "{controller=Account}/{action=Login}/{id?}");
 
 app.MapRazorPages();
+
+// Tenant-context middleware and authorization run before the real-time endpoint.
+app.MapHub<NotificationHub>("/hubs/notifications").RequireAuthorization();
 
 // =============================================================================
 // 15. RECURRING JOBS
