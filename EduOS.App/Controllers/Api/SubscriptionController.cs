@@ -4,118 +4,82 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
-namespace EduOS.App.Controllers.Api
+namespace EduOS.App.Controllers.Api;
+
+[Authorize(Roles = "TenantAdmin")]
+[AutoValidateAntiforgeryToken]
+[ApiController]
+[Route("api/subscription")]
+public sealed class SubscriptionController : ControllerBase
 {
-    /// <summary>
-    /// Tenant subscription management.
-    /// Requires authenticated user with tenant context.
-    /// </summary>
-    [Authorize(Roles = "TenantAdmin")]
-    [AutoValidateAntiforgeryToken]
-    [ApiController]
-    [Route("api/subscription")]
-    public class SubscriptionController : ControllerBase
+    private readonly ISubscriptionService _subscriptions;
+    private readonly ISubscriptionInvoiceService _invoices;
+
+    public SubscriptionController(ISubscriptionService subscriptions, ISubscriptionInvoiceService invoices)
     {
-        private readonly ISubscriptionService _subscriptionService;
-        private readonly ISubscriptionInvoiceService _invoiceService;
-
-        public SubscriptionController(
-            ISubscriptionService subscriptionService,
-            ISubscriptionInvoiceService invoiceService)
-        {
-            _subscriptionService = subscriptionService;
-            _invoiceService = invoiceService;
-        }
-
-        /// <summary>
-        /// Subscribe to a plan (creates subscription + invoice)
-        /// </summary>
-        [HttpPost]
-        [EnableRateLimiting("ApiPolicy")]
-        public async Task<IActionResult> Create([FromBody] CreateSubscriptionRequestDto dto)
-        {
-            if (dto == null || dto.SubscriptionPlanId <= 0)
-                return BadRequest(new { success = false, message = "Plan is required" });
-
-            var result = await _subscriptionService.CreateAsync(dto);
-            return StatusCode(result.StatusCode, result);
-        }
-
-        /// <summary>
-        /// Get current active subscription for the tenant
-        /// </summary>
-        [HttpGet("current")]
-        public async Task<IActionResult> GetCurrent()
-        {
-            var result = await _subscriptionService.GetCurrentAsync();
-            return StatusCode(result.StatusCode, result);
-        }
-
-        /// <summary>
-        /// Full subscription history
-        /// </summary>
-        [HttpGet("history")]
-        public async Task<IActionResult> GetHistory()
-        {
-            var result = await _subscriptionService.GetHistoryAsync();
-            return StatusCode(result.StatusCode, result);
-        }
-
-        /// <summary>
-        /// Cancel subscription
-        /// </summary>
-        [HttpPost("{id:long}/cancel")]
-        [EnableRateLimiting("ApiPolicy")]
-        public async Task<IActionResult> Cancel(long id, [FromBody] CancelSubscriptionDto dto)
-        {
-            var result = await _subscriptionService.CancelAsync(
-                id, dto?.Reason, dto?.CancelAtPeriodEnd ?? true);
-            return StatusCode(result.StatusCode, result);
-        }
-
-        /// <summary>
-        /// Toggle auto-renew
-        /// </summary>
-        [HttpPost("{id:long}/auto-renew")]
-        [EnableRateLimiting("ApiPolicy")]
-        public async Task<IActionResult> ToggleAutoRenew(long id, [FromBody] ToggleAutoRenewDto dto)
-        {
-            var result = await _subscriptionService.ToggleAutoRenewAsync(id, dto.AutoRenew);
-            return StatusCode(result.StatusCode, result);
-        }
-
-        // ==================== Invoices ====================
-
-        [HttpGet("invoices")]
-        public async Task<IActionResult> GetInvoices()
-        {
-            var result = await _invoiceService.GetMyInvoicesAsync();
-            return StatusCode(result.StatusCode, result);
-        }
-
-        [HttpGet("invoices/unpaid")]
-        public async Task<IActionResult> GetUnpaidInvoices()
-        {
-            var result = await _invoiceService.GetUnpaidAsync();
-            return StatusCode(result.StatusCode, result);
-        }
-
-        [HttpGet("invoices/{id:long}")]
-        public async Task<IActionResult> GetInvoice(long id)
-        {
-            var result = await _invoiceService.GetByIdAsync(id);
-            return StatusCode(result.StatusCode, result);
-        }
+        _subscriptions = subscriptions;
+        _invoices = invoices;
     }
 
-    public class CancelSubscriptionDto
+    [HttpPost]
+    [EnableRateLimiting("ApiPolicy")]
+    public async Task<IActionResult> Create([FromBody] StartSubscriptionRequestDto request, CancellationToken ct)
     {
-        public string? Reason { get; set; }
-        public bool CancelAtPeriodEnd { get; set; } = true;
+        var response = await _subscriptions.StartAsync(request, ct);
+        return StatusCode(response.StatusCode, response);
     }
 
-    public class ToggleAutoRenewDto
+    [HttpGet("current")]
+    public async Task<IActionResult> GetCurrent(CancellationToken ct)
     {
-        public bool AutoRenew { get; set; }
+        var response = await _subscriptions.GetCurrentAsync(ct);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpGet("history")]
+    public async Task<IActionResult> GetHistory([FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        CancellationToken ct = default)
+    {
+        var response = await _subscriptions.GetHistoryAsync(page, pageSize, ct);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpPost("{subscriptionReference:guid}/cancel")]
+    [EnableRateLimiting("ApiPolicy")]
+    public async Task<IActionResult> Cancel(Guid subscriptionReference,
+        [FromBody] CancelSubscriptionRequestDto request, CancellationToken ct)
+    {
+        var response = await _subscriptions.CancelAsync(subscriptionReference, request, ct);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpPost("{subscriptionReference:guid}/auto-renew")]
+    [EnableRateLimiting("ApiPolicy")]
+    public async Task<IActionResult> SetAutoRenew(Guid subscriptionReference,
+        [FromBody] UpdateSubscriptionAutoRenewRequestDto request, CancellationToken ct)
+    {
+        var response = await _subscriptions.SetAutoRenewAsync(subscriptionReference, request, ct);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpGet("invoices")]
+    public async Task<IActionResult> GetInvoices()
+    {
+        var response = await _invoices.GetMyInvoicesAsync();
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpGet("invoices/unpaid")]
+    public async Task<IActionResult> GetUnpaidInvoices()
+    {
+        var response = await _invoices.GetUnpaidAsync();
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpGet("invoices/{id:long}")]
+    public async Task<IActionResult> GetInvoice(long id)
+    {
+        var response = await _invoices.GetByIdAsync(id);
+        return StatusCode(response.StatusCode, response);
     }
 }
