@@ -37,6 +37,10 @@ public sealed class FeeOptionDto
     public string Name { get; set; } = string.Empty;
     public long? AcademicYearId { get; set; }
     public long? AcademicLevelId { get; set; }
+    public long? CampusId { get; set; }
+    public long? AcademicBatchId { get; set; }
+    public DateOnly? EffectiveFrom { get; set; }
+    public DateOnly? EffectiveTo { get; set; }
 }
 
 public sealed class FeeBillingOptionsDto
@@ -45,6 +49,8 @@ public sealed class FeeBillingOptionsDto
     public IReadOnlyList<FeeOptionDto> AcademicLevels { get; set; } = Array.Empty<FeeOptionDto>();
     public IReadOnlyList<FeeOptionDto> AcademicBatches { get; set; } = Array.Empty<FeeOptionDto>();
     public IReadOnlyList<FeeOptionDto> FeeHeads { get; set; } = Array.Empty<FeeOptionDto>();
+    public IReadOnlyList<FeeOptionDto> Campuses { get; set; } = Array.Empty<FeeOptionDto>();
+    public IReadOnlyList<FeeOptionDto> FeeStructures { get; set; } = Array.Empty<FeeOptionDto>();
 }
 
 public sealed class FeeStudentOptionDto
