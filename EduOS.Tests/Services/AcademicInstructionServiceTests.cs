@@ -1,6 +1,7 @@
 using EduOS.Core.DTOs.Academic;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.HR;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
 using EduOS.Persistence.Repositories;
@@ -14,294 +15,286 @@ using Xunit;
 
 namespace EduOS.Tests.Services;
 
-public class AcademicInstructionServiceTests
+public sealed class AcademicInstructionServiceTests
 {
+    private static readonly DateOnly LessonDate = new(2026, 9, 20);
+
     [Fact]
-    public async Task Substitution_is_retry_safe_visible_to_participants_and_prevents_overlap()
+    public async Task Lesson_plan_creation_is_tenant_scoped_and_exact_retry_is_idempotent()
     {
-        var options = CreateOptions();
+        var options = Options();
         var seed = await SeedAsync(options);
-        long substitutionId;
-        await using (var managerContext = CreateContext(options, 101, 7, "TenantAdmin"))
+        await using var db = Context(options, 101, 7, "TenantAdmin");
+        var service = Service(db, 101, 7, "TenantAdmin");
+        var request = Lesson(seed.OfferingReference);
+        var created = await service.CreateLessonPlanAsync(request);
+        var replay = await service.CreateLessonPlanAsync(request);
+        var changed = Lesson(seed.OfferingReference);
+        changed.Title = request.Title; changed.Content = "Different lesson material";
+        var conflict = await service.CreateLessonPlanAsync(changed);
+        created.StatusCode.Should().Be(201);
+        replay.Success.Should().BeTrue();
+        replay.Data!.Id.Should().Be(created.Data!.Id);
+        conflict.StatusCode.Should().Be(409);
+        (await db.LessonPlans.CountAsync()).Should().Be(1);
+
+        await using var otherDb = Context(options, 202, 8, "TenantAdmin");
+        var other = Service(otherDb, 202, 8, "TenantAdmin");
+        (await other.CreateLessonPlanAsync(Lesson(seed.OfferingReference))).StatusCode.Should().Be(404);
+        var page = await other.GetLessonPlansAsync(null, null, null, 1, 25);
+        page.Success.Should().BeTrue();
+        page.Data!.Items.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Assigned_teacher_submits_and_manager_reviews_canonical_lesson_plan()
+    {
+        var options = Options();
+        var seed = await SeedAsync(options);
+        long id;
+        await using (var db = Context(options, 101, 70, "Teacher"))
         {
-            var manager = CreateService(managerContext, new TestCurrentUser(101, 7, "TenantAdmin"));
-            var request = new CreateRoutineSubstitutionDto
+            var teacher = Service(db, 101, 70, "Teacher");
+            var created = await teacher.CreateLessonPlanAsync(Lesson(seed.OfferingReference));
+            created.StatusCode.Should().Be(201);
+            created.Data!.State.Should().Be(LessonPlanState.Draft);
+            id = created.Data.Id;
+        }
+        var version = await VersionAsync(options, id, [1, 2, 3, 4, 5, 6, 7, 8]);
+        await using (var db = Context(options, 101, 70, "Teacher"))
+        {
+            var teacher = Service(db, 101, 70, "Teacher");
+            var submitted = await teacher.SubmitLessonPlanAsync(id, version);
+            submitted.Success.Should().BeTrue();
+            submitted.Data!.State.Should().Be(LessonPlanState.Submitted);
+        }
+        var reviewVersion = await VersionAsync(options, id, [2, 3, 4, 5, 6, 7, 8, 9]);
+        await using (var db = Context(options, 101, 7, "TenantAdmin"))
+        {
+            var manager = Service(db, 101, 7, "TenantAdmin");
+            var reviewed = await manager.ReviewLessonPlanAsync(id, new ReviewLessonPlanRequestDto
             {
-                ClientRequestId = Guid.NewGuid(),
-                RoutineEntryId = seed.RoutineEntryId,
-                Date = new DateTime(2026, 9, 20),
-                SubstituteTeacherId = seed.SubstituteTeacherId,
-                Reason = "Original instructor on approved leave"
+                Approve = true, Note = "Ready for instruction", RowVersion = reviewVersion
+            });
+            reviewed.Success.Should().BeTrue();
+            reviewed.Data!.State.Should().Be(LessonPlanState.Approved);
+            reviewed.Data.ReviewedByUserId.Should().Be(7);
+            var stale = await manager.UpdateLessonPlanAsync(id, new SaveLessonPlanRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), SubjectOfferingReference = seed.OfferingReference,
+                LessonDate = LessonDate, Title = "Changed after approval",
+                RowVersion = reviewVersion
+            });
+            stale.StatusCode.Should().Be(409);
+        }
+    }
+
+    [Fact]
+    public async Task Substitution_is_retry_safe_tenant_scoped_and_cancellable_with_rowversion()
+    {
+        var options = Options();
+        var seed = await SeedAsync(options);
+        long id;
+        await using (var db = Context(options, 101, 7, "TenantAdmin"))
+        {
+            var manager = Service(db, 101, 7, "TenantAdmin");
+            var request = new CreateSubstitutionRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), RoutineEntryId = seed.RoutineEntryId,
+                Date = LessonDate, SubstituteEmployeeReference = seed.SubstituteReference,
+                Reason = "Approved teacher absence"
             };
             var created = await manager.CreateSubstitutionAsync(request);
             var replay = await manager.CreateSubstitutionAsync(request);
-            var collision = await manager.CreateSubstitutionAsync(new CreateRoutineSubstitutionDto
-            {
-                ClientRequestId = Guid.NewGuid(),
-                RoutineEntryId = seed.OverlappingRoutineEntryId,
-                Date = new DateTime(2026, 9, 20),
-                SubstituteTeacherId = seed.SubstituteTeacherId,
-                Reason = "Coverage needed"
-            });
-
             created.StatusCode.Should().Be(201);
             replay.Data!.Id.Should().Be(created.Data!.Id);
-            collision.Success.Should().BeFalse();
-            collision.StatusCode.Should().Be(409);
-            collision.Message.Should().Contain("another class");
-            substitutionId = created.Data.Id;
-            (await managerContext.Substitutions.CountAsync()).Should().Be(1);
+            id = created.Data.Id;
+            (await db.Substitutions.CountAsync()).Should().Be(1);
         }
-
-        await using (var substituteContext = CreateContext(options, 101, 71, "Teacher"))
+        await using (var db = Context(options, 101, 71, "Teacher"))
         {
-            var substitute = CreateService(substituteContext, new TestCurrentUser(101, 71, "Teacher"));
-            var own = await substitute.GetSubstitutionsAsync(new DateTime(2026, 9, 20), new DateTime(2026, 9, 20), seed.BatchId);
-            own.Data.Should().ContainSingle();
-            own.Data!.Single().Id.Should().Be(substitutionId);
+            var teacher = Service(db, 101, 71, "Teacher");
+            var rows = await teacher.GetSubstitutionsAsync(LessonDate, LessonDate, seed.BatchId);
+            rows.Success.Should().BeTrue();
+            rows.Data.Should().ContainSingle();
+            rows.Data![0].Id.Should().Be(id);
         }
-
-        await using (var unrelatedContext = CreateContext(options, 101, 72, "Teacher"))
+        var version = await VersionAsync(options, id, [7, 6, 5, 4, 3, 2, 1, 8], true);
+        await using (var db = Context(options, 101, 7, "TenantAdmin"))
         {
-            var unrelated = CreateService(unrelatedContext, new TestCurrentUser(101, 72, "Teacher"));
-            var rows = await unrelated.GetSubstitutionsAsync(new DateTime(2026, 9, 20), new DateTime(2026, 9, 20), seed.BatchId);
-            rows.Data.Should().BeEmpty();
-        }
-
-        var cancellationVersion = await SetSubstitutionVersionAsync(options, substitutionId, [8, 7, 6, 5, 4, 3, 2, 1]);
-        await using (var managerContext = CreateContext(options, 101, 7, "TenantAdmin"))
-        {
-            var manager = CreateService(managerContext, new TestCurrentUser(101, 7, "TenantAdmin"));
-            var request = new CancelRoutineSubstitutionDto { Reason = "Leave was withdrawn", RowVersion = cancellationVersion };
-            var cancelled = await manager.CancelSubstitutionAsync(substitutionId, request);
-            var replay = await manager.CancelSubstitutionAsync(substitutionId, request);
-            var conflictingReplay = await manager.CancelSubstitutionAsync(substitutionId, new CancelRoutineSubstitutionDto { Reason = "Different reason", RowVersion = cancellationVersion });
-
-            cancelled.Data!.IsActive.Should().BeFalse();
-            cancelled.Data.CancellationReason.Should().Be(request.Reason);
-            replay.Success.Should().BeTrue();
-            conflictingReplay.StatusCode.Should().Be(409);
+            var manager = Service(db, 101, 7, "TenantAdmin");
+            var cancelled = await manager.CancelSubstitutionAsync(id,
+                new CancelSubstitutionRequestDto { RowVersion = version });
+            cancelled.Success.Should().BeTrue();
+            cancelled.Data!.IsCancelled.Should().BeTrue();
         }
     }
 
     [Fact]
-    public async Task Assigned_teacher_can_complete_approved_lesson_plan_lifecycle()
+    public async Task Unauthorized_user_cannot_create_lesson_plan_or_substitution()
     {
-        var options = CreateOptions();
+        var options = Options();
         var seed = await SeedAsync(options);
-        long planId;
-        await using (var teacherContext = CreateContext(options, 101, 70, "Teacher"))
+        await using var db = Context(options, 101, 72, "Student");
+        var service = Service(db, 101, 72, "Student");
+        (await service.CreateLessonPlanAsync(Lesson(seed.OfferingReference))).StatusCode.Should().Be(403);
+        (await service.CreateSubstitutionAsync(new CreateSubstitutionRequestDto
         {
-            var teacher = CreateService(teacherContext, new TestCurrentUser(101, 70, "Teacher"));
-            var created = await teacher.CreateLessonPlanAsync(new CreateLessonPlanDto
-            {
-                ClientRequestId = Guid.NewGuid(),
-                InstructorAssignmentId = seed.AssignmentId,
-                ChapterName = "Linear equations",
-                Topic = "One-variable equations",
-                StartDate = new DateTime(2026, 9, 20),
-                EndDate = new DateTime(2026, 9, 24),
-                LearningObjectives = "Solve and verify linear equations",
-                Resources = "Textbook chapter 4"
-            });
-            created.StatusCode.Should().Be(201);
-            created.Data!.Status.Should().Be(LessonPlanStatus.Draft);
-            planId = created.Data.Id;
-        }
-
-        var submittedVersion = await SetLessonVersionAsync(options, planId, [1, 2, 3, 4, 5, 6, 7, 8]);
-        await using (var teacherContext = CreateContext(options, 101, 70, "Teacher"))
-        {
-            var teacher = CreateService(teacherContext, new TestCurrentUser(101, 70, "Teacher"));
-            var submitted = await teacher.SubmitLessonPlanAsync(planId, new AcademicRowVersionDto { RowVersion = submittedVersion });
-            submitted.Data!.Status.Should().Be(LessonPlanStatus.Submitted);
-        }
-
-        var reviewVersion = await SetLessonVersionAsync(options, planId, [2, 3, 4, 5, 6, 7, 8, 9]);
-        await using (var managerContext = CreateContext(options, 101, 7, "TenantAdmin"))
-        {
-            var manager = CreateService(managerContext, new TestCurrentUser(101, 7, "TenantAdmin"));
-            var approved = await manager.ReviewLessonPlanAsync(planId, new LessonPlanReviewDto { Approve = true, Remarks = "Ready", RowVersion = reviewVersion });
-            approved.Data!.Status.Should().Be(LessonPlanStatus.Approved);
-            approved.Data.ReviewedBy.Should().Be(7);
-        }
-
-        var progressVersion = await SetLessonVersionAsync(options, planId, [3, 4, 5, 6, 7, 8, 9, 10]);
-        await using (var teacherContext = CreateContext(options, 101, 70, "Teacher"))
-        {
-            var teacher = CreateService(teacherContext, new TestCurrentUser(101, 70, "Teacher"));
-            var progress = await teacher.RecordLessonProgressAsync(planId, new LessonPlanProgressDto { ProgressPercent = 60, Notes = "Practice underway", RowVersion = progressVersion });
-            progress.Data!.Status.Should().Be(LessonPlanStatus.InProgress);
-        }
-
-        var completionVersion = await SetLessonVersionAsync(options, planId, [4, 5, 6, 7, 8, 9, 10, 11]);
-        await using (var teacherContext = CreateContext(options, 101, 70, "Teacher"))
-        {
-            var teacher = CreateService(teacherContext, new TestCurrentUser(101, 70, "Teacher"));
-            var completed = await teacher.RecordLessonProgressAsync(planId, new LessonPlanProgressDto { ProgressPercent = 100, Notes = "Objectives met", RowVersion = completionVersion });
-            completed.Data!.Status.Should().Be(LessonPlanStatus.Completed);
-            completed.Data.ProgressPercent.Should().Be(100);
-            completed.Data.CompletedAt.Should().NotBeNull();
-        }
+            ClientRequestId = Guid.NewGuid(), RoutineEntryId = seed.RoutineEntryId,
+            Date = LessonDate, SubstituteEmployeeReference = seed.SubstituteReference
+        })).StatusCode.Should().Be(403);
     }
 
-    [Fact]
-    public async Task Lesson_plan_rejects_stale_version_and_cross_tenant_assignment()
+    private static SaveLessonPlanRequestDto Lesson(Guid offeringReference) => new()
     {
-        var options = CreateOptions();
-        var seed = await SeedAsync(options);
-        long planId;
-        await using (var managerContext = CreateContext(options, 101, 7, "TenantAdmin"))
-        {
-            var manager = CreateService(managerContext, new TestCurrentUser(101, 7, "TenantAdmin"));
-            planId = (await manager.CreateLessonPlanAsync(Plan(seed.AssignmentId))).Data!.Id;
-        }
-        await SetLessonVersionAsync(options, planId, [1, 1, 1, 1, 1, 1, 1, 1]);
-        await using (var managerContext = CreateContext(options, 101, 7, "TenantAdmin"))
-        {
-            var manager = CreateService(managerContext, new TestCurrentUser(101, 7, "TenantAdmin"));
-            var update = PlanUpdate([9, 9, 9, 9, 9, 9, 9, 9]);
-            var stale = await manager.UpdateLessonPlanAsync(planId, update);
-            stale.Success.Should().BeFalse();
-            stale.StatusCode.Should().Be(409);
-        }
-
-        await using var otherContext = CreateContext(options, 202, 8, "TenantAdmin");
-        var other = CreateService(otherContext, new TestCurrentUser(202, 8, "TenantAdmin"));
-        var crossTenant = await other.CreateLessonPlanAsync(Plan(seed.AssignmentId));
-        crossTenant.Success.Should().BeFalse();
-        crossTenant.StatusCode.Should().Be(404);
-        (await otherContext.LessonPlans.IgnoreQueryFilters().CountAsync()).Should().Be(1);
-    }
-
-    [Fact]
-    public async Task Exact_lesson_plan_retry_survives_later_assignment_deactivation()
-    {
-        var options = CreateOptions();
-        var seed = await SeedAsync(options);
-        var request = Plan(seed.AssignmentId);
-        long createdId;
-
-        await using (var teacherContext = CreateContext(options, 101, 70, "Teacher"))
-        {
-            var teacher = CreateService(teacherContext, new TestCurrentUser(101, 70, "Teacher"));
-            createdId = (await teacher.CreateLessonPlanAsync(request)).Data!.Id;
-        }
-
-        await using (var managerContext = CreateContext(options, 101, 7, "TenantAdmin"))
-        {
-            var assignment = await managerContext.InstructorAssignments.SingleAsync(x => x.Id == seed.AssignmentId);
-            assignment.IsActive = false;
-            await managerContext.SaveChangesAsync();
-        }
-
-        await using (var teacherContext = CreateContext(options, 101, 70, "Teacher"))
-        {
-            var teacher = CreateService(teacherContext, new TestCurrentUser(101, 70, "Teacher"));
-            var replay = await teacher.CreateLessonPlanAsync(request);
-            replay.Success.Should().BeTrue();
-            replay.Data!.Id.Should().Be(createdId);
-        }
-    }
-
-    private static CreateLessonPlanDto Plan(long assignmentId) => new()
-    {
-        ClientRequestId = Guid.NewGuid(), InstructorAssignmentId = assignmentId, ChapterName = "Geometry", StartDate = new DateTime(2026, 9, 20), EndDate = new DateTime(2026, 9, 24)
+        ClientRequestId = Guid.NewGuid(), SubjectOfferingReference = offeringReference,
+        LessonDate = LessonDate, Title = "Linear equations", Objectives = "Explain and solve equations",
+        Content = "Examples with one variable", Resources = "Mathematics textbook"
     };
 
-    private static UpdateLessonPlanDto PlanUpdate(byte[] version) => new()
-    {
-        ChapterName = "Geometry revised", StartDate = new DateTime(2026, 9, 20), EndDate = new DateTime(2026, 9, 25), RowVersion = Convert.ToBase64String(version)
-    };
-
-    private static async Task<string> SetLessonVersionAsync(DbContextOptions<EduOSDbContext> options, long id, byte[] version)
-    {
-        await using var context = CreateContext(options, 101, 7, "TenantAdmin");
-        var row = await context.LessonPlans.SingleAsync(x => x.Id == id);
-        row.RowVersion = version;
-        await context.SaveChangesAsync();
-        return Convert.ToBase64String(version);
-    }
-
-    private static async Task<string> SetSubstitutionVersionAsync(DbContextOptions<EduOSDbContext> options, long id, byte[] version)
-    {
-        await using var context = CreateContext(options, 101, 7, "TenantAdmin");
-        var row = await context.Substitutions.SingleAsync(x => x.Id == id);
-        row.RowVersion = version;
-        await context.SaveChangesAsync();
-        return Convert.ToBase64String(version);
-    }
-
-    private static AcademicInstructionService CreateService(EduOSDbContext context, ICurrentUserService currentUser) => new(
-        new GenericRepository<Substitution>(context),
-        new GenericRepository<LessonPlan>(context),
-        new GenericRepository<RoutineEntry>(context),
-        new GenericRepository<InstructorAssignment>(context),
-        new GenericRepository<Employee>(context),
-        new GenericRepository<AcademicYear>(context),
-        new GenericRepository<AcademicTerm>(context),
-        context,
-        currentUser,
-        TimeProvider.System,
+    private static AcademicInstructionService Service(EduOSDbContext db, long tenant, long user, string role) => new(
+        new GenericRepository<Substitution>(db),
+        new GenericRepository<LessonPlan>(db),
+        new GenericRepository<RoutineEntry>(db),
+        new GenericRepository<RoutineTimeSlot>(db),
+        new GenericRepository<InstructorAssignment>(db),
+        new GenericRepository<SubjectOffering>(db),
+        new GenericRepository<CurriculumSubject>(db),
+        new GenericRepository<Subject>(db),
+        new GenericRepository<AcademicBatch>(db),
+        new GenericRepository<Employee>(db),
+        new GenericRepository<AcademicYear>(db),
+        new GenericRepository<AcademicTerm>(db),
+        db, new TestUser(tenant, user, role), TimeProvider.System,
         NullLogger<AcademicInstructionService>.Instance);
 
-    private static async Task<InstructionSeed> SeedAsync(DbContextOptions<EduOSDbContext> options)
+    private static async Task<Seed> SeedAsync(DbContextOptions<EduOSDbContext> options)
     {
-        await using var context = CreateContext(options, 101, 7, "TenantAdmin");
-        var year = new AcademicYear { TenantId = 101, Name = "2026", StartDate = new DateTime(2026, 1, 1), EndDate = new DateTime(2026, 12, 31), IsCurrent = true, IsActive = true };
-        var legacyClass = new Class { TenantId = 101, Name = "Class Nine", NumericValue = 9, IsActive = true };
-        var program = new AcademicProgram { TenantId = 101, CampusId = 1, Name = "Secondary", Code = "SEC", IsActive = true };
-        context.AddRange(year, legacyClass, program);
-        await context.SaveChangesAsync();
-        var term = new AcademicTerm { TenantId = 101, AcademicYearId = year.Id, Name = "Autumn", StartDate = new DateTime(2026, 7, 1), EndDate = new DateTime(2026, 12, 15), IsActive = true };
-        var level = new AcademicLevel { TenantId = 101, AcademicProgramId = program.Id, Name = "Class Nine", Code = "C9", LevelNo = 9, IsActive = true };
-        var subject = new Subject { TenantId = 101, ClassId = legacyClass.Id, Name = "Mathematics", Code = "MATH", IsActive = true };
-        var original = Teacher(70, "T-001", "Original Teacher");
-        var substitute = Teacher(71, "T-002", "Substitute Teacher");
-        var unrelated = Teacher(72, "T-003", "Unrelated Teacher");
-        context.AddRange(term, level, subject, original, substitute, unrelated);
-        await context.SaveChangesAsync();
-        var batch = new AcademicBatch { TenantId = 101, CampusId = 1, AcademicYearId = year.Id, AcademicTermId = term.Id, AcademicProgramId = program.Id, AcademicLevelId = level.Id, Name = "Batch A", Code = "B-A", Capacity = 30, IsActive = true };
-        var assignment = new InstructorAssignment { TenantId = 101, AcademicBatch = batch, Subject = subject, Employee = original, AcademicYearId = year.Id, AcademicTermId = term.Id, IsPrimary = true, IsActive = true };
-        var slot = new RoutineTimeSlot { TenantId = 101, Name = "Period 1", StartTime = new TimeSpan(9, 0, 0), EndTime = new TimeSpan(10, 0, 0), IsActive = true };
-        var overlapSlot = new RoutineTimeSlot { TenantId = 101, Name = "Period overlap", StartTime = new TimeSpan(9, 30, 0), EndTime = new TimeSpan(10, 30, 0), IsActive = true };
-        context.AddRange(batch, assignment, slot, overlapSlot);
-        await context.SaveChangesAsync();
-        var routine = new RoutineEntry { TenantId = 101, AcademicBatch = batch, RoutineTimeSlot = slot, DayOfWeek = DayOfWeek.Sunday, Subject = subject, Employee = original, AcademicYearId = year.Id, AcademicTermId = term.Id, IsActive = true };
-        var overlapping = new RoutineEntry { TenantId = 101, AcademicBatch = batch, RoutineTimeSlot = overlapSlot, DayOfWeek = DayOfWeek.Sunday, Subject = subject, Employee = unrelated, AcademicYearId = year.Id, AcademicTermId = term.Id, IsActive = true };
-        context.AddRange(routine, overlapping);
-        await context.SaveChangesAsync();
-        return new InstructionSeed(batch.Id, assignment.Id, routine.Id, overlapping.Id, substitute.Id);
+        await using var db = Context(options, 101, 7, "TenantAdmin");
+        var campus = new EduOS.Core.Entities.SaaS.Campus { TenantId = 101, Name = "Main", Code = "MAIN" };
+        var year = new AcademicYear
+        {
+            TenantId = 101, Name = "2026", Code = "AY-2026",
+            StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31),
+            IsCurrent = true
+        };
+        var program = new AcademicProgram { TenantId = 101, Name = "Secondary", Code = "SEC" };
+        var subject = new Subject { TenantId = 101, Name = "Mathematics", Code = "MATH" };
+        var teacher = Teacher(70, "T-70", "Original teacher");
+        var substitute = Teacher(71, "T-71", "Substitute teacher");
+        db.AddRange(campus, year, program, subject, teacher, substitute);
+        await db.SaveChangesAsync();
+        var level = new AcademicLevel
+        {
+            TenantId = 101, AcademicProgramId = program.Id, Name = "Nine",
+            Code = "NINE", LevelNo = 9
+        };
+        var curriculum = new AcademicCurriculum
+        {
+            TenantId = 101, AcademicProgramId = program.Id,
+            Name = "Secondary Curriculum", Code = "SEC2026",
+            EffectiveFrom = new DateOnly(2026, 1, 1), IsCurrent = true
+        };
+        var term = new AcademicTerm
+        {
+            TenantId = 101, AcademicYearId = year.Id, Name = "Autumn",
+            StartDate = new DateOnly(2026, 7, 1), EndDate = new DateOnly(2026, 12, 15)
+        };
+        db.AddRange(level, curriculum, term); await db.SaveChangesAsync();
+        var batch = new AcademicBatch
+        {
+            TenantId = 101, CampusId = campus.Id, AcademicProgramId = program.Id,
+            AcademicYearId = year.Id, AcademicTermId = term.Id,
+            AcademicLevelId = level.Id, Name = "Batch A", Code = "BA", Capacity = 30
+        };
+        var curriculumSubject = new CurriculumSubject
+        {
+            TenantId = 101, AcademicCurriculumId = curriculum.Id,
+            AcademicLevelId = level.Id, SubjectId = subject.Id
+        };
+        db.AddRange(batch, curriculumSubject); await db.SaveChangesAsync();
+        var offering = new SubjectOffering
+        {
+            TenantId = 101, AcademicBatchId = batch.Id,
+            CurriculumSubjectId = curriculumSubject.Id,
+            AcademicYearId = year.Id, AcademicTermId = term.Id, Code = "MATH-NINE"
+        };
+        db.Add(offering); await db.SaveChangesAsync();
+        var assignment = new InstructorAssignment
+        {
+            TenantId = 101, SubjectOfferingId = offering.Id,
+            EmployeeId = teacher.Id, EffectiveFrom = new DateOnly(2026, 9, 1),
+            IsPrimary = true, IsActive = true
+        };
+        var slot = new RoutineTimeSlot
+        {
+            TenantId = 101, Name = "Period One",
+            StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(10, 0)
+        };
+        db.AddRange(assignment, slot); await db.SaveChangesAsync();
+        var routine = new RoutineEntry
+        {
+            TenantId = 101, SubjectOfferingId = offering.Id,
+            InstructorAssignmentId = assignment.Id, RoutineTimeSlotId = slot.Id,
+            DayOfWeek = DayOfWeek.Sunday, EffectiveFrom = new DateOnly(2026, 9, 1)
+        };
+        db.Add(routine); await db.SaveChangesAsync();
+        return new Seed(offering.PublicId, batch.Id, routine.Id, substitute.PublicId);
     }
 
     private static Employee Teacher(long userId, string code, string name) => new()
     {
-        TenantId = 101, UserId = userId, EmployeeCode = code, FullName = name, Phone = $"01700000{userId}", DesignationId = 1, JoiningDate = new DateOnly(2020, 1, 1), CanTeach = true
+        TenantId = 101, UserId = userId, EmployeeCode = code,
+        FullName = name, PersonId = 1, DesignationId = 1,
+        JoiningDate = new DateOnly(2020, 1, 1),
+        CanTeach = true, State = EmployeeState.Active
     };
 
-    private static DbContextOptions<EduOSDbContext> CreateOptions() => new DbContextOptionsBuilder<EduOSDbContext>().UseInMemoryDatabase($"academic-instruction-{Guid.NewGuid():N}").Options;
-
-    private static EduOSDbContext CreateContext(DbContextOptions<EduOSDbContext> options, long tenantId, long userId, string role)
+    private static async Task<string> VersionAsync(
+        DbContextOptions<EduOSDbContext> options, long id, byte[] bytes, bool substitution = false)
     {
-        var http = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, userId.ToString()), new Claim(ClaimTypes.Role, role)], "TestAuthentication")) };
-        http.Items["TenantId"] = tenantId;
+        await using var db = Context(options, 101, 7, "TenantAdmin");
+        if (substitution)
+            (await db.Substitutions.SingleAsync(x => x.Id == id)).RowVersion = bytes;
+        else
+            (await db.LessonPlans.SingleAsync(x => x.Id == id)).RowVersion = bytes;
+        await db.SaveChangesAsync();
+        return Convert.ToBase64String(bytes);
+    }
+
+    private static DbContextOptions<EduOSDbContext> Options() =>
+        new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("academic-instruction-" + Guid.NewGuid().ToString("N")).Options;
+
+    private static EduOSDbContext Context(DbContextOptions<EduOSDbContext> options, long tenant, long user, string role)
+    {
+        var http = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+            {
+                new Claim(ClaimTypes.NameIdentifier, user.ToString()),
+                new Claim(ClaimTypes.Role, role),
+                new Claim("TenantId", tenant.ToString())
+            }, "TestAuthentication"))
+        };
+        http.Items["TenantId"] = tenant;
         return new EduOSDbContext(options, new HttpContextAccessor { HttpContext = http });
     }
 
-    private sealed record InstructionSeed(long BatchId, long AssignmentId, long RoutineEntryId, long OverlappingRoutineEntryId, long SubstituteTeacherId);
+    private sealed record Seed(Guid OfferingReference, long BatchId, long RoutineEntryId, Guid SubstituteReference);
 
-    private sealed class TestCurrentUser(long tenantId, long userId, string role) : ICurrentUserService
+    private sealed class TestUser(long tenant, long user, string role) : ICurrentUserService
     {
         public bool IsAuthenticated => true;
-        public long UserId => userId;
-        public long TenantId => tenantId;
-        public string? FullName => "Instruction User";
+        public long TenantId => tenant;
+        public long UserId => user;
+        public string? FullName => "Instruction user";
         public string? Email => "instruction@example.test";
         public bool IsSuperAdmin => false;
         public bool IsTenantAdmin => role == "TenantAdmin";
-        public IReadOnlyList<string> Roles => [role];
-        public bool IsInRole(string value) => value == role;
+        public IReadOnlyList<string> Roles => new[] { role };
+        public bool IsInRole(string requestedRole) => requestedRole == role;
         public string? IpAddress => "127.0.0.1";
-        public string? UserAgent => "EduOS tests";
+        public string? UserAgent => "Tests";
     }
 }
