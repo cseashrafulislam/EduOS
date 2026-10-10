@@ -70,7 +70,7 @@ public class AdmissionEnrollmentServiceTests
 
         seed.Application.State = AdmissionApplicantState.Qualified;
         await context.SaveChangesAsync();
-        var request = Request(seed); request.SectionId += 9999;
+        var request = Request(seed); request.AcademicBatchId += 9999;
         var invalidBatch = await service.AdmitAsync(seed.Application.PublicId, request);
         invalidBatch.Success.Should().BeFalse();
         invalidBatch.StatusCode.Should().Be(409);
@@ -103,12 +103,12 @@ public class AdmissionEnrollmentServiceTests
         new GenericRepository<AcademicTrack>(context),
         new GenericRepository<AcademicCurriculum>(context),
         new GenericRepository<AcademicYear>(context),
-        new TestUnitOfWork(context), user,
+        context, user,
         new FixedTimeProvider(Now), NullLogger<AdmissionEnrollmentService>.Instance);
 
     private static AdmitAdmissionApplicationDto Request(SeedData seed) => new()
     {
-        SectionId = seed.Batch.Id, GroupId = null, Roll = "12",
+        AcademicBatchId = seed.Batch.Id, AcademicTrackId = null, Roll = "12",
         RowVersion = Convert.ToBase64String(seed.Application.RowVersion)
     };
 
@@ -194,16 +194,6 @@ public class AdmissionEnrollmentServiceTests
     private sealed class FixedTimeProvider(DateTimeOffset current) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => current;
-    }
-
-    private sealed class TestUnitOfWork(EduOSDbContext context) : IUnitOfWork
-    {
-        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => context.SaveChangesAsync(cancellationToken);
-        public Task BeginTransactionAsync() => Task.CompletedTask;
-        public Task CommitTransactionAsync() => Task.CompletedTask;
-        public Task RollbackTransactionAsync() => Task.CompletedTask;
-        public IExecutionStrategy CreateExecutionStrategy() => context.Database.CreateExecutionStrategy();
-        public void Dispose() { }
     }
 
     private sealed class TestCurrentUser(long tenant, string role = "TenantAdmin") : ICurrentUserService
