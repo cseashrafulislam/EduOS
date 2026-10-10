@@ -8,6 +8,8 @@
     <section class="card mb-3"><div class="card-body">
         <h3 class="h5">My current assignment</h3><div id="transportMine" class="text-muted">Loading…</div>
     </div></section>
+    @if (canManage)
+    {
     <section class="card mb-3"><div class="card-body">
         <h3 class="h5">Available routes and vehicles</h3>
         <div class="row g-3">
@@ -15,6 +17,7 @@
             <div class="col-lg-6"><h4 class="h6">Vehicles</h4><ul id="transportVehicleList" class="list-group"><li class="list-group-item">Loading vehicles…</li></ul></div>
         </div>
     </div></section>
+    }
     @if (canManage)
     {
         <section class="card mb-3"><div class="card-body">

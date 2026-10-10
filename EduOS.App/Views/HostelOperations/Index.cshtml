@@ -6,11 +6,14 @@
     <header class="mb-3"><h2 id="hostelTitle">Hostel operations</h2><p class="text-muted">Tenant-scoped rooms, bed allocation and release.</p></header>
     <div id="hostelAlert" class="d-none" role="alert" tabindex="-1"></div>
     <section class="card mb-3"><div class="card-body"><h3 class="h5">My current allocation</h3><div id="hostelMine" class="text-muted">Loading…</div></div></section>
+    @if (canManage)
+    {
     <section class="card mb-3"><div class="card-body">
         <h3 class="h5">Rooms and occupancy</h3>
         <div class="table-responsive"><table class="table table-hover align-middle"><thead><tr><th>Hostel</th><th>Room</th><th>Capacity</th><th>Occupied</th><th>Rent per bed</th></tr></thead>
         <tbody id="hostelRoomRows"><tr><td colspan="5">Loading rooms…</td></tr></tbody></table></div>
     </div></section>
+    }
     @if (canManage)
     {
         <section class="card mb-3"><div class="card-body">

@@ -22,11 +22,25 @@ public class HostelWorkflowContractTests
         var source = File.ReadAllText(FindRepositoryFile("EduOS.Service", "Services", "Hostel", "HostelService.cs"));
         source.Should().Contain("IsolationLevel = IsolationLevel.Serializable");
         source.Should().Contain("TransactionScopeAsyncFlowOption.Enabled");
-        source.Should().Contain("x.TenantId == tenantId && x.StudentId == student.Id && x.IsActive");
-        source.Should().Contain("x.TenantId == tenantId && x.HostelRoomId == room.Id && x.IsActive");
-        source.Should().Contain("if (occupied >= room.Capacity)");
+        source.Should().Contain("x.TenantId == tenant &&");
+        source.Should().Contain("roomBedIds.Contains(x.HostelBedId)");
+        source.Should().Contain("if (occupied >= selection.Room.Capacity)");
         source.Should().Contain("scope.Complete();");
-        source.Should().Contain("catch (TransactionAbortedException)");
+        source.Should().Contain("x.StudentId == student.Id && x.State == HostelAllocationState.Active");
+        source.Should().Contain("Client request ID was reused for different allocation data.");
+        source.Should().Contain("catch (TransactionAbortedException ex)");
+    }
+
+    [Fact]
+    public void Hostel_self_allocation_filters_current_enrollment_student_status_and_effective_dates()
+    {
+        var source = File.ReadAllText(FindRepositoryFile("EduOS.Service", "Services", "Hostel", "HostelService.cs"));
+        source.Should().Contain("student.StatusCode == \"Active\"");
+        source.Should().Contain("enrollment.IsCurrent && enrollment.State == EnrollmentState.Active");
+        source.Should().NotContain("student.IsActive");
+        source.Should().NotContain("enrollment.IsActive");
+        source.Should().Contain("e.StudentId == x.StudentId && e.IsCurrent && e.State == EnrollmentState.Active");
+        source.Should().Contain("x.StartDate <= today && (!x.EndDate.HasValue || x.EndDate >= today)");
     }
 
     private static string FindRepositoryFile(params string[] segments)

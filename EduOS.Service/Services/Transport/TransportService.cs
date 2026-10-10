@@ -1,6 +1,8 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Transport;
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Auth;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Entities.Transport;
 using EduOS.Core.Enums.Domain;
@@ -23,6 +25,8 @@ public sealed class TransportService : ITransportService
     private readonly IGenericRepository<StudentTransport> _assignments;
     private readonly IGenericRepository<StudentEnrollment> _enrollments;
     private readonly IGenericRepository<Student> _students;
+    private readonly IGenericRepository<UserCampusAccess> _campusAccesses;
+    private readonly IGenericRepository<Campus> _campuses;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUser;
     private readonly TimeProvider _clock;
@@ -31,7 +35,8 @@ public sealed class TransportService : ITransportService
     public TransportService(IGenericRepository<TransportRoute> routes, IGenericRepository<RouteStop> stops,
         IGenericRepository<Vehicle> vehicles, IGenericRepository<RouteVehicleAssignment> vehicleRoutes,
         IGenericRepository<StudentTransport> assignments, IGenericRepository<StudentEnrollment> enrollments,
-        IGenericRepository<Student> students, IUnitOfWork unitOfWork, ICurrentUserService currentUser,
+        IGenericRepository<Student> students, IGenericRepository<UserCampusAccess> campusAccesses,
+        IGenericRepository<Campus> campuses, IUnitOfWork unitOfWork, ICurrentUserService currentUser,
         TimeProvider clock, ILogger<TransportService> logger)
     {
         _routes = routes;
@@ -41,18 +46,26 @@ public sealed class TransportService : ITransportService
         _assignments = assignments;
         _enrollments = enrollments;
         _students = students;
+        _campusAccesses = campusAccesses;
+        _campuses = campuses;
         _unitOfWork = unitOfWork;
         _currentUser = currentUser;
         _clock = clock;
         _logger = logger;
     }
 
-    public async Task<ApiResponse<IReadOnlyList<TransportRouteDto>>> GetRoutesAsync(CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<IReadOnlyList<RouteDto>>> GetRoutesAsync(CancellationToken cancellationToken = default)
     {
-        if (!CanRead()) return Denied<IReadOnlyList<TransportRouteDto>>();
+        if (!CanManage()) return Denied<IReadOnlyList<RouteDto>>();
         var tenant = _currentUser.TenantId;
-        var routes = await _routes.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant && x.IsActive)
-            .OrderBy(x => x.Name).ToListAsync(cancellationToken);
+        var routesQuery = _routes.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant && x.IsActive);
+        if (!_currentUser.IsTenantAdmin)
+        {
+            var allowed = AllowedCampusIds(tenant);
+            routesQuery = routesQuery.Where(x => x.CampusId.HasValue
+                ? allowed.Contains(x.CampusId.Value) : allowed.Any());
+        }
+        var routes = await routesQuery.OrderBy(x => x.Name).ToListAsync(cancellationToken);
         var ids = routes.Select(x => x.Id).ToArray();
         var stops = await _stops.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant && ids.Contains(x.RouteId))
             .OrderBy(x => x.SequenceNo).ToListAsync(cancellationToken);
@@ -62,36 +75,41 @@ public sealed class TransportService : ITransportService
             FareFromOrigin = x.FareFromOrigin, IsActive = x.IsActive,
             RowVersion = Convert.ToBase64String(x.RowVersion)
         }).ToArray());
-        IReadOnlyList<TransportRouteDto> result = routes.Select(x => new TransportRouteDto
+        IReadOnlyList<RouteDto> result = routes.Select(x => new RouteDto
         {
             Id = x.Id, Reference = x.PublicId, Name = x.Name, Code = x.Code,
             DefaultFare = x.DefaultFare, IsActive = x.IsActive,
             Stops = byRoute.TryGetValue(x.Id, out var list) ? list : Array.Empty<RouteStopDto>(),
             RowVersion = Convert.ToBase64String(x.RowVersion)
         }).ToList();
-        return ApiResponse<IReadOnlyList<TransportRouteDto>>.SuccessResponse(result);
+        return ApiResponse<IReadOnlyList<RouteDto>>.SuccessResponse(result);
     }
 
-    public async Task<ApiResponse<IReadOnlyList<TransportVehicleDto>>> GetVehiclesAsync(CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<IReadOnlyList<VehicleDto>>> GetVehiclesAsync(CancellationToken cancellationToken = default)
     {
-        if (!CanRead()) return Denied<IReadOnlyList<TransportVehicleDto>>();
+        if (!CanManage()) return Denied<IReadOnlyList<VehicleDto>>();
         var tenant = _currentUser.TenantId;
-        var vehicles = await _vehicles.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant && x.IsActive)
-            .OrderBy(x => x.VehicleNumber).ToListAsync(cancellationToken);
+        var vehiclesQuery = _vehicles.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant && x.IsActive);
+        if (!_currentUser.IsTenantAdmin)
+        {
+            var allowed = AllowedCampusIds(tenant);
+            vehiclesQuery = vehiclesQuery.Where(x => x.CampusId.HasValue
+                ? allowed.Contains(x.CampusId.Value) : allowed.Any());
+        }
+        var vehicles = await vehiclesQuery.OrderBy(x => x.VehicleNumber).ToListAsync(cancellationToken);
         var ids = vehicles.Select(x => x.Id).ToArray();
         var counts = await _assignments.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
             x.State == TransportAssignmentState.Active && ids.Contains(x.VehicleId))
             .GroupBy(x => x.VehicleId).Select(g => new { VehicleId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.VehicleId, x => x.Count, cancellationToken);
-        IReadOnlyList<TransportVehicleDto> result = vehicles.Select(x => new TransportVehicleDto
+        IReadOnlyList<VehicleDto> result = vehicles.Select(x => new VehicleDto
         {
             Id = x.Id, Reference = x.PublicId, VehicleNumber = x.VehicleNumber,
-            VehicleType = x.VehicleType, Capacity = x.Capacity, DriverName = x.DriverName,
-            DriverPhone = x.DriverPhone, IsActive = x.IsActive,
+            VehicleType = x.VehicleType, Capacity = x.Capacity, IsActive = x.IsActive,
             ActiveAssignments = counts.GetValueOrDefault(x.Id),
             RowVersion = Convert.ToBase64String(x.RowVersion)
         }).ToList();
-        return ApiResponse<IReadOnlyList<TransportVehicleDto>>.SuccessResponse(result);
+        return ApiResponse<IReadOnlyList<VehicleDto>>.SuccessResponse(result);
     }
 
     public async Task<ApiResponse<PagedResult<TransportStudentOptionDto>>> GetEligibleStudentsAsync(
@@ -102,11 +120,16 @@ public sealed class TransportService : ITransportService
         var tenant = _currentUser.TenantId;
         var query = from enrollment in _enrollments.GetQueryable().AsNoTracking()
                     join student in _students.GetQueryable().AsNoTracking() on enrollment.StudentId equals student.Id
-                    where enrollment.TenantId == tenant && student.TenantId == tenant && student.IsActive &&
-                          enrollment.IsCurrent && enrollment.IsActive && enrollment.State == EnrollmentState.Active &&
+                    where enrollment.TenantId == tenant && student.TenantId == tenant && student.StatusCode == "Active" &&
+                          enrollment.IsCurrent && enrollment.State == EnrollmentState.Active &&
                           !_assignments.GetQueryable().Any(x => x.TenantId == tenant && x.StudentId == student.Id &&
                               x.State == TransportAssignmentState.Active)
-                    select new { enrollment.PublicId, student.FullName, student.StudentCode, enrollment.RollNo };
+                    select new { enrollment.PublicId, enrollment.CampusId, student.FullName, student.StudentCode, enrollment.RollNo };
+        if (!_currentUser.IsTenantAdmin)
+        {
+            var allowed = AllowedCampusIds(tenant);
+            query = query.Where(x => allowed.Contains(x.CampusId));
+        }
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim();
@@ -135,13 +158,20 @@ public sealed class TransportService : ITransportService
         var tenant = _currentUser.TenantId;
         var query = from assignment in _assignments.GetQueryable().AsNoTracking()
                     join student in _students.GetQueryable().AsNoTracking() on assignment.StudentId equals student.Id
+                    join enrollment in _enrollments.GetQueryable().AsNoTracking() on assignment.StudentEnrollmentId equals enrollment.Id
                     join route in _routes.GetQueryable().AsNoTracking() on assignment.RouteId equals route.Id
                     join vehicle in _vehicles.GetQueryable().AsNoTracking() on assignment.VehicleId equals vehicle.Id
                     where assignment.TenantId == tenant && student.TenantId == tenant &&
+                          enrollment.TenantId == tenant && enrollment.StudentId == assignment.StudentId &&
                           route.TenantId == tenant && vehicle.TenantId == tenant &&
                           assignment.State == TransportAssignmentState.Active
                     select new { assignment.PublicId, assignment.StartDate, assignment.RowVersion,
-                        student.FullName, student.StudentCode, RouteName = route.Name, vehicle.VehicleNumber };
+                        enrollment.CampusId, student.FullName, student.StudentCode, RouteName = route.Name, vehicle.VehicleNumber };
+        if (!_currentUser.IsTenantAdmin)
+        {
+            var allowed = AllowedCampusIds(tenant);
+            query = query.Where(x => allowed.Contains(x.CampusId));
+        }
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim();
@@ -166,16 +196,20 @@ public sealed class TransportService : ITransportService
     {
         if (!CanRead()) return Denied<StudentTransportDto?>();
         var tenant = _currentUser.TenantId;
-        var studentIds = await _students.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
-            x.UserId == _currentUser.UserId && x.IsActive).Select(x => x.Id).ToListAsync(cancellationToken);
+        var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+        var studentIds = _students.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
+            x.UserId == _currentUser.UserId && x.StatusCode == "Active").Select(x => x.Id);
         var assignment = await _assignments.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
-            x.State == TransportAssignmentState.Active && studentIds.Contains(x.StudentId))
+            x.State == TransportAssignmentState.Active && studentIds.Contains(x.StudentId) &&
+            _enrollments.GetQueryable().Any(e => e.TenantId == tenant && e.Id == x.StudentEnrollmentId &&
+                e.StudentId == x.StudentId && e.IsCurrent && e.State == EnrollmentState.Active) &&
+            x.StartDate <= today && (!x.EndDate.HasValue || x.EndDate >= today))
             .OrderByDescending(x => x.StartDate).FirstOrDefaultAsync(cancellationToken);
         var result = assignment == null ? null : await MapAsync(assignment, cancellationToken);
         return ApiResponse<StudentTransportDto?>.SuccessResponse(result);
     }
 
-    public async Task<ApiResponse<StudentTransportDto>> AssignAsync(AssignTransportDto request, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<StudentTransportDto>> AssignAsync(AssignStudentTransportRequestDto request, CancellationToken cancellationToken = default)
     {
         if (!CanManage()) return Denied<StudentTransportDto>();
         if (request == null || request.ClientRequestId == Guid.Empty || request.StudentEnrollmentReference == Guid.Empty ||
@@ -194,18 +228,35 @@ public sealed class TransportService : ITransportService
                 x.ClientRequestId == request.ClientRequestId, cancellationToken);
             if (old != null)
             {
+                if (!_currentUser.IsTenantAdmin)
+                {
+                    var oldCampus = await _enrollments.GetQueryable().AsNoTracking()
+                        .Where(x => x.TenantId == tenant && x.Id == old.StudentEnrollmentId && x.StudentId == old.StudentId)
+                        .Select(x => (long?)x.CampusId).FirstOrDefaultAsync(cancellationToken);
+                    if (!oldCampus.HasValue || !await CanManageCampusAsync(oldCampus.Value, tenant, cancellationToken))
+                        return Denied<StudentTransportDto>();
+                }
                 if (old.RouteId <= 0 || old.VehicleId <= 0)
                     return Error("Existing request is inconsistent.", 409);
                 var replay = await MapAsync(old, cancellationToken);
+                if (replay.StudentEnrollmentReference != request.StudentEnrollmentReference ||
+                    replay.RouteReference != request.RouteReference ||
+                    replay.VehicleReference != request.VehicleReference ||
+                    replay.PickupStopId != request.PickupStopId || replay.DropStopId != request.DropStopId ||
+                    (request.StartDate != default && replay.StartDate != request.StartDate) ||
+                    (request.MonthlyFare.HasValue && replay.MonthlyFare != request.MonthlyFare.Value))
+                    return Error("Client request ID was reused for different transport assignment data.", 409);
                 scope.Complete();
                 return ApiResponse<StudentTransportDto>.SuccessResponse(replay, "Transport assignment already processed.");
             }
             var enrollment = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
-                x.PublicId == request.StudentEnrollmentReference && x.IsCurrent && x.IsActive &&
+                x.PublicId == request.StudentEnrollmentReference && x.IsCurrent &&
                 x.State == EnrollmentState.Active, cancellationToken);
             if (enrollment == null) return Error("Active student enrollment not found.", 404);
+            if (!await CanManageCampusAsync(enrollment.CampusId, tenant, cancellationToken))
+                return Denied<StudentTransportDto>();
             var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
-                x.Id == enrollment.StudentId && x.IsActive, cancellationToken);
+                x.Id == enrollment.StudentId && x.StatusCode == "Active", cancellationToken);
             if (student == null) return Error("Student not found.", 404);
             var route = await _routes.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
                 x.PublicId == request.RouteReference && x.IsActive, cancellationToken);
@@ -270,7 +321,7 @@ public sealed class TransportService : ITransportService
         }
     }
 
-    public async Task<ApiResponse<StudentTransportDto>> CloseAsync(Guid reference, CloseTransportDto request,
+    public async Task<ApiResponse<StudentTransportDto>> CloseAsync(Guid reference, CloseStudentTransportRequestDto request,
         CancellationToken cancellationToken = default)
     {
         if (!CanManage()) return Denied<StudentTransportDto>();
@@ -281,6 +332,14 @@ public sealed class TransportService : ITransportService
             var entity = await _assignments.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenant &&
                 x.PublicId == reference, cancellationToken);
             if (entity == null) return Error("Assignment not found.", 404);
+            if (!_currentUser.IsTenantAdmin)
+            {
+                var campus = await _enrollments.GetQueryable().AsNoTracking()
+                    .Where(x => x.TenantId == tenant && x.Id == entity.StudentEnrollmentId && x.StudentId == entity.StudentId)
+                    .Select(x => (long?)x.CampusId).FirstOrDefaultAsync(cancellationToken);
+                if (!campus.HasValue || !await CanManageCampusAsync(campus.Value, tenant, cancellationToken))
+                    return Denied<StudentTransportDto>();
+            }
             if (entity.State != TransportAssignmentState.Active)
                 return ApiResponse<StudentTransportDto>.SuccessResponse(await MapAsync(entity, cancellationToken), "Assignment already closed.");
             if (!TryDecodeVersion(request.RowVersion, out var version) || !entity.RowVersion.AsSpan().SequenceEqual(version))
@@ -333,6 +392,16 @@ public sealed class TransportService : ITransportService
             State = value.State, RowVersion = Convert.ToBase64String(value.RowVersion)
         };
     }
+
+    private IQueryable<long> AllowedCampusIds(long tenant) =>
+        from access in _campusAccesses.GetQueryable().AsNoTracking()
+        join campus in _campuses.GetQueryable().AsNoTracking() on access.CampusId equals campus.Id
+        where access.TenantId == tenant && campus.TenantId == tenant &&
+            access.UserId == _currentUser.UserId && access.IsActive && campus.IsActive
+        select campus.Id;
+
+    private Task<bool> CanManageCampusAsync(long campusId, long tenant, CancellationToken ct) =>
+        _currentUser.IsTenantAdmin ? Task.FromResult(true) : AllowedCampusIds(tenant).AnyAsync(x => x == campusId, ct);
 
     private bool CanRead() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0;
     private bool CanManage() => CanRead() && (_currentUser.IsTenantAdmin ||
