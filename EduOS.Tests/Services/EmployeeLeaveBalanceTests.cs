@@ -40,12 +40,12 @@ public class EmployeeLeaveBalanceTests
 
         result.Success.Should().BeTrue();
         result.Data.Should().HaveCount(2);
-        var casualBalance = result.Data!.Single(x => x.LeaveType == "Casual");
+        var casualBalance = result.Data!.Single(x => x.LeaveTypeName == "Casual");
         casualBalance.AnnualEntitlement.Should().Be(10);
         casualBalance.UsedDays.Should().Be(3);
         casualBalance.PendingDays.Should().Be(2);
         casualBalance.RemainingDays.Should().Be(5);
-        var sickBalance = result.Data.Single(x => x.LeaveType == "Sick");
+        var sickBalance = result.Data.Single(x => x.LeaveTypeName == "Sick");
         sickBalance.UsedDays.Should().Be(0);
         sickBalance.PendingDays.Should().Be(0);
         sickBalance.RemainingDays.Should().Be(8);
