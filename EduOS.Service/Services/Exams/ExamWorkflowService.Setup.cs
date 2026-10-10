@@ -235,13 +235,13 @@ public sealed partial class ExamWorkflowService
                 x.CampusId == batch.CampusId && x.IsActive && !x.IsDeleted, token))
                 return Error<AssessmentScheduleDto>("Room is not available in assessment campus.", 409);
             var row = scheduleId.HasValue ? await _schedules.GetQueryable().FirstOrDefaultAsync(x =>
-                x.TenantId == tenant && x.Id == scheduleId.Value && x.AssessmentSubjectId == sub.Id &&
+                x.TenantId == tenant && x.Id == scheduleId.Value && x.AssessmentSubjectId == sub!.Id &&
                 !x.IsDeleted, token) : null;
             if (scheduleId.HasValue && row == null) return Error<AssessmentScheduleDto>("Schedule not found.", 404);
             if (row != null && !Matches(row.RowVersion, request.RowVersion))
                 return Error<AssessmentScheduleDto>("Schedule changed; reload and retry.", 409);
             var clashes = await _schedules.GetQueryable().AsNoTracking().Where(x =>
-                x.TenantId == tenant && x.AssessmentSubjectId == sub.Id &&
+                x.TenantId == tenant && x.AssessmentSubjectId == sub!.Id &&
                 !x.IsDeleted && (!scheduleId.HasValue || x.Id != scheduleId.Value))
                 .AnyAsync(x => x.AssessmentDate == request.AssessmentDate, token);
             if (clashes) return Error<AssessmentScheduleDto>("A schedule already exists on this date.", 409);
@@ -250,7 +250,7 @@ public sealed partial class ExamWorkflowService
             {
                 row = new AssessmentSchedule
                 {
-                    TenantId = tenant, AssessmentSubjectId = sub.Id, CreatedAt = now,
+                    TenantId = tenant, AssessmentSubjectId = sub!.Id, CreatedAt = now,
                     CreatedBy = _user.UserId
                 };
                 await _schedules.AddAsync(row);
