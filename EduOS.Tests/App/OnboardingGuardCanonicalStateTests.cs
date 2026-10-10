@@ -25,7 +25,8 @@ public sealed class OnboardingGuardCanonicalStateTests
     {
         using var db = CreateContext();
         var tenant = new Tenant { Name = "Test", Code = "TST", Email = "test@example.test",
-            State = state, OnboardingStage = stage };
+            State = state, OnboardingStage = stage,
+            OnboardingCompletedAt = stage == OnboardingStage.Completed ? DateTime.UtcNow : null };
         db.Tenants.Add(tenant);
         await db.SaveChangesAsync();
         var http = CreateRequest(tenant.Id, "/Students/Index");
@@ -57,6 +58,47 @@ public sealed class OnboardingGuardCanonicalStateTests
         Assert.False(next);
         Assert.Equal(StatusCodes.Status302Found, http.Response.StatusCode);
         Assert.Equal("/Account/CampusSetup", http.Response.Headers.Location.ToString());
+    }
+
+
+    [Fact]
+    public async Task Completed_stage_without_persisted_timestamp_is_rejected()
+    {
+        using var db = CreateContext();
+        var tenant = new Tenant { Name = "Test", Code = "TST", Email = "test@example.test",
+            State = TenantState.Active, OnboardingStage = OnboardingStage.Completed };
+        db.Tenants.Add(tenant);
+        await db.SaveChangesAsync();
+        var http = CreateRequest(tenant.Id, "/Students/Index");
+        var next = false;
+        var middleware = new OnboardingGuardMiddleware(_ => { next = true; return Task.CompletedTask; },
+            NullLogger<OnboardingGuardMiddleware>.Instance);
+
+        await middleware.InvokeAsync(http, db);
+
+        Assert.False(next);
+        Assert.Equal(StatusCodes.Status403Forbidden, http.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Incomplete_tenant_api_exposes_only_required_onboarding_step()
+    {
+        using var db = CreateContext();
+        var tenant = new Tenant { Name = "Test", Code = "TST", Email = "test@example.test",
+            State = TenantState.Active, OnboardingStage = OnboardingStage.CampusSetup };
+        db.Tenants.Add(tenant);
+        await db.SaveChangesAsync();
+        var http = CreateRequest(tenant.Id, "/api/students");
+        var next = false;
+        var middleware = new OnboardingGuardMiddleware(_ => { next = true; return Task.CompletedTask; },
+            NullLogger<OnboardingGuardMiddleware>.Instance);
+
+        await middleware.InvokeAsync(http, db);
+
+        Assert.False(next);
+        Assert.Equal(StatusCodes.Status403Forbidden, http.Response.StatusCode);
+        Assert.Equal("true", http.Response.Headers["X-Onboarding-Required"].ToString());
+        Assert.Equal(((int)OnboardingStage.CampusSetup).ToString(), http.Response.Headers["X-Onboarding-Step"].ToString());
     }
 
     [Fact]

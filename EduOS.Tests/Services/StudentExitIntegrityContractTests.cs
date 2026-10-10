@@ -9,17 +9,19 @@ public sealed class StudentExitIntegrityContractTests
         "EduOS.Service", "Services", "Students", "StudentExitService.cs"));
 
     [Fact]
-    public void Exit_closes_legacy_and_canonical_current_enrollments_atomically()
+    public void Exit_closes_canonical_current_enrollments_atomically()
     {
         Source.Should().Contain("IGenericRepository<StudentEnrollment>");
         Source.Should().Contain("IsolationLevel = IsolationLevel.Serializable");
         Source.Should().Contain("TransactionScopeAsyncFlowOption.Enabled");
-        Source.Should().Contain("x.IsCurrent && x.IsActive");
+        Source.Should().Contain("x.State == EnrollmentState.Active || x.IsCurrent");
+        Source.Should().Contain("x.IsCurrent && x.State == EnrollmentState.Active");
         Source.Should().Contain("enrollment.IsCurrent = false");
-        Source.Should().Contain("enrollment.IsActive = false");
-        Source.Should().Contain("EnrollmentStatus.Transferred");
-        Source.Should().Contain("EnrollmentStatus.Completed");
-        Source.Should().Contain("EnrollmentStatus.Dropped");
+        Source.Should().Contain("enrollment.EndDate ??= endDate");
+        Source.Should().Contain("EnrollmentState.Transferred");
+        Source.Should().Contain("EnrollmentState.Completed");
+        Source.Should().Contain("EnrollmentState.Dropped");
+        Source.Should().Contain("Outstanding fees must be settled.");
         Source.Should().Contain("scope.Complete()");
     }
 
@@ -27,11 +29,14 @@ public sealed class StudentExitIntegrityContractTests
     public void Exit_is_retry_safe_and_maps_write_conflicts_to_reloadable_responses()
     {
         Source.Should().Contain("x.ClientRequestId == request.ClientRequestId");
-        Source.Should().Contain("Student exit was already processed.");
+        Source.Should().Contain("Exit already processed.");
         Source.Should().Contain("catch (DbUpdateConcurrencyException ex)");
         Source.Should().Contain("catch (DbUpdateException ex)");
         Source.Should().Contain("catch (TransactionAbortedException ex)");
-        Source.Should().Contain("Reload and try again.");
+        Source.Should().Contain("Student changed. Reload and retry.");
+        Source.Should().Contain("Student has an existing final exit.");
+        Source.Should().Contain("Exit conflicts with an existing transaction.");
+        Source.Should().Contain("Exit transaction conflicted with another update.");
         Source.Should().Contain(", 409");
     }
 

@@ -87,8 +87,11 @@ public sealed class TenantSettingSecurityTests
 
     private static TestSetup Create()
     {
+        var http = new DefaultHttpContext();
+        http.Items["TenantId"] = 101L;
         var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
-            .UseInMemoryDatabase("settings-" + Guid.NewGuid().ToString("N")).Options);
+            .UseInMemoryDatabase("settings-" + Guid.NewGuid().ToString("N")).Options,
+            new HttpContextAccessor { HttpContext = http });
         return new TestSetup(db, NewService(db, 101));
     }
 

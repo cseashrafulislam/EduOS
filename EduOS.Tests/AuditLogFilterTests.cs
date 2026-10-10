@@ -10,7 +10,7 @@ public sealed class AuditLogFilterTests
     {
         var filter = new AuditLogFilterDto();
         Assert.Equal(1, filter.Page);
-        Assert.Equal(10, filter.PageSize);
+        Assert.Equal(20, filter.PageSize);
     }
 
     [Theory]
