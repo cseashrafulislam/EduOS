@@ -252,9 +252,16 @@ public sealed class AdmissionAssessmentService : IAdmissionAssessmentService
                 var ranked = records.Where(x => x.Result.IsPassed)
                     .OrderByDescending(x => x.Result.ObtainedMarks)
                     .ThenBy(x => x.SubmittedAt).ThenBy(x => x.Result.AdmissionApplicantId).ToArray();
-                for (var i = 0; i < ranked.Length; i++) ranked[i].Result.MeritPosition = i + 1;
+                for (var i = 0; i < ranked.Length; i++)
+                {
+                    ranked[i].Result.MeritPosition = i + 1;
+                    _results.Update(ranked[i].Result);
+                }
                 foreach (var failed in records.Where(x => !x.Result.IsPassed))
+                {
                     failed.Result.MeritPosition = null;
+                    _results.Update(failed.Result);
+                }
                 test.IsPublished = true;
                 test.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
                 test.UpdatedBy = _currentUser.UserId;
