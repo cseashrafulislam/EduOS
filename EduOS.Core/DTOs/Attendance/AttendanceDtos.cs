@@ -149,6 +149,7 @@ public sealed class StudentAttendanceSummaryDto
 public sealed class StudentAttendanceRosterDto
 {
     public long AttendanceSessionId { get; set; }
+    public string SessionRowVersion { get; set; } = string.Empty;
     public long AcademicBatchId { get; set; }
     public DateOnly AttendanceDate { get; set; }
     public StudentAttendanceSummaryDto Summary { get; set; } = new();
