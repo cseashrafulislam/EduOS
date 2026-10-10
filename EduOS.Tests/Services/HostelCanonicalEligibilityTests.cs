@@ -158,6 +158,39 @@ public sealed class HostelCanonicalEligibilityTests
             result.Data.Items.Should().BeEmpty();
     }
 
+    [Theory]
+    [InlineData(HostelAllocationState.Closed, 0, true)]
+    [InlineData(HostelAllocationState.Closed, 1, false)]
+    [InlineData(HostelAllocationState.Cancelled, 0, false)]
+    public async Task Close_replay_requires_matching_date_and_closed_state(
+        HostelAllocationState state, int offsetDays, bool expectedSuccess)
+    {
+        var options = new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("hostel-close-" + Guid.NewGuid().ToString("N")).Options;
+        await using var db = Context(101, options);
+        var closedOn = new DateOnly(2026, 10, 8);
+        var allocation = new StudentHostelAllocation
+        {
+            TenantId = 101, StudentId = 99, StudentEnrollmentId = 99, HostelBedId = 99,
+            ClientRequestId = Guid.NewGuid(), StartDate = closedOn.AddDays(-10),
+            EndDate = state == HostelAllocationState.Closed ? closedOn : null,
+            State = state, RowVersion = [1,2,3,4,5,6,7,8]
+        };
+        db.Add(allocation);
+        await db.SaveChangesAsync();
+        var originalEndDate = allocation.EndDate;
+        var result = await Service(db).CloseAsync(allocation.Id, new CloseStudentHostelAllocationRequestDto
+        {
+            EndDate = closedOn.AddDays(offsetDays),
+            RowVersion = Convert.ToBase64String([9,9,9,9,9,9,9,9])
+        });
+        result.Success.Should().Be(expectedSuccess);
+        if (!expectedSuccess) result.StatusCode.Should().Be(409);
+        var saved = await db.Set<StudentHostelAllocation>().SingleAsync(x => x.Id == allocation.Id);
+        saved.State.Should().Be(state);
+        saved.EndDate.Should().Be(originalEndDate);
+    }
+
     [Fact]
     public async Task Tenant_admin_can_read_hostel_room_catalogue()
     {

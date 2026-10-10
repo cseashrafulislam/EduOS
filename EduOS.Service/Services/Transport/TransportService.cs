@@ -340,11 +340,17 @@ public sealed class TransportService : ITransportService
                 if (!campus.HasValue || !await CanManageCampusAsync(campus.Value, tenant, cancellationToken))
                     return Denied<StudentTransportDto>();
             }
+            var endDate = request.EndDate == default ? DateOnly.FromDateTime(_clock.GetLocalNow().DateTime) : request.EndDate;
+            if (entity.State == TransportAssignmentState.Closed)
+            {
+                if (entity.EndDate.HasValue && (request.EndDate == default || entity.EndDate.Value == endDate))
+                    return ApiResponse<StudentTransportDto>.SuccessResponse(await MapAsync(entity, cancellationToken), "Assignment already closed.");
+                return Error("Assignment was already closed with a different end date.", 409);
+            }
             if (entity.State != TransportAssignmentState.Active)
-                return ApiResponse<StudentTransportDto>.SuccessResponse(await MapAsync(entity, cancellationToken), "Assignment already closed.");
+                return Error("Assignment cannot be closed in its current state.", 409);
             if (!TryDecodeVersion(request.RowVersion, out var version) || !entity.RowVersion.AsSpan().SequenceEqual(version))
                 return Error("Assignment was changed. Reload and retry.", 409);
-            var endDate = request.EndDate == default ? DateOnly.FromDateTime(_clock.GetLocalNow().DateTime) : request.EndDate;
             if (endDate < entity.StartDate) return Error("End date cannot precede start date.");
             entity.EndDate = endDate;
             entity.State = TransportAssignmentState.Closed;

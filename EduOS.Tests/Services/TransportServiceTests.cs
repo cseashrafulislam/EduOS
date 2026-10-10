@@ -66,11 +66,36 @@ public class TransportServiceTests
         var service = CreateService(context, 101);
         var response = await service.CloseAsync(assignment.PublicId, new CloseStudentTransportRequestDto
         {
-            EndDate = DateOnly.FromDateTime(DateTime.Today),
+            EndDate = DateOnly.FromDateTime(DateTime.Today.AddDays(-1)),
             RowVersion = Convert.ToBase64String(new byte[] { 9,9,9,9,9,9,9,9 })
         });
         response.Success.Should().BeTrue();
         response.Data!.State.Should().Be(TransportAssignmentState.Closed);
+    }
+
+    [Theory]
+    [InlineData(TransportAssignmentState.Closed, 1, false)]
+    [InlineData(TransportAssignmentState.Cancelled, 0, false)]
+    [InlineData(TransportAssignmentState.Closed, 0, true)]
+    public async Task Close_replay_requires_matching_date_and_closed_state(
+        TransportAssignmentState state, int offsetDays, bool expectedSuccess)
+    {
+        await using var db = CreateContext(CreateOptions(), 101);
+        var assignment = await SeedAssignmentAsync(db, 101, false, [1,2,3,4,5,6,7,8]);
+        assignment.State = state;
+        if (state == TransportAssignmentState.Cancelled) assignment.EndDate = null;
+        await db.SaveChangesAsync();
+        var originalEndDate = assignment.EndDate;
+        var result = await CreateService(db, 101).CloseAsync(assignment.PublicId, new CloseStudentTransportRequestDto
+        {
+            EndDate = DateOnly.FromDateTime(DateTime.Today.AddDays(-1 + offsetDays)),
+            RowVersion = Convert.ToBase64String([9,9,9,9,9,9,9,9])
+        });
+        result.Success.Should().Be(expectedSuccess);
+        if (!expectedSuccess) result.StatusCode.Should().Be(409);
+        var saved = await db.Set<StudentTransport>().SingleAsync(x => x.Id == assignment.Id);
+        saved.State.Should().Be(state);
+        saved.EndDate.Should().Be(originalEndDate);
     }
 
     [Fact]

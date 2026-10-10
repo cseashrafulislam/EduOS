@@ -357,12 +357,18 @@ public sealed class HostelService : IHostelService
                     !await CanManageCampusAsync(enrollmentCampus.Value, tenant, cancellationToken))
                     return Denied<StudentHostelAllocationDto>();
             }
+            var end = request.EndDate == default ? DateOnly.FromDateTime(_clock.GetLocalNow().DateTime) : request.EndDate;
+            if (allocation.State == HostelAllocationState.Closed)
+            {
+                if (allocation.EndDate.HasValue && (request.EndDate == default || allocation.EndDate.Value == end))
+                    return ApiResponse<StudentHostelAllocationDto>.SuccessResponse(await MapAsync(allocation, cancellationToken), "Allocation already closed.");
+                return Error("Allocation was already closed with a different end date.", 409);
+            }
             if (allocation.State != HostelAllocationState.Active)
-                return ApiResponse<StudentHostelAllocationDto>.SuccessResponse(await MapAsync(allocation, cancellationToken), "Allocation already closed.");
+                return Error("Allocation cannot be closed in its current state.", 409);
             if (!TryDecodeVersion(request.RowVersion, out var bytes) ||
                 !allocation.RowVersion.AsSpan().SequenceEqual(bytes))
                 return Error("Hostel allocation changed. Reload and retry.", 409);
-            var end = request.EndDate == default ? DateOnly.FromDateTime(_clock.GetLocalNow().DateTime) : request.EndDate;
             if (end < allocation.StartDate) return Error("End date cannot precede start date.");
             allocation.EndDate = end;
             allocation.State = HostelAllocationState.Closed;
