@@ -231,37 +231,38 @@ public sealed class AdmissionAssessmentService : IAdmissionAssessmentService
         CancellationToken cancellationToken = default)
     {
         if (!CanManage()) return Denied<AdmissionMeritListDto>();
+        if (testId <= 0) return ApiResponse<AdmissionMeritListDto>.ErrorResponse("Admission test is required.");
         var tenant = _currentUser.TenantId;
-        var transactionStarted = false;
         try
         {
-            await _unitOfWork.BeginTransactionAsync();
-            transactionStarted = true;
-            var test = await _tests.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenant && x.Id == testId, cancellationToken);
-            if (test == null) return ApiResponse<AdmissionMeritListDto>.ErrorResponse("Admission test not found.", 404);
-            if (test.IsPublished)
+            var result = await _unitOfWork.ExecuteInTransactionAsync(async token =>
             {
-                await _unitOfWork.RollbackTransactionAsync();
-                transactionStarted = false;
-                return await GetMeritListAsync(testId, cancellationToken);
-            }
-            var applicants = _applicants.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
-                x.AdmissionIntakeFormId == test.AdmissionIntakeFormId);
-            var records = await (from result in _results.GetQueryable()
-                join applicant in applicants on result.AdmissionApplicantId equals applicant.Id
-                where result.TenantId == tenant && result.AdmissionTestId == testId
-                select new { Result = result, applicant.SubmittedAt }).ToListAsync(cancellationToken);
-            if (records.Count == 0) return ApiResponse<AdmissionMeritListDto>.ErrorResponse("At least one result is required.", 409);
-            var ranked = records.Where(x => x.Result.IsPassed).OrderByDescending(x => x.Result.ObtainedMarks)
-                .ThenBy(x => x.SubmittedAt).ThenBy(x => x.Result.AdmissionApplicantId).ToArray();
-            for (var i = 0; i < ranked.Length; i++) ranked[i].Result.MeritPosition = i + 1;
-            foreach (var failed in records.Where(x => !x.Result.IsPassed)) failed.Result.MeritPosition = null;
-            test.IsPublished = true;
-            test.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
-            test.UpdatedBy = _currentUser.UserId;
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            await _unitOfWork.CommitTransactionAsync();
-            transactionStarted = false;
+                var test = await _tests.GetQueryable().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Id == testId && !x.IsDeleted, token);
+                if (test == null) return ApiResponse<bool>.ErrorResponse("Admission test not found.", 404);
+                if (test.IsPublished) return ApiResponse<bool>.SuccessResponse(true);
+                var applicants = _applicants.GetQueryable().AsNoTracking().Where(x =>
+                    x.TenantId == tenant && x.AdmissionIntakeFormId == test.AdmissionIntakeFormId && !x.IsDeleted);
+                var records = await (from entry in _results.GetQueryable()
+                    join applicant in applicants on entry.AdmissionApplicantId equals applicant.Id
+                    where entry.TenantId == tenant && entry.AdmissionTestId == testId && !entry.IsDeleted
+                    select new { Result = entry, applicant.SubmittedAt }).ToListAsync(token);
+                if (records.Count == 0)
+                    return ApiResponse<bool>.ErrorResponse("At least one result is required.", 409);
+                var ranked = records.Where(x => x.Result.IsPassed)
+                    .OrderByDescending(x => x.Result.ObtainedMarks)
+                    .ThenBy(x => x.SubmittedAt).ThenBy(x => x.Result.AdmissionApplicantId).ToArray();
+                for (var i = 0; i < ranked.Length; i++) ranked[i].Result.MeritPosition = i + 1;
+                foreach (var failed in records.Where(x => !x.Result.IsPassed))
+                    failed.Result.MeritPosition = null;
+                test.IsPublished = true;
+                test.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
+                test.UpdatedBy = _currentUser.UserId;
+                await _unitOfWork.SaveChangesAsync(token);
+                return ApiResponse<bool>.SuccessResponse(true);
+            }, cancellationToken);
+            if (!result.Success)
+                return ApiResponse<AdmissionMeritListDto>.ErrorResponse(result.Message, result.StatusCode);
             return await GetMeritListAsync(testId, cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
@@ -277,10 +278,6 @@ public sealed class AdmissionAssessmentService : IAdmissionAssessmentService
         {
             _logger.LogError(ex, "Merit publish failed for tenant {TenantId}", tenant);
             return ApiResponse<AdmissionMeritListDto>.ErrorResponse("Merit list could not be published.", 500);
-        }
-        finally
-        {
-            if (transactionStarted) await _unitOfWork.RollbackTransactionAsync();
         }
     }
 
