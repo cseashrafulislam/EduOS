@@ -192,13 +192,14 @@
                 <label class="visually-hidden" for="statusFilter">@T["FilterStatus"]</label>
                 <select class="form-select" id="statusFilter">
                     <option value="">@T["AllStatuses"]</option>
-                    <option value="1">@T["AdmissionStatusSubmitted"]</option>
-                    <option value="2">@T["AdmissionStatusUnderReview"]</option>
-                    <option value="3">@T["AdmissionStatusWaitlisted"]</option>
-                    <option value="4">@T["AdmissionStatusApproved"]</option>
-                    <option value="5">@T["AdmissionStatusRejected"]</option>
-                    <option value="6">@T["AdmissionStatusWithdrawn"]</option>
-                    <option value="7">@T["AdmissionStatusAdmitted"]</option>
+                    <option value="2">@T["AdmissionStatusSubmitted"]</option>
+                    <option value="3">@T["AdmissionStatusUnderReview"]</option>
+                    <option value="4">Documents pending / কাগজপত্র যাচাই বাকি</option>
+                    <option value="5">Assessment pending / পরীক্ষা বাকি</option>
+                    <option value="6">Qualified / যোগ্য</option>
+                    <option value="7">@T["AdmissionStatusRejected"]</option>
+                    <option value="8">@T["AdmissionStatusAdmitted"]</option>
+                    <option value="9">Withdrawn / প্রত্যাহার</option>
                 </select>
                 <button class="btn btn-outline-primary" type="submit">@T["Search"]</button>
             </form>
@@ -308,11 +309,11 @@
                     <input id="enrollmentReference" type="hidden" />
                     <input id="enrollmentRowVersion" type="hidden" />
                     <div class="col-md-6">
-                        <label class="form-label" for="enrollmentSectionId">@T["Section"] *</label>
+                        <label class="form-label" for="enrollmentSectionId">Academic batch / শিক্ষার্থী ব্যাচ *</label>
                         <select class="form-select" id="enrollmentSectionId" required></select>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label" for="enrollmentGroupId">@T["Group"]</label>
+                        <label class="form-label" for="enrollmentGroupId">Academic track / বিভাগ</label>
                         <select class="form-select" id="enrollmentGroupId"></select>
                     </div>
                     <div class="col-12">

@@ -34,6 +34,17 @@ public class AdmissionApplicationContractTests
         view.Should().NotContain("style=\"");
         script.Should().Contain("clientRequestId");
         script.Should().Contain("/admit");
+        // UI contracts must match canonical AdmissionApplicantState and AdmitAdmissionApplicationDto.
+        script.Should().Contain("const transitions = { 2: [3, 6, 7], 3: [6, 7], 4: [3], 5: [6, 7] }");
+        script.Should().Contain("payload.data.academicBatches");
+        script.Should().Contain("payload.data.academicTracks");
+        script.Should().Contain("academicBatchId: positiveInteger(");
+        script.Should().Contain("academicTrackId: positiveInteger(");
+        script.Should().NotContain("payload.data.sections");
+        script.Should().NotContain("payload.data.groups");
+        script.Should().NotContain("sectionId: positiveInteger(");
+        script.Should().NotContain("groupId: positiveInteger(");
+        view.Should().Contain("<option value=\"6\">Qualified");
         script.Should().Contain("/api/admission-intake/forms");
         script.Should().Contain("dataset.documentId");
         view.Should().Contain("id=\"intakeFormEditor\"");
