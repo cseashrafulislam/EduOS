@@ -77,7 +77,7 @@ public sealed class AdmissionApplicationService : IAdmissionApplicationService
             Currency = x.CurrencyCode
         }).ToList();
         return ApiResponse<AdmissionApplicationOptionsDto>.SuccessResponse(new AdmissionApplicationOptionsDto
-        { AcademicYears = years, AcademicTerms = terms, Campuses = campuses, AcademicUnits = levels, OpenForms = openForms });
+        { AcademicYears = years, AcademicTerms = terms, Campuses = campuses, AcademicLevels = levels, OpenForms = openForms });
     }
 
     public async Task<ApiResponse<PagedResult<AdmissionApplicationListItemDto>>> GetPageAsync(
