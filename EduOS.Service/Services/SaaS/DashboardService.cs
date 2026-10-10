@@ -68,7 +68,7 @@ public sealed class DashboardService : IDashboardService
                 .CountAsync(x => x.SubscriptionPlanId == plan.Id && x.IsEnabled);
 
             var totalStudents = await _students.GetQueryable().AsNoTracking()
-                .CountAsync(x => x.TenantId == tenantId && x.IsActive);
+                .CountAsync(x => x.TenantId == tenantId && x.StatusCode == "Active" && !x.IsDeleted);
             var activeEmployees = _employees.GetQueryable().AsNoTracking()
                 .Where(x => x.TenantId == tenantId && x.State == EmployeeState.Active);
             var totalTeachers = await activeEmployees.CountAsync(x => x.CanTeach);
@@ -106,8 +106,8 @@ public sealed class DashboardService : IDashboardService
 
             var expiryDays = subscription == null ? 0 : Math.Max(0, (int)Math.Ceiling((subscription.EndsAt - nowUtc).TotalDays));
             var trialDays = subscription?.IsTrial == true ? expiryDays : (int?)null;
-            var onboardingStep = Enum.TryParse<OnboardingStep>(tenant.OnboardingStage.ToString(), out var legacyStep)
-                ? legacyStep : OnboardingStep.EmailVerification;
+            var isComplete = tenant.OnboardingStage == OnboardingStage.Completed &&
+                tenant.OnboardingCompletedAt.HasValue;
             var stageNo = Math.Clamp((int)tenant.OnboardingStage - 1, 0, 10);
 
             var vm = new DashboardVm
@@ -119,9 +119,9 @@ public sealed class DashboardService : IDashboardService
                 TrialEndDate = subscription?.IsTrial == true ? subscription.EndsAt : null,
                 TrialDaysRemaining = trialDays, SubscriptionEndDate = subscription?.EndsAt,
                 DaysUntilExpiry = expiryDays, SubscriptionStatus = subscription?.State.ToString() ?? "None",
-                EmailVerified = tenant.IsEmailVerified, OnboardingComplete = tenant.IsOnboardingComplete,
-                OnboardingStep = (int)onboardingStep,
-                OnboardingPercent = tenant.IsOnboardingComplete ? 100 : stageNo * 10,
+                EmailVerified = tenant.EmailVerifiedAt.HasValue, OnboardingComplete = isComplete,
+                OnboardingStage = tenant.OnboardingStage,
+                OnboardingPercent = isComplete ? 100 : stageNo * 10,
                 MaxStudents = plan?.MaxStudents ?? 0, CurrentStudents = totalStudents,
                 MaxTeachers = 0, CurrentTeachers = totalTeachers,
                 MaxCampuses = plan?.MaxCampuses ?? 0, ActiveFeatures = enabledFeatures,
@@ -144,10 +144,10 @@ public sealed class DashboardService : IDashboardService
         SubscriptionPlan? plan, int studentCount, int? trialDays, int expiryDays)
     {
         var items = new List<DashboardAlert>();
-        if (!tenant.IsEmailVerified)
+        if (!tenant.EmailVerifiedAt.HasValue)
             items.Add(new DashboardAlert { Code = "EMAIL_UNVERIFIED", Type = "warning",
                 Message = "Verify your institution email.", ActionUrl = "/Account/VerifyEmail", ActionLabel = "Verify email" });
-        if (!tenant.IsOnboardingComplete)
+        if (tenant.OnboardingStage != OnboardingStage.Completed || !tenant.OnboardingCompletedAt.HasValue)
             items.Add(new DashboardAlert { Code = "ONBOARDING_INCOMPLETE", Type = "info",
                 Message = "Complete the institution setup.", ActionUrl = "/Account/InstitutionProfile", ActionLabel = "Continue setup" });
         if (subscription == null)
