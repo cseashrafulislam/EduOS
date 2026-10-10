@@ -37,12 +37,11 @@ public class PlatformCatalogModelTests
                 new[] { "TenantId", "ProductModuleId" }));
         tenantModule.FindProperty(nameof(TenantModule.RowVersion))!
             .IsConcurrencyToken.Should().BeTrue();
-        tenantModule.FindProperty(nameof(TenantModule.ConfigurationJson))!
-            .GetMaxLength().Should().BeNull();
-        feature.FindProperty(nameof(Feature.NameBangla))!
+        tenantModule.FindProperty("ConfigurationJson").Should().BeNull();
+        feature.FindProperty(nameof(Feature.Name))!
             .GetMaxLength().Should().Be(150);
-        subscriptionPlan.FindProperty(nameof(SubscriptionPlan.DescriptionBangla))!
-            .GetMaxLength().Should().Be(2000);
+        subscriptionPlan.FindProperty(nameof(SubscriptionPlan.CurrencyCode))!
+            .GetMaxLength().Should().Be(10);
     }
 
     [Fact]
@@ -59,20 +58,20 @@ public class PlatformCatalogModelTests
     }
 
     [Fact]
-    public void Billing_model_prevents_duplicate_current_subscriptions_and_in_flight_payments()
+    public void Billing_model_supports_subscription_history_and_unique_payment_retry_keys()
     {
         using var context = CreateContext();
         var subscription = context.Model.FindEntityType(typeof(TenantSubscription))!;
         var payment = context.Model.FindEntityType(typeof(SubscriptionPayment))!;
-
-        subscription.GetIndexes().Should().Contain(index =>
-            index.IsUnique
-            && index.Properties.Select(property => property.Name).SequenceEqual(new[] { "TenantId" })
-            && index.GetFilter()!.Contains("[Status] IN (1, 2, 3, 6)"));
+        subscription.FindProperty(nameof(TenantSubscription.State)).Should().NotBeNull();
+        subscription.FindProperty(nameof(TenantSubscription.StartsAt)).Should().NotBeNull();
+        subscription.FindProperty(nameof(TenantSubscription.EndsAt)).Should().NotBeNull();
         payment.GetIndexes().Should().Contain(index =>
-            index.IsUnique
-            && index.Properties.Select(property => property.Name).SequenceEqual(new[] { "SubscriptionInvoiceId" })
-            && index.GetFilter()!.Contains("[Status] IN (2, 7)"));
+            index.IsUnique && index.Properties.Select(p => p.Name)
+                .SequenceEqual(new[] { "TenantId", "ClientRequestId" }));
+        payment.GetIndexes().Should().Contain(index =>
+            index.IsUnique && index.Properties.Select(p => p.Name)
+                .SequenceEqual(new[] { "TenantId", "TransactionId" }));
         payment.FindProperty(nameof(SubscriptionPayment.RowVersion))!
             .IsConcurrencyToken.Should().BeTrue();
     }
