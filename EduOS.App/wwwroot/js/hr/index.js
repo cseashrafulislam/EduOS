@@ -49,7 +49,7 @@
         empty(body, 6, 'Loading employees…');
         const query = new URLSearchParams({ page: String(paging.employees.page), pageSize: '25' });
         if (el('hrEmployeeText').value.trim()) query.set('search', el('hrEmployeeText').value.trim());
-        if (el('hrEmployeeTeacher').value) query.set('isTeacher', el('hrEmployeeTeacher').value);
+        if (el('hrEmployeeTeacher').value) query.set('canTeach', el('hrEmployeeTeacher').value);
         if (el('hrEmployeeActive').value) query.set('isActive', el('hrEmployeeActive').value);
         try {
             const data = await request('/api/hr/employees?' + query);
