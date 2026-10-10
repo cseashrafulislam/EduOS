@@ -3,6 +3,7 @@ using EduOS.Core.Entities.Learners;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Enums;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Settings;
 using EduOS.Persistence.Context;
@@ -44,19 +45,19 @@ public class LearnerConsentServiceTests
         result.Data.GrantExpiresAt.Should().Be(Now.UtcDateTime.AddDays(365));
 
         var request = await context.LearnerConsentRequests.IgnoreQueryFilters().SingleAsync();
-        request.Status.Should().Be(LearnerConsentRequestStatus.Approved);
+        request.State.Should().Be(ConsentState.Approved);
         request.ResolvedByUserId.Should().Be(77);
 
         var grant = await context.LearnerDataGrants.IgnoreQueryFilters().SingleAsync();
         grant.TenantId.Should().Be(202);
         grant.PersonId.Should().Be(scenario.PersonId);
         grant.StudentId.Should().Be(scenario.TargetStudentId);
-        grant.GrantedScopes.Should().Be(LearnerDataScope.BasicIdentity | LearnerDataScope.AcademicSummary);
+        grant.GrantedScopes.Should().Be(((long)(LearnerDataScope.BasicIdentity | LearnerDataScope.AcademicSummary)).ToString());
         (await context.StudentPersonLinks.IgnoreQueryFilters()
             .CountAsync(x => x.PersonId == scenario.PersonId)).Should().Be(2);
 
         var log = await context.LearnerIdentityAccessLogs.IgnoreQueryFilters().SingleAsync();
-        log.Outcome.Should().Be(LearnerIdentityAccessOutcome.Approved);
+        log.OutcomeCode.Should().Be("Approved");
         log.ReasonCode.Should().Be("CONSENT_APPROVED");
     }
 
@@ -74,8 +75,8 @@ public class LearnerConsentServiceTests
         result.Success.Should().BeFalse();
         result.StatusCode.Should().Be(404);
         (await context.LearnerDataGrants.IgnoreQueryFilters().CountAsync()).Should().Be(0);
-        (await context.LearnerConsentRequests.IgnoreQueryFilters().SingleAsync()).Status
-            .Should().Be(LearnerConsentRequestStatus.Pending);
+        (await context.LearnerConsentRequests.IgnoreQueryFilters().SingleAsync()).State
+            .Should().Be(ConsentState.Pending);
         (await context.LearnerIdentityAccessLogs.IgnoreQueryFilters().CountAsync()).Should().Be(0);
     }
 
@@ -114,11 +115,11 @@ public class LearnerConsentServiceTests
 
         result.Success.Should().BeFalse();
         result.StatusCode.Should().Be(410);
-        (await context.LearnerConsentRequests.IgnoreQueryFilters().SingleAsync()).Status
-            .Should().Be(LearnerConsentRequestStatus.Expired);
+        (await context.LearnerConsentRequests.IgnoreQueryFilters().SingleAsync()).State
+            .Should().Be(ConsentState.Expired);
         (await context.LearnerDataGrants.IgnoreQueryFilters().CountAsync()).Should().Be(0);
-        (await context.LearnerIdentityAccessLogs.IgnoreQueryFilters().SingleAsync()).Outcome
-            .Should().Be(LearnerIdentityAccessOutcome.Expired);
+        (await context.LearnerIdentityAccessLogs.IgnoreQueryFilters().SingleAsync()).OutcomeCode
+            .Should().Be("Expired");
     }
 
     [Fact]
@@ -141,10 +142,10 @@ public class LearnerConsentServiceTests
         first.Data!.State.Should().Be("Revoked");
         second.Success.Should().BeTrue();
         second.Data!.AlreadyProcessed.Should().BeTrue();
-        (await context.LearnerDataGrants.IgnoreQueryFilters().SingleAsync()).Status
-            .Should().Be(LearnerDataGrantStatus.Revoked);
-        (await context.LearnerConsentRequests.IgnoreQueryFilters().SingleAsync()).Status
-            .Should().Be(LearnerConsentRequestStatus.Revoked);
+        (await context.LearnerDataGrants.IgnoreQueryFilters().SingleAsync()).State
+            .Should().Be(GrantState.Revoked);
+        (await context.LearnerConsentRequests.IgnoreQueryFilters().SingleAsync()).State
+            .Should().Be(ConsentState.Revoked);
         (await context.LearnerIdentityAccessLogs.IgnoreQueryFilters().CountAsync()).Should().Be(2);
     }
 
@@ -179,7 +180,7 @@ public class LearnerConsentServiceTests
         await SeedScenarioAsync(options);
         await using var context = CreateContext(options, 101, 77, "Parent");
         var request = await context.LearnerConsentRequests.IgnoreQueryFilters().SingleAsync();
-        request.Status = LearnerConsentRequestStatus.Denied;
+        request.State = ConsentState.Rejected;
 
         var action = () => context.SaveChangesAsync();
 
@@ -220,36 +221,35 @@ public class LearnerConsentServiceTests
         {
             var person = new Person
             {
-                FullName = "Private Learner Name",
-                DateOfBirth = new DateTime(2010, 1, 2),
+                FullName = "Private Learner Name", DateOfBirth = new DateOnly(2010, 1, 2),
                 Gender = "Male"
             };
-            var student = Student(101, "Origin Student", ownerStudentUserId);
             origin.Persons.Add(person);
+            await origin.SaveChangesAsync();
+            var student = Student(101, "Origin Student", ownerStudentUserId);
+            student.PersonId = person.Id;
             origin.Students.Add(student);
+            await origin.SaveChangesAsync();
             origin.StudentPersonLinks.Add(new StudentPersonLink
             {
-                TenantId = 101,
-                Student = student,
-                Person = person,
-                Status = StudentPersonLinkStatus.Active,
-                LinkedAt = Now.UtcDateTime,
-                LinkedByUserId = 1
+                TenantId = 101, StudentId = student.Id, PersonId = person.Id,
+                IsPrimary = true, LinkedAt = Now.UtcDateTime, LinkedByUserId = 1
             });
             if (parentUserId.HasValue)
             {
-                origin.Guardians.Add(new Guardian
+                var guardian = new Guardian
                 {
-                    TenantId = 101,
-                    Student = student,
-                    UserId = parentUserId,
-                    Name = "Authorized Parent",
-                    Relation = "Parent",
-                    Phone = "01700000000",
-                    IsPrimary = true
+                    TenantId = 101, UserId = parentUserId,
+                    FullName = "Authorized Parent", Phone = "01700000000"
+                };
+                origin.Guardians.Add(guardian);
+                await origin.SaveChangesAsync();
+                origin.StudentGuardians.Add(new StudentGuardian
+                {
+                    TenantId = 101, StudentId = student.Id,
+                    GuardianId = guardian.Id, RelationCode = "Parent", IsPrimary = true
                 });
             }
-
             await origin.SaveChangesAsync();
             personId = person.Id;
         }
@@ -264,9 +264,9 @@ public class LearnerConsentServiceTests
             PersonId = personId,
             RequestedStudentId = target.Id,
             RequestedByUserId = 2,
-            Purpose = LearnerIdentityPurpose.Admission,
-            RequestedScopes = scopes,
-            Status = LearnerConsentRequestStatus.Pending,
+            Purpose = LearnerIdentityPurpose.Admission.ToString(),
+            RequestedScopes = ((long)scopes).ToString(),
+            State = ConsentState.Pending,
             ExpiresAt = expiresAt ?? Now.UtcDateTime.AddDays(2)
         };
         destination.LearnerConsentRequests.Add(request);
@@ -280,8 +280,7 @@ public class LearnerConsentServiceTests
         Name = name,
         Code = code,
         Email = $"{code.ToLowerInvariant()}@example.test",
-        OwnerName = "Test Owner",
-        IsActive = true
+        State = TenantState.Active
     };
 
     private static Student Student(long tenantId, string name, long? userId = null) => new()
@@ -290,14 +289,9 @@ public class LearnerConsentServiceTests
         UserId = userId,
         StudentCode = $"S-{Guid.NewGuid():N}"[..18],
         FullName = name,
-        FatherName = "Father",
-        MotherName = "Mother",
-        DOB = new DateTime(2010, 1, 2),
-        Gender = "Male",
-        AdmissionDate = Now.UtcDateTime,
-        ClassId = 1,
-        SectionId = 1,
-        AcademicYearId = 1
+        DateOfBirth = new DateOnly(2010, 1, 2),
+        Gender = "Male", AdmissionDate = DateOnly.FromDateTime(Now.UtcDateTime),
+        StatusCode = "Active"
     };
 
     private static DbContextOptions<EduOSDbContext> CreateOptions() =>
