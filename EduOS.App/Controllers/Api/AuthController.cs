@@ -431,7 +431,7 @@ namespace EduOS.App.Controllers.Api
             if (user == null)
                 return Unauthorized(new { success = false, message = "User session not found." });
 
-            var dto = new UserProfileDto
+            var dto = new
             {
                 Id = user.Id,
                 FullName = user.FullName ?? string.Empty,
@@ -560,7 +560,7 @@ namespace EduOS.App.Controllers.Api
                     on member.TenantId equals tenant.Id
                 where member.UserId == user.Id && !member.IsDeleted &&
                     member.Status == MembershipStatus.Active &&
-                    tenant.IsActive && !tenant.IsDeleted &&
+                    !tenant.IsDeleted &&
                     tenant.State != TenantState.Closed && tenant.State != TenantState.Suspended
                 select member.TenantId).Distinct().Take(2).ToArrayAsync();
             if (tenantIds.Length != 1) return (false, "", null);
