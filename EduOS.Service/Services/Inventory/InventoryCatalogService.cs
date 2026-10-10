@@ -26,6 +26,13 @@ public sealed partial class InventoryCatalogService : IInventoryCatalogService
          _user.IsInRole("StoreKeeper") || _user.IsInRole("Accountant"));
     private bool CanWrite() => _user.IsAuthenticated && _user.TenantId > 0 &&
         (_user.IsTenantAdmin || _user.IsInRole("Principal") || _user.IsInRole("InventoryManager"));
+    private bool CanAccessAllCampuses() => _user.IsTenantAdmin || _user.IsInRole("Principal");
+    private Task<bool> CanAccessCampusAsync(long campusId, CancellationToken ct) =>
+        CanAccessAllCampuses() ? Task.FromResult(true) : _db.UserCampusAccesses.AsNoTracking()
+            .AnyAsync(x => x.TenantId == _user.TenantId && x.UserId == _user.UserId &&
+                x.CampusId == campusId && x.IsActive && !x.IsDeleted &&
+                _db.Campuses.Any(c => c.TenantId == _user.TenantId && c.Id == x.CampusId &&
+                    c.IsActive && !c.IsDeleted), ct);
     private static ApiResponse<T> Denied<T>() => ApiResponse<T>.ErrorResponse("Inventory access denied.", 403);
     private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     private static string Code(string? value) => (value ?? string.Empty).Trim().ToUpperInvariant();

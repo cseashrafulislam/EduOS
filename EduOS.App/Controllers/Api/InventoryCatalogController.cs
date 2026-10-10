@@ -25,8 +25,12 @@ public sealed class InventoryCatalogController : ControllerBase
     public async Task<IActionResult> UpdateItem(long id,[FromBody] SaveInventoryItemRequestDto request,CancellationToken ct)
         => Reply(await service.SaveItemAsync(id,request,ct));
     [HttpGet("locations"), Authorize(Roles="TenantAdmin,Principal,InventoryManager,StoreKeeper,Accountant")]
-    public async Task<IActionResult> Locations(long? campusId,CancellationToken ct)
-        => Reply(await service.GetLocationsAsync(campusId,ct));
+    public async Task<IActionResult> Locations(int? page=null,int? pageSize=null,long? campusId=null,string? search=null,CancellationToken ct=default)
+    {
+        if (!page.HasValue && !pageSize.HasValue && search == null)
+            return Reply(await service.GetLocationsAsync(campusId,ct));
+        return Reply(await service.GetLocationsPageAsync(page ?? 1,pageSize ?? 25,campusId,search,ct));
+    }
     [HttpPost("locations"), Authorize(Roles="TenantAdmin,Principal,InventoryManager")]
     public async Task<IActionResult> CreateLocation([FromBody] SaveInventoryLocationRequestDto request,CancellationToken ct)
         => Reply(await service.SaveLocationAsync(null,request,ct));

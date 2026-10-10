@@ -6,7 +6,7 @@
     const canManage = root.dataset.canManage === 'true';
     const token = document.querySelector('meta[name="request-verification-token"]')?.content;
     const base = '/api/inventory/catalog';
-    let page = 1, lastPage = 1, items = [], locations = [];
+    let page = 1, lastPage = 1, locationPage = 1, locationLastPage = 1, items = [], locations = [];
     function notice(text, ok = false) {
         const box = el('catalogAlert');
         box.className = 'alert alert-' + (ok ? 'success' : 'danger');
@@ -86,8 +86,21 @@
         }
     }
     async function loadLocations() {
-        try { locations = await api('/locations'); renderLocations(); }
-        catch (error) { notice(error.message); empty(el('locationRows'), canManage ? 5 : 4, 'Unable to load locations.'); }
+        try {
+            const query = new URLSearchParams({ page: String(locationPage), pageSize: '25',
+                search: el('locationSearch').value.trim() });
+            const data = await api('/locations?' + query);
+            locations = data.items || [];
+            locationLastPage = Math.max(1, data.totalPages || 1);
+            el('locationPageLabel').textContent = 'Page ' + locationPage + ' of ' + locationLastPage +
+                ' · ' + (data.totalCount || 0) + ' locations';
+            el('locationPrev').disabled = locationPage <= 1;
+            el('locationNext').disabled = locationPage >= locationLastPage;
+            renderLocations();
+        } catch (error) {
+            notice(error.message);
+            empty(el('locationRows'), canManage ? 5 : 4, 'Unable to load locations.');
+        }
     }
     function editLocation(row) {
         const values = { locationId: row.id, locationVersion: row.rowVersion, locationCode: row.code,
@@ -111,6 +124,9 @@
             resetLocation(); notice('Location saved.', true); await loadLocations();
         } catch (error) { notice(error.message); }
     }
+    el('locationSearchForm').addEventListener('submit', e => { e.preventDefault(); locationPage = 1; loadLocations(); });
+    el('locationPrev').addEventListener('click', () => { if (locationPage > 1) { locationPage--; loadLocations(); } });
+    el('locationNext').addEventListener('click', () => { if (locationPage < locationLastPage) { locationPage++; loadLocations(); } });
     el('itemSearchForm').addEventListener('submit', e => { e.preventDefault(); page = 1; loadItems(); });
     el('itemPrev').addEventListener('click', () => { if (page > 1) { page--; loadItems(); } });
     el('itemNext').addEventListener('click', () => { if (page < lastPage) { page++; loadItems(); } });
