@@ -1,5 +1,6 @@
 using EduOS.Core.DTOs.Academic;
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.HR;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
