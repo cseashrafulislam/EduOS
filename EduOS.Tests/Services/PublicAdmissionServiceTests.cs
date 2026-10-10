@@ -299,6 +299,16 @@ public sealed class PublicAdmissionServiceTests
                 new GenericRepository<AcademicLevel>(f.Db),
                 f.Db, f.Storage.Object, f._http,
                 new FixedTimeProvider(Now), NullLogger<PublicAdmissionService>.Instance);
+            var resolver = typeof(PublicAdmissionService).GetMethod("ResolveTenantAsync",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+            var resolved = await (Task<Tenant?>)resolver.Invoke(f.Service,
+                new object[] { tenantCode, CancellationToken.None })!;
+            resolved.Should().NotBeNull("the public tenant key must resolve");
+            var gate = typeof(PublicAdmissionService).GetMethod("CanPublishAsync",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+            var allowed = await (Task<bool>)gate.Invoke(f.Service,
+                new object[] { f.Tenant.Id, CancellationToken.None })!;
+            allowed.Should().BeTrue("the seeded subscription and ADMISSION module must authorize the portal");
             return f;
         }
 
