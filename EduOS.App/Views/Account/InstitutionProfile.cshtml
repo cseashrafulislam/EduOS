@@ -37,6 +37,7 @@
     <div id="alertContainer" class="d-none" role="alert" tabindex="-1"></div>
 
     <form id="profileForm" class="setup-form" enctype="multipart/form-data" novalidate>
+        @Html.AntiForgeryToken()
         <section class="setup-section" aria-labelledby="basicInformationTitle">
             <div class="setup-section-heading">
                 <h3 id="basicInformationTitle">@T["BasicInformation"]</h3>
