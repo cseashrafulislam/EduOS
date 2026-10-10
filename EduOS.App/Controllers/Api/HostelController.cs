@@ -19,6 +19,7 @@ public sealed class HostelController : ControllerBase
     public HostelController(IHostelService service) => _service = service;
 
     [HttpGet("rooms")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
     public async Task<IActionResult> Rooms(CancellationToken ct) => ToAction(await _service.GetRoomsAsync(ct));
 
     [HttpGet("eligible-students")]

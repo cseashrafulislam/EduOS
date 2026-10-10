@@ -90,12 +90,32 @@ public sealed class HostelCanonicalEligibilityTests
         IsCurrent = current, State = EnrollmentState.Active
     };
 
-    private static HostelService Service(EduOSDbContext db) => new(
+    [Fact]
+    public async Task Student_cannot_enumerate_hostel_rooms_occupancy_or_rent()
+    {
+        var options = new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("hostel-read-denied-" + Guid.NewGuid().ToString("N")).Options;
+        await using var db = Context(101, options);
+        var response = await Service(db, false).GetRoomsAsync();
+        response.Success.Should().BeFalse();
+        response.StatusCode.Should().Be(403);
+    }
+
+    [Fact]
+    public async Task Tenant_admin_can_read_hostel_room_catalogue()
+    {
+        var options = new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("hostel-read-allowed-" + Guid.NewGuid().ToString("N")).Options;
+        await using var db = Context(101, options);
+        (await Service(db).GetRoomsAsync()).Success.Should().BeTrue();
+    }
+
+    private static HostelService Service(EduOSDbContext db, bool canManage = true) => new(
         new GenericRepository<EduOS.Core.Entities.Hostel.Hostel>(db),
         new GenericRepository<HostelRoom>(db), new GenericRepository<HostelBed>(db),
         new GenericRepository<StudentHostelAllocation>(db),
         new GenericRepository<StudentEnrollment>(db), new GenericRepository<Student>(db),
-        new UnitOfWork(db), new CurrentUser(), TimeProvider.System, NullLogger<HostelService>.Instance);
+        new UnitOfWork(db), new CurrentUser(canManage), TimeProvider.System, NullLogger<HostelService>.Instance);
 
     private static EduOSDbContext Context(long tenant, DbContextOptions<EduOSDbContext> options)
     {
@@ -122,7 +142,7 @@ public sealed class HostelCanonicalEligibilityTests
         public void Dispose() { }
     }
 
-    private sealed class CurrentUser : ICurrentUserService
+    private sealed class CurrentUser(bool canManage) : ICurrentUserService
     {
         public bool IsAuthenticated => true;
         public long UserId => 7;
@@ -130,9 +150,9 @@ public sealed class HostelCanonicalEligibilityTests
         public string? FullName => "Hostel Test";
         public string? Email => "hostel@example.test";
         public bool IsSuperAdmin => false;
-        public bool IsTenantAdmin => true;
-        public IReadOnlyList<string> Roles => new[] { "TenantAdmin" };
-        public bool IsInRole(string role) => role == "TenantAdmin";
+        public bool IsTenantAdmin => canManage;
+        public IReadOnlyList<string> Roles => canManage ? new[] { "TenantAdmin" } : new[] { "Student" };
+        public bool IsInRole(string role) => canManage && role == "TenantAdmin";
         public string? IpAddress => "127.0.0.1";
         public string? UserAgent => "Tests";
     }

@@ -126,7 +126,29 @@ public class TransportServiceTests
         (await service.GetMyAssignmentAsync()).Data.Should().BeNull();
     }
 
-    private static TransportService CreateService(EduOSDbContext context, long tenant) => new(
+    [Fact]
+    public async Task Student_cannot_enumerate_transport_routes_or_vehicle_capacity()
+    {
+        await using var db = CreateContext(CreateOptions(), 101);
+        var service = CreateService(db, 101, false);
+        var routes = await service.GetRoutesAsync();
+        var vehicles = await service.GetVehiclesAsync();
+        routes.Success.Should().BeFalse();
+        routes.StatusCode.Should().Be(403);
+        vehicles.Success.Should().BeFalse();
+        vehicles.StatusCode.Should().Be(403);
+    }
+
+    [Fact]
+    public async Task Tenant_admin_can_read_transport_catalogue()
+    {
+        await using var db = CreateContext(CreateOptions(), 101);
+        var service = CreateService(db, 101);
+        (await service.GetRoutesAsync()).Success.Should().BeTrue();
+        (await service.GetVehiclesAsync()).Success.Should().BeTrue();
+    }
+
+    private static TransportService CreateService(EduOSDbContext context, long tenant, bool canManage = true) => new(
         new GenericRepository<TransportRoute>(context),
         new GenericRepository<RouteStop>(context),
         new GenericRepository<Vehicle>(context),
@@ -135,7 +157,7 @@ public class TransportServiceTests
         new GenericRepository<StudentEnrollment>(context),
         new GenericRepository<Student>(context),
         new TestUnitOfWork(context),
-        new TestCurrentUser(tenant), TimeProvider.System, NullLogger<TransportService>.Instance);
+        new TestCurrentUser(tenant, canManage), TimeProvider.System, NullLogger<TransportService>.Instance);
 
     private static async Task<StudentTransport> SeedAssignmentAsync(EduOSDbContext context, long tenant, bool active, byte[] rowVersion)
     {
@@ -201,7 +223,7 @@ public class TransportServiceTests
         public void Dispose() { }
     }
 
-    private sealed class TestCurrentUser(long tenant) : ICurrentUserService
+    private sealed class TestCurrentUser(long tenant, bool canManage) : ICurrentUserService
     {
         public bool IsAuthenticated => true;
         public long UserId => 7;
@@ -209,9 +231,9 @@ public class TransportServiceTests
         public string? FullName => "Transport User";
         public string? Email => "transport@example.test";
         public bool IsSuperAdmin => false;
-        public bool IsTenantAdmin => true;
-        public IReadOnlyList<string> Roles => ["TenantAdmin"];
-        public bool IsInRole(string role) => role == "TenantAdmin";
+        public bool IsTenantAdmin => canManage;
+        public IReadOnlyList<string> Roles => canManage ? ["TenantAdmin"] : ["Student"];
+        public bool IsInRole(string role) => canManage && role == "TenantAdmin";
         public string? IpAddress => "127.0.0.1";
         public string? UserAgent => "Tests";
     }

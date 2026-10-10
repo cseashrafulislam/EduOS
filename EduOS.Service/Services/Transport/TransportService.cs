@@ -49,7 +49,7 @@ public sealed class TransportService : ITransportService
 
     public async Task<ApiResponse<IReadOnlyList<RouteDto>>> GetRoutesAsync(CancellationToken cancellationToken = default)
     {
-        if (!CanRead()) return Denied<IReadOnlyList<RouteDto>>();
+        if (!CanManage()) return Denied<IReadOnlyList<RouteDto>>();
         var tenant = _currentUser.TenantId;
         var routes = await _routes.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant && x.IsActive)
             .OrderBy(x => x.Name).ToListAsync(cancellationToken);
@@ -74,7 +74,7 @@ public sealed class TransportService : ITransportService
 
     public async Task<ApiResponse<IReadOnlyList<VehicleDto>>> GetVehiclesAsync(CancellationToken cancellationToken = default)
     {
-        if (!CanRead()) return Denied<IReadOnlyList<VehicleDto>>();
+        if (!CanManage()) return Denied<IReadOnlyList<VehicleDto>>();
         var tenant = _currentUser.TenantId;
         var vehicles = await _vehicles.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant && x.IsActive)
             .OrderBy(x => x.VehicleNumber).ToListAsync(cancellationToken);

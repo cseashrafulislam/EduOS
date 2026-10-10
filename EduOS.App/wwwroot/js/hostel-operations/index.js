@@ -115,7 +115,7 @@
             await Promise.all([loadActive(), loadStudents(), loadBeds(), loadRooms()]);
         } catch (error) { notify(error.message); } finally { button.disabled = false; }
     }
-    loadMine(); loadRooms();
+    loadMine(); if (manager) loadRooms();
     if (manager) {
         el('hostelStart').value = today();
         el('hostelFindStudents').addEventListener('click', () => { studentPage = 1; loadStudents(); });

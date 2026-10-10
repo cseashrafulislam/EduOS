@@ -120,7 +120,7 @@
             await Promise.all([loadActive(), loadStudents(), loadStatic()]);
         } catch (err) { notify(err.message); } finally { button.disabled = false; }
     }
-    loadMine(); loadStatic();
+    loadMine(); if (canManage) loadStatic();
     if (canManage) {
         el('transportStart').value = localDate();
         el('transportRoute').addEventListener('change', updateStops);

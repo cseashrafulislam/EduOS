@@ -19,9 +19,11 @@ public sealed class TransportController : ControllerBase
     public TransportController(ITransportService service) => _service = service;
 
     [HttpGet("routes")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
     public async Task<IActionResult> Routes(CancellationToken ct) => ToAction(await _service.GetRoutesAsync(ct));
 
     [HttpGet("vehicles")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
     public async Task<IActionResult> Vehicles(CancellationToken ct) => ToAction(await _service.GetVehiclesAsync(ct));
 
     [HttpGet("eligible-students")]

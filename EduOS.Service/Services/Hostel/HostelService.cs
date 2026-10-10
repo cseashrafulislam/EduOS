@@ -38,7 +38,7 @@ public sealed class HostelService : IHostelService
 
     public async Task<ApiResponse<IReadOnlyList<HostelRoomDto>>> GetRoomsAsync(CancellationToken cancellationToken = default)
     {
-        if (!CanRead()) return Denied<IReadOnlyList<HostelRoomDto>>();
+        if (!CanManage()) return Denied<IReadOnlyList<HostelRoomDto>>();
         var tenant = _currentUser.TenantId;
         var data = await (from room in _rooms.GetQueryable().AsNoTracking()
             join hostel in _hostels.GetQueryable().AsNoTracking() on room.HostelId equals hostel.Id
