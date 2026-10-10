@@ -1,8 +1,7 @@
 using EduOS.Core.DTOs.Admission;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Admission;
-using EduOS.Core.Entities.SaaS;
-using EduOS.Core.Enums;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
 using EduOS.Persistence.Repositories;
@@ -11,228 +10,194 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
-using System.Security.Claims;
 using Xunit;
 
 namespace EduOS.Tests.Services;
 
-public class AdmissionAssessmentServiceTests
+public sealed class AdmissionAssessmentServiceTests
 {
     private static readonly DateTimeOffset Now = new(2026, 9, 11, 8, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public async Task Create_test_is_tenant_scoped_and_validates_academic_references()
+    public async Task Assessment_creation_validates_intake_scope_and_marks()
     {
-        var options = CreateOptions();
-        await using var context = CreateContext(options, 101);
-        var refs = await SeedReferencesAsync(context, 101);
-        var service = CreateService(context, new TestCurrentUser(101));
-
-        var created = await service.CreateTestAsync(CreateTestRequest(refs));
-        var invalid = CreateTestRequest(refs);
-        invalid.CampusId = refs.CampusId + 99999;
+        var options = Options();
+        await using var db = Context(options, 101);
+        var scope = await SeedAsync(db, 101);
+        var service = Service(db, new TestUser(101));
+        var request = Request(scope);
+        var created = await service.CreateTestAsync(request);
+        var invalid = Request(scope);
+        invalid.CampusId = scope.CampusId + 99;
         var rejected = await service.CreateTestAsync(invalid);
-
-        created.Success.Should().BeTrue();
         created.StatusCode.Should().Be(201);
         rejected.StatusCode.Should().Be(409);
-        var saved = await context.Set<AdmissionTest>().SingleAsync();
+        var saved = await db.Set<AdmissionTest>().SingleAsync();
         saved.TenantId.Should().Be(101);
-        saved.PassMarks.Should().Be(40);
+        saved.PassMarks.Should().Be(40m);
     }
 
     [Fact]
-    public async Task Save_results_calculates_pass_percentage_and_blocks_foreign_scope()
+    public async Task Marks_are_scoped_to_same_admission_form()
     {
-        var options = CreateOptions();
-        await using var context = CreateContext(options, 101);
-        var refs = await SeedReferencesAsync(context, 101);
-        var applicant = await SeedApplicantAsync(context, 101, refs, "APP-101-1", "Rahim");
-        var foreignScope = await SeedApplicantAsync(context, 101, refs with { CampusId = refs.OtherCampusId }, "APP-101-2", "Karim");
-        var service = CreateService(context, new TestCurrentUser(101));
-        var test = await service.CreateTestAsync(CreateTestRequest(refs));
-
-        var saved = await service.SaveResultsAsync(test.Data!.Id, new SaveAdmissionResultsDto
+        var options = Options();
+        await using var db = Context(options, 101);
+        var scope = await SeedAsync(db, 101);
+        var applicant = await ApplicantAsync(db, scope.FormId, 101, "Rahim");
+        var otherForm = new AdmissionIntakeForm { TenantId = 101, Code = "SECOND",
+            Title = "Other", CampusId = scope.CampusId, AcademicYearId = scope.YearId,
+            AcademicProgramId = scope.ProgramId, AcademicLevelId = scope.LevelId,
+            State = AdmissionFormState.Published };
+        db.Add(otherForm); await db.SaveChangesAsync();
+        var outsider = await ApplicantAsync(db, otherForm.Id, 101, "Karim");
+        var service = Service(db, new TestUser(101));
+        var test = await service.CreateTestAsync(Request(scope));
+        var valid = await service.SaveResultsAsync(test.Data!.Id, new SaveAdmissionResultsDto
         {
-            Results = [new SaveAdmissionResultItemDto { ApplicantId = applicant.Id, ObtainedMarks = 75 }]
+            Results = [new SaveAdmissionResultItemDto { ApplicantId = applicant.Id, ObtainedMarks = 75m }]
         });
         var invalid = await service.SaveResultsAsync(test.Data.Id, new SaveAdmissionResultsDto
         {
-            Results = [new SaveAdmissionResultItemDto { ApplicantId = foreignScope.Id, ObtainedMarks = 70 }]
+            Results = [new SaveAdmissionResultItemDto { ApplicantId = outsider.Id, ObtainedMarks = 80m }]
         });
-
-        saved.Success.Should().BeTrue();
-        saved.Data!.Single().Percentage.Should().Be(75);
-        saved.Data.Single().IsPassed.Should().BeTrue();
+        valid.Success.Should().BeTrue();
+        valid.Data!.Single().ObtainedMarks.Should().Be(75m);
+        valid.Data.Single().IsPassed.Should().BeTrue();
         invalid.StatusCode.Should().Be(409);
     }
 
     [Fact]
-    public async Task Publish_assigns_merit_only_to_passed_applicants_and_locks_changes()
+    public async Task Publication_ranks_only_passed_applicants_and_blocks_edits()
     {
-        var options = CreateOptions();
-        await using var context = CreateContext(options, 101);
-        var refs = await SeedReferencesAsync(context, 101);
-        var first = await SeedApplicantAsync(context, 101, refs, "APP-101-1", "First");
-        var second = await SeedApplicantAsync(context, 101, refs, "APP-101-2", "Second");
-        var failed = await SeedApplicantAsync(context, 101, refs, "APP-101-3", "Failed");
-        var service = CreateService(context, new TestCurrentUser(101));
-        var test = await service.CreateTestAsync(CreateTestRequest(refs));
-
-        await service.SaveResultsAsync(test.Data!.Id, new SaveAdmissionResultsDto
+        var options = Options();
+        await using var db = Context(options, 101);
+        var scope = await SeedAsync(db, 101);
+        var first = await ApplicantAsync(db, scope.FormId, 101, "First");
+        var second = await ApplicantAsync(db, scope.FormId, 101, "Second");
+        var failed = await ApplicantAsync(db, scope.FormId, 101, "Failed");
+        var service = Service(db, new TestUser(101));
+        var test = await service.CreateTestAsync(Request(scope));
+        var written = await service.SaveResultsAsync(test.Data!.Id, new SaveAdmissionResultsDto
         {
-            Results =
-            [
-                new SaveAdmissionResultItemDto { ApplicantId = second.Id, ObtainedMarks = 80 },
-                new SaveAdmissionResultItemDto { ApplicantId = first.Id, ObtainedMarks = 90 },
-                new SaveAdmissionResultItemDto { ApplicantId = failed.Id, ObtainedMarks = 35 }
+            Results = [
+                new SaveAdmissionResultItemDto { ApplicantId = second.Id, ObtainedMarks = 80m },
+                new SaveAdmissionResultItemDto { ApplicantId = first.Id, ObtainedMarks = 90m },
+                new SaveAdmissionResultItemDto { ApplicantId = failed.Id, ObtainedMarks = 35m }
             ]
         });
+        written.Success.Should().BeTrue();
         var published = await service.PublishMeritListAsync(test.Data.Id);
-        var afterPublish = await service.SaveResultsAsync(test.Data.Id, new SaveAdmissionResultsDto
+        var edited = await service.SaveResultsAsync(test.Data.Id, new SaveAdmissionResultsDto
         {
-            Results = [new SaveAdmissionResultItemDto { ApplicantId = first.Id, ObtainedMarks = 95 }]
+            Results = [new SaveAdmissionResultItemDto { ApplicantId = first.Id, ObtainedMarks = 95m }]
         });
-
-        published.Success.Should().BeTrue();
+        published.Success.Should().BeTrue(published.Message);
         published.Data!.Test.IsPublished.Should().BeTrue();
-        published.Data.Results.Single(x => x.ApplicantId == first.Id).MeritPosition.Should().Be(1);
-        published.Data.Results.Single(x => x.ApplicantId == second.Id).MeritPosition.Should().Be(2);
-        published.Data.Results.Single(x => x.ApplicantId == failed.Id).MeritPosition.Should().BeNull();
-        afterPublish.StatusCode.Should().Be(409);
+        published.Data.Results.Single(x => x.AdmissionApplicantReference == first.PublicId)
+            .MeritPosition.Should().Be(1);
+        published.Data.Results.Single(x => x.AdmissionApplicantReference == second.PublicId)
+            .MeritPosition.Should().Be(2);
+        published.Data.Results.Single(x => x.AdmissionApplicantReference == failed.PublicId)
+            .MeritPosition.Should().BeNull();
+        edited.StatusCode.Should().Be(409);
     }
 
     [Fact]
-    public async Task Other_tenant_cannot_read_or_publish_test()
+    public async Task Other_tenant_cannot_access_merit_list()
     {
-        var options = CreateOptions();
-        long testId;
-        await using (var tenant202 = CreateContext(options, 202))
+        var options = Options();
+        long id;
+        await using (var db = Context(options, 202))
         {
-            var refs = await SeedReferencesAsync(tenant202, 202);
-            var service = CreateService(tenant202, new TestCurrentUser(202));
-            testId = (await service.CreateTestAsync(CreateTestRequest(refs))).Data!.Id;
+            var scope = await SeedAsync(db, 202);
+            id = (await Service(db, new TestUser(202)).CreateTestAsync(Request(scope))).Data!.Id;
         }
-
-        await using var tenant101 = CreateContext(options, 101);
-        var service101 = CreateService(tenant101, new TestCurrentUser(101));
-        var merit = await service101.GetMeritListAsync(testId);
-        var publish = await service101.PublishMeritListAsync(testId);
-
-        merit.StatusCode.Should().Be(404);
-        publish.StatusCode.Should().Be(404);
+        await using var own = Context(options, 101);
+        (await Service(own, new TestUser(101)).GetMeritListAsync(id)).StatusCode.Should().Be(404);
+        (await Service(own, new TestUser(101)).PublishMeritListAsync(id)).StatusCode.Should().Be(404);
     }
 
     [Fact]
-    public async Task Teacher_role_is_denied()
+    public async Task Teacher_without_assessment_permission_is_denied()
     {
-        var options = CreateOptions();
-        await using var context = CreateContext(options, 101);
-        var service = CreateService(context, new TestCurrentUser(101, "Teacher"));
-
-        var result = await service.GetTestsAsync();
-
-        result.StatusCode.Should().Be(403);
+        await using var db = Context(Options(), 101);
+        (await Service(db, new TestUser(101, "Teacher")).GetTestsAsync()).StatusCode.Should().Be(403);
     }
 
-    private static AdmissionAssessmentService CreateService(EduOSDbContext context, ICurrentUserService user) => new(
-        new GenericRepository<AdmissionTest>(context),
-        new GenericRepository<AdmissionResult>(context),
-        new GenericRepository<AdmissionApplicant>(context),
-        new GenericRepository<AcademicYear>(context),
-        new GenericRepository<Campus>(context),
-        new GenericRepository<Class>(context),
-        context,
-        user,
-        new FixedTimeProvider(Now),
-        NullLogger<AdmissionAssessmentService>.Instance);
+    private static AdmissionAssessmentService Service(EduOSDbContext db, ICurrentUserService user) => new(
+        new GenericRepository<AdmissionTest>(db), new GenericRepository<AdmissionResult>(db),
+        new GenericRepository<AdmissionApplicant>(db), new GenericRepository<AdmissionIntakeForm>(db),
+        db, user, new FixedTime(Now), NullLogger<AdmissionAssessmentService>.Instance);
 
-    private static SaveAdmissionTestDto CreateTestRequest(ReferenceIds refs) => new()
+    private static SaveAdmissionTestDto Request(Scope scope) => new()
     {
-        Name = "Admission Assessment",
-        AcademicYearId = refs.YearId,
-        CampusId = refs.CampusId,
-        AcademicUnitId = refs.UnitId,
+        Name = "Admission Assessment", AdmissionIntakeFormReference = scope.FormReference,
+        CampusId = scope.CampusId, AcademicYearId = scope.YearId, AcademicLevelId = scope.LevelId,
         TestDate = new DateTime(2026, 10, 1, 9, 0, 0, DateTimeKind.Utc),
-        TotalMarks = 100,
-        PassMarks = 40,
-        DurationMinutes = 90,
-        Venue = "Main Hall"
+        TotalMarks = 100m, PassMarks = 40m, DurationMinutes = 90
     };
 
-    private static async Task<AdmissionApplicant> SeedApplicantAsync(EduOSDbContext context, long tenantId, ReferenceIds refs, string no, string name)
+    private static async Task<Scope> SeedAsync(EduOSDbContext db, long tenant)
+    {
+        var year = new AcademicYear { TenantId = tenant, Code = "2026",
+            Name = "2026", StartDate = new DateOnly(2026, 1, 1),
+            EndDate = new DateOnly(2026, 12, 31), IsActive = true };
+        var campus = new Campus { TenantId = tenant, Name = "Main", Code = "MAIN", IsActive = true };
+        var program = new AcademicProgram { TenantId = tenant, Name = "School", Code = "SCHOOL" };
+        db.AddRange(year, campus, program); await db.SaveChangesAsync();
+        var level = new AcademicLevel { TenantId = tenant, Name = "Class Six",
+            Code = "C6", AcademicProgramId = program.Id, LevelNo = 6 };
+        db.Add(level); await db.SaveChangesAsync();
+        var form = new AdmissionIntakeForm { TenantId = tenant, Code = "INTAKE",
+            Title = "Main Intake", CampusId = campus.Id, AcademicYearId = year.Id,
+            AcademicLevelId = level.Id, AcademicProgramId = program.Id,
+            State = AdmissionFormState.Published };
+        db.Add(form); await db.SaveChangesAsync();
+        return new Scope(campus.Id, year.Id, level.Id, program.Id, form.Id, form.PublicId);
+    }
+
+    private static async Task<AdmissionApplicant> ApplicantAsync(
+        EduOSDbContext db, long formId, long tenant, string name)
     {
         var applicant = new AdmissionApplicant
         {
-            TenantId = tenantId,
-            PublicId = Guid.NewGuid(),
-            ClientRequestId = Guid.NewGuid(),
-            ApplicationNumber = no,
-            AcademicYearId = refs.YearId,
-            CampusId = refs.CampusId,
-            AcademicUnitId = refs.UnitId,
-            ApplicantName = name,
-            DateOfBirth = new DateTime(2012, 1, 1),
-            Gender = Gender.Male,
-            PrimaryMobile = "+8801712345678",
-            PreferredLanguage = "bn-BD",
-            Status = AdmissionApplicationStatus.UnderReview,
-            SubmittedAtUtc = Now.UtcDateTime
+            TenantId = tenant, ClientRequestId = Guid.NewGuid(), AdmissionIntakeFormId = formId,
+            PublicId = Guid.NewGuid(), ApplicationNumber = "APP-" + Guid.NewGuid().ToString("N"),
+            FullName = name, DateOfBirth = new DateOnly(2012, 1, 1),
+            Gender = "Male", Phone = "+8801712345678",
+            State = AdmissionApplicantState.Submitted, SubmittedAt = Now.UtcDateTime
         };
-        context.Add(applicant);
-        await context.SaveChangesAsync();
+        db.Add(applicant); await db.SaveChangesAsync();
         return applicant;
     }
 
-    private static async Task<ReferenceIds> SeedReferencesAsync(EduOSDbContext context, long tenantId)
+    private static DbContextOptions<EduOSDbContext> Options() =>
+        new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("admission-assessment-" + Guid.NewGuid().ToString("N")).Options;
+    private static EduOSDbContext Context(DbContextOptions<EduOSDbContext> options, long tenant)
     {
-        var year = new AcademicYear { TenantId = tenantId, Name = "2026", StartDate = new DateTime(2026, 1, 1), EndDate = new DateTime(2026, 12, 31), IsActive = true };
-        var campus = new Campus { TenantId = tenantId, Name = "Main", Code = $"M{tenantId}", IsActive = true };
-        var otherCampus = new Campus { TenantId = tenantId, Name = "Other", Code = $"O{tenantId}", IsActive = true };
-        var unit = new Class { TenantId = tenantId, Name = "Class Six", NumericValue = 6, IsActive = true };
-        context.AddRange(year, campus, otherCampus, unit);
-        await context.SaveChangesAsync();
-        return new ReferenceIds(year.Id, campus.Id, otherCampus.Id, unit.Id);
+        var http = new DefaultHttpContext();
+        http.Items["TenantId"] = tenant;
+        return new EduOSDbContext(options, new HttpContextAccessor { HttpContext = http });
     }
-
-    private static DbContextOptions<EduOSDbContext> CreateOptions() => new DbContextOptionsBuilder<EduOSDbContext>()
-        .UseInMemoryDatabase($"admission-assessment-{Guid.NewGuid():N}")
-        .Options;
-
-    private static EduOSDbContext CreateContext(DbContextOptions<EduOSDbContext> options, long tenantId)
+    private sealed record Scope(long CampusId, long YearId, long LevelId, long ProgramId,
+        long FormId, Guid FormReference);
+    private sealed class FixedTime(DateTimeOffset current) : TimeProvider
     {
-        var httpContext = new DefaultHttpContext
-        {
-            User = new ClaimsPrincipal(new ClaimsIdentity(
-            [
-                new Claim(ClaimTypes.NameIdentifier, "7"),
-                new Claim(ClaimTypes.Role, "TenantAdmin"),
-                new Claim("TenantId", tenantId.ToString())
-            ], "TestAuthentication"))
-        };
-        httpContext.Items["TenantId"] = tenantId;
-        return new EduOSDbContext(options, new HttpContextAccessor { HttpContext = httpContext });
+        public override DateTimeOffset GetUtcNow() => current;
     }
-
-    private sealed record ReferenceIds(long YearId, long CampusId, long OtherCampusId, long UnitId);
-
-    private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => now;
-    }
-
-    private sealed class TestCurrentUser(long tenantId, string role = "TenantAdmin") : ICurrentUserService
+    private sealed class TestUser(long tenant, string role = "TenantAdmin") : ICurrentUserService
     {
         public bool IsAuthenticated => true;
         public long UserId => 7;
-        public long TenantId => tenantId;
-        public string? FullName => "Admission User";
+        public long TenantId => tenant;
+        public string? FullName => "Admission officer";
         public string? Email => "admission@example.test";
         public bool IsSuperAdmin => false;
         public bool IsTenantAdmin => role == "TenantAdmin";
         public IReadOnlyList<string> Roles => [role];
-        public bool IsInRole(string requestedRole) => requestedRole == role;
+        public bool IsInRole(string required) => role == required;
         public string? IpAddress => "127.0.0.1";
-        public string? UserAgent => "EduOS tests";
+        public string? UserAgent => "Tests";
     }
 }
