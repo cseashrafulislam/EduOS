@@ -67,7 +67,7 @@
                     cache: 'no-store',
                     credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                    body: JSON.stringify({ step: 1, skipped: false })
+                    body: JSON.stringify({ stage: 2, skipped: false })
                 });
                 if (!stepResponse.ok) {
                     showAlert('danger', i18n.saveFailed);
