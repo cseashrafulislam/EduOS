@@ -289,7 +289,7 @@ public sealed class LmsWorkflowService : ILmsWorkflowService
                 }
                 var duplicate = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.CourseId == course.Id && x.StudentId == student.Id &&
-                    x.StudentEnrollmentId == academic?.Id && !x.IsDeleted, token);
+                    x.StudentEnrollmentId == (academic == null ? (long?)null : academic.Id) && !x.IsDeleted, token);
                 if (duplicate != null)
                     return ApiResponse<CourseEnrollmentDto>.SuccessResponse(
                         MapEnrollment(duplicate, course, student, academic), "Student is already enrolled.");
@@ -658,7 +658,7 @@ public sealed class LmsWorkflowService : ILmsWorkflowService
 
     private static PagedResult<T> EmptyPage<T>(int page, int size) => new()
     {
-        Page = page, PageSize = size, TotalCount = 0, Items = Array.Empty<T>()
+        Page = page, PageSize = size, TotalCount = 0, Items = new List<T>()
     };
 
     private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
