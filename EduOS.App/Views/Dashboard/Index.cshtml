@@ -296,8 +296,8 @@
         <ol class="setup-checklist">
             @foreach (var item in onboardingSteps)
             {
-                var isCompleted = Model.OnboardingComplete || Model.OnboardingStep > item.Step;
-                var isCurrent = !Model.OnboardingComplete && Model.OnboardingStep == item.Step;
+                var isCompleted = Model.OnboardingComplete || ((int)Model.OnboardingStage - 1) > item.Step;
+                var isCurrent = !Model.OnboardingComplete && ((int)Model.OnboardingStage - 1) == item.Step;
                 <li class="@(isCompleted ? "completed" : isCurrent ? "current" : string.Empty)">
                     <span class="setup-step-marker" aria-hidden="true">@(isCompleted ? "✓" : (item.Step + 1).ToString(culture))</span>
                     <div>
