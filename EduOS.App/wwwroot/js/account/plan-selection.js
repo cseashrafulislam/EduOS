@@ -72,7 +72,7 @@
                 headers: { 'Accept': 'application/json' }
             });
             const payload = await response.json().catch(() => null);
-            const nextUrl = localUrl(payload?.data?.nextStepUrl);
+            const nextUrl = localUrl(window.eduosOnboardingStageUrl(payload?.data?.currentStage));
             window.location.assign(nextUrl || fallback);
         } catch {
             window.location.assign(fallback);
