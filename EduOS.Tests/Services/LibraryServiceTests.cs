@@ -47,6 +47,25 @@ public sealed class LibraryServiceTests
     }
 
     [Fact]
+    public async Task Canonical_book_save_request_persists_and_appears_in_paged_catalog()
+    {
+        var options = Options();
+        await using var db = Context(options, 101);
+        var service = Service(db, 101);
+        var saved = await service.SaveBookAsync(new SaveBookRequestDto
+        {
+            Title = "  Data Structures  ", ISBN = "9780000000001", ReplacementPrice = 125.50m
+        });
+        saved.Success.Should().BeTrue();
+        saved.Data!.Title.Should().Be("Data Structures");
+        saved.Data.Reference.Should().NotBeEmpty();
+        var catalog = await service.GetCatalogAsync("Data Structures", 1, 20);
+        catalog.Success.Should().BeTrue();
+        catalog.Data!.Items.Should().ContainSingle().Which.Reference.Should().Be(saved.Data.Reference);
+        (await db.Books.SingleAsync()).ReplacementPrice.Should().Be(125.50m);
+    }
+
+    [Fact]
     public async Task Student_cannot_modify_catalog()
     {
         var options = Options();

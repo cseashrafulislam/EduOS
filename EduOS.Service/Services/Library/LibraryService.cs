@@ -71,7 +71,7 @@ public sealed class LibraryService : ILibraryService
         });
     }
 
-    public async Task<ApiResponse<BookDto>> SaveBookAsync(SaveBookDto request, CancellationToken ct = default)
+    public async Task<ApiResponse<BookDto>> SaveBookAsync(SaveBookRequestDto request, CancellationToken ct = default)
     {
         if (!CanManage()) return Denied<BookDto>();
         if (request == null || string.IsNullOrWhiteSpace(request.Title) || request.Title.Trim().Length > 300 ||
@@ -305,9 +305,9 @@ public sealed class LibraryService : ILibraryService
         var bookIds = copies.Values.Select(x => x.BookId).Distinct().ToArray();
         var books = await _books.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
             bookIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, ct);
-        var studentIds = issues.Select(x => x.StudentId).Distinct().ToArray();
+        var historyStudentIds = issues.Select(x => x.StudentId).Distinct().ToArray();
         var students = await _students.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
-            studentIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, ct);
+            historyStudentIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, ct);
         var result = issues.Select(x =>
         {
             copies.TryGetValue(x.BookCopyId, out var copy);
