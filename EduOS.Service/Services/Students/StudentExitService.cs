@@ -73,7 +73,7 @@ public sealed class StudentExitService : IStudentExitService
             var student = await _students.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId &&
                 x.PublicId == request.StudentReference, cancellationToken);
             if (student == null) return ApiResponse<StudentExitResultDto>.ErrorResponse("Student not found.", 404);
-            if (!student.IsActive || student.StatusCode != "Active")
+            if (student.StatusCode != "Active")
                 return ApiResponse<StudentExitResultDto>.ErrorResponse("Only an active student can exit.", 409);
             if (!VersionsMatch(student.RowVersion, expectedVersion))
                 return ApiResponse<StudentExitResultDto>.ErrorResponse("Student changed. Reload and retry.", 409);
@@ -82,9 +82,9 @@ public sealed class StudentExitService : IStudentExitService
                 return ApiResponse<StudentExitResultDto>.ErrorResponse("Student has an existing final exit.", 409);
 
             var enrollments = await _enrollments.GetQueryable().Where(x => x.TenantId == tenantId &&
-                x.StudentId == student.Id && (x.IsActive || x.IsCurrent)).OrderByDescending(x => x.EnrollmentDate)
+                x.StudentId == student.Id && (x.State == EnrollmentState.Active || x.IsCurrent)).OrderByDescending(x => x.EnrollmentDate)
                 .ToListAsync(cancellationToken);
-            var current = enrollments.FirstOrDefault(x => x.IsCurrent && x.IsActive && x.State == EnrollmentState.Active);
+            var current = enrollments.FirstOrDefault(x => x.IsCurrent && x.State == EnrollmentState.Active);
             if (current == null)
                 return ApiResponse<StudentExitResultDto>.ErrorResponse("An active current enrollment is required.", 409);
             var due = await (from invoice in _invoices.GetQueryable().AsNoTracking()
@@ -128,7 +128,6 @@ public sealed class StudentExitService : IStudentExitService
             foreach (var enrollment in enrollments)
             {
                 enrollment.IsCurrent = false;
-                enrollment.IsActive = false;
                 enrollment.State = type switch
                 {
                     StudentExitType.Transfer => EnrollmentState.Transferred,
@@ -139,7 +138,6 @@ public sealed class StudentExitService : IStudentExitService
                 enrollment.UpdatedAt = now;
                 enrollment.UpdatedBy = _currentUser.UserId;
             }
-            student.IsActive = false;
             student.StatusCode = type switch
             {
                 StudentExitType.Transfer => "TC",
