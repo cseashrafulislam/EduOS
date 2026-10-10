@@ -1,4 +1,5 @@
 using EduOS.Core.Entities.Auth;
+using EduOS.Core.Enums.Domain;
 using EduOS.Persistence.Context;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -122,11 +123,13 @@ namespace EduOS.App.Middleware
 
                 // Tenant state is deliberately checked per request. A disabled/deleted tenant must stop
                 // receiving traffic immediately instead of remaining authorized through a stale cache.
-                var tenantActive = await dbContext.Tenants
+                var tenantAllowed = await dbContext.Tenants
                     .AsNoTracking()
-                    .AnyAsync(t => t.Id == tenantId && t.IsActive && !t.IsDeleted);
+                    .AnyAsync(t => t.Id == tenantId && !t.IsDeleted &&
+                        (t.State == TenantState.Active ||
+                         (t.State == TenantState.PendingVerification && t.OnboardingStage != OnboardingStage.Completed)));
 
-                if (!tenantActive)
+                if (!tenantAllowed)
                 {
                     _logger.LogWarning("User {UserId} has inactive/deleted tenant {TenantId}.", userId, tenantId);
                     await RejectAsync(context, StatusCodes.Status403Forbidden, "Your institution account is currently inactive. Please contact support.");

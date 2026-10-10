@@ -89,12 +89,32 @@ public sealed class TenantMembershipResolutionTests
         Assert.Equal(StatusCodes.Status403Forbidden, context.Response.StatusCode);
     }
 
+    [Theory]
+    [InlineData(TenantState.Suspended)]
+    [InlineData(TenantState.Closed)]
+    public async Task Non_active_tenant_is_denied_despite_active_membership(TenantState state)
+    {
+        using var db = CreateContext();
+        var tenantId = await SeedTenantAsync(db, "tenant-blocked", state);
+        await SeedMembershipAsync(db, tenantId, 51, MembershipStatus.Active);
+        var context = HttpContextFor(51, tenantId);
+        var invoked = false;
+        var middleware = new TenantContextMiddleware(_ => { invoked = true; return Task.CompletedTask; },
+            NullLogger<TenantContextMiddleware>.Instance);
+
+        await middleware.InvokeAsync(context, CreateUserManager(51), db);
+
+        Assert.False(invoked);
+        Assert.Equal(StatusCodes.Status403Forbidden, context.Response.StatusCode);
+        Assert.False(context.Items.ContainsKey("TenantId"));
+    }
+
     private static EduOSDbContext CreateContext() => new(
         new DbContextOptionsBuilder<EduOSDbContext>().UseInMemoryDatabase($"membership-{Guid.NewGuid():N}").Options);
 
-    private static async Task<long> SeedTenantAsync(EduOSDbContext db, string code)
+    private static async Task<long> SeedTenantAsync(EduOSDbContext db, string code, TenantState state = TenantState.Active)
     {
-        var tenant = new Tenant { Name = code, Code = code, Email = code + "@example.test", IsActive = true };
+        var tenant = new Tenant { Name = code, Code = code, Email = code + "@example.test", State = state };
         db.Tenants.Add(tenant);
         await db.SaveChangesAsync();
         return tenant.Id;

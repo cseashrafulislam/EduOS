@@ -14,7 +14,6 @@ namespace EduOS.App.Middleware
         private static readonly PathString[] AllowedPathPrefixes =
         [
             "/Account",
-            "/Dashboard",
             "/Pricing",
             "/Error",
             "/api/auth",
@@ -77,8 +76,14 @@ namespace EduOS.App.Middleware
                 }
 
                 var state = await dbContext.Tenants.AsNoTracking()
-                    .Where(t => t.Id == tenantId && t.IsActive && !t.IsDeleted)
-                    .Select(t => new OnboardingState { IsComplete = t.IsOnboardingComplete, Step = t.OnboardingStage })
+                    .Where(t => t.Id == tenantId && !t.IsDeleted &&
+                        (t.State == TenantState.Active ||
+                         (t.State == TenantState.PendingVerification && t.OnboardingStage != OnboardingStage.Completed)))
+                    .Select(t => new OnboardingState
+                    {
+                        IsComplete = t.State == TenantState.Active && t.OnboardingStage == OnboardingStage.Completed,
+                        Step = t.OnboardingStage
+                    })
                     .FirstOrDefaultAsync();
 
                 if (state == null)
