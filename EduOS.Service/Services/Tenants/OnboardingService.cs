@@ -2,573 +2,258 @@ using EduOS.Core.Common;
 using EduOS.Core.DTOs.Tenants;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.SaaS;
-using EduOS.Core.Enums;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
-namespace EduOS.Service.Services.Tenants
+namespace EduOS.Service.Services.Tenants;
+
+public sealed class OnboardingService : IOnboardingService
 {
-    public class OnboardingService : IOnboardingService
+    private readonly IGenericRepository<Tenant> _tenants;
+    private readonly IGenericRepository<Campus> _campuses;
+    private readonly IGenericRepository<AcademicYear> _years;
+    private readonly ITenantSubscriptionRepository _subscriptions;
+    private readonly ITenantModuleService _modules;
+    private readonly IUnitOfWork _uow;
+    private readonly ICurrentUserService _user;
+    private readonly TimeProvider _clock;
+    private readonly ILogger<OnboardingService> _logger;
+
+    public OnboardingService(IGenericRepository<Tenant> tenants, IGenericRepository<Campus> campuses,
+        IGenericRepository<AcademicYear> years, ITenantSubscriptionRepository subscriptions,
+        ITenantModuleService modules, IUnitOfWork uow, ICurrentUserService user,
+        TimeProvider clock, ILogger<OnboardingService> logger)
     {
-        private readonly IGenericRepository<Tenant> _tenantRepo;
-        private readonly IGenericRepository<Campus> _campusRepo;
-        private readonly IGenericRepository<AcademicYear> _academicYearRepo;
-        private readonly ITenantSubscriptionRepository _subscriptionRepo;
-        private readonly ITenantModuleService _tenantModuleService;
-        private readonly IUnitOfWork _unitOfWork;
-        private readonly ICurrentUserService _currentUser;
-        private readonly IMemoryCache _cache;
-        private readonly ILogger<OnboardingService> _logger;
-
-        public OnboardingService(
-            IGenericRepository<Tenant> tenantRepo,
-            IGenericRepository<Campus> campusRepo,
-            IGenericRepository<AcademicYear> academicYearRepo,
-            ITenantSubscriptionRepository subscriptionRepo,
-            ITenantModuleService tenantModuleService,
-            IUnitOfWork unitOfWork,
-            ICurrentUserService currentUser,
-            IMemoryCache cache,
-            ILogger<OnboardingService> logger)
-        {
-            _tenantRepo = tenantRepo;
-            _campusRepo = campusRepo;
-            _academicYearRepo = academicYearRepo;
-            _subscriptionRepo = subscriptionRepo;
-            _tenantModuleService = tenantModuleService;
-            _unitOfWork = unitOfWork;
-            _currentUser = currentUser;
-            _cache = cache;
-            _logger = logger;
-        }
-
-        // ============================================================
-        // GET STATUS
-        // ============================================================
-        public async Task<ApiResponse<OnboardingStatusDto>> GetStatusAsync()
-        {
-            if (!CanRead()) return ApiResponse<OnboardingStatusDto>.ErrorResponse("Tenant access is required.", 403);
-            try
-            {
-                var tenant = await _tenantRepo.GetByIdAsync(_currentUser.TenantId);
-                if (tenant == null)
-                    return ApiResponse<OnboardingStatusDto>.ErrorResponse("Tenant not found", 404);
-
-                var steps = BuildStepStatusList(tenant);
-                var completed = steps.Count(s => s.IsCompleted);
-                var total = steps.Count;
-
-                var current = steps.FirstOrDefault(s => s.IsCurrent);
-
-                var status = new OnboardingStatusDto
-                {
-                    TenantId = tenant.Id,
-                    CurrentStep = ReadStep(tenant),
-                    IsComplete = tenant.IsOnboardingComplete,
-                    CompletedAt = tenant.OnboardingCompletedAt,
-                    Steps = steps,
-                    TotalSteps = total,
-                    CompletedSteps = completed,
-                    ProgressPercentage = total > 0 ? (int)Math.Round(completed * 100.0 / total) : 0,
-                    NextStepCode = current?.Code,
-                    NextStepName = current?.Name,
-                    NextStepUrl = current?.Url
-                };
-
-                return ApiResponse<OnboardingStatusDto>.SuccessResponse(status);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to load onboarding status");
-                return ApiResponse<OnboardingStatusDto>.ErrorResponse("Failed to load status", 500);
-            }
-        }
-
-        // ============================================================
-        // ADVANCE TO SPECIFIC STEP
-        // ============================================================
-        public async Task<ApiResponse<bool>> AdvanceToStepAsync(OnboardingStep step)
-        {
-            if (!CanManage()) return ApiResponse<bool>.ErrorResponse("Tenant administrator access is required.", 403);
-            try
-            {
-                var tenant = await _tenantRepo.GetByIdAsync(_currentUser.TenantId);
-                if (tenant == null)
-                    return ApiResponse<bool>.ErrorResponse("Tenant not found", 404);
-
-                if (tenant.IsOnboardingComplete)
-                    return ApiResponse<bool>.ErrorResponse("Onboarding already completed", 400);
-
-                var currentOrder = GetStepOrder(ReadStep(tenant));
-                var targetOrder = GetStepOrder(step);
-                if (currentOrder == 0 || targetOrder == 0)
-                    return ApiResponse<bool>.ErrorResponse("Invalid onboarding step", 400);
-
-                // This method may resume the current step or move exactly one
-                // step forward. It cannot be used to bypass prerequisites.
-                if (targetOrder < currentOrder)
-                {
-                    return ApiResponse<bool>.ErrorResponse(
-                        "Cannot move backwards in onboarding", 400);
-                }
-
-                if (targetOrder > currentOrder + 1)
-                    return ApiResponse<bool>.ErrorResponse("Cannot skip onboarding steps", 409);
-
-                if (targetOrder == currentOrder + 1)
-                {
-                    var validation = await ValidateStepCompletionAsync(
-                        tenant,
-                        ReadStep(tenant));
-                    if (!validation.Success) return validation;
-                }
-
-                tenant.OnboardingStage = ToStage(step);
-                _tenantRepo.Update(tenant);
-                await _unitOfWork.SaveChangesAsync();
-                ClearOnboardingCache(tenant.Id);
-
-                return ApiResponse<bool>.SuccessResponse(true);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to advance step");
-                return ApiResponse<bool>.ErrorResponse("Failed to advance step", 500);
-            }
-        }
-
-        // ============================================================
-        // COMPLETE STEP - mark current step done, advance to next
-        // ============================================================
-        public async Task<ApiResponse<bool>> CompleteStepAsync(CompleteStepDto dto)
-        {
-            if (!CanManage()) return ApiResponse<bool>.ErrorResponse("Tenant administrator access is required.", 403);
-            if (dto == null) return ApiResponse<bool>.ErrorResponse("Step details are required.");
-            try
-            {
-                var tenant = await _tenantRepo.GetByIdAsync(_currentUser.TenantId);
-                if (tenant == null)
-                    return ApiResponse<bool>.ErrorResponse("Tenant not found", 404);
-
-                if (tenant.IsOnboardingComplete)
-                    return ApiResponse<bool>.ErrorResponse("Onboarding already completed", 400);
-
-                if (GetStepOrder(dto.Step) == 0)
-                    return ApiResponse<bool>.ErrorResponse("Invalid onboarding step", 400);
-
-                if (dto.Step != ReadStep(tenant))
-                {
-                    return ApiResponse<bool>.ErrorResponse(
-                        "This onboarding step is not currently active. Reload and continue from the current step.",
-                        409);
-                }
-
-                if (dto.Skipped && !IsSkippable(dto.Step))
-                    return ApiResponse<bool>.ErrorResponse("This onboarding step cannot be skipped", 409);
-
-                // Validate step prerequisites
-                var validation = await ValidateStepCompletionAsync(tenant, dto.Step);
-                if (!validation.Success)
-                    return validation;
-
-                // Advance to next step
-                var nextStep = GetNextStep(dto.Step);
-                tenant.OnboardingStage = ToStage(nextStep);
-
-                if (nextStep == OnboardingStep.Completed)
-                {
-                    tenant.IsOnboardingComplete = true;
-                    tenant.OnboardingCompletedAt = DateTime.UtcNow;
-                    if (tenant.State == TenantState.PendingVerification)
-                        tenant.State = TenantState.Active;
-                }
-
-                _tenantRepo.Update(tenant);
-                await _unitOfWork.SaveChangesAsync();
-                ClearOnboardingCache(tenant.Id);
-
-                _logger.LogInformation("Tenant {Id} completed step {Step}, now on {Next}",
-                    tenant.Id, dto.Step, nextStep);
-
-                return ApiResponse<bool>.SuccessResponse(true,
-                    nextStep == OnboardingStep.Completed
-                        ? "Onboarding completed!"
-                        : "Step completed");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to complete step");
-                return ApiResponse<bool>.ErrorResponse("Failed to complete step", 500);
-            }
-        }
-
-        // ============================================================
-        // FINALIZE ONBOARDING
-        // ============================================================
-        public async Task<ApiResponse<bool>> CompleteOnboardingAsync()
-        {
-            if (!CanManage()) return ApiResponse<bool>.ErrorResponse("Tenant administrator access is required.", 403);
-            try
-            {
-                var tenant = await _tenantRepo.GetByIdAsync(_currentUser.TenantId);
-                if (tenant == null)
-                    return ApiResponse<bool>.ErrorResponse("Tenant not found", 404);
-
-                if (tenant.IsOnboardingComplete)
-                    return ApiResponse<bool>.SuccessResponse(true, "Already completed");
-
-                if (ReadStep(tenant) != OnboardingStep.GatewaySetup)
-                {
-                    return ApiResponse<bool>.ErrorResponse(
-                        "Complete the current onboarding step before finishing setup", 409);
-                }
-
-                // Validate all required steps
-                var validation = await ValidateAllRequiredStepsAsync(tenant);
-                if (!validation.Success)
-                    return validation;
-
-                tenant.IsOnboardingComplete = true;
-                tenant.OnboardingCompletedAt = DateTime.UtcNow;
-                tenant.OnboardingStage = OnboardingStage.Completed;
-
-                if (tenant.State == TenantState.PendingVerification)
-                    tenant.State = TenantState.Active;
-
-                _tenantRepo.Update(tenant);
-                await _unitOfWork.SaveChangesAsync();
-                ClearOnboardingCache(tenant.Id);
-
-                _logger.LogInformation("Onboarding completed for tenant {Id}", tenant.Id);
-                return ApiResponse<bool>.SuccessResponse(true, "Onboarding completed successfully");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to complete onboarding");
-                return ApiResponse<bool>.ErrorResponse("Failed to complete onboarding", 500);
-            }
-        }
-
-        // ============================================================
-        // INTERNAL: STEP VALIDATION
-        // ============================================================
-        private async Task<ApiResponse<bool>> ValidateStepCompletionAsync(Tenant tenant, OnboardingStep step)
-        {
-            switch (step)
-            {
-                case OnboardingStep.EmailVerification:
-                    if (!tenant.IsEmailVerified)
-                        return ApiResponse<bool>.ErrorResponse("Email not verified yet", 400);
-                    break;
-
-                case OnboardingStep.InstitutionProfile:
-                    if (string.IsNullOrWhiteSpace(tenant.Name) ||
-                        !tenant.InstitutionTypeDefinitionId.HasValue ||
-                        string.IsNullOrWhiteSpace(tenant.Email))
-                        return ApiResponse<bool>.ErrorResponse(
-                            "Please complete institution profile first", 400);
-                    break;
-
-                case OnboardingStep.PlanSelection:
-                case OnboardingStep.Payment:
-                    var sub = await _subscriptionRepo.GetActiveByTenantAsync(tenant.Id);
-                    if (sub == null)
-                        return ApiResponse<bool>.ErrorResponse(
-                            "Please select a subscription plan first", 400);
-
-                    if (step == OnboardingStep.Payment)
-                    {
-                        // Trial doesn't need payment
-                        if (sub.IsTrial) break;
-
-                        if (sub.State != SubscriptionState.Active &&
-                            sub.State != SubscriptionState.Trial)
-                            return ApiResponse<bool>.ErrorResponse(
-                                "Please complete payment first", 400);
-                    }
-                    break;
-
-                case OnboardingStep.CampusSetup:
-                    if (!await _campusRepo.GetQueryable()
-                            .AsNoTracking()
-                            .AnyAsync(x => x.TenantId == tenant.Id))
-                    {
-                        return ApiResponse<bool>.ErrorResponse(
-                            "Please add at least one campus first", 409);
-                    }
-                    break;
-
-                case OnboardingStep.AcademicSetup:
-                    if (!await _academicYearRepo.GetQueryable()
-                            .AsNoTracking()
-                            .AnyAsync(x => x.TenantId == tenant.Id))
-                    {
-                        return ApiResponse<bool>.ErrorResponse(
-                            "Please add at least one academic year first", 409);
-                    }
-                    break;
-
-                case OnboardingStep.ModuleSetup:
-                    var moduleValidation = await _tenantModuleService
-                        .ValidateCurrentTenantSelectionAsync();
-                    if (!moduleValidation.Success)
-                    {
-                        return ApiResponse<bool>.ErrorResponse(
-                            moduleValidation.Message ?? "Please review the required modules",
-                            moduleValidation.StatusCode);
-                    }
-                    break;
-
-                case OnboardingStep.BrandingSetup:
-                    // Subdomain is required for branding step
-                    if (string.IsNullOrWhiteSpace(tenant.Subdomain))
-                        return ApiResponse<bool>.ErrorResponse(
-                            "Please set your subdomain first", 400);
-                    break;
-
-                // Other steps - no strict validation, just advance
-                default:
-                    break;
-            }
-
-            return ApiResponse<bool>.SuccessResponse(true);
-        }
-
-        private async Task<ApiResponse<bool>> ValidateAllRequiredStepsAsync(Tenant tenant)
-        {
-            if (!tenant.IsEmailVerified)
-                return ApiResponse<bool>.ErrorResponse("Email verification incomplete", 400);
-
-            if (string.IsNullOrWhiteSpace(tenant.Name))
-                return ApiResponse<bool>.ErrorResponse("Institution profile incomplete", 400);
-
-            var sub = await _subscriptionRepo.GetActiveByTenantAsync(tenant.Id);
-            if (sub == null)
-                return ApiResponse<bool>.ErrorResponse("No active subscription", 400);
-
-            if (!sub.IsTrial &&
-                sub.State != SubscriptionState.Active)
-                return ApiResponse<bool>.ErrorResponse("Subscription not active", 400);
-
-            if (!await _campusRepo.GetQueryable()
-                    .AsNoTracking()
-                    .AnyAsync(x => x.TenantId == tenant.Id))
-                return ApiResponse<bool>.ErrorResponse("Campus setup incomplete", 409);
-
-            if (!await _academicYearRepo.GetQueryable()
-                    .AsNoTracking()
-                    .AnyAsync(x => x.TenantId == tenant.Id))
-                return ApiResponse<bool>.ErrorResponse("Academic setup incomplete", 409);
-
-            var moduleValidation = await _tenantModuleService.ValidateCurrentTenantSelectionAsync();
-            if (!moduleValidation.Success)
-            {
-                return ApiResponse<bool>.ErrorResponse(
-                    moduleValidation.Message ?? "Module setup incomplete",
-                    moduleValidation.StatusCode);
-            }
-
-            if (string.IsNullOrWhiteSpace(tenant.Subdomain))
-                return ApiResponse<bool>.ErrorResponse("Branding setup incomplete", 409);
-
-            return ApiResponse<bool>.SuccessResponse(true);
-        }
-
-        // ============================================================
-        // STEP DEFINITIONS
-        // ============================================================
-        private List<OnboardingStepStatusDto> BuildStepStatusList(Tenant tenant)
-        {
-            var defs = new List<OnboardingStepStatusDto>
-            {
-                new()
-                {
-                    Step = OnboardingStep.EmailVerification,
-                    Code = nameof(OnboardingStep.EmailVerification),
-                    Order = 1,
-                    Name = "Email verification",
-                    Description = "Verify your email address",
-                    IconClass = "bi-envelope-check",
-                    Url = "/Account/VerifyEmail",
-                    IsSkippable = false,
-                    IsCompleted = tenant.IsEmailVerified,
-                },
-                new()
-                {
-                    Step = OnboardingStep.InstitutionProfile,
-                    Code = nameof(OnboardingStep.InstitutionProfile),
-                    Order = 2,
-                    Name = "Institution profile",
-                    Description = "Set up your institution details",
-                    IconClass = "bi-building",
-                    Url = "/Account/InstitutionProfile",
-                    IsSkippable = false,
-                    IsCompleted = !string.IsNullOrEmpty(tenant.Name) &&
-                                  tenant.InstitutionTypeDefinitionId.HasValue &&
-                                  !string.IsNullOrWhiteSpace(tenant.Email),
-                },
-                new()
-                {
-                    Step = OnboardingStep.PlanSelection,
-                    Code = nameof(OnboardingStep.PlanSelection),
-                    Order = 3,
-                    Name = "Choose plan",
-                    Description = "Select your subscription plan",
-                    IconClass = "bi-tag",
-                    Url = "/Account/PlanSelection",
-                    IsSkippable = false,
-                },
-                new()
-                {
-                    Step = OnboardingStep.Payment,
-                    Code = nameof(OnboardingStep.Payment),
-                    Order = 4,
-                    Name = "Payment",
-                    Description = "Complete subscription payment",
-                    IconClass = "bi-credit-card",
-                    Url = "/Account/Payment",
-                    IsSkippable = false,
-                },
-                new()
-                {
-                    Step = OnboardingStep.CampusSetup,
-                    Code = nameof(OnboardingStep.CampusSetup),
-                    Order = 5,
-                    Name = "Campus setup",
-                    Description = "Configure campus information",
-                    IconClass = "bi-geo-alt",
-                    Url = "/Account/CampusSetup",
-                    IsSkippable = false,
-                },
-                new()
-                {
-                    Step = OnboardingStep.AcademicSetup,
-                    Code = nameof(OnboardingStep.AcademicSetup),
-                    Order = 6,
-                    Name = "Academic year",
-                    Description = "Set up academic year & terms",
-                    IconClass = "bi-calendar3",
-                    Url = "/Account/AcademicSetup",
-                    IsSkippable = false,
-                },
-                new()
-                {
-                    Step = OnboardingStep.ModuleSetup,
-                    Code = nameof(OnboardingStep.ModuleSetup),
-                    Order = 7,
-                    Name = "Module selection",
-                    Description = "Choose the tools used by your institution",
-                    IconClass = "bi-grid",
-                    Url = "/Account/ModuleSetup",
-                    IsSkippable = false,
-                },
-                new()
-                {
-                    Step = OnboardingStep.BrandingSetup,
-                    Code = nameof(OnboardingStep.BrandingSetup),
-                    Order = 8,
-                    Name = "Branding",
-                    Description = "Logo, colors, and subdomain",
-                    IconClass = "bi-palette",
-                    Url = "/Account/BrandingSetup",
-                    IsSkippable = false,
-                    IsCompleted = !string.IsNullOrEmpty(tenant.Subdomain),
-                },
-                new()
-                {
-                    Step = OnboardingStep.GeneralSettings,
-                    Code = nameof(OnboardingStep.GeneralSettings),
-                    Order = 9,
-                    Name = "General settings",
-                    Description = "Currency, timezone, language",
-                    IconClass = "bi-gear",
-                    Url = "/Account/GeneralSettings",
-                    IsSkippable = true,
-                },
-                new()
-                {
-                    Step = OnboardingStep.GatewaySetup,
-                    Code = nameof(OnboardingStep.GatewaySetup),
-                    Order = 10,
-                    Name = "SMS / Email setup",
-                    Description = "Configure messaging gateways (optional)",
-                    IconClass = "bi-chat-dots",
-                    Url = "/Account/GatewaySetup",
-                    IsSkippable = true,
-                },
-            };
-
-            var currentOrder = tenant.IsOnboardingComplete
-                ? int.MaxValue
-                : defs.FirstOrDefault(x => x.Step == ReadStep(tenant))?.Order ?? 1;
-
-            foreach (var s in defs)
-            {
-                s.IsCurrent = !tenant.IsOnboardingComplete && s.Step == ReadStep(tenant);
-                s.IsCompleted = tenant.IsOnboardingComplete || s.IsCompleted || s.Order < currentOrder;
-                s.IsLocked = !tenant.IsOnboardingComplete && s.Order > currentOrder;
-            }
-
-            return defs;
-        }
-
-        private static OnboardingStep GetNextStep(OnboardingStep current)
-        {
-            return current switch
-            {
-                OnboardingStep.EmailVerification => OnboardingStep.InstitutionProfile,
-                OnboardingStep.InstitutionProfile => OnboardingStep.PlanSelection,
-                OnboardingStep.PlanSelection => OnboardingStep.Payment,
-                OnboardingStep.Payment => OnboardingStep.CampusSetup,
-                OnboardingStep.CampusSetup => OnboardingStep.AcademicSetup,
-                OnboardingStep.AcademicSetup => OnboardingStep.ModuleSetup,
-                OnboardingStep.ModuleSetup => OnboardingStep.BrandingSetup,
-                OnboardingStep.BrandingSetup => OnboardingStep.GeneralSettings,
-                OnboardingStep.GeneralSettings => OnboardingStep.GatewaySetup,
-                OnboardingStep.GatewaySetup => OnboardingStep.Completed,
-                _ => OnboardingStep.Completed
-            };
-        }
-
-        private static int GetStepOrder(OnboardingStep step)
-        {
-            return step switch
-            {
-                OnboardingStep.EmailVerification => 1,
-                OnboardingStep.InstitutionProfile => 2,
-                OnboardingStep.PlanSelection => 3,
-                OnboardingStep.Payment => 4,
-                OnboardingStep.CampusSetup => 5,
-                OnboardingStep.AcademicSetup => 6,
-                OnboardingStep.ModuleSetup => 7,
-                OnboardingStep.BrandingSetup => 8,
-                OnboardingStep.GeneralSettings => 9,
-                OnboardingStep.GatewaySetup => 10,
-                OnboardingStep.Completed => 11,
-                _ => 0
-            };
-        }
-
-        private static bool IsSkippable(OnboardingStep step) =>
-            step is OnboardingStep.GeneralSettings or OnboardingStep.GatewaySetup;
-
-        private static OnboardingStep ReadStep(Tenant tenant) =>
-            Enum.TryParse<OnboardingStep>(tenant.OnboardingStage.ToString(), out var step)
-                ? step : OnboardingStep.EmailVerification;
-
-        private static OnboardingStage ToStage(OnboardingStep step) =>
-            Enum.TryParse<OnboardingStage>(step.ToString(), out var stage)
-                ? stage : throw new ArgumentOutOfRangeException(nameof(step), step, "Unknown onboarding stage.");
-
-        private bool CanRead() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0;
-        private bool CanManage() => CanRead() && _currentUser.IsTenantAdmin;
-
-        private void ClearOnboardingCache(long tenantId) =>
-            _cache.Remove($"onboarding:tenant:{tenantId}");
+        _tenants = tenants;
+        _campuses = campuses;
+        _years = years;
+        _subscriptions = subscriptions;
+        _modules = modules;
+        _uow = uow;
+        _user = user;
+        _clock = clock;
+        _logger = logger;
     }
+
+    public async Task<ApiResponse<OnboardingStatusDto>> GetStatusAsync(CancellationToken cancellationToken = default)
+    {
+        if (!CanRead()) return ApiResponse<OnboardingStatusDto>.ErrorResponse("Tenant access is required.", 403);
+        var tenant = await _tenants.GetQueryable().AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == _user.TenantId && !x.IsDeleted && x.State != TenantState.Closed, cancellationToken);
+        if (tenant == null) return ApiResponse<OnboardingStatusDto>.ErrorResponse("Institution not found.", 404);
+        var current = tenant.OnboardingStage;
+        if (!Enum.IsDefined(current)) return ApiResponse<OnboardingStatusDto>.ErrorResponse("Invalid onboarding stage.", 409);
+        var finished = IsCompleted(tenant);
+        var stages = Enum.GetValues<OnboardingStage>().Where(x => x != OnboardingStage.Completed)
+            .Select(stage => new OnboardingStageStatusDto
+            {
+                Stage = stage,
+                Code = stage.ToString(),
+                Name = StageName(stage),
+                Description = StageDescription(stage),
+                DisplayOrder = (int)stage,
+                IsCurrent = !finished && stage == current,
+                IsCompleted = finished || (int)stage < (int)current,
+                IsLocked = !finished && (int)stage > (int)current,
+                IsSkippable = CanSkip(stage)
+            }).ToArray();
+        var count = stages.Count(x => x.IsCompleted);
+        var next = finished ? (OnboardingStage?)null : current;
+        return ApiResponse<OnboardingStatusDto>.SuccessResponse(new OnboardingStatusDto
+        {
+            TenantId = tenant.Id,
+            CurrentStage = current,
+            IsComplete = finished,
+            CompletedAt = tenant.OnboardingCompletedAt,
+            Stages = stages,
+            TotalStages = stages.Length,
+            CompletedStages = count,
+            ProgressPercentage = (int)Math.Round(count * 100.0 / stages.Length),
+            NextStageCode = next?.ToString(),
+            NextStageName = next.HasValue ? StageName(next.Value) : null
+        });
+    }
+
+    public async Task<ApiResponse<bool>> AdvanceToStageAsync(OnboardingStage stage, CancellationToken cancellationToken = default)
+    {
+        if (!CanManage()) return Denied();
+        if (!Enum.IsDefined(stage)) return Failure("Unknown onboarding stage.", 400);
+        return await ChangeStageAsync(stage, null, cancellationToken);
+    }
+
+    public async Task<ApiResponse<bool>> CompleteStageAsync(CompleteOnboardingStageRequestDto request, CancellationToken cancellationToken = default)
+    {
+        if (!CanManage()) return Denied();
+        if (request == null || !Enum.IsDefined(request.Stage) || request.Stage == OnboardingStage.Completed)
+            return Failure("Valid current onboarding stage is required.");
+        if (request.Skipped && !CanSkip(request.Stage))
+            return Failure("This onboarding stage cannot be skipped.", 409);
+        return await ChangeStageAsync((OnboardingStage)((int)request.Stage + 1), request, cancellationToken);
+    }
+
+    public async Task<ApiResponse<bool>> CompleteOnboardingAsync(CancellationToken cancellationToken = default)
+    {
+        if (!CanManage()) return Denied();
+        return await ChangeStageAsync(OnboardingStage.Completed, null, cancellationToken);
+    }
+
+    private async Task<ApiResponse<bool>> ChangeStageAsync(OnboardingStage target,
+        CompleteOnboardingStageRequestDto? request, CancellationToken ct)
+    {
+        if (!Enum.IsDefined(target)) return Failure("Unknown onboarding stage.");
+        try
+        {
+            var tenant = await _tenants.GetQueryable()
+                .FirstOrDefaultAsync(x => x.Id == _user.TenantId && !x.IsDeleted && x.State != TenantState.Closed, ct);
+            if (tenant == null) return Failure("Institution not found.", 404);
+            if (IsCompleted(tenant))
+                return target == OnboardingStage.Completed
+                    ? ApiResponse<bool>.SuccessResponse(true, "Onboarding already completed.")
+                    : Failure("Onboarding is already completed.", 409);
+            var current = tenant.OnboardingStage;
+            if (!Enum.IsDefined(current) || current == OnboardingStage.Completed)
+                return Failure("Invalid current onboarding stage. Contact support.", 409);
+            if (request != null && request.Stage != current)
+                return Failure("The submitted stage is no longer current. Reload onboarding.", 409);
+            if (request == null && target == current)
+                return ApiResponse<bool>.SuccessResponse(true);
+            if ((int)target != (int)current + 1)
+                return Failure("Onboarding stages must be completed in order.", 409);
+
+            if (request == null || !request.Skipped)
+            {
+                var validation = await ValidateStageAsync(tenant, current, ct);
+                if (!validation.Success) return validation;
+            }
+            if (target == OnboardingStage.Completed)
+            {
+                var required = await ValidateRequiredStagesAsync(tenant, ct);
+                if (!required.Success) return required;
+                tenant.OnboardingCompletedAt = _clock.GetUtcNow().UtcDateTime;
+                if (tenant.State == TenantState.PendingVerification) tenant.State = TenantState.Active;
+            }
+            tenant.OnboardingStage = target;
+            tenant.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
+            tenant.UpdatedBy = _user.UserId;
+            _tenants.Update(tenant);
+            await _uow.SaveChangesAsync(ct);
+            _logger.LogInformation("Tenant {TenantId} onboarding advanced from {From} to {To}.",
+                tenant.Id, current, target);
+            return ApiResponse<bool>.SuccessResponse(true, target == OnboardingStage.Completed
+                ? "Onboarding completed." : "Onboarding stage completed.");
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            _logger.LogWarning(ex, "Concurrent onboarding update for tenant {TenantId}.", _user.TenantId);
+            return Failure("Onboarding was updated elsewhere. Reload and retry.", 409);
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogError(ex, "Failed to save onboarding for tenant {TenantId}.", _user.TenantId);
+            return Failure("Could not save onboarding.", 500);
+        }
+    }
+
+    private async Task<ApiResponse<bool>> ValidateRequiredStagesAsync(Tenant tenant, CancellationToken ct)
+    {
+        foreach (var stage in new[] { OnboardingStage.EmailVerification, OnboardingStage.InstitutionProfile,
+            OnboardingStage.PlanSelection, OnboardingStage.Payment, OnboardingStage.CampusSetup,
+            OnboardingStage.AcademicSetup, OnboardingStage.ModuleSetup, OnboardingStage.BrandingSetup })
+        {
+            var result = await ValidateStageAsync(tenant, stage, ct);
+            if (!result.Success) return result;
+        }
+        return ApiResponse<bool>.SuccessResponse(true);
+    }
+
+    private async Task<ApiResponse<bool>> ValidateStageAsync(Tenant tenant, OnboardingStage stage, CancellationToken ct)
+    {
+        switch (stage)
+        {
+            case OnboardingStage.EmailVerification:
+                if (!tenant.EmailVerifiedAt.HasValue) return Failure("Verify the institution email first.", 409);
+                break;
+            case OnboardingStage.InstitutionProfile:
+                if (!tenant.InstitutionTypeDefinitionId.HasValue || tenant.InstitutionTypeDefinitionId <= 0 ||
+                    string.IsNullOrWhiteSpace(tenant.Name) || string.IsNullOrWhiteSpace(tenant.Email))
+                    return Failure("Complete the institution profile first.", 409);
+                break;
+            case OnboardingStage.PlanSelection:
+            case OnboardingStage.Payment:
+                var subscription = await _subscriptions.GetActiveByTenantAsync(tenant.Id, ct);
+                if (subscription == null) return Failure("Select a subscription plan first.", 409);
+                if (stage == OnboardingStage.Payment &&
+                    (subscription.EndsAt <= _clock.GetUtcNow().UtcDateTime ||
+                     subscription.State is not (SubscriptionState.Active or SubscriptionState.Trial)))
+                    return Failure("Activate a valid subscription or trial before continuing.", 409);
+                break;
+            case OnboardingStage.CampusSetup:
+                if (!await _campuses.GetQueryable().AsNoTracking().AnyAsync(
+                    x => x.TenantId == tenant.Id && x.IsActive && !x.IsDeleted, ct))
+                    return Failure("Create an active campus before continuing.", 409);
+                break;
+            case OnboardingStage.AcademicSetup:
+                if (!await _years.GetQueryable().AsNoTracking().AnyAsync(
+                    x => x.TenantId == tenant.Id && x.IsActive && !x.IsDeleted, ct))
+                    return Failure("Create an active academic year before continuing.", 409);
+                break;
+            case OnboardingStage.ModuleSetup:
+                var modules = await _modules.ValidateCurrentTenantSelectionAsync();
+                if (!modules.Success) return Failure(modules.Message ?? "Module setup is incomplete.", modules.StatusCode);
+                break;
+            case OnboardingStage.BrandingSetup:
+                if (string.IsNullOrWhiteSpace(tenant.Subdomain)) return Failure("Set the institution subdomain first.", 409);
+                break;
+            case OnboardingStage.GeneralSettings:
+            case OnboardingStage.GatewaySetup:
+                break;
+            default:
+                return Failure("Unknown onboarding stage.");
+        }
+        return ApiResponse<bool>.SuccessResponse(true);
+    }
+
+    private bool CanRead() => _user.IsAuthenticated && _user.TenantId > 0;
+    private bool CanManage() => CanRead() && _user.IsTenantAdmin;
+    private static bool IsCompleted(Tenant tenant) =>
+        tenant.OnboardingStage == OnboardingStage.Completed && tenant.OnboardingCompletedAt.HasValue;
+    private static bool CanSkip(OnboardingStage stage) =>
+        stage is OnboardingStage.GeneralSettings or OnboardingStage.GatewaySetup;
+    private static ApiResponse<bool> Denied() => Failure("Tenant administrator access is required.", 403);
+    private static ApiResponse<bool> Failure(string message, int status = 400) =>
+        ApiResponse<bool>.ErrorResponse(message, status);
+
+    private static string StageName(OnboardingStage stage) => stage switch
+    {
+        OnboardingStage.EmailVerification => "Email verification",
+        OnboardingStage.InstitutionProfile => "Institution profile",
+        OnboardingStage.PlanSelection => "Choose plan",
+        OnboardingStage.Payment => "Payment",
+        OnboardingStage.CampusSetup => "Campus setup",
+        OnboardingStage.AcademicSetup => "Academic year",
+        OnboardingStage.ModuleSetup => "Module selection",
+        OnboardingStage.BrandingSetup => "Branding",
+        OnboardingStage.GeneralSettings => "General settings",
+        OnboardingStage.GatewaySetup => "Gateway setup",
+        _ => "Completed"
+    };
+
+    private static string StageDescription(OnboardingStage stage) => stage switch
+    {
+        OnboardingStage.EmailVerification => "Verify the institution email address",
+        OnboardingStage.InstitutionProfile => "Set up institution details",
+        OnboardingStage.PlanSelection => "Select a subscription plan",
+        OnboardingStage.Payment => "Activate payment or free trial",
+        OnboardingStage.CampusSetup => "Configure at least one campus",
+        OnboardingStage.AcademicSetup => "Set up the academic year",
+        OnboardingStage.ModuleSetup => "Choose institution modules",
+        OnboardingStage.BrandingSetup => "Set up institution branding",
+        OnboardingStage.GeneralSettings => "Review timezone and language",
+        OnboardingStage.GatewaySetup => "Optional messaging gateways",
+        _ => string.Empty
+    };
 }
