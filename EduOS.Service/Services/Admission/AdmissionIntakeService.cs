@@ -291,7 +291,7 @@ public sealed class AdmissionIntakeService : IAdmissionIntakeService
         if (!await _campuses.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
             x.Id == request.CampusId && x.IsActive, ct)) return null;
         return await _levels.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
-            x.Id == request.AcademicUnitId && x.IsActive, ct);
+            x.Id == request.AcademicLevelId && x.IsActive, ct);
     }
 
     private static string? ValidateInput(AdmissionIntakeFormInputDto? request)
