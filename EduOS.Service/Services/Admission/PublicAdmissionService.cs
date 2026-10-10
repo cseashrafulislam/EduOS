@@ -163,7 +163,7 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
         var form = await FindOpenFormAsync(tenant.Id, request.AdmissionFormReference.Value, ct);
         if (form == null) return Error<AdmissionApplicationCreatedDto>("Admission form is unavailable.", 404);
         if (form.CampusId != request.CampusId || form.AcademicYearId != request.AcademicYearId ||
-            form.AcademicTermId != request.AcademicTermId || form.AcademicLevelId != request.AcademicUnitId)
+            form.AcademicTermId != request.AcademicTermId || form.AcademicLevelId != request.AcademicLevelId)
             return Error<AdmissionApplicationCreatedDto>("Academic choices do not match the intake form.", 409);
         var fields = await FieldsAsync(tenant.Id, new[] { form.Id }, ct);
         var rules = fields.Select(MapField).ToList();
@@ -259,8 +259,29 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
             return Error<AdmissionApplicantDocumentDto>("Document request is invalid.");
         var kind = request.DocumentType?.Trim().ToUpperInvariant();
         var file = request.File;
-        if (string.IsNullOrWhiteSpace(kind) || kind.Length > 100 || !_storage.ValidateFile(file))
+        if (string.IsNullOrWhiteSpace(kind) || kind.Length > 100 ||
+            file.Length is <= 0 or > 10_485_760 || file.Content == null || !file.Content.CanRead ||
+            string.IsNullOrWhiteSpace(file.FileName))
             return Error<AdmissionApplicantDocumentDto>("Document type or file is invalid.");
+        await using var boundedContent = new MemoryStream();
+        var buffer = new byte[64 * 1024];
+        int count;
+        while ((count = await file.Content.ReadAsync(buffer, ct)) != 0)
+        {
+            if (boundedContent.Length + count > 10_485_760)
+                return Error<AdmissionApplicantDocumentDto>("Document exceeds the upload limit.");
+            await boundedContent.WriteAsync(buffer.AsMemory(0, count), ct);
+        }
+        if (boundedContent.Length != file.Length)
+            return Error<AdmissionApplicantDocumentDto>("Uploaded file size does not match the request.");
+        boundedContent.Position = 0;
+        var checkedFile = new FormFile(boundedContent, 0, boundedContent.Length,
+            "File", Path.GetFileName(file.FileName))
+        {
+            Headers = new HeaderDictionary(), ContentType = file.ContentType
+        };
+        if (!_storage.ValidateFile(checkedFile))
+            return Error<AdmissionApplicantDocumentDto>("Document failed size, type or signature validation.");
         if (!await _documentTypes.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant.Id &&
             x.Code == kind && x.IsActive, ct))
             return Error<AdmissionApplicantDocumentDto>("Document type is not configured for this institution.", 409);
@@ -271,7 +292,7 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
             AdmissionApplicantState.Withdrawn or AdmissionApplicantState.Qualified)
             return Error<AdmissionApplicantDocumentDto>("Documents cannot be modified after the final decision.", 409);
         string hash;
-        await using (var stream = file.OpenReadStream())
+        await using (var stream = checkedFile.OpenReadStream())
             hash = Convert.ToHexString(await SHA256.HashDataAsync(stream, ct));
         var replay = await _assets.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant.Id &&
             x.PublicId == request.ClientRequestId, ct);
@@ -289,7 +310,7 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
             x.AdmissionApplicantId == applicant.Id && x.DocumentTypeCode == kind)
             .OrderByDescending(x => x.VersionNo).FirstOrDefaultAsync(ct);
         if (prior?.IsVerified == true) return Error<AdmissionApplicantDocumentDto>("A verified document cannot be overwritten.", 409);
-        var uploaded = await _storage.UploadPrivateForTenantAsync(file,
+        var uploaded = await _storage.UploadPrivateForTenantAsync(checkedFile,
             $"admissions/{applicant.PublicId:N}", tenant.Id);
         if (!uploaded.Success || string.IsNullOrWhiteSpace(uploaded.FileUrl))
             return Error<AdmissionApplicantDocumentDto>(uploaded.ErrorMessage ?? "Upload could not be completed.");
@@ -384,9 +405,9 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
         var key = tenantKey?.Trim();
         if (string.IsNullOrWhiteSpace(key) || key.Length > 255) return null;
         return await _tenants.GetQueryable().IgnoreQueryFilters().AsNoTracking()
-            .FirstOrDefaultAsync(x => x.IsActive && !x.IsDeleted && x.IsOnboardingComplete &&
-                x.State == TenantState.Active &&
-                (x.Code == key || x.Subdomain == key || x.CustomDomain == key), ct);
+            .FirstOrDefaultAsync(x => !x.IsDeleted && x.State == TenantState.Active &&
+                x.OnboardingStage == OnboardingStage.Completed && x.OnboardingCompletedAt != null &&
+                (x.Code == key || x.Subdomain == key), ct);
     }
     private void SetTenantContext(long tenantId)
     {
@@ -420,7 +441,7 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
     {
         Reference = form.PublicId, Title = form.Title, Code = form.Code,
         AcademicYearId = form.AcademicYearId, AcademicTermId = form.AcademicTermId,
-        CampusId = form.CampusId, AcademicUnitId = form.AcademicLevelId,
+        CampusId = form.CampusId, AcademicLevelId = form.AcademicLevelId,
         OpensAtUtc = form.OpensAt ?? DateTime.MinValue, ClosesAtUtc = form.ClosesAt ?? DateTime.MaxValue,
         ApplicationFee = form.ApplicationFee, Currency = form.CurrencyCode,
         Fields = fields.Select(MapField).ToList()
