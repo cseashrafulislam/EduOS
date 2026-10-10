@@ -31,6 +31,7 @@
             if (response.status === 404) return false;
 
             const payload = await response.json().catch(() => null);
+            if (response.ok && payload?.success && !payload.data) return false;
             if (!response.ok || !payload?.success || !payload.data) {
                 renderLoadError();
                 return true;
@@ -43,6 +44,8 @@
                     window.location.assign(`/Account/Payment?invoiceId=${encodeURIComponent(invoiceId)}`);
                     return true;
                 }
+                window.location.assign('/Account/Payment');
+                return true;
             }
 
             await advanceFreeSubscription();
@@ -152,17 +155,10 @@
             price.className = 'plan-card-price';
             const priceValue = document.createElement('strong');
             const period = document.createElement('small');
-            if (Number(plan.trialDays) > 0) {
-                priceValue.textContent = i18n.free || '';
-                period.textContent = template(i18n.daysTrialTemplate, {
-                    count: formatNumber(plan.trialDays || 0)
-                });
-            } else {
-                priceValue.textContent = formatMoney(priceForCycle(plan, selectedCycle), plan.currency);
-                period.textContent = template(i18n.perPeriodTemplate, {
-                    period: i18n.periods?.[String(selectedCycle)] || ''
-                });
-            }
+            priceValue.textContent = formatMoney(priceForCycle(plan, selectedCycle), plan.currencyCode);
+            period.textContent = Number(plan.trialDays) > 0
+                ? template(i18n.daysTrialTemplate, { count: formatNumber(plan.trialDays) })
+                : template(i18n.perPeriodTemplate, { period: i18n.periods?.[String(selectedCycle)] || '' });
             price.append(priceValue, period);
 
             const limits = document.createElement('ul');
@@ -187,14 +183,6 @@
             }
 
             content.append(heading, description, price, limits, features);
-            if (false) {
-                const fee = document.createElement('span');
-                fee.className = 'plan-setup-fee';
-                fee.textContent = template(i18n.setupFeeTemplate, {
-                    amount: formatMoney(plan.setupFee, plan.currency)
-                });
-                content.append(fee);
-            }
             choose.addEventListener('click', () => selectPlan(Number(plan.id)));
             article.append(content, choose);
             return article;
