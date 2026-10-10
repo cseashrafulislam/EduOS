@@ -264,7 +264,7 @@
                 window.location.assign('/Dashboard/Index');
                 return;
             }
-            if (Number(onboarding?.currentStep) !== 6) {
+            if (Number(onboarding?.currentStage) !== 8) {
                 window.location.assign(safeLocalUrl(window.eduosOnboardingStageUrl(onboarding?.currentStage)));
                 return;
             }
@@ -321,7 +321,7 @@
     function updatePrimaryAction() {
         if (!saveBrandingButton) return;
         if (onboarding?.isComplete) saveBrandingButton.textContent = i18n.dashboard || '';
-        else if (onboarding && Number(onboarding.currentStep) !== 6) {
+        else if (onboarding && Number(onboarding.currentStage) !== 8) {
             saveBrandingButton.textContent = i18n.continueSetup || '';
         }
     }
