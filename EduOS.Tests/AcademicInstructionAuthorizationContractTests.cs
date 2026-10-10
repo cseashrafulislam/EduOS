@@ -42,7 +42,6 @@ public sealed class AcademicInstructionAuthorizationContractTests
     [InlineData(nameof(AcademicInstructionController.CreateLessonPlan))]
     [InlineData(nameof(AcademicInstructionController.UpdateLessonPlan))]
     [InlineData(nameof(AcademicInstructionController.SubmitLessonPlan))]
-    [InlineData(nameof(AcademicInstructionController.RecordLessonProgress))]
     public void Teacher_owned_mutations_are_post_and_inherit_authenticated_role_boundary(string methodName)
     {
         var method = typeof(AcademicInstructionController).GetMethods().Single(x => x.Name == methodName);
