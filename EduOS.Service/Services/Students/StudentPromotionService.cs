@@ -68,9 +68,9 @@ public sealed class StudentPromotionService : IStudentPromotionService
                 var replayResult = await ExistingResultAsync(replay, student, ct);
                 if (!replayResult.Success || replayResult.Data == null ||
                     replayResult.Data.AcademicYearId != request.TargetAcademicYearId ||
-                    replayResult.Data.ClassId != request.TargetClassId ||
-                    replayResult.Data.SectionId != request.TargetSectionId ||
-                    replayResult.Data.GroupId != request.TargetGroupId && request.TargetGroupId.HasValue ||
+                    replayResult.Data.AcademicLevelId != request.TargetAcademicLevelId ||
+                    replayResult.Data.AcademicBatchId != request.TargetAcademicBatchId ||
+                    replayResult.Data.AcademicTrackId != request.TargetAcademicTrackId && request.TargetAcademicTrackId.HasValue ||
                     !string.Equals(replayResult.Data.Roll, roll, StringComparison.OrdinalIgnoreCase) ||
                     replayResult.Data.Decision != request.Decision)
                     return Error("Client request ID is already used for different progression details.", 409);
@@ -99,10 +99,10 @@ public sealed class StudentPromotionService : IStudentPromotionService
             var sourceLevel = await _levels.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Id == source.AcademicLevelId, ct);
             var targetLevel = await _levels.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                x.TenantId == tenant && x.Id == request.TargetClassId && x.IsActive, ct);
+                x.TenantId == tenant && x.Id == request.TargetAcademicLevelId && x.IsActive, ct);
             var batch = await _batches.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
-                x.Id == request.TargetSectionId && x.IsActive &&
-                x.AcademicYearId == request.TargetAcademicYearId && x.AcademicLevelId == request.TargetClassId, ct);
+                x.Id == request.TargetAcademicBatchId && x.IsActive &&
+                x.AcademicYearId == request.TargetAcademicYearId && x.AcademicLevelId == request.TargetAcademicLevelId, ct);
             if (sourceYear == null || targetYear == null || sourceLevel == null || targetLevel == null || batch == null)
                 return Error("Academic placement is unavailable.", 409);
             if (targetYear.Id == sourceYear.Id || targetYear.StartDate <= sourceYear.StartDate)
@@ -115,7 +115,7 @@ public sealed class StudentPromotionService : IStudentPromotionService
                 return Error("Promotion must advance from a promotable level.", 409);
             if (decision == StudentProgressionDecisionType.Repeated && targetLevel.Id != sourceLevel.Id)
                 return Error("Repeating students must remain at the same academic level.", 409);
-            if (request.TargetGroupId.HasValue && batch.AcademicTrackId != request.TargetGroupId.Value)
+            if (request.TargetAcademicTrackId.HasValue && batch.AcademicTrackId != request.TargetAcademicTrackId.Value)
                 return Error("Target track does not match the selected batch.", 409);
             if (batch.CampusId != source.CampusId)
                 return Error("Campus changes require a transfer workflow.", 409);
@@ -246,21 +246,19 @@ public sealed class StudentPromotionService : IStudentPromotionService
         StudentEnrollment source, StudentEnrollment target, bool already) => new()
     {
         Reference = record.PublicId, StudentReference = student.PublicId, FromEnrollmentId = source.Id,
-        ToEnrollmentId = target.Id, Decision = ToLegacy(record.Decision),
-        AcademicYearId = target.AcademicYearId, ClassId = target.AcademicLevelId,
-        SectionId = target.AcademicBatchId, GroupId = target.AcademicTrackId,
+        ToEnrollmentId = target.Id, Decision = record.Decision,
+        AcademicYearId = target.AcademicYearId, AcademicLevelId = target.AcademicLevelId,
+        AcademicBatchId = target.AcademicBatchId, AcademicTrackId = target.AcademicTrackId,
         Roll = target.RollNo, ProcessedAt = record.ProcessedAt,
         StudentRowVersion = Convert.ToBase64String(student.RowVersion),
         AlreadyProcessed = already
     };
-    private static StudentProgressionDecision ToLegacy(StudentProgressionDecisionType decision) =>
-        Enum.Parse<StudentProgressionDecision>(decision.ToString());
     private bool CanManage() => _user.IsAuthenticated && _user.TenantId > 0 &&
         (_user.IsTenantAdmin || _user.IsInRole("Principal"));
     private static bool IsValid(PromoteStudentWorkflowRequestDto? request) =>
         request != null && request.ClientRequestId != Guid.Empty && request.SourceEnrollmentId > 0 &&
-        request.TargetAcademicYearId > 0 && request.TargetClassId > 0 && request.TargetSectionId > 0 &&
-        request.TargetGroupId is not <= 0 && !string.IsNullOrWhiteSpace(request.TargetRoll) &&
+        request.TargetAcademicYearId > 0 && request.TargetAcademicLevelId > 0 && request.TargetAcademicBatchId > 0 &&
+        request.TargetAcademicTrackId is not <= 0 && !string.IsNullOrWhiteSpace(request.TargetRoll) &&
         request.TargetRoll.Trim().Length <= 50 && request.Note?.Length <= 500 &&
         Enum.IsDefined(request.Decision);
     private static bool TryVersion(string? value, out byte[] version)

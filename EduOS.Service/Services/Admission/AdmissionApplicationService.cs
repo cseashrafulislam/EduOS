@@ -85,7 +85,7 @@ public sealed class AdmissionApplicationService : IAdmissionApplicationService
     {
         if (!CanManage()) return Denied<PagedResult<AdmissionApplicationListItemDto>>();
         if (request == null || request.Page < 1 || request.PageSize is < 1 or > 100 ||
-            request.Search?.Length > 100 || request.Status.HasValue && !Enum.IsDefined(request.Status.Value))
+            request.Search?.Length > 100 || request.State.HasValue && !Enum.IsDefined(request.State.Value))
             return ApiResponse<PagedResult<AdmissionApplicationListItemDto>>.ErrorResponse("Filter or pagination is invalid.");
         var tenant = _user.TenantId;
         var q = from app in _applications.GetQueryable().AsNoTracking()
@@ -102,9 +102,9 @@ public sealed class AdmissionApplicationService : IAdmissionApplicationService
         if (request.AcademicYearId.HasValue) q = q.Where(x => x.form.AcademicYearId == request.AcademicYearId.Value);
         if (request.CampusId.HasValue) q = q.Where(x => x.form.CampusId == request.CampusId.Value);
         if (request.AcademicUnitId.HasValue) q = q.Where(x => x.form.AcademicLevelId == request.AcademicUnitId.Value);
-        if (request.Status.HasValue)
+        if (request.State.HasValue)
         {
-            var state = ToState(request.Status.Value);
+            var state = ToState(request.State.Value);
             if (!state.HasValue) return ApiResponse<PagedResult<AdmissionApplicationListItemDto>>.ErrorResponse("Unsupported application status filter.");
             q = q.Where(x => x.app.State == state.Value);
         }
@@ -257,8 +257,8 @@ public sealed class AdmissionApplicationService : IAdmissionApplicationService
         if (reference == Guid.Empty || request == null ||
             !TryVersion(request.RowVersion, out var expected))
             return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Valid applicant reference and row version are required.");
-        if (request.Status is not (AdmissionApplicationStatus.UnderReview or AdmissionApplicationStatus.Approved or
-            AdmissionApplicationStatus.Rejected or AdmissionApplicationStatus.Withdrawn))
+        if (request.State is not (AdmissionApplicantState.UnderReview or AdmissionApplicantState.Qualified or
+            AdmissionApplicantState.Rejected or AdmissionApplicantState.Withdrawn))
             return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Unsupported review status. Waitlisting and admission require their dedicated workflows.");
         var tenant = _user.TenantId;
         try
@@ -270,28 +270,28 @@ public sealed class AdmissionApplicationService : IAdmissionApplicationService
                 return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Application changed. Reload and retry.", 409);
             if (app.State is AdmissionApplicantState.Admitted or AdmissionApplicantState.Rejected or AdmissionApplicantState.Withdrawn)
                 return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("A final decision cannot be silently changed.", 409);
-            if (request.Status == AdmissionApplicationStatus.UnderReview &&
+            if (request.State == AdmissionApplicantState.UnderReview &&
                 app.State is not (AdmissionApplicantState.Submitted or AdmissionApplicantState.DocumentPending))
                 return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Application cannot move to review.", 409);
-            if (request.Status == AdmissionApplicationStatus.Approved &&
+            if (request.State == AdmissionApplicantState.Qualified &&
                 app.State is not (AdmissionApplicantState.Submitted or AdmissionApplicantState.UnderReview or AdmissionApplicantState.AssessmentPending))
                 return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Application cannot be qualified from its current state.", 409);
-            if (request.Status is AdmissionApplicationStatus.Rejected or AdmissionApplicationStatus.Withdrawn &&
+            if (request.State is AdmissionApplicantState.Rejected or AdmissionApplicantState.Withdrawn &&
                 string.IsNullOrWhiteSpace(request.DecisionNote))
                 return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("A reason is required for rejection or withdrawal.");
             if (request.DecisionNote?.Length > 1000)
                 return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Decision note is too long.");
-            if (request.Status == AdmissionApplicationStatus.Withdrawn)
+            if (request.State == AdmissionApplicantState.Withdrawn)
                 return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Applicant withdrawal requires a verified applicant request.", 403);
-            if (request.Status == AdmissionApplicationStatus.Approved &&
+            if (request.State == AdmissionApplicantState.Qualified &&
                 await _documents.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
                     x.AdmissionApplicantId == app.Id && !x.IsVerified, ct))
                 return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Unverified documents must be reviewed before qualification.", 409);
             var now = _clock.GetUtcNow().UtcDateTime;
-            app.State = ToState(request.Status)!.Value;
+            app.State = request.State;
             app.ReviewedAt = now; app.ReviewedByUserId = _user.UserId;
             app.UpdatedAt = now; app.UpdatedBy = _user.UserId;
-            if (request.Status == AdmissionApplicationStatus.Rejected)
+            if (request.State == AdmissionApplicantState.Rejected)
                 await _decisions.AddAsync(new AdmissionDecision
                 {
                     TenantId = tenant, ClientRequestId = Guid.NewGuid(), AdmissionApplicantId = app.Id,
@@ -343,7 +343,7 @@ public sealed class AdmissionApplicationService : IAdmissionApplicationService
         {
             Reference = a.PublicId, ApplicationNumber = a.ApplicationNumber, ApplicantName = a.FullName,
             ApplicantNameBangla = a.FullNameBangla, MaskedMobile = Mask(a.Phone), PrimaryMobile = a.Phone ?? "",
-            Status = ToLegacy(a.State), SubmittedAtUtc = a.SubmittedAt ?? DateTime.MinValue,
+            State = a.State, SubmittedAtUtc = a.SubmittedAt ?? DateTime.MinValue,
             RowVersion = Convert.ToBase64String(a.RowVersion),
             AcademicYearId = data.year.Id, AcademicYearName = data.year.Name,
             CampusId = data.campus.Id, CampusName = data.campus.Name,
@@ -364,28 +364,7 @@ public sealed class AdmissionApplicationService : IAdmissionApplicationService
     private static AdmissionApplicationCreatedDto MapCreated(AdmissionApplicant app) => new()
     {
         Reference = app.PublicId, ApplicationNumber = app.ApplicationNumber,
-        Status = ToLegacy(app.State), RowVersion = Convert.ToBase64String(app.RowVersion)
-    };
-    private static AdmissionApplicationStatus ToLegacy(AdmissionApplicantState value) => value switch
-    {
-        AdmissionApplicantState.Submitted => AdmissionApplicationStatus.Submitted,
-        AdmissionApplicantState.UnderReview or AdmissionApplicantState.DocumentPending or
-            AdmissionApplicantState.AssessmentPending => AdmissionApplicationStatus.UnderReview,
-        AdmissionApplicantState.Qualified => AdmissionApplicationStatus.Approved,
-        AdmissionApplicantState.Rejected => AdmissionApplicationStatus.Rejected,
-        AdmissionApplicantState.Withdrawn => AdmissionApplicationStatus.Withdrawn,
-        AdmissionApplicantState.Admitted => AdmissionApplicationStatus.Admitted,
-        _ => AdmissionApplicationStatus.Submitted
-    };
-    private static AdmissionApplicantState? ToState(AdmissionApplicationStatus value) => value switch
-    {
-        AdmissionApplicationStatus.Submitted => AdmissionApplicantState.Submitted,
-        AdmissionApplicationStatus.UnderReview => AdmissionApplicantState.UnderReview,
-        AdmissionApplicationStatus.Approved => AdmissionApplicantState.Qualified,
-        AdmissionApplicationStatus.Rejected => AdmissionApplicantState.Rejected,
-        AdmissionApplicationStatus.Withdrawn => AdmissionApplicantState.Withdrawn,
-        AdmissionApplicationStatus.Admitted => AdmissionApplicantState.Admitted,
-        _ => null
+        State = app.State, RowVersion = Convert.ToBase64String(app.RowVersion)
     };
     private static string Mask(string? phone) => string.IsNullOrWhiteSpace(phone) ? string.Empty :
         phone.Length <= 4 ? "****" : new string('*', phone.Length - 4) + phone[^4..];

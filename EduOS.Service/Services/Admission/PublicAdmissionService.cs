@@ -372,7 +372,7 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
         return ApiResponse<PublicAdmissionStatusDto>.SuccessResponse(new PublicAdmissionStatusDto
         {
             Reference = a.PublicId, ApplicationNumber = a.ApplicationNumber, ApplicantName = a.FullName,
-            MaskedMobile = Mask(a.Phone), Status = ToLegacy(a.State),
+            MaskedMobile = Mask(a.Phone), State = a.State,
             SubmittedAtUtc = a.SubmittedAt ?? DateTime.MinValue,
             DecisionNote = a.State == AdmissionApplicantState.Rejected ? note : null,
             Assessment = assessment, Documents = docs.Select(MapDocument).ToList()
@@ -441,16 +441,6 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
     {
         Reference = a.PublicId, ApplicationNumber = a.ApplicationNumber,
         Status = ToLegacy(a.State), RowVersion = Convert.ToBase64String(a.RowVersion)
-    };
-    private static AdmissionApplicationStatus ToLegacy(AdmissionApplicantState s) => s switch
-    {
-        AdmissionApplicantState.UnderReview or AdmissionApplicantState.DocumentPending or
-            AdmissionApplicantState.AssessmentPending => AdmissionApplicationStatus.UnderReview,
-        AdmissionApplicantState.Qualified => AdmissionApplicationStatus.Approved,
-        AdmissionApplicantState.Rejected => AdmissionApplicationStatus.Rejected,
-        AdmissionApplicantState.Admitted => AdmissionApplicationStatus.Admitted,
-        AdmissionApplicantState.Withdrawn => AdmissionApplicationStatus.Withdrawn,
-        _ => AdmissionApplicationStatus.Submitted
     };
     private static string Mask(string? mobile) =>
         string.IsNullOrEmpty(mobile) ? "" : mobile.Length < 5 ? "****" :
