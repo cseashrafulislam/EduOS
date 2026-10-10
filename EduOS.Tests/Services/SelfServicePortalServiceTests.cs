@@ -67,12 +67,12 @@ public class SelfServicePortalServiceTests
         context.Set<Student>().AddRange(linked, unrelated, foreign);
         await context.SaveChangesAsync(); SetTenant(accessor, 10);
         var service = CreateService(context, new TestCurrentUser(10, 99, "Student"));
-        (await service.GetTransportAsync(unrelated.PublicId)).StatusCode.Should().Be(403);
-        (await service.GetAssignmentsAsync(unrelated.PublicId)).StatusCode.Should().Be(403);
-        (await service.GetHomeworkAsync(foreign.PublicId)).StatusCode.Should().Be(403);
+        (await service.GetTransportAsync(unrelated.PublicId, 1, 25)).StatusCode.Should().Be(403);
+        (await service.GetAssignmentsAsync(unrelated.PublicId, 1, 25)).StatusCode.Should().Be(403);
+        (await service.GetHomeworkAsync(foreign.PublicId, 1, 25)).StatusCode.Should().Be(403);
         (await service.GetTimetableAsync(foreign.PublicId)).StatusCode.Should().Be(403);
         (await service.GetFeesAsync(foreign.PublicId)).StatusCode.Should().Be(403);
-        (await service.GetResultsAsync(foreign.PublicId)).StatusCode.Should().Be(403);
+        (await service.GetResultsAsync(foreign.PublicId, 1, 25)).StatusCode.Should().Be(403);
     }
 
     [Fact]
@@ -97,11 +97,11 @@ public class SelfServicePortalServiceTests
             Assignment(10, course.Id, "Unpublished homework", LearningTaskType.Homework, false),
             Assignment(10, course.Id, "Different assignment", LearningTaskType.Assignment, true));
         await context.SaveChangesAsync(); SetTenant(accessor, 10);
-        var response = await CreateService(context, new TestCurrentUser(10, 99, "Student")).GetHomeworkAsync(student.PublicId);
+        var response = await CreateService(context, new TestCurrentUser(10, 99, "Student")).GetHomeworkAsync(student.PublicId, 1, 25);
         response.Success.Should().BeTrue();
-        response.Data.Should().ContainSingle();
-        response.Data![0].Title.Should().Be("Visible homework");
-        response.Data[0].SubjectName.Should().Be("Mathematics");
+        response.Data!.Items.Should().ContainSingle();
+        response.Data.Items[0].Title.Should().Be("Visible homework");
+        response.Data.Items[0].SubjectName.Should().Be("Mathematics");
     }
 
     [Fact]
@@ -121,10 +121,10 @@ public class SelfServicePortalServiceTests
             Assignment(10, active.Id, "Draft", LearningTaskType.Assignment, false),
             Assignment(10, inactive.Id, "Dropped", LearningTaskType.Assignment, true));
         await context.SaveChangesAsync(); SetTenant(accessor, 10);
-        var result = await CreateService(context, new TestCurrentUser(10, 99, "Student")).GetAssignmentsAsync(student.PublicId);
+        var result = await CreateService(context, new TestCurrentUser(10, 99, "Student")).GetAssignmentsAsync(student.PublicId, 1, 25);
         result.Success.Should().BeTrue();
-        result.Data.Should().ContainSingle();
-        result.Data![0].CourseTitle.Should().Be("Active course");
+        result.Data!.Items.Should().ContainSingle();
+        result.Data.Items[0].CourseTitle.Should().Be("Active course");
     }
 
     [Fact]
@@ -143,7 +143,7 @@ public class SelfServicePortalServiceTests
             TenantId = 10, StudentId = student.Id, ClientRequestId = Guid.NewGuid(),
             CampusId = 1, AcademicYearId = 1, AcademicProgramId = 1, AcademicLevelId = 1,
             AcademicBatchId = 5, AcademicCurriculumId = 1, RollNo = "1",
-            EnrollmentDate = DateOnly.FromDateTime(DateTime.UtcNow), IsActive = true, IsCurrent = true,
+            EnrollmentDate = DateOnly.FromDateTime(DateTime.UtcNow), IsCurrent = true,
             State = EnrollmentState.Active
         });
         await context.SaveChangesAsync();
@@ -161,6 +161,13 @@ public class SelfServicePortalServiceTests
         context.Set<InstructorAssignment>().Add(assignment);
         await context.SaveChangesAsync();
         var effective = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1));
+        var enrollment = await context.Set<StudentEnrollment>().SingleAsync();
+        context.Set<StudentSubjectRegistration>().Add(new StudentSubjectRegistration
+        {
+            TenantId = 10, ClientRequestId = Guid.NewGuid(),
+            StudentEnrollmentId = enrollment.Id, SubjectOfferingId = offering.Id,
+            State = SubjectRegistrationState.Approved
+        });
         context.Set<RoutineEntry>().AddRange(
             new RoutineEntry { TenantId = 10, SubjectOfferingId = offering.Id, RoutineTimeSlotId = sunday.Id,
                 InstructorAssignmentId = assignment.Id, DayOfWeek = DayOfWeek.Sunday, EffectiveFrom = effective, IsActive = true },
@@ -170,7 +177,7 @@ public class SelfServicePortalServiceTests
         var result = await CreateService(context, new TestCurrentUser(10, 99, "Student")).GetTimetableAsync(student.PublicId);
         result.Success.Should().BeTrue();
         result.Data.Should().HaveCount(2);
-        result.Data!.Select(x => x.DayOfWeek).Should().ContainInOrder("Saturday", "Sunday");
+        result.Data!.Select(x => x.DayOfWeek).Should().ContainInOrder(DayOfWeek.Saturday, DayOfWeek.Sunday);
         result.Data[0].TeacherName.Should().Be("Teacher");
     }
 
@@ -188,11 +195,12 @@ public class SelfServicePortalServiceTests
         new GenericRepository<Guardian>(context),
         new GenericRepository<StudentGuardian>(context),
         new GenericRepository<StudentEnrollment>(context),
-        new GenericRepository<AcademicBatch>(context),
+        new GenericRepository<StudentSubjectRegistration>(context),
         new GenericRepository<RoutineEntry>(context),
         new GenericRepository<RoutineTimeSlot>(context),
         new GenericRepository<SubjectOffering>(context),
         new GenericRepository<CurriculumSubject>(context),
+        new GenericRepository<Subject>(context),
         new GenericRepository<InstructorAssignment>(context),
         new GenericRepository<Employee>(context),
         new GenericRepository<Room>(context),
@@ -208,15 +216,14 @@ public class SelfServicePortalServiceTests
         new GenericRepository<Vehicle>(context),
         new GenericRepository<RouteStop>(context),
         new GenericRepository<Course>(context),
-        new GenericRepository<Subject>(context),
-        new GenericRepository<Assignment>(context),
         new GenericRepository<CourseEnrollment>(context),
-        currentUser, NullLogger<SelfServicePortalService>.Instance);
+        new GenericRepository<Assignment>(context),
+        currentUser);
 
     private static Student Student(long tenantId, long? userId, string code) => new()
     {
         TenantId = tenantId, UserId = userId, PersonId = 1, StudentCode = code, FullName = code,
-        AdmissionDate = DateOnly.FromDateTime(DateTime.UtcNow), IsActive = true
+        AdmissionDate = DateOnly.FromDateTime(DateTime.UtcNow), StatusCode = "Active"
     };
 
     private static Course Course(long tenant, string title) => new()
