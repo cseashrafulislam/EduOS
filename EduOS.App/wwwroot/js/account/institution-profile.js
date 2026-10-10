@@ -3,6 +3,7 @@
 
     const configElement = document.getElementById('institutionProfileStrings');
     const i18n = configElement ? JSON.parse(configElement.textContent || '{}') : {};
+    let profileRowVersion = '';
 
     document.addEventListener('DOMContentLoaded', async () => {
         const form = document.getElementById('profileForm');
@@ -14,7 +15,10 @@
             loadProfile(),
             loadInstitutionTypes(institutionType)
         ]);
-        if (profile) populateProfile(profile);
+        if (profile) {
+            profileRowVersion = profile.rowVersion || '';
+            populateProfile(profile);
+        }
         if (profile?.institutionType && institutionTypes) {
             institutionType.value = profile.institutionType;
         }
@@ -24,6 +28,7 @@
             clearErrors();
 
             const data = {
+                rowVersion: profileRowVersion,
                 institutionName: valueOf('institutionName'),
                 institutionType: valueOf('institutionType'),
                 ownerName: valueOf('ownerName'),
@@ -53,7 +58,7 @@
                     method: 'POST',
                     cache: 'no-store',
                     credentials: 'same-origin',
-                    headers: { 'Accept': 'application/json' },
+                    headers: { 'Accept': 'application/json', 'RequestVerificationToken': csrfToken() },
                     body: toFormData(data)
                 });
                 const payload = await response.json().catch(() => null);
@@ -66,7 +71,8 @@
                     method: 'POST',
                     cache: 'no-store',
                     credentials: 'same-origin',
-                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json',
+                        'RequestVerificationToken': csrfToken() },
                     body: JSON.stringify({ stage: 2, skipped: false })
                 });
                 if (!stepResponse.ok) {
@@ -174,6 +180,10 @@
         } catch {
             return false;
         }
+    }
+
+    function csrfToken() {
+        return document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
     }
 
     function toFormData(data) {
