@@ -233,7 +233,7 @@
                 cache: 'no-store',
                 credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                body: JSON.stringify({ step: 4, skipped: false })
+                body: JSON.stringify({ stage: 5, skipped: false })
             });
             const payload = await response.json().catch(() => null);
             if (!response.ok || !payload?.success) {
