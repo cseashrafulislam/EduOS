@@ -1,6 +1,7 @@
 using EduOS.Core.DTOs.Academic;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.HR;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
 using EduOS.Persistence.Repositories;
@@ -9,139 +10,167 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
-using System.Security.Claims;
 using Xunit;
 
 namespace EduOS.Tests.Services;
 
-public class AcademicRoutineServiceTests
+public sealed class AcademicRoutineServiceTests
 {
+    private static readonly DateOnly Start = new(2026, 1, 1);
+
     [Fact]
-    public async Task Routine_creation_is_retry_safe_and_derives_assignment_data()
+    public async Task Time_slot_and_routine_entry_creation_are_retry_safe()
     {
-        var options = CreateOptions();
-        var seeded = await SeedAsync(options);
-        await using var context = CreateContext(options, 101, "TenantAdmin", 7);
-        var service = CreateService(context, new TestCurrentUser(101, 7, "TenantAdmin"));
+        var options = Options();
+        var scope = await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var service = Service(db, new TestUser(101));
+        var slotRequest = new SaveRoutineTimeSlotRequestDto
+        { Name = "First Period", StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(9, 45) };
+        var slot = await service.CreateTimeSlotAsync(slotRequest);
+        var duplicateSlot = await service.CreateTimeSlotAsync(slotRequest);
+        var assignment = await service.AssignInstructorAsync(Assign(scope.OfferingReference, scope.TeacherReference));
+        var request = Entry(scope.OfferingReference, slot.Data!.Id, assignment.Data!.Id, scope.RoomId);
+        var entry = await service.CreateEntryAsync(request);
+        var retry = await service.CreateEntryAsync(request);
+        slot.Success.Should().BeTrue();
+        duplicateSlot.Data!.Id.Should().Be(slot.Data.Id);
+        assignment.Success.Should().BeTrue();
+        entry.Success.Should().BeTrue(entry.Message);
+        entry.Data!.SubjectOfferingReference.Should().Be(scope.OfferingReference);
+        retry.Success.Should().BeTrue();
+        retry.Data!.Id.Should().Be(entry.Data.Id);
+        (await db.RoutineEntries.CountAsync()).Should().Be(1);
+    }
 
-        var slot = await service.CreateTimeSlotAsync(new CreateRoutineTimeSlotDto { Name = "Period 1", StartTime = new TimeSpan(9, 0, 0), EndTime = new TimeSpan(9, 45, 0) });
-        var assignment = await service.AssignInstructorAsync(new AssignInstructorDto { AcademicBatchId = seeded.BatchId, SubjectId = seeded.SubjectId, EmployeeId = seeded.TeacherId, IsPrimary = true });
-        var request = new CreateRoutineEntryDto { InstructorAssignmentId = assignment.Data!.Id, RoutineTimeSlotId = slot.Data!.Id, DayOfWeek = DayOfWeek.Sunday, RoomId = seeded.RoomId };
-
-        var first = await service.CreateEntryAsync(request);
-        var replay = await service.CreateEntryAsync(request);
-
+    [Fact]
+    public async Task Instructor_collision_across_batches_is_rejected()
+    {
+        var options = Options();
+        var scope = await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var second = new AcademicBatch { TenantId = 101, CampusId = scope.CampusId,
+            AcademicYearId = scope.YearId, AcademicProgramId = scope.ProgramId,
+            AcademicLevelId = scope.LevelId, Name = "Batch B", Code = "B-B", Capacity = 25 };
+        db.AcademicBatches.Add(second); await db.SaveChangesAsync();
+        var offering = new SubjectOffering { TenantId = 101, PublicId = Guid.NewGuid(),
+            AcademicBatchId = second.Id, AcademicYearId = scope.YearId,
+            CurriculumSubjectId = scope.CurriculumSubjectId, Code = "MATH-B" };
+        db.Add(offering); await db.SaveChangesAsync();
+        var service = Service(db, new TestUser(101));
+        var slot = (await service.CreateTimeSlotAsync(new SaveRoutineTimeSlotRequestDto
+        { Name = "First Period", StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(9, 45) })).Data!;
+        var first = await service.AssignInstructorAsync(Assign(scope.OfferingReference, scope.TeacherReference));
+        var other = await service.AssignInstructorAsync(Assign(offering.PublicId, scope.TeacherReference));
         first.Success.Should().BeTrue();
-        first.StatusCode.Should().Be(201);
-        first.Data!.AcademicYearId.Should().Be(seeded.AcademicYearId);
-        first.Data.AcademicBatchId.Should().Be(seeded.BatchId);
-        first.Data.SubjectId.Should().Be(seeded.SubjectId);
-        first.Data.EmployeeId.Should().Be(seeded.TeacherId);
-        replay.Success.Should().BeTrue();
-        replay.Data!.Id.Should().Be(first.Data.Id);
-        (await context.RoutineEntries.CountAsync()).Should().Be(1);
+        other.Success.Should().BeTrue();
+        (await service.CreateEntryAsync(Entry(scope.OfferingReference, slot.Id, first.Data!.Id))).Success
+            .Should().BeTrue();
+        var collision = await service.CreateEntryAsync(Entry(offering.PublicId, slot.Id, other.Data!.Id));
+        collision.StatusCode.Should().Be(409);
+        (await db.RoutineEntries.CountAsync()).Should().Be(1);
     }
 
     [Fact]
-    public async Task Teacher_collision_is_rejected_across_batches()
+    public async Task Other_tenant_cannot_assign_instructor_to_foreign_offering()
     {
-        var options = CreateOptions();
-        var seeded = await SeedAsync(options);
-        await using var context = CreateContext(options, 101, "TenantAdmin", 7);
-        var secondBatch = new AcademicBatch { TenantId = 101, CampusId = 1, AcademicYearId = seeded.AcademicYearId, AcademicProgramId = seeded.ProgramId, AcademicLevelId = seeded.LevelId, Name = "Batch B", Code = "B-B", Capacity = 25, IsActive = true };
-        context.AcademicBatches.Add(secondBatch);
-        await context.SaveChangesAsync();
-        var service = CreateService(context, new TestCurrentUser(101, 7, "TenantAdmin"));
-        var slot = (await service.CreateTimeSlotAsync(new CreateRoutineTimeSlotDto { Name = "Period 1", StartTime = new TimeSpan(9, 0, 0), EndTime = new TimeSpan(9, 45, 0) })).Data!;
-        var firstAssignment = (await service.AssignInstructorAsync(new AssignInstructorDto { AcademicBatchId = seeded.BatchId, SubjectId = seeded.SubjectId, EmployeeId = seeded.TeacherId })).Data!;
-        var secondAssignment = (await service.AssignInstructorAsync(new AssignInstructorDto { AcademicBatchId = secondBatch.Id, SubjectId = seeded.SubjectId, EmployeeId = seeded.TeacherId })).Data!;
-        (await service.CreateEntryAsync(new CreateRoutineEntryDto { InstructorAssignmentId = firstAssignment.Id, RoutineTimeSlotId = slot.Id, DayOfWeek = DayOfWeek.Monday, RoomId = seeded.RoomId })).Success.Should().BeTrue();
-
-        var conflict = await service.CreateEntryAsync(new CreateRoutineEntryDto { InstructorAssignmentId = secondAssignment.Id, RoutineTimeSlotId = slot.Id, DayOfWeek = DayOfWeek.Monday });
-
-        conflict.Success.Should().BeFalse();
-        conflict.StatusCode.Should().Be(409);
-        conflict.Message.Should().Contain("Instructor");
-        (await context.RoutineEntries.CountAsync()).Should().Be(1);
-    }
-
-    [Fact]
-    public async Task Cross_tenant_batch_is_neutral_not_found()
-    {
-        var options = CreateOptions();
-        var seeded = await SeedAsync(options);
-        await using var context = CreateContext(options, 202, "TenantAdmin", 8);
-        var service = CreateService(context, new TestCurrentUser(202, 8, "TenantAdmin"));
-
-        var response = await service.AssignInstructorAsync(new AssignInstructorDto { AcademicBatchId = seeded.BatchId, SubjectId = seeded.SubjectId, EmployeeId = seeded.TeacherId });
-
-        response.Success.Should().BeFalse();
+        var options = Options();
+        var scope = await SeedAsync(options);
+        await using var db = Context(options, 202);
+        var response = await Service(db, new TestUser(202))
+            .AssignInstructorAsync(Assign(scope.OfferingReference, scope.TeacherReference));
         response.StatusCode.Should().Be(404);
-        (await context.InstructorAssignments.IgnoreQueryFilters().CountAsync()).Should().Be(0);
+        (await db.InstructorAssignments.IgnoreQueryFilters().CountAsync()).Should().Be(0);
     }
 
-    private static AcademicRoutineService CreateService(EduOSDbContext context, ICurrentUserService currentUser) => new(
-        new GenericRepository<RoutineTimeSlot>(context),
-        new GenericRepository<InstructorAssignment>(context),
-        new GenericRepository<RoutineEntry>(context),
-        new GenericRepository<AcademicBatch>(context),
-        new GenericRepository<AcademicTerm>(context),
-        new GenericRepository<AcademicCurriculum>(context),
-        new GenericRepository<CurriculumSubject>(context),
-        new GenericRepository<Subject>(context),
-        new GenericRepository<Employee>(context),
-        new GenericRepository<Room>(context),
-        context,
-        currentUser,
-        TimeProvider.System,
-        NullLogger<AcademicRoutineService>.Instance);
-
-    private static async Task<SeededAcademic> SeedAsync(DbContextOptions<EduOSDbContext> options)
+    private static SaveInstructorAssignmentRequestDto Assign(Guid offering, Guid teacher) => new()
     {
-        await using var context = CreateContext(options, 101, "TenantAdmin", 7);
-        var year = new AcademicYear { TenantId = 101, Name = "2026", StartDate = new DateTime(2026, 1, 1), EndDate = new DateTime(2026, 12, 31), IsCurrent = true, IsActive = true };
-        var legacyClass = new Class { TenantId = 101, Name = "Class Nine", NumericValue = 9, IsActive = true };
-        var program = new AcademicProgram { TenantId = 101, CampusId = 1, Name = "Secondary", Code = "SEC", IsActive = true };
-        context.AddRange(year, legacyClass, program);
-        await context.SaveChangesAsync();
-        var level = new AcademicLevel { TenantId = 101, AcademicProgramId = program.Id, AcademicProgram = program, Name = "Class Nine", Code = "C9", LevelNo = 9, IsActive = true };
-        var subject = new Subject { TenantId = 101, ClassId = legacyClass.Id, Class = legacyClass, Name = "Mathematics", Code = "MATH", IsActive = true };
-        var teacher = new Employee { TenantId = 101, UserId = 70, EmployeeCode = "T-001", FullName = "Teacher One", Phone = "01700000000", DesignationId = 1, JoiningDate = new DateOnly(2020, 1, 1), CanTeach = true };
-        var room = new Room { TenantId = 101, CampusId = 1, Name = "Room 101", Code = "R101", Capacity = 40, IsActive = true };
-        context.AddRange(level, subject, teacher, room);
-        await context.SaveChangesAsync();
-        var batch = new AcademicBatch { TenantId = 101, CampusId = 1, AcademicYearId = year.Id, AcademicProgramId = program.Id, AcademicLevelId = level.Id, Name = "Batch A", Code = "B-A", Capacity = 30, IsActive = true };
-        var curriculum = new AcademicCurriculum { TenantId = 101, AcademicProgramId = program.Id, Name = "Secondary 2026", Code = "SEC-2026", EffectiveFromAcademicYearId = year.Id, IsCurrent = true, IsActive = true };
-        context.AddRange(batch, curriculum);
-        await context.SaveChangesAsync();
-        context.CurriculumSubjects.Add(new CurriculumSubject { TenantId = 101, AcademicCurriculumId = curriculum.Id, AcademicLevelId = level.Id, SubjectId = subject.Id, FullMarks = 100, PassMarks = 33, IsActive = true });
-        await context.SaveChangesAsync();
-        return new SeededAcademic(year.Id, program.Id, level.Id, batch.Id, subject.Id, teacher.Id, room.Id);
+        ClientRequestId = Guid.NewGuid(), SubjectOfferingReference = offering,
+        EmployeeReference = teacher, IsPrimary = true, EffectiveFrom = Start
+    };
+
+    private static SaveRoutineEntryRequestDto Entry(Guid offering, long slot, long instructor, long? room = null) => new()
+    {
+        ClientRequestId = Guid.NewGuid(), SubjectOfferingReference = offering,
+        InstructorAssignmentId = instructor, RoutineTimeSlotId = slot, RoomId = room,
+        DayOfWeek = DayOfWeek.Monday, EffectiveFrom = Start
+    };
+
+    private static AcademicRoutineService Service(EduOSDbContext db, ICurrentUserService user) => new(
+        new GenericRepository<RoutineTimeSlot>(db),
+        new GenericRepository<InstructorAssignment>(db),
+        new GenericRepository<RoutineEntry>(db),
+        new GenericRepository<AcademicBatch>(db),
+        new GenericRepository<AcademicYear>(db),
+        new GenericRepository<AcademicTerm>(db),
+        new GenericRepository<SubjectOffering>(db),
+        new GenericRepository<CurriculumSubject>(db),
+        new GenericRepository<Subject>(db),
+        new GenericRepository<Employee>(db),
+        new GenericRepository<Room>(db), db, user,
+        TimeProvider.System, NullLogger<AcademicRoutineService>.Instance);
+
+    private static async Task<Scope> SeedAsync(DbContextOptions<EduOSDbContext> options)
+    {
+        await using var db = Context(options, 101);
+        var campus = new Campus { TenantId = 101, Name = "Main", Code = "MAIN" };
+        var year = new AcademicYear { TenantId = 101, Name = "2026", Code = "2026",
+            StartDate = Start, EndDate = new DateOnly(2026, 12, 31), IsCurrent = true };
+        var program = new AcademicProgram { TenantId = 101, Name = "Secondary", Code = "SEC" };
+        db.AddRange(campus, year, program); await db.SaveChangesAsync();
+        var level = new AcademicLevel { TenantId = 101, AcademicProgramId = program.Id,
+            Name = "Class Nine", Code = "C9", LevelNo = 9 };
+        var subject = new Subject { TenantId = 101, Name = "Math", Code = "MATH" };
+        var teacher = new Employee { TenantId = 101, EmployeeCode = "T-001",
+            FullName = "Teacher One", UserId = 70, Phone = "01700000000",
+            DesignationId = 1, JoiningDate = new DateOnly(2020, 1, 1),
+            CanTeach = true, State = EmployeeState.Active };
+        var room = new Room { TenantId = 101, CampusId = campus.Id, Name = "Room 101",
+            Code = "R101", Capacity = 40 };
+        db.AddRange(level, subject, teacher, room); await db.SaveChangesAsync();
+        var batch = new AcademicBatch { TenantId = 101, CampusId = campus.Id,
+            AcademicYearId = year.Id, AcademicProgramId = program.Id,
+            AcademicLevelId = level.Id, Name = "Batch A", Code = "B-A", Capacity = 30 };
+        var curriculum = new AcademicCurriculum { TenantId = 101,
+            AcademicProgramId = program.Id, Name = "Secondary 2026", Code = "SEC-2026",
+            EffectiveFrom = Start, IsCurrent = true };
+        db.AddRange(batch, curriculum); await db.SaveChangesAsync();
+        var item = new CurriculumSubject { TenantId = 101,
+            AcademicCurriculumId = curriculum.Id, AcademicLevelId = level.Id,
+            SubjectId = subject.Id, FullMarks = 100m, PassMarks = 33m };
+        db.Add(item); await db.SaveChangesAsync();
+        var offering = new SubjectOffering { TenantId = 101, PublicId = Guid.NewGuid(),
+            AcademicBatchId = batch.Id, CurriculumSubjectId = item.Id,
+            AcademicYearId = year.Id, Code = "MATH-A" };
+        db.Add(offering); await db.SaveChangesAsync();
+        return new Scope(campus.Id, year.Id, program.Id, level.Id, item.Id,
+            offering.PublicId, teacher.PublicId, room.Id);
     }
 
-    private static DbContextOptions<EduOSDbContext> CreateOptions() => new DbContextOptionsBuilder<EduOSDbContext>().UseInMemoryDatabase($"academic-routine-{Guid.NewGuid():N}").Options;
-
-    private static EduOSDbContext CreateContext(DbContextOptions<EduOSDbContext> options, long tenantId, string role, long userId)
+    private static DbContextOptions<EduOSDbContext> Options() =>
+        new DbContextOptionsBuilder<EduOSDbContext>().UseInMemoryDatabase(
+            "academic-routine-" + Guid.NewGuid().ToString("N")).Options;
+    private static EduOSDbContext Context(DbContextOptions<EduOSDbContext> options, long tenant)
     {
-        var http = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, userId.ToString()), new Claim(ClaimTypes.Role, role)], "TestAuthentication")) };
-        http.Items["TenantId"] = tenantId;
+        var http = new DefaultHttpContext();
+        http.Items["TenantId"] = tenant;
         return new EduOSDbContext(options, new HttpContextAccessor { HttpContext = http });
     }
 
-    private sealed record SeededAcademic(long AcademicYearId, long ProgramId, long LevelId, long BatchId, long SubjectId, long TeacherId, long RoomId);
-
-    private sealed class TestCurrentUser(long tenantId, long userId, string role) : ICurrentUserService
+    private sealed record Scope(long CampusId, long YearId, long ProgramId, long LevelId,
+        long CurriculumSubjectId, Guid OfferingReference, Guid TeacherReference, long RoomId);
+    private sealed class TestUser(long tenant) : ICurrentUserService
     {
         public bool IsAuthenticated => true;
-        public long UserId => userId;
-        public long TenantId => tenantId;
-        public string? FullName => "Academic User";
-        public string? Email => "academic@example.test";
+        public long UserId => 7;
+        public long TenantId => tenant;
+        public string? FullName => "Admin";
+        public string? Email => "admin@example.test";
         public bool IsSuperAdmin => false;
-        public bool IsTenantAdmin => role == "TenantAdmin";
-        public IReadOnlyList<string> Roles => [role];
-        public bool IsInRole(string value) => value == role;
+        public bool IsTenantAdmin => true;
+        public IReadOnlyList<string> Roles => ["TenantAdmin"];
+        public bool IsInRole(string role) => role == "TenantAdmin";
         public string? IpAddress => "127.0.0.1";
-        public string? UserAgent => "EduOS tests";
+        public string? UserAgent => "Tests";
     }
 }
