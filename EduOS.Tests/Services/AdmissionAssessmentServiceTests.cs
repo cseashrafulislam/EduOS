@@ -1,5 +1,6 @@
 using EduOS.Core.DTOs.Admission;
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Admission;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
