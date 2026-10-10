@@ -10,6 +10,7 @@
         if (!form || !submitButton) return;
 
         loadInstitutionTypes();
+        const registrationRequestId = crypto.randomUUID();
 
         passwordInput?.addEventListener('input', () => {
             const value = passwordInput.value;
@@ -43,19 +44,20 @@
             clearErrors();
 
             const data = {
+                clientRequestId: registrationRequestId,
                 institutionName: valueOf('institutionName'),
                 ownerName: valueOf('ownerName'),
                 email: valueOf('email'),
                 phone: normalizeBanglaDigits(valueOf('phone')),
                 password: document.getElementById('password')?.value || '',
                 confirmPassword: document.getElementById('confirmPassword')?.value || '',
-                institutionType: valueOf('institutionType'),
+                institutionTypeDefinitionId: Number(valueOf('institutionType')) || null,
                 agreeTerms: document.getElementById('agreeTerms')?.checked ?? false
             };
 
             let isValid = true;
             if (!data.institutionName) isValid = showError('institutionName', form.dataset.institutionRequired);
-            if (!data.institutionType) isValid = showError('institutionType', form.dataset.institutionTypeRequired);
+            if (!data.institutionTypeDefinitionId) isValid = showError('institutionType', form.dataset.institutionTypeRequired);
             if (!data.ownerName) isValid = showError('ownerName', form.dataset.ownerRequired);
             if (!isValidEmail(data.email)) isValid = showError('email', form.dataset.emailRequired);
             if (data.password.length < 6) isValid = showError('password', form.dataset.passwordMin);
@@ -70,7 +72,8 @@
                     method: 'POST',
                     cache: 'no-store',
                     credentials: 'same-origin',
-                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json',
+                        'RequestVerificationToken': form.querySelector('input[name="__RequestVerificationToken"]')?.value || '' },
                     body: JSON.stringify(data)
                 });
                 const payload = await response.json().catch(() => null);
@@ -112,7 +115,7 @@
                 const useBangla = document.documentElement.lang.toLowerCase().startsWith('bn');
                 payload.data.forEach(type => {
                     const option = document.createElement('option');
-                    option.value = type.code;
+                    option.value = String(type.id);
                     option.textContent = useBangla && type.nameBangla ? type.nameBangla : type.name;
                     institutionType.append(option);
                 });
