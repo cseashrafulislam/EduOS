@@ -73,42 +73,31 @@ public sealed class StudentDirectoryService : IStudentDirectoryService
         try
         {
             var tenantId = _currentUser.TenantId;
-            var enrollmentFilter = _enrollments.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenantId && x.IsActive);
-
-            if (request.AcademicYearId.HasValue)
-                enrollmentFilter = enrollmentFilter.Where(x => x.AcademicYearId == request.AcademicYearId.Value);
-            if (request.AcademicUnitId.HasValue)
-                enrollmentFilter = enrollmentFilter.Where(x => x.AcademicLevelId == request.AcademicUnitId.Value);
-
             var search = request.Search?.Trim();
-            List<long>? enrollmentStudentIds = null;
-            if (request.AcademicYearId.HasValue || request.AcademicUnitId.HasValue || !string.IsNullOrWhiteSpace(search))
-            {
-                var filtered = enrollmentFilter;
-                if (!string.IsNullOrWhiteSpace(search))
-                    filtered = filtered.Where(x => x.RollNo.Contains(search));
-                enrollmentStudentIds = await filtered.Select(x => x.StudentId).Distinct().Take(10000).ToListAsync(cancellationToken);
-            }
-
-            var query = _students.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenantId);
+            if (search?.Length > 100)
+                return ApiResponse<PagedResult<StudentDirectoryListItemDto>>.ErrorResponse("Search exceeds 100 characters.");
+            if (request.AcademicYearId is <= 0 || request.AcademicLevelId is <= 0)
+                return ApiResponse<PagedResult<StudentDirectoryListItemDto>>.ErrorResponse("Invalid academic filter.");
+            var enrollments = _enrollments.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenantId && !x.IsDeleted);
+            var query = _students.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenantId && !x.IsDeleted);
             if (status != null) query = query.Where(x => x.StatusCode == status);
-            if (request.AcademicYearId.HasValue || request.AcademicUnitId.HasValue)
-                query = query.Where(x => enrollmentStudentIds!.Contains(x.Id));
-
+            if (request.AcademicYearId.HasValue)
+                query = query.Where(x => enrollments.Any(e =>
+                    e.StudentId == x.Id && e.AcademicYearId == request.AcademicYearId.Value));
+            if (request.AcademicLevelId.HasValue)
+                query = query.Where(x => enrollments.Any(e =>
+                    e.StudentId == x.Id && e.AcademicLevelId == request.AcademicLevelId.Value));
             if (!string.IsNullOrWhiteSpace(search))
-            {
-                var rollIds = enrollmentStudentIds ?? [];
-                query = query.Where(x =>
-                    x.StudentCode.Contains(search) ||
+                query = query.Where(x => x.StudentCode.Contains(search) ||
                     x.FullName.Contains(search) ||
                     (x.FullNameBangla != null && x.FullNameBangla.Contains(search)) ||
-                    rollIds.Contains(x.Id));
-            }
+                    enrollments.Any(e => e.StudentId == x.Id && e.RollNo.StartsWith(search)));
 
             var total = await query.CountAsync(cancellationToken);
             var students = await query.OrderBy(x => x.FullName).ThenBy(x => x.StudentCode)
-                .Skip((request.Page - 1) * request.PageSize)
+                .Skip((int)Math.Min((long)(request.Page - 1) * request.PageSize, int.MaxValue))
                 .Take(request.PageSize)
                 .ToListAsync(cancellationToken);
 
@@ -139,12 +128,12 @@ public sealed class StudentDirectoryService : IStudentDirectoryService
         {
             var tenantId = _currentUser.TenantId;
             var student = await _students.GetQueryable().AsNoTracking()
-                .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.PublicId == reference, cancellationToken);
+                .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.PublicId == reference && !x.IsDeleted, cancellationToken);
             if (student == null)
                 return ApiResponse<StudentDirectoryDetailsDto>.ErrorResponse("Student not found.", 404);
 
             var enrollments = await _enrollments.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenantId && x.StudentId == student.Id)
+                .Where(x => x.TenantId == tenantId && x.StudentId == student.Id && !x.IsDeleted)
                 .OrderByDescending(x => x.IsCurrent)
                 .ThenByDescending(x => x.EnrollmentDate)
                 .ThenByDescending(x => x.Id)
@@ -152,7 +141,7 @@ public sealed class StudentDirectoryService : IStudentDirectoryService
                 .ToListAsync(cancellationToken);
 
             var guardianLinks = await _studentGuardians.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenantId && x.StudentId == student.Id)
+                .Where(x => x.TenantId == tenantId && x.StudentId == student.Id && !x.IsDeleted)
                 .OrderByDescending(x => x.IsPrimary)
                 .ThenBy(x => x.Id)
                 .Take(50)
@@ -161,7 +150,7 @@ public sealed class StudentDirectoryService : IStudentDirectoryService
             var guardians = guardianIds.Length == 0
                 ? new Dictionary<long, Guardian>()
                 : await _guardians.GetQueryable().AsNoTracking()
-                    .Where(x => x.TenantId == tenantId && guardianIds.Contains(x.Id) && x.IsActive)
+                    .Where(x => x.TenantId == tenantId && guardianIds.Contains(x.Id) && x.IsActive && !x.IsDeleted)
                     .ToDictionaryAsync(x => x.Id, cancellationToken);
 
             var details = await MapDetailsAsync(student, enrollments, guardianLinks, guardians, cancellationToken);
@@ -181,7 +170,7 @@ public sealed class StudentDirectoryService : IStudentDirectoryService
         var tenantId = _currentUser.TenantId;
         var studentIds = students.Select(x => x.Id).ToArray();
         var enrollmentRows = await _enrollments.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && studentIds.Contains(x.StudentId) && x.IsActive)
+            .Where(x => x.TenantId == tenantId && studentIds.Contains(x.StudentId) && !x.IsDeleted)
             .OrderByDescending(x => x.IsCurrent)
             .ThenByDescending(x => x.EnrollmentDate)
             .ThenByDescending(x => x.Id)
@@ -196,13 +185,13 @@ public sealed class StudentDirectoryService : IStudentDirectoryService
             {
                 Reference = x.PublicId,
                 StudentCode = x.StudentCode,
-                Roll = e?.RollNo ?? string.Empty,
+                RollNo = e?.RollNo ?? string.Empty,
                 FullName = x.FullName,
                 FullNameBangla = x.FullNameBangla,
                 MaskedMobile = MaskMobile(x.Phone),
                 AcademicYear = e != null ? lookups.YearNames.GetValueOrDefault(e.AcademicYearId) ?? string.Empty : string.Empty,
-                AcademicUnit = e != null ? lookups.LevelNames.GetValueOrDefault(e.AcademicLevelId) ?? string.Empty : string.Empty,
-                Section = e != null ? lookups.BatchNames.GetValueOrDefault(e.AcademicBatchId) ?? string.Empty : string.Empty,
+                AcademicLevelName = e != null ? lookups.LevelNames.GetValueOrDefault(e.AcademicLevelId) ?? string.Empty : string.Empty,
+                AcademicBatchName = e != null ? lookups.BatchNames.GetValueOrDefault(e.AcademicBatchId) ?? string.Empty : string.Empty,
                 Status = x.StatusCode
             };
         }).ToList();
@@ -216,27 +205,28 @@ public sealed class StudentDirectoryService : IStudentDirectoryService
         CancellationToken cancellationToken)
     {
         var lookups = await LoadEnrollmentLookupsAsync(enrollments, cancellationToken);
-        var current = enrollments.FirstOrDefault(x => x.IsCurrent && x.IsActive) ?? enrollments.FirstOrDefault(x => x.IsActive) ?? enrollments.FirstOrDefault();
+        var current = enrollments.FirstOrDefault(x => x.IsCurrent && x.State == EnrollmentState.Active) ??
+            enrollments.FirstOrDefault(x => x.State == EnrollmentState.Active) ?? enrollments.FirstOrDefault();
 
         return new StudentDirectoryDetailsDto
         {
             Reference = student.PublicId,
             StudentCode = student.StudentCode,
-            Roll = current?.RollNo ?? string.Empty,
+            RollNo = current?.RollNo ?? string.Empty,
             FullName = student.FullName,
             FullNameBangla = student.FullNameBangla,
             MaskedMobile = MaskMobile(student.Phone),
             AcademicYear = current != null ? lookups.YearNames.GetValueOrDefault(current.AcademicYearId) ?? string.Empty : string.Empty,
-            AcademicUnit = current != null ? lookups.LevelNames.GetValueOrDefault(current.AcademicLevelId) ?? string.Empty : string.Empty,
-            Section = current != null ? lookups.BatchNames.GetValueOrDefault(current.AcademicBatchId) ?? string.Empty : string.Empty,
+            AcademicLevelName = current != null ? lookups.LevelNames.GetValueOrDefault(current.AcademicLevelId) ?? string.Empty : string.Empty,
+            AcademicBatchName = current != null ? lookups.BatchNames.GetValueOrDefault(current.AcademicBatchId) ?? string.Empty : string.Empty,
             Status = student.StatusCode,
-            DateOfBirth = student.DateOfBirth?.ToDateTime(TimeOnly.MinValue) ?? default,
+            DateOfBirth = student.DateOfBirth,
             Gender = student.Gender ?? string.Empty,
             Phone = student.Phone,
             Email = student.Email,
             Address = student.Address,
             PreferredLanguage = student.PreferredLanguage,
-            AdmissionDate = student.AdmissionDate.ToDateTime(TimeOnly.MinValue),
+            AdmissionDate = student.AdmissionDate,
             Guardians = guardianLinks
                 .Where(x => guardians.ContainsKey(x.GuardianId))
                 .Select(x =>
@@ -260,12 +250,12 @@ public sealed class StudentDirectoryService : IStudentDirectoryService
                 AcademicYear = lookups.YearNames.GetValueOrDefault(e.AcademicYearId) ?? string.Empty,
                 AcademicTerm = e.AcademicTermId.HasValue ? lookups.TermNames.GetValueOrDefault(e.AcademicTermId.Value) : null,
                 Campus = lookups.CampusNames.GetValueOrDefault(e.CampusId),
-                AcademicUnit = lookups.LevelNames.GetValueOrDefault(e.AcademicLevelId) ?? string.Empty,
-                Section = lookups.BatchNames.GetValueOrDefault(e.AcademicBatchId) ?? string.Empty,
-                Group = e.AcademicTrackId.HasValue ? lookups.TrackNames.GetValueOrDefault(e.AcademicTrackId.Value) : null,
-                Roll = e.RollNo,
-                EnrollmentDate = e.EnrollmentDate.ToDateTime(TimeOnly.MinValue),
-                IsActive = e.IsActive && e.State == EnrollmentState.Active
+                AcademicLevelName = lookups.LevelNames.GetValueOrDefault(e.AcademicLevelId) ?? string.Empty,
+                AcademicBatchName = lookups.BatchNames.GetValueOrDefault(e.AcademicBatchId) ?? string.Empty,
+                AcademicTrackName = e.AcademicTrackId.HasValue ? lookups.TrackNames.GetValueOrDefault(e.AcademicTrackId.Value) : null,
+                RollNo = e.RollNo,
+                EnrollmentDate = e.EnrollmentDate,
+                State = e.State
             }).ToList()
         };
     }
