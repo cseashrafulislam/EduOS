@@ -23,21 +23,21 @@ public sealed class AcademicRoutinesController : ControllerBase
     [HttpGet("instructors")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
     public async Task<IActionResult> Instructors([FromQuery] string? search, CancellationToken cancellationToken) =>
-        ToAction(await _service.GetInstructorChoicesAsync(search, cancellationToken));
+        ToAction(await _service.GetInstructorChoicesAsync(search, 50, cancellationToken));
 
     [HttpGet("time-slots")]
     public async Task<IActionResult> TimeSlots(CancellationToken cancellationToken) => ToAction(await _service.GetTimeSlotsAsync(cancellationToken));
 
     [HttpPost("time-slots")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
-    public async Task<IActionResult> CreateTimeSlot([FromBody] CreateRoutineTimeSlotDto request, CancellationToken cancellationToken) => ToAction(await _service.CreateTimeSlotAsync(request, cancellationToken));
+    public async Task<IActionResult> CreateTimeSlot([FromBody] SaveRoutineTimeSlotRequestDto request, CancellationToken cancellationToken) => ToAction(await _service.CreateTimeSlotAsync(request, cancellationToken));
 
     [HttpGet("batches/{academicBatchId:long}/assignments")]
     public async Task<IActionResult> Assignments(long academicBatchId, [FromQuery] long? academicTermId, CancellationToken cancellationToken) => ToAction(await _service.GetAssignmentsAsync(academicBatchId, academicTermId, cancellationToken));
 
     [HttpPost("assignments")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
-    public async Task<IActionResult> AssignInstructor([FromBody] AssignInstructorDto request, CancellationToken cancellationToken) => ToAction(await _service.AssignInstructorAsync(request, cancellationToken));
+    public async Task<IActionResult> AssignInstructor([FromBody] SaveInstructorAssignmentRequestDto request, CancellationToken cancellationToken) => ToAction(await _service.AssignInstructorAsync(request, cancellationToken));
 
     [HttpGet("batches/{academicBatchId:long}")]
     public async Task<IActionResult> BatchTimetable(long academicBatchId, [FromQuery] long? academicTermId, CancellationToken cancellationToken) => ToAction(await _service.GetBatchTimetableAsync(academicBatchId, academicTermId, cancellationToken));
@@ -47,11 +47,12 @@ public sealed class AcademicRoutinesController : ControllerBase
 
     [HttpPost("entries")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
-    public async Task<IActionResult> CreateEntry([FromBody] CreateRoutineEntryDto request, CancellationToken cancellationToken) => ToAction(await _service.CreateEntryAsync(request, cancellationToken));
+    public async Task<IActionResult> CreateEntry([FromBody] SaveRoutineEntryRequestDto request, CancellationToken cancellationToken) => ToAction(await _service.CreateEntryAsync(request, cancellationToken));
 
     [HttpPost("entries/{id:long}/deactivate")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
-    public async Task<IActionResult> DeactivateEntry(long id, CancellationToken cancellationToken) => ToAction(await _service.DeactivateEntryAsync(id, cancellationToken));
+    public async Task<IActionResult> DeactivateEntry(long id, [FromQuery] string rowVersion, CancellationToken cancellationToken) =>
+        ToAction(await _service.DeactivateEntryAsync(id, rowVersion, cancellationToken));
 
     private IActionResult ToAction<T>(ApiResponse<T> response) => StatusCode(response.StatusCode, response);
 }
