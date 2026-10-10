@@ -34,9 +34,9 @@ namespace EduOS.App.Controllers.Api
         /// Mark current step complete and advance to next
         /// </summary>
         [HttpPost("complete-step")]
-        public async Task<IActionResult> CompleteStep([FromBody] CompleteStepDto dto)
+        public async Task<IActionResult> CompleteStep([FromBody] CompleteOnboardingStageRequestDto dto)
         {
-            var result = await _onboardingService.CompleteStepAsync(dto);
+            var result = await _onboardingService.CompleteStageAsync(dto);
             return StatusCode(result.StatusCode, result);
         }
 
