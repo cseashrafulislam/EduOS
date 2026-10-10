@@ -403,19 +403,23 @@ public sealed class SubscriptionPaymentService : ISubscriptionPaymentService
             ? await _invoices.GetByIdForPlatformAsync(invoiceId)
             : await _invoices.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.Id == invoiceId && x.TenantId == _user.TenantId);
         if (invoice == null) return ApiResponse<List<SubscriptionPaymentDto>>.ErrorResponse("Invoice not found.", 404);
-        var payments = _user.IsSuperAdmin
-            ? await _payments.GetByInvoiceForPlatformAsync(invoiceId, invoice.TenantId)
-            : await _payments.GetQueryable().AsNoTracking().Where(x => x.TenantId == _user.TenantId &&
-                x.SubscriptionInvoiceId == invoiceId).OrderByDescending(x => x.InitiatedAt).Take(200).ToListAsync();
+        var page = await _payments.GetByInvoiceAsync(invoiceId, invoice.TenantId, 1, 200);
+        if (page.TotalCount > 200)
+            return ApiResponse<List<SubscriptionPaymentDto>>.ErrorResponse(
+                "More than 200 invoice payments exist. Use paged payment history.", 409);
         return ApiResponse<List<SubscriptionPaymentDto>>.SuccessResponse(
-            payments.Select(x => Map(x, invoice.InvoiceNumber)).ToList());
+            page.Items.Select(x => Map(x, invoice.InvoiceNumber)).ToList());
     }
 
     public async Task<ApiResponse<List<SubscriptionPaymentDto>>> GetPendingManualVerificationsAsync()
     {
         if (!_user.IsSuperAdmin)
             return ApiResponse<List<SubscriptionPaymentDto>>.ErrorResponse("Platform administrator access required.", 403);
-        var payments = await _payments.GetPendingManualVerificationForPlatformAsync();
+        var page = await _payments.GetPendingManualVerificationForPlatformAsync(1, 100);
+        if (page.TotalCount > 100)
+            return ApiResponse<List<SubscriptionPaymentDto>>.ErrorResponse(
+                "Pending payments exceed 100. Use paged platform verification.", 409);
+        var payments = page.Items;
         var ids = payments.Select(x => x.SubscriptionInvoiceId).Distinct().ToArray();
         var invoiceNos = await _invoices.GetQueryable().IgnoreQueryFilters().AsNoTracking()
             .Where(x => !x.IsDeleted && ids.Contains(x.Id))
