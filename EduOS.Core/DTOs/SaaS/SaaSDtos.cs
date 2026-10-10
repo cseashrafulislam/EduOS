@@ -56,6 +56,7 @@ public class CampusDto
     public string? Email { get; set; }
     public bool IsHeadOffice { get; set; }
     public bool IsActive { get; set; }
+    public string? HeadName { get; set; }
     public string RowVersion { get; set; } = string.Empty;
 }
 
@@ -68,6 +69,7 @@ public class SaveCampusRequestDto
     [EmailAddress, MaxLength(200)] public string? Email { get; set; }
     public bool IsHeadOffice { get; set; }
     public bool IsActive { get; set; } = true;
+    [MaxLength(150)] public string? HeadName { get; set; }
     public string? RowVersion { get; set; }
 }
 
