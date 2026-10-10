@@ -10,7 +10,8 @@ public sealed partial class InventoryCatalogService
     {
         var tenantId = _user.TenantId;
         var userId = _user.UserId;
-        var rows = _db.InventoryLocations.AsNoTracking().Where(x => x.TenantId == tenantId && !x.IsDeleted);
+        var rows = _db.InventoryLocations.AsNoTracking().Where(x => x.TenantId == tenantId && !x.IsDeleted &&
+            (x.CampusId == null || _db.Campuses.Any(c => c.TenantId == tenantId && c.Id == x.CampusId && c.IsActive && !c.IsDeleted)));
         if (campusId.HasValue) rows = rows.Where(x => x.CampusId == campusId);
         if (!CanAccessAllCampuses())
             rows = rows.Where(x => x.CampusId == null || _db.UserCampusAccesses.Any(a =>
