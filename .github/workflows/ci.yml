@@ -2,9 +2,13 @@ name: CI
 
 on:
   pull_request:
-    branches: [ master ]
+    branches: [ master, Ashraful ]
   push:
-    branches: [ master, Ashraful, codex/phase-0-security-foundation ]
+    branches:
+      - master
+      - Ashraful
+      - codex/phase-0-security-foundation
+      - 'automation/**'
 
 permissions:
   contents: read
