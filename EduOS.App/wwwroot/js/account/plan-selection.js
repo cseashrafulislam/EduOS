@@ -9,6 +9,7 @@
     let plans = [];
     let selectedPlanId = null;
     let selectedCycle = 1;
+    let pendingRequestId = null;
 
     document.addEventListener('DOMContentLoaded', initialize, { once: true });
 
@@ -36,7 +37,7 @@
             }
 
             showAlert('info', i18n.recovering);
-            if (Number(payload.data.status) === 1) {
+            if (Number(payload.data.state) === 7) {
                 const invoiceId = await findPendingInvoice();
                 if (invoiceId) {
                     window.location.assign(`/Account/Payment?invoiceId=${encodeURIComponent(invoiceId)}`);
@@ -44,7 +45,8 @@
                 }
             }
 
-            await redirectToCurrentSetup('/Account/CampusSetup');
+            await advanceFreeSubscription();
+            await redirectToCurrentSetup('/Account/Payment');
             return true;
         } catch {
             renderLoadError();
@@ -150,7 +152,7 @@
             price.className = 'plan-card-price';
             const priceValue = document.createElement('strong');
             const period = document.createElement('small');
-            if (plan.isFreeTrial) {
+            if (Number(plan.trialDays) > 0) {
                 priceValue.textContent = i18n.free || '';
                 period.textContent = template(i18n.daysTrialTemplate, {
                     count: formatNumber(plan.trialDays || 0)
@@ -185,7 +187,7 @@
             }
 
             content.append(heading, description, price, limits, features);
-            if (!plan.isFreeTrial && Number(plan.setupFee) > 0) {
+            if (false) {
                 const fee = document.createElement('span');
                 fee.className = 'plan-setup-fee';
                 fee.textContent = template(i18n.setupFeeTemplate, {
@@ -240,10 +242,10 @@
                 credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
                 body: JSON.stringify({
+                    clientRequestId: pendingRequestId ||= crypto.randomUUID(),
                     subscriptionPlanId: selectedPlanId,
-                    billingCycle: selectedCycle,
-                    paymentMethod: 1,
-                    autoRenew: true
+                    billingCycleCode: ({ 1: 'Monthly', 2: 'Quarterly', 3: 'HalfYearly', 4: 'Yearly' })[selectedCycle],
+                    startTrialIfEligible: true
                 })
             });
             const payload = await response.json().catch(() => null);
@@ -257,21 +259,44 @@
                 return;
             }
 
-            if (payload.data.isTrialActivated) {
-                window.location.assign('/Account/CampusSetup');
-                return;
-            }
-            const invoiceId = positiveInteger(payload.data.invoiceId);
-            if (!invoiceId) {
+            pendingRequestId = null;
+            if (Number(payload.data.state) === 7) {
+                const invoiceId = await findPendingInvoice();
+                if (invoiceId) {
+                    window.location.assign(`/Account/Payment?invoiceId=${encodeURIComponent(invoiceId)}`);
+                    return;
+                }
                 showAlert('danger', i18n.createFailed);
                 return;
             }
-            window.location.assign(`/Account/Payment?invoiceId=${encodeURIComponent(invoiceId)}`);
+            if (Number(payload.data.state) === 1 || Number(payload.data.state) === 2) {
+                await advanceFreeSubscription();
+                await redirectToCurrentSetup('/Account/Payment');
+                return;
+            }
+            showAlert('danger', i18n.createFailed);
         } catch {
             showAlert('danger', i18n.networkError);
         } finally {
             setLoading(continueButton, false);
         }
+    }
+
+    async function advanceFreeSubscription() {
+        const response = await fetch('/api/onboarding/status', {
+            credentials: 'same-origin', cache: 'no-store',
+            headers: { 'Accept': 'application/json' }
+        });
+        const status = await response.json().catch(() => null);
+        if (!response.ok || !status?.success) throw new Error('Onboarding status unavailable');
+        if (Number(status.data?.currentStage) !== 4) return;
+        const completed = await fetch('/api/onboarding/complete-step', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ stage: 4, skipped: false })
+        });
+        const result = await completed.json().catch(() => null);
+        if (!completed.ok || !result?.success) throw new Error('Cannot advance payment stage');
     }
 
     function renderLoadError() {
@@ -309,12 +334,8 @@
     }
 
     function priceForCycle(plan, cycle) {
-        return Number({
-            1: plan.monthlyPrice,
-            2: plan.quarterlyPrice,
-            3: plan.halfYearlyPrice,
-            4: plan.yearlyPrice
-        }[cycle] || 0);
+        const monthly = Number(plan.monthlyPrice || 0);
+        return Number(({ 1: monthly, 2: monthly * 3, 3: monthly * 6, 4: plan.yearlyPrice })[cycle] || 0);
     }
 
     function formatMoney(value, currency) {
