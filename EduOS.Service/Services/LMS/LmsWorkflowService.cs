@@ -1,4 +1,5 @@
 using EduOS.Core.Common;
+using EduOS.Core.DTOs.Academic;
 using EduOS.Core.DTOs.LMS;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Files;
@@ -12,657 +13,671 @@ using EduOS.Core.Interfaces.IServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
-using System.Text;
-using System.Transactions;
 
 namespace EduOS.Service.Services.LMS;
 
 public sealed class LmsWorkflowService : ILmsWorkflowService
 {
     private readonly IGenericRepository<Course> _courses;
+    private readonly IGenericRepository<CourseEnrollment> _enrollments;
     private readonly IGenericRepository<Lesson> _lessons;
-    private readonly IGenericRepository<LessonResource> _resources;
+    private readonly IGenericRepository<LessonProgress> _progress;
     private readonly IGenericRepository<Assignment> _assignments;
     private readonly IGenericRepository<AssignmentSubmission> _submissions;
-    private readonly IGenericRepository<CourseEnrollment> _courseEnrollments;
-    private readonly IGenericRepository<LessonProgress> _progress;
-    private readonly IGenericRepository<StudentEnrollment> _academicEnrollments;
     private readonly IGenericRepository<Student> _students;
+    private readonly IGenericRepository<StudentEnrollment> _academicEnrollments;
     private readonly IGenericRepository<Employee> _employees;
-    private readonly IGenericRepository<AcademicBatch> _batches;
-    private readonly IGenericRepository<AcademicLevel> _levels;
-    private readonly IGenericRepository<EduOS.Core.Entities.Academic.Subject> _subjects;
+    private readonly IGenericRepository<AcademicProgram> _programs;
+    private readonly IGenericRepository<Subject> _subjects;
+    private readonly IGenericRepository<SubjectOffering> _offerings;
+    private readonly IGenericRepository<CurriculumSubject> _curriculumSubjects;
+    private readonly IGenericRepository<FileAsset> _files;
     private readonly IUnitOfWork _uow;
     private readonly ICurrentUserService _user;
     private readonly TimeProvider _clock;
     private readonly ILogger<LmsWorkflowService> _logger;
 
-    public LmsWorkflowService(IGenericRepository<Course> courses, IGenericRepository<Lesson> lessons,
-        IGenericRepository<LessonResource> resources, IGenericRepository<Assignment> assignments,
-        IGenericRepository<AssignmentSubmission> submissions, IGenericRepository<CourseEnrollment> courseEnrollments,
-        IGenericRepository<LessonProgress> progress, IGenericRepository<StudentEnrollment> academicEnrollments,
-        IGenericRepository<Student> students, IGenericRepository<Employee> employees,
-        IGenericRepository<AcademicBatch> batches, IGenericRepository<AcademicLevel> levels,
-        IGenericRepository<EduOS.Core.Entities.Academic.Subject> subjects,
-        IUnitOfWork unitOfWork, ICurrentUserService currentUser, TimeProvider clock, ILogger<LmsWorkflowService> logger)
+    public LmsWorkflowService(IGenericRepository<Course> courses,
+        IGenericRepository<CourseEnrollment> enrollments, IGenericRepository<Lesson> lessons,
+        IGenericRepository<LessonProgress> progress, IGenericRepository<Assignment> assignments,
+        IGenericRepository<AssignmentSubmission> submissions, IGenericRepository<Student> students,
+        IGenericRepository<StudentEnrollment> academicEnrollments, IGenericRepository<Employee> employees,
+        IGenericRepository<AcademicProgram> programs, IGenericRepository<Subject> subjects,
+        IGenericRepository<SubjectOffering> offerings, IGenericRepository<CurriculumSubject> curriculumSubjects,
+        IGenericRepository<FileAsset> files, IUnitOfWork uow, ICurrentUserService user,
+        TimeProvider clock, ILogger<LmsWorkflowService> logger)
     {
-        _courses = courses; _lessons = lessons; _resources = resources;
-        _assignments = assignments; _submissions = submissions;
-        _courseEnrollments = courseEnrollments; _progress = progress;
-        _academicEnrollments = academicEnrollments; _students = students; _employees = employees;
-        _batches = batches; _levels = levels; _subjects = subjects;
-        _uow = unitOfWork; _user = currentUser; _clock = clock; _logger = logger;
+        _courses = courses; _enrollments = enrollments; _lessons = lessons; _progress = progress;
+        _assignments = assignments; _submissions = submissions; _students = students;
+        _academicEnrollments = academicEnrollments; _employees = employees; _programs = programs;
+        _subjects = subjects; _offerings = offerings; _curriculumSubjects = curriculumSubjects;
+        _files = files; _uow = uow; _user = user; _clock = clock; _logger = logger;
     }
 
-    public async Task<ApiResponse<LmsCourseDto>> SaveCourseAsync(SaveCourseDto request, CancellationToken ct = default)
+    public async Task<ApiResponse<CourseDto>> SaveCourseAsync(Guid? courseReference, SaveCourseRequestDto request,
+        CancellationToken ct = default)
     {
-        if (!CanTeach()) return Fail<LmsCourseDto>("LMS authoring permission required.", 403);
+        if (!CanTeach()) return Error<CourseDto>("LMS authoring permission required.", 403);
         if (request == null || string.IsNullOrWhiteSpace(request.Title) || request.Title.Trim().Length > 200 ||
-            request.SubjectId <= 0 || request.AcademicYearId <= 0 || request.ClassId <= 0 ||
-            request.SectionId is not > 0 || request.ThumbnailUrl?.Length > 500)
-            return Fail<LmsCourseDto>("This endpoint requires a valid academic batch, subject and course title.");
+            string.IsNullOrWhiteSpace(request.Code) || request.Code.Trim().Length > 50 ||
+            request.Description?.Length > 4000 || request.ThumbnailUrl?.Length > 500 ||
+            request.AcademicProgramId is <= 0 || request.SubjectId is <= 0 ||
+            (courseReference.HasValue && courseReference.Value == Guid.Empty))
+            return Error<CourseDto>("Invalid course title, code, program, subject or reference.");
         var tenant = _user.TenantId;
-        var teacher = await ResolveTeacherAsync(request.TeacherId, ct);
-        if (teacher == null) return Fail<LmsCourseDto>("Active instructor is required.", 409);
-        var batch = await _batches.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
-            x.Id == request.SectionId.Value && x.IsActive &&
-            x.AcademicYearId == request.AcademicYearId && x.AcademicLevelId == request.ClassId, ct);
-        if (batch == null) return Fail<LmsCourseDto>("Selected academic batch is unavailable.", 409);
-        if (!await _levels.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
-            x.Id == batch.AcademicLevelId && x.AcademicProgramId == batch.AcademicProgramId, ct) ||
-            !await _subjects.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
-            x.Id == request.SubjectId && x.IsActive, ct))
-            return Fail<LmsCourseDto>("Academic programme/subject is invalid.", 409);
-        var activeCount = await _academicEnrollments.GetQueryable().AsNoTracking().CountAsync(x => x.TenantId == tenant &&
-            x.AcademicBatchId == batch.Id && x.IsCurrent && x.IsActive && x.State == EnrollmentState.Active, ct);
-        if (activeCount == 0) return Fail<LmsCourseDto>(
-            "A batch must contain at least one enrolled student to use the legacy course endpoint. Use the canonical course API for empty cohorts.", 409);
+        Employee? teacher = null;
+        if (request.PrimaryInstructorReference.HasValue)
+        {
+            teacher = await _employees.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.PublicId == request.PrimaryInstructorReference.Value &&
+                x.CanTeach && x.State == EmployeeState.Active && !x.IsDeleted, ct);
+            if (teacher == null) return Error<CourseDto>("Active instructor not found.", 404);
+        }
+        if (!IsManager())
+        {
+            var self = await OwnTeacherIdAsync(ct);
+            if (self == 0 || (teacher != null && teacher.Id != self))
+                return Error<CourseDto>("Instructor may only manage their own courses.", 403);
+            teacher ??= await _employees.GetQueryable().AsNoTracking()
+                .FirstOrDefaultAsync(x => x.TenantId == tenant && x.Id == self, ct);
+        }
+        if (request.AcademicProgramId.HasValue && !await _programs.GetQueryable().AsNoTracking()
+            .AnyAsync(x => x.TenantId == tenant && x.Id == request.AcademicProgramId && x.IsActive && !x.IsDeleted, ct))
+            return Error<CourseDto>("Academic program not found.", 404);
+        if (request.SubjectId.HasValue && !await _subjects.GetQueryable().AsNoTracking()
+            .AnyAsync(x => x.TenantId == tenant && x.Id == request.SubjectId && x.IsActive && !x.IsDeleted, ct))
+            return Error<CourseDto>("Subject not found.", 404);
         try
         {
-            using var tx = SerializableScope();
-            var course = request.Reference.HasValue
-                ? await _courses.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenant &&
-                    x.PublicId == request.Reference.Value, ct) : null;
-            if (request.Reference.HasValue && course == null) return Fail<LmsCourseDto>("Course not found.", 404);
-            if (course != null)
+            return await _uow.ExecuteInTransactionAsync(async token =>
             {
-                if (!await CanEditAsync(course, ct)) return Fail<LmsCourseDto>("Course belongs to another instructor.", 403);
-                if (!MatchesVersion(course.RowVersion, request.RowVersion))
-                    return Fail<LmsCourseDto>("Course changed. Reload with the latest row version.", 409);
-                if (course.AcademicProgramId != batch.AcademicProgramId || course.SubjectId != request.SubjectId ||
-                    course.PrimaryInstructorEmployeeId != teacher.Id)
-                    return Fail<LmsCourseDto>("Changing course cohort, subject or instructor requires a controlled transfer workflow.", 409);
-                course.Title = request.Title.Trim(); course.Description = Trim(request.Description);
-                course.ThumbnailUrl = Trim(request.ThumbnailUrl);
-                course.UpdatedAt = _clock.GetUtcNow().UtcDateTime; course.UpdatedBy = _user.UserId;
-            }
-            else
-            {
-                var reference = Guid.NewGuid();
-                course = new Course
+                var row = courseReference.HasValue ? await _courses.GetQueryable().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.PublicId == courseReference.Value && !x.IsDeleted, token) : null;
+                if (courseReference.HasValue && row == null) return Error<CourseDto>("Course not found.", 404);
+                if (row != null && (!await CanEditAsync(row, token) || !Matches(row.RowVersion, request.RowVersion)))
+                    return Error<CourseDto>("Course access denied or row version changed.", 409);
+                var code = request.Code.Trim();
+                if (await _courses.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.Code == code && !x.IsDeleted && (row == null || x.Id != row.Id), token))
+                    return Error<CourseDto>("Course code already exists.", 409);
+                var now = _clock.GetUtcNow().UtcDateTime;
+                if (row == null)
                 {
-                    TenantId = tenant, PublicId = reference,
-                    Code = "LMS-" + reference.ToString("N")[..26].ToUpperInvariant(),
-                    Title = request.Title.Trim(), Description = Trim(request.Description),
-                    ThumbnailUrl = Trim(request.ThumbnailUrl),
-                    AcademicProgramId = batch.AcademicProgramId, SubjectId = request.SubjectId,
-                    PrimaryInstructorEmployeeId = teacher.Id, IsActive = true,
-                    CreatedAt = _clock.GetUtcNow().UtcDateTime, CreatedBy = _user.UserId
-                };
-                await _courses.AddAsync(course);
-                await _uow.SaveChangesAsync(ct);
-            }
-            var anchors = await CohortBatchIdsAsync(course.Id, ct);
-            if (anchors.Any(x => x != batch.Id))
-                return Fail<LmsCourseDto>("Course is already linked to another academic batch.", 409);
-            var newEnrollments = await SynchronizeAsync(course.Id, batch.Id, ct);
-            await _uow.SaveChangesAsync(ct);
-            var result = await MapCourseAsync(course, null, ct);
-            tx.Complete();
-            return ApiResponse<LmsCourseDto>.SuccessResponse(result,
-                newEnrollments == 0 ? "Course saved." : $"Course saved and {newEnrollments} students enrolled.");
+                    row = new Course
+                    {
+                        TenantId = tenant, PublicId = Guid.NewGuid(), CreatedAt = now, CreatedBy = _user.UserId
+                    };
+                    await _courses.AddAsync(row);
+                }
+                else
+                {
+                    row.UpdatedAt = now; row.UpdatedBy = _user.UserId;
+                    _courses.Update(row);
+                }
+                row.Title = request.Title.Trim(); row.Code = code;
+                row.Description = Trim(request.Description); row.ThumbnailUrl = Trim(request.ThumbnailUrl);
+                row.AcademicProgramId = request.AcademicProgramId; row.SubjectId = request.SubjectId;
+                row.PrimaryInstructorEmployeeId = teacher?.Id;
+                row.IsSelfPaced = request.IsSelfPaced; row.IsActive = request.IsActive;
+                await _uow.SaveChangesAsync(token);
+                return ApiResponse<CourseDto>.SuccessResponse(await MapCourseAsync(row, token), "Course saved.");
+            }, ct);
         }
-        catch (DbUpdateConcurrencyException) { return Fail<LmsCourseDto>("Course changed concurrently.", 409); }
+        catch (DbUpdateConcurrencyException) { return Error<CourseDto>("Course changed concurrently.", 409); }
         catch (DbUpdateException ex)
         {
-            _logger.LogWarning(ex, "Course write conflict for tenant {TenantId}", tenant);
-            return Fail<LmsCourseDto>("Course setup conflicts with another transaction.", 409);
-        }
-        catch (TransactionAbortedException) { return Fail<LmsCourseDto>("Concurrent course setup rejected.", 409); }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Course setup failed for tenant {TenantId}", tenant);
-            return Fail<LmsCourseDto>("Course could not be saved.", 500);
+            _logger.LogWarning(ex, "Course constraint violation for tenant {TenantId}", tenant);
+            return Error<CourseDto>("Course conflicts with another request.", 409);
         }
     }
 
-    public async Task<ApiResponse<LmsLessonDto>> SaveLessonAsync(SaveLessonDto request, CancellationToken ct = default)
+    public async Task<ApiResponse<LessonDto>> SaveLessonAsync(Guid? lessonReference, SaveLessonRequestDto request,
+        CancellationToken ct = default)
     {
+        if (!CanTeach()) return Error<LessonDto>("LMS authoring permission required.", 403);
         if (request == null || request.CourseReference == Guid.Empty || string.IsNullOrWhiteSpace(request.Title) ||
             request.Title.Trim().Length > 200 || request.Content?.Length > 4000 ||
-            request.VideoUrl?.Length > 500 ||
-            (!string.IsNullOrWhiteSpace(request.VideoUrl) &&
-             (!Uri.TryCreate(request.VideoUrl, UriKind.Absolute, out var validatedVideo) ||
-              validatedVideo.Scheme is not ("http" or "https"))) ||
-            request.AttachmentUrl?.Length > 1000 ||
-            request.OrderNo < 1 || request.Duration != 0)
-            return Fail<LmsLessonDto>("Lesson title, content and ordering are invalid. Duration requires a canonical lesson extension.");
+            request.ContentUrl?.Length > 500 || request.DisplayOrder < 0)
+            return Error<LessonDto>("Invalid lesson fields.");
         var course = await EditableCourseAsync(request.CourseReference, ct);
-        if (course == null) return Fail<LmsLessonDto>("Course is missing or not editable.", 403);
+        if (course == null) return Error<LessonDto>("Course not found or instructor access denied.", 403);
         try
         {
-            var now = _clock.GetUtcNow().UtcDateTime;
-            var lesson = request.Reference.HasValue
-                ? await _lessons.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == _user.TenantId &&
-                    x.CourseId == course.Id && x.PublicId == request.Reference.Value, ct) : null;
-            if (request.Reference.HasValue && lesson == null) return Fail<LmsLessonDto>("Lesson not found.", 404);
-            if (lesson == null)
+            return await _uow.ExecuteInTransactionAsync(async token =>
             {
-                lesson = new Lesson
+                var row = lessonReference.HasValue ? await _lessons.GetQueryable().FirstOrDefaultAsync(x =>
+                    x.TenantId == _user.TenantId && x.PublicId == lessonReference.Value &&
+                    x.CourseId == course.Id && !x.IsDeleted, token) : null;
+                if (lessonReference.HasValue && row == null) return Error<LessonDto>("Lesson not found.", 404);
+                if (row != null && !Matches(row.RowVersion, request.RowVersion))
+                    return Error<LessonDto>("Lesson changed. Reload and retry.", 409);
+                var now = _clock.GetUtcNow().UtcDateTime;
+                if (row == null)
                 {
-                    TenantId = _user.TenantId, CourseId = course.Id, PublicId = Guid.NewGuid(),
-                    CreatedAt = now, CreatedBy = _user.UserId
-                };
-                await _lessons.AddAsync(lesson);
-            }
-            else if (!MatchesVersion(lesson.RowVersion, request.RowVersion))
-                return Fail<LmsLessonDto>("Lesson changed. Reload before editing.", 409);
-            lesson.Title = request.Title.Trim(); lesson.Content = Trim(request.Content);
-            lesson.ContentUrl = Trim(request.VideoUrl); lesson.DisplayOrder = request.OrderNo;
-            lesson.IsPublished = true; lesson.UpdatedAt = now; lesson.UpdatedBy = _user.UserId;
-            await _uow.SaveChangesAsync(ct);
-            var resource = await _resources.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == _user.TenantId &&
-                x.LessonId == lesson.Id && x.Title == "Legacy attachment", ct);
-            if (!string.IsNullOrWhiteSpace(request.AttachmentUrl))
-            {
-                if (resource == null)
-                {
-                    resource = new LessonResource { TenantId = _user.TenantId, LessonId = lesson.Id,
-                        Title = "Legacy attachment", DisplayOrder = 1, CreatedAt = now, CreatedBy = _user.UserId };
-                    await _resources.AddAsync(resource);
+                    row = new Lesson
+                    {
+                        TenantId = _user.TenantId, PublicId = Guid.NewGuid(), CourseId = course.Id,
+                        CreatedAt = now, CreatedBy = _user.UserId
+                    };
+                    await _lessons.AddAsync(row);
                 }
-                resource.ExternalUrl = Trim(request.AttachmentUrl);
-                await _uow.SaveChangesAsync(ct);
-            }
-            else if (resource != null)
-            {
-                resource.ExternalUrl = null;
-                await _uow.SaveChangesAsync(ct);
-            }
-            return ApiResponse<LmsLessonDto>.SuccessResponse(MapLesson(lesson, false, resource?.ExternalUrl),
-                "Lesson saved.");
+                else
+                {
+                    row.UpdatedAt = now; row.UpdatedBy = _user.UserId; _lessons.Update(row);
+                }
+                row.Title = request.Title.Trim(); row.Content = Trim(request.Content);
+                row.ContentUrl = Trim(request.ContentUrl); row.DisplayOrder = request.DisplayOrder;
+                row.IsPublished = request.IsPublished;
+                await _uow.SaveChangesAsync(token);
+                return ApiResponse<LessonDto>.SuccessResponse(MapLesson(row, course.PublicId), "Lesson saved.");
+            }, ct);
         }
-        catch (DbUpdateException ex)
-        {
-            _logger.LogWarning(ex, "Lesson conflict in tenant {TenantId}", _user.TenantId);
-            return Fail<LmsLessonDto>("Lesson conflicts with another change.", 409);
-        }
+        catch (DbUpdateConcurrencyException) { return Error<LessonDto>("Lesson changed concurrently.", 409); }
+        catch (DbUpdateException) { return Error<LessonDto>("Lesson update conflicts with existing data.", 409); }
     }
 
-    public async Task<ApiResponse<LmsAssignmentDto>> SaveAssignmentAsync(SaveAssignmentDto request, CancellationToken ct = default)
+    public async Task<ApiResponse<AssignmentDto>> SaveAssignmentAsync(Guid? assignmentReference,
+        SaveAssignmentRequestDto request, CancellationToken ct = default)
     {
+        if (!CanTeach()) return Error<AssignmentDto>("LMS authoring permission required.", 403);
         if (request == null || request.CourseReference == Guid.Empty || string.IsNullOrWhiteSpace(request.Title) ||
-            request.Title.Trim().Length > 200 || request.Description?.Length > 4000 ||
-            request.TotalMark < 0 || !string.IsNullOrWhiteSpace(request.AttachmentUrl))
-            return Fail<LmsAssignmentDto>("Invalid assignment. Attachments must be linked using canonical FileAsset IDs.");
-        if (request.DueDate <= _clock.GetUtcNow().UtcDateTime)
-            return Fail<LmsAssignmentDto>("Assignment due date must be in the future.");
+            request.Title.Trim().Length > 200 || request.Instructions?.Length > 4000 ||
+            request.MaxMarks < 0 || request.MaxMarks > 100000m || !Enum.IsDefined(request.Type) ||
+            (request.OpensAt.HasValue && request.DueAt.HasValue && request.OpensAt >= request.DueAt))
+            return Error<AssignmentDto>("Invalid assignment fields or date range.");
         var course = await EditableCourseAsync(request.CourseReference, ct);
-        if (course == null) return Fail<LmsAssignmentDto>("Course not found or not editable.", 403);
+        if (course == null) return Error<AssignmentDto>("Course not found or instructor access denied.", 403);
         try
         {
-            var now = _clock.GetUtcNow().UtcDateTime;
-            var assignment = request.Reference.HasValue
-                ? await _assignments.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == _user.TenantId &&
-                    x.CourseId == course.Id && x.PublicId == request.Reference.Value, ct) : null;
-            if (request.Reference.HasValue && assignment == null)
-                return Fail<LmsAssignmentDto>("Assignment not found.", 404);
-            if (assignment == null)
+            return await _uow.ExecuteInTransactionAsync(async token =>
             {
-                assignment = new Assignment
+                var row = assignmentReference.HasValue ? await _assignments.GetQueryable().FirstOrDefaultAsync(x =>
+                    x.TenantId == _user.TenantId && x.PublicId == assignmentReference.Value &&
+                    x.CourseId == course.Id && !x.IsDeleted, token) : null;
+                if (assignmentReference.HasValue && row == null) return Error<AssignmentDto>("Assignment not found.", 404);
+                if (row != null && !Matches(row.RowVersion, request.RowVersion))
+                    return Error<AssignmentDto>("Assignment changed. Reload and retry.", 409);
+                var now = _clock.GetUtcNow().UtcDateTime;
+                if (row == null)
                 {
-                    TenantId = _user.TenantId, CourseId = course.Id, PublicId = Guid.NewGuid(),
+                    row = new Assignment
+                    {
+                        TenantId = _user.TenantId, CourseId = course.Id, PublicId = Guid.NewGuid(),
+                        CreatedAt = now, CreatedBy = _user.UserId
+                    };
+                    await _assignments.AddAsync(row);
+                }
+                else
+                {
+                    row.UpdatedAt = now; row.UpdatedBy = _user.UserId; _assignments.Update(row);
+                }
+                row.Type = request.Type; row.Title = request.Title.Trim();
+                row.Instructions = Trim(request.Instructions); row.OpensAt = request.OpensAt;
+                row.DueAt = request.DueAt; row.MaxMarks = request.MaxMarks;
+                row.IsPublished = request.IsPublished;
+                await _uow.SaveChangesAsync(token);
+                return ApiResponse<AssignmentDto>.SuccessResponse(MapAssignment(row, course.PublicId), "Assignment saved.");
+            }, ct);
+        }
+        catch (DbUpdateConcurrencyException) { return Error<AssignmentDto>("Assignment changed concurrently.", 409); }
+        catch (DbUpdateException) { return Error<AssignmentDto>("Assignment conflicts with existing data.", 409); }
+    }
+
+    public async Task<ApiResponse<CourseEnrollmentDto>> EnrollStudentAsync(EnrollCourseRequestDto request,
+        CancellationToken ct = default)
+    {
+        if (!Authenticated()) return Error<CourseEnrollmentDto>("Authentication required.", 403);
+        if (request == null || request.ClientRequestId == Guid.Empty ||
+            request.CourseReference == Guid.Empty || request.StudentReference == Guid.Empty)
+            return Error<CourseEnrollmentDto>("Course, student and request reference are required.");
+        var tenant = _user.TenantId;
+        var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.PublicId == request.StudentReference &&
+            x.StatusCode == "Active" && !x.IsDeleted, ct);
+        if (student == null) return Error<CourseEnrollmentDto>("Student not found.", 404);
+        if (!IsManager() && student.UserId != _user.UserId)
+            return Error<CourseEnrollmentDto>("Cannot enroll another student.", 403);
+        var course = await _courses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.PublicId == request.CourseReference && x.IsActive && !x.IsDeleted, ct);
+        if (course == null) return Error<CourseEnrollmentDto>("Course not found.", 404);
+        StudentEnrollment? academic = null;
+        if (request.StudentEnrollmentReference.HasValue)
+        {
+            academic = await _academicEnrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.PublicId == request.StudentEnrollmentReference.Value &&
+                x.StudentId == student.Id && x.State == EnrollmentState.Active && x.IsCurrent && !x.IsDeleted, ct);
+            if (academic == null) return Error<CourseEnrollmentDto>("Active academic enrollment not found.", 409);
+        }
+        else if (course.AcademicProgramId.HasValue || course.SubjectId.HasValue)
+        {
+            academic = await _academicEnrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.StudentId == student.Id && x.State == EnrollmentState.Active &&
+                x.IsCurrent && !x.IsDeleted, ct);
+            if (academic == null) return Error<CourseEnrollmentDto>("An active academic enrollment is required.", 409);
+        }
+        if (academic != null)
+        {
+            if (course.AcademicProgramId.HasValue && academic.AcademicProgramId != course.AcademicProgramId)
+                return Error<CourseEnrollmentDto>("Course does not belong to the student's academic program.", 409);
+            if (course.SubjectId.HasValue)
+            {
+                var subjectAllowed = await (from offering in _offerings.GetQueryable().AsNoTracking()
+                    join item in _curriculumSubjects.GetQueryable().AsNoTracking()
+                        on offering.CurriculumSubjectId equals item.Id
+                    where offering.TenantId == tenant && item.TenantId == tenant && offering.IsActive &&
+                        item.IsActive && offering.AcademicBatchId == academic.AcademicBatchId &&
+                        offering.AcademicYearId == academic.AcademicYearId &&
+                        item.AcademicCurriculumId == academic.AcademicCurriculumId &&
+                        item.SubjectId == course.SubjectId.Value
+                    select offering.Id).AnyAsync(ct);
+                if (!subjectAllowed) return Error<CourseEnrollmentDto>("Course subject is unavailable for this academic batch.", 409);
+            }
+        }
+        try
+        {
+            return await _uow.ExecuteInTransactionAsync(async token =>
+            {
+                var replay = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.ClientRequestId == request.ClientRequestId && !x.IsDeleted, token);
+                if (replay != null)
+                {
+                    if (replay.CourseId != course.Id || replay.StudentId != student.Id ||
+                        replay.StudentEnrollmentId != academic?.Id)
+                        return Error<CourseEnrollmentDto>("Request reference was reused for another enrollment.", 409);
+                    return ApiResponse<CourseEnrollmentDto>.SuccessResponse(
+                        MapEnrollment(replay, course, student, academic), "Enrollment already exists.");
+                }
+                var duplicate = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.CourseId == course.Id && x.StudentId == student.Id &&
+                    x.StudentEnrollmentId == academic?.Id && !x.IsDeleted, token);
+                if (duplicate != null)
+                    return ApiResponse<CourseEnrollmentDto>.SuccessResponse(
+                        MapEnrollment(duplicate, course, student, academic), "Student is already enrolled.");
+                var now = _clock.GetUtcNow().UtcDateTime;
+                var row = new CourseEnrollment
+                {
+                    TenantId = tenant, ClientRequestId = request.ClientRequestId,
+                    CourseId = course.Id, StudentId = student.Id, StudentEnrollmentId = academic?.Id,
+                    State = CourseEnrollmentState.Active, EnrolledAt = now,
                     CreatedAt = now, CreatedBy = _user.UserId
                 };
-                await _assignments.AddAsync(assignment);
-            }
-            else if (!MatchesVersion(assignment.RowVersion, request.RowVersion))
-                return Fail<LmsAssignmentDto>("Assignment changed. Reload before editing.", 409);
-            assignment.Title = request.Title.Trim(); assignment.Instructions = Trim(request.Description);
-            assignment.MaxMarks = request.TotalMark; assignment.DueAt = request.DueDate;
-            assignment.IsPublished = true; assignment.UpdatedAt = now; assignment.UpdatedBy = _user.UserId;
-            await _uow.SaveChangesAsync(ct);
-            return ApiResponse<LmsAssignmentDto>.SuccessResponse(MapAssignment(assignment, null),
-                "Assignment saved.");
+                await _enrollments.AddAsync(row);
+                await _uow.SaveChangesAsync(token);
+                return ApiResponse<CourseEnrollmentDto>.SuccessResponse(
+                    MapEnrollment(row, course, student, academic), "Student enrolled.");
+            }, ct);
         }
         catch (DbUpdateException ex)
         {
-            _logger.LogWarning(ex, "Assignment conflict for tenant {TenantId}", _user.TenantId);
-            return Fail<LmsAssignmentDto>("Assignment conflicts with another change.", 409);
+            _logger.LogWarning(ex, "Course enrollment conflict for tenant {TenantId}", tenant);
+            return Error<CourseEnrollmentDto>("Course enrollment conflicts with another request.", 409);
         }
     }
 
-    public async Task<ApiResponse<int>> EnrollClassAsync(Guid courseReference, CancellationToken ct = default)
+    public async Task<ApiResponse<IReadOnlyList<AcademicInstructorChoiceDto>>> SearchInstructorsAsync(
+        string search, int take = 20, CancellationToken ct = default)
     {
-        var course = await EditableCourseAsync(courseReference, ct);
-        if (course == null) return Fail<int>("Course not found or not editable.", 403);
-        var ids = await CohortBatchIdsAsync(course.Id, ct);
-        if (ids.Count != 1)
-            return Fail<int>("Course has ambiguous or missing cohort mapping. Use the canonical course enrollment API.", 409);
-        try
+        if (!IsManager() || !Authenticated())
+            return Error<IReadOnlyList<AcademicInstructorChoiceDto>>("LMS management permission required.", 403);
+        if (search?.Length > 100) return Error<IReadOnlyList<AcademicInstructorChoiceDto>>("Search is too long.");
+        var q = _employees.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == _user.TenantId && x.CanTeach && x.State == EmployeeState.Active && !x.IsDeleted);
+        if (!string.IsNullOrWhiteSpace(search))
         {
-            using var tx = SerializableScope();
-            var added = await SynchronizeAsync(course.Id, ids[0], ct);
-            await _uow.SaveChangesAsync(ct);
-            tx.Complete();
-            return ApiResponse<int>.SuccessResponse(added, "Course enrollment synchronized.");
+            var term = search.Trim();
+            q = q.Where(x => x.FullName.StartsWith(term) || x.EmployeeCode.StartsWith(term));
         }
-        catch (DbUpdateException) { return Fail<int>("Course enrollment conflicts with existing records.", 409); }
-        catch (TransactionAbortedException) { return Fail<int>("Concurrent course enrollment rejected.", 409); }
+        IReadOnlyList<AcademicInstructorChoiceDto> rows = await q.OrderBy(x => x.EmployeeCode)
+            .ThenBy(x => x.Id).Take(Math.Clamp(take, 1, 100))
+            .Select(x => new AcademicInstructorChoiceDto
+            {
+                EmployeeReference = x.PublicId, EmployeeCode = x.EmployeeCode, Name = x.FullName
+            }).ToListAsync(ct);
+        return ApiResponse<IReadOnlyList<AcademicInstructorChoiceDto>>.SuccessResponse(rows);
     }
 
-    public async Task<ApiResponse<IReadOnlyList<LmsInstructorOptionDto>>> GetInstructorOptionsAsync(string? search, CancellationToken ct = default)
+    public async Task<ApiResponse<PagedResult<CourseDto>>> GetMyCoursesAsync(int page, int pageSize,
+        CancellationToken ct = default)
     {
-        if (!IsManager() || !_user.IsAuthenticated || _user.TenantId <= 0)
-            return Fail<IReadOnlyList<LmsInstructorOptionDto>>("LMS management permission required.", 403);
-        if (search?.Length > 100)
-            return Fail<IReadOnlyList<LmsInstructorOptionDto>>("Instructor search is too long.");
-        var term = search?.Trim();
-        var query = _employees.GetQueryable().AsNoTracking().Where(x =>
-            x.TenantId == _user.TenantId && x.CanTeach && x.State == EmployeeState.Active);
-        if (!string.IsNullOrWhiteSpace(term))
-            query = query.Where(x => x.FullName.StartsWith(term) || x.EmployeeCode.StartsWith(term));
-        IReadOnlyList<LmsInstructorOptionDto> rows = await query.OrderBy(x => x.EmployeeCode).ThenBy(x => x.Id)
-            .Select(x => new LmsInstructorOptionDto { Id = x.Id, Name = x.FullName, EmployeeCode = x.EmployeeCode })
-            .Take(100).ToListAsync(ct);
-        return ApiResponse<IReadOnlyList<LmsInstructorOptionDto>>.SuccessResponse(rows);
-    }
-
-    public async Task<ApiResponse<IReadOnlyList<LmsCourseDto>>> GetMyCoursesAsync(CancellationToken ct = default)
-    {
-        if (!_user.IsAuthenticated || _user.TenantId <= 0)
-            return Fail<IReadOnlyList<LmsCourseDto>>("Authentication is required.", 403);
-        var tenant = _user.TenantId;
-        var student = _user.IsInRole("Student")
-            ? await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
-                x.UserId == _user.UserId && x.IsActive, ct) : null;
-        if (_user.IsInRole("Student") && student == null)
-            return ApiResponse<IReadOnlyList<LmsCourseDto>>.SuccessResponse(Array.Empty<LmsCourseDto>());
-        if (!_user.IsInRole("Student") && !CanTeach())
-            return Fail<IReadOnlyList<LmsCourseDto>>("LMS permission required.", 403);
-        var teacherId = !_user.IsInRole("Student") && !IsManager() ?
-            await _employees.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
-                x.UserId == _user.UserId && x.CanTeach && x.State == EmployeeState.Active)
-                .Select(x => x.Id).FirstOrDefaultAsync(ct) : 0;
-        if (!_user.IsInRole("Student") && !IsManager() && teacherId == 0)
-            return ApiResponse<IReadOnlyList<LmsCourseDto>>.SuccessResponse(Array.Empty<LmsCourseDto>());
-        var query = _courses.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant && x.IsActive);
-        if (student != null)
+        if (!Authenticated()) return Error<PagedResult<CourseDto>>("Authentication required.", 403);
+        if (page < 1 || pageSize is < 1 or > 100)
+            return Error<PagedResult<CourseDto>>("Invalid page or page size.");
+        var q = _courses.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == _user.TenantId && x.IsActive && !x.IsDeleted);
+        if (!IsManager())
         {
-            var courseIds = _courseEnrollments.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenant && x.StudentId == student.Id &&
+            if (_user.IsInRole("Student"))
+            {
+                var studentId = await OwnStudentIdAsync(ct);
+                if (studentId == 0) return ApiResponse<PagedResult<CourseDto>>.SuccessResponse(EmptyPage<CourseDto>(page, pageSize));
+                var ids = _enrollments.GetQueryable().AsNoTracking().Where(x =>
+                    x.TenantId == _user.TenantId && x.StudentId == studentId &&
                     (x.State == CourseEnrollmentState.Active || x.State == CourseEnrollmentState.Completed))
-                .Select(x => x.CourseId);
-            query = query.Where(x => courseIds.Contains(x.Id));
+                    .Select(x => x.CourseId);
+                q = q.Where(x => ids.Contains(x.Id));
+            }
+            else if (_user.IsInRole("Teacher"))
+            {
+                var teacherId = await OwnTeacherIdAsync(ct);
+                if (teacherId == 0) return ApiResponse<PagedResult<CourseDto>>.SuccessResponse(EmptyPage<CourseDto>(page, pageSize));
+                q = q.Where(x => x.PrimaryInstructorEmployeeId == teacherId);
+            }
+            else return Error<PagedResult<CourseDto>>("LMS permission required.", 403);
         }
-        else if (!IsManager()) query = query.Where(x => x.PrimaryInstructorEmployeeId == teacherId);
-        var courses = await query.OrderBy(x => x.Title).ThenBy(x => x.Id).Take(200).ToListAsync(ct);
-        var result = new List<LmsCourseDto>();
-        foreach (var course in courses) result.Add(await MapCourseAsync(course, student?.Id, ct));
-        return ApiResponse<IReadOnlyList<LmsCourseDto>>.SuccessResponse(result);
-    }
-
-    public async Task<ApiResponse<LmsCourseDetailsDto>> GetCourseAsync(Guid reference, CancellationToken ct = default)
-    {
-        if (!_user.IsAuthenticated || _user.TenantId <= 0 || reference == Guid.Empty)
-            return Fail<LmsCourseDetailsDto>("Authenticated course reference required.", 403);
-        var tenant = _user.TenantId;
-        var course = await _courses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
-            x.PublicId == reference && x.IsActive, ct);
-        if (course == null) return Fail<LmsCourseDetailsDto>("Course not found.", 404);
-        Student? student = null;
-        CourseEnrollment? enrollment = null;
-        if (_user.IsInRole("Student"))
+        var total = await q.CountAsync(ct);
+        var skip = (long)(page - 1) * pageSize;
+        if (skip > int.MaxValue) return Error<PagedResult<CourseDto>>("Page is outside the allowed range.");
+        var courses = await q.OrderBy(x => x.Title).ThenBy(x => x.Id)
+            .Skip((int)skip).Take(pageSize).ToListAsync(ct);
+        var dtos = new List<CourseDto>(courses.Count);
+        foreach (var row in courses) dtos.Add(await MapCourseAsync(row, ct));
+        return ApiResponse<PagedResult<CourseDto>>.SuccessResponse(new PagedResult<CourseDto>
         {
-            student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
-                x.UserId == _user.UserId && x.IsActive, ct);
-            if (student == null) return Fail<LmsCourseDetailsDto>("Student profile not found.", 403);
-            enrollment = await _courseEnrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
-                x.CourseId == course.Id && x.StudentId == student.Id &&
-                (x.State == CourseEnrollmentState.Active || x.State == CourseEnrollmentState.Completed), ct);
-            if (enrollment == null) return Fail<LmsCourseDetailsDto>("Student is not enrolled.", 403);
-        }
-        else if (!await CanEditAsync(course, ct)) return Fail<LmsCourseDetailsDto>("Course access denied.", 403);
-        var lessons = await _lessons.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
-            x.CourseId == course.Id && x.IsPublished).OrderBy(x => x.DisplayOrder).Take(200).ToListAsync(ct);
-        var resources = await _resources.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
-            lessons.Select(v => v.Id).Contains(x.LessonId) && x.Title == "Legacy attachment").ToListAsync(ct);
-        var res = resources.ToDictionary(x => x.LessonId, x => x.ExternalUrl);
-        var assignments = await _assignments.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
-            x.CourseId == course.Id && x.IsPublished).OrderBy(x => x.DueAt).Take(200).ToListAsync(ct);
-        var completed = enrollment == null ? Array.Empty<long>() : await _progress.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenant && x.CourseEnrollmentId == enrollment.Id && x.IsCompleted)
-            .Select(x => x.LessonId).ToArrayAsync(ct);
-        var assignmentIds = assignments.Select(x => x.Id).ToArray();
-        var submissions = enrollment == null ? new List<AssignmentSubmission>() : await _submissions.GetQueryable()
-            .AsNoTracking().Where(x => x.TenantId == tenant && x.CourseEnrollmentId == enrollment.Id &&
-                assignmentIds.Contains(x.AssignmentId)).ToListAsync(ct);
-        var byAssignment = submissions.GroupBy(x => x.AssignmentId)
-            .ToDictionary(x => x.Key, x => x.OrderByDescending(v => v.Id).First());
-        return ApiResponse<LmsCourseDetailsDto>.SuccessResponse(new LmsCourseDetailsDto
-        {
-            Course = await MapCourseAsync(course, student?.Id, ct),
-            Lessons = lessons.Select(x => MapLesson(x, completed.Contains(x.Id), res.GetValueOrDefault(x.Id))).ToList(),
-            Assignments = assignments.Select(x => MapAssignment(x, byAssignment.GetValueOrDefault(x.Id))).ToList()
+            Page = page, PageSize = pageSize, TotalCount = total, Items = dtos
         });
     }
 
-    public async Task<ApiResponse<LmsAssignmentDto>> SubmitAssignmentAsync(SubmitAssignmentDto request, CancellationToken ct = default)
+    public async Task<ApiResponse<CourseDetailsDto>> GetCourseDetailsAsync(Guid courseReference,
+        CancellationToken ct = default)
     {
-        if (!_user.IsAuthenticated || !_user.IsInRole("Student") || _user.TenantId <= 0)
-            return Fail<LmsAssignmentDto>("Student assignment permission required.", 403);
-        if (request == null || request.AssignmentReference == Guid.Empty || request.ClientRequestId == Guid.Empty ||
-            string.IsNullOrWhiteSpace(request.SubmissionText) || request.SubmissionText.Length > 4000 ||
-            !string.IsNullOrWhiteSpace(request.SubmissionFile))
-            return Fail<LmsAssignmentDto>("Submit assignment text; files must use the canonical FileAsset submission API.");
-        var tenant = _user.TenantId;
-        var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
-            x.UserId == _user.UserId && x.IsActive, ct);
-        if (student == null) return Fail<LmsAssignmentDto>("Student profile not found.", 403);
-        try
+        if (!Authenticated() || courseReference == Guid.Empty)
+            return Error<CourseDetailsDto>("Course not found.", 404);
+        var row = await _courses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == _user.TenantId && x.PublicId == courseReference && !x.IsDeleted, ct);
+        if (row == null) return Error<CourseDetailsDto>("Course not found.", 404);
+        if (!await CanViewAsync(row, ct)) return Error<CourseDetailsDto>("Course not found.", 404);
+        var canEdit = await CanEditAsync(row, ct);
+        var lessons = await _lessons.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == _user.TenantId && x.CourseId == row.Id && !x.IsDeleted &&
+            (canEdit || x.IsPublished)).OrderBy(x => x.DisplayOrder).ThenBy(x => x.Id)
+            .Take(500).ToListAsync(ct);
+        var assignments = await _assignments.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == _user.TenantId && x.CourseId == row.Id && !x.IsDeleted &&
+            (canEdit || x.IsPublished)).OrderBy(x => x.DueAt).ThenBy(x => x.Id)
+            .Take(500).ToListAsync(ct);
+        return ApiResponse<CourseDetailsDto>.SuccessResponse(new CourseDetailsDto
         {
-            using var tx = SerializableScope();
-            var assignment = await _assignments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                x.TenantId == tenant && x.PublicId == request.AssignmentReference && x.IsPublished, ct);
-            if (assignment == null) return Fail<LmsAssignmentDto>("Assignment not found.", 404);
-            var enrollment = await _courseEnrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                x.TenantId == tenant && x.CourseId == assignment.CourseId && x.StudentId == student.Id &&
-                x.State == CourseEnrollmentState.Active, ct);
-            if (enrollment == null) return Fail<LmsAssignmentDto>("Student is not enrolled in this course.", 403);
-            var existing = await _submissions.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenant &&
-                x.AssignmentId == assignment.Id && x.CourseEnrollmentId == enrollment.Id, ct);
-            if (existing != null)
-            {
-                if (existing.SubmissionText != request.SubmissionText.Trim())
-                    return Fail<LmsAssignmentDto>("Existing submission cannot be overwritten. Request an assignment return for revision.", 409);
-                tx.Complete();
-                return ApiResponse<LmsAssignmentDto>.SuccessResponse(MapAssignment(assignment, existing),
-                    "Submission already recorded.");
-            }
-            var now = _clock.GetUtcNow().UtcDateTime;
-            var submission = new AssignmentSubmission
-            {
-                TenantId = tenant, AssignmentId = assignment.Id, CourseEnrollmentId = enrollment.Id,
-                SubmissionText = request.SubmissionText.Trim(), SubmittedAt = now,
-                State = LearningSubmissionState.Submitted, CreatedAt = now, CreatedBy = _user.UserId
-            };
-            await _submissions.AddAsync(submission);
-            await _uow.SaveChangesAsync(ct);
-            tx.Complete();
-            return ApiResponse<LmsAssignmentDto>.SuccessResponse(MapAssignment(assignment, submission),
-                "Assignment submitted.");
-        }
-        catch (DbUpdateException) { return Fail<LmsAssignmentDto>("Submission conflicts with existing records.", 409); }
-        catch (TransactionAbortedException) { return Fail<LmsAssignmentDto>("Concurrent submission rejected.", 409); }
+            Course = await MapCourseAsync(row, ct),
+            Lessons = lessons.Select(x => MapLesson(x, row.PublicId)).ToList(),
+            Assignments = assignments.Select(x => MapAssignment(x, row.PublicId)).ToList()
+        });
     }
 
-    public async Task<ApiResponse<bool>> ReviewSubmissionAsync(ReviewSubmissionDto request, CancellationToken ct = default)
+    public async Task<ApiResponse<AssignmentSubmissionDto>> SubmitAssignmentAsync(SubmitAssignmentRequestDto request,
+        CancellationToken ct = default)
     {
-        if (!CanTeach()) return Fail<bool>("Assignment grading permission required.", 403);
-        if (request == null || request.SubmissionReference == Guid.Empty || request.Mark < 0m ||
-            !TryDecodeSubmission(request.SubmissionReference, _user.TenantId, out var submissionId))
-            return Fail<bool>("Submission reference or mark is invalid.");
+        if (!Authenticated() || !_user.IsInRole("Student"))
+            return Error<AssignmentSubmissionDto>("Student permission required.", 403);
+        if (request == null || request.ClientRequestId == Guid.Empty || request.AssignmentReference == Guid.Empty ||
+            request.CourseEnrollmentId <= 0 || request.SubmissionText?.Length > 4000 ||
+            (string.IsNullOrWhiteSpace(request.SubmissionText) && !request.FileAssetId.HasValue))
+            return Error<AssignmentSubmissionDto>("Invalid submission.");
         var tenant = _user.TenantId;
+        var assignment = await _assignments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.PublicId == request.AssignmentReference && x.IsPublished && !x.IsDeleted, ct);
+        if (assignment == null) return Error<AssignmentSubmissionDto>("Assignment not found.", 404);
+        var enrollment = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.Id == request.CourseEnrollmentId && x.CourseId == assignment.CourseId &&
+            x.State == CourseEnrollmentState.Active && !x.IsDeleted, ct);
+        if (enrollment == null) return Error<AssignmentSubmissionDto>("Active course enrollment not found.", 404);
+        var owns = await _students.GetQueryable().AsNoTracking().AnyAsync(x =>
+            x.TenantId == tenant && x.Id == enrollment.StudentId && x.UserId == _user.UserId &&
+            x.StatusCode == "Active" && !x.IsDeleted, ct);
+        if (!owns) return Error<AssignmentSubmissionDto>("Submission belongs to another student.", 403);
+        var now = _clock.GetUtcNow().UtcDateTime;
+        if (assignment.OpensAt.HasValue && assignment.OpensAt > now ||
+            assignment.DueAt.HasValue && assignment.DueAt < now)
+            return Error<AssignmentSubmissionDto>("Assignment submission window is closed.", 409);
+        if (request.FileAssetId.HasValue && !await _files.GetQueryable().AsNoTracking().AnyAsync(x =>
+            x.TenantId == tenant && x.Id == request.FileAssetId.Value && x.IsVerifiedSafe && !x.IsDeleted, ct))
+            return Error<AssignmentSubmissionDto>("Safe uploaded file not found.", 409);
         try
         {
-            using var tx = SerializableScope();
-            var submission = await _submissions.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenant &&
-                x.Id == submissionId, ct);
-            if (submission == null) return Fail<bool>("Submission not found.", 404);
-            var assignment = await _assignments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                x.TenantId == tenant && x.Id == submission.AssignmentId, ct);
-            if (assignment == null) return Fail<bool>("Assignment not found.", 404);
-            var course = await _courses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                x.TenantId == tenant && x.Id == assignment.CourseId, ct);
-            if (course == null || !await CanEditAsync(course, ct))
-                return Fail<bool>("Submission belongs to another teacher.", 403);
-            if (request.Mark > assignment.MaxMarks)
-                return Fail<bool>("Mark exceeds the assignment maximum.");
-            if (submission.State == LearningSubmissionState.Graded)
+            return await _uow.ExecuteInTransactionAsync(async token =>
             {
-                if (submission.Marks != request.Mark || submission.Feedback != Trim(request.Feedback))
-                    return Fail<bool>("Graded submissions are immutable without an audited regrade workflow.", 409);
-                tx.Complete();
-                return ApiResponse<bool>.SuccessResponse(true, "Submission already graded.");
-            }
-            if (submission.State != LearningSubmissionState.Submitted)
-                return Fail<bool>("Only submitted assignments may be graded.", 409);
-            var now = _clock.GetUtcNow().UtcDateTime;
-            submission.Marks = request.Mark; submission.Feedback = Trim(request.Feedback);
-            submission.State = LearningSubmissionState.Graded;
-            submission.GradedByUserId = _user.UserId; submission.GradedAt = now;
-            submission.UpdatedAt = now; submission.UpdatedBy = _user.UserId;
-            await _uow.SaveChangesAsync(ct);
-            tx.Complete();
-            return ApiResponse<bool>.SuccessResponse(true, "Assignment graded.");
-        }
-        catch (DbUpdateException) { return Fail<bool>("Concurrent grading conflict.", 409); }
-        catch (TransactionAbortedException) { return Fail<bool>("Concurrent grading transaction rejected.", 409); }
-    }
-
-    public async Task<ApiResponse<decimal>> CompleteLessonAsync(CompleteLessonDto request, CancellationToken ct = default)
-    {
-        if (!_user.IsAuthenticated || !_user.IsInRole("Student") || _user.TenantId <= 0)
-            return Fail<decimal>("Student lesson access required.", 403);
-        if (request == null || request.LessonReference == Guid.Empty)
-            return Fail<decimal>("Lesson reference required.");
-        var tenant = _user.TenantId;
-        var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
-            x.UserId == _user.UserId && x.IsActive, ct);
-        if (student == null) return Fail<decimal>("Student not found.", 403);
-        try
-        {
-            using var tx = SerializableScope();
-            var lesson = await _lessons.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
-                x.PublicId == request.LessonReference && x.IsPublished, ct);
-            if (lesson == null) return Fail<decimal>("Lesson not found.", 404);
-            var enrollment = await _courseEnrollments.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenant &&
-                x.CourseId == lesson.CourseId && x.StudentId == student.Id &&
-                (x.State == CourseEnrollmentState.Active || x.State == CourseEnrollmentState.Completed), ct);
-            if (enrollment == null) return Fail<decimal>("Student is not enrolled.", 403);
-            var progress = await _progress.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenant &&
-                x.CourseEnrollmentId == enrollment.Id && x.LessonId == lesson.Id, ct);
-            var now = _clock.GetUtcNow().UtcDateTime;
-            if (progress == null)
-            {
-                progress = new LessonProgress
+                var existing = await _submissions.GetQueryable().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.AssignmentId == assignment.Id &&
+                    x.CourseEnrollmentId == enrollment.Id && !x.IsDeleted, token);
+                if (existing != null)
                 {
-                    TenantId = tenant, CourseEnrollmentId = enrollment.Id, LessonId = lesson.Id,
+                    if (existing.State == LearningSubmissionState.Submitted &&
+                        existing.SubmissionText == Trim(request.SubmissionText) &&
+                        existing.FileAssetId == request.FileAssetId)
+                        return ApiResponse<AssignmentSubmissionDto>.SuccessResponse(
+                            MapSubmission(existing, assignment.PublicId), "Submission already received.");
+                    return Error<AssignmentSubmissionDto>("Assignment was already submitted.", 409);
+                }
+                var row = new AssignmentSubmission
+                {
+                    TenantId = tenant, AssignmentId = assignment.Id, CourseEnrollmentId = enrollment.Id,
+                    SubmissionText = Trim(request.SubmissionText), FileAssetId = request.FileAssetId,
+                    State = LearningSubmissionState.Submitted, SubmittedAt = now,
                     CreatedAt = now, CreatedBy = _user.UserId
                 };
-                await _progress.AddAsync(progress);
-            }
-            progress.IsCompleted = true; progress.CompletedAt = now;
-            progress.LastAccessedAt = now; progress.ProgressPercent = 100m;
-            progress.UpdatedAt = now; progress.UpdatedBy = _user.UserId;
-            await _uow.SaveChangesAsync(ct);
-            var total = await _lessons.GetQueryable().AsNoTracking().CountAsync(x => x.TenantId == tenant &&
-                x.CourseId == lesson.CourseId && x.IsPublished, ct);
-            var completed = await (from entry in _progress.GetQueryable().AsNoTracking()
-                join courseLesson in _lessons.GetQueryable().AsNoTracking() on entry.LessonId equals courseLesson.Id
-                where entry.TenantId == tenant && courseLesson.TenantId == tenant &&
-                    entry.CourseEnrollmentId == enrollment.Id && entry.IsCompleted &&
-                    courseLesson.CourseId == lesson.CourseId && courseLesson.IsPublished
-                select entry.Id).CountAsync(ct);
-            var percentage = total == 0 ? 0m : Math.Round(100m * completed / total, 2);
-            if (percentage >= 100m && enrollment.State != CourseEnrollmentState.Completed)
-            {
-                enrollment.State = CourseEnrollmentState.Completed;
-                enrollment.CompletedAt = now;
-                enrollment.UpdatedAt = now; enrollment.UpdatedBy = _user.UserId;
-                await _uow.SaveChangesAsync(ct);
-            }
-            tx.Complete();
-            return ApiResponse<decimal>.SuccessResponse(percentage, "Lesson completion recorded.");
+                await _submissions.AddAsync(row);
+                await _uow.SaveChangesAsync(token);
+                return ApiResponse<AssignmentSubmissionDto>.SuccessResponse(MapSubmission(row, assignment.PublicId),
+                    "Assignment submitted.");
+            }, ct);
         }
-        catch (DbUpdateException) { return Fail<decimal>("Lesson progress conflicted with another request.", 409); }
-        catch (TransactionAbortedException) { return Fail<decimal>("Concurrent lesson progress rejected.", 409); }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "LMS submission conflict tenant {TenantId}", tenant);
+            return Error<AssignmentSubmissionDto>("Assignment submission conflicts with existing data.", 409);
+        }
     }
 
-    private async Task<int> SynchronizeAsync(long courseId, long batchId, CancellationToken ct)
+    public async Task<ApiResponse<AssignmentSubmissionDto>> GradeSubmissionAsync(long submissionId,
+        GradeAssignmentSubmissionRequestDto request, CancellationToken ct = default)
     {
+        if (!CanTeach()) return Error<AssignmentSubmissionDto>("LMS grading permission required.", 403);
+        if (submissionId <= 0 || request == null || !TryVersion(request.RowVersion, out _) ||
+            request.Marks < 0 || request.Marks > 100000m || request.Feedback?.Length > 2000)
+            return Error<AssignmentSubmissionDto>("Invalid marks, feedback or row version.");
         var tenant = _user.TenantId;
-        var enrollments = await _academicEnrollments.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
-            x.AcademicBatchId == batchId && x.IsCurrent && x.IsActive && x.State == EnrollmentState.Active)
-            .Select(x => new { x.Id, x.StudentId }).ToListAsync(ct);
-        var studentIds = enrollments.Select(x => x.StudentId).ToArray();
-        var activeStudents = await _students.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
-            studentIds.Contains(x.Id) && x.IsActive).Select(x => x.Id).ToArrayAsync(ct);
-        var active = activeStudents.ToHashSet();
-        var existing = await _courseEnrollments.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
-            x.CourseId == courseId && studentIds.Contains(x.StudentId))
-            .Select(x => x.StudentId).ToArrayAsync(ct);
-        var registered = existing.ToHashSet();
-        var now = _clock.GetUtcNow().UtcDateTime;
-        var count = 0;
-        foreach (var row in enrollments)
+        var row = await _submissions.GetQueryable().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.Id == submissionId && !x.IsDeleted, ct);
+        if (row == null) return Error<AssignmentSubmissionDto>("Submission not found.", 404);
+        var assignment = await _assignments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.Id == row.AssignmentId && !x.IsDeleted, ct);
+        if (assignment == null) return Error<AssignmentSubmissionDto>("Assignment not found.", 404);
+        var course = await _courses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.Id == assignment.CourseId && !x.IsDeleted, ct);
+        if (course == null || !await CanEditAsync(course, ct))
+            return Error<AssignmentSubmissionDto>("Instructor may not grade this course.", 403);
+        if (!Matches(row.RowVersion, request.RowVersion))
+            return Error<AssignmentSubmissionDto>("Submission changed. Reload and retry.", 409);
+        if (request.Marks > assignment.MaxMarks)
+            return Error<AssignmentSubmissionDto>("Marks cannot exceed assignment maximum.", 409);
+        if (row.State != LearningSubmissionState.Submitted && row.State != LearningSubmissionState.Returned)
+            return Error<AssignmentSubmissionDto>("Only submitted assignments may be graded.", 409);
+        row.Marks = request.Marks; row.Feedback = Trim(request.Feedback);
+        row.State = LearningSubmissionState.Graded;
+        row.GradedAt = _clock.GetUtcNow().UtcDateTime; row.GradedByUserId = _user.UserId;
+        row.UpdatedAt = row.GradedAt; row.UpdatedBy = _user.UserId;
+        _submissions.Update(row);
+        try
         {
-            if (!active.Contains(row.StudentId) || registered.Contains(row.StudentId)) continue;
-            await _courseEnrollments.AddAsync(new CourseEnrollment
-            {
-                TenantId = tenant, ClientRequestId = CohortKey(courseId, row.Id),
-                CourseId = courseId, StudentId = row.StudentId, StudentEnrollmentId = row.Id,
-                State = CourseEnrollmentState.Active, EnrolledAt = now, CreatedAt = now, CreatedBy = _user.UserId
-            });
-            count++;
+            await _uow.SaveChangesAsync(ct);
+            return ApiResponse<AssignmentSubmissionDto>.SuccessResponse(
+                MapSubmission(row, assignment.PublicId), "Assignment graded.");
         }
-        return count;
+        catch (DbUpdateConcurrencyException)
+        { return Error<AssignmentSubmissionDto>("Submission changed concurrently.", 409); }
     }
-    private async Task<List<long>> CohortBatchIdsAsync(long courseId, CancellationToken ct)
+
+    public async Task<ApiResponse<LessonProgressDto>> UpdateLessonProgressAsync(
+        UpdateLessonProgressRequestDto request, CancellationToken ct = default)
     {
+        if (!Authenticated() || !_user.IsInRole("Student"))
+            return Error<LessonProgressDto>("Student permission required.", 403);
+        if (request == null || request.LessonReference == Guid.Empty ||
+            request.ProgressPercent is < 0 or > 100)
+            return Error<LessonProgressDto>("Invalid lesson progress.");
         var tenant = _user.TenantId;
-        return await (from linked in _courseEnrollments.GetQueryable().AsNoTracking()
-            join enrolled in _academicEnrollments.GetQueryable().AsNoTracking()
-                on linked.StudentEnrollmentId equals enrolled.Id
-            where linked.TenantId == tenant && enrolled.TenantId == tenant && linked.CourseId == courseId
-            select enrolled.AcademicBatchId).Distinct().Take(2).ToListAsync(ct);
+        var lesson = await _lessons.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.PublicId == request.LessonReference &&
+            x.IsPublished && !x.IsDeleted, ct);
+        if (lesson == null) return Error<LessonProgressDto>("Lesson not found.", 404);
+        var studentId = await OwnStudentIdAsync(ct);
+        if (studentId == 0) return Error<LessonProgressDto>("Student not found.", 404);
+        var enrollment = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.CourseId == lesson.CourseId && x.StudentId == studentId &&
+            x.State == CourseEnrollmentState.Active && !x.IsDeleted, ct);
+        if (enrollment == null) return Error<LessonProgressDto>("Active course enrollment not found.", 409);
+        try
+        {
+            return await _uow.ExecuteInTransactionAsync(async token =>
+            {
+                var row = await _progress.GetQueryable().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.CourseEnrollmentId == enrollment.Id &&
+                    x.LessonId == lesson.Id && !x.IsDeleted, token);
+                var now = _clock.GetUtcNow().UtcDateTime;
+                if (row == null)
+                {
+                    row = new LessonProgress
+                    {
+                        TenantId = tenant, CourseEnrollmentId = enrollment.Id, LessonId = lesson.Id,
+                        CreatedAt = now, CreatedBy = _user.UserId
+                    };
+                    await _progress.AddAsync(row);
+                }
+                else
+                {
+                    row.UpdatedAt = now; row.UpdatedBy = _user.UserId; _progress.Update(row);
+                }
+                row.IsCompleted = request.IsCompleted || row.IsCompleted;
+                row.ProgressPercent = row.IsCompleted ? 100m : Math.Max(row.ProgressPercent, request.ProgressPercent);
+                row.CompletedAt = row.IsCompleted ? row.CompletedAt ?? now : null;
+                row.LastAccessedAt = now;
+                await _uow.SaveChangesAsync(token);
+                return ApiResponse<LessonProgressDto>.SuccessResponse(new LessonProgressDto
+                {
+                    Id = row.Id, CourseEnrollmentId = row.CourseEnrollmentId,
+                    LessonReference = lesson.PublicId, LessonTitle = lesson.Title,
+                    IsCompleted = row.IsCompleted, CompletedAt = row.CompletedAt,
+                    ProgressPercent = row.ProgressPercent
+                }, "Lesson progress saved.");
+            }, ct);
+        }
+        catch (DbUpdateException) { return Error<LessonProgressDto>("Lesson progress conflicts with existing data.", 409); }
+        catch (DbUpdateConcurrencyException) { return Error<LessonProgressDto>("Lesson progress changed concurrently.", 409); }
     }
-    private async Task<Employee?> ResolveTeacherAsync(long? requested, CancellationToken ct)
-    {
-        var tenant = _user.TenantId;
-        var q = _employees.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
-            x.CanTeach && x.State == EmployeeState.Active);
-        if (!IsManager()) return await q.FirstOrDefaultAsync(x => x.UserId == _user.UserId &&
-            (!requested.HasValue || x.Id == requested.Value), ct);
-        if (requested.HasValue) return await q.FirstOrDefaultAsync(x => x.Id == requested.Value, ct);
-        return await q.FirstOrDefaultAsync(x => x.UserId == _user.UserId, ct);
-    }
+
     private async Task<Course?> EditableCourseAsync(Guid reference, CancellationToken ct)
     {
-        if (!CanTeach()) return null;
-        var course = await _courses.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == _user.TenantId &&
-            x.PublicId == reference && x.IsActive, ct);
-        return course != null && await CanEditAsync(course, ct) ? course : null;
+        var row = await _courses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == _user.TenantId && x.PublicId == reference && !x.IsDeleted, ct);
+        return row != null && await CanEditAsync(row, ct) ? row : null;
     }
+
     private async Task<bool> CanEditAsync(Course course, CancellationToken ct)
     {
+        if (!CanTeach()) return false;
         if (IsManager()) return true;
-        if (!_user.IsInRole("Teacher") || !course.PrimaryInstructorEmployeeId.HasValue) return false;
-        return await _employees.GetQueryable().AsNoTracking().AnyAsync(x =>
-            x.TenantId == _user.TenantId && x.Id == course.PrimaryInstructorEmployeeId &&
-            x.UserId == _user.UserId && x.CanTeach && x.State == EmployeeState.Active, ct);
+        var own = await OwnTeacherIdAsync(ct);
+        return own > 0 && course.PrimaryInstructorEmployeeId == own;
     }
-    private async Task<LmsCourseDto> MapCourseAsync(Course course, long? studentId, CancellationToken ct)
+
+    private async Task<bool> CanViewAsync(Course course, CancellationToken ct)
     {
-        var tenant = _user.TenantId;
-        var teacher = course.PrimaryInstructorEmployeeId.HasValue
-            ? await _employees.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
-                x.Id == course.PrimaryInstructorEmployeeId.Value, ct) : null;
-        var subjectName = course.SubjectId.HasValue
-            ? await _subjects.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
-                x.Id == course.SubjectId.Value).Select(x => x.Name).FirstOrDefaultAsync(ct) : null;
-        var anchor = await (from link in _courseEnrollments.GetQueryable().AsNoTracking()
-            join academic in _academicEnrollments.GetQueryable().AsNoTracking()
-                on link.StudentEnrollmentId equals academic.Id
-            where link.TenantId == tenant && academic.TenantId == tenant &&
-                link.CourseId == course.Id &&
-                (!studentId.HasValue || link.StudentId == studentId.Value)
-            orderby link.Id
-            select new { academic.AcademicYearId, academic.AcademicLevelId, academic.AcademicBatchId })
-            .FirstOrDefaultAsync(ct);
-        decimal completion = 0m;
-        if (studentId.HasValue)
+        if (await CanEditAsync(course, ct)) return true;
+        if (!_user.IsInRole("Student") || !course.IsActive) return false;
+        var id = await OwnStudentIdAsync(ct);
+        return id > 0 && await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x =>
+            x.TenantId == _user.TenantId && x.CourseId == course.Id && x.StudentId == id &&
+            (x.State == CourseEnrollmentState.Active || x.State == CourseEnrollmentState.Completed), ct);
+    }
+
+    private async Task<long> OwnTeacherIdAsync(CancellationToken ct) =>
+        await _employees.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == _user.TenantId && x.UserId == _user.UserId && x.CanTeach &&
+            x.State == EmployeeState.Active && !x.IsDeleted).Select(x => x.Id).FirstOrDefaultAsync(ct);
+
+    private async Task<long> OwnStudentIdAsync(CancellationToken ct) =>
+        await _students.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == _user.TenantId && x.UserId == _user.UserId && x.StatusCode == "Active" &&
+            !x.IsDeleted).Select(x => x.Id).FirstOrDefaultAsync(ct);
+
+    private async Task<CourseDto> MapCourseAsync(Course row, CancellationToken ct)
+    {
+        var subjectName = row.SubjectId.HasValue ? await _subjects.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == row.TenantId && x.Id == row.SubjectId.Value)
+            .Select(x => x.Name).FirstOrDefaultAsync(ct) : null;
+        var programName = row.AcademicProgramId.HasValue ? await _programs.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == row.TenantId && x.Id == row.AcademicProgramId.Value)
+            .Select(x => x.Name).FirstOrDefaultAsync(ct) : null;
+        var instructor = row.PrimaryInstructorEmployeeId.HasValue ? await _employees.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == row.TenantId && x.Id == row.PrimaryInstructorEmployeeId.Value)
+            .Select(x => new { x.PublicId, x.FullName }).FirstOrDefaultAsync(ct) : null;
+        return new CourseDto
         {
-            var courseEnrollment = await _courseEnrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                x.TenantId == tenant && x.CourseId == course.Id && x.StudentId == studentId.Value, ct);
-            if (courseEnrollment != null)
-            {
-                var count = await _lessons.GetQueryable().AsNoTracking().CountAsync(x => x.TenantId == tenant &&
-                    x.CourseId == course.Id && x.IsPublished, ct);
-                if (count > 0)
-                {
-                    var done = await _progress.GetQueryable().AsNoTracking().CountAsync(x => x.TenantId == tenant &&
-                        x.CourseEnrollmentId == courseEnrollment.Id && x.IsCompleted, ct);
-                    completion = Math.Min(100m, Math.Round(done * 100m / count, 2));
-                }
-            }
-        }
-        return new LmsCourseDto
-        {
-            Reference = course.PublicId, Title = course.Title,
-            AcademicYearId = anchor?.AcademicYearId ?? 0, ClassId = anchor?.AcademicLevelId ?? 0,
-            SectionId = anchor?.AcademicBatchId, SubjectId = course.SubjectId ?? 0,
-            SubjectName = subjectName ?? "", TeacherId = teacher?.Id ?? 0,
-            TeacherName = teacher?.FullName ?? "", ProgressPercentage = completion,
-            RowVersion = Convert.ToBase64String(course.RowVersion)
+            Id = row.Id, Reference = row.PublicId, AcademicProgramId = row.AcademicProgramId,
+            AcademicProgramName = programName, SubjectId = row.SubjectId, SubjectName = subjectName,
+            PrimaryInstructorReference = instructor?.PublicId, PrimaryInstructorName = instructor?.FullName,
+            Title = row.Title, Code = row.Code, Description = row.Description, ThumbnailUrl = row.ThumbnailUrl,
+            IsSelfPaced = row.IsSelfPaced, IsActive = row.IsActive,
+            RowVersion = Convert.ToBase64String(row.RowVersion)
         };
     }
-    private static LmsLessonDto MapLesson(Lesson row, bool complete, string? attachment) => new()
+
+    private static LessonDto MapLesson(Lesson row, Guid courseReference) => new()
     {
-        Reference = row.PublicId, Title = row.Title, Content = row.Content,
-        VideoUrl = row.ContentUrl, AttachmentUrl = attachment,
-        OrderNo = row.DisplayOrder, Duration = 0, IsCompleted = complete,
+        Id = row.Id, Reference = row.PublicId, CourseReference = courseReference,
+        Title = row.Title, Content = row.Content, ContentUrl = row.ContentUrl,
+        DisplayOrder = row.DisplayOrder, IsPublished = row.IsPublished,
         RowVersion = Convert.ToBase64String(row.RowVersion)
     };
-    private LmsAssignmentDto MapAssignment(Assignment row, AssignmentSubmission? submission) => new()
+
+    private static AssignmentDto MapAssignment(Assignment row, Guid courseReference) => new()
     {
-        Reference = row.PublicId, Title = row.Title, Description = row.Instructions,
-        TotalMark = (int)row.MaxMarks, DueDate = row.DueAt ?? DateTime.MaxValue,
-        SubmissionReference = submission == null ? null : EncodeSubmission(submission.Id, _user.TenantId),
-        SubmissionStatus = submission?.State.ToString(), Mark = submission?.Marks,
-        Feedback = submission?.Feedback, RowVersion = Convert.ToBase64String(row.RowVersion)
+        Id = row.Id, Reference = row.PublicId, CourseReference = courseReference, Type = row.Type,
+        Title = row.Title, Instructions = row.Instructions, OpensAt = row.OpensAt, DueAt = row.DueAt,
+        MaxMarks = row.MaxMarks, IsPublished = row.IsPublished,
+        RowVersion = Convert.ToBase64String(row.RowVersion)
     };
-    private static Guid EncodeSubmission(long id, long tenant)
+
+    private static AssignmentSubmissionDto MapSubmission(AssignmentSubmission row, Guid reference) => new()
     {
-        var bytes = new byte[16];
-        BitConverter.GetBytes(id).CopyTo(bytes, 0);
-        BitConverter.GetBytes(tenant).CopyTo(bytes, 8);
-        return new Guid(bytes);
-    }
-    private static bool TryDecodeSubmission(Guid reference, long tenant, out long id)
+        Id = row.Id, AssignmentReference = reference, CourseEnrollmentId = row.CourseEnrollmentId,
+        SubmissionText = row.SubmissionText, FileAssetId = row.FileAssetId, State = row.State,
+        SubmittedAt = row.SubmittedAt, Marks = row.Marks, Feedback = row.Feedback,
+        GradedByUserId = row.GradedByUserId, GradedAt = row.GradedAt,
+        RowVersion = Convert.ToBase64String(row.RowVersion)
+    };
+
+    private static CourseEnrollmentDto MapEnrollment(CourseEnrollment row, Course course, Student student,
+        StudentEnrollment? academic) => new()
     {
-        var bytes = reference.ToByteArray();
-        id = BitConverter.ToInt64(bytes, 0);
-        return id > 0 && BitConverter.ToInt64(bytes, 8) == tenant;
-    }
-    private static Guid CohortKey(long courseId, long enrollmentId)
+        Id = row.Id, CourseReference = course.PublicId, CourseTitle = course.Title,
+        StudentReference = student.PublicId, StudentName = student.FullName,
+        StudentEnrollmentReference = academic?.PublicId, State = row.State, EnrolledAt = row.EnrolledAt,
+        CompletedAt = row.CompletedAt, ProgressPercent = 0m,
+        RowVersion = Convert.ToBase64String(row.RowVersion)
+    };
+
+    private static PagedResult<T> EmptyPage<T>(int page, int size) => new()
     {
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(courseId + "|" + enrollmentId));
-        return new Guid(bytes.AsSpan(0, 16));
-    }
-    private static bool MatchesVersion(byte[] actual, string? base64)
+        Page = page, PageSize = size, TotalCount = 0, Items = Array.Empty<T>()
+    };
+
+    private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static bool TryVersion(string? encoded, out byte[] decoded)
     {
-        if (string.IsNullOrWhiteSpace(base64)) return false;
-        try { return actual.AsSpan().SequenceEqual(Convert.FromBase64String(base64)); }
+        decoded = [];
+        if (string.IsNullOrWhiteSpace(encoded)) return false;
+        try { decoded = Convert.FromBase64String(encoded); return decoded.Length > 0; }
         catch (FormatException) { return false; }
     }
+
+    private static bool Matches(byte[] actual, string? encoded) =>
+        TryVersion(encoded, out var expected) && actual != null && expected.Length > 0 &&
+        actual.Length == expected.Length && CryptographicOperations.FixedTimeEquals(actual, expected);
+
+    private bool Authenticated() => _user.IsAuthenticated && _user.TenantId > 0;
     private bool IsManager() => _user.IsTenantAdmin || _user.IsInRole("Principal");
-    private bool CanTeach() => _user.IsAuthenticated && _user.TenantId > 0 &&
-        (IsManager() || _user.IsInRole("Teacher"));
-    private static string? Trim(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
-    private static TransactionScope SerializableScope() =>
-        new(TransactionScopeOption.Required, new TransactionOptions { IsolationLevel = IsolationLevel.Serializable },
-            TransactionScopeAsyncFlowOption.Enabled);
-    private static ApiResponse<T> Fail<T>(string message, int code = 400) =>
-        ApiResponse<T>.ErrorResponse(message, code);
+    private bool CanTeach() => Authenticated() && (IsManager() || _user.IsInRole("Teacher"));
+    private static ApiResponse<T> Error<T>(string message, int status = 400) =>
+        ApiResponse<T>.ErrorResponse(message, status);
 }
