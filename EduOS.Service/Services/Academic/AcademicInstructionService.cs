@@ -8,7 +8,6 @@ using EduOS.Core.Interfaces.IServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
-using System.Transactions;
 
 namespace EduOS.Service.Services.Academic;
 
@@ -67,400 +66,310 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
         _logger = logger;
     }
 
-    public async Task<ApiResponse<IReadOnlyList<RoutineSubstitutionDto>>> GetSubstitutionsAsync(
-        DateTime fromDate, DateTime toDate, long? academicBatchId, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<IReadOnlyList<SubstitutionDto>>> GetSubstitutionsAsync(
+        DateOnly fromDate, DateOnly toDate, long? academicBatchId, CancellationToken ct = default)
     {
-        if (!CanRead()) return Denied<IReadOnlyList<RoutineSubstitutionDto>>();
-        var range = NormalizeRange(fromDate, toDate, 93);
-        if (!range.Success || (academicBatchId.HasValue && academicBatchId.Value <= 0))
-            return Error<IReadOnlyList<RoutineSubstitutionDto>>(range.Error ?? "Academic batch, when supplied, must be positive.");
-
-        var tenantId = _currentUser.TenantId;
-        var from = DateOnly.FromDateTime(range.From);
-        var to = DateOnly.FromDateTime(range.To);
-        var rows = await _substitutions.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && x.Date >= from && x.Date <= to)
-            .OrderBy(x => x.Date).ThenBy(x => x.Id).Take(500).ToListAsync(cancellationToken);
-        if (rows.Count == 0)
-            return ApiResponse<IReadOnlyList<RoutineSubstitutionDto>>.SuccessResponse(Array.Empty<RoutineSubstitutionDto>());
-
-        var context = await LoadRoutineContextAsync(rows.Select(x => x.RoutineEntryId), cancellationToken);
+        if (!CanRead()) return Denied<IReadOnlyList<SubstitutionDto>>();
+        if (fromDate == default || toDate == default || toDate < fromDate ||
+            toDate.DayNumber - fromDate.DayNumber > 92 || academicBatchId is <= 0)
+            return Error<IReadOnlyList<SubstitutionDto>>("Invalid substitution date range or academic batch.");
+        var tenant = _currentUser.TenantId;
+        var q = _substitutions.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.Date >= fromDate && x.Date <= toDate && !x.IsDeleted);
         if (academicBatchId.HasValue)
-            rows = rows.Where(x => context.TryGetValue(x.RoutineEntryId, out var item) && item.BatchId == academicBatchId.Value).ToList();
-
-        if (!IsManager())
         {
-            var teacherId = await GetLinkedTeacherIdAsync(cancellationToken);
-            if (!teacherId.HasValue) return Denied<IReadOnlyList<RoutineSubstitutionDto>>();
-            rows = rows.Where(x => x.SubstituteEmployeeId == teacherId.Value ||
-                                   (context.TryGetValue(x.RoutineEntryId, out var item) && item.OriginalEmployeeId == teacherId.Value)).ToList();
+            var ids = from routine in _routineEntries.GetQueryable().AsNoTracking()
+                join offer in _subjectOfferings.GetQueryable().AsNoTracking()
+                    on routine.SubjectOfferingId equals offer.Id
+                where routine.TenantId == tenant && offer.TenantId == tenant &&
+                    offer.AcademicBatchId == academicBatchId.Value
+                select routine.Id;
+            q = q.Where(x => ids.Contains(x.RoutineEntryId));
         }
-
-        IReadOnlyList<RoutineSubstitutionDto> result = rows
-            .Where(x => context.ContainsKey(x.RoutineEntryId))
-            .Select(x => MapSubstitution(x, context[x.RoutineEntryId]))
-            .OrderBy(x => x.Date).ThenBy(x => x.StartTime).ThenBy(x => x.Id).ToList();
-        return ApiResponse<IReadOnlyList<RoutineSubstitutionDto>>.SuccessResponse(result);
+        var teacherId = !IsManager() ? await GetLinkedTeacherIdAsync(ct) : null;
+        if (!IsManager() && !teacherId.HasValue) return Denied<IReadOnlyList<SubstitutionDto>>();
+        var rows = await q.OrderByDescending(x => x.Date).ThenByDescending(x => x.Id)
+            .Take(500).ToListAsync(ct);
+        var context = await LoadRoutineContextAsync(rows.Select(x => x.RoutineEntryId), ct);
+        if (!IsManager())
+            rows = rows.Where(x => x.SubstituteEmployeeId == teacherId ||
+                context.TryGetValue(x.RoutineEntryId, out var info) && info.OriginalEmployeeId == teacherId).ToList();
+        var ids2 = rows.Select(x => x.SubstituteEmployeeId).Distinct().ToArray();
+        var names = await _employees.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && ids2.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, x => x.FullName, ct);
+        IReadOnlyList<SubstitutionDto> result = rows.Where(x => context.ContainsKey(x.RoutineEntryId))
+            .Select(x => MapSubstitution(x, names.GetValueOrDefault(x.SubstituteEmployeeId)))
+            .OrderBy(x => x.Date).ThenBy(x => x.Id).ToList();
+        return ApiResponse<IReadOnlyList<SubstitutionDto>>.SuccessResponse(result);
     }
 
-    public Task<ApiResponse<RoutineSubstitutionDto>> CreateSubstitutionAsync(
-        CreateRoutineSubstitutionDto request, CancellationToken cancellationToken = default)
+    public Task<ApiResponse<SubstitutionDto>> CreateSubstitutionAsync(
+        CreateSubstitutionRequestDto request, CancellationToken ct = default)
     {
-        if (!CanManage()) return Task.FromResult(Denied<RoutineSubstitutionDto>());
+        if (!CanManage()) return Task.FromResult(Denied<SubstitutionDto>());
         if (request == null || request.ClientRequestId == Guid.Empty || request.RoutineEntryId <= 0 ||
-            request.SubstituteTeacherId <= 0 || request.Date == default || TooLong(request.Reason, 500))
-            return Task.FromResult(Error<RoutineSubstitutionDto>("A valid request ID, routine entry, date and substitute instructor are required."));
-
-        return ExecuteWriteAsync("create routine substitution", async () =>
+            request.Date == default || request.SubstituteEmployeeReference == Guid.Empty ||
+            TooLong(request.Reason, 500))
+            return Task.FromResult(Error<SubstitutionDto>("Valid substitution, date and instructor are required."));
+        return ExecuteWriteAsync("create substitution", async () =>
         {
-            var tenantId = _currentUser.TenantId;
-            var date = DateOnly.FromDateTime(request.Date.Date);
-            var replay = await _substitutions.GetQueryable()
-                .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.ClientRequestId == request.ClientRequestId, cancellationToken);
+            var tenant = _currentUser.TenantId;
+            var employee = await _employees.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.PublicId == request.SubstituteEmployeeReference &&
+                x.CanTeach && x.State == EmployeeState.Active && !x.IsDeleted, ct);
+            if (employee == null) return Error<SubstitutionDto>("Active substitute instructor not found.", 404);
+            var replay = await _substitutions.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.ClientRequestId == request.ClientRequestId && !x.IsDeleted, ct);
             if (replay != null)
             {
-                if (replay.RoutineEntryId != request.RoutineEntryId || replay.Date != date ||
-                    replay.SubstituteEmployeeId != request.SubstituteTeacherId || replay.Reason != Trim(request.Reason))
-                    return Error<RoutineSubstitutionDto>("Client request ID was already used for a different substitution.", 409);
-                var replayContext = await LoadRoutineContextAsync([replay.RoutineEntryId], cancellationToken);
-                if (!replayContext.TryGetValue(replay.RoutineEntryId, out var replayInfo))
-                    return Error<RoutineSubstitutionDto>("Routine entry for the existing substitution is unavailable.", 409);
-                return ApiResponse<RoutineSubstitutionDto>.SuccessResponse(MapSubstitution(replay, replayInfo), "Routine substitution already exists.");
+                if (replay.RoutineEntryId != request.RoutineEntryId || replay.Date != request.Date ||
+                    replay.SubstituteEmployeeId != employee.Id || replay.Reason != Trim(request.Reason))
+                    return Error<SubstitutionDto>("Request ID was used for different substitution details.", 409);
+                return ApiResponse<SubstitutionDto>.SuccessResponse(
+                    MapSubstitution(replay, employee.FullName), "Substitution already exists.");
             }
-
-            var entry = await _routineEntries.GetQueryable().AsNoTracking()
-                .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.RoutineEntryId && x.IsActive, cancellationToken);
-            if (entry == null) return Error<RoutineSubstitutionDto>("Active routine entry not found.", 404);
-            if (entry.DayOfWeek != date.DayOfWeek || entry.EffectiveFrom > date || (entry.EffectiveTo.HasValue && entry.EffectiveTo.Value < date))
-                return Error<RoutineSubstitutionDto>("Substitution date is outside the active routine schedule.", 409);
-
-            var infoMap = await LoadRoutineContextAsync([entry.Id], cancellationToken);
-            if (!infoMap.TryGetValue(entry.Id, out var info) || info.OriginalEmployeeId <= 0)
-                return Error<RoutineSubstitutionDto>("Routine instructor assignment is incomplete.", 409);
-            var dateError = await ValidateAcademicDateAsync(info.AcademicYearId, info.AcademicTermId, date, date, cancellationToken);
-            if (dateError != null) return Error<RoutineSubstitutionDto>(dateError, 409);
-
-            var substitute = await _employees.GetQueryable().AsNoTracking()
-                .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.SubstituteTeacherId &&
-                                          x.State == EmployeeState.Active && x.CanTeach, cancellationToken);
-            if (substitute == null) return Error<RoutineSubstitutionDto>("Active substitute instructor not found.", 404);
-            if (substitute.Id == info.OriginalEmployeeId)
-                return Error<RoutineSubstitutionDto>("Original and substitute instructor must be different.", 409);
-
-            var existing = await _substitutions.GetQueryable().AsNoTracking()
-                .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.RoutineEntryId == entry.Id && x.Date == date && !x.IsCancelled, cancellationToken);
-            if (existing != null)
-            {
-                if (existing.SubstituteEmployeeId == substitute.Id && existing.Reason == Trim(request.Reason))
-                    return ApiResponse<RoutineSubstitutionDto>.SuccessResponse(MapSubstitution(existing, info), "Routine substitution already exists.");
-                return Error<RoutineSubstitutionDto>("This routine entry already has an active substitution for the selected date.", 409);
-            }
-
-            if (await HasInstructorConflictAsync(substitute.Id, entry.Id, entry.RoutineTimeSlotId, date, cancellationToken))
-                return Error<RoutineSubstitutionDto>("Substitute instructor already has a class or substitution during this time.", 409);
-
+            var routine = await _routineEntries.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.Id == request.RoutineEntryId && x.IsActive && !x.IsDeleted, ct);
+            if (routine == null) return Error<SubstitutionDto>("Active routine entry not found.", 404);
+            if (routine.DayOfWeek != request.Date.DayOfWeek || routine.EffectiveFrom > request.Date ||
+                routine.EffectiveTo.HasValue && routine.EffectiveTo.Value < request.Date)
+                return Error<SubstitutionDto>("Substitution date is outside the routine schedule.", 409);
+            var info = await LoadRoutineContextAsync([routine.Id], ct);
+            if (!info.TryGetValue(routine.Id, out var context) || context.OriginalEmployeeId <= 0)
+                return Error<SubstitutionDto>("Routine instructor is not assigned.", 409);
+            var dateError = await ValidateAcademicDateAsync(context.AcademicYearId, context.AcademicTermId,
+                request.Date, request.Date, ct);
+            if (dateError != null) return Error<SubstitutionDto>(dateError, 409);
+            if (context.OriginalEmployeeId == employee.Id)
+                return Error<SubstitutionDto>("Substitute cannot be the original instructor.", 409);
+            if (await _substitutions.GetQueryable().AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenant && x.RoutineEntryId == routine.Id &&
+                x.Date == request.Date && !x.IsCancelled && !x.IsDeleted, ct))
+                return Error<SubstitutionDto>("Active substitution already exists for this routine and date.", 409);
+            if (await HasInstructorConflictAsync(employee.Id, routine.Id, routine.RoutineTimeSlotId, request.Date, ct))
+                return Error<SubstitutionDto>("Substitute instructor is already scheduled for this time.", 409);
+            var now = _clock.GetUtcNow().UtcDateTime;
             var row = new Substitution
             {
-                TenantId = tenantId,
-                ClientRequestId = request.ClientRequestId,
-                RoutineEntryId = entry.Id,
-                Date = date,
-                SubstituteEmployeeId = substitute.Id,
-                Reason = Trim(request.Reason),
-                IsCancelled = false,
-                CreatedAt = _clock.GetUtcNow().UtcDateTime,
-                CreatedBy = _currentUser.UserId
+                TenantId = tenant, ClientRequestId = request.ClientRequestId,
+                RoutineEntryId = routine.Id, Date = request.Date,
+                SubstituteEmployeeId = employee.Id, Reason = Trim(request.Reason),
+                CreatedAt = now, CreatedBy = _currentUser.UserId
             };
             await _substitutions.AddAsync(row);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            return Created(MapSubstitution(row, info), "Routine substitution created.");
+            await _unitOfWork.SaveChangesAsync(ct);
+            return Created(MapSubstitution(row, employee.FullName), "Substitution created.");
         });
     }
 
-    public Task<ApiResponse<RoutineSubstitutionDto>> CancelSubstitutionAsync(
-        long id, CancelRoutineSubstitutionDto request, CancellationToken cancellationToken = default)
+    public Task<ApiResponse<SubstitutionDto>> CancelSubstitutionAsync(
+        long id, CancelSubstitutionRequestDto request, CancellationToken ct = default)
     {
-        if (!CanManage()) return Task.FromResult(Denied<RoutineSubstitutionDto>());
-        if (id <= 0 || request == null || string.IsNullOrWhiteSpace(request.Reason) ||
-            TooLong(request.Reason, 1000) || !TryDecodeRowVersion(request.RowVersion, out var rowVersion))
-            return Task.FromResult(Error<RoutineSubstitutionDto>("A valid substitution, row version and cancellation reason are required."));
-
-        return ExecuteWriteAsync("cancel routine substitution", async () =>
+        if (!CanManage()) return Task.FromResult(Denied<SubstitutionDto>());
+        if (id <= 0 || request == null || !TryDecodeRowVersion(request.RowVersion, out var version))
+            return Task.FromResult(Error<SubstitutionDto>("Substitution and row version are required."));
+        return ExecuteWriteAsync("cancel substitution", async () =>
         {
-            var row = await _substitutions.GetQueryable()
-                .FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.Id == id, cancellationToken);
-            if (row == null) return Error<RoutineSubstitutionDto>("Routine substitution not found.", 404);
-            var context = await LoadRoutineContextAsync([row.RoutineEntryId], cancellationToken);
-            if (!context.TryGetValue(row.RoutineEntryId, out var info))
-                return Error<RoutineSubstitutionDto>("Routine entry for the substitution is unavailable.", 409);
+            var row = await _substitutions.GetQueryable().FirstOrDefaultAsync(x =>
+                x.TenantId == _currentUser.TenantId && x.Id == id && !x.IsDeleted, ct);
+            if (row == null) return Error<SubstitutionDto>("Substitution not found.", 404);
+            if (!VersionsMatch(row.RowVersion, version)) return Stale<SubstitutionDto>();
+            var instructor = await _employees.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == _currentUser.TenantId && x.Id == row.SubstituteEmployeeId)
+                .Select(x => x.FullName).FirstOrDefaultAsync(ct);
             if (row.IsCancelled)
-            {
-                var already = MapSubstitution(row, info);
-                already.CancellationReason = request.Reason.Trim();
-                return ApiResponse<RoutineSubstitutionDto>.SuccessResponse(already, "Routine substitution is already cancelled.");
-            }
-            if (!VersionsMatch(row.RowVersion, rowVersion)) return Stale<RoutineSubstitutionDto>();
-
+                return ApiResponse<SubstitutionDto>.SuccessResponse(MapSubstitution(row, instructor), "Substitution is already cancelled.");
             row.IsCancelled = true;
             row.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
             row.UpdatedBy = _currentUser.UserId;
             _substitutions.Update(row);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            var dto = MapSubstitution(row, info);
-            dto.CancelledAt = row.UpdatedAt;
-            dto.CancellationReason = request.Reason.Trim();
-            return ApiResponse<RoutineSubstitutionDto>.SuccessResponse(dto, "Routine substitution cancelled.");
+            await _unitOfWork.SaveChangesAsync(ct);
+            return ApiResponse<SubstitutionDto>.SuccessResponse(MapSubstitution(row, instructor), "Substitution cancelled.");
         });
     }
 
-    public async Task<ApiResponse<IReadOnlyList<LessonPlanDto>>> GetLessonPlansAsync(
-        long? academicBatchId, DateTime? fromDate, DateTime? toDate, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<PagedResult<LessonPlanDto>>> GetLessonPlansAsync(
+        long? academicBatchId, DateOnly? fromDate, DateOnly? toDate, int page, int pageSize,
+        CancellationToken ct = default)
     {
-        if (!CanRead()) return Denied<IReadOnlyList<LessonPlanDto>>();
-        if (academicBatchId.HasValue && academicBatchId.Value <= 0)
-            return Error<IReadOnlyList<LessonPlanDto>>("Academic batch, when supplied, must be positive.");
-        if (fromDate.HasValue != toDate.HasValue)
-            return Error<IReadOnlyList<LessonPlanDto>>("Both lesson-plan range dates are required.");
-
-        var tenantId = _currentUser.TenantId;
-        var query = _lessonPlans.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenantId);
-        if (fromDate.HasValue && toDate.HasValue)
-        {
-            var range = NormalizeRange(fromDate.Value, toDate.Value, 366);
-            if (!range.Success) return Error<IReadOnlyList<LessonPlanDto>>(range.Error!);
-            var from = DateOnly.FromDateTime(range.From);
-            var to = DateOnly.FromDateTime(range.To);
-            query = query.Where(x => x.LessonDate >= from && x.LessonDate <= to);
-        }
-        if (!IsManager())
-        {
-            var employeeId = await GetLinkedTeacherIdAsync(cancellationToken);
-            if (!employeeId.HasValue) return Denied<IReadOnlyList<LessonPlanDto>>();
-            query = query.Where(x => x.EmployeeId == employeeId.Value);
-        }
-
-        var plans = await query.OrderBy(x => x.LessonDate).ThenBy(x => x.Title).Take(500).ToListAsync(cancellationToken);
+        if (!CanRead()) return Denied<PagedResult<LessonPlanDto>>();
+        if (page < 1 || pageSize is < 1 or > 100 || academicBatchId is <= 0 ||
+            fromDate.HasValue != toDate.HasValue ||
+            fromDate.HasValue && (toDate < fromDate ||
+                toDate.Value.DayNumber - fromDate.Value.DayNumber > 366))
+            return Error<PagedResult<LessonPlanDto>>("Invalid academic batch, page or date range.");
+        var tenant = _currentUser.TenantId;
+        var q = _lessonPlans.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && !x.IsDeleted);
         if (academicBatchId.HasValue)
         {
-            var offeringIds = await _subjectOfferings.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenantId && x.AcademicBatchId == academicBatchId.Value && x.IsActive)
-                .Select(x => x.Id).Take(500).ToListAsync(cancellationToken);
-            plans = plans.Where(x => offeringIds.Contains(x.SubjectOfferingId)).ToList();
+            var ids = _subjectOfferings.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == tenant && x.AcademicBatchId == academicBatchId.Value)
+                .Select(x => x.Id);
+            q = q.Where(x => ids.Contains(x.SubjectOfferingId));
         }
-
-        var mapped = await MapLessonPlansAsync(plans, cancellationToken);
-        return ApiResponse<IReadOnlyList<LessonPlanDto>>.SuccessResponse(mapped);
+        if (fromDate.HasValue) q = q.Where(x => x.LessonDate >= fromDate.Value && x.LessonDate <= toDate!.Value);
+        if (!IsManager())
+        {
+            var teacherId = await GetLinkedTeacherIdAsync(ct);
+            if (!teacherId.HasValue) return Denied<PagedResult<LessonPlanDto>>();
+            q = q.Where(x => x.EmployeeId == teacherId.Value);
+        }
+        var total = await q.CountAsync(ct);
+        var skip = (long)(page - 1) * pageSize;
+        if (skip > int.MaxValue) return Error<PagedResult<LessonPlanDto>>("Requested page is too large.");
+        var list = await q.OrderByDescending(x => x.LessonDate).ThenByDescending(x => x.Id)
+            .Skip((int)skip).Take(pageSize).ToListAsync(ct);
+        return ApiResponse<PagedResult<LessonPlanDto>>.SuccessResponse(new PagedResult<LessonPlanDto>
+        {
+            Page = page, PageSize = pageSize, TotalCount = total,
+            Items = await MapLessonPlansAsync(list, ct)
+        });
     }
 
     public Task<ApiResponse<LessonPlanDto>> CreateLessonPlanAsync(
-        CreateLessonPlanDto request, CancellationToken cancellationToken = default)
+        SaveLessonPlanRequestDto request, CancellationToken ct = default)
     {
         if (!CanRead()) return Task.FromResult(Denied<LessonPlanDto>());
-        var inputError = ValidateLessonInput(request);
-        if (inputError != null) return Task.FromResult(Error<LessonPlanDto>(inputError));
-
+        var err = ValidateLessonInput(request);
+        if (err != null || request!.ClientRequestId == Guid.Empty || request.SubjectOfferingReference == Guid.Empty)
+            return Task.FromResult(Error<LessonPlanDto>(err ?? "Valid request and offering references are required."));
         return ExecuteWriteAsync("create lesson plan", async () =>
         {
-            var tenantId = _currentUser.TenantId;
-            var assignment = await _instructorAssignments.GetQueryable().AsNoTracking()
-                .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.InstructorAssignmentId && x.IsActive, cancellationToken);
-            if (assignment == null) return Error<LessonPlanDto>("Active instructor assignment not found.", 404);
-            if (!await OwnsTeacherAsync(assignment.EmployeeId, cancellationToken))
-                return Error<LessonPlanDto>("Instructor assignment not found.", 404);
-
-            var offering = await _subjectOfferings.GetQueryable().AsNoTracking()
-                .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == assignment.SubjectOfferingId && x.IsActive, cancellationToken);
-            if (offering == null) return Error<LessonPlanDto>("Subject offering is unavailable.", 409);
-
-            var lessonDate = DateOnly.FromDateTime(request.StartDate.Date);
-            var dateError = await ValidateAcademicDateAsync(offering.AcademicYearId, offering.AcademicTermId, lessonDate, lessonDate, cancellationToken);
+            var tenant = _currentUser.TenantId;
+            var offering = await _subjectOfferings.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.PublicId == request.SubjectOfferingReference &&
+                x.IsActive && !x.IsDeleted, ct);
+            if (offering == null) return Error<LessonPlanDto>("Subject offering not found.", 404);
+            var dateError = await ValidateAcademicDateAsync(offering.AcademicYearId, offering.AcademicTermId,
+                request.LessonDate, request.LessonDate, ct);
             if (dateError != null) return Error<LessonPlanDto>(dateError, 409);
-
-            var title = request.ChapterName.Trim();
-            var content = BuildLessonContent(request.Topic, request.Description);
-            var existing = await _lessonPlans.GetQueryable().AsNoTracking()
-                .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.SubjectOfferingId == offering.Id &&
-                                          x.EmployeeId == assignment.EmployeeId && x.LessonDate == lessonDate && x.Title == title, cancellationToken);
+            var assignments = await _instructorAssignments.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenant && x.SubjectOfferingId == offering.Id && x.IsActive &&
+                    x.EffectiveFrom <= request.LessonDate &&
+                    (!x.EffectiveTo.HasValue || x.EffectiveTo >= request.LessonDate))
+                .OrderByDescending(x => x.IsPrimary).Take(100).ToListAsync(ct);
+            var teacherId = await GetLinkedTeacherIdAsync(ct);
+            var assignment = IsManager() ? assignments.FirstOrDefault(x => x.IsPrimary) :
+                assignments.FirstOrDefault(x => x.EmployeeId == teacherId);
+            if (assignment == null)
+                return Error<LessonPlanDto>("No eligible instructor assigned for this date.", 409);
+            var existing = await _lessonPlans.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.SubjectOfferingId == offering.Id &&
+                x.EmployeeId == assignment.EmployeeId && x.LessonDate == request.LessonDate &&
+                x.Title == request.Title.Trim() && !x.IsDeleted, ct);
             if (existing != null)
             {
-                if (SameLesson(existing, request, content))
+                if (SameLesson(existing, request))
                 {
-                    var replay = await MapLessonPlansAsync([existing], cancellationToken);
-                    return ApiResponse<LessonPlanDto>.SuccessResponse(replay[0], "Lesson plan already exists.");
+                    var previous = await MapLessonPlansAsync([existing], ct);
+                    return ApiResponse<LessonPlanDto>.SuccessResponse(previous[0], "Lesson plan already exists.");
                 }
-                return Error<LessonPlanDto>("A lesson plan already uses this instructor, subject, date and title.", 409);
+                return Error<LessonPlanDto>("Lesson plan already exists with different content.", 409);
             }
-
             var now = _clock.GetUtcNow().UtcDateTime;
             var row = new LessonPlan
             {
-                TenantId = tenantId,
-                PublicId = Guid.NewGuid(),
-                SubjectOfferingId = offering.Id,
-                EmployeeId = assignment.EmployeeId,
-                LessonDate = lessonDate,
-                Title = title,
-                Objectives = Trim(request.LearningObjectives),
-                Content = content,
-                Resources = Trim(request.Resources),
-                State = LessonPlanState.Draft,
-                CreatedAt = now,
-                CreatedBy = _currentUser.UserId
+                TenantId = tenant, PublicId = Guid.NewGuid(), SubjectOfferingId = offering.Id,
+                EmployeeId = assignment.EmployeeId, LessonDate = request.LessonDate,
+                Title = request.Title.Trim(), Objectives = Trim(request.Objectives),
+                Content = Trim(request.Content), Resources = Trim(request.Resources),
+                State = LessonPlanState.Draft, CreatedAt = now, CreatedBy = _currentUser.UserId
             };
             await _lessonPlans.AddAsync(row);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            var mapped = await MapLessonPlansAsync([row], cancellationToken);
-            return Created(mapped[0], "Lesson plan created as draft.");
+            await _unitOfWork.SaveChangesAsync(ct);
+            var result = await MapLessonPlansAsync([row], ct);
+            return Created(result[0], "Lesson plan created.");
         });
     }
 
-    public Task<ApiResponse<LessonPlanDto>> UpdateLessonPlanAsync(
-        long id, UpdateLessonPlanDto request, CancellationToken cancellationToken = default)
+    public Task<ApiResponse<LessonPlanDto>> UpdateLessonPlanAsync(long id,
+        SaveLessonPlanRequestDto request, CancellationToken ct = default)
     {
         if (!CanRead()) return Task.FromResult(Denied<LessonPlanDto>());
-        if (id <= 0 || request == null || !TryDecodeRowVersion(request.RowVersion, out var rowVersion))
-            return Task.FromResult(Error<LessonPlanDto>("A valid lesson plan and row version are required."));
-        var inputError = ValidateLessonInput(request);
-        if (inputError != null) return Task.FromResult(Error<LessonPlanDto>(inputError));
-
+        var error = ValidateLessonInput(request);
+        if (id <= 0 || error != null || request == null ||
+            !TryDecodeRowVersion(request.RowVersion, out var version))
+            return Task.FromResult(Error<LessonPlanDto>(error ?? "Lesson plan and row version are required."));
         return ExecuteWriteAsync("update lesson plan", async () =>
         {
-            var row = await _lessonPlans.GetQueryable()
-                .FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.Id == id, cancellationToken);
-            if (row == null || !await OwnsTeacherAsync(row.EmployeeId, cancellationToken))
+            var row = await _lessonPlans.GetQueryable().FirstOrDefaultAsync(x =>
+                x.TenantId == _currentUser.TenantId && x.Id == id && !x.IsDeleted, ct);
+            if (row == null || !await OwnsTeacherAsync(row.EmployeeId, ct))
                 return Error<LessonPlanDto>("Lesson plan not found.", 404);
+            if (!VersionsMatch(row.RowVersion, version)) return Stale<LessonPlanDto>();
             if (row.State is not (LessonPlanState.Draft or LessonPlanState.Rejected))
-                return Error<LessonPlanDto>("Only draft or rejected lesson plans can be edited.", 409);
-            if (!VersionsMatch(row.RowVersion, rowVersion)) return Stale<LessonPlanDto>();
-
-            var offering = await _subjectOfferings.GetQueryable().AsNoTracking()
-                .FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.Id == row.SubjectOfferingId, cancellationToken);
-            if (offering == null) return Error<LessonPlanDto>("Subject offering is unavailable.", 409);
-            var lessonDate = DateOnly.FromDateTime(request.StartDate.Date);
-            var dateError = await ValidateAcademicDateAsync(offering.AcademicYearId, offering.AcademicTermId, lessonDate, lessonDate, cancellationToken);
+                return Error<LessonPlanDto>("Only draft or rejected lesson plans may be edited.", 409);
+            var offering = await _subjectOfferings.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == _currentUser.TenantId && x.Id == row.SubjectOfferingId &&
+                x.PublicId == request.SubjectOfferingReference && x.IsActive, ct);
+            if (offering == null)
+                return Error<LessonPlanDto>("Changing a lesson plan's subject offering is not supported.", 409);
+            var dateError = await ValidateAcademicDateAsync(offering.AcademicYearId, offering.AcademicTermId,
+                request.LessonDate, request.LessonDate, ct);
             if (dateError != null) return Error<LessonPlanDto>(dateError, 409);
-
-            var title = request.ChapterName.Trim();
             if (await _lessonPlans.GetQueryable().AsNoTracking().AnyAsync(x =>
-                    x.TenantId == _currentUser.TenantId && x.Id != row.Id && x.SubjectOfferingId == row.SubjectOfferingId &&
-                    x.EmployeeId == row.EmployeeId && x.LessonDate == lessonDate && x.Title == title, cancellationToken))
-                return Error<LessonPlanDto>("A lesson plan already uses this instructor, subject, date and title.", 409);
-
-            row.LessonDate = lessonDate;
-            row.Title = title;
-            row.Objectives = Trim(request.LearningObjectives);
-            row.Content = BuildLessonContent(request.Topic, request.Description);
-            row.Resources = Trim(request.Resources);
-            row.State = LessonPlanState.Draft;
-            row.ReviewedAt = null;
-            row.ReviewedByUserId = null;
-            row.CompletedAt = null;
-            Touch(row);
-            _lessonPlans.Update(row);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            var mapped = await MapLessonPlansAsync([row], cancellationToken);
-            return ApiResponse<LessonPlanDto>.SuccessResponse(mapped[0], "Lesson plan updated.");
+                x.TenantId == _currentUser.TenantId && x.Id != id &&
+                x.SubjectOfferingId == row.SubjectOfferingId && x.EmployeeId == row.EmployeeId &&
+                x.LessonDate == request.LessonDate && x.Title == request.Title.Trim() && !x.IsDeleted, ct))
+                return Error<LessonPlanDto>("Another lesson plan uses the same title and date.", 409);
+            row.LessonDate = request.LessonDate; row.Title = request.Title.Trim();
+            row.Objectives = Trim(request.Objectives); row.Content = Trim(request.Content);
+            row.Resources = Trim(request.Resources); row.State = LessonPlanState.Draft;
+            row.ReviewedAt = null; row.ReviewedByUserId = null; row.CompletedAt = null;
+            Touch(row); _lessonPlans.Update(row);
+            await _unitOfWork.SaveChangesAsync(ct);
+            return ApiResponse<LessonPlanDto>.SuccessResponse(
+                (await MapLessonPlansAsync([row], ct))[0], "Lesson plan updated.");
         });
     }
 
     public Task<ApiResponse<LessonPlanDto>> SubmitLessonPlanAsync(
-        long id, AcademicRowVersionDto request, CancellationToken cancellationToken = default)
+        long id, string rowVersion, CancellationToken ct = default)
     {
         if (!CanRead()) return Task.FromResult(Denied<LessonPlanDto>());
-        if (id <= 0 || request == null || !TryDecodeRowVersion(request.RowVersion, out var rowVersion))
-            return Task.FromResult(Error<LessonPlanDto>("A valid lesson plan and row version are required."));
-
+        if (id <= 0 || !TryDecodeRowVersion(rowVersion, out var expected))
+            return Task.FromResult(Error<LessonPlanDto>("Lesson plan and row version are required."));
         return ExecuteWriteAsync("submit lesson plan", async () =>
         {
-            var row = await _lessonPlans.GetQueryable()
-                .FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.Id == id, cancellationToken);
-            if (row == null || !await OwnsTeacherAsync(row.EmployeeId, cancellationToken))
+            var row = await _lessonPlans.GetQueryable().FirstOrDefaultAsync(x =>
+                x.TenantId == _currentUser.TenantId && x.Id == id && !x.IsDeleted, ct);
+            if (row == null || !await OwnsTeacherAsync(row.EmployeeId, ct))
                 return Error<LessonPlanDto>("Lesson plan not found.", 404);
-            if (row.State == LessonPlanState.Submitted)
-            {
-                var current = await MapLessonPlansAsync([row], cancellationToken);
-                return ApiResponse<LessonPlanDto>.SuccessResponse(current[0], "Lesson plan is already submitted.");
-            }
+            if (!VersionsMatch(row.RowVersion, expected)) return Stale<LessonPlanDto>();
             if (row.State is not (LessonPlanState.Draft or LessonPlanState.Rejected))
-                return Error<LessonPlanDto>("Lesson plan cannot be submitted from its current status.", 409);
-            if (!VersionsMatch(row.RowVersion, rowVersion)) return Stale<LessonPlanDto>();
-
-            row.State = LessonPlanState.Submitted;
-            row.ReviewedAt = null;
-            row.ReviewedByUserId = null;
-            Touch(row);
-            _lessonPlans.Update(row);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            var mapped = await MapLessonPlansAsync([row], cancellationToken);
-            return ApiResponse<LessonPlanDto>.SuccessResponse(mapped[0], "Lesson plan submitted for review.");
+                return Error<LessonPlanDto>("Only draft or rejected plans can be submitted.", 409);
+            row.State = LessonPlanState.Submitted; row.ReviewedAt = null; row.ReviewedByUserId = null;
+            Touch(row); _lessonPlans.Update(row);
+            await _unitOfWork.SaveChangesAsync(ct);
+            return ApiResponse<LessonPlanDto>.SuccessResponse(
+                (await MapLessonPlansAsync([row], ct))[0], "Lesson plan submitted.");
         });
     }
 
     public Task<ApiResponse<LessonPlanDto>> ReviewLessonPlanAsync(
-        long id, LessonPlanReviewDto request, CancellationToken cancellationToken = default)
+        long id, ReviewLessonPlanRequestDto request, CancellationToken ct = default)
     {
         if (!CanManage()) return Task.FromResult(Denied<LessonPlanDto>());
-        if (id <= 0 || request == null || (!request.Approve && string.IsNullOrWhiteSpace(request.Remarks)) ||
-            TooLong(request.Remarks, 1000) || !TryDecodeRowVersion(request.RowVersion, out var rowVersion))
-            return Task.FromResult(Error<LessonPlanDto>("A valid decision, row version and rejection reason are required."));
-
+        if (id <= 0 || request == null || (!request.Approve && string.IsNullOrWhiteSpace(request.Note)) ||
+            TooLong(request.Note, 1000) || !TryDecodeRowVersion(request.RowVersion, out var version))
+            return Task.FromResult(Error<LessonPlanDto>("A decision, row version and rejection note are required."));
         return ExecuteWriteAsync("review lesson plan", async () =>
         {
-            var row = await _lessonPlans.GetQueryable()
-                .FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.Id == id, cancellationToken);
+            var row = await _lessonPlans.GetQueryable().FirstOrDefaultAsync(x =>
+                x.TenantId == _currentUser.TenantId && x.Id == id && !x.IsDeleted, ct);
             if (row == null) return Error<LessonPlanDto>("Lesson plan not found.", 404);
-            var target = request.Approve ? LessonPlanState.Approved : LessonPlanState.Rejected;
-            if (row.State == target)
-            {
-                var current = await MapLessonPlansAsync([row], cancellationToken);
-                return ApiResponse<LessonPlanDto>.SuccessResponse(current[0], $"Lesson plan is already {target.ToString().ToLowerInvariant()}.");
-            }
+            if (!VersionsMatch(row.RowVersion, version)) return Stale<LessonPlanDto>();
             if (row.State != LessonPlanState.Submitted)
                 return Error<LessonPlanDto>("Only submitted lesson plans can be reviewed.", 409);
-            if (!VersionsMatch(row.RowVersion, rowVersion)) return Stale<LessonPlanDto>();
-
-            row.State = target;
+            row.State = request.Approve ? LessonPlanState.Approved : LessonPlanState.Rejected;
             row.ReviewedAt = _clock.GetUtcNow().UtcDateTime;
             row.ReviewedByUserId = _currentUser.UserId;
-            Touch(row);
-            _lessonPlans.Update(row);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            var mapped = await MapLessonPlansAsync([row], cancellationToken);
-            return ApiResponse<LessonPlanDto>.SuccessResponse(mapped[0], request.Approve ? "Lesson plan approved." : "Lesson plan rejected.");
-        });
-    }
-
-    public Task<ApiResponse<LessonPlanDto>> RecordLessonProgressAsync(
-        long id, LessonPlanProgressDto request, CancellationToken cancellationToken = default)
-    {
-        if (!CanRead()) return Task.FromResult(Denied<LessonPlanDto>());
-        if (id <= 0 || request == null || request.ProgressPercent is < 0 or > 100 ||
-            TooLong(request.Notes, 2000) || !TryDecodeRowVersion(request.RowVersion, out var rowVersion))
-            return Task.FromResult(Error<LessonPlanDto>("A valid progress percentage and row version are required."));
-
-        return ExecuteWriteAsync("record lesson progress", async () =>
-        {
-            var row = await _lessonPlans.GetQueryable()
-                .FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.Id == id, cancellationToken);
-            if (row == null || !await OwnsTeacherAsync(row.EmployeeId, cancellationToken))
-                return Error<LessonPlanDto>("Lesson plan not found.", 404);
-            if (row.State == LessonPlanState.Completed && request.ProgressPercent == 100)
-            {
-                var current = await MapLessonPlansAsync([row], cancellationToken);
-                return ApiResponse<LessonPlanDto>.SuccessResponse(current[0], "Lesson plan is already complete.");
-            }
-            if (row.State is not (LessonPlanState.Approved or LessonPlanState.InProgress))
-                return Error<LessonPlanDto>("Only approved or in-progress lesson plans can record progress.", 409);
-            if (!VersionsMatch(row.RowVersion, rowVersion)) return Stale<LessonPlanDto>();
-
-            row.State = request.ProgressPercent == 100 ? LessonPlanState.Completed :
-                        request.ProgressPercent > 0 ? LessonPlanState.InProgress : LessonPlanState.Approved;
-            row.CompletedAt = request.ProgressPercent == 100 ? _clock.GetUtcNow().UtcDateTime : null;
-            Touch(row);
-            _lessonPlans.Update(row);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            var mapped = await MapLessonPlansAsync([row], cancellationToken);
-            return ApiResponse<LessonPlanDto>.SuccessResponse(mapped[0], request.ProgressPercent == 100 ? "Lesson plan completed." : "Lesson progress updated.");
+            Touch(row); _lessonPlans.Update(row);
+            await _unitOfWork.SaveChangesAsync(ct);
+            return ApiResponse<LessonPlanDto>.SuccessResponse(
+                (await MapLessonPlansAsync([row], ct))[0], request.Approve ? "Lesson plan approved." : "Lesson plan rejected.");
         });
     }
 
@@ -643,39 +552,18 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
                         x.State == EmployeeState.Active && x.CanTeach)
             .Select(x => (long?)x.Id).FirstOrDefaultAsync(cancellationToken);
 
-    private Task<ApiResponse<T>> ExecuteWriteAsync<T>(string operation, Func<Task<ApiResponse<T>>> action) =>
-        ExecuteAsync(operation, action);
-
-    private async Task<ApiResponse<T>> ExecuteAsync<T>(string operation, Func<Task<ApiResponse<T>>> action)
+    private async Task<ApiResponse<T>> ExecuteWriteAsync<T>(string operation, Func<Task<ApiResponse<T>>> action)
     {
-        try
-        {
-            var strategy = _unitOfWork.CreateExecutionStrategy();
-            return await strategy.ExecuteAsync(async () =>
-            {
-                using var scope = new TransactionScope(
-                    TransactionScopeOption.Required,
-                    new TransactionOptions { IsolationLevel = IsolationLevel.Serializable },
-                    TransactionScopeAsyncFlowOption.Enabled);
-                var response = await action();
-                if (response.Success) scope.Complete();
-                return response;
-            });
-        }
+        try { return await _unitOfWork.ExecuteInTransactionAsync(_ => action()); }
         catch (DbUpdateConcurrencyException ex)
         {
-            _logger.LogWarning(ex, "Stale academic instruction write during {Operation} for tenant {TenantId}", operation, _currentUser.TenantId);
+            _logger.LogWarning(ex, "Concurrent academic instruction update {Operation} tenant {TenantId}", operation, _currentUser.TenantId);
             return Stale<T>();
         }
         catch (DbUpdateException ex)
         {
-            _logger.LogWarning(ex, "Conflicting academic instruction write during {Operation} for tenant {TenantId}", operation, _currentUser.TenantId);
-            return Error<T>("Academic instruction data conflicts with another update. Reload and try again.", 409);
-        }
-        catch (TransactionAbortedException ex)
-        {
-            _logger.LogWarning(ex, "Serialized academic instruction write aborted during {Operation} for tenant {TenantId}", operation, _currentUser.TenantId);
-            return Error<T>("Academic instruction data conflicts with another update. Reload and try again.", 409);
+            _logger.LogWarning(ex, "Academic instruction update conflict {Operation} tenant {TenantId}", operation, _currentUser.TenantId);
+            return Error<T>("Academic instruction conflicts with another update.", 409);
         }
     }
 
@@ -685,81 +573,33 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
         row.UpdatedBy = _currentUser.UserId;
     }
 
-    private static string? ValidateLessonInput(CreateLessonPlanDto? request)
+    private static string? ValidateLessonInput(SaveLessonPlanRequestDto? request)
     {
-        if (request == null || request.ClientRequestId == Guid.Empty || request.InstructorAssignmentId <= 0)
-            return "Request ID and instructor assignment are required.";
-        return ValidateLessonInput(request.ChapterName, request.StartDate, request.EndDate, request.Topic, request.Description, request.LearningObjectives, request.Resources);
-    }
-
-    private static string? ValidateLessonInput(UpdateLessonPlanDto? request)
-    {
-        if (request == null) return "Lesson plan is required.";
-        return ValidateLessonInput(request.ChapterName, request.StartDate, request.EndDate, request.Topic, request.Description, request.LearningObjectives, request.Resources);
-    }
-
-    private static string? ValidateLessonInput(
-        string? chapter, DateTime start, DateTime end, string? topic, string? description, string? objectives, string? resources)
-    {
-        if (string.IsNullOrWhiteSpace(chapter) || chapter.Trim().Length > 250)
-            return "Chapter name is required and cannot exceed 250 characters.";
-        if (start == default || end == default || start.Date != end.Date)
-            return "The final lesson-plan model stores one lesson date per plan; start and end date must be the same day.";
-        if (TooLong(topic, 500) || TooLong(description, 3000) || TooLong(objectives, 4000) || TooLong(resources, 2000))
-            return "Lesson-plan content exceeds its allowed length.";
-        if ((BuildLessonContent(topic, description)?.Length ?? 0) > 4000)
-            return "Combined topic and description cannot exceed 4000 characters.";
+        if (request == null || request.LessonDate == default ||
+            string.IsNullOrWhiteSpace(request.Title) || request.Title.Trim().Length > 250 ||
+            TooLong(request.Objectives, 4000) || TooLong(request.Content, 4000) ||
+            TooLong(request.Resources, 2000))
+            return "Lesson date, title or content is invalid.";
         return null;
     }
 
-    private static string? BuildLessonContent(string? topic, string? description)
-    {
-        var cleanTopic = Trim(topic);
-        var cleanDescription = Trim(description);
-        if (cleanTopic == null) return cleanDescription;
-        if (cleanDescription == null) return $"Topic: {cleanTopic}";
-        return $"Topic: {cleanTopic}\n\n{cleanDescription}";
-    }
-
-    private static bool SameLesson(LessonPlan row, CreateLessonPlanDto request, string? content) =>
-        row.Title == request.ChapterName.Trim() &&
-        row.LessonDate == DateOnly.FromDateTime(request.StartDate.Date) &&
-        row.Objectives == Trim(request.LearningObjectives) &&
-        row.Content == content &&
+    private static bool SameLesson(LessonPlan row, SaveLessonPlanRequestDto request) =>
+        row.LessonDate == request.LessonDate && row.Title == request.Title.Trim() &&
+        row.Objectives == Trim(request.Objectives) && row.Content == Trim(request.Content) &&
         row.Resources == Trim(request.Resources);
 
-    private static (bool Success, DateTime From, DateTime To, string? Error) NormalizeRange(DateTime from, DateTime to, int maxDays)
-    {
-        var start = from.Date;
-        var end = to.Date;
-        if (from == default || to == default || end < start) return (false, start, end, "Date range is invalid.");
-        if ((end - start).TotalDays >= maxDays) return (false, start, end, $"Date range cannot exceed {maxDays} days.");
-        return (true, start, end, null);
-    }
 
-    private static RoutineSubstitutionDto MapSubstitution(Substitution row, RoutineContext info) => new()
+
+    private static SubstitutionDto MapSubstitution(Substitution row, string? employeeName) => new()
     {
-        Id = row.Id,
-        Date = row.Date.ToDateTime(TimeOnly.MinValue),
-        RoutineEntryId = row.RoutineEntryId,
-        AcademicBatchId = info.BatchId,
-        BatchName = info.BatchName,
-        SubjectId = info.SubjectId,
-        SubjectName = info.SubjectName,
-        OriginalTeacherId = info.OriginalEmployeeId,
-        OriginalTeacherName = info.OriginalEmployeeName,
-        SubstituteTeacherId = row.SubstituteEmployeeId,
-        SubstituteTeacherName = string.Empty,
-        RoutineTimeSlotId = info.SlotId,
-        TimeSlotName = info.SlotName,
-        StartTime = info.StartTime.ToTimeSpan(),
-        EndTime = info.EndTime.ToTimeSpan(),
-        Reason = row.Reason,
-        IsActive = !row.IsCancelled,
-        CancelledAt = row.IsCancelled ? row.UpdatedAt : null,
-        CancellationReason = null,
+        Id = row.Id, RoutineEntryId = row.RoutineEntryId, Date = row.Date,
+        SubstituteEmployeeId = row.SubstituteEmployeeId,
+        SubstituteEmployeeName = employeeName ?? string.Empty,
+        Reason = row.Reason, IsCancelled = row.IsCancelled,
         RowVersion = Convert.ToBase64String(row.RowVersion)
     };
+
+
 
     private bool CanRead() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0 &&
         (IsManager() || _currentUser.IsInRole("Teacher"));
