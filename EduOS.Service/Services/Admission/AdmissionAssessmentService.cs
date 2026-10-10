@@ -240,6 +240,11 @@ public sealed class AdmissionAssessmentService : IAdmissionAssessmentService
                 row.UpdatedAt = now;
                 row.UpdatedBy = _currentUser.UserId;
             }
+            // Touch the assessment's concurrency token in the same SaveChanges transaction.
+            // A concurrent merit publication or marks writer must not silently overwrite marks.
+            test.UpdatedAt = now;
+            test.UpdatedBy = _currentUser.UserId;
+            _tests.Update(test);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             var rows = await LoadResultsAsync(testId, tenant, cancellationToken);
             return ApiResponse<IReadOnlyList<AdmissionResultDto>>.SuccessResponse(rows, "Marks saved.");
