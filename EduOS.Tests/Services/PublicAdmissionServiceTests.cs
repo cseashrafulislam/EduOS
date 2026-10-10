@@ -256,10 +256,12 @@ public sealed class PublicAdmissionServiceTests
             };
             f.Db.Add(f.Form);
             await f.Db.SaveChangesAsync();
-            (await f.Db.Tenants.IgnoreQueryFilters().AnyAsync(x =>
-                x.Id == f.Tenant.Id && x.State == TenantState.Active &&
-                x.OnboardingStage == OnboardingStage.Completed &&
-                x.OnboardingCompletedAt.HasValue)).Should().BeTrue("fixture tenant must be public-ready");
+            (await f.Db.Tenants.IgnoreQueryFilters().AsNoTracking().AnyAsync(x =>
+                x.Id == f.Tenant.Id && x.Code == tenantCode && !x.IsDeleted &&
+                x.State == TenantState.Active && x.OnboardingStage == OnboardingStage.Completed &&
+                x.OnboardingCompletedAt != null &&
+                (x.Code == tenantCode || x.Subdomain == tenantCode)))
+                .Should().BeTrue("service tenant resolution must recognize the published institution");
             (await f.Db.TenantSubscriptions.AnyAsync(x =>
                 x.TenantId == f.Tenant.Id && x.State == SubscriptionState.Active &&
                 x.StartsAt <= Now.UtcDateTime && x.EndsAt > Now.UtcDateTime))
@@ -269,6 +271,11 @@ public sealed class PublicAdmissionServiceTests
                 where selected.TenantId == f.Tenant.Id && selected.IsEnabled &&
                     product.IsActive && product.Code == "ADMISSION"
                 select selected.Id).AnyAsync()).Should().BeTrue("admission module must be enabled");
+            (await f.Db.TenantSubscriptions.AsNoTracking().AnyAsync(x =>
+                x.TenantId == f.Tenant.Id && x.StartsAt <= Now.UtcDateTime &&
+                x.EndsAt > Now.UtcDateTime && (x.State == SubscriptionState.Active ||
+                    x.State == SubscriptionState.Trial || x.State == SubscriptionState.Grace)))
+                .Should().BeTrue("service subscription predicate must be satisfied");
             f.Service = new PublicAdmissionService(
                 new GenericRepository<Tenant>(f.Db),
                 new GenericRepository<TenantModule>(f.Db),
