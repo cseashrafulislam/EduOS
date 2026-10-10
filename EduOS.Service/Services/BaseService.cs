@@ -141,43 +141,16 @@ namespace EduOS.Service.Services
         // ============================================================
         #region Transactions
 
-        protected Task BeginTransactionAsync() => _unitOfWork.BeginTransactionAsync();
-        protected Task CommitTransactionAsync() => _unitOfWork.CommitTransactionAsync();
-        protected Task RollbackTransactionAsync() => _unitOfWork.RollbackTransactionAsync();
+        /// <summary>Executes the operation atomically through Persistence-owned transaction and retry policy.</summary>
+        protected Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation) =>
+            _unitOfWork.ExecuteInTransactionAsync(_ => operation());
 
-        /// <summary>
-        /// Helper to wrap an operation in a transaction with auto rollback on error.
-        /// </summary>
-        protected async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation)
-        {
-            await BeginTransactionAsync();
-            try
-            {
-                var result = await operation();
-                await CommitTransactionAsync();
-                return result;
-            }
-            catch
-            {
-                await RollbackTransactionAsync();
-                throw;
-            }
-        }
-
-        protected async Task ExecuteInTransactionAsync(Func<Task> operation)
-        {
-            await BeginTransactionAsync();
-            try
+        protected Task ExecuteInTransactionAsync(Func<Task> operation) =>
+            _unitOfWork.ExecuteInTransactionAsync(async _ =>
             {
                 await operation();
-                await CommitTransactionAsync();
-            }
-            catch
-            {
-                await RollbackTransactionAsync();
-                throw;
-            }
-        }
+                return true;
+            });
 
         #endregion
 
