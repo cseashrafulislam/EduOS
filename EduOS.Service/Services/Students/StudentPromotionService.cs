@@ -121,7 +121,7 @@ public sealed class StudentPromotionService : IStudentPromotionService
                 return Error("Campus changes require a transfer workflow.", 409);
             var effectiveDate = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
             var curricula = await _curricula.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
-                x.State == EnrollmentState.Active && x.IsCurrent && !x.IsDeleted && x.AcademicProgramId == batch.AcademicProgramId &&
+                x.IsActive && x.IsCurrent && !x.IsDeleted && x.AcademicProgramId == batch.AcademicProgramId &&
                 x.AcademicTrackId == batch.AcademicTrackId && x.MediumId == batch.MediumId &&
                 x.EffectiveFrom <= effectiveDate && (!x.EffectiveTo.HasValue || x.EffectiveTo >= effectiveDate))
                 .Take(2).Select(x => x.Id).ToArrayAsync(ct);
