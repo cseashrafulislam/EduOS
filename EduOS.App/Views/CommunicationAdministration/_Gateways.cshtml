@@ -1,0 +1,15 @@
+<section class="content-card mt-3" aria-labelledby="gatewayTitle">
+    <h3 id="gatewayTitle" class="h5">Provider settings</h3>
+    <p class="small text-muted">Credentials are protected and never displayed after saving. Leave the field blank to retain an existing value. Delivery workers are configured separately.</p>
+    <form id="gatewayForm" class="row g-3">
+        <input id="gatewayId" type="hidden" /><input id="gatewayVersion" type="hidden" />
+        <div class="col-md-5"><label for="gatewayCode" class="form-label">Provider code</label><input id="gatewayCode" class="form-control" maxlength="100" required /></div>
+        <div class="col-md-3"><label for="gatewayChannel" class="form-label">Channel</label><select id="gatewayChannel" class="form-select"><option value="1">In-app</option><option value="2">Email</option><option value="3">SMS</option><option value="4">Push</option></select></div>
+        <div class="col-md-4"><label for="gatewayActive" class="form-label">Status</label><select id="gatewayActive" class="form-select"><option value="true">Active</option><option value="false">Inactive</option></select></div>
+        <div class="col-md-6"><label for="gatewayEndpoint" class="form-label">HTTPS endpoint (optional)</label><input id="gatewayEndpoint" class="form-control" type="url" maxlength="1000" /></div>
+        <div class="col-md-6"><label for="gatewayCredential" class="form-label">New credential (optional)</label><input id="gatewayCredential" class="form-control" type="password" autocomplete="new-password" maxlength="4000" /></div>
+        <div class="col-12"><label class="me-4"><input id="gatewayDefault" type="checkbox" /> Default for channel</label><label><input id="gatewayClear" type="checkbox" /> Clear saved credential</label></div>
+        <div class="col-12 d-flex gap-2"><button type="submit" class="btn btn-primary">Save provider</button><button type="button" class="btn btn-outline-secondary" data-clear="gateway">New</button></div>
+    </form>
+    <div class="table-responsive mt-3"><table class="table table-hover"><thead><tr><th>Provider</th><th>Channel</th><th>Default</th><th>Credential</th><th>Status</th><th>Action</th></tr></thead><tbody id="gatewayRows"></tbody></table></div>
+</section>

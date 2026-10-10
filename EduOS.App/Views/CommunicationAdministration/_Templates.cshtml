@@ -1,0 +1,15 @@
+<section class="content-card mt-3" aria-labelledby="templateTitle">
+    <h3 id="templateTitle" class="h5">Message templates</h3>
+    <form id="templateForm" class="row g-3">
+        <input id="templateId" type="hidden" /><input id="templateVersion" type="hidden" />
+        <div class="col-md-4"><label for="templateCode" class="form-label">Code</label><input id="templateCode" class="form-control" maxlength="100" required /></div>
+        <div class="col-md-5"><label for="templateName" class="form-label">Name</label><input id="templateName" class="form-control" maxlength="200" required /></div>
+        <div class="col-md-3"><label for="templateChannel" class="form-label">Channel</label><select id="templateChannel" class="form-select"><option value="1">In-app</option><option value="2">Email</option><option value="3">SMS</option><option value="4">Push</option></select></div>
+        <div class="col-md-9"><label for="templateSubject" class="form-label">Subject (optional)</label><input id="templateSubject" class="form-control" maxlength="250" /></div>
+        <div class="col-md-3"><label for="templateActive" class="form-label">Status</label><select id="templateActive" class="form-select"><option value="true">Active</option><option value="false">Inactive</option></select></div>
+        <div class="col-12"><label for="templateBody" class="form-label">Body</label><textarea id="templateBody" class="form-control" rows="4" maxlength="10000" required></textarea></div>
+        <div class="col-12 d-flex gap-2"><button type="submit" class="btn btn-primary">Save template</button><button type="button" class="btn btn-outline-secondary" data-clear="template">New</button></div>
+    </form>
+    <div class="table-responsive mt-3"><table class="table table-hover"><thead><tr><th>Code</th><th>Name</th><th>Channel</th><th>Status</th><th>Action</th></tr></thead><tbody id="templateRows"></tbody></table></div>
+    <nav class="d-flex gap-2 align-items-center" aria-label="Template pages"><button id="templatePrev" class="btn btn-outline-secondary btn-sm" type="button">Previous</button><span id="templatePage">Page 1</span><button id="templateNext" class="btn btn-outline-secondary btn-sm" type="button">Next</button></nav>
+</section>

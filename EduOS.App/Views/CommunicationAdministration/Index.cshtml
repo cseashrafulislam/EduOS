@@ -1,0 +1,15 @@
+@{ ViewData["Title"] = "Communication Administration"; }
+<section class="admission-page" aria-labelledby="communicationTitle">
+    <header class="content-header-card">
+        <p class="dashboard-eyebrow">Platform configuration</p>
+        <h2 id="communicationTitle">Communication administration</h2>
+        <p>Manage tenant notice categories, message templates and provider settings.</p>
+    </header>
+    <div id="communicationAlert" class="d-none" role="alert" tabindex="-1"></div>
+    <partial name="_Categories" />
+    <partial name="_Templates" />
+    <partial name="_Gateways" />
+</section>
+@section Scripts {
+    <script src="~/js/communication/admin.js" asp-append-version="true"></script>
+}
