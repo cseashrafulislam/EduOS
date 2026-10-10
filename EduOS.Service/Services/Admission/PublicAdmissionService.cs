@@ -73,10 +73,9 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
     public async Task<ApiResponse<IReadOnlyList<PublicAdmissionIntakeFormDto>>> GetFormsAsync(string tenantKey,
         CancellationToken ct = default)
     {
-        var tenant = await ResolveTenantAsync(tenantKey, ct);
-        if (tenant == null || !await CanPublishAsync(tenant.Id, ct))
+        var tenant = await ResolveVisibleTenantAsync(tenantKey, ct);
+        if (tenant == null)
             return Error<IReadOnlyList<PublicAdmissionIntakeFormDto>>("Admission portal is unavailable.", 404);
-        SetTenantContext(tenant.Id);
         var now = _clock.GetUtcNow().UtcDateTime;
         var forms = await _forms.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant.Id &&
             x.State == AdmissionFormState.Published &&
@@ -91,10 +90,9 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
     public async Task<ApiResponse<PublicAdmissionIntakeFormDto>> GetFormAsync(string tenantKey,
         Guid formReference, CancellationToken ct = default)
     {
-        var tenant = await ResolveTenantAsync(tenantKey, ct);
-        if (tenant == null || formReference == Guid.Empty || !await CanPublishAsync(tenant.Id, ct))
+        var tenant = await ResolveVisibleTenantAsync(tenantKey, ct);
+        if (tenant == null || formReference == Guid.Empty)
             return Error<PublicAdmissionIntakeFormDto>("Admission form is unavailable.", 404);
-        SetTenantContext(tenant.Id);
         var form = await FindOpenFormAsync(tenant.Id, formReference, ct);
         if (form == null) return Error<PublicAdmissionIntakeFormDto>("Admission form is unavailable.", 404);
         var fields = await FieldsAsync(tenant.Id, new[] { form.Id }, ct);
@@ -103,10 +101,9 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
 
     public async Task<ApiResponse<AdmissionApplicationOptionsDto>> GetOptionsAsync(string tenantKey, CancellationToken ct = default)
     {
-        var tenant = await ResolveTenantAsync(tenantKey, ct);
-        if (tenant == null || !await CanPublishAsync(tenant.Id, ct))
+        var tenant = await ResolveVisibleTenantAsync(tenantKey, ct);
+        if (tenant == null)
             return Error<AdmissionApplicationOptionsDto>("Admission portal is unavailable.", 404);
-        SetTenantContext(tenant.Id);
         var t = tenant.Id;
         var years = await _years.GetQueryable().AsNoTracking().Where(x => x.TenantId == t && x.IsActive)
             .OrderByDescending(x => x.StartDate).Take(100)
@@ -132,10 +129,9 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
     public async Task<ApiResponse<AdmissionApplicationCreatedDto>> CreateAsync(string tenantKey,
         CreateAdmissionApplicationDto request, CancellationToken ct = default)
     {
-        var tenant = await ResolveTenantAsync(tenantKey, ct);
-        if (tenant == null || !await CanPublishAsync(tenant.Id, ct))
+        var tenant = await ResolveVisibleTenantAsync(tenantKey, ct);
+        if (tenant == null)
             return Error<AdmissionApplicationCreatedDto>("Admission portal is unavailable.", 404);
-        SetTenantContext(tenant.Id);
         if (request == null || request.ClientRequestId == Guid.Empty || request.AdmissionFormReference is null ||
             string.IsNullOrWhiteSpace(request.ApplicantName) || request.ApplicantName.Trim().Length is < 2 or > 200 ||
             !TryNormalizeMobile(request.PrimaryMobile, out var phone) ||
@@ -279,10 +275,9 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
     public async Task<ApiResponse<AdmissionApplicantDocumentDto>> UploadDocumentAsync(string tenantKey,
         Guid reference, AdmissionDocumentUploadDto request, CancellationToken ct = default)
     {
-        var tenant = await ResolveTenantAsync(tenantKey, ct);
-        if (tenant == null || !await CanPublishAsync(tenant.Id, ct))
+        var tenant = await ResolveVisibleTenantAsync(tenantKey, ct);
+        if (tenant == null)
             return Error<AdmissionApplicantDocumentDto>("Admission portal is unavailable.", 404);
-        SetTenantContext(tenant.Id);
         if (reference == Guid.Empty || request?.ClientRequestId == Guid.Empty || request?.File == null ||
             !TryNormalizeMobile(request.Mobile, out var mobile))
             return Error<AdmissionApplicantDocumentDto>("Document request is invalid.");
@@ -392,11 +387,9 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
     public async Task<ApiResponse<PublicAdmissionStatusDto>> GetStatusAsync(string tenantKey,
         Guid reference, string mobile, CancellationToken ct = default)
     {
-        var tenant = await ResolveTenantAsync(tenantKey, ct);
-        if (tenant == null || reference == Guid.Empty || !TryNormalizeMobile(mobile, out var phone) ||
-            !await CanPublishAsync(tenant.Id, ct))
+        var tenant = await ResolveVisibleTenantAsync(tenantKey, ct);
+        if (tenant == null || reference == Guid.Empty || !TryNormalizeMobile(mobile, out var phone))
             return Error<PublicAdmissionStatusDto>("Application could not be verified.", 404);
-        SetTenantContext(tenant.Id);
         var a = await _applicants.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == tenant.Id && x.PublicId == reference && x.Phone == phone, ct);
         if (a == null) return Error<PublicAdmissionStatusDto>("Application could not be verified.", 404);
@@ -427,6 +420,16 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
             DecisionNote = a.State == AdmissionApplicantState.Rejected ? note : null,
             Assessment = assessment, Documents = docs.Select(MapDocument).ToList()
         });
+    }
+
+    private async Task<Tenant?> ResolveVisibleTenantAsync(string tenantKey, CancellationToken ct)
+    {
+        var tenant = await ResolveTenantAsync(tenantKey, ct);
+        if (tenant == null) return null;
+        // Public endpoints establish a validated tenant scope before querying tenant-filtered
+        // subscriptions/modules. Never take TenantId directly from client-supplied input.
+        SetTenantContext(tenant.Id);
+        return await CanPublishAsync(tenant.Id, ct) ? tenant : null;
     }
 
     private async Task<Tenant?> ResolveTenantAsync(string tenantKey, CancellationToken ct)
