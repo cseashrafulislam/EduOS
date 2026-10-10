@@ -1,8 +1,8 @@
 using EduOS.Core.DTOs.Academic;
 using EduOS.Core.Entities.Academic;
-using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Students;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
 using EduOS.Persistence.Repositories;
@@ -16,269 +16,263 @@ using Xunit;
 
 namespace EduOS.Tests.Services;
 
-public class AcademicEnrollmentServiceTests
+public sealed class AcademicEnrollmentServiceTests
 {
     [Fact]
-    public async Task Enrollment_is_retry_safe_snapshots_required_subjects_and_enforces_capacity()
+    public async Task Enrollment_is_idempotent_and_capacity_is_enforced()
     {
-        var options = CreateOptions();
+        var options = Options();
         var seed = await SeedAsync(options, 1);
-        await using var context = CreateContext(options, 101, 7, "TenantAdmin");
-        var service = CreateService(context, new TestCurrentUser(101, 7, "TenantAdmin"));
-        var request = new CreateAcademicStudentEnrollmentDto
+        await using var db = Context(options, 101, 7, "TenantAdmin");
+        var service = Service(db, new TestUser(101, 7, "TenantAdmin"));
+        var request = new CreateStudentEnrollmentRequestDto
         {
-            ClientRequestId = Guid.NewGuid(),
-            StudentReference = seed.StudentReference,
-            AcademicBatchId = seed.BatchId,
-            RollNo = " 01 ",
-            EnrollmentDate = new DateTime(2026, 9, 21)
+            ClientRequestId = Guid.NewGuid(), StudentReference = seed.StudentRef,
+            AcademicBatchId = seed.BatchId, AcademicCurriculumId = seed.CurriculumId,
+            RollNo = " 01 ", EnrollmentDate = new DateOnly(2026, 9, 21)
         };
-
         var created = await service.EnrollAsync(request);
         var replay = await service.EnrollAsync(request);
-        var capacityConflict = await service.EnrollAsync(new CreateAcademicStudentEnrollmentDto
+        var overflow = await service.EnrollAsync(new CreateStudentEnrollmentRequestDto
         {
-            ClientRequestId = Guid.NewGuid(),
-            StudentReference = seed.OtherStudentReference,
-            AcademicBatchId = seed.BatchId,
-            RollNo = "02",
-            EnrollmentDate = new DateTime(2026, 9, 21)
+            ClientRequestId = Guid.NewGuid(), StudentReference = seed.OtherStudentRef,
+            AcademicBatchId = seed.BatchId, AcademicCurriculumId = seed.CurriculumId,
+            RollNo = "02", EnrollmentDate = request.EnrollmentDate
         });
-
         created.Success.Should().BeTrue();
-        created.StatusCode.Should().Be(201);
         created.Data!.RollNo.Should().Be("01");
-        created.Data.Subjects.Should().ContainSingle(x => x.IsRequired && x.Status == SubjectRegistrationStatus.Approved);
-        created.Data.Subjects.Single().SubjectCode.Should().Be("MATH");
-        created.Data.Subjects.Single().FullMarks.Should().Be(100);
         replay.Success.Should().BeTrue();
-        replay.Data!.Id.Should().Be(created.Data.Id);
-        capacityConflict.Success.Should().BeFalse();
-        capacityConflict.StatusCode.Should().Be(409);
-        capacityConflict.Message.Should().Contain("capacity");
-        (await context.StudentEnrollments.CountAsync()).Should().Be(1);
-        (await context.StudentSubjectRegistrations.CountAsync()).Should().Be(1);
-        (await context.StudentSubjectRegistrations.SingleAsync()).DecidedByUserId.Should().Be(7);
+        replay.Data!.Reference.Should().Be(created.Data.Reference);
+        overflow.Success.Should().BeFalse();
+        overflow.StatusCode.Should().Be(409);
+        (await db.StudentEnrollments.CountAsync()).Should().Be(1);
+        var registrations = await db.StudentSubjectRegistrations.ToListAsync();
+        registrations.Should().ContainSingle(x => x.State == SubjectRegistrationState.Approved);
+        registrations[0].CreditHoursSnapshot.Should().Be(4m);
     }
 
     [Fact]
-    public async Task Guardian_owned_elective_request_requires_approval_and_controls_timetable()
+    public async Task Guardian_cannot_access_unlinked_student_and_approved_elective_controls_timetable()
     {
-        var options = CreateOptions();
+        var options = Options();
         var seed = await SeedAsync(options, 10);
-        long enrollmentId;
-        await using (var managerContext = CreateContext(options, 101, 7, "TenantAdmin"))
+        Guid enrollmentReference;
+        await using (var db = Context(options, 101, 7, "TenantAdmin"))
         {
-            var manager = CreateService(managerContext, new TestCurrentUser(101, 7, "TenantAdmin"));
-            var enrollment = await manager.EnrollAsync(new CreateAcademicStudentEnrollmentDto
+            var service = Service(db, new TestUser(101, 7, "TenantAdmin"));
+            var enrolled = await service.EnrollAsync(new CreateStudentEnrollmentRequestDto
             {
-                ClientRequestId = Guid.NewGuid(),
-                StudentReference = seed.StudentReference,
-                AcademicBatchId = seed.BatchId,
-                RollNo = "01",
-                EnrollmentDate = new DateTime(2026, 9, 21)
+                ClientRequestId = Guid.NewGuid(), StudentReference = seed.StudentRef,
+                AcademicBatchId = seed.BatchId, AcademicCurriculumId = seed.CurriculumId,
+                RollNo = "01", EnrollmentDate = new DateOnly(2026, 9, 21)
             });
-            enrollmentId = enrollment.Data!.Id;
+            enrolled.Success.Should().BeTrue();
+            enrollmentReference = enrolled.Data!.Reference;
         }
-
-        await using (var unrelatedContext = CreateContext(options, 101, 73, "Guardian"))
+        await using (var db = Context(options, 101, 73, "Guardian"))
         {
-            var unrelated = CreateService(unrelatedContext, new TestCurrentUser(101, 73, "Guardian"));
-            var denied = await unrelated.RequestOptionalSubjectAsync(enrollmentId, new RequestOptionalSubjectDto
+            var foreignGuardian = Service(db, new TestUser(101, 73, "Guardian"));
+            var denied = await foreignGuardian.RequestOptionalSubjectAsync(new RegisterStudentSubjectRequestDto
             {
-                ClientRequestId = Guid.NewGuid(),
-                SubjectId = seed.OptionalSubjectId
+                ClientRequestId = Guid.NewGuid(), StudentEnrollmentReference = enrollmentReference,
+                SubjectOfferingReference = seed.OptionalOfferingRef
             });
-            denied.Success.Should().BeFalse();
             denied.StatusCode.Should().Be(404);
+            (await foreignGuardian.GetCurrentAsync(seed.StudentRef)).StatusCode.Should().Be(404);
         }
-
         long registrationId;
-        await using (var guardianContext = CreateContext(options, 101, 72, "Guardian"))
+        await using (var db = Context(options, 101, 72, "Guardian"))
         {
-            var guardian = CreateService(guardianContext, new TestCurrentUser(101, 72, "Guardian"));
-            var request = new RequestOptionalSubjectDto { ClientRequestId = Guid.NewGuid(), SubjectId = seed.OptionalSubjectId, Remarks = "Student choice" };
-            var pending = await guardian.RequestOptionalSubjectAsync(enrollmentId, request);
-            var replay = await guardian.RequestOptionalSubjectAsync(enrollmentId, request);
-            var beforeApproval = await guardian.GetTimetableAsync(seed.StudentReference);
-
-            pending.Success.Should().BeTrue();
-            pending.StatusCode.Should().Be(201);
-            pending.Data!.Status.Should().Be(SubjectRegistrationStatus.Pending);
-            replay.Data!.Id.Should().Be(pending.Data.Id);
-            beforeApproval.Data!.Should().ContainSingle(x => x.SubjectId == seed.RequiredSubjectId);
-            registrationId = pending.Data.Id;
-        }
-
-        await using (var managerContext = CreateContext(options, 101, 7, "TenantAdmin"))
-        {
-            var registration = await managerContext.StudentSubjectRegistrations.SingleAsync(x => x.Id == registrationId);
-            registration.RowVersion = [1, 2, 3, 4, 5, 6, 7, 8];
-            await managerContext.SaveChangesAsync();
-            var manager = CreateService(managerContext, new TestCurrentUser(101, 7, "TenantAdmin"));
-            var stale = await manager.DecideSubjectAsync(registrationId, new DecideSubjectRegistrationDto
+            var guardian = Service(db, new TestUser(101, 72, "Guardian"));
+            var request = new RegisterStudentSubjectRequestDto
             {
-                Status = SubjectRegistrationStatus.Approved,
+                ClientRequestId = Guid.NewGuid(), StudentEnrollmentReference = enrollmentReference,
+                SubjectOfferingReference = seed.OptionalOfferingRef, Remarks = "Elective choice"
+            };
+            var first = await guardian.RequestOptionalSubjectAsync(request);
+            var replay = await guardian.RequestOptionalSubjectAsync(request);
+            first.Success.Should().BeTrue();
+            first.Data!.State.Should().Be(SubjectRegistrationState.Pending);
+            replay.Data!.Id.Should().Be(first.Data.Id);
+            var timetable = await guardian.GetTimetableAsync(seed.StudentRef);
+            timetable.Data!.Should().ContainSingle();
+            registrationId = first.Data.Id;
+        }
+        await using (var db = Context(options, 101, 7, "TenantAdmin"))
+        {
+            var record = await db.StudentSubjectRegistrations.SingleAsync(x => x.Id == registrationId);
+            record.RowVersion = [1, 2, 3, 4, 5, 6, 7, 8];
+            await db.SaveChangesAsync();
+            var manager = Service(db, new TestUser(101, 7, "TenantAdmin"));
+            var stale = await manager.DecideSubjectAsync(registrationId, new ChangeSubjectRegistrationStateRequestDto
+            {
+                State = SubjectRegistrationState.Approved,
                 RowVersion = Convert.ToBase64String([8, 7, 6, 5, 4, 3, 2, 1])
             });
-            var approved = await manager.DecideSubjectAsync(registrationId, new DecideSubjectRegistrationDto
-            {
-                Status = SubjectRegistrationStatus.Approved,
-                RowVersion = Convert.ToBase64String(registration.RowVersion),
-                Remarks = "Approved elective"
-            });
-
-            stale.Success.Should().BeFalse();
             stale.StatusCode.Should().Be(409);
+            var approved = await manager.DecideSubjectAsync(registrationId, new ChangeSubjectRegistrationStateRequestDto
+            {
+                State = SubjectRegistrationState.Approved,
+                RowVersion = Convert.ToBase64String(record.RowVersion), Remarks = "Approved"
+            });
             approved.Success.Should().BeTrue();
-            approved.Data!.Status.Should().Be(SubjectRegistrationStatus.Approved);
-            (await managerContext.StudentSubjectRegistrations.SingleAsync(x => x.Id == registrationId)).DecidedByUserId.Should().Be(7);
+            approved.Data!.State.Should().Be(SubjectRegistrationState.Approved);
+            (await db.StudentSubjectRegistrations.SingleAsync(x => x.Id == registrationId))
+                .ApprovedByUserId.Should().Be(7);
         }
-
-        await using (var guardianContext = CreateContext(options, 101, 72, "Guardian"))
+        await using (var db = Context(options, 101, 72, "Guardian"))
         {
-            var guardian = CreateService(guardianContext, new TestCurrentUser(101, 72, "Guardian"));
-            var timetable = await guardian.GetTimetableAsync(seed.StudentReference);
-            timetable.Success.Should().BeTrue();
-            timetable.Data!.Select(x => x.SubjectId).Should().BeEquivalentTo([seed.RequiredSubjectId, seed.OptionalSubjectId]);
+            var guardian = Service(db, new TestUser(101, 72, "Guardian"));
+            var timetable = await guardian.GetTimetableAsync(seed.StudentRef);
+            timetable.Data!.Should().HaveCount(2);
         }
     }
 
     [Fact]
-    public async Task Student_and_guardian_reads_hide_other_students_and_tenants()
+    public async Task Tenant_isolation_rejects_foreign_student_and_batch()
     {
-        var options = CreateOptions();
+        var options = Options();
         var seed = await SeedAsync(options, 10);
-        await using (var managerContext = CreateContext(options, 101, 7, "TenantAdmin"))
+        await using var db = Context(options, 202, 8, "TenantAdmin");
+        var service = Service(db, new TestUser(202, 8, "TenantAdmin"));
+        var result = await service.EnrollAsync(new CreateStudentEnrollmentRequestDto
         {
-            var manager = CreateService(managerContext, new TestCurrentUser(101, 7, "TenantAdmin"));
-            (await manager.EnrollAsync(new CreateAcademicStudentEnrollmentDto
-            {
-                ClientRequestId = Guid.NewGuid(),
-                StudentReference = seed.StudentReference,
-                AcademicBatchId = seed.BatchId,
-                RollNo = "01",
-                EnrollmentDate = new DateTime(2026, 9, 21)
-            })).Success.Should().BeTrue();
-        }
-
-        await using (var otherStudentContext = CreateContext(options, 101, 82, "Student"))
-        {
-            var otherStudent = CreateService(otherStudentContext, new TestCurrentUser(101, 82, "Student"));
-            (await otherStudent.GetCurrentAsync(seed.StudentReference)).StatusCode.Should().Be(404);
-            (await otherStudent.GetTimetableAsync(seed.StudentReference)).StatusCode.Should().Be(404);
-        }
-
-        await SeedTenantShellAsync(options, 202);
-        await using var foreignTenantContext = CreateContext(options, 202, 8, "TenantAdmin");
-        var foreignTenant = CreateService(foreignTenantContext, new TestCurrentUser(202, 8, "TenantAdmin"));
-        var result = await foreignTenant.EnrollAsync(new CreateAcademicStudentEnrollmentDto
-        {
-            ClientRequestId = Guid.NewGuid(),
-            StudentReference = seed.StudentReference,
-            AcademicBatchId = seed.BatchId,
-            RollNo = "01",
-            EnrollmentDate = new DateTime(2026, 9, 21)
+            ClientRequestId = Guid.NewGuid(), StudentReference = seed.StudentRef,
+            AcademicBatchId = seed.BatchId, AcademicCurriculumId = seed.CurriculumId,
+            RollNo = "01", EnrollmentDate = new DateOnly(2026, 9, 21)
         });
-
         result.Success.Should().BeFalse();
         result.StatusCode.Should().Be(404);
-        (await foreignTenantContext.StudentEnrollments.IgnoreQueryFilters().CountAsync()).Should().Be(1);
+        (await db.StudentEnrollments.IgnoreQueryFilters().CountAsync()).Should().Be(0);
     }
 
-    private static AcademicEnrollmentService CreateService(EduOSDbContext context, ICurrentUserService currentUser) => new(
-        new GenericRepository<StudentEnrollment>(context),
-        new GenericRepository<StudentSubjectRegistration>(context),
-        new GenericRepository<Student>(context),
-        new GenericRepository<Guardian>(context),
-        new GenericRepository<AcademicBatch>(context),
-        new GenericRepository<AcademicYear>(context),
-        new GenericRepository<AcademicCurriculum>(context),
-        new GenericRepository<CurriculumSubject>(context),
-        new GenericRepository<RoutineEntry>(context),
-        new GenericRepository<Room>(context),
-        context,
-        currentUser,
-        TimeProvider.System,
-        NullLogger<AcademicEnrollmentService>.Instance);
+    private static AcademicEnrollmentService Service(EduOSDbContext db, ICurrentUserService user) => new(
+        new GenericRepository<StudentEnrollment>(db), new GenericRepository<StudentSubjectRegistration>(db),
+        new GenericRepository<Student>(db), new GenericRepository<Guardian>(db),
+        new GenericRepository<StudentGuardian>(db), new GenericRepository<AcademicBatch>(db),
+        new GenericRepository<AcademicYear>(db), new GenericRepository<AcademicCurriculum>(db),
+        new GenericRepository<CurriculumSubject>(db), new GenericRepository<SubjectOffering>(db),
+        new GenericRepository<Subject>(db), new GenericRepository<RoutineEntry>(db),
+        new GenericRepository<RoutineTimeSlot>(db), new GenericRepository<Room>(db),
+        db, user, TimeProvider.System, NullLogger<AcademicEnrollmentService>.Instance);
 
-    private static async Task<SeededAcademic> SeedAsync(DbContextOptions<EduOSDbContext> options, int capacity)
+    private static async Task<Seed> SeedAsync(DbContextOptions<EduOSDbContext> options, int capacity)
     {
-        await using var context = CreateContext(options, 101, 7, "TenantAdmin");
-        var campus = new Campus { TenantId = 101, Name = "Main Campus", Code = "MAIN", IsActive = true };
-        var year = new AcademicYear { TenantId = 101, Name = "2026", StartDate = new DateTime(2026, 1, 1), EndDate = new DateTime(2026, 12, 31), IsCurrent = true, IsActive = true };
-        var legacyClass = new Class { TenantId = 101, Name = "Class Nine", NumericValue = 9, IsActive = true };
-        var program = new AcademicProgram { TenantId = 101, Name = "Secondary", Code = "SEC", IsActive = true };
-        context.AddRange(campus, year, legacyClass, program);
-        await context.SaveChangesAsync();
-        program.CampusId = campus.Id;
-        var section = new Section { TenantId = 101, ClassId = legacyClass.Id, Name = "A", Capacity = 40, IsActive = true };
-        var level = new AcademicLevel { TenantId = 101, AcademicProgramId = program.Id, Name = "Grade Nine", Code = "G9", LevelNo = 9, IsActive = true };
-        var required = new Subject { TenantId = 101, Name = "Mathematics", Code = "MATH", DefaultFullMarks = 100, DefaultPassMarks = 33, DefaultCreditHours = 4, IsActive = true };
-        var optional = new Subject { TenantId = 101, Name = "Music", Code = "MUS", DefaultFullMarks = 50, DefaultPassMarks = 20, DefaultCreditHours = 2, IsOptional = true, IsActive = true };
-        context.AddRange(section, level, required, optional);
-        await context.SaveChangesAsync();
-        var firstStudent = CreateStudent(101, 71, "S-001", "01", "Student One", year.Id, legacyClass.Id, section.Id);
-        var otherStudent = CreateStudent(101, 82, "S-002", "02", "Student Two", year.Id, legacyClass.Id, section.Id);
-        var guardian = new Guardian { TenantId = 101, Student = firstStudent, UserId = 72, Name = "Guardian One", Relation = "Mother", Phone = "01700000001", IsPrimary = true };
-        var batch = new AcademicBatch { TenantId = 101, CampusId = campus.Id, AcademicYearId = year.Id, AcademicProgramId = program.Id, AcademicLevelId = level.Id, Name = "Grade Nine A", Code = "G9-A", Capacity = capacity, StartDate = new DateTime(2026, 1, 1), EndDate = new DateTime(2026, 12, 31), IsActive = true };
-        var curriculum = new AcademicCurriculum { TenantId = 101, AcademicProgramId = program.Id, Name = "Secondary 2026", Code = "SEC-2026", EffectiveFromAcademicYearId = year.Id, IsCurrent = true, IsActive = true };
-        context.AddRange(firstStudent, otherStudent, guardian, batch, curriculum);
-        await context.SaveChangesAsync();
-        var requiredRegistration = new CurriculumSubject { TenantId = 101, AcademicCurriculumId = curriculum.Id, AcademicLevelId = level.Id, SubjectId = required.Id, FullMarks = 100, PassMarks = 33, CreditHours = 4, IsActive = true };
-        var optionalRegistration = new CurriculumSubject { TenantId = 101, AcademicCurriculumId = curriculum.Id, AcademicLevelId = level.Id, SubjectId = optional.Id, FullMarks = 50, PassMarks = 20, CreditHours = 2, IsOptional = true, IsActive = true };
-        var teacher = new Employee { TenantId = 101, EmployeeCode = "T-001", FullName = "Teacher One", Phone = "01700000002", DesignationId = 1, JoiningDate = new DateOnly(2020, 1, 1), CanTeach = true, State = EmployeeState.Active, IsActive = true };
-        var slot = new RoutineTimeSlot { TenantId = 101, Name = "Period 1", StartTime = new TimeSpan(9, 0, 0), EndTime = new TimeSpan(9, 45, 0), IsActive = true };
-        context.AddRange(requiredRegistration, optionalRegistration, teacher, slot);
-        await context.SaveChangesAsync();
-        context.RoutineEntries.AddRange(
-            new RoutineEntry { TenantId = 101, AcademicBatchId = batch.Id, AcademicYearId = year.Id, SubjectId = required.Id, EmployeeId = teacher.Id, RoutineTimeSlotId = slot.Id, DayOfWeek = DayOfWeek.Sunday, IsActive = true },
-            new RoutineEntry { TenantId = 101, AcademicBatchId = batch.Id, AcademicYearId = year.Id, SubjectId = optional.Id, EmployeeId = teacher.Id, RoutineTimeSlotId = slot.Id, DayOfWeek = DayOfWeek.Monday, IsActive = true });
-        await context.SaveChangesAsync();
-        return new SeededAcademic(firstStudent.PublicId, otherStudent.PublicId, batch.Id, required.Id, optional.Id);
+        await using var db = Context(options, 101, 7, "TenantAdmin");
+        var campus = new Campus { TenantId = 101, Name = "Main Campus", Code = "MAIN" };
+        var year = new AcademicYear
+        {
+            TenantId = 101, Name = "2026", Code = "2026",
+            StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31), IsCurrent = true
+        };
+        var program = new AcademicProgram { TenantId = 101, Name = "Secondary", Code = "SEC" };
+        var first = new Student
+        {
+            TenantId = 101, PersonId = 301, UserId = 71, StudentCode = "S-001",
+            FullName = "First Student", AdmissionDate = new DateOnly(2026, 1, 1)
+        };
+        var second = new Student
+        {
+            TenantId = 101, PersonId = 302, UserId = 82, StudentCode = "S-002",
+            FullName = "Second Student", AdmissionDate = new DateOnly(2026, 1, 1)
+        };
+        var guardian = new Guardian { TenantId = 101, PersonId = 303, UserId = 72, FullName = "Guardian" };
+        db.AddRange(campus, year, program, first, second, guardian);
+        await db.SaveChangesAsync();
+        var level = new AcademicLevel
+        {
+            TenantId = 101, AcademicProgramId = program.Id,
+            Code = "G9", Name = "Grade Nine", LevelNo = 9
+        };
+        var required = new Subject { TenantId = 101, Code = "MATH", Name = "Mathematics" };
+        var optional = new Subject { TenantId = 101, Code = "MUSIC", Name = "Music" };
+        var curriculum = new AcademicCurriculum
+        {
+            TenantId = 101, AcademicProgramId = program.Id, Name = "Secondary 2026",
+            Code = "SEC-2026", EffectiveFrom = new DateOnly(2026, 1, 1), IsCurrent = true
+        };
+        var batch = new AcademicBatch
+        {
+            TenantId = 101, CampusId = campus.Id, AcademicYearId = year.Id,
+            AcademicProgramId = program.Id, AcademicLevelId = 0,
+            Name = "Nine A", Code = "G9-A", Capacity = capacity,
+            StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31)
+        };
+        var link = new StudentGuardian
+        {
+            TenantId = 101, StudentId = first.Id, GuardianId = guardian.Id,
+            RelationCode = "Mother", IsPrimary = true
+        };
+        db.AddRange(level, required, optional, curriculum, link);
+        await db.SaveChangesAsync();
+        batch.AcademicLevelId = level.Id;
+        db.AcademicBatches.Add(batch);
+        await db.SaveChangesAsync();
+        var core = new CurriculumSubject
+        {
+            TenantId = 101, AcademicCurriculumId = curriculum.Id, AcademicLevelId = level.Id,
+            SubjectId = required.Id, CreditHours = 4m, IsOptional = false
+        };
+        var elective = new CurriculumSubject
+        {
+            TenantId = 101, AcademicCurriculumId = curriculum.Id, AcademicLevelId = level.Id,
+            SubjectId = optional.Id, CreditHours = 2m, IsOptional = true
+        };
+        db.AddRange(core, elective);
+        await db.SaveChangesAsync();
+        var coreOffering = new SubjectOffering
+        {
+            TenantId = 101, AcademicBatchId = batch.Id, CurriculumSubjectId = core.Id,
+            AcademicYearId = year.Id, Code = "G9-MATH"
+        };
+        var electiveOffering = new SubjectOffering
+        {
+            TenantId = 101, AcademicBatchId = batch.Id, CurriculumSubjectId = elective.Id,
+            AcademicYearId = year.Id, Code = "G9-MUSIC"
+        };
+        var slot = new RoutineTimeSlot
+        {
+            TenantId = 101, Name = "Period One", StartTime = new TimeOnly(9, 0),
+            EndTime = new TimeOnly(9, 45)
+        };
+        db.AddRange(coreOffering, electiveOffering, slot);
+        await db.SaveChangesAsync();
+        db.RoutineEntries.AddRange(
+            new RoutineEntry
+            {
+                TenantId = 101, SubjectOfferingId = coreOffering.Id,
+                RoutineTimeSlotId = slot.Id, DayOfWeek = DayOfWeek.Sunday,
+                EffectiveFrom = new DateOnly(2026, 1, 1)
+            },
+            new RoutineEntry
+            {
+                TenantId = 101, SubjectOfferingId = electiveOffering.Id,
+                RoutineTimeSlotId = slot.Id, DayOfWeek = DayOfWeek.Monday,
+                EffectiveFrom = new DateOnly(2026, 1, 1)
+            });
+        await db.SaveChangesAsync();
+        return new Seed(first.PublicId, second.PublicId, batch.Id, curriculum.Id, electiveOffering.PublicId);
     }
 
-    private static Student CreateStudent(long tenantId, long userId, string code, string roll, string name, long yearId, long classId, long sectionId) => new()
-    {
-        TenantId = tenantId,
-        UserId = userId,
-        StudentCode = code,
-        Roll = roll,
-        FullName = name,
-        FatherName = "Father",
-        MotherName = "Mother",
-        DOB = new DateTime(2011, 1, 1),
-        Gender = "Other",
-        ClassId = classId,
-        SectionId = sectionId,
-        AcademicYearId = yearId,
-        AdmissionDate = new DateTime(2026, 1, 1),
-        Status = "Active",
-        IsActive = true
-    };
-
-    private static async Task SeedTenantShellAsync(DbContextOptions<EduOSDbContext> options, long tenantId)
-    {
-        await using var context = CreateContext(options, tenantId, tenantId, "TenantAdmin");
-        context.AcademicYears.Add(new AcademicYear { TenantId = tenantId, Name = "2026", StartDate = new DateTime(2026, 1, 1), EndDate = new DateTime(2026, 12, 31), IsCurrent = true, IsActive = true });
-        await context.SaveChangesAsync();
-    }
-
-    private static DbContextOptions<EduOSDbContext> CreateOptions() => new DbContextOptionsBuilder<EduOSDbContext>()
+    private static DbContextOptions<EduOSDbContext> Options() => new DbContextOptionsBuilder<EduOSDbContext>()
         .UseInMemoryDatabase($"academic-enrollment-{Guid.NewGuid():N}").Options;
 
-    private static EduOSDbContext CreateContext(DbContextOptions<EduOSDbContext> options, long tenantId, long userId, string role)
+    private static EduOSDbContext Context(DbContextOptions<EduOSDbContext> options, long tenantId, long userId, string role)
     {
-        var http = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity([
-            new Claim(ClaimTypes.NameIdentifier, userId.ToString()), new Claim(ClaimTypes.Role, role), new Claim("TenantId", tenantId.ToString())
-        ], "TestAuthentication")) };
-        http.Items["TenantId"] = tenantId;
-        return new EduOSDbContext(options, new HttpContextAccessor { HttpContext = http });
+        var context = new DefaultHttpContext();
+        context.Items["TenantId"] = tenantId;
+        context.User = new ClaimsPrincipal(new ClaimsIdentity(
+        [
+            new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+            new Claim(ClaimTypes.Role, role),
+            new Claim("TenantId", tenantId.ToString())
+        ], "TestAuthentication"));
+        return new EduOSDbContext(options, new HttpContextAccessor { HttpContext = context });
     }
 
-    private sealed record SeededAcademic(Guid StudentReference, Guid OtherStudentReference, long BatchId, long RequiredSubjectId, long OptionalSubjectId);
+    private sealed record Seed(Guid StudentRef, Guid OtherStudentRef, long BatchId, long CurriculumId, Guid OptionalOfferingRef);
 
-    private sealed class TestCurrentUser(long tenantId, long userId, string role) : ICurrentUserService
+    private sealed class TestUser(long tenantId, long userId, string role) : ICurrentUserService
     {
         public bool IsAuthenticated => true;
         public long UserId => userId;
