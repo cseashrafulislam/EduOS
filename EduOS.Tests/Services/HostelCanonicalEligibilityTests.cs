@@ -1,3 +1,4 @@
+using EduOS.Core.DTOs.Hostel;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.SaaS;
