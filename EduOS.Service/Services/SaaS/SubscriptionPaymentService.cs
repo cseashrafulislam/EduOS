@@ -31,7 +31,7 @@ public sealed class SubscriptionPaymentService : ISubscriptionPaymentService
     private readonly ICurrentUserService _user;
     private readonly IAamarPayClient _gateway;
     private readonly IFileUploadService _storage;
-    private readonly ISubscriptionService _subscriptions;
+    private readonly IGenericRepository<TenantSubscription> _subscriptionRows;
     private readonly AamarPaySettings _gatewaySettings;
     private readonly ManualPaymentSettings _manualSettings;
     private readonly ILogger<SubscriptionPaymentService> _logger;
@@ -40,19 +40,19 @@ public sealed class SubscriptionPaymentService : ISubscriptionPaymentService
         ISubscriptionInvoiceRepository invoiceRepo, IGenericRepository<Tenant> tenantRepo,
         IGenericRepository<FileAsset> fileRepo, IUnitOfWork unitOfWork,
         ICurrentUserService currentUser, IAamarPayClient aamarPay, IFileUploadService fileStorage,
-        ISubscriptionService subscriptionService, IOptions<AamarPaySettings> aamarPaySettings,
+        IGenericRepository<TenantSubscription> subscriptionRows, IOptions<AamarPaySettings> aamarPaySettings,
         IOptions<ManualPaymentSettings> manualSettings, ILogger<SubscriptionPaymentService> logger)
     {
         _payments = paymentRepo; _invoices = invoiceRepo; _tenants = tenantRepo; _files = fileRepo;
         _uow = unitOfWork; _user = currentUser; _gateway = aamarPay; _storage = fileStorage;
-        _subscriptions = subscriptionService; _gatewaySettings = aamarPaySettings.Value;
+        _subscriptionRows = subscriptionRows; _gatewaySettings = aamarPaySettings.Value;
         _manualSettings = manualSettings.Value; _logger = logger;
     }
 
     public async Task<ApiResponse<InitiatePaymentResponseDto>> InitiateAamarPayAsync(InitiatePaymentRequestDto dto)
     {
         if (!CanRead()) return ApiResponse<InitiatePaymentResponseDto>.ErrorResponse("Tenant access is required.", 403);
-        if (dto == null || dto.InvoiceId <= 0 || dto.PaymentMethod != PaymentMethod.AamarPay)
+        if (dto == null || dto.InvoiceId <= 0 || dto.PaymentMethod != PaymentMethodType.Gateway)
             return ApiResponse<InitiatePaymentResponseDto>.ErrorResponse("Select a valid invoice and AamarPay.");
         if (!TryGetTrustedCallbackBaseUrl(out var origin))
             return ApiResponse<InitiatePaymentResponseDto>.ErrorResponse("Online payment is not configured.", 503);
@@ -112,7 +112,7 @@ public sealed class SubscriptionPaymentService : ISubscriptionPaymentService
             return ApiResponse<InitiatePaymentResponseDto>.SuccessResponse(new InitiatePaymentResponseDto
             {
                 TransactionId = created.TransactionId, PaymentUrl = result.PaymentUrl,
-                Status = PaymentStatus.Processing, Message = "Continue to secure payment checkout."
+                State = PaymentState.Initiated, Message = "Continue to secure payment checkout."
             });
         }
         catch (DbUpdateException ex)
@@ -175,14 +175,11 @@ public sealed class SubscriptionPaymentService : ISubscriptionPaymentService
             if (invoice.State == InvoiceState.Paid) invoice.PaidAt = now;
             invoice.UpdatedAt = now;
             // Invoice repository returns a no-tracking system DTO: explicitly attach it.
+            _payments.Update(payment);
             _invoices.Update(invoice);
             await _uow.SaveChangesAsync();
             if (invoice.State == InvoiceState.Paid)
-            {
-                var activation = await _subscriptions.ActivateAfterPaymentAsync(invoice.TenantSubscriptionId, payment.TenantId);
-                if (!activation.Success)
-                    throw new InvalidOperationException("Verified payment could not activate the subscription.");
-            }
+                await ActivatePaidSubscriptionAsync(invoice);
             tx.Complete();
             return ApiResponse<bool>.SuccessResponse(true, "Verified payment applied.");
         }
@@ -383,10 +380,7 @@ public sealed class SubscriptionPaymentService : ISubscriptionPaymentService
             if (dto.Approve) _invoices.Update(invoice);
             await _uow.SaveChangesAsync();
             if (dto.Approve && invoice.State == InvoiceState.Paid)
-            {
-                var activation = await _subscriptions.ActivateAfterPaymentAsync(invoice.TenantSubscriptionId, payment.TenantId);
-                if (!activation.Success) throw new InvalidOperationException("Subscription activation failed after verified payment.");
-            }
+                await ActivatePaidSubscriptionAsync(invoice);
             tx.Complete();
             return ApiResponse<bool>.SuccessResponse(true, dto.Approve ? "Payment approved." : "Payment rejected.");
         }
@@ -428,6 +422,25 @@ public sealed class SubscriptionPaymentService : ISubscriptionPaymentService
             .ToDictionaryAsync(x => x.Id, x => x.InvoiceNumber);
         return ApiResponse<List<SubscriptionPaymentDto>>.SuccessResponse(
             payments.Select(x => Map(x, invoiceNos.GetValueOrDefault(x.SubscriptionInvoiceId) ?? string.Empty)).ToList());
+    }
+
+    private async Task ActivatePaidSubscriptionAsync(SubscriptionInvoice invoice)
+    {
+        if (invoice.State != InvoiceState.Paid || invoice.DueAmount != 0m ||
+            invoice.PaidAmount != invoice.TotalAmount)
+            throw new InvalidOperationException("Subscription invoice must be fully reconciled before activation.");
+        var subscription = await _subscriptionRows.GetQueryable().IgnoreQueryFilters()
+            .FirstOrDefaultAsync(x => x.TenantId == invoice.TenantId &&
+                x.Id == invoice.TenantSubscriptionId && !x.IsDeleted);
+        if (subscription == null)
+            throw new InvalidOperationException("Subscription is not available for the settled invoice.");
+        if (subscription.State == SubscriptionState.Active) return;
+        if (subscription.State != SubscriptionState.PendingPayment)
+            throw new InvalidOperationException("Subscription cannot be activated from this state.");
+        subscription.State = SubscriptionState.Active;
+        subscription.UpdatedAt = DateTime.UtcNow;
+        _subscriptionRows.Update(subscription);
+        await _uow.SaveChangesAsync();
     }
 
     private async Task FailPendingGatewayAsync(long paymentId, long tenantId, string reason)
