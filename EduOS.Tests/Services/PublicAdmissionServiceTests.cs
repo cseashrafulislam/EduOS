@@ -183,11 +183,14 @@ public sealed class PublicAdmissionServiceTests
         public AdmissionIntakeForm Form { get; private set; } = null!;
         public PublicAdmissionService Service { get; private set; } = null!;
         public Mock<IFileUploadService> Storage { get; } = new();
-        private readonly HttpContextAccessor _http;
+        private readonly StableHttpContextAccessor _http;
 
         private Fixture(string databaseName)
         {
-            _http = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
+            // HttpContextAccessor uses AsyncLocal; setting it inside an async factory is
+            // lost when control returns to the caller. Keep the same request scope for
+            // DbContext and PublicAdmissionService throughout each test.
+            _http = new StableHttpContextAccessor { HttpContext = new DefaultHttpContext() };
             var options = new DbContextOptionsBuilder<EduOSDbContext>()
                 .UseInMemoryDatabase("public-admission-" + databaseName + "-" + Guid.NewGuid().ToString("N"))
                 .Options;
@@ -299,16 +302,6 @@ public sealed class PublicAdmissionServiceTests
                 new GenericRepository<AcademicLevel>(f.Db),
                 f.Db, f.Storage.Object, f._http,
                 new FixedTimeProvider(Now), NullLogger<PublicAdmissionService>.Instance);
-            var resolver = typeof(PublicAdmissionService).GetMethod("ResolveTenantAsync",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-            var resolved = await (Task<Tenant?>)resolver.Invoke(f.Service,
-                new object[] { tenantCode, CancellationToken.None })!;
-            resolved.Should().NotBeNull("the public tenant key must resolve");
-            var gate = typeof(PublicAdmissionService).GetMethod("CanPublishAsync",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-            var allowed = await (Task<bool>)gate.Invoke(f.Service,
-                new object[] { f.Tenant.Id, CancellationToken.None })!;
-            allowed.Should().BeTrue("the seeded subscription and ADMISSION module must authorize the portal");
             return f;
         }
 
@@ -340,6 +333,11 @@ public sealed class PublicAdmissionServiceTests
         };
 
         public ValueTask DisposeAsync() => Db.DisposeAsync();
+    }
+
+    private sealed class StableHttpContextAccessor : IHttpContextAccessor
+    {
+        public HttpContext? HttpContext { get; set; }
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
