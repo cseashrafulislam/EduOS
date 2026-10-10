@@ -105,6 +105,48 @@ public sealed class InventoryLocationCampusAccessTests
             .SaveLocationAsync(null, Request(null, "SH2", "Shared"))).StatusCode.Should().Be(201);
     }
 
+    [Fact]
+    public async Task Location_pages_enforce_tenant_campus_role_search_and_bounds()
+    {
+        var options = new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("inventory-pages-" + Guid.NewGuid().ToString("N")).Options;
+        var http = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(
+                [new Claim(ClaimTypes.NameIdentifier, "7"), new Claim(ClaimTypes.Role, "InventoryManager")], "Test"))
+        };
+        http.Items["TenantId"] = 101L;
+        await using var db = new EduOSDbContext(options, new HttpContextAccessor { HttpContext = http });
+        var first = new Campus { TenantId = 101, Code = "A", Name = "Campus A" };
+        var blocked = new Campus { TenantId = 101, Code = "B", Name = "Campus B" };
+        db.Campuses.AddRange(first, blocked);
+        await db.SaveChangesAsync();
+        db.UserCampusAccesses.Add(new UserCampusAccess { TenantId = 101, UserId = 7, CampusId = first.Id, IsActive = true });
+        db.InventoryLocations.AddRange(Enumerable.Range(0, 120).Select(i => new InventoryLocation
+        { TenantId = 101, CampusId = first.Id, Code = $"A{i:D3}", Name = $"Store {i}" }));
+        db.InventoryLocations.Add(new InventoryLocation { TenantId = 101, CampusId = blocked.Id, Code = "B001", Name = "Blocked" });
+        db.InventoryLocations.Add(new InventoryLocation { TenantId = 101, Code = "SHARED", Name = "Shared" });
+        db.InventoryLocations.Add(new InventoryLocation { TenantId = 202, Code = "FOREIGN", Name = "Other tenant" });
+        await db.SaveChangesAsync();
+        var service = new InventoryCatalogService(db, new User(101, "InventoryManager"),
+            TimeProvider.System, NullLogger<InventoryCatalogService>.Instance);
+        (await service.GetLocationsAsync(null)).Data!.Should().HaveCount(121);
+        var firstPage = await service.GetLocationsPageAsync(1, 500, null, null);
+        firstPage.Data!.PageSize.Should().Be(100);
+        firstPage.Data.TotalCount.Should().Be(121);
+        firstPage.Data.Items.Should().HaveCount(100);
+        var secondPage = await service.GetLocationsPageAsync(2, 100, null, null);
+        secondPage.Data!.Items.Should().HaveCount(21);
+        secondPage.Data.Items.Select(x => x.Code).Should().Contain("SHARED");
+        (await service.GetLocationsPageAsync(1, 25, blocked.Id, null)).StatusCode.Should().Be(403);
+        (await service.GetLocationsPageAsync(1, 25, first.Id, "A119")).Data!.TotalCount.Should().Be(1);
+        (await service.GetLocationsPageAsync(1, 25, null, new string('x', 101))).StatusCode.Should().Be(400);
+        (await service.GetLocationsPageAsync(int.MaxValue, 100, null, null)).Data!.Items.Should().BeEmpty();
+        (await new InventoryCatalogService(db, new User(101, "Student"),
+            TimeProvider.System, NullLogger<InventoryCatalogService>.Instance)
+            .GetLocationsPageAsync(1, 25, null, null)).StatusCode.Should().Be(403);
+    }
+
     private sealed class User(long tenantId, string role) : ICurrentUserService
     {
         public bool IsAuthenticated => true;

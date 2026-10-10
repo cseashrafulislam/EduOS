@@ -34,8 +34,13 @@
     }
     <div class="card mb-3"><div class="card-body">
         <h3 class="h5">Locations</h3>
+        <form id="locationSearchForm" class="row g-2 align-items-end mb-2">
+            <div class="col-md-8"><label for="locationSearch" class="form-label">Search location name or code</label><input id="locationSearch" class="form-control" maxlength="100" /></div>
+            <div class="col-md-4"><button type="submit" class="btn btn-primary">Search</button></div>
+        </form>
         <div class="table-responsive"><table class="table table-striped"><thead><tr><th>Code</th><th>Name</th><th>Campus ID</th><th>Status</th>@if(canManage){<th>Action</th>}</tr></thead><tbody id="locationRows"></tbody></table></div>
-        <p class="small text-muted">Showing up to 200 locations. Campus ID is optional.</p>
+        <div class="d-flex gap-2 align-items-center mb-3"><button id="locationPrev" class="btn btn-outline-secondary btn-sm" type="button">Previous</button><span id="locationPageLabel" aria-live="polite"></span><button id="locationNext" class="btn btn-outline-secondary btn-sm" type="button">Next</button></div>
+        <p class="small text-muted">Results are limited to locations you are authorized to view. Campus ID is optional.</p>
         @if(canManage)
         {
             <form id="locationForm" class="row g-2">
