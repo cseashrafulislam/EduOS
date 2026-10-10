@@ -1226,7 +1226,8 @@ public class EduOSDbContext :
         UniqueTenant<Employee>(modelBuilder, nameof(Employee.PersonId));
         modelBuilder.Entity<EmployeeBankAccount>().HasIndex(x => new { x.TenantId, x.EmployeeId })
             .IsUnique().HasFilter("[IsPrimary] = 1 AND [IsActive] = 1 AND [IsDeleted] = 0");
-        UniqueTenant<EmployeeCampusAssignment>(modelBuilder, nameof(EmployeeCampusAssignment.EmployeeId), nameof(EmployeeCampusAssignment.CampusId),
+        UniqueTenant<EmployeeCampusAssignment>(modelBuilder,
+            new[] { nameof(EmployeeCampusAssignment.EmployeeId), nameof(EmployeeCampusAssignment.CampusId) },
             "[IsCurrent] = 1 AND [IsDeleted] = 0");
         modelBuilder.Entity<EmployeeCampusAssignment>().HasIndex(x => new { x.TenantId, x.EmployeeId })
             .IsUnique().HasFilter("[IsCurrent] = 1 AND [IsPrimary] = 1 AND [IsDeleted] = 0");
