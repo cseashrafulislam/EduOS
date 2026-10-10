@@ -19,3 +19,19 @@ public sealed class InstitutionProfileWizardDto
     public string? PostalCode { get; set; }
     public string RowVersion { get; set; } = string.Empty;
 }
+
+public sealed class InstitutionCampusWizardRequestDto : EduOS.Core.DTOs.SaaS.SaveCampusRequestDto
+{
+    public long? Id { get; set; }
+    public string? HeadName { get; set; }
+}
+
+public sealed class InstitutionAcademicYearWizardRequestDto : EduOS.Core.DTOs.Academic.SaveAcademicYearRequestDto
+{
+    public long? Id { get; set; }
+}
+
+public sealed class InstitutionAcademicTermWizardRequestDto : EduOS.Core.DTOs.Academic.SaveAcademicTermRequestDto
+{
+    public long? Id { get; set; }
+}
