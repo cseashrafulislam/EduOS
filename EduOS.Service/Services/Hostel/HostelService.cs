@@ -48,7 +48,8 @@ public sealed class HostelService : IHostelService
         var tenant = _currentUser.TenantId;
         var roomsQuery = from room in _rooms.GetQueryable().AsNoTracking()
             join hostel in _hostels.GetQueryable().AsNoTracking() on room.HostelId equals hostel.Id
-            where room.TenantId == tenant && hostel.TenantId == tenant && room.IsActive && hostel.IsActive
+            where room.TenantId == tenant && hostel.TenantId == tenant && room.IsActive && hostel.IsActive &&
+                _campuses.GetQueryable().Any(c => c.TenantId == tenant && c.Id == hostel.CampusId && c.IsActive)
             orderby hostel.Name, room.RoomNumber
             select new { Room = room, HostelName = hostel.Name, HostelReference = hostel.PublicId, hostel.CampusId };
         if (!_currentUser.IsTenantAdmin)
@@ -85,6 +86,7 @@ public sealed class HostelService : IHostelService
                     join student in _students.GetQueryable().AsNoTracking() on enrollment.StudentId equals student.Id
                     where enrollment.TenantId == tenant && student.TenantId == tenant &&
                         enrollment.IsCurrent && enrollment.State == EnrollmentState.Active && student.StatusCode == "Active" &&
+                        _campuses.GetQueryable().Any(c => c.TenantId == tenant && c.Id == enrollment.CampusId && c.IsActive) &&
                         !_allocations.GetQueryable().Any(x => x.TenantId == tenant && x.StudentId == student.Id &&
                             x.State == HostelAllocationState.Active)
                     select new { enrollment.PublicId, enrollment.CampusId, student.FullName, student.StudentCode, enrollment.RollNo };
@@ -123,6 +125,7 @@ public sealed class HostelService : IHostelService
                     join hostel in _hostels.GetQueryable().AsNoTracking() on room.HostelId equals hostel.Id
                     where bed.TenantId == tenant && room.TenantId == tenant && hostel.TenantId == tenant &&
                         bed.IsActive && room.IsActive && hostel.IsActive && room.Capacity > 0 &&
+                        _campuses.GetQueryable().Any(c => c.TenantId == tenant && c.Id == hostel.CampusId && c.IsActive) &&
                         !_allocations.GetQueryable().Any(x => x.TenantId == tenant && x.HostelBedId == bed.Id &&
                             x.State == HostelAllocationState.Active) &&
                         _allocations.GetQueryable().Count(x => x.TenantId == tenant &&
