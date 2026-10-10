@@ -49,7 +49,7 @@ public sealed class StudentExitService : IStudentExitService
             return ApiResponse<StudentExitResultDto>.ErrorResponse("Exit type must be Transfer, Completed or Dropout.");
         if (type == StudentExitType.Transfer && string.IsNullOrWhiteSpace(request.Reason))
             return ApiResponse<StudentExitResultDto>.ErrorResponse("Transfer reason is required.");
-        if (request.Reason?.Length > 1000 || request.ConductRemark?.Length > 1000)
+        if (request.Reason?.Length > 1000 || request.ConductRemark?.Length > 500)
             return ApiResponse<StudentExitResultDto>.ErrorResponse("Exit comments are too long.");
 
         var tenantId = _currentUser.TenantId;
@@ -64,7 +64,9 @@ public sealed class StudentExitService : IStudentExitService
             {
                 var oldStudent = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenantId &&
                     x.Id == replay.StudentId, cancellationToken);
-                if (oldStudent == null || oldStudent.PublicId != request.StudentReference || replay.ExitType != type)
+                if (oldStudent == null || oldStudent.PublicId != request.StudentReference || replay.ExitType != type ||
+                    !string.Equals(replay.Reason, Trim(request.Reason), StringComparison.Ordinal) ||
+                    !string.Equals(replay.ConductRemark, Trim(request.ConductRemark), StringComparison.Ordinal))
                     return ApiResponse<StudentExitResultDto>.ErrorResponse("Request ID is already used for a different exit.", 409);
                 var oldCertificate = await CertificateNoAsync(replay, cancellationToken);
                 scope.Complete();

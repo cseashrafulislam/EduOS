@@ -14,12 +14,11 @@ public sealed class StudentExitIntegrityContractTests
         Source.Should().Contain("IGenericRepository<StudentEnrollment>");
         Source.Should().Contain("IsolationLevel = IsolationLevel.Serializable");
         Source.Should().Contain("TransactionScopeAsyncFlowOption.Enabled");
-        Source.Should().Contain("x.IsCurrent && x.IsActive");
+        Source.Should().Contain("x.IsCurrent && x.State == EnrollmentState.Active");
         Source.Should().Contain("enrollment.IsCurrent = false");
-        Source.Should().Contain("enrollment.IsActive = false");
-        Source.Should().Contain("EnrollmentStatus.Transferred");
-        Source.Should().Contain("EnrollmentStatus.Completed");
-        Source.Should().Contain("EnrollmentStatus.Dropped");
+        Source.Should().Contain("EnrollmentState.Transferred");
+        Source.Should().Contain("EnrollmentState.Completed");
+        Source.Should().Contain("EnrollmentState.Dropped");
         Source.Should().Contain("scope.Complete()");
     }
 
@@ -27,11 +26,13 @@ public sealed class StudentExitIntegrityContractTests
     public void Exit_is_retry_safe_and_maps_write_conflicts_to_reloadable_responses()
     {
         Source.Should().Contain("x.ClientRequestId == request.ClientRequestId");
-        Source.Should().Contain("Student exit was already processed.");
+        Source.Should().Contain("Exit already processed.");
+        Source.Should().Contain("!string.Equals(replay.Reason, Trim(request.Reason), StringComparison.Ordinal)");
+        Source.Should().Contain("!string.Equals(replay.ConductRemark, Trim(request.ConductRemark), StringComparison.Ordinal)");
         Source.Should().Contain("catch (DbUpdateConcurrencyException ex)");
         Source.Should().Contain("catch (DbUpdateException ex)");
         Source.Should().Contain("catch (TransactionAbortedException ex)");
-        Source.Should().Contain("Reload and try again.");
+        Source.Should().Contain("Reload and retry.");
         Source.Should().Contain(", 409");
     }
 
