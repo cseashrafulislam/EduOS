@@ -8,11 +8,11 @@ using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.LMS;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Entities.Transport;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 
 namespace EduOS.Service.Services.Portals;
 
@@ -20,516 +20,454 @@ public sealed class SelfServicePortalService : ISelfServicePortalService
 {
     private readonly IGenericRepository<Student> _students;
     private readonly IGenericRepository<Guardian> _guardians;
-    private readonly IGenericRepository<StudentGuardian> _studentGuardians;
-    private readonly IGenericRepository<StudentEnrollment> _studentEnrollments;
-    private readonly IGenericRepository<AcademicBatch> _academicBatches;
-    private readonly IGenericRepository<RoutineEntry> _routineEntries;
-    private readonly IGenericRepository<RoutineTimeSlot> _routineSlots;
-    private readonly IGenericRepository<SubjectOffering> _subjectOfferings;
+    private readonly IGenericRepository<StudentGuardian> _links;
+    private readonly IGenericRepository<StudentEnrollment> _academicEnrollments;
+    private readonly IGenericRepository<StudentSubjectRegistration> _registrations;
+    private readonly IGenericRepository<RoutineEntry> _routines;
+    private readonly IGenericRepository<RoutineTimeSlot> _slots;
+    private readonly IGenericRepository<SubjectOffering> _offerings;
     private readonly IGenericRepository<CurriculumSubject> _curriculumSubjects;
-    private readonly IGenericRepository<InstructorAssignment> _instructorAssignments;
+    private readonly IGenericRepository<Subject> _subjects;
+    private readonly IGenericRepository<InstructorAssignment> _instructors;
     private readonly IGenericRepository<Employee> _employees;
     private readonly IGenericRepository<Room> _rooms;
     private readonly IGenericRepository<StudentAttendance> _attendance;
-    private readonly IGenericRepository<AttendanceSession> _attendanceSessions;
+    private readonly IGenericRepository<AttendanceSession> _sessions;
     private readonly IGenericRepository<StudentResultSummary> _results;
-    private readonly IGenericRepository<ResultPublication> _resultPublications;
+    private readonly IGenericRepository<ResultPublication> _publications;
     private readonly IGenericRepository<Assessment> _assessments;
     private readonly IGenericRepository<StudentInvoice> _invoices;
     private readonly IGenericRepository<StudentPayment> _payments;
     private readonly IGenericRepository<StudentTransport> _transport;
     private readonly IGenericRepository<Route> _routes;
     private readonly IGenericRepository<Vehicle> _vehicles;
-    private readonly IGenericRepository<RouteStop> _routeStops;
+    private readonly IGenericRepository<RouteStop> _stops;
     private readonly IGenericRepository<Course> _courses;
-    private readonly IGenericRepository<Subject> _subjects;
+    private readonly IGenericRepository<CourseEnrollment> _courseEnrollments;
     private readonly IGenericRepository<Assignment> _assignments;
-    private readonly IGenericRepository<CourseEnrollment> _enrollments;
-    private readonly ICurrentUserService _currentUser;
-    private readonly ILogger<SelfServicePortalService> _logger;
+    private readonly ICurrentUserService _user;
 
     public SelfServicePortalService(
-        IGenericRepository<Student> students,
-        IGenericRepository<Guardian> guardians,
+        IGenericRepository<Student> students, IGenericRepository<Guardian> guardians,
         IGenericRepository<StudentGuardian> studentGuardians,
         IGenericRepository<StudentEnrollment> studentEnrollments,
-        IGenericRepository<AcademicBatch> academicBatches,
-        IGenericRepository<RoutineEntry> routineEntries,
-        IGenericRepository<RoutineTimeSlot> routineSlots,
+        IGenericRepository<StudentSubjectRegistration> registrations,
+        IGenericRepository<RoutineEntry> routineEntries, IGenericRepository<RoutineTimeSlot> routineSlots,
         IGenericRepository<SubjectOffering> subjectOfferings,
-        IGenericRepository<CurriculumSubject> curriculumSubjects,
+        IGenericRepository<CurriculumSubject> curriculumSubjects, IGenericRepository<Subject> subjects,
         IGenericRepository<InstructorAssignment> instructorAssignments,
-        IGenericRepository<Employee> employees,
-        IGenericRepository<Room> rooms,
-        IGenericRepository<StudentAttendance> attendance,
-        IGenericRepository<AttendanceSession> attendanceSessions,
-        IGenericRepository<StudentResultSummary> results,
-        IGenericRepository<ResultPublication> resultPublications,
-        IGenericRepository<Assessment> assessments,
-        IGenericRepository<StudentInvoice> invoices,
-        IGenericRepository<StudentPayment> payments,
-        IGenericRepository<StudentTransport> transport,
-        IGenericRepository<Route> routes,
-        IGenericRepository<Vehicle> vehicles,
-        IGenericRepository<RouteStop> routeStops,
-        IGenericRepository<Course> courses,
-        IGenericRepository<Subject> subjects,
-        IGenericRepository<Assignment> assignments,
-        IGenericRepository<CourseEnrollment> enrollments,
-        ICurrentUserService currentUser,
-        ILogger<SelfServicePortalService> logger)
+        IGenericRepository<Employee> employees, IGenericRepository<Room> rooms,
+        IGenericRepository<StudentAttendance> attendance, IGenericRepository<AttendanceSession> attendanceSessions,
+        IGenericRepository<StudentResultSummary> results, IGenericRepository<ResultPublication> resultPublications,
+        IGenericRepository<Assessment> assessments, IGenericRepository<StudentInvoice> invoices,
+        IGenericRepository<StudentPayment> payments, IGenericRepository<StudentTransport> transport,
+        IGenericRepository<Route> routes, IGenericRepository<Vehicle> vehicles,
+        IGenericRepository<RouteStop> routeStops, IGenericRepository<Course> courses,
+        IGenericRepository<CourseEnrollment> enrollments, IGenericRepository<Assignment> assignments,
+        ICurrentUserService currentUser)
     {
-        _students = students;
-        _guardians = guardians;
-        _studentGuardians = studentGuardians;
-        _studentEnrollments = studentEnrollments;
-        _academicBatches = academicBatches;
-        _routineEntries = routineEntries;
-        _routineSlots = routineSlots;
-        _subjectOfferings = subjectOfferings;
-        _curriculumSubjects = curriculumSubjects;
-        _instructorAssignments = instructorAssignments;
-        _employees = employees;
-        _rooms = rooms;
-        _attendance = attendance;
-        _attendanceSessions = attendanceSessions;
-        _results = results;
-        _resultPublications = resultPublications;
-        _assessments = assessments;
-        _invoices = invoices;
-        _payments = payments;
-        _transport = transport;
-        _routes = routes;
-        _vehicles = vehicles;
-        _routeStops = routeStops;
-        _courses = courses;
-        _subjects = subjects;
-        _assignments = assignments;
-        _enrollments = enrollments;
-        _currentUser = currentUser;
-        _logger = logger;
+        _students = students; _guardians = guardians; _links = studentGuardians;
+        _academicEnrollments = studentEnrollments; _registrations = registrations;
+        _routines = routineEntries; _slots = routineSlots; _offerings = subjectOfferings;
+        _curriculumSubjects = curriculumSubjects; _subjects = subjects;
+        _instructors = instructorAssignments; _employees = employees; _rooms = rooms;
+        _attendance = attendance; _sessions = attendanceSessions; _results = results;
+        _publications = resultPublications; _assessments = assessments; _invoices = invoices;
+        _payments = payments; _transport = transport; _routes = routes;
+        _vehicles = vehicles; _stops = routeStops; _courses = courses;
+        _courseEnrollments = enrollments; _assignments = assignments; _user = currentUser;
     }
 
-    public async Task<ApiResponse<IReadOnlyList<PortalTimetableEntryDto>>> GetTimetableAsync(Guid studentReference, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<IReadOnlyList<PortalStudentDto>>> GetLinkedStudentsAsync(
+        CancellationToken ct = default)
     {
-        var student = await GetAuthorizedStudentAsync(studentReference, cancellationToken);
-        if (student == null) return Denied<IReadOnlyList<PortalTimetableEntryDto>>();
-
-        var enrollment = await GetCurrentEnrollmentAsync(student.Id, cancellationToken);
-        if (enrollment == null)
-            return ApiResponse<IReadOnlyList<PortalTimetableEntryDto>>.SuccessResponse(Array.Empty<PortalTimetableEntryDto>());
-
-        var tenantId = _currentUser.TenantId;
-        var offeringIds = await _subjectOfferings.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && x.AcademicBatchId == enrollment.AcademicBatchId && x.AcademicYearId == enrollment.AcademicYearId && x.IsActive)
-            .Select(x => x.Id).Take(200).ToListAsync(cancellationToken);
-        if (offeringIds.Count == 0)
-            return ApiResponse<IReadOnlyList<PortalTimetableEntryDto>>.SuccessResponse(Array.Empty<PortalTimetableEntryDto>());
-
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var entries = await _routineEntries.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && offeringIds.Contains(x.SubjectOfferingId) && x.IsActive && x.EffectiveFrom <= today && (x.EffectiveTo == null || x.EffectiveTo >= today))
-            .OrderBy(x => x.DayOfWeek).ThenBy(x => x.RoutineTimeSlotId).Take(500).ToListAsync(cancellationToken);
-        if (entries.Count == 0)
-            return ApiResponse<IReadOnlyList<PortalTimetableEntryDto>>.SuccessResponse(Array.Empty<PortalTimetableEntryDto>());
-
-        var slotIds = entries.Select(x => x.RoutineTimeSlotId).Distinct().ToArray();
-        var instructorAssignmentIds = entries.Where(x => x.InstructorAssignmentId.HasValue).Select(x => x.InstructorAssignmentId!.Value).Distinct().ToArray();
-        var roomIds = entries.Where(x => x.RoomId.HasValue).Select(x => x.RoomId!.Value).Distinct().ToArray();
-        var slots = await _routineSlots.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && slotIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, cancellationToken);
-        var offerings = await _subjectOfferings.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && offeringIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, cancellationToken);
-        var curriculumSubjectIds = offerings.Values.Select(x => x.CurriculumSubjectId).Distinct().ToArray();
-        var curriculumSubjects = await _curriculumSubjects.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && curriculumSubjectIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, cancellationToken);
-        var subjectIds = curriculumSubjects.Values.Select(x => x.SubjectId).Distinct().ToArray();
-        var subjects = await _subjects.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && subjectIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, cancellationToken);
-        var instructorAssignments = instructorAssignmentIds.Length == 0
-            ? new Dictionary<long, InstructorAssignment>()
-            : await _instructorAssignments.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenantId && instructorAssignmentIds.Contains(x.Id) && x.IsActive)
-                .ToDictionaryAsync(x => x.Id, cancellationToken);
-        var employeeIds = instructorAssignments.Values.Select(x => x.EmployeeId).Distinct().ToArray();
-        var employees = employeeIds.Length == 0
-            ? new Dictionary<long, Employee>()
-            : await _employees.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenantId && employeeIds.Contains(x.Id))
-                .ToDictionaryAsync(x => x.Id, cancellationToken);
-        var rooms = roomIds.Length == 0
-            ? new Dictionary<long, Room>()
-            : await _rooms.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenantId && roomIds.Contains(x.Id))
-                .ToDictionaryAsync(x => x.Id, cancellationToken);
-
-        var rows = new List<PortalTimetableEntryDto>();
-        foreach (var entry in entries)
+        if (!CanAccess()) return Denied<IReadOnlyList<PortalStudentDto>>();
+        var tenant = _user.TenantId;
+        var eligible = AuthorizedStudents();
+        var students = await eligible.OrderBy(x => x.FullName).ThenBy(x => x.Id).Take(101).ToListAsync(ct);
+        if (students.Count > 100)
+            return Error<IReadOnlyList<PortalStudentDto>>("Linked student list exceeds portal limit.", 409);
+        var studentIds = students.Select(x => x.Id).ToArray();
+        var active = await _academicEnrollments.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && studentIds.Contains(x.StudentId) && x.IsCurrent &&
+            x.State == EnrollmentState.Active && !x.IsDeleted)
+            .OrderByDescending(x => x.EnrollmentDate).ThenByDescending(x => x.Id)
+            .ToListAsync(ct);
+        var byStudent = active.GroupBy(x => x.StudentId).ToDictionary(x => x.Key, x => x.First());
+        IReadOnlyList<PortalStudentDto> list = students.Select(x =>
         {
-            if (!slots.TryGetValue(entry.RoutineTimeSlotId, out var slot) || !offerings.TryGetValue(entry.SubjectOfferingId, out var offering) ||
-                !curriculumSubjects.TryGetValue(offering.CurriculumSubjectId, out var curriculumSubject) || !subjects.TryGetValue(curriculumSubject.SubjectId, out var subject))
-                continue;
-
-            string teacherName = string.Empty;
-            if (entry.InstructorAssignmentId.HasValue && instructorAssignments.TryGetValue(entry.InstructorAssignmentId.Value, out var assignment) &&
-                employees.TryGetValue(assignment.EmployeeId, out var employee))
-                teacherName = employee.FullName;
-
-            rows.Add(new PortalTimetableEntryDto
+            byStudent.TryGetValue(x.Id, out var e);
+            return new PortalStudentDto
             {
-                RoutineId = entry.Id,
-                DayOfWeek = entry.DayOfWeek.ToString(),
-                StartTime = slot.StartTime.ToTimeSpan(),
-                EndTime = slot.EndTime.ToTimeSpan(),
-                SubjectId = subject.Id,
-                SubjectName = subject.Name,
-                TeacherName = teacherName,
-                RoomNo = entry.RoomId.HasValue && rooms.TryGetValue(entry.RoomId.Value, out var room) ? room.Code : null
+                Reference = x.PublicId, StudentCode = x.StudentCode, Name = x.FullName,
+                RollNo = e?.RollNo ?? string.Empty, AcademicYearId = e?.AcademicYearId ?? 0,
+                AcademicLevelId = e?.AcademicLevelId ?? 0, AcademicBatchId = e?.AcademicBatchId ?? 0
+            };
+        }).ToList();
+        return ApiResponse<IReadOnlyList<PortalStudentDto>>.SuccessResponse(list);
+    }
+
+    public async Task<ApiResponse<IReadOnlyList<PortalTimetableEntryDto>>> GetTimetableAsync(
+        Guid studentReference, CancellationToken ct = default)
+    {
+        var student = await AuthorizedStudentAsync(studentReference, ct);
+        if (student == null) return Denied<IReadOnlyList<PortalTimetableEntryDto>>();
+        var tenant = _user.TenantId;
+        var now = DateOnly.FromDateTime(DateTime.UtcNow);
+        var enrolled = _academicEnrollments.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.StudentId == student.Id && x.IsCurrent &&
+            x.State == EnrollmentState.Active && !x.IsDeleted).Select(x => x.Id);
+        var allowed = from registration in _registrations.GetQueryable().AsNoTracking()
+            join offering in _offerings.GetQueryable().AsNoTracking() on registration.SubjectOfferingId equals offering.Id
+            where registration.TenantId == tenant && offering.TenantId == tenant &&
+                enrolled.Contains(registration.StudentEnrollmentId) &&
+                registration.State == SubjectRegistrationState.Approved && !registration.IsDeleted &&
+                offering.IsActive && !offering.IsDeleted
+            select offering.Id;
+        var entries = await _routines.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && allowed.Contains(x.SubjectOfferingId) &&
+            x.IsActive && !x.IsDeleted && x.EffectiveFrom <= now &&
+            (!x.EffectiveTo.HasValue || x.EffectiveTo.Value >= now))
+            .OrderBy(x => x.DayOfWeek).ThenBy(x => x.RoutineTimeSlotId).ThenBy(x => x.Id)
+            .Take(501).ToListAsync(ct);
+        if (entries.Count > 500)
+            return Error<IReadOnlyList<PortalTimetableEntryDto>>("Timetable exceeds portal limit.", 409);
+        var offerIds = entries.Select(x => x.SubjectOfferingId).Distinct().ToArray();
+        var slotIds = entries.Select(x => x.RoutineTimeSlotId).Distinct().ToArray();
+        var instructorIds = entries.Where(x => x.InstructorAssignmentId.HasValue)
+            .Select(x => x.InstructorAssignmentId!.Value).Distinct().ToArray();
+        var roomIds = entries.Where(x => x.RoomId.HasValue).Select(x => x.RoomId!.Value).Distinct().ToArray();
+        var offerings = await _offerings.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && offerIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, ct);
+        var slots = await _slots.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && slotIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, ct);
+        var curriculumIds = offerings.Values.Select(x => x.CurriculumSubjectId).Distinct().ToArray();
+        var curriculum = await _curriculumSubjects.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && curriculumIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, ct);
+        var subjectIds = curriculum.Values.Select(x => x.SubjectId).Distinct().ToArray();
+        var subjects = await _subjects.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && subjectIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, ct);
+        var instructors = await _instructors.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && instructorIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, ct);
+        var employeeIds = instructors.Values.Select(x => x.EmployeeId).Distinct().ToArray();
+        var employees = await _employees.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && employeeIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, ct);
+        var rooms = await _rooms.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && roomIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, ct);
+        var result = new List<PortalTimetableEntryDto>();
+        foreach (var row in entries)
+        {
+            if (!slots.TryGetValue(row.RoutineTimeSlotId, out var slot) ||
+                !offerings.TryGetValue(row.SubjectOfferingId, out var offer) ||
+                !curriculum.TryGetValue(offer.CurriculumSubjectId, out var item) ||
+                !subjects.TryGetValue(item.SubjectId, out var subject)) continue;
+            var teacher = "";
+            if (row.InstructorAssignmentId.HasValue &&
+                instructors.TryGetValue(row.InstructorAssignmentId.Value, out var instructor) &&
+                employees.TryGetValue(instructor.EmployeeId, out var employee)) teacher = employee.FullName;
+            result.Add(new PortalTimetableEntryDto
+            {
+                RoutineId = row.Id, DayOfWeek = row.DayOfWeek, StartTime = slot.StartTime,
+                EndTime = slot.EndTime, SubjectId = subject.Id, SubjectName = subject.Name,
+                TeacherName = teacher, RoomNo = row.RoomId.HasValue &&
+                    rooms.TryGetValue(row.RoomId.Value, out var room) ? room.Code : null
             });
         }
-
-        IReadOnlyList<PortalTimetableEntryDto> ordered = rows.OrderBy(x => DayOrder(x.DayOfWeek)).ThenBy(x => x.StartTime).ThenBy(x => x.RoutineId).ToList();
-        return ApiResponse<IReadOnlyList<PortalTimetableEntryDto>>.SuccessResponse(ordered);
+        return ApiResponse<IReadOnlyList<PortalTimetableEntryDto>>.SuccessResponse(result);
     }
 
-    public async Task<ApiResponse<IReadOnlyList<PortalStudentDto>>> GetLinkedStudentsAsync(CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<PagedResult<PortalAttendanceDto>>> GetAttendanceAsync(
+        Guid studentReference, DateOnly fromDate, DateOnly toDate, int page, int pageSize,
+        CancellationToken ct = default)
     {
-        if (!CanUsePortal()) return Denied<IReadOnlyList<PortalStudentDto>>();
-        try
-        {
-            var ids = await GetAuthorizedStudentIdsAsync(cancellationToken);
-            var students = await _students.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == _currentUser.TenantId && ids.Contains(x.Id) && x.IsActive)
-                .OrderBy(x => x.FullName).Take(100).ToListAsync(cancellationToken);
-            var studentIds = students.Select(x => x.Id).ToArray();
-            var enrollments = await _studentEnrollments.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == _currentUser.TenantId && studentIds.Contains(x.StudentId) && x.IsActive)
-                .OrderByDescending(x => x.IsCurrent).ThenByDescending(x => x.EnrollmentDate).ThenByDescending(x => x.Id)
-                .ToListAsync(cancellationToken);
-            var currentByStudent = enrollments.GroupBy(x => x.StudentId).ToDictionary(g => g.Key, g => g.First());
-
-            IReadOnlyList<PortalStudentDto> data = students.Select(x =>
+        var student = await AuthorizedStudentAsync(studentReference, ct);
+        if (student == null) return Denied<PagedResult<PortalAttendanceDto>>();
+        if (!ValidPage(page, pageSize) || fromDate == default || toDate < fromDate ||
+            toDate.DayNumber - fromDate.DayNumber > 366)
+            return Error<PagedResult<PortalAttendanceDto>>("Invalid attendance date range or page.");
+        var tenant = _user.TenantId;
+        var enrollments = _academicEnrollments.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.StudentId == student.Id && !x.IsDeleted).Select(x => x.Id);
+        var query = from att in _attendance.GetQueryable().AsNoTracking()
+            join session in _sessions.GetQueryable().AsNoTracking() on att.AttendanceSessionId equals session.Id
+            where att.TenantId == tenant && session.TenantId == tenant &&
+                enrollments.Contains(att.StudentEnrollmentId) &&
+                session.AttendanceDate >= fromDate && session.AttendanceDate <= toDate &&
+                !att.IsDeleted && !session.IsDeleted
+            select new { att, session.AttendanceDate };
+        var count = await query.CountAsync(ct);
+        var skip = Skip(page, pageSize);
+        if (skip < 0) return Error<PagedResult<PortalAttendanceDto>>("Page exceeds supported range.");
+        var rows = await query.OrderByDescending(x => x.AttendanceDate).ThenByDescending(x => x.att.Id)
+            .Skip(skip).Take(pageSize).Select(x => new PortalAttendanceDto
             {
-                currentByStudent.TryGetValue(x.Id, out var enrollment);
-                return new PortalStudentDto
-                {
-                    Reference = x.PublicId,
-                    StudentCode = x.StudentCode,
-                    Roll = enrollment?.RollNo ?? string.Empty,
-                    Name = x.FullName,
-                    AcademicYearId = enrollment?.AcademicYearId ?? 0,
-                    ClassId = enrollment?.AcademicLevelId ?? 0,
-                    SectionId = enrollment?.AcademicBatchId ?? 0
-                };
-            }).ToList();
-            return ApiResponse<IReadOnlyList<PortalStudentDto>>.SuccessResponse(data);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Portal linked students failed for user {UserId}", _currentUser.UserId);
-            return ApiResponse<IReadOnlyList<PortalStudentDto>>.ErrorResponse("Portal data could not be loaded.", 500);
-        }
+                AttendanceSessionId = x.att.AttendanceSessionId, AttendanceDate = x.AttendanceDate,
+                State = x.att.State, CheckInTime = x.att.CheckInTime, CheckOutTime = x.att.CheckOutTime,
+                Remarks = x.att.Remarks
+            }).ToListAsync(ct);
+        return ApiResponse<PagedResult<PortalAttendanceDto>>.SuccessResponse(Page(rows, count, page, pageSize));
     }
 
-    public async Task<ApiResponse<IReadOnlyList<PortalAttendanceDto>>> GetAttendanceAsync(Guid studentReference, DateTime fromDate, DateTime toDate, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<PagedResult<PortalResultDto>>> GetResultsAsync(
+        Guid studentReference, int page, int pageSize, CancellationToken ct = default)
     {
-        var student = await GetAuthorizedStudentAsync(studentReference, cancellationToken);
-        if (student == null) return Denied<IReadOnlyList<PortalAttendanceDto>>();
-        if (fromDate.Date > toDate.Date || (toDate.Date - fromDate.Date).TotalDays > 370)
-            return ApiResponse<IReadOnlyList<PortalAttendanceDto>>.ErrorResponse("Attendance date range is invalid.");
-
-        var tenantId = _currentUser.TenantId;
-        var enrollmentIds = await _studentEnrollments.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && x.StudentId == student.Id)
-            .Select(x => x.Id).Take(100).ToListAsync(cancellationToken);
-        if (enrollmentIds.Count == 0)
-            return ApiResponse<IReadOnlyList<PortalAttendanceDto>>.SuccessResponse(Array.Empty<PortalAttendanceDto>());
-
-        var from = DateOnly.FromDateTime(fromDate.Date);
-        var to = DateOnly.FromDateTime(toDate.Date);
-        var sessions = await _attendanceSessions.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && x.AttendanceDate >= from && x.AttendanceDate <= to)
-            .OrderByDescending(x => x.AttendanceDate).Take(1000).ToListAsync(cancellationToken);
-        var sessionIds = sessions.Select(x => x.Id).ToArray();
-        var sessionMap = sessions.ToDictionary(x => x.Id);
-        var attendance = await _attendance.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && enrollmentIds.Contains(x.StudentEnrollmentId) && sessionIds.Contains(x.AttendanceSessionId))
-            .OrderByDescending(x => x.RecordedAt).Take(1000).ToListAsync(cancellationToken);
-
-        IReadOnlyList<PortalAttendanceDto> rows = attendance.Where(x => sessionMap.ContainsKey(x.AttendanceSessionId))
-            .OrderByDescending(x => sessionMap[x.AttendanceSessionId].AttendanceDate)
-            .Select(x => new PortalAttendanceDto
+        var student = await AuthorizedStudentAsync(studentReference, ct);
+        if (student == null) return Denied<PagedResult<PortalResultDto>>();
+        if (!ValidPage(page, pageSize)) return Error<PagedResult<PortalResultDto>>("Invalid page.");
+        var tenant = _user.TenantId;
+        var guardianView = _user.IsInRole("Guardian") || _user.IsInRole("Parent");
+        var enrollments = _academicEnrollments.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.StudentId == student.Id && !x.IsDeleted).Select(x => x.Id);
+        var query = from summary in _results.GetQueryable().AsNoTracking()
+            join publication in _publications.GetQueryable().AsNoTracking()
+                on summary.ResultPublicationId equals publication.Id
+            join assessment in _assessments.GetQueryable().AsNoTracking()
+                on summary.AssessmentId equals assessment.Id
+            where summary.TenantId == tenant && publication.TenantId == tenant &&
+                assessment.TenantId == tenant && enrollments.Contains(summary.StudentEnrollmentId) &&
+                publication.State == ResultPublicationState.Published &&
+                (guardianView ? publication.VisibleToGuardian : publication.VisibleToStudent) &&
+                !publication.IsDeleted && !summary.IsDeleted && !assessment.IsDeleted
+            select new { summary, publication.PublishedAt, AssessmentName = assessment.Name };
+        var count = await query.CountAsync(ct);
+        var skip = Skip(page, pageSize);
+        if (skip < 0) return Error<PagedResult<PortalResultDto>>("Page exceeds supported range.");
+        var rows = await query.OrderByDescending(x => x.PublishedAt).ThenByDescending(x => x.summary.Id)
+            .Skip(skip).Take(pageSize).Select(x => new PortalResultDto
             {
-                Date = sessionMap[x.AttendanceSessionId].AttendanceDate.ToDateTime(TimeOnly.MinValue),
-                Status = x.State.ToString(),
-                InTime = x.CheckInTime?.ToTimeSpan(),
-                OutTime = x.CheckOutTime?.ToTimeSpan(),
-                Remarks = x.Remarks
-            }).ToList();
-        return ApiResponse<IReadOnlyList<PortalAttendanceDto>>.SuccessResponse(rows);
+                ResultPublicationId = x.summary.ResultPublicationId,
+                AssessmentId = x.summary.AssessmentId, AssessmentName = x.AssessmentName,
+                PublicationVersionNo = x.summary.PublicationVersionNo,
+                ObtainedMarks = x.summary.ObtainedMarks, TotalMarks = x.summary.TotalMarks,
+                Percentage = x.summary.Percentage, GPA = x.summary.GPA, CGPA = x.summary.CGPA,
+                GradeLetter = x.summary.GradeLetter, MeritPosition = x.summary.MeritPosition,
+                IsPassed = x.summary.IsPassed, IsWithheld = x.summary.IsWithheld,
+                PublishedAt = x.PublishedAt
+            }).ToListAsync(ct);
+        return ApiResponse<PagedResult<PortalResultDto>>.SuccessResponse(Page(rows, count, page, pageSize));
     }
 
-    public async Task<ApiResponse<IReadOnlyList<PortalResultDto>>> GetResultsAsync(Guid studentReference, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<PortalFeeLedgerDto>> GetFeesAsync(
+        Guid studentReference, CancellationToken ct = default)
     {
-        var student = await GetAuthorizedStudentAsync(studentReference, cancellationToken);
-        if (student == null) return Denied<IReadOnlyList<PortalResultDto>>();
-
-        var tenantId = _currentUser.TenantId;
-        var enrollmentIds = await _studentEnrollments.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && x.StudentId == student.Id)
-            .Select(x => x.Id).Take(100).ToListAsync(cancellationToken);
-        if (enrollmentIds.Count == 0)
-            return ApiResponse<IReadOnlyList<PortalResultDto>>.SuccessResponse(Array.Empty<PortalResultDto>());
-
-        var summaries = await _results.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && enrollmentIds.Contains(x.StudentEnrollmentId))
-            .OrderByDescending(x => x.CalculatedAt).Take(200).ToListAsync(cancellationToken);
-        var publicationIds = summaries.Select(x => x.ResultPublicationId).Distinct().ToArray();
-        var showForGuardian = _currentUser.IsInRole("Guardian") || _currentUser.IsInRole("Parent");
-        var publications = await _resultPublications.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && publicationIds.Contains(x.Id) && x.State == ResultPublicationState.Published &&
-                        (showForGuardian ? x.VisibleToGuardian : x.VisibleToStudent))
-            .ToDictionaryAsync(x => x.Id, cancellationToken);
-        var assessmentIds = summaries.Where(x => publications.ContainsKey(x.ResultPublicationId)).Select(x => x.AssessmentId).Distinct().ToArray();
-        var assessments = assessmentIds.Length == 0
-            ? new Dictionary<long, Assessment>()
-            : await _assessments.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenantId && assessmentIds.Contains(x.Id))
-                .ToDictionaryAsync(x => x.Id, cancellationToken);
-
-        IReadOnlyList<PortalResultDto> rows = summaries
-            .Where(x => publications.ContainsKey(x.ResultPublicationId) && assessments.ContainsKey(x.AssessmentId))
-            .OrderByDescending(x => publications[x.ResultPublicationId].PublishedAt ?? x.CalculatedAt)
-            .Select(x => new PortalResultDto
-            {
-                ExamId = x.AssessmentId,
-                ExamName = assessments[x.AssessmentId].Name,
-                TotalMark = x.ObtainedMarks,
-                TotalFullMark = x.TotalMarks,
-                Percentage = x.Percentage ?? 0m,
-                GPA = x.GPA ?? 0m,
-                Grade = x.GradeLetter,
-                Position = x.MeritPosition,
-                IsPassed = x.IsPassed && !x.IsWithheld,
-                PublishedAtUtc = publications[x.ResultPublicationId].PublishedAt
-            }).ToList();
-        return ApiResponse<IReadOnlyList<PortalResultDto>>.SuccessResponse(rows);
-    }
-
-    public async Task<ApiResponse<PortalFeeLedgerDto>> GetFeesAsync(Guid studentReference, CancellationToken cancellationToken = default)
-    {
-        var student = await GetAuthorizedStudentAsync(studentReference, cancellationToken);
+        var student = await AuthorizedStudentAsync(studentReference, ct);
         if (student == null) return Denied<PortalFeeLedgerDto>();
-
-        var tenantId = _currentUser.TenantId;
-        var enrollmentIds = await _studentEnrollments.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && x.StudentId == student.Id)
-            .Select(x => x.Id).Take(100).ToListAsync(cancellationToken);
-        var invoices = enrollmentIds.Count == 0
-            ? new List<StudentInvoice>()
-            : await _invoices.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenantId && enrollmentIds.Contains(x.StudentEnrollmentId))
-                .OrderByDescending(x => x.InvoiceDate).ThenByDescending(x => x.Id).Take(500).ToListAsync(cancellationToken);
-        var payments = await _payments.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && x.StudentId == student.Id && x.State == PaymentState.Successful)
-            .OrderByDescending(x => x.PaymentDate).ThenByDescending(x => x.Id).Take(500).ToListAsync(cancellationToken);
-
+        var tenant = _user.TenantId;
+        var enrollments = _academicEnrollments.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.StudentId == student.Id && !x.IsDeleted).Select(x => x.Id);
+        var q = _invoices.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && enrollments.Contains(x.StudentEnrollmentId) &&
+            !x.IsDeleted && x.State != InvoiceState.Cancelled);
+        var summary = await q.GroupBy(x => x.TenantId).Select(g => new
+        {
+            Billed = g.Sum(x => x.TotalAmount), Paid = g.Sum(x => x.PaidAmount),
+            Due = g.Sum(x => x.DueAmount)
+        }).FirstOrDefaultAsync(ct);
         return ApiResponse<PortalFeeLedgerDto>.SuccessResponse(new PortalFeeLedgerDto
         {
-            TotalBilled = invoices.Sum(x => x.TotalAmount),
-            TotalPaid = invoices.Sum(x => x.PaidAmount),
-            TotalDue = invoices.Sum(x => x.DueAmount),
-            Invoices = invoices.Select(x => new PortalInvoiceDto
-            {
-                Reference = x.PublicId,
-                InvoiceNo = x.InvoiceNumber,
-                Month = x.InvoiceDate.Month.ToString("D2"),
-                Year = x.InvoiceDate.Year,
-                BilledAmount = x.TotalAmount,
-                PaidAmount = x.PaidAmount,
-                DueAmount = x.DueAmount,
-                Status = x.State.ToString(),
-                DueDate = x.DueDate.ToDateTime(TimeOnly.MinValue)
-            }).ToList(),
-            Payments = payments.Select(x => new PortalPaymentDto
-            {
-                Reference = x.PublicId,
-                ReceiptNo = x.ReceiptNumber,
-                Amount = x.Amount,
-                PaymentMethod = x.PaymentMethod.ToString(),
-                PaymentDate = x.PaymentDate.ToDateTime(TimeOnly.MinValue)
-            }).ToList()
+            TotalBilled = summary?.Billed ?? 0m, TotalPaid = summary?.Paid ?? 0m,
+            TotalDue = summary?.Due ?? 0m
         });
     }
 
-    public async Task<ApiResponse<IReadOnlyList<PortalTransportDto>>> GetTransportAsync(Guid studentReference, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<PagedResult<PortalInvoiceDto>>> GetInvoicesAsync(
+        Guid studentReference, int page, int pageSize, CancellationToken ct = default)
     {
-        var student = await GetAuthorizedStudentAsync(studentReference, cancellationToken);
-        if (student == null) return Denied<IReadOnlyList<PortalTransportDto>>();
-
-        var tenantId = _currentUser.TenantId;
-        var assignments = await _transport.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && x.StudentId == student.Id)
-            .OrderBy(x => x.State == TransportAssignmentState.Active ? 0 : 1)
-            .ThenByDescending(x => x.StartDate).Take(100).ToListAsync(cancellationToken);
-        var routeIds = assignments.Select(x => x.RouteId).Distinct().ToArray();
-        var vehicleIds = assignments.Select(x => x.VehicleId).Distinct().ToArray();
-        var stopIds = assignments.Where(x => x.PickupStopId.HasValue).Select(x => x.PickupStopId!.Value).Distinct().ToArray();
-        var routes = routeIds.Length == 0 ? new Dictionary<long, Route>() : await _routes.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && routeIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, cancellationToken);
-        var vehicles = vehicleIds.Length == 0 ? new Dictionary<long, Vehicle>() : await _vehicles.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && vehicleIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, cancellationToken);
-        var stops = stopIds.Length == 0 ? new Dictionary<long, RouteStop>() : await _routeStops.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && stopIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, cancellationToken);
-
-        IReadOnlyList<PortalTransportDto> rows = assignments.Select(x =>
-        {
-            routes.TryGetValue(x.RouteId, out var route);
-            vehicles.TryGetValue(x.VehicleId, out var vehicle);
-            RouteStop? stop = null;
-            if (x.PickupStopId.HasValue) stops.TryGetValue(x.PickupStopId.Value, out stop);
-            return new PortalTransportDto
+        var student = await AuthorizedStudentAsync(studentReference, ct);
+        if (student == null) return Denied<PagedResult<PortalInvoiceDto>>();
+        if (!ValidPage(page, pageSize)) return Error<PagedResult<PortalInvoiceDto>>("Invalid page.");
+        var tenant = _user.TenantId;
+        var enrollmentIds = _academicEnrollments.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.StudentId == student.Id && !x.IsDeleted).Select(x => x.Id);
+        var query = _invoices.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && enrollmentIds.Contains(x.StudentEnrollmentId) && !x.IsDeleted);
+        var count = await query.CountAsync(ct);
+        var skip = Skip(page, pageSize);
+        if (skip < 0) return Error<PagedResult<PortalInvoiceDto>>("Page exceeds supported range.");
+        var rows = await query.OrderByDescending(x => x.InvoiceDate).ThenByDescending(x => x.Id)
+            .Skip(skip).Take(pageSize).Select(x => new PortalInvoiceDto
             {
-                Reference = x.PublicId,
-                RouteName = route?.Name ?? string.Empty,
-                VehicleNo = vehicle?.VehicleNumber ?? string.Empty,
-                PickupPoint = stop?.Name,
-                DriverName = vehicle?.DriverName,
-                DriverPhone = vehicle?.DriverPhone,
-                StartDate = x.StartDate.ToDateTime(TimeOnly.MinValue),
-                EndDate = x.EndDate?.ToDateTime(TimeOnly.MinValue),
-                MonthlyFare = x.MonthlyFare,
-                IsActive = x.State == TransportAssignmentState.Active
-            };
-        }).ToList();
-        return ApiResponse<IReadOnlyList<PortalTransportDto>>.SuccessResponse(rows);
+                Reference = x.PublicId, InvoiceNumber = x.InvoiceNumber,
+                InvoiceDate = x.InvoiceDate, DueDate = x.DueDate,
+                TotalAmount = x.TotalAmount, PaidAmount = x.PaidAmount, DueAmount = x.DueAmount,
+                State = x.State
+            }).ToListAsync(ct);
+        return ApiResponse<PagedResult<PortalInvoiceDto>>.SuccessResponse(Page(rows, count, page, pageSize));
     }
 
-    public async Task<ApiResponse<IReadOnlyList<PortalHomeworkDto>>> GetHomeworkAsync(Guid studentReference, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<PagedResult<PortalPaymentDto>>> GetPaymentsAsync(
+        Guid studentReference, int page, int pageSize, CancellationToken ct = default)
     {
-        var student = await GetAuthorizedStudentAsync(studentReference, cancellationToken);
-        if (student == null) return Denied<IReadOnlyList<PortalHomeworkDto>>();
-
-        var courseIds = await _enrollments.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == _currentUser.TenantId && x.StudentId == student.Id && x.State == CourseEnrollmentState.Active)
-            .Select(x => x.CourseId).Distinct().Take(200).ToListAsync(cancellationToken);
-        if (courseIds.Count == 0) return ApiResponse<IReadOnlyList<PortalHomeworkDto>>.SuccessResponse(Array.Empty<PortalHomeworkDto>());
-
-        var assignments = await _assignments.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == _currentUser.TenantId && courseIds.Contains(x.CourseId) && x.Type == LearningTaskType.Homework && x.IsPublished)
-            .OrderByDescending(x => x.OpensAt ?? x.CreatedAt).ThenByDescending(x => x.Id)
-            .Take(200).ToListAsync(cancellationToken);
-        var usedCourseIds = assignments.Select(x => x.CourseId).Distinct().ToArray();
-        var courses = await _courses.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == _currentUser.TenantId && usedCourseIds.Contains(x.Id) && x.IsActive)
-            .Select(x => new { x.Id, x.SubjectId, x.Title }).ToListAsync(cancellationToken);
-        var subjectIds = courses.Where(x => x.SubjectId.HasValue).Select(x => x.SubjectId!.Value).Distinct().ToArray();
-        var subjects = subjectIds.Length == 0
-            ? new Dictionary<long, string>()
-            : await _subjects.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == _currentUser.TenantId && subjectIds.Contains(x.Id))
-                .Select(x => new { x.Id, x.Name }).ToDictionaryAsync(x => x.Id, x => x.Name, cancellationToken);
-        var courseMap = courses.ToDictionary(x => x.Id);
-
-        IReadOnlyList<PortalHomeworkDto> rows = assignments.Where(x => courseMap.ContainsKey(x.CourseId)).Select(x =>
-        {
-            var course = courseMap[x.CourseId];
-            var subjectId = course.SubjectId ?? 0;
-            return new PortalHomeworkDto
+        var student = await AuthorizedStudentAsync(studentReference, ct);
+        if (student == null) return Denied<PagedResult<PortalPaymentDto>>();
+        if (!ValidPage(page, pageSize)) return Error<PagedResult<PortalPaymentDto>>("Invalid page.");
+        var tenant = _user.TenantId;
+        var query = _payments.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.StudentId == student.Id && !x.IsDeleted);
+        var count = await query.CountAsync(ct);
+        var skip = Skip(page, pageSize);
+        if (skip < 0) return Error<PagedResult<PortalPaymentDto>>("Page exceeds supported range.");
+        var rows = await query.OrderByDescending(x => x.PaymentDate).ThenByDescending(x => x.Id)
+            .Skip(skip).Take(pageSize).Select(x => new PortalPaymentDto
             {
-                HomeworkId = x.Id,
-                SubjectId = subjectId,
-                SubjectName = subjectId > 0 && subjects.TryGetValue(subjectId, out var subjectName) ? subjectName : course.Title,
-                Title = x.Title,
-                Description = x.Instructions,
-                AssignedDate = x.OpensAt ?? x.CreatedAt,
-                DueDate = x.DueAt ?? x.OpensAt ?? x.CreatedAt,
-                AttachmentUrl = null
-            };
-        }).ToList();
-        return ApiResponse<IReadOnlyList<PortalHomeworkDto>>.SuccessResponse(rows);
+                Reference = x.PublicId, ReceiptNumber = x.ReceiptNumber,
+                Amount = x.Amount, PaymentMethod = x.PaymentMethod, State = x.State,
+                PaymentDate = x.PaymentDate
+            }).ToListAsync(ct);
+        return ApiResponse<PagedResult<PortalPaymentDto>>.SuccessResponse(Page(rows, count, page, pageSize));
     }
 
-    public async Task<ApiResponse<IReadOnlyList<PortalAssignmentDto>>> GetAssignmentsAsync(Guid studentReference, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<PagedResult<PortalTransportDto>>> GetTransportAsync(
+        Guid studentReference, int page, int pageSize, CancellationToken ct = default)
     {
-        var student = await GetAuthorizedStudentAsync(studentReference, cancellationToken);
-        if (student == null) return Denied<IReadOnlyList<PortalAssignmentDto>>();
+        var student = await AuthorizedStudentAsync(studentReference, ct);
+        if (student == null) return Denied<PagedResult<PortalTransportDto>>();
+        if (!ValidPage(page, pageSize)) return Error<PagedResult<PortalTransportDto>>("Invalid page.");
+        var tenant = _user.TenantId;
+        var query = from assignment in _transport.GetQueryable().AsNoTracking()
+            join route in _routes.GetQueryable().AsNoTracking() on assignment.RouteId equals route.Id
+            join vehicle in _vehicles.GetQueryable().AsNoTracking() on assignment.VehicleId equals vehicle.Id
+            where assignment.TenantId == tenant && route.TenantId == tenant &&
+                vehicle.TenantId == tenant && assignment.StudentId == student.Id &&
+                !assignment.IsDeleted
+            select new { assignment, route.Name, vehicle.VehicleNumber };
+        var count = await query.CountAsync(ct);
+        var skip = Skip(page, pageSize);
+        if (skip < 0) return Error<PagedResult<PortalTransportDto>>("Page exceeds supported range.");
+        var data = await query.OrderByDescending(x => x.assignment.StartDate)
+            .ThenByDescending(x => x.assignment.Id).Skip(skip).Take(pageSize)
+            .Select(x => new
+            {
+                x.assignment.PublicId, RouteName = x.Name, x.VehicleNumber,
+                x.assignment.PickupStopId, x.assignment.StartDate, x.assignment.EndDate,
+                x.assignment.MonthlyFare, x.assignment.State
+            }).ToListAsync(ct);
+        var stopIds = data.Where(x => x.PickupStopId.HasValue)
+            .Select(x => x.PickupStopId!.Value).Distinct().ToArray();
+        var stops = await _stops.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && stopIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, x => x.Name, ct);
+        var rows = data.Select(x => new PortalTransportDto
+        {
+            Reference = x.PublicId, RouteName = x.RouteName, VehicleNumber = x.VehicleNumber,
+            PickupPoint = x.PickupStopId.HasValue &&
+                stops.TryGetValue(x.PickupStopId.Value, out var stop) ? stop : null,
+            StartDate = x.StartDate, EndDate = x.EndDate, MonthlyFare = x.MonthlyFare, State = x.State
+        }).ToList();
+        return ApiResponse<PagedResult<PortalTransportDto>>.SuccessResponse(Page(rows, count, page, pageSize));
+    }
 
-        var courseIds = await _enrollments.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == _currentUser.TenantId && x.StudentId == student.Id && x.State == CourseEnrollmentState.Active)
-            .Select(x => x.CourseId).Distinct().Take(200).ToListAsync(cancellationToken);
-        if (courseIds.Count == 0) return ApiResponse<IReadOnlyList<PortalAssignmentDto>>.SuccessResponse(Array.Empty<PortalAssignmentDto>());
+    public Task<ApiResponse<PagedResult<PortalHomeworkDto>>> GetHomeworkAsync(
+        Guid studentReference, int page, int pageSize, CancellationToken ct = default) =>
+        GetLearningTasksAsync(studentReference, page, pageSize, true, ct);
 
-        var assignments = await _assignments.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == _currentUser.TenantId && courseIds.Contains(x.CourseId) && x.Type != LearningTaskType.Homework && x.IsPublished)
-            .OrderBy(x => x.DueAt ?? DateTime.MaxValue).ThenBy(x => x.Id)
-            .Take(200).ToListAsync(cancellationToken);
-        var usedCourseIds = assignments.Select(x => x.CourseId).Distinct().ToArray();
-        var courseTitles = await _courses.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == _currentUser.TenantId && usedCourseIds.Contains(x.Id) && x.IsActive)
-            .Select(x => new { x.Id, x.Title }).ToDictionaryAsync(x => x.Id, x => x.Title, cancellationToken);
+    public Task<ApiResponse<PagedResult<PortalAssignmentDto>>> GetAssignmentsAsync(
+        Guid studentReference, int page, int pageSize, CancellationToken ct = default) =>
+        GetAssignmentTasksAsync(studentReference, page, pageSize, ct);
 
-        IReadOnlyList<PortalAssignmentDto> rows = assignments.Where(x => courseTitles.ContainsKey(x.CourseId))
+    private async Task<ApiResponse<PagedResult<PortalHomeworkDto>>> GetLearningTasksAsync(
+        Guid reference, int page, int pageSize, bool homework, CancellationToken ct)
+    {
+        var student = await AuthorizedStudentAsync(reference, ct);
+        if (student == null) return Denied<PagedResult<PortalHomeworkDto>>();
+        if (!ValidPage(page, pageSize)) return Error<PagedResult<PortalHomeworkDto>>("Invalid page.");
+        var tenant = _user.TenantId;
+        var courseIds = _courseEnrollments.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.StudentId == student.Id && !x.IsDeleted &&
+            (x.State == CourseEnrollmentState.Active || x.State == CourseEnrollmentState.Completed))
+            .Select(x => x.CourseId);
+        var query = from assignment in _assignments.GetQueryable().AsNoTracking()
+            join course in _courses.GetQueryable().AsNoTracking() on assignment.CourseId equals course.Id
+            where assignment.TenantId == tenant && course.TenantId == tenant &&
+                courseIds.Contains(assignment.CourseId) && assignment.IsPublished &&
+                assignment.Type == LearningTaskType.Homework && !assignment.IsDeleted &&
+                course.IsActive && !course.IsDeleted
+            select new { assignment, course.SubjectId, course.Title };
+        var count = await query.CountAsync(ct);
+        var skip = Skip(page, pageSize);
+        if (skip < 0) return Error<PagedResult<PortalHomeworkDto>>("Page outside supported range.");
+        var data = await query.OrderByDescending(x => x.assignment.OpensAt)
+            .ThenByDescending(x => x.assignment.Id).Skip(skip).Take(pageSize).ToListAsync(ct);
+        var subjectIds = data.Where(x => x.SubjectId.HasValue)
+            .Select(x => x.SubjectId!.Value).Distinct().ToArray();
+        var names = await _subjects.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && subjectIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, x => x.Name, ct);
+        var rows = data.Select(x => new PortalHomeworkDto
+        {
+            AssignmentReference = x.assignment.PublicId, SubjectId = x.SubjectId ?? 0,
+            SubjectName = x.SubjectId.HasValue &&
+                names.TryGetValue(x.SubjectId.Value, out var name) ? name : x.Title,
+            Title = x.assignment.Title, Instructions = x.assignment.Instructions,
+            OpensAt = x.assignment.OpensAt, DueAt = x.assignment.DueAt
+        }).ToList();
+        return ApiResponse<PagedResult<PortalHomeworkDto>>.SuccessResponse(Page(rows, count, page, pageSize));
+    }
+
+    private async Task<ApiResponse<PagedResult<PortalAssignmentDto>>> GetAssignmentTasksAsync(
+        Guid reference, int page, int pageSize, CancellationToken ct)
+    {
+        var student = await AuthorizedStudentAsync(reference, ct);
+        if (student == null) return Denied<PagedResult<PortalAssignmentDto>>();
+        if (!ValidPage(page, pageSize)) return Error<PagedResult<PortalAssignmentDto>>("Invalid page.");
+        var tenant = _user.TenantId;
+        var courseIds = _courseEnrollments.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.StudentId == student.Id && !x.IsDeleted &&
+            (x.State == CourseEnrollmentState.Active || x.State == CourseEnrollmentState.Completed))
+            .Select(x => x.CourseId);
+        var query = from assignment in _assignments.GetQueryable().AsNoTracking()
+            join course in _courses.GetQueryable().AsNoTracking() on assignment.CourseId equals course.Id
+            where assignment.TenantId == tenant && course.TenantId == tenant &&
+                courseIds.Contains(assignment.CourseId) && assignment.IsPublished &&
+                assignment.Type != LearningTaskType.Homework && !assignment.IsDeleted &&
+                course.IsActive && !course.IsDeleted
+            select new { assignment, CourseTitle = course.Title };
+        var count = await query.CountAsync(ct);
+        var skip = Skip(page, pageSize);
+        if (skip < 0) return Error<PagedResult<PortalAssignmentDto>>("Page outside supported range.");
+        var rows = await query.OrderBy(x => x.assignment.DueAt)
+            .ThenBy(x => x.assignment.Id).Skip(skip).Take(pageSize)
             .Select(x => new PortalAssignmentDto
             {
-                Reference = x.PublicId,
-                CourseId = x.CourseId,
-                CourseTitle = courseTitles[x.CourseId],
-                Title = x.Title,
-                Description = x.Instructions,
-                TotalMark = decimal.ToInt32(decimal.Round(x.MaxMarks, 0, MidpointRounding.AwayFromZero)),
-                DueDate = x.DueAt ?? x.OpensAt ?? x.CreatedAt,
-                AttachmentUrl = null
-            }).ToList();
-        return ApiResponse<IReadOnlyList<PortalAssignmentDto>>.SuccessResponse(rows);
+                Reference = x.assignment.PublicId, CourseId = x.assignment.CourseId,
+                CourseTitle = x.CourseTitle, Title = x.assignment.Title,
+                Instructions = x.assignment.Instructions, MaxMarks = x.assignment.MaxMarks,
+                DueAt = x.assignment.DueAt
+            }).ToListAsync(ct);
+        return ApiResponse<PagedResult<PortalAssignmentDto>>.SuccessResponse(Page(rows, count, page, pageSize));
     }
 
-    private async Task<Student?> GetAuthorizedStudentAsync(Guid reference, CancellationToken cancellationToken)
+    private IQueryable<Student> AuthorizedStudents()
     {
-        if (!CanUsePortal() || reference == Guid.Empty) return null;
-        var ids = await GetAuthorizedStudentIdsAsync(cancellationToken);
-        return await _students.GetQueryable().AsNoTracking()
-            .FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.PublicId == reference && ids.Contains(x.Id) && x.IsActive, cancellationToken);
+        var tenant = _user.TenantId;
+        var user = _user.UserId;
+        var guardians = _guardians.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.UserId == user && x.IsActive && !x.IsDeleted).Select(x => x.Id);
+        var linked = _links.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && guardians.Contains(x.GuardianId) && !x.IsDeleted).Select(x => x.StudentId);
+        return _students.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
+            x.StatusCode == "Active" && !x.IsDeleted && (x.UserId == user || linked.Contains(x.Id)));
     }
 
-    private async Task<List<long>> GetAuthorizedStudentIdsAsync(CancellationToken cancellationToken)
+    private Task<Student?> AuthorizedStudentAsync(Guid reference, CancellationToken ct) =>
+        !CanAccess() || reference == Guid.Empty ? Task.FromResult<Student?>(null) :
+            AuthorizedStudents().FirstOrDefaultAsync(x => x.PublicId == reference, ct);
+
+    private bool CanAccess() => _user.IsAuthenticated && _user.TenantId > 0 &&
+        (_user.IsInRole("Student") || _user.IsInRole("Guardian") || _user.IsInRole("Parent"));
+    private static bool ValidPage(int page, int pageSize) => page >= 1 && pageSize is >= 1 and <= 100;
+    private static int Skip(int page, int size)
     {
-        var tenantId = _currentUser.TenantId;
-        var userId = _currentUser.UserId;
-        var direct = await _students.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && x.UserId == userId && x.IsActive)
-            .Select(x => x.Id).Take(100).ToListAsync(cancellationToken);
-        var guardianIds = await _guardians.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && x.UserId == userId && x.IsActive)
-            .Select(x => x.Id).Take(100).ToListAsync(cancellationToken);
-        var guarded = guardianIds.Count == 0
-            ? new List<long>()
-            : await _studentGuardians.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenantId && guardianIds.Contains(x.GuardianId))
-                .Select(x => x.StudentId).Distinct().Take(100).ToListAsync(cancellationToken);
-        return direct.Concat(guarded).Distinct().Take(100).ToList();
+        var skipped = (long)(page - 1) * size;
+        return skipped > int.MaxValue ? -1 : (int)skipped;
     }
-
-    private Task<StudentEnrollment?> GetCurrentEnrollmentAsync(long studentId, CancellationToken cancellationToken) =>
-        _studentEnrollments.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == _currentUser.TenantId && x.StudentId == studentId && x.IsActive)
-            .OrderByDescending(x => x.IsCurrent).ThenByDescending(x => x.EnrollmentDate).ThenByDescending(x => x.Id)
-            .FirstOrDefaultAsync(cancellationToken);
-
-    private bool CanUsePortal() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0 &&
-        (_currentUser.IsInRole("Student") || _currentUser.IsInRole("Guardian") || _currentUser.IsInRole("Parent"));
-
-    private static int DayOrder(string? day) => day?.Trim().ToLowerInvariant() switch
+    private static PagedResult<T> Page<T>(List<T> items, int count, int page, int pageSize) => new()
     {
-        "saturday" => 0,
-        "sunday" => 1,
-        "monday" => 2,
-        "tuesday" => 3,
-        "wednesday" => 4,
-        "thursday" => 5,
-        "friday" => 6,
-        _ => 7
+        Page = page, PageSize = pageSize, TotalCount = count, Items = items
     };
-
-    private static ApiResponse<T> Denied<T>() => ApiResponse<T>.ErrorResponse("The requested student is not linked to this account.", 403);
+    private static ApiResponse<T> Denied<T>() => ApiResponse<T>.ErrorResponse(
+        "Requested student not linked to this account.", 403);
+    private static ApiResponse<T> Error<T>(string message, int status = 400) =>
+        ApiResponse<T>.ErrorResponse(message, status);
 }
