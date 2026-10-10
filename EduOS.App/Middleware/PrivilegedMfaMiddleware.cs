@@ -25,7 +25,6 @@ public sealed class PrivilegedMfaMiddleware
         "/Localization",
         "/Error",
         "/health",
-        "/hangfire",
 
         "/css",
         "/js",
