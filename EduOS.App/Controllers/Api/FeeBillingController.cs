@@ -1,11 +1,9 @@
 using EduOS.App.Authorization;
-using EduOS.Core.Common;
 using EduOS.Core.DTOs.Finance;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.EntityFrameworkCore;
 
 namespace EduOS.App.Controllers.Api;
 
@@ -23,47 +21,50 @@ public sealed class FeeBillingController : ControllerBase
 
     [HttpGet("options")]
     [Authorize(Roles = "TenantAdmin,Principal,Accountant")]
-    public async Task<IActionResult> Options(CancellationToken cancellationToken)
-    {
-        var response=await _service.GetOptionsAsync(cancellationToken);
-        return StatusCode(response.StatusCode,response);
-    }
+    public async Task<IActionResult> Options(CancellationToken ct) =>
+        Result(await _service.GetOptionsAsync(ct));
 
     [HttpGet("students/search")]
     [Authorize(Roles = "TenantAdmin,Principal,Accountant")]
-    public async Task<IActionResult> StudentOptions([FromQuery]string search,CancellationToken cancellationToken)
-    {
-        var response=await _service.SearchStudentsAsync(search,cancellationToken);
-        return StatusCode(response.StatusCode,response);
-    }
+    public async Task<IActionResult> StudentOptions([FromQuery] string search,
+        [FromQuery] int take = 20, CancellationToken ct = default) =>
+        Result(await _service.SearchStudentsAsync(search, take, ct));
 
-    [HttpPut("structure")]
+    [HttpPost("structures")]
+    [HttpPut("structures/{id:long}")]
     [Authorize(Roles = "TenantAdmin,Principal,Accountant")]
-    public async Task<IActionResult> SaveStructure([FromBody] SaveFeeStructureDto request, CancellationToken cancellationToken)
-    {
-        if (!ModelState.IsValid) return ValidationProblem(ModelState);
-        try { var result = await _service.SaveFeeStructureAsync(request, cancellationToken); return StatusCode(result.StatusCode, result); }
-        catch (DbUpdateConcurrencyException) { var result = ApiResponse<bool>.ErrorResponse("Fee structure changed by another user. Reload and try again.", 409); return Conflict(result); }
-        catch (DbUpdateException) { var result = ApiResponse<bool>.ErrorResponse("Fee structure conflicts with an existing billing configuration. Reload and try again.", 409); return Conflict(result); }
-    }
+    public async Task<IActionResult> SaveStructure(long? id,
+        [FromBody] SaveFeeStructureRequestDto request, CancellationToken ct) =>
+        Result(await _service.SaveFeeStructureAsync(id, request, ct));
 
     [HttpPost("invoices/generate")]
     [Authorize(Roles = "TenantAdmin,Principal,Accountant")]
-    public async Task<IActionResult> Generate([FromBody] GenerateStudentInvoicesDto request, CancellationToken cancellationToken) { if (!ModelState.IsValid) return ValidationProblem(ModelState); var result = await _service.GenerateInvoicesAsync(request, cancellationToken); return StatusCode(result.StatusCode, result); }
+    public async Task<IActionResult> Generate([FromBody] GenerateStudentInvoiceBatchRequestDto request,
+        CancellationToken ct) =>
+        Result(await _service.GenerateInvoicesAsync(request, ct));
 
     [HttpPost("payments")]
-    public async Task<IActionResult> Collect([FromBody] CollectStudentPaymentDto request, CancellationToken cancellationToken) { if (!ModelState.IsValid) return ValidationProblem(ModelState); var result = await _service.CollectPaymentAsync(request, cancellationToken); return StatusCode(result.StatusCode, result); }
+    public async Task<IActionResult> Collect([FromBody] CreateStudentPaymentRequestDto request,
+        CancellationToken ct) =>
+        Result(await _service.CollectPaymentAsync(request, ct));
 
-    [HttpPut("invoices/fine")]
+    [HttpGet("students/{reference:guid}/ledger")]
     [Authorize(Roles = "TenantAdmin,Principal,Accountant")]
-    public async Task<IActionResult> SetFine([FromBody] SetInvoiceFineDto request, CancellationToken cancellationToken)
-    {
-        if (!ModelState.IsValid) return ValidationProblem(ModelState);
-        try { var result = await _service.SetFineAsync(request, cancellationToken); return StatusCode(result.StatusCode, result); }
-        catch (DbUpdateConcurrencyException) { var result = ApiResponse<StudentInvoiceDto>.ErrorResponse("Invoice changed by another user. Reload and try again.", 409); return Conflict(result); }
-    }
+    public async Task<IActionResult> Ledger(Guid reference, CancellationToken ct) =>
+        Result(await _service.GetStudentLedgerAsync(reference, ct));
 
-    [HttpGet("students/{studentReference:guid}/ledger")]
+    [HttpGet("students/{reference:guid}/invoices")]
     [Authorize(Roles = "TenantAdmin,Principal,Accountant")]
-    public async Task<IActionResult> Ledger(Guid studentReference, CancellationToken cancellationToken) { var result = await _service.GetStudentLedgerAsync(studentReference, cancellationToken); return StatusCode(result.StatusCode, result); }
+    public async Task<IActionResult> Invoices(Guid reference, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25, CancellationToken ct = default) =>
+        Result(await _service.GetStudentInvoicesAsync(reference, page, pageSize, ct));
+
+    [HttpGet("students/{reference:guid}/payments")]
+    [Authorize(Roles = "TenantAdmin,Principal,Accountant")]
+    public async Task<IActionResult> Payments(Guid reference, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25, CancellationToken ct = default) =>
+        Result(await _service.GetStudentPaymentsAsync(reference, page, pageSize, ct));
+
+    private IActionResult Result<T>(EduOS.Core.Common.ApiResponse<T> result) =>
+        StatusCode(result.StatusCode, result);
 }
