@@ -77,14 +77,14 @@ public sealed class StudentPromotionService : IStudentPromotionService
                 tx.Complete();
                 return replayResult;
             }
-            if (!student.IsActive || student.StatusCode != "Active")
+            if (student.StatusCode != "Active")
                 return Error("Only an active student can progress.", 409);
             if (!VersionsMatch(student.RowVersion, expectedStudent))
                 return Error("Student changed. Reload and retry.", 409);
             var source = await _enrollments.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenant &&
                 x.Id == request.SourceEnrollmentId && x.StudentId == student.Id, ct);
             if (source == null) return Error("Source enrollment not found.", 404);
-            if (!source.IsActive || !source.IsCurrent || source.State != EnrollmentState.Active)
+            if (!source.IsCurrent || source.State != EnrollmentState.Active)
                 return Error("Source enrollment is no longer current.", 409);
             if (!VersionsMatch(source.RowVersion, expectedSource))
                 return Error("Source enrollment changed. Reload and retry.", 409);
@@ -121,7 +121,7 @@ public sealed class StudentPromotionService : IStudentPromotionService
                 return Error("Campus changes require a transfer workflow.", 409);
             var effectiveDate = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
             var curricula = await _curricula.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
-                x.IsActive && x.IsCurrent && x.AcademicProgramId == batch.AcademicProgramId &&
+                x.State == EnrollmentState.Active && x.IsCurrent && !x.IsDeleted && x.AcademicProgramId == batch.AcademicProgramId &&
                 x.AcademicTrackId == batch.AcademicTrackId && x.MediumId == batch.MediumId &&
                 x.EffectiveFrom <= effectiveDate && (!x.EffectiveTo.HasValue || x.EffectiveTo >= effectiveDate))
                 .Take(2).Select(x => x.Id).ToArrayAsync(ct);
@@ -130,17 +130,17 @@ public sealed class StudentPromotionService : IStudentPromotionService
 
             if (await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
                 x.StudentId == student.Id && x.AcademicYearId == targetYear.Id &&
-                x.IsActive, ct))
+                x.State == EnrollmentState.Active && !x.IsDeleted, ct))
                 return Error("Student already has an active enrollment in the target year.", 409);
             if (await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
-                x.AcademicBatchId == batch.Id && x.RollNo == roll && x.IsActive && x.IsCurrent, ct))
+                x.AcademicBatchId == batch.Id && x.RollNo == roll && x.State == EnrollmentState.Active && x.IsCurrent && !x.IsDeleted, ct))
                 return Error("Target roll already belongs to an active student.", 409);
             if (batch.Capacity > 0 && await _enrollments.GetQueryable().AsNoTracking().CountAsync(x =>
-                x.TenantId == tenant && x.AcademicBatchId == batch.Id && x.IsActive && x.IsCurrent, ct) >= batch.Capacity)
+                x.TenantId == tenant && x.AcademicBatchId == batch.Id && x.State == EnrollmentState.Active && x.IsCurrent && !x.IsDeleted, ct) >= batch.Capacity)
                 return Error("Target batch capacity has been reached.", 409);
 
             var now = _clock.GetUtcNow().UtcDateTime;
-            source.IsCurrent = false; source.IsActive = false;
+            source.IsCurrent = false;
             source.State = decision == StudentProgressionDecisionType.Promoted
                 ? EnrollmentState.Promoted : EnrollmentState.Completed;
             source.EndDate ??= effectiveDate;
@@ -153,7 +153,7 @@ public sealed class StudentPromotionService : IStudentPromotionService
                 AcademicLevelId = batch.AcademicLevelId, AcademicBatchId = batch.Id,
                 AcademicCurriculumId = curricula[0], AcademicTrackId = batch.AcademicTrackId,
                 MediumId = batch.MediumId, ShiftId = batch.ShiftId,
-                RollNo = roll, EnrollmentDate = effectiveDate, IsActive = true, IsCurrent = true,
+                RollNo = roll, EnrollmentDate = effectiveDate, IsCurrent = true,
                 State = EnrollmentState.Active, CreatedAt = now, CreatedBy = _user.UserId
             };
             await _enrollments.AddAsync(target);
