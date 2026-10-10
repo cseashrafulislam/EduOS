@@ -560,8 +560,8 @@ public sealed class LmsWorkflowService : ILmsWorkflowService
                 }, "Lesson progress saved.");
             }, ct);
         }
-        catch (DbUpdateException) { return Error<LessonProgressDto>("Lesson progress conflicts with existing data.", 409); }
         catch (DbUpdateConcurrencyException) { return Error<LessonProgressDto>("Lesson progress changed concurrently.", 409); }
+        catch (DbUpdateException) { return Error<LessonProgressDto>("Lesson progress conflicts with existing data.", 409); }
     }
 
     private async Task<Course?> EditableCourseAsync(Guid reference, CancellationToken ct)
