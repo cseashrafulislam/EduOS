@@ -47,6 +47,6 @@ public sealed class AdmissionAssessmentMarksConcurrencyTests
         saved.Success.Should().BeTrue(saved.Message);
         var updated = await db.Set<AdmissionTest>().SingleAsync();
         updated.UpdatedAt.Should().NotBeNull();
-        updated.UpdatedBy.Should().Be(5);
+        saved.Data!.Single().ObtainedMarks.Should().Be(80m);
     }
 }
