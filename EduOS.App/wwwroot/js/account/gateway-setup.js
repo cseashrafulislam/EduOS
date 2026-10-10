@@ -144,7 +144,7 @@
                 cache: 'no-store',
                 credentials: 'same-origin',
                 headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                body: JSON.stringify({ step: 8, skipped })
+                body: JSON.stringify({ stage: 10, skipped })
             });
             const payload = await response.json().catch(() => null);
             if (!response.ok || !payload?.success) throw new Error('complete');
