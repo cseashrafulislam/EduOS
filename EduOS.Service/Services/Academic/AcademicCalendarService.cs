@@ -8,7 +8,6 @@ using EduOS.Core.Interfaces.IServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
-using System.Transactions;
 
 namespace EduOS.Service.Services.Academic;
 
@@ -46,11 +45,11 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
         _logger = logger;
     }
 
-    public async Task<ApiResponse<AcademicCalendarPolicyDto>> GetPolicyAsync(long academicYearId, long? campusId, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<AcademicCalendarPolicyDto>> GetPolicyAsync(long? campusId, CancellationToken cancellationToken = default)
     {
         if (!CanRead()) return Denied<AcademicCalendarPolicyDto>();
-        var scope = await ResolveScopeAsync(academicYearId, null, campusId, cancellationToken);
-        if (!scope.Success) return Error<AcademicCalendarPolicyDto>(scope.Error!, scope.StatusCode);
+        var campusError = await ValidateCampusAsync(campusId, cancellationToken);
+        if (campusError != null) return Error<AcademicCalendarPolicyDto>(campusError, 404);
 
         var policy = await EffectivePolicyQuery(campusId).AsNoTracking().FirstOrDefaultAsync(cancellationToken);
         if (policy == null) return Error<AcademicCalendarPolicyDto>("Academic calendar policy is not configured.", 404);
@@ -58,35 +57,36 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
         return ApiResponse<AcademicCalendarPolicyDto>.SuccessResponse(await MapPolicyAsync(policy, cancellationToken));
     }
 
-    public Task<ApiResponse<AcademicCalendarPolicyDto>> SavePolicyAsync(SaveAcademicCalendarPolicyDto request, CancellationToken cancellationToken = default)
+    public Task<ApiResponse<AcademicCalendarPolicyDto>> SavePolicyAsync(SaveAcademicCalendarPolicyRequestDto request, CancellationToken cancellationToken = default)
     {
         if (!CanManage()) return Task.FromResult(Denied<AcademicCalendarPolicyDto>());
-        if (request == null || request.AcademicYearId <= 0 || (request.CampusId.HasValue && request.CampusId.Value <= 0))
-            return Task.FromResult(Error<AcademicCalendarPolicyDto>("Academic year is required; campus, when supplied, must be positive."));
-
-        var days = request.WeekendDays?.Distinct().OrderBy(x => x).ToList() ?? [];
-        if (days.Count is < 1 or > 2 || days.Any(x => !Enum.IsDefined(typeof(DayOfWeek), x)))
-            return Task.FromResult(Error<AcademicCalendarPolicyDto>("The final calendar policy supports one or two distinct weekend days."));
+        if (request == null || (request.CampusId.HasValue && request.CampusId.Value <= 0))
+            return Task.FromResult(Error<AcademicCalendarPolicyDto>("Invalid campus."));
+        if (!Enum.IsDefined(request.WeekendDay1) ||
+            (request.WeekendDay2.HasValue && !Enum.IsDefined(request.WeekendDay2.Value)) ||
+            request.WeekendDay2 == request.WeekendDay1)
+            return Task.FromResult(Error<AcademicCalendarPolicyDto>("Choose distinct valid weekend days."));
 
         return ExecuteWriteAsync("save academic calendar policy", async () =>
         {
-            var scope = await ResolveScopeAsync(request.AcademicYearId, null, request.CampusId, cancellationToken);
-            if (!scope.Success) return Error<AcademicCalendarPolicyDto>(scope.Error!, scope.StatusCode);
+            var campusError = await ValidateCampusAsync(request.CampusId, cancellationToken);
+            if (campusError != null) return Error<AcademicCalendarPolicyDto>(campusError, 404);
 
             var tenantId = _currentUser.TenantId;
             var existing = await _policies.GetQueryable()
-                .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.CampusId == request.CampusId && x.IsActive, cancellationToken);
+                .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.CampusId == request.CampusId, cancellationToken);
 
             if (existing != null)
             {
-                if (existing.WeekendDay1 == days[0] && existing.WeekendDay2 == (days.Count > 1 ? days[1] : null))
+                if (existing.WeekendDay1 == request.WeekendDay1 && existing.WeekendDay2 == request.WeekendDay2 && existing.IsActive == request.IsActive)
                     return ApiResponse<AcademicCalendarPolicyDto>.SuccessResponse(await MapPolicyAsync(existing, cancellationToken), "Academic calendar policy already matches the request.");
 
                 if (!TryDecodeRowVersion(request.RowVersion, out var rowVersion) || !VersionsMatch(existing.RowVersion, rowVersion))
                     return Error<AcademicCalendarPolicyDto>("Academic calendar policy changed. Reload and try again.", 409);
 
-                existing.WeekendDay1 = days[0];
-                existing.WeekendDay2 = days.Count > 1 ? days[1] : null;
+                existing.WeekendDay1 = request.WeekendDay1;
+                existing.WeekendDay2 = request.WeekendDay2;
+                existing.IsActive = request.IsActive;
                 existing.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
                 existing.UpdatedBy = _currentUser.UserId;
                 _policies.Update(existing);
@@ -98,9 +98,9 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
             {
                 TenantId = tenantId,
                 CampusId = request.CampusId,
-                WeekendDay1 = days[0],
-                WeekendDay2 = days.Count > 1 ? days[1] : null,
-                IsActive = true,
+                WeekendDay1 = request.WeekendDay1,
+                WeekendDay2 = request.WeekendDay2,
+                IsActive = request.IsActive,
                 CreatedAt = _clock.GetUtcNow().UtcDateTime,
                 CreatedBy = _currentUser.UserId
             };
@@ -111,7 +111,7 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
     }
 
     public async Task<ApiResponse<IReadOnlyList<AcademicCalendarEventDto>>> GetEventsAsync(
-        long academicYearId, long? campusId, DateTime fromDate, DateTime toDate, CancellationToken cancellationToken = default)
+        long academicYearId, long? campusId, DateOnly fromDate, DateOnly toDate, CancellationToken cancellationToken = default)
     {
         if (!CanRead()) return Denied<IReadOnlyList<AcademicCalendarEventDto>>();
         var range = NormalizeRange(fromDate, toDate);
@@ -134,14 +134,15 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
         return ApiResponse<IReadOnlyList<AcademicCalendarEventDto>>.SuccessResponse(result);
     }
 
-    public Task<ApiResponse<AcademicCalendarEventDto>> CreateEventAsync(CreateAcademicCalendarEventDto request, CancellationToken cancellationToken = default)
+    public Task<ApiResponse<AcademicCalendarEventDto>> CreateEventAsync(SaveAcademicCalendarEventRequestDto request, CancellationToken cancellationToken = default)
     {
         if (!CanManage()) return Task.FromResult(Denied<AcademicCalendarEventDto>());
-        if (request == null || request.ClientRequestId == Guid.Empty || request.AcademicYearId <= 0 ||
+        if (request == null || request.AcademicYearId <= 0 ||
             (request.CampusId.HasValue && request.CampusId.Value <= 0))
             return Task.FromResult(Error<AcademicCalendarEventDto>("A valid request ID and academic year are required."));
-        if (!TryMapEventType(request.EventType, out var eventType))
+        if (!Enum.IsDefined(request.EventType))
             return Task.FromResult(Error<AcademicCalendarEventDto>("Calendar event type is invalid."));
+        var eventType = request.EventType;
         var inputError = ValidateEvent(request.Title, request.StartDate, request.EndDate);
         if (inputError != null) return Task.FromResult(Error<AcademicCalendarEventDto>(inputError));
 
@@ -150,8 +151,8 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
             var scope = await ResolveScopeAsync(request.AcademicYearId, request.AcademicTermId, request.CampusId, cancellationToken);
             if (!scope.Success) return Error<AcademicCalendarEventDto>(scope.Error!, scope.StatusCode);
 
-            var start = DateOnly.FromDateTime(request.StartDate.Date);
-            var end = DateOnly.FromDateTime(request.EndDate.Date);
+            var start = request.StartDate;
+            var end = request.EndDate;
             var dateError = ValidateDates(start, end, scope.Year!, scope.Term);
             if (dateError != null) return Error<AcademicCalendarEventDto>(dateError, 409);
 
@@ -202,15 +203,14 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
     }
 
     public Task<ApiResponse<AcademicCalendarEventDto>> UpdateEventAsync(
-        long id, UpdateAcademicCalendarEventDto request, CancellationToken cancellationToken = default)
+        long id, SaveAcademicCalendarEventRequestDto request, CancellationToken cancellationToken = default)
     {
         if (!CanManage()) return Task.FromResult(Denied<AcademicCalendarEventDto>());
         if (id <= 0 || request == null || !TryDecodeRowVersion(request.RowVersion, out var rowVersion))
             return Task.FromResult(Error<AcademicCalendarEventDto>("A valid event and row version are required."));
-        if (!request.IsActive)
-            return Task.FromResult(Error<AcademicCalendarEventDto>("Calendar-event deactivation is not supported by the final domain model.", 409));
-        if (!TryMapEventType(request.EventType, out var eventType))
+                if (!Enum.IsDefined(request.EventType))
             return Task.FromResult(Error<AcademicCalendarEventDto>("Calendar event type is invalid."));
+        var eventType = request.EventType;
         var inputError = ValidateEvent(request.Title, request.StartDate, request.EndDate);
         if (inputError != null) return Task.FromResult(Error<AcademicCalendarEventDto>(inputError));
 
@@ -222,10 +222,10 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
             if (!VersionsMatch(row.RowVersion, rowVersion))
                 return Error<AcademicCalendarEventDto>("Academic calendar event changed. Reload and try again.", 409);
 
-            var scope = await ResolveScopeAsync(row.AcademicYearId, row.AcademicTermId, row.CampusId, cancellationToken);
+            var scope = await ResolveScopeAsync(request.AcademicYearId, request.AcademicTermId, request.CampusId, cancellationToken);
             if (!scope.Success) return Error<AcademicCalendarEventDto>(scope.Error!, scope.StatusCode);
-            var start = DateOnly.FromDateTime(request.StartDate.Date);
-            var end = DateOnly.FromDateTime(request.EndDate.Date);
+            var start = request.StartDate;
+            var end = request.EndDate;
             var dateError = ValidateDates(start, end, scope.Year!, scope.Term);
             if (dateError != null) return Error<AcademicCalendarEventDto>(dateError, 409);
 
@@ -233,15 +233,18 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
             if (await _events.GetQueryable().AsNoTracking().AnyAsync(x =>
                     x.TenantId == _currentUser.TenantId &&
                     x.Id != row.Id &&
-                    x.AcademicYearId == row.AcademicYearId &&
-                    x.AcademicTermId == row.AcademicTermId &&
-                    x.CampusId == row.CampusId &&
+                    x.AcademicYearId == request.AcademicYearId &&
+                    x.AcademicTermId == request.AcademicTermId &&
+                    x.CampusId == request.CampusId &&
                     x.EventType == eventType &&
                     x.Title == title &&
                     x.StartDate == start &&
                     x.EndDate == end, cancellationToken))
                 return Error<AcademicCalendarEventDto>("Another academic calendar event already uses this natural key.", 409);
 
+            row.AcademicYearId = request.AcademicYearId;
+            row.AcademicTermId = request.AcademicTermId;
+            row.CampusId = request.CampusId;
             row.EventType = eventType;
             row.Title = title;
             row.Description = Trim(request.Description);
@@ -260,7 +263,7 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
     }
 
     public async Task<ApiResponse<IReadOnlyList<AcademicWorkingDayDto>>> GetWorkingDaysAsync(
-        long academicYearId, long? campusId, DateTime fromDate, DateTime toDate, CancellationToken cancellationToken = default)
+        long academicYearId, long? campusId, DateOnly fromDate, DateOnly toDate, CancellationToken cancellationToken = default)
     {
         if (!CanRead()) return Denied<IReadOnlyList<AcademicWorkingDayDto>>();
         var range = NormalizeRange(fromDate, toDate);
@@ -295,7 +298,7 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
                 .Distinct().OrderBy(x => x).ToList();
             rows.Add(new AcademicWorkingDayDto
             {
-                Date = date.ToDateTime(TimeOnly.MinValue),
+                Date = date,
                 IsWeekend = weekend,
                 HolidayNames = names,
                 IsWorkingDay = !weekend && names.Count == 0
@@ -303,6 +306,15 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
         }
 
         return ApiResponse<IReadOnlyList<AcademicWorkingDayDto>>.SuccessResponse(rows);
+    }
+
+    private async Task<string?> ValidateCampusAsync(long? campusId, CancellationToken ct)
+    {
+        if (!campusId.HasValue) return null;
+        if (campusId.Value <= 0) return "Campus not found.";
+        return await _campuses.GetQueryable().AsNoTracking().AnyAsync(x =>
+            x.TenantId == _currentUser.TenantId && x.Id == campusId.Value && x.IsActive, ct)
+            ? null : "Campus not found.";
     }
 
     private IQueryable<AcademicCalendarPolicy> EffectivePolicyQuery(long? campusId) =>
@@ -396,17 +408,7 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
     {
         try
         {
-            var strategy = _unitOfWork.CreateExecutionStrategy();
-            return await strategy.ExecuteAsync(async () =>
-            {
-                using var scope = new TransactionScope(
-                    TransactionScopeOption.Required,
-                    new TransactionOptions { IsolationLevel = IsolationLevel.Serializable },
-                    TransactionScopeAsyncFlowOption.Enabled);
-                var response = await action();
-                if (response.Success) scope.Complete();
-                return response;
-            });
+            return await _unitOfWork.ExecuteInTransactionAsync(_ => action());
         }
         catch (DbUpdateConcurrencyException ex)
         {
@@ -418,18 +420,14 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
             _logger.LogWarning(ex, "Conflicting academic calendar write during {Operation} for tenant {TenantId}", operation, _currentUser.TenantId);
             return Error<T>("Academic calendar conflicts with another update. Reload and try again.", 409);
         }
-        catch (TransactionAbortedException ex)
-        {
-            _logger.LogWarning(ex, "Serialized academic calendar write aborted during {Operation} for tenant {TenantId}", operation, _currentUser.TenantId);
-            return Error<T>("Academic calendar conflicts with another update. Reload and try again.", 409);
-        }
+
     }
 
-    private static string? ValidateEvent(string? title, DateTime start, DateTime end)
+    private static string? ValidateEvent(string? title, DateOnly start, DateOnly end)
     {
         if (string.IsNullOrWhiteSpace(title) || title.Trim().Length > 200)
             return "Calendar event title is required and cannot exceed 200 characters.";
-        if (start == default || end == default || end.Date < start.Date)
+        if (start == default || end == default || end < start)
             return "Calendar event date range is invalid.";
         return null;
     }
@@ -442,27 +440,17 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
         return null;
     }
 
-    private static (bool Success, DateOnly From, DateOnly To, string? Error) NormalizeRange(DateTime from, DateTime to)
+    private static (bool Success, DateOnly From, DateOnly To, string? Error) NormalizeRange(DateOnly from, DateOnly to)
     {
-        var start = DateOnly.FromDateTime(from.Date);
-        var end = DateOnly.FromDateTime(to.Date);
-        if (from == default || to == default || end < start)
-            return (false, start, end, "Calendar date range is invalid.");
-        if (end.DayNumber - start.DayNumber > 366)
-            return (false, start, end, "Calendar date range cannot exceed 367 days.");
-        return (true, start, end, null);
+        if (from == default || to == default || to < from)
+            return (false, from, to, "Calendar date range is invalid.");
+        if (to.DayNumber - from.DayNumber > 366)
+            return (false, from, to, "Calendar date range cannot exceed 367 days.");
+        return (true, from, to, null);
     }
 
     private static bool Within(DateOnly start, DateOnly end, AcademicYear year) =>
         start >= year.StartDate && end <= year.EndDate;
-
-    private static bool TryMapEventType(EduOS.Core.Enums.Academics.AcademicCalendarEventType value, out CalendarEventKind mapped)
-    {
-        if (Enum.TryParse<CalendarEventKind>(value.ToString(), true, out mapped) && Enum.IsDefined(mapped))
-            return true;
-        mapped = CalendarEventKind.Other;
-        return false;
-    }
 
     private static bool TryDecodeRowVersion(string? value, out byte[] bytes)
     {
