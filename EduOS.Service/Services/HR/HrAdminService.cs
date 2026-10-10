@@ -140,7 +140,10 @@ public sealed class HrAdminService : IHrAdminService
                     existing.UserId != request.UserId || existing.FullName != request.FullName.Trim() ||
                     existing.DesignationId != request.DesignationId ||
                     existing.OrganizationUnitId != request.OrganizationUnitId ||
-                    existing.JoiningDate != request.JoiningDate || existing.CanTeach != request.CanTeach)
+                    existing.JoiningDate != request.JoiningDate || existing.CanTeach != request.CanTeach ||
+                    existing.Phone != Trim(request.Phone) || existing.Email != Trim(request.Email) ||
+                    existing.Address != Trim(request.Address) ||
+                    existing.PhotoUrl != Trim(request.PhotoUrl))
                     return Error<EmployeeDto>("Employee code already exists with different identity or terms.", 409);
                 return ApiResponse<EmployeeDto>.SuccessResponse(await MapEmployeeAsync(existing, token),
                     "Employee already exists.");
@@ -360,15 +363,49 @@ public sealed class HrAdminService : IHrAdminService
             if (current != null && (request.EffectiveFrom <= current.EffectiveFrom ||
                 current.EffectiveTo.HasValue && request.EffectiveFrom <= current.EffectiveTo.Value))
                 return Error<EmployeeCampusAssignmentDto>("Existing campus assignment overlaps.", 409);
-            if (request.IsPrimary && await _campusAssignments.GetQueryable().AsNoTracking()
-                .AnyAsync(x => x.TenantId == _user.TenantId && x.EmployeeId == employee.Id &&
-                    x.IsPrimary && x.IsCurrent && !x.IsDeleted && x.CampusId != campus.Id, token))
-                return Error<EmployeeCampusAssignmentDto>("An existing primary campus must be closed before replacement.", 409);
+            var otherPrimaries = request.IsPrimary
+                ? await _campusAssignments.GetQueryable().Where(x =>
+                    x.TenantId == _user.TenantId && x.EmployeeId == employee.Id &&
+                    x.IsPrimary && x.IsCurrent && !x.IsDeleted &&
+                    x.CampusId != campus.Id).ToListAsync(token)
+                : new List<EmployeeCampusAssignment>();
+            if (otherPrimaries.Any(x => x.EffectiveFrom >= request.EffectiveFrom ||
+                x.EffectiveTo.HasValue && x.EffectiveTo.Value >= request.EffectiveFrom))
+                return Error<EmployeeCampusAssignmentDto>("Primary campus assignments overlap; use a later effective date.", 409);
             if (current != null)
             {
                 current.EffectiveTo = request.EffectiveFrom.AddDays(-1);
                 current.IsCurrent = false; current.UpdatedAt = now; current.UpdatedBy = _user.UserId;
                 _campusAssignments.Update(current);
+            }
+            foreach (var previous in otherPrimaries)
+            {
+                previous.EffectiveTo = request.EffectiveFrom.AddDays(-1);
+                previous.IsCurrent = false; previous.UpdatedAt = now; previous.UpdatedBy = _user.UserId;
+                _campusAssignments.Update(previous);
+            }
+            if (request.IsPrimary)
+            {
+                var history = await _history.GetQueryable().FirstOrDefaultAsync(x =>
+                    x.TenantId == _user.TenantId && x.EmployeeId == employee.Id &&
+                    x.IsCurrent && !x.IsDeleted, token);
+                if (history != null && history.EffectiveFrom >= request.EffectiveFrom)
+                    return Error<EmployeeCampusAssignmentDto>("Campus history requires a later effective date.", 409);
+                if (history != null)
+                {
+                    history.EffectiveTo = request.EffectiveFrom.AddDays(-1);
+                    history.IsCurrent = false; history.UpdatedAt = now; history.UpdatedBy = _user.UserId;
+                    _history.Update(history);
+                }
+                await _history.AddAsync(new EmployeeAssignmentHistory
+                {
+                    TenantId = _user.TenantId, EmployeeId = employee.Id, CampusId = campus.Id,
+                    OrganizationUnitId = employee.OrganizationUnitId,
+                    DesignationId = employee.DesignationId,
+                    EmploymentTypeCode = employee.EmploymentTypeCode,
+                    EffectiveFrom = request.EffectiveFrom, IsCurrent = true,
+                    Reason = "Primary campus assignment", CreatedAt = now, CreatedBy = _user.UserId
+                });
             }
             var row = new EmployeeCampusAssignment
             {
