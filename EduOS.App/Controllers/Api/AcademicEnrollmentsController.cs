@@ -35,6 +35,7 @@ public sealed class AcademicEnrollmentsController : ControllerBase
         ToAction(await _service.EnrollAsync(request, cancellationToken));
 
     [HttpPost("subjects/requests")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,Student,Guardian,Parent")]
     public async Task<IActionResult> RequestOptionalSubject([FromBody] RegisterStudentSubjectRequestDto request, CancellationToken cancellationToken) =>
         ToAction(await _service.RequestOptionalSubjectAsync(request, cancellationToken));
 
