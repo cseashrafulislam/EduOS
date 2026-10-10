@@ -14,7 +14,6 @@ namespace EduOS.App.Middleware
         private static readonly PathString[] AllowedPathPrefixes =
         [
             "/Account",
-            "/Dashboard",
             "/Pricing",
             "/Error",
             "/api/auth",
@@ -77,8 +76,8 @@ namespace EduOS.App.Middleware
                 }
 
                 var state = await dbContext.Tenants.AsNoTracking()
-                    .Where(t => t.Id == tenantId && t.State != TenantState.Closed && !t.IsDeleted)
-                    .Select(t => new OnboardingState { IsComplete = t.OnboardingCompletedAt.HasValue && t.OnboardingStage == OnboardingStage.Completed, Step = t.OnboardingStage })
+                    .Where(t => t.Id == tenantId && !t.IsDeleted)
+                    .Select(t => new OnboardingState { State = t.State, IsComplete = t.OnboardingCompletedAt.HasValue && t.OnboardingStage == OnboardingStage.Completed, Step = t.OnboardingStage })
                     .FirstOrDefaultAsync();
 
                 if (state == null)
@@ -88,7 +87,14 @@ namespace EduOS.App.Middleware
                     return;
                 }
 
-                if (state.IsComplete)
+                if (state.State is TenantState.Suspended or TenantState.Closed ||
+                    (state.Step == OnboardingStage.Completed && (state.State != TenantState.Active || !state.IsComplete)))
+                {
+                    await RejectAsync(context, StatusCodes.Status403Forbidden, "Your institution account is not active.");
+                    return;
+                }
+
+                if (state.State == TenantState.Active && state.IsComplete)
                 {
                     await _next(context);
                     return;
@@ -141,6 +147,7 @@ namespace EduOS.App.Middleware
 
         private sealed class OnboardingState
         {
+            public TenantState State { get; set; }
             public bool IsComplete { get; set; }
             public OnboardingStage Step { get; set; }
         }
