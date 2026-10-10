@@ -244,7 +244,9 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
         }).ToList();
         return new StudentAttendanceRosterDto
         {
-            AttendanceSessionId = session?.Id ?? 0, AcademicBatchId = batchId, AttendanceDate = date,
+            AttendanceSessionId = session?.Id ?? 0,
+            SessionRowVersion = session == null ? string.Empty : Convert.ToBase64String(session.RowVersion),
+            AcademicBatchId = batchId, AttendanceDate = date,
             Students = dtos, Summary = new StudentAttendanceSummaryDto
             {
                 TotalStudents = dtos.Count, Marked = rows.Count,
