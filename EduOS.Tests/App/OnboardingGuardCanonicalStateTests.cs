@@ -5,6 +5,7 @@ using EduOS.Core.Enums.Domain;
 using EduOS.Persistence.Context;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -86,6 +87,7 @@ public sealed class OnboardingGuardCanonicalStateTests
                 new Claim(ClaimTypes.NameIdentifier, "51"),
                 new Claim(ClaimTypes.Role, "TenantAdmin")
             ], "TestCookie")),
+            RequestServices = new ServiceCollection().AddLogging().AddOptions().BuildServiceProvider(),
             Response = { Body = new MemoryStream() }
         };
         http.Request.Path = path;
