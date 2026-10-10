@@ -63,8 +63,17 @@ public sealed class InstitutionOnboardingController : ControllerBase
 
     [HttpPost("campus")]
     public async Task<IActionResult> SaveCampus([FromBody] InstitutionCampusWizardRequestDto request,
-        CancellationToken ct) =>
-        Result(await _foundation.SaveCampusAsync(request.Id, request, ct));
+        CancellationToken ct)
+    {
+        if (request == null) return BadRequest("Campus details are required.");
+        if (string.IsNullOrWhiteSpace(request.Code))
+        {
+            var existing = request.Id.HasValue ? await _foundation.GetCampusAsync(request.Id.Value, ct) : null;
+            if (existing != null && !existing.Success) return Result(existing);
+            request.Code = existing?.Data?.Code ?? "C-" + Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
+        }
+        return Result(await _foundation.SaveCampusAsync(request.Id, request, ct));
+    }
 
     [HttpDelete("campus/{id:long}")]
     public async Task<IActionResult> ArchiveCampus(long id, [FromQuery] string rowVersion,
