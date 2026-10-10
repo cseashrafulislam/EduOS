@@ -46,7 +46,7 @@ jobs:
 
       - name: Validate EF model snapshot
         run: |
-          dotnet tool install --global dotnet-ef --version 10.0.10
+          dotnet tool install --global dotnet-ef --version 10.0.12
           dotnet ef migrations has-pending-model-changes --project EduOS.Persistence --startup-project EduOS.App --context EduOSDbContext --configuration Release --no-build
 
       - name: Test
