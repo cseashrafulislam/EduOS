@@ -130,7 +130,7 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
             var curricula = await _curricula.GetQueryable().AsNoTracking().Where(x =>
                 x.TenantId == tenant && x.AcademicProgramId == batch.AcademicProgramId &&
                 x.AcademicTrackId == batch.AcademicTrackId && x.MediumId == batch.MediumId &&
-                x.Id == request.AcademicCurriculumId && x.IsCurrent && x.State == EnrollmentState.Active && x.EffectiveFrom <= date &&
+                x.Id == request.AcademicCurriculumId && x.IsCurrent && x.IsActive && x.EffectiveFrom <= date &&
                 (!x.EffectiveTo.HasValue || x.EffectiveTo >= date))
                 .Take(2).ToListAsync(ct);
             if (curricula.Count != 1)
@@ -182,112 +182,106 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
         });
     }
 
-    public Task<ApiResponse<StudentSubjectRegistrationDto>> RequestOptionalSubjectAsync(long studentEnrollmentId,
-        RequestOptionalSubjectDto request, CancellationToken ct = default)
+    public Task<ApiResponse<StudentSubjectRegistrationDto>> RequestOptionalSubjectAsync(
+        RegisterStudentSubjectRequestDto request, CancellationToken ct = default)
     {
         if (!CanSelfServe() && !CanManage()) return Task.FromResult(Denied<StudentSubjectRegistrationDto>());
-        if (studentEnrollmentId <= 0 || request == null || request.ClientRequestId == Guid.Empty || request.SubjectId <= 0)
-            return Task.FromResult(Error<StudentSubjectRegistrationDto>("Enrollment, subject and request ID are required."));
+        if (request == null || request.ClientRequestId == Guid.Empty ||
+            request.StudentEnrollmentReference == Guid.Empty || request.SubjectOfferingReference == Guid.Empty ||
+            request.Remarks?.Length > 500)
+            return Task.FromResult(Error<StudentSubjectRegistrationDto>("Valid enrollment, subject offering and request ID are required."));
         return ExecuteWriteAsync("request optional subject", async () =>
         {
             var tenant = _user.TenantId;
-            var replay = await _registrations.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                x.TenantId == tenant && x.ClientRequestId == request.ClientRequestId, ct);
-            if (replay != null)
-            {
-                var candidate = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                    x.TenantId == tenant && x.Id == replay.StudentEnrollmentId, ct);
-                var oldStudent = candidate == null ? null : await _students.GetQueryable().AsNoTracking()
-                    .FirstOrDefaultAsync(x => x.TenantId == tenant && x.Id == candidate.StudentId, ct);
-                if (candidate == null || oldStudent == null || !await CanAccessStudentAsync(oldStudent, ct))
-                    return NotFound<StudentSubjectRegistrationDto>();
-                var mapped = await GetRegistrationDtosAsync(candidate.Id, ct);
-                var old = mapped.FirstOrDefault(x => x.Id == replay.Id);
-                if (candidate.Id != studentEnrollmentId || old == null ||
-                    !await OfferingMatchesSubjectAsync(replay.SubjectOfferingId, request.SubjectId, ct))
-                    return Error<StudentSubjectRegistrationDto>("Request ID was reused for another subject.", 409);
-                return ApiResponse<StudentSubjectRegistrationDto>.SuccessResponse(old, "Subject request already exists.");
-            }
             var enrollment = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                x.TenantId == tenant && x.Id == studentEnrollmentId && x.IsCurrent &&
-                x.IsActive && x.State == EnrollmentState.Active, ct);
+                x.TenantId == tenant && x.PublicId == request.StudentEnrollmentReference &&
+                x.IsCurrent && x.State == EnrollmentState.Active && !x.IsDeleted, ct);
             var student = enrollment == null ? null : await _students.GetQueryable().AsNoTracking()
-                .FirstOrDefaultAsync(x => x.TenantId == tenant && x.Id == enrollment.StudentId, ct);
+                .FirstOrDefaultAsync(x => x.TenantId == tenant && x.Id == enrollment.StudentId && !x.IsDeleted, ct);
             if (enrollment == null || student == null || !await CanAccessStudentAsync(student, ct))
                 return NotFound<StudentSubjectRegistrationDto>();
-            var matches = await (from offer in _offerings.GetQueryable().AsNoTracking()
+            var offering = await (from offer in _offerings.GetQueryable().AsNoTracking()
                 join item in _curriculumSubjects.GetQueryable().AsNoTracking() on offer.CurriculumSubjectId equals item.Id
-                where offer.TenantId == tenant && item.TenantId == tenant && offer.IsActive &&
-                    item.IsActive && item.IsOptional && offer.AcademicBatchId == enrollment.AcademicBatchId &&
+                where offer.TenantId == tenant && item.TenantId == tenant && offer.IsActive && item.IsActive &&
+                    offer.PublicId == request.SubjectOfferingReference && offer.AcademicBatchId == enrollment.AcademicBatchId &&
+                    offer.AcademicYearId == enrollment.AcademicYearId && item.IsOptional &&
                     item.AcademicCurriculumId == enrollment.AcademicCurriculumId &&
-                    item.AcademicLevelId == enrollment.AcademicLevelId && item.SubjectId == request.SubjectId
-                select new { OfferId = offer.Id, item.CreditHours }).Take(2).ToListAsync(ct);
-            if (matches.Count != 1) return Error<StudentSubjectRegistrationDto>("Optional subject offering is unavailable or ambiguous.", 409);
-            var selected = matches[0];
-            var exists = await _registrations.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
-                x.StudentEnrollmentId == enrollment.Id && x.SubjectOfferingId == selected.OfferId, ct);
-            if (exists) return Error<StudentSubjectRegistrationDto>("Subject registration already exists. Review its current state.", 409);
+                    item.AcademicLevelId == enrollment.AcademicLevelId
+                select new { offer.Id, item.CreditHours }).FirstOrDefaultAsync(ct);
+            if (offering == null)
+                return Error<StudentSubjectRegistrationDto>("Optional subject offering is not available for this enrollment.", 409);
+            var replay = await _registrations.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.ClientRequestId == request.ClientRequestId && !x.IsDeleted, ct);
+            if (replay != null)
+            {
+                if (replay.StudentEnrollmentId != enrollment.Id || replay.SubjectOfferingId != offering.Id)
+                    return Error<StudentSubjectRegistrationDto>("Request ID was used for different subject registration.", 409);
+                var previous = await GetRegistrationDtosAsync(enrollment.Id, ct);
+                return ApiResponse<StudentSubjectRegistrationDto>.SuccessResponse(
+                    previous.Single(x => x.Id == replay.Id), "Subject registration already exists.");
+            }
+            if (await _registrations.GetQueryable().AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenant && x.StudentEnrollmentId == enrollment.Id &&
+                x.SubjectOfferingId == offering.Id && !x.IsDeleted, ct))
+                return Error<StudentSubjectRegistrationDto>("Subject registration already exists.", 409);
             var now = _clock.GetUtcNow().UtcDateTime;
             var entity = new StudentSubjectRegistration
             {
                 TenantId = tenant, ClientRequestId = request.ClientRequestId,
-                StudentEnrollmentId = enrollment.Id, SubjectOfferingId = selected.OfferId,
+                StudentEnrollmentId = enrollment.Id, SubjectOfferingId = offering.Id,
                 State = SubjectRegistrationState.Pending, RegisteredAt = now,
-                CreditHoursSnapshot = selected.CreditHours, Remarks = Trim(request.Remarks),
+                CreditHoursSnapshot = offering.CreditHours, Remarks = Trim(request.Remarks),
                 CreatedAt = now, CreatedBy = _user.UserId
             };
             await _registrations.AddAsync(entity);
             await _uow.SaveChangesAsync(ct);
-            var dtos = await GetRegistrationDtosAsync(enrollment.Id, ct);
-            return Created(dtos.Single(x => x.Id == entity.Id), "Optional subject request submitted.");
+            var dto = await GetRegistrationDtosAsync(enrollment.Id, ct);
+            return Created(dto.Single(x => x.Id == entity.Id), "Optional subject request submitted.");
         });
     }
 
-    public Task<ApiResponse<StudentSubjectRegistrationDto>> DecideSubjectAsync(long registrationId,
-        DecideSubjectRegistrationDto request, CancellationToken ct = default)
+    public Task<ApiResponse<StudentSubjectRegistrationDto>> DecideSubjectAsync(
+        long registrationId, ChangeSubjectRegistrationStateRequestDto request, CancellationToken ct = default)
     {
         if (!CanManage()) return Task.FromResult(Denied<StudentSubjectRegistrationDto>());
         if (registrationId <= 0 || request == null ||
-            request.Status is not (SubjectRegistrationStatus.Approved or SubjectRegistrationStatus.Rejected) ||
-            !TryVersion(request.RowVersion, out var expected))
-            return Task.FromResult(Error<StudentSubjectRegistrationDto>("A valid decision and row version are required."));
+            request.State is not (SubjectRegistrationState.Approved or SubjectRegistrationState.Rejected) ||
+            !TryVersion(request.RowVersion, out var expected) || request.Remarks?.Length > 500)
+            return Task.FromResult(Error<StudentSubjectRegistrationDto>("Valid decision and row version are required."));
         return ExecuteWriteAsync("decide subject registration", async () =>
         {
             var tenant = _user.TenantId;
             var entity = await _registrations.GetQueryable().FirstOrDefaultAsync(x =>
-                x.TenantId == tenant && x.Id == registrationId, ct);
+                x.TenantId == tenant && x.Id == registrationId && !x.IsDeleted, ct);
             if (entity == null) return NotFound<StudentSubjectRegistrationDto>();
+            if (!VersionsMatch(entity.RowVersion, expected))
+                return Error<StudentSubjectRegistrationDto>("Subject request changed. Reload and retry.", 409);
             var offering = await (from offer in _offerings.GetQueryable().AsNoTracking()
                 join item in _curriculumSubjects.GetQueryable().AsNoTracking() on offer.CurriculumSubjectId equals item.Id
-                where offer.TenantId == tenant && item.TenantId == tenant &&
-                    offer.Id == entity.SubjectOfferingId
+                where offer.TenantId == tenant && item.TenantId == tenant && offer.Id == entity.SubjectOfferingId
                 select new { item.IsOptional }).FirstOrDefaultAsync(ct);
             if (offering == null || !offering.IsOptional)
-                return Error<StudentSubjectRegistrationDto>("Required subjects do not use elective approval.", 409);
-            var decision = Enum.Parse<SubjectRegistrationState>(request.Status.ToString());
-            if (entity.State == decision)
+                return Error<StudentSubjectRegistrationDto>("Required subjects cannot use elective approval.", 409);
+            if (entity.State == request.State)
             {
-                var existing = await GetRegistrationDtosAsync(entity.StudentEnrollmentId, ct);
+                var replay = await GetRegistrationDtosAsync(entity.StudentEnrollmentId, ct);
                 return ApiResponse<StudentSubjectRegistrationDto>.SuccessResponse(
-                    existing.Single(x => x.Id == entity.Id), "Subject decision already applied.");
+                    replay.Single(x => x.Id == entity.Id), "Subject decision already applied.");
             }
             if (entity.State != SubjectRegistrationState.Pending)
                 return Error<StudentSubjectRegistrationDto>("Only pending subject requests can be decided.", 409);
-            if (!VersionsMatch(entity.RowVersion, expected))
-                return Error<StudentSubjectRegistrationDto>("Subject request changed. Reload and retry.", 409);
             var now = _clock.GetUtcNow().UtcDateTime;
-            entity.State = decision;
-            if (decision == SubjectRegistrationState.Approved)
-            {
-                entity.ApprovedAt = now;
-                entity.ApprovedByUserId = _user.UserId;
-            }
-            entity.UpdatedAt = now; entity.UpdatedBy = _user.UserId;
+            entity.State = request.State;
+            entity.ApprovedAt = request.State == SubjectRegistrationState.Approved ? now : null;
+            entity.ApprovedByUserId = request.State == SubjectRegistrationState.Approved ? _user.UserId : null;
             entity.Remarks = Trim(request.Remarks) ?? entity.Remarks;
+            entity.UpdatedAt = now;
+            entity.UpdatedBy = _user.UserId;
+            _registrations.Update(entity);
             await _uow.SaveChangesAsync(ct);
-            var dtos = await GetRegistrationDtosAsync(entity.StudentEnrollmentId, ct);
+            var result = await GetRegistrationDtosAsync(entity.StudentEnrollmentId, ct);
             return ApiResponse<StudentSubjectRegistrationDto>.SuccessResponse(
-                dtos.Single(x => x.Id == entity.Id), "Subject decision saved.");
+                result.Single(x => x.Id == entity.Id), "Subject decision saved.");
         });
     }
 
@@ -334,13 +328,6 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
         }).ToList();
         return ApiResponse<IReadOnlyList<RoutineEntryDto>>.SuccessResponse(result);
     }
-
-    private async Task<bool> OfferingMatchesSubjectAsync(long offeringId, long subjectId, CancellationToken ct) =>
-        await (from offering in _offerings.GetQueryable().AsNoTracking()
-            join item in _curriculumSubjects.GetQueryable().AsNoTracking() on offering.CurriculumSubjectId equals item.Id
-            where offering.TenantId == _user.TenantId && item.TenantId == _user.TenantId &&
-                offering.Id == offeringId && item.SubjectId == subjectId
-            select offering.Id).AnyAsync(ct);
 
     private async Task<Student?> AuthorizedStudentAsync(Guid reference, CancellationToken ct)
     {
