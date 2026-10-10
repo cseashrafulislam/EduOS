@@ -72,7 +72,7 @@ public sealed class AdmissionApplicationService : IAdmissionApplicationService
         {
             Reference = x.PublicId, Code = x.Code, Title = x.Title, CampusId = x.CampusId,
             AcademicYearId = x.AcademicYearId, AcademicTermId = x.AcademicTermId,
-            AcademicUnitId = x.AcademicLevelId, OpensAtUtc = x.OpensAt ?? DateTime.MinValue,
+            AcademicLevelId = x.AcademicLevelId, OpensAtUtc = x.OpensAt ?? DateTime.MinValue,
             ClosesAtUtc = x.ClosesAt ?? DateTime.MaxValue, ApplicationFee = x.ApplicationFee,
             Currency = x.CurrencyCode
         }).ToList();
@@ -101,12 +101,12 @@ public sealed class AdmissionApplicationService : IAdmissionApplicationService
             q = q.Where(x => x.app.ApplicationNumber.Contains(term) || x.app.FullName.Contains(term));
         if (request.AcademicYearId.HasValue) q = q.Where(x => x.form.AcademicYearId == request.AcademicYearId.Value);
         if (request.CampusId.HasValue) q = q.Where(x => x.form.CampusId == request.CampusId.Value);
-        if (request.AcademicUnitId.HasValue) q = q.Where(x => x.form.AcademicLevelId == request.AcademicUnitId.Value);
+        if (request.AcademicLevelId.HasValue) q = q.Where(x => x.form.AcademicLevelId == request.AcademicLevelId.Value);
         if (request.State.HasValue)
         {
-            var state = ToState(request.State.Value);
-            if (!state.HasValue) return ApiResponse<PagedResult<AdmissionApplicationListItemDto>>.ErrorResponse("Unsupported application status filter.");
-            q = q.Where(x => x.app.State == state.Value);
+            var state = request.State.Value;
+            if (!Enum.IsDefined(state)) return ApiResponse<PagedResult<AdmissionApplicationListItemDto>>.ErrorResponse("Unsupported application status filter.");
+            q = q.Where(x => x.app.State == state);
         }
         var total = await q.CountAsync(ct);
         var skip = ((long)request.Page - 1) * request.PageSize;
@@ -125,8 +125,8 @@ public sealed class AdmissionApplicationService : IAdmissionApplicationService
             ApplicantName = x.FullName, MaskedMobile = Mask(x.Phone),
             AcademicYearId = x.YearId, AcademicYearName = x.YearName,
             CampusId = x.CampusId, CampusName = x.CampusName,
-            AcademicUnitId = x.LevelId, AcademicUnitName = x.LevelName,
-            Status = ToLegacy(x.State), SubmittedAtUtc = x.SubmittedAt ?? DateTime.MinValue,
+            AcademicLevelId = x.LevelId, AcademicLevelName = x.LevelName,
+            State = x.State, SubmittedAtUtc = x.SubmittedAt ?? DateTime.MinValue,
             RowVersion = Convert.ToBase64String(x.RowVersion)
         }).ToList();
         return ApiResponse<PagedResult<AdmissionApplicationListItemDto>>.SuccessResponse(new PagedResult<AdmissionApplicationListItemDto>
@@ -171,7 +171,7 @@ public sealed class AdmissionApplicationService : IAdmissionApplicationService
             if (form.OpensAt > now || form.ClosesAt < now)
                 return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Intake form is not open.", 409);
             if (form.AcademicYearId != request.AcademicYearId || form.CampusId != request.CampusId ||
-                form.AcademicLevelId != request.AcademicUnitId || form.AcademicTermId != request.AcademicTermId)
+                form.AcademicLevelId != request.AcademicLevelId || form.AcademicTermId != request.AcademicTermId)
                 return ApiResponse<AdmissionApplicationCreatedDto>.ErrorResponse("Academic choices do not match the intake form.", 409);
             var fields = await _fields.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
                 x.AdmissionIntakeFormId == form.Id && x.IsActive).OrderBy(x => x.DisplayOrder)
@@ -347,7 +347,7 @@ public sealed class AdmissionApplicationService : IAdmissionApplicationService
             RowVersion = Convert.ToBase64String(a.RowVersion),
             AcademicYearId = data.year.Id, AcademicYearName = data.year.Name,
             CampusId = data.campus.Id, CampusName = data.campus.Name,
-            AcademicUnitId = data.level.Id, AcademicUnitName = data.level.Name,
+            AcademicLevelId = data.level.Id, AcademicLevelName = data.level.Name,
             AcademicTermId = data.form.AcademicTermId, AcademicTermName = termName,
             AdmissionFormReference = data.form.PublicId, AdmissionFormTitle = data.form.Title,
             CustomResponses = fieldRows.ToDictionary(x => x.FieldKey, x => x.Value),
