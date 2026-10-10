@@ -47,12 +47,12 @@ public class LearnerIdentityServiceTests
         var identifier = await context.PersonIdentifiers.SingleAsync();
         identifier.ProtectedValue.Should().NotContain("20012692510000123");
         identifier.LookupDigest.Should().NotContain("20012692510000123");
-        identifier.VerificationStatus.Should().Be(IdentifierVerificationStatus.Unverified);
+        identifier.IsVerified.Should().BeFalse();
         (await context.StudentPersonLinks.SingleAsync()).TenantId.Should().Be(101);
 
         var access = await context.LearnerIdentityAccessLogs.SingleAsync();
         access.PersonId.Should().Be(identifier.PersonId);
-        access.Outcome.Should().Be(LearnerIdentityAccessOutcome.Created);
+        access.OutcomeCode.Should().Be("Created");
     }
 
     [Fact]
@@ -92,9 +92,8 @@ public class LearnerIdentityServiceTests
                 identifier))).Success.Should().BeTrue();
 
             var verifiedIdentifier = await firstTenant.PersonIdentifiers.SingleAsync();
-            verifiedIdentifier.VerificationStatus = IdentifierVerificationStatus.Verified;
+            verifiedIdentifier.IsVerified = true;
             verifiedIdentifier.VerifiedAt = DateTime.UtcNow;
-            verifiedIdentifier.VerificationProvider = "TestApprovedProvider";
             await firstTenant.SaveChangesAsync();
         }
 
@@ -225,8 +224,8 @@ public class LearnerIdentityServiceTests
         {
             TenantId = 101,
             UserId = 7,
-            Action = LearnerIdentityAccessAction.RegisterOrLink,
-            Outcome = LearnerIdentityAccessOutcome.Failed,
+            Action = "RegisterOrLink",
+            OutcomeCode = "Failed",
             ReasonCode = "TEST"
         };
         context.LearnerIdentityAccessLogs.Add(log);
@@ -262,14 +261,10 @@ public class LearnerIdentityServiceTests
             TenantId = tenantId,
             StudentCode = $"S-{Guid.NewGuid():N}"[..18],
             FullName = name,
-            FatherName = "Father",
-            MotherName = "Mother",
-            DOB = new DateTime(2010, 1, 2),
+            DateOfBirth = new DateOnly(2010, 1, 2),
             Gender = "Male",
-            AdmissionDate = DateTime.UtcNow,
-            ClassId = 1,
-            SectionId = 1,
-            AcademicYearId = 1
+            AdmissionDate = DateOnly.FromDateTime(DateTime.UtcNow),
+            StatusCode = "Active"
         };
         context.Students.Add(student);
         await context.SaveChangesAsync();
