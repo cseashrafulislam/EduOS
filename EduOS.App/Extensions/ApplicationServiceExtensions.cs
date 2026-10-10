@@ -38,7 +38,9 @@ namespace EduOS.App.Extensions
             s.AddScoped<ITenantProfileService, TenantProfileService>();
             s.AddScoped<ITenantSettingService, TenantSettingService>();
             s.AddScoped<IOnboardingService, OnboardingService>();
-            s.AddScoped<IInstitutionOnboardingService, InstitutionOnboardingService>();
+            s.AddScoped<IInstitutionRegistrationService, InstitutionOnboardingService>();
+            s.AddScoped<IInstitutionFoundationService, InstitutionFoundationService>();
+            s.AddScoped<IInstitutionProfileWizardService, InstitutionProfileWizardService>();
             s.AddScoped<IDashboardService, DashboardService>();
             s.AddScoped<IAuditLogService, AuditLogService>();
             s.AddScoped<IEmailService, EmailService>();
@@ -59,13 +61,13 @@ namespace EduOS.App.Extensions
             s.AddScoped<IAcademicCalendarService, AcademicCalendarService>();
             s.AddScoped<IAcademicInstructionService, AcademicInstructionService>();
             s.AddScoped<IStudentAttendanceService, StudentAttendanceService>();
-            s.AddScoped<IExamWorkflowService, ExamWorkflowService>();
+            s.AddScoped<IAssessmentAdministrationService, ExamWorkflowService>();
             s.AddScoped<IFeeBillingService, FeeBillingService>();
             s.AddScoped<ISelfServicePortalService, SelfServicePortalService>();
             s.AddScoped<IEmployeeSelfServiceService, EmployeeSelfServiceService>();
             s.AddScoped<ILmsWorkflowService, LmsWorkflowService>();
             s.AddScoped<IHrAdminService, HrAdminService>();
-            s.AddScoped<IHrPayrollService, HrPayrollService>();
+            s.AddScoped<IPayrollAdministrationService, HrPayrollService>();
             s.AddScoped<ILibraryService, LibraryService>();
             s.AddScoped<ITransportService, TransportService>();
             s.AddScoped<IHostelService, HostelService>();
