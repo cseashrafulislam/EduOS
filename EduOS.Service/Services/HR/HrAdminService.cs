@@ -479,7 +479,7 @@ public sealed class HrAdminService : IHrAdminService
         if (request == null || request.EmployeeReference == Guid.Empty || bankAccountId is <= 0 ||
             !ValidName(request.BankName, 150) || !ValidName(request.AccountName, 150) ||
             string.IsNullOrWhiteSpace(request.AccountNumber) || request.AccountNumber.Length > 200 ||
-            request.CurrencyCode?.Length is < 3 or > 10 ||
+            string.IsNullOrWhiteSpace(request.CurrencyCode) || request.CurrencyCode.Length is < 3 or > 10 ||
             request.BranchName?.Length > 100 || request.RoutingNumber?.Length > 100 ||
             bankAccountId.HasValue && !TryVersion(request.RowVersion, out _))
             return Task.FromResult(Error<EmployeeBankAccountDto>("Invalid employee bank details or row version."));
