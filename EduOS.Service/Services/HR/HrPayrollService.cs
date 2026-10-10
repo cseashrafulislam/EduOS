@@ -1,802 +1,798 @@
 using EduOS.Core.Common;
-using EduOS.Core.DTOs.HR;
-using EduOS.Core.Entities.Attendance;
+using EduOS.Core.DTOs.Payroll;
+using EduOS.Core.Entities.Accounting;
 using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.Payroll;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
-using System.Text;
 
 namespace EduOS.Service.Services.HR;
 
-public sealed class HrPayrollService : IHrPayrollService
+public sealed class HrPayrollService : IPayrollAdministrationService
 {
-    private const string BasicCode = "BASIC";
-    private const string HouseRentCode = "HOUSE_RENT";
-    private const string MedicalCode = "MEDICAL";
-    private const string TransportCode = "TRANSPORT";
-    private const string OtherCode = "OTHER";
-    private const string BonusCode = "BONUS";
-    private const string AttendanceDeductionCode = "ATTENDANCE_DEDUCTION";
-    private const string LoanRecoveryCode = "LOAN_RECOVERY";
-
     private readonly IGenericRepository<Employee> _employees;
-    private readonly IGenericRepository<EmployeeAttendance> _attendance;
-    private readonly IGenericRepository<SalaryStructure> _salaryStructures;
-    private readonly IGenericRepository<SalaryStructureLine> _salaryLines;
-    private readonly IGenericRepository<SalaryComponent> _salaryComponents;
-    private readonly IGenericRepository<PayrollRun> _payrollRuns;
+    private readonly IGenericRepository<SalaryComponent> _components;
+    private readonly IGenericRepository<SalaryStructure> _structures;
+    private readonly IGenericRepository<SalaryStructureLine> _structureLines;
+    private readonly IGenericRepository<PayrollRun> _runs;
     private readonly IGenericRepository<PayrollEmployee> _payrollEmployees;
     private readonly IGenericRepository<PayrollLine> _payrollLines;
-    private readonly IGenericRepository<PayrollPayment> _payrollPayments;
+    private readonly IGenericRepository<PayrollPayment> _payments;
     private readonly IGenericRepository<Bonus> _bonuses;
     private readonly IGenericRepository<LoanAdvance> _loans;
-    private readonly IGenericRepository<LoanAdvanceRecovery> _loanRecoveries;
+    private readonly IGenericRepository<LoanAdvanceRecovery> _recoveries;
+    private readonly IGenericRepository<BankAccount> _bankAccounts;
+    private readonly IGenericRepository<EmployeeBankAccount> _employeeBankAccounts;
     private readonly IUnitOfWork _uow;
     private readonly ICurrentUserService _user;
     private readonly TimeProvider _clock;
-    private readonly ILogger<HrPayrollService> _log;
+    private readonly ILogger<HrPayrollService> _logger;
 
-    public HrPayrollService(
-        IGenericRepository<Employee> employees,
-        IGenericRepository<EmployeeAttendance> attendance,
-        IGenericRepository<SalaryStructure> salaryStructures,
-        IGenericRepository<SalaryStructureLine> salaryLines,
-        IGenericRepository<SalaryComponent> salaryComponents,
-        IGenericRepository<PayrollRun> payrollRuns,
-        IGenericRepository<PayrollEmployee> payrollEmployees,
-        IGenericRepository<PayrollLine> payrollLines,
-        IGenericRepository<PayrollPayment> payrollPayments,
-        IGenericRepository<Bonus> bonuses,
-        IGenericRepository<LoanAdvance> loans,
-        IGenericRepository<LoanAdvanceRecovery> loanRecoveries,
-        IUnitOfWork uow,
-        ICurrentUserService user,
-        TimeProvider clock,
-        ILogger<HrPayrollService> log)
+    public HrPayrollService(IGenericRepository<Employee> employees,
+        IGenericRepository<SalaryComponent> components, IGenericRepository<SalaryStructure> structures,
+        IGenericRepository<SalaryStructureLine> structureLines, IGenericRepository<PayrollRun> runs,
+        IGenericRepository<PayrollEmployee> payrollEmployees, IGenericRepository<PayrollLine> payrollLines,
+        IGenericRepository<PayrollPayment> payments, IGenericRepository<Bonus> bonuses,
+        IGenericRepository<LoanAdvance> loans, IGenericRepository<LoanAdvanceRecovery> recoveries,
+        IGenericRepository<BankAccount> bankAccounts,
+        IGenericRepository<EmployeeBankAccount> employeeBankAccounts,
+        IUnitOfWork uow, ICurrentUserService user, TimeProvider clock, ILogger<HrPayrollService> logger)
     {
-        _employees = employees;
-        _attendance = attendance;
-        _salaryStructures = salaryStructures;
-        _salaryLines = salaryLines;
-        _salaryComponents = salaryComponents;
-        _payrollRuns = payrollRuns;
-        _payrollEmployees = payrollEmployees;
-        _payrollLines = payrollLines;
-        _payrollPayments = payrollPayments;
-        _bonuses = bonuses;
-        _loans = loans;
-        _loanRecoveries = loanRecoveries;
-        _uow = uow;
-        _user = user;
-        _clock = clock;
-        _log = log;
+        _employees = employees; _components = components; _structures = structures;
+        _structureLines = structureLines; _runs = runs; _payrollEmployees = payrollEmployees;
+        _payrollLines = payrollLines; _payments = payments; _bonuses = bonuses; _loans = loans;
+        _recoveries = recoveries; _bankAccounts = bankAccounts; _employeeBankAccounts = employeeBankAccounts;
+        _uow = uow; _user = user; _clock = clock; _logger = logger;
     }
 
-    public async Task<ApiResponse<bool>> SaveSalaryStructureAsync(SaveSalaryStructureDto request, CancellationToken ct = default)
+    public async Task<ApiResponse<IReadOnlyList<SalaryComponentDto>>> GetSalaryComponentsAsync(CancellationToken ct = default)
     {
-        if (!CanManage()) return ApiResponse<bool>.ErrorResponse("Payroll access is required.", 403);
-        if (request.EmployeeReference == Guid.Empty) return ApiResponse<bool>.ErrorResponse("Employee reference is required.");
-        var tenantId = _user.TenantId;
-        var employee = await _employees.GetQueryable().AsNoTracking()
-            .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.PublicId == request.EmployeeReference && x.State == EmployeeState.Active, ct);
-        if (employee == null) return ApiResponse<bool>.ErrorResponse("Employee not found.", 404);
+        if (!Manager()) return Denied<IReadOnlyList<SalaryComponentDto>>();
+        var rows = await _components.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == _user.TenantId && !x.IsDeleted)
+            .OrderBy(x => x.Code).Take(500).ToListAsync(ct);
+        return ApiResponse<IReadOnlyList<SalaryComponentDto>>.SuccessResponse(rows.Select(Map).ToList());
+    }
 
-        var effectiveFrom = DateOnly.FromDateTime(request.EffectiveFrom.Date);
-        var current = await _salaryStructures.GetQueryable()
-            .Where(x => x.TenantId == tenantId && x.EmployeeId == employee.Id && x.IsCurrent)
-            .OrderByDescending(x => x.EffectiveFrom).ThenByDescending(x => x.Id)
-            .FirstOrDefaultAsync(ct);
-        if (current != null && effectiveFrom <= current.EffectiveFrom)
-            return ApiResponse<bool>.ErrorResponse("The new salary structure must start after the current structure.", 409);
-
+    public async Task<ApiResponse<SalaryComponentDto>> SaveSalaryComponentAsync(
+        long? componentId, SaveSalaryComponentRequestDto request, CancellationToken ct = default)
+    {
+        if (!Manager()) return Denied<SalaryComponentDto>();
+        if (request == null || !ValidNameCode(request.Name, request.Code, 100) ||
+            !Enum.IsDefined(request.Type) || componentId is <= 0)
+            return Error<SalaryComponentDto>("Salary component name, code or type is invalid.");
         try
         {
-            await _uow.BeginTransactionAsync();
-            var components = await EnsureCompatibilityComponentsAsync(ct);
-            var now = _clock.GetUtcNow().UtcDateTime;
-
-            if (current != null)
+            return await _uow.ExecuteInTransactionAsync(async token =>
             {
-                current.IsCurrent = false;
-                current.EffectiveTo = effectiveFrom.AddDays(-1);
-                current.UpdatedAt = now;
-                current.UpdatedBy = _user.UserId;
-                await _uow.SaveChangesAsync(ct);
-            }
-
-            var structure = new SalaryStructure
-            {
-                TenantId = tenantId,
-                EmployeeId = employee.Id,
-                EffectiveFrom = effectiveFrom,
-                IsCurrent = true,
-                CreatedAt = now,
-                CreatedBy = _user.UserId
-            };
-            await _salaryStructures.AddAsync(structure);
-            await _uow.SaveChangesAsync(ct);
-
-            var amounts = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
-            {
-                [BasicCode] = request.BasicSalary,
-                [HouseRentCode] = request.HouseRent,
-                [MedicalCode] = request.Medical,
-                [TransportCode] = request.Transport,
-                [OtherCode] = request.Others
-            };
-            var lines = amounts.Select(x => new SalaryStructureLine
-            {
-                TenantId = tenantId,
-                SalaryStructureId = structure.Id,
-                SalaryComponentId = components[x.Key].Id,
-                CalculationMethodCode = "Fixed",
-                Amount = x.Value,
-                CreatedAt = now,
-                CreatedBy = _user.UserId
-            }).ToList();
-            await _salaryLines.AddRangeAsync(lines);
-            await _uow.SaveChangesAsync(ct);
-            await _uow.CommitTransactionAsync();
-            return ApiResponse<bool>.SuccessResponse(true, "Salary structure saved.");
+                var tenant = _user.TenantId;
+                var code = request.Code.Trim().ToUpperInvariant();
+                var row = componentId.HasValue ? await _components.GetQueryable().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Id == componentId.Value && !x.IsDeleted, token) : null;
+                if (componentId.HasValue && row == null) return Error<SalaryComponentDto>("Component not found.", 404);
+                if (row != null && !Matches(row.RowVersion, request.RowVersion))
+                    return Error<SalaryComponentDto>("Salary component changed. Reload and retry.", 409);
+                var other = await _components.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Code == code && !x.IsDeleted && (!componentId.HasValue || x.Id != componentId), token);
+                if (other != null) return Error<SalaryComponentDto>("Salary component code already exists.", 409);
+                if (row != null && row.Type != request.Type && await _structureLines.GetQueryable().AsNoTracking()
+                    .AnyAsync(x => x.TenantId == tenant && x.SalaryComponentId == row.Id && !x.IsDeleted, token))
+                    return Error<SalaryComponentDto>("Component type cannot change after salary structure usage.", 409);
+                var now = _clock.GetUtcNow().UtcDateTime;
+                if (row == null)
+                {
+                    row = new SalaryComponent { TenantId = tenant, CreatedAt = now, CreatedBy = _user.UserId };
+                    await _components.AddAsync(row);
+                }
+                else
+                {
+                    row.UpdatedAt = now; row.UpdatedBy = _user.UserId; _components.Update(row);
+                }
+                row.Code = code; row.Name = request.Name.Trim(); row.Type = request.Type;
+                row.IsTaxable = request.IsTaxable; row.IsActive = request.IsActive;
+                await _uow.SaveChangesAsync(token);
+                return ApiResponse<SalaryComponentDto>.SuccessResponse(Map(row), "Salary component saved.");
+            }, ct);
         }
         catch (DbUpdateException ex)
         {
-            await SafeRollback();
-            _log.LogWarning(ex, "Salary structure conflict for tenant {TenantId} employee {EmployeeId}", tenantId, employee.Id);
-            return ApiResponse<bool>.ErrorResponse("Salary structure conflicts with an existing record.", 409);
-        }
-        catch (Exception ex)
-        {
-            await SafeRollback();
-            _log.LogError(ex, "Salary structure save failed for tenant {TenantId} employee {EmployeeId}", tenantId, employee.Id);
-            return ApiResponse<bool>.ErrorResponse("Salary structure could not be saved.", 500);
+            _logger.LogWarning(ex, "Salary component write conflict tenant {TenantId}", _user.TenantId);
+            return Error<SalaryComponentDto>("Salary component conflicts with another update.", 409);
         }
     }
 
-    public async Task<ApiResponse<int>> SaveAttendanceAsync(SaveEmployeeAttendanceDto request, CancellationToken ct = default)
+    public async Task<ApiResponse<SalaryStructureDto>> SaveSalaryStructureAsync(
+        SaveSalaryStructureRequestDto request, CancellationToken ct = default)
     {
-        if (!CanHr()) return ApiResponse<int>.ErrorResponse("HR attendance access is required.", 403);
-        if (request.Items.Count == 0) return ApiResponse<int>.ErrorResponse("At least one attendance row is required.");
-        if (request.Items.GroupBy(x => x.EmployeeReference).Any(g => g.Key == Guid.Empty || g.Count() > 1))
-            return ApiResponse<int>.ErrorResponse("Duplicate or invalid employee references were supplied.");
-
-        var tenantId = _user.TenantId;
-        var references = request.Items.Select(x => x.EmployeeReference).Distinct().ToArray();
-        var employees = await _employees.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && references.Contains(x.PublicId) && x.State == EmployeeState.Active)
-            .Take(5000).ToListAsync(ct);
-        if (employees.Count != references.Length) return ApiResponse<int>.ErrorResponse("One or more employees are unavailable.", 409);
-
-        var employeeIds = employees.Select(x => x.Id).ToArray();
-        var attendanceDate = DateOnly.FromDateTime(request.Date.Date);
-        var existingRows = await _attendance.GetQueryable()
-            .Where(x => x.TenantId == tenantId && employeeIds.Contains(x.EmployeeId) && x.AttendanceDate == attendanceDate)
-            .ToListAsync(ct);
-        var byEmployee = existingRows.ToDictionary(x => x.EmployeeId);
-        var employeeByReference = employees.ToDictionary(x => x.PublicId);
-        var now = _clock.GetUtcNow().UtcDateTime;
-
-        foreach (var item in request.Items)
-        {
-            var employee = employeeByReference[item.EmployeeReference];
-            if (!TryAttendanceState(item.Status, out var state))
-                return ApiResponse<int>.ErrorResponse($"Unsupported attendance status '{item.Status}'.");
-
-            if (!byEmployee.TryGetValue(employee.Id, out var row))
-            {
-                row = new EmployeeAttendance
-                {
-                    TenantId = tenantId,
-                    EmployeeId = employee.Id,
-                    AttendanceDate = attendanceDate,
-                    SourceCode = "Manual",
-                    RecordedAt = now,
-                    RecordedByUserId = _user.UserId,
-                    CreatedAt = now,
-                    CreatedBy = _user.UserId
-                };
-                await _attendance.AddAsync(row);
-                byEmployee[employee.Id] = row;
-            }
-
-            row.State = state;
-            row.InTime = item.InTime.HasValue ? TimeOnly.FromTimeSpan(item.InTime.Value) : null;
-            row.OutTime = item.OutTime.HasValue ? TimeOnly.FromTimeSpan(item.OutTime.Value) : null;
-            row.OvertimeHours = item.OvertimeHours;
-            row.Remarks = Trim(item.Remarks);
-            row.RecordedAt = now;
-            row.RecordedByUserId = _user.UserId;
-            row.UpdatedAt = now;
-            row.UpdatedBy = _user.UserId;
-        }
-
-        await _uow.SaveChangesAsync(ct);
-        return ApiResponse<int>.SuccessResponse(request.Items.Count, "Employee attendance saved.");
-    }
-
-    public async Task<ApiResponse<PayrollBatchDto>> GeneratePayrollAsync(GeneratePayrollDto request, CancellationToken ct = default)
-    {
-        if (!CanManage()) return ApiResponse<PayrollBatchDto>.ErrorResponse("Payroll access is required.", 403);
-        if (request.ClientRequestId == Guid.Empty) return ApiResponse<PayrollBatchDto>.ErrorResponse("Client request reference is required.");
-        if (request.Month is < 1 or > 12 || request.Year is < 2000 or > 2200) return ApiResponse<PayrollBatchDto>.ErrorResponse("Payroll period is invalid.");
-
-        var tenantId = _user.TenantId;
-        var prior = await _payrollRuns.GetQueryable().AsNoTracking()
-            .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.ClientRequestId == request.ClientRequestId, ct);
-        if (prior != null)
-        {
-            if (prior.Month != request.Month || prior.Year != request.Year)
-                return ApiResponse<PayrollBatchDto>.ErrorResponse("Client request reference was already used for another payroll period.", 409);
-            return ApiResponse<PayrollBatchDto>.SuccessResponse(await BuildBatchAsync(prior, true, ct), "Payroll request was already processed.");
-        }
-
-        var periodRun = await _payrollRuns.GetQueryable().AsNoTracking()
-            .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Year == request.Year && x.Month == request.Month && x.State != PayrollRunState.Cancelled, ct);
-        if (periodRun != null)
-            return ApiResponse<PayrollBatchDto>.ErrorResponse("A payroll run already exists for this period.", 409);
-
-        var periodStart = new DateOnly(request.Year, request.Month, 1);
-        var periodEnd = periodStart.AddMonths(1).AddDays(-1);
-        var employees = await _employees.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && x.State == EmployeeState.Active && x.JoiningDate <= periodEnd && (x.LeavingDate == null || x.LeavingDate >= periodStart))
-            .OrderBy(x => x.EmployeeCode).Take(5000).ToListAsync(ct);
-        if (employees.Count == 0)
-            return ApiResponse<PayrollBatchDto>.SuccessResponse(new PayrollBatchDto { ClientRequestId = request.ClientRequestId }, "No active employees were eligible for this payroll period.");
-
+        if (!Manager()) return Denied<SalaryStructureDto>();
+        if (request == null || request.ClientRequestId == Guid.Empty || request.EmployeeReference == Guid.Empty ||
+            request.EffectiveFrom == default || request.EffectiveTo < request.EffectiveFrom ||
+            request.Lines == null || request.Lines.Count is < 1 or > 100 ||
+            request.Lines.Any(x => x == null || x.SalaryComponentId <= 0 ||
+                x.Amount is < 0 or > 999999999999m) ||
+            request.Lines.Select(x => x.SalaryComponentId).Distinct().Count() != request.Lines.Count)
+            return Error<SalaryStructureDto>("Invalid employee, structure dates or salary component lines.");
+        var employee = await ActiveEmployeeAsync(request.EmployeeReference, ct);
+        if (employee == null) return Error<SalaryStructureDto>("Active employee not found.", 404);
+        var components = await _components.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == _user.TenantId && request.Lines.Select(y => y.SalaryComponentId).Contains(x.Id) &&
+            x.IsActive && !x.IsDeleted).ToListAsync(ct);
+        if (components.Count != request.Lines.Count)
+            return Error<SalaryStructureDto>("One or more salary components are inactive.", 409);
+        if (!components.Any(x => x.Type == SalaryComponentType.Earning) ||
+            request.Lines.Where(x => components.Any(y => y.Id == x.SalaryComponentId &&
+                y.Type == SalaryComponentType.Earning)).Sum(x => x.Amount) <= 0m)
+            return Error<SalaryStructureDto>("Salary structure requires positive earnings.", 409);
         try
         {
-            await _uow.BeginTransactionAsync();
-            var components = await EnsureCompatibilityComponentsAsync(ct);
-            var now = _clock.GetUtcNow().UtcDateTime;
-            var run = new PayrollRun
+            return await _uow.ExecuteInTransactionAsync(async token =>
             {
-                TenantId = tenantId,
-                PublicId = Guid.NewGuid(),
-                ClientRequestId = request.ClientRequestId,
-                RunNumber = $"PR-{request.Year:D4}{request.Month:D2}-{request.ClientRequestId:N}"[..25],
-                Year = request.Year,
-                Month = request.Month,
-                PeriodStart = periodStart,
-                PeriodEnd = periodEnd,
-                State = PayrollRunState.Draft,
-                CreatedAt = now,
-                CreatedBy = _user.UserId
-            };
-            await _payrollRuns.AddAsync(run);
-            await _uow.SaveChangesAsync(ct);
-
-            var employeeIds = employees.Select(x => x.Id).ToArray();
-            var structureRows = await _salaryStructures.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenantId && employeeIds.Contains(x.EmployeeId) && x.EffectiveFrom <= periodEnd && (x.EffectiveTo == null || x.EffectiveTo >= periodStart))
-                .OrderByDescending(x => x.EffectiveFrom).ThenByDescending(x => x.Id)
-                .ToListAsync(ct);
-            var structures = structureRows.GroupBy(x => x.EmployeeId).ToDictionary(g => g.Key, g => g.First());
-            var structureIds = structures.Values.Select(x => x.Id).ToArray();
-            var salaryLines = structureIds.Length == 0
-                ? new List<SalaryStructureLine>()
-                : await _salaryLines.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenantId && structureIds.Contains(x.SalaryStructureId)).ToListAsync(ct);
-            var componentIds = salaryLines.Select(x => x.SalaryComponentId).Concat(salaryLines.Where(x => x.BasedOnSalaryComponentId.HasValue).Select(x => x.BasedOnSalaryComponentId!.Value)).Distinct().ToArray();
-            var salaryComponentRows = componentIds.Length == 0
-                ? new List<SalaryComponent>()
-                : await _salaryComponents.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenantId && componentIds.Contains(x.Id)).ToListAsync(ct);
-            var componentById = salaryComponentRows.Concat(components.Values).GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.First());
-
-            var absences = await _attendance.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenantId && employeeIds.Contains(x.EmployeeId) && x.AttendanceDate >= periodStart && x.AttendanceDate <= periodEnd && x.State == AttendanceState.Absent)
-                .GroupBy(x => x.EmployeeId).Select(g => new { EmployeeId = g.Key, Count = g.Count() }).ToListAsync(ct);
-            var absentByEmployee = absences.ToDictionary(x => x.EmployeeId, x => x.Count);
-            var bonusRows = await _bonuses.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenantId && employeeIds.Contains(x.EmployeeId) && x.BonusDate >= periodStart && x.BonusDate <= periodEnd)
-                .GroupBy(x => x.EmployeeId).Select(g => new { EmployeeId = g.Key, Amount = g.Sum(x => x.Amount) }).ToListAsync(ct);
-            var bonusByEmployee = bonusRows.ToDictionary(x => x.EmployeeId, x => x.Amount);
-            var loanRows = await _loans.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenantId && employeeIds.Contains(x.EmployeeId) && !x.IsClosed && x.IssueDate <= periodEnd && x.OutstandingAmount > 0)
-                .Select(x => new { x.EmployeeId, x.InstallmentAmount, x.OutstandingAmount }).ToListAsync(ct);
-            var loanByEmployee = loanRows.GroupBy(x => x.EmployeeId).ToDictionary(g => g.Key, g => g.Sum(x => Math.Min(x.InstallmentAmount, x.OutstandingAmount)));
-
-            var payrollEmployees = new List<PayrollEmployee>();
-            var calculation = new Dictionary<long, PayrollCalculation>();
-            foreach (var employee in employees)
-            {
-                if (!structures.TryGetValue(employee.Id, out var structure)) continue;
-                var structureLines = salaryLines.Where(x => x.SalaryStructureId == structure.Id).ToList();
-                var calculatedLines = CalculateStructureLines(structureLines, componentById);
-                var baseGross = calculatedLines.Where(x => x.Component.Type == SalaryComponentType.Earning).Sum(x => x.Amount);
-                var structuralDeduction = calculatedLines.Where(x => x.Component.Type == SalaryComponentType.Deduction).Sum(x => x.Amount);
-                var bonus = bonusByEmployee.GetValueOrDefault(employee.Id);
-                var gross = Math.Round(baseGross + bonus, 2);
-                var remaining = gross;
-                var appliedStructuralDeduction = Math.Min(Math.Max(0m, structuralDeduction), remaining);
-                remaining -= appliedStructuralDeduction;
-                var absentDays = absentByEmployee.GetValueOrDefault(employee.Id);
-                var attendanceRequested = baseGross <= 0 ? 0m : Math.Round(baseGross / DateTime.DaysInMonth(request.Year, request.Month) * absentDays, 2);
-                var attendanceDeduction = Math.Min(Math.Max(0m, attendanceRequested), remaining);
-                remaining -= attendanceDeduction;
-                var loanRequested = loanByEmployee.GetValueOrDefault(employee.Id);
-                var loanDeduction = Math.Min(Math.Max(0m, loanRequested), remaining);
-                remaining -= loanDeduction;
-                var deductions = Math.Round(appliedStructuralDeduction + attendanceDeduction + loanDeduction, 2);
-                var net = Math.Round(gross - deductions, 2);
-
-                var payrollEmployee = new PayrollEmployee
+                var current = await _structures.GetQueryable().FirstOrDefaultAsync(x =>
+                    x.TenantId == _user.TenantId && x.EmployeeId == employee.Id &&
+                    x.IsCurrent && !x.IsDeleted, token);
+                if (current != null)
                 {
-                    TenantId = tenantId,
-                    PayrollRunId = run.Id,
-                    EmployeeId = employee.Id,
-                    EmployeeCodeSnapshot = employee.EmployeeCode,
-                    EmployeeNameSnapshot = employee.FullName,
-                    GrossAmount = gross,
-                    DeductionAmount = deductions,
-                    NetAmount = net,
-                    CreatedAt = now,
-                    CreatedBy = _user.UserId
+                    var currentLines = await _structureLines.GetQueryable().AsNoTracking().Where(x =>
+                        x.TenantId == _user.TenantId && x.SalaryStructureId == current.Id && !x.IsDeleted)
+                        .ToListAsync(token);
+                    if (current.EffectiveFrom == request.EffectiveFrom &&
+                        current.EffectiveTo == request.EffectiveTo && currentLines.Count == request.Lines.Count &&
+                        request.Lines.All(x => currentLines.Any(y =>
+                            y.SalaryComponentId == x.SalaryComponentId && y.Amount == x.Amount &&
+                            y.CalculationMethodCode == "Fixed")))
+                        return ApiResponse<SalaryStructureDto>.SuccessResponse(
+                            MapStructure(current, employee, currentLines, components), "Salary structure already exists.");
+                    if (request.EffectiveFrom <= current.EffectiveFrom)
+                        return Error<SalaryStructureDto>("New structure must begin after current effective date.", 409);
+                    if (request.EffectiveTo.HasValue)
+                        return Error<SalaryStructureDto>("A replacement salary structure must remain open-ended.", 409);
+                    current.EffectiveTo = request.EffectiveFrom.AddDays(-1);
+                    current.IsCurrent = false;
+                    current.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
+                    current.UpdatedBy = _user.UserId;
+                    _structures.Update(current);
+                }
+                if (await _structures.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == _user.TenantId && x.EmployeeId == employee.Id &&
+                    x.EffectiveFrom == request.EffectiveFrom && !x.IsDeleted, token))
+                    return Error<SalaryStructureDto>("Salary structure already exists for this effective date.", 409);
+                var now = _clock.GetUtcNow().UtcDateTime;
+                var row = new SalaryStructure
+                {
+                    TenantId = _user.TenantId, EmployeeId = employee.Id,
+                    EffectiveFrom = request.EffectiveFrom, EffectiveTo = request.EffectiveTo,
+                    IsCurrent = !request.EffectiveTo.HasValue,
+                    CreatedAt = now, CreatedBy = _user.UserId
                 };
-                payrollEmployees.Add(payrollEmployee);
-                calculation[employee.Id] = new PayrollCalculation(calculatedLines, bonus, attendanceDeduction, loanDeduction);
-            }
-
-            if (payrollEmployees.Count > 0)
-            {
-                await _payrollEmployees.AddRangeAsync(payrollEmployees);
-                await _uow.SaveChangesAsync(ct);
-
-                var payrollLines = new List<PayrollLine>();
-                foreach (var payrollEmployee in payrollEmployees)
+                await _structures.AddAsync(row);
+                await _uow.SaveChangesAsync(token);
+                var lines = request.Lines.Select(x => new SalaryStructureLine
                 {
-                    var calc = calculation[payrollEmployee.EmployeeId];
-                    foreach (var line in calc.StructureLines.Where(x => x.Amount > 0))
+                    TenantId = _user.TenantId, SalaryStructureId = row.Id,
+                    SalaryComponentId = x.SalaryComponentId, CalculationMethodCode = "Fixed",
+                    Amount = Math.Round(x.Amount, 2, MidpointRounding.AwayFromZero),
+                    CreatedAt = now, CreatedBy = _user.UserId
+                }).ToList();
+                await _structureLines.AddRangeAsync(lines);
+                await _uow.SaveChangesAsync(token);
+                return ApiResponse<SalaryStructureDto>.SuccessResponse(
+                    MapStructure(row, employee, lines, components), "Salary structure saved.");
+            }, ct);
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Salary structure conflict tenant {TenantId}", _user.TenantId);
+            return Error<SalaryStructureDto>("Salary structure conflicts with an existing update.", 409);
+        }
+    }
+
+    public async Task<ApiResponse<PayrollRunDto>> CreatePayrollRunAsync(CreatePayrollRunRequestDto request,
+        CancellationToken ct = default)
+    {
+        if (!Manager()) return Denied<PayrollRunDto>();
+        if (request == null || request.ClientRequestId == Guid.Empty || request.Year is < 2000 or > 2200 ||
+            request.Month is < 1 or > 12)
+            return Error<PayrollRunDto>("Invalid payroll period or idempotency key.");
+        var tenant = _user.TenantId;
+        var firstDay = new DateOnly(request.Year, request.Month, 1);
+        var lastDay = firstDay.AddMonths(1).AddDays(-1);
+        try
+        {
+            return await _uow.ExecuteInTransactionAsync(async token =>
+            {
+                var existing = await _runs.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.ClientRequestId == request.ClientRequestId && !x.IsDeleted, token);
+                if (existing != null)
+                {
+                    if (existing.Year != request.Year || existing.Month != request.Month)
+                        return Error<PayrollRunDto>("Idempotency key was used for another payroll period.", 409);
+                    return ApiResponse<PayrollRunDto>.SuccessResponse(await MapRunAsync(existing, token),
+                        "Payroll request already processed.");
+                }
+                if (await _runs.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.Year == request.Year && x.Month == request.Month &&
+                    x.State != PayrollRunState.Cancelled && !x.IsDeleted, token))
+                    return Error<PayrollRunDto>("A payroll run already exists for the selected period.", 409);
+                var employees = await _employees.GetQueryable().AsNoTracking().Where(x =>
+                    x.TenantId == tenant && x.State == EmployeeState.Active && !x.IsDeleted &&
+                    x.JoiningDate <= firstDay && (!x.LeavingDate.HasValue || x.LeavingDate >= lastDay))
+                    .OrderBy(x => x.Id).Take(5001).ToListAsync(token);
+                if (employees.Count > 5000)
+                    return Error<PayrollRunDto>("Period exceeds the synchronous payroll size limit.", 409);
+                if (employees.Count == 0)
+                    return Error<PayrollRunDto>("No employees are eligible for this payroll period.", 409);
+                var ids = employees.Select(x => x.Id).ToArray();
+                var structures = await _structures.GetQueryable().AsNoTracking().Where(x =>
+                    x.TenantId == tenant && ids.Contains(x.EmployeeId) && x.EffectiveFrom <= firstDay &&
+                    (!x.EffectiveTo.HasValue || x.EffectiveTo >= lastDay) && !x.IsDeleted).ToListAsync(token);
+                if (structures.Select(x => x.EmployeeId).Distinct().Count() != employees.Count ||
+                    structures.GroupBy(x => x.EmployeeId).Any(x => x.Count() != 1))
+                    return Error<PayrollRunDto>("Every employee needs exactly one salary structure covering the full month.", 409);
+                var structureIds = structures.Select(x => x.Id).ToArray();
+                var salaryLines = await _structureLines.GetQueryable().AsNoTracking().Where(x =>
+                    x.TenantId == tenant && structureIds.Contains(x.SalaryStructureId) && !x.IsDeleted)
+                    .ToListAsync(token);
+                var componentIds = salaryLines.Select(x => x.SalaryComponentId).Distinct().ToArray();
+                var comps = await _components.GetQueryable().AsNoTracking().Where(x =>
+                    x.TenantId == tenant && componentIds.Contains(x.Id) && !x.IsDeleted)
+                    .ToDictionaryAsync(x => x.Id, token);
+                if (comps.Count != componentIds.Length || salaryLines.Any(x =>
+                    x.CalculationMethodCode != "Fixed" || x.Percentage.HasValue ||
+                    x.BasedOnSalaryComponentId.HasValue || x.Amount < 0))
+                    return Error<PayrollRunDto>("Salary calculation method is unsupported or component is missing.", 409);
+                var bonuses = await _bonuses.GetQueryable().AsNoTracking().Where(x =>
+                    x.TenantId == tenant && ids.Contains(x.EmployeeId) &&
+                    x.BonusDate >= firstDay && x.BonusDate <= lastDay && !x.IsDeleted)
+                    .GroupBy(x => x.EmployeeId).Select(x => new { EmployeeId = x.Key, Amount = x.Sum(y => y.Amount) })
+                    .ToListAsync(token);
+                var bonusByEmployee = bonuses.ToDictionary(x => x.EmployeeId, x => x.Amount);
+                var bonusComponent = await _components.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Code == "BONUS" && x.Type == SalaryComponentType.Earning &&
+                    x.IsActive && !x.IsDeleted, token);
+                if (bonuses.Any(x => x.Amount > 0m) && bonusComponent == null)
+                    return Error<PayrollRunDto>("Active BONU​S earning component must be configured for payroll bonus.", 409);
+                var loans = await _loans.GetQueryable().AsNoTracking().Where(x =>
+                    x.TenantId == tenant && ids.Contains(x.EmployeeId) &&
+                    !x.IsClosed && x.IssueDate <= lastDay && x.OutstandingAmount > 0m && !x.IsDeleted)
+                    .ToListAsync(token);
+                var loanComponent = await _components.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Code == "LOAN_RECOVERY" &&
+                    x.Type == SalaryComponentType.Deduction && x.IsActive && !x.IsDeleted, token);
+                if (loans.Count > 0 && loanComponent == null)
+                    return Error<PayrollRunDto>("Active LOAN_RECOVERY deduction component must be configured.", 409);
+                var now = _clock.GetUtcNow().UtcDateTime;
+                var run = new PayrollRun
+                {
+                    TenantId = tenant, PublicId = Guid.NewGuid(), ClientRequestId = request.ClientRequestId,
+                    RunNumber = "PR-" + request.Year.ToString("D4") + request.Month.ToString("D2") +
+                        "-" + request.ClientRequestId.ToString("N").Substring(0, 12),
+                    Year = request.Year, Month = request.Month, PeriodStart = firstDay,
+                    PeriodEnd = lastDay, State = PayrollRunState.Calculated, CalculatedAt = now,
+                    CreatedAt = now, CreatedBy = _user.UserId
+                };
+                await _runs.AddAsync(run);
+                await _uow.SaveChangesAsync(token);
+                var structureByEmployee = structures.ToDictionary(x => x.EmployeeId);
+                var structureLineLookup = salaryLines.ToLookup(x => x.SalaryStructureId);
+                foreach (var employee in employees)
+                {
+                    var lines = structureLineLookup[structureByEmployee[employee.Id].Id].ToList();
+                    decimal earned = lines.Where(x => comps[x.SalaryComponentId].Type == SalaryComponentType.Earning)
+                        .Sum(x => x.Amount);
+                    decimal withheld = lines.Where(x => comps[x.SalaryComponentId].Type == SalaryComponentType.Deduction)
+                        .Sum(x => x.Amount);
+                    var bonus = bonusByEmployee.GetValueOrDefault(employee.Id);
+                    var loansForEmployee = loans.Where(x => x.EmployeeId == employee.Id).ToList();
+                    var recover = loansForEmployee.Sum(x => Math.Min(x.InstallmentAmount, x.OutstandingAmount));
+                    var gross = Round(earned + bonus);
+                    var deductions = Round(withheld + recover);
+                    if (gross <= 0m || deductions > gross)
+                        return Error<PayrollRunDto>("Employee has invalid net salary or deductions.", 409);
+                    var row = new PayrollEmployee
                     {
-                        payrollLines.Add(new PayrollLine
+                        TenantId = tenant, PayrollRunId = run.Id, EmployeeId = employee.Id,
+                        EmployeeCodeSnapshot = employee.EmployeeCode,
+                        EmployeeNameSnapshot = employee.FullName,
+                        GrossAmount = gross, DeductionAmount = deductions,
+                        NetAmount = Round(gross - deductions), CreatedAt = now, CreatedBy = _user.UserId
+                    };
+                    await _payrollEmployees.AddAsync(row);
+                    await _uow.SaveChangesAsync(token);
+                    var snapshots = lines.Select(x => new PayrollLine
+                    {
+                        TenantId = tenant, PayrollEmployeeId = row.Id,
+                        SalaryComponentId = x.SalaryComponentId, Amount = Round(x.Amount),
+                        Description = x.CalculationMethodCode,
+                        CreatedAt = now, CreatedBy = _user.UserId
+                    }).ToList();
+                    if (bonus > 0m && bonusComponent != null)
+                        snapshots.Add(new PayrollLine
                         {
-                            TenantId = tenantId,
-                            PayrollEmployeeId = payrollEmployee.Id,
-                            SalaryComponentId = line.Component.Id,
-                            Amount = Math.Round(line.Amount, 2),
-                            Description = line.Source.CalculationMethodCode,
-                            CreatedAt = now,
-                            CreatedBy = _user.UserId
+                            TenantId = tenant, PayrollEmployeeId = row.Id,
+                            SalaryComponentId = bonusComponent.Id, Amount = Round(bonus),
+                            Description = "Period bonus", CreatedAt = now, CreatedBy = _user.UserId
                         });
-                    }
-                    if (calc.Bonus > 0)
-                        payrollLines.Add(NewPayrollLine(tenantId, payrollEmployee.Id, components[BonusCode].Id, calc.Bonus, "Monthly bonus", now));
-                    if (calc.AttendanceDeduction > 0)
-                        payrollLines.Add(NewPayrollLine(tenantId, payrollEmployee.Id, components[AttendanceDeductionCode].Id, calc.AttendanceDeduction, "Attendance deduction", now));
-                    if (calc.LoanDeduction > 0)
-                        payrollLines.Add(NewPayrollLine(tenantId, payrollEmployee.Id, components[LoanRecoveryCode].Id, calc.LoanDeduction, "Loan recovery", now));
+                    if (recover > 0m && loanComponent != null)
+                        snapshots.Add(new PayrollLine
+                        {
+                            TenantId = tenant, PayrollEmployeeId = row.Id,
+                            SalaryComponentId = loanComponent.Id, Amount = Round(recover),
+                            Description = "Scheduled loan recovery", CreatedAt = now, CreatedBy = _user.UserId
+                        });
+                    await _payrollLines.AddRangeAsync(snapshots);
                 }
-                if (payrollLines.Count > 0) await _payrollLines.AddRangeAsync(payrollLines);
-            }
-
-            run.State = PayrollRunState.Calculated;
-            run.CalculatedAt = now;
-            run.UpdatedAt = now;
-            run.UpdatedBy = _user.UserId;
-            await _uow.SaveChangesAsync(ct);
-            await _uow.CommitTransactionAsync();
-            var batch = await BuildBatchAsync(run, false, ct);
-            batch.Generated = payrollEmployees.Count;
-            return ApiResponse<PayrollBatchDto>.SuccessResponse(batch, "Payroll generated.");
+                await _uow.SaveChangesAsync(token);
+                return ApiResponse<PayrollRunDto>.SuccessResponse(await MapRunAsync(run, token),
+                    "Payroll calculated; approval and accounting posting are required.");
+            }, ct);
         }
+        catch (DbUpdateConcurrencyException)
+        { return Error<PayrollRunDto>("Payroll was updated concurrently.", 409); }
         catch (DbUpdateException ex)
         {
-            await SafeRollback();
-            _log.LogWarning(ex, "Payroll generation conflict for tenant {TenantId} period {Year}-{Month}", tenantId, request.Year, request.Month);
-            return ApiResponse<PayrollBatchDto>.ErrorResponse("Payroll conflicts with an existing request or period.", 409);
-        }
-        catch (Exception ex)
-        {
-            await SafeRollback();
-            _log.LogError(ex, "Payroll generation failed for tenant {TenantId} period {Year}-{Month}", tenantId, request.Year, request.Month);
-            return ApiResponse<PayrollBatchDto>.ErrorResponse("Payroll generation failed.", 500);
+            _logger.LogWarning(ex, "Payroll generation conflict for tenant {TenantId}", tenant);
+            return Error<PayrollRunDto>("Duplicate payroll period or request.", 409);
         }
     }
 
-    public async Task<ApiResponse<PayrollRowDto>> PayAsync(PayPayrollDto request, CancellationToken ct = default)
+    public async Task<ApiResponse<PayrollRunDto>> GetPayrollRunAsync(Guid runReference, CancellationToken ct = default)
     {
-        if (!CanManage()) return ApiResponse<PayrollRowDto>.ErrorResponse("Payroll access is required.", 403);
-        if (request.PayrollReference == Guid.Empty || !TryVersion(request.RowVersion, out var version))
-            return ApiResponse<PayrollRowDto>.ErrorResponse("Payroll payment request is invalid.", 400);
-        if (!TryPaymentMethod(request.PaymentMethod, out var paymentMethod))
-            return ApiResponse<PayrollRowDto>.ErrorResponse("Unsupported payment method.");
+        if (!Manager()) return Denied<PayrollRunDto>();
+        var row = await FindRunAsync(runReference, ct);
+        return row == null ? Error<PayrollRunDto>("Payroll run not found.", 404) :
+            ApiResponse<PayrollRunDto>.SuccessResponse(await MapRunAsync(row, ct));
+    }
 
-        var tenantId = _user.TenantId;
-        var payrollEmployee = await _payrollEmployees.GetQueryable().AsNoTracking()
-            .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.RowVersion == version, ct);
-        if (payrollEmployee == null)
-            return ApiResponse<PayrollRowDto>.ErrorResponse("Payroll changed by another user. Reload and try again.", 409);
-        if (LegacyPayrollReference(tenantId, payrollEmployee.PayrollRunId, payrollEmployee.Id) != request.PayrollReference)
-            return ApiResponse<PayrollRowDto>.ErrorResponse("Payroll reference is invalid.", 404);
+    public Task<ApiResponse<PayrollRunDto>> ApprovePayrollRunAsync(Guid runReference,
+        ApprovePayrollRunRequestDto request, CancellationToken ct = default)
+    {
+        if (!Approver()) return Task.FromResult(Denied<PayrollRunDto>());
+        if (runReference == Guid.Empty || request == null || !TryVersion(request.RowVersion, out var version))
+            return Task.FromResult(Error<PayrollRunDto>("Payroll reference and version are required."));
+        return ExecuteWriteAsync("approve payroll", async token =>
+        {
+            var row = await _runs.GetQueryable().FirstOrDefaultAsync(x =>
+                x.TenantId == _user.TenantId && x.PublicId == runReference && !x.IsDeleted, token);
+            if (row == null) return Error<PayrollRunDto>("Payroll run not found.", 404);
+            if (!Matches(row.RowVersion, version)) return Error<PayrollRunDto>("Payroll was modified; reload.", 409);
+            if (row.State != PayrollRunState.Calculated)
+                return Error<PayrollRunDto>("Only calculated payroll can be approved.", 409);
+            if (row.CreatedBy == _user.UserId)
+                return Error<PayrollRunDto>("Payroll creator cannot approve their own run.", 403);
+            var now = _clock.GetUtcNow().UtcDateTime;
+            row.State = PayrollRunState.Approved; row.ApprovedAt = now;
+            row.ApprovedByUserId = _user.UserId; row.UpdatedAt = now;
+            row.UpdatedBy = _user.UserId; _runs.Update(row);
+            await _uow.SaveChangesAsync(token);
+            return ApiResponse<PayrollRunDto>.SuccessResponse(await MapRunAsync(row, token),
+                "Payroll approved; accounting posting is required.");
+        }, ct);
+    }
 
-        var run = await _payrollRuns.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == payrollEmployee.PayrollRunId, ct);
-        if (run == null) return ApiResponse<PayrollRowDto>.ErrorResponse("Payroll run not found.", 404);
-        if (run.State == PayrollRunState.Cancelled || run.State == PayrollRunState.Draft)
-            return ApiResponse<PayrollRowDto>.ErrorResponse("Payroll run is not ready for payment.", 409);
-        if (payrollEmployee.NetAmount <= 0)
-            return ApiResponse<PayrollRowDto>.ErrorResponse("Zero-value payroll does not require a payment.", 409);
+    public async Task<ApiResponse<PayrollRunDto>> PostPayrollRunAsync(Guid runReference,
+        PostPayrollRunRequestDto request, CancellationToken ct = default)
+    {
+        if (!Approver()) return Denied<PayrollRunDto>();
+        if (runReference == Guid.Empty || request == null || !TryVersion(request.RowVersion, out var version))
+            return Error<PayrollRunDto>("Payroll reference and version required.");
+        var row = await FindRunAsync(runReference, ct);
+        if (row == null) return Error<PayrollRunDto>("Payroll run not found.", 404);
+        if (!Matches(row.RowVersion, version)) return Error<PayrollRunDto>("Payroll changed; reload.", 409);
+        if (row.State != PayrollRunState.Approved)
+            return Error<PayrollRunDto>("Payroll must be approved before accounting posting.", 409);
+        // There is no authoritative salary-component-to-COA mapping in the canonical model.
+        // Do not mark a financially unbalanced or unposted run as Posted.
+        return Error<PayrollRunDto>(
+            "Payroll posting requires configured salary-component ledger mappings and a balanced accounting journal.", 409);
+    }
 
-        var existingPayment = await _payrollPayments.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && x.PayrollEmployeeId == payrollEmployee.Id && x.State == PaymentState.Successful)
-            .OrderByDescending(x => x.Id).FirstOrDefaultAsync(ct);
-        if (existingPayment != null)
-            return ApiResponse<PayrollRowDto>.SuccessResponse(await BuildRowAsync(run, payrollEmployee, ct), "Payroll payment was already processed.");
-
+    public async Task<ApiResponse<BonusDto>> SaveBonusAsync(long? bonusId, SaveBonusRequestDto request, CancellationToken ct = default)
+    {
+        if (!Manager()) return Denied<BonusDto>();
+        if (request == null || request.ClientRequestId == Guid.Empty || request.EmployeeReference == Guid.Empty ||
+            request.BonusDate == default || request.Amount <= 0 || request.Amount > 999999999999m ||
+            request.Reason?.Length > 500 || bonusId is <= 0)
+            return Error<BonusDto>("Invalid bonus request.");
+        var employee = await ActiveEmployeeAsync(request.EmployeeReference, ct);
+        if (employee == null) return Error<BonusDto>("Employee not found.", 404);
         try
         {
-            await _uow.BeginTransactionAsync();
-            var now = _clock.GetUtcNow().UtcDateTime;
-            if (run.State == PayrollRunState.Calculated)
+            return await _uow.ExecuteInTransactionAsync(async token =>
             {
-                run.State = PayrollRunState.Approved;
-                run.ApprovedAt = now;
-                run.ApprovedByUserId = _user.UserId;
-                run.UpdatedAt = now;
-                run.UpdatedBy = _user.UserId;
-            }
-
-            var payment = new PayrollPayment
-            {
-                TenantId = tenantId,
-                PublicId = Guid.NewGuid(),
-                ClientRequestId = StableGuid("legacy-pay", tenantId, payrollEmployee.PayrollRunId, payrollEmployee.Id),
-                PayrollEmployeeId = payrollEmployee.Id,
-                PaymentDate = DateOnly.FromDateTime(now),
-                PaymentMethod = paymentMethod,
-                Amount = payrollEmployee.NetAmount,
-                CurrencyCode = "BDT",
-                ExternalReference = Truncate(Trim(request.Note), 150),
-                State = PaymentState.Successful,
-                CreatedAt = now,
-                CreatedBy = _user.UserId
-            };
-            await _payrollPayments.AddAsync(payment);
-
-            var components = await _salaryComponents.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenantId && x.Code == LoanRecoveryCode)
-                .Select(x => new { x.Id }).ToListAsync(ct);
-            var loanComponentId = components.Select(x => x.Id).FirstOrDefault();
-            decimal loanRecoveryAmount = 0;
-            if (loanComponentId > 0)
-            {
-                loanRecoveryAmount = await _payrollLines.GetQueryable().AsNoTracking()
-                    .Where(x => x.TenantId == tenantId && x.PayrollEmployeeId == payrollEmployee.Id && x.SalaryComponentId == loanComponentId)
-                    .SumAsync(x => x.Amount, ct);
-            }
-
-            if (loanRecoveryAmount > 0)
-            {
-                var loans = await _loans.GetQueryable()
-                    .Where(x => x.TenantId == tenantId && x.EmployeeId == payrollEmployee.EmployeeId && !x.IsClosed && x.OutstandingAmount > 0)
-                    .OrderBy(x => x.IssueDate).ThenBy(x => x.Id).Take(100).ToListAsync(ct);
-                var remaining = loanRecoveryAmount;
-                foreach (var loan in loans)
+                var row = bonusId.HasValue ? await _bonuses.GetQueryable().FirstOrDefaultAsync(x =>
+                    x.TenantId == _user.TenantId && x.Id == bonusId.Value && !x.IsDeleted, token) : null;
+                if (bonusId.HasValue && row == null) return Error<BonusDto>("Bonus not found.", 404);
+                if (row != null) return Error<BonusDto>("Existing bonuses cannot be overwritten after payroll calculation.", 409);
+                if (await _runs.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == _user.TenantId && x.Year == request.BonusDate.Year &&
+                    x.Month == request.BonusDate.Month && x.State != PayrollRunState.Cancelled &&
+                    !x.IsDeleted, token))
+                    return Error<BonusDto>("Bonus date belongs to an existing payroll run.", 409);
+                var now = _clock.GetUtcNow().UtcDateTime;
+                row = new Bonus
                 {
-                    if (remaining <= 0) break;
-                    var amount = Math.Min(remaining, Math.Min(loan.InstallmentAmount, loan.OutstandingAmount));
-                    if (amount <= 0) continue;
-                    await _loanRecoveries.AddAsync(new LoanAdvanceRecovery
-                    {
-                        TenantId = tenantId,
-                        ClientRequestId = StableGuid("legacy-loan-recovery", tenantId, payrollEmployee.Id, loan.Id),
-                        LoanAdvanceId = loan.Id,
-                        PayrollEmployeeId = payrollEmployee.Id,
-                        RecoveryDate = DateOnly.FromDateTime(now),
-                        Amount = amount,
-                        Remarks = "Recovered through payroll payment.",
-                        CreatedAt = now,
-                        CreatedBy = _user.UserId
-                    });
-                    loan.OutstandingAmount -= amount;
-                    loan.IsClosed = loan.OutstandingAmount <= 0;
-                    loan.UpdatedAt = now;
-                    loan.UpdatedBy = _user.UserId;
-                    remaining -= amount;
-                }
-            }
-
-            await _uow.SaveChangesAsync(ct);
-            await _uow.CommitTransactionAsync();
-            return ApiResponse<PayrollRowDto>.SuccessResponse(await BuildRowAsync(run, payrollEmployee, ct), "Payroll marked paid.");
+                    TenantId = _user.TenantId, EmployeeId = employee.Id,
+                    BonusDate = request.BonusDate, Amount = Round(request.Amount),
+                    Reason = Trim(request.Reason), CreatedAt = now, CreatedBy = _user.UserId
+                };
+                await _bonuses.AddAsync(row);
+                await _uow.SaveChangesAsync(token);
+                return ApiResponse<BonusDto>.SuccessResponse(MapBonus(row, employee), "Bonus saved.");
+            }, ct);
         }
-        catch (DbUpdateConcurrencyException ex)
-        {
-            await SafeRollback();
-            _log.LogWarning(ex, "Concurrent payroll payment {Reference}", request.PayrollReference);
-            return ApiResponse<PayrollRowDto>.ErrorResponse("Payroll changed by another user.", 409);
-        }
-        catch (DbUpdateException ex)
-        {
-            await SafeRollback();
-            _log.LogWarning(ex, "Duplicate or conflicting payroll payment {Reference}", request.PayrollReference);
-            return ApiResponse<PayrollRowDto>.ErrorResponse("Payroll payment conflicts with an existing transaction.", 409);
-        }
-        catch (Exception ex)
-        {
-            await SafeRollback();
-            _log.LogError(ex, "Payroll payment failed {Reference}", request.PayrollReference);
-            return ApiResponse<PayrollRowDto>.ErrorResponse("Payroll payment failed.", 500);
-        }
+        catch (DbUpdateException)
+        { return Error<BonusDto>("Bonus write conflicts with another update.", 409); }
     }
 
-    public async Task<ApiResponse<IReadOnlyList<PayrollEmployeeOptionDto>>> GetEmployeeOptionsAsync(string? search,CancellationToken ct=default)
+    public async Task<ApiResponse<LoanAdvanceDto>> CreateLoanAdvanceAsync(
+        CreateLoanAdvanceRequestDto request, CancellationToken ct = default)
     {
-        if (!CanManage()) return ApiResponse<IReadOnlyList<PayrollEmployeeOptionDto>>.ErrorResponse("Payroll permission required.",403);
-        if (search?.Length>100) return ApiResponse<IReadOnlyList<PayrollEmployeeOptionDto>>.ErrorResponse("Search exceeds 100 characters.");
-        var term=search?.Trim();
-        var query=_employees.GetQueryable().AsNoTracking().Where(x=>x.TenantId==_user.TenantId&&x.State==EmployeeState.Active);
-        if (!string.IsNullOrWhiteSpace(term))
-            query=query.Where(x=>x.FullName.StartsWith(term)||x.EmployeeCode.StartsWith(term));
-        IReadOnlyList<PayrollEmployeeOptionDto> rows=await query.OrderBy(x=>x.EmployeeCode).ThenBy(x=>x.Id)
-            .Select(x=>new PayrollEmployeeOptionDto{Reference=x.PublicId,EmployeeCode=x.EmployeeCode,Name=x.FullName})
-            .Take(100).ToListAsync(ct);
-        return ApiResponse<IReadOnlyList<PayrollEmployeeOptionDto>>.SuccessResponse(rows);
+        if (!Manager()) return Denied<LoanAdvanceDto>();
+        if (request == null || request.ClientRequestId == Guid.Empty || request.EmployeeReference == Guid.Empty ||
+            request.IssueDate == default || request.PrincipalAmount <= 0 ||
+            request.InstallmentAmount <= 0 || request.InstallmentAmount > request.PrincipalAmount ||
+            request.PrincipalAmount > 999999999999m || request.Remarks?.Length > 500)
+            return Error<LoanAdvanceDto>("Invalid loan advance or installment.");
+        var employee = await ActiveEmployeeAsync(request.EmployeeReference, ct);
+        if (employee == null) return Error<LoanAdvanceDto>("Employee not found.", 404);
+        if (await _runs.GetQueryable().AsNoTracking().AnyAsync(x =>
+            x.TenantId == _user.TenantId && x.Year == request.IssueDate.Year &&
+            x.Month == request.IssueDate.Month && x.State != PayrollRunState.Cancelled &&
+            !x.IsDeleted, ct))
+            return Error<LoanAdvanceDto>("Loan issuance within an existing payroll period requires controlled amendment.", 409);
+        try
+        {
+            return await _uow.ExecuteInTransactionAsync(async token =>
+            {
+                var now = _clock.GetUtcNow().UtcDateTime;
+                var loan = new LoanAdvance
+                {
+                    TenantId = _user.TenantId, EmployeeId = employee.Id,
+                    IssueDate = request.IssueDate, PrincipalAmount = Round(request.PrincipalAmount),
+                    OutstandingAmount = Round(request.PrincipalAmount),
+                    InstallmentAmount = Round(request.InstallmentAmount),
+                    Remarks = Trim(request.Remarks), CreatedAt = now, CreatedBy = _user.UserId
+                };
+                await _loans.AddAsync(loan);
+                await _uow.SaveChangesAsync(token);
+                return ApiResponse<LoanAdvanceDto>.SuccessResponse(MapLoan(loan, employee),
+                    "Loan registered; disbursement journal must be completed separately.");
+            }, ct);
+        }
+        catch (DbUpdateException) { return Error<LoanAdvanceDto>("Loan advance conflicts with existing data.", 409); }
     }
 
-    public async Task<ApiResponse<PayrollPeriodPageDto>> GetPeriodAsync(int year,int month,int page,int pageSize,CancellationToken ct=default)
+    public async Task<ApiResponse<PagedResult<PayrollRunDto>>> GetPayrollRunsAsync(
+        int? year, int? month, int page, int pageSize, CancellationToken ct = default)
     {
-        if (!CanManage()) return ApiResponse<PayrollPeriodPageDto>.ErrorResponse("Payroll permission required.",403);
-        if (year is < 2000 or > 2200||month is < 1 or > 12||page<1||pageSize is < 1 or > 50)
-            return ApiResponse<PayrollPeriodPageDto>.ErrorResponse("Invalid payroll period or pagination.");
-        var tenant=_user.TenantId;
-        var run=await _payrollRuns.GetQueryable().AsNoTracking()
-            .Where(x=>x.TenantId==tenant&&x.Year==year&&x.Month==month&&x.State!=PayrollRunState.Cancelled)
-            .OrderByDescending(x=>x.Id).FirstOrDefaultAsync(ct);
-        var response=new PayrollPeriodPageDto{Page=page,PageSize=pageSize};
-        if (run==null) return ApiResponse<PayrollPeriodPageDto>.SuccessResponse(response);
-        var query=_payrollEmployees.GetQueryable().AsNoTracking().Where(x=>x.TenantId==tenant&&x.PayrollRunId==run.Id);
-        response.TotalCount=await query.CountAsync(ct);
-        if ((long)(page-1)*pageSize>=response.TotalCount) return ApiResponse<PayrollPeriodPageDto>.SuccessResponse(response);
-        var entries=await query.OrderBy(x=>x.EmployeeCodeSnapshot).ThenBy(x=>x.Id).Skip((page-1)*pageSize).Take(pageSize).ToListAsync(ct);
-        foreach(var entry in entries) response.Rows.Add(await BuildRowAsync(run,entry,ct));
-        return ApiResponse<PayrollPeriodPageDto>.SuccessResponse(response);
+        if (!Manager()) return Denied<PagedResult<PayrollRunDto>>();
+        if (year is < 2000 or > 2200 || month is < 1 or > 12 || page < 1 || pageSize is < 1 or > 100)
+            return Error<PagedResult<PayrollRunDto>>("Invalid period or pagination.");
+        var q = _runs.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == _user.TenantId && !x.IsDeleted);
+        if (year.HasValue) q = q.Where(x => x.Year == year.Value);
+        if (month.HasValue) q = q.Where(x => x.Month == month.Value);
+        var count = await q.CountAsync(ct);
+        var skip = (long)(page - 1) * pageSize;
+        if (skip > int.MaxValue) return Error<PagedResult<PayrollRunDto>>("Page is outside supported range.");
+        var rows = await q.OrderByDescending(x => x.Year).ThenByDescending(x => x.Month)
+            .ThenByDescending(x => x.Id).Skip((int)skip).Take(pageSize).ToListAsync(ct);
+        var ids = rows.Select(x => x.Id).ToArray();
+        var totals = await _payrollEmployees.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == _user.TenantId && ids.Contains(x.PayrollRunId))
+            .GroupBy(x => x.PayrollRunId).Select(x => new
+            {
+                Id = x.Key, Count = x.Count(), Gross = x.Sum(y => y.GrossAmount),
+                Deduction = x.Sum(y => y.DeductionAmount), Net = x.Sum(y => y.NetAmount)
+            }).ToListAsync(ct);
+        var byId = totals.ToDictionary(x => x.Id);
+        return ApiResponse<PagedResult<PayrollRunDto>>.SuccessResponse(new PagedResult<PayrollRunDto>
+        {
+            Page = page, PageSize = pageSize, TotalCount = count,
+            Items = rows.Select(x =>
+            {
+                var t = byId.GetValueOrDefault(x.Id);
+                return MapRun(x, t?.Count ?? 0, t?.Gross ?? 0m, t?.Deduction ?? 0m, t?.Net ?? 0m);
+            }).ToList()
+        });
     }
 
-    public async Task<ApiResponse<IReadOnlyList<PayrollRowDto>>> GetMyPayrollAsync(CancellationToken ct = default)
+    public async Task<ApiResponse<PagedResult<PayrollEmployeeDto>>> GetPayrollEmployeesAsync(
+        Guid runReference, int page, int pageSize, CancellationToken ct = default)
+    {
+        if (!Manager()) return Denied<PagedResult<PayrollEmployeeDto>>();
+        if (runReference == Guid.Empty || page < 1 || pageSize is < 1 or > 100)
+            return Error<PagedResult<PayrollEmployeeDto>>("Invalid payroll reference or pagination.");
+        var run = await FindRunAsync(runReference, ct);
+        if (run == null) return Error<PagedResult<PayrollEmployeeDto>>("Payroll run not found.", 404);
+        var q = _payrollEmployees.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == _user.TenantId && x.PayrollRunId == run.Id && !x.IsDeleted);
+        var total = await q.CountAsync(ct);
+        var skip = (long)(page - 1) * pageSize;
+        if (skip > int.MaxValue) return Error<PagedResult<PayrollEmployeeDto>>("Requested page is too large.");
+        var employees = await q.OrderBy(x => x.EmployeeCodeSnapshot).ThenBy(x => x.Id)
+            .Skip((int)skip).Take(pageSize).ToListAsync(ct);
+        var models = await MapEmployeesAsync(employees, ct);
+        return ApiResponse<PagedResult<PayrollEmployeeDto>>.SuccessResponse(new PagedResult<PayrollEmployeeDto>
+        { Page = page, PageSize = pageSize, TotalCount = total, Items = models });
+    }
+
+    public async Task<ApiResponse<PagedResult<PayrollEmployeeDto>>> GetMyPayslipsAsync(
+        int? year, int page, int pageSize, CancellationToken ct = default)
     {
         if (!_user.IsAuthenticated || _user.TenantId <= 0)
-            return ApiResponse<IReadOnlyList<PayrollRowDto>>.ErrorResponse("Authentication is required.", 403);
-
-        var tenantId = _user.TenantId;
-        var employee = await _employees.GetQueryable().AsNoTracking()
-            .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.UserId == _user.UserId && x.State == EmployeeState.Active, ct);
-        if (employee == null)
-            return ApiResponse<IReadOnlyList<PayrollRowDto>>.ErrorResponse("Employee profile is not linked to this account.", 403);
-
-        var payrollEmployees = await _payrollEmployees.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && x.EmployeeId == employee.Id)
-            .OrderByDescending(x => x.Id).Take(120).ToListAsync(ct);
-        if (payrollEmployees.Count == 0)
-            return ApiResponse<IReadOnlyList<PayrollRowDto>>.SuccessResponse(Array.Empty<PayrollRowDto>());
-
-        var runIds = payrollEmployees.Select(x => x.PayrollRunId).Distinct().ToArray();
-        var runs = await _payrollRuns.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && runIds.Contains(x.Id))
-            .OrderByDescending(x => x.Year).ThenByDescending(x => x.Month).ToListAsync(ct);
-        var runMap = runs.ToDictionary(x => x.Id);
-        var rows = new List<PayrollRowDto>();
-        foreach (var payrollEmployee in payrollEmployees.Where(x => runMap.ContainsKey(x.PayrollRunId)))
-            rows.Add(await BuildRowAsync(runMap[payrollEmployee.PayrollRunId], payrollEmployee, ct));
-
-        IReadOnlyList<PayrollRowDto> ordered = rows.OrderByDescending(x => x.Year).ThenByDescending(x => x.Month).ToList();
-        return ApiResponse<IReadOnlyList<PayrollRowDto>>.SuccessResponse(ordered);
+            return Denied<PagedResult<PayrollEmployeeDto>>();
+        if (year is < 2000 or > 2200 || page < 1 || pageSize is < 1 or > 100)
+            return Error<PagedResult<PayrollEmployeeDto>>("Invalid year or pagination.");
+        var employeeId = await _employees.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == _user.TenantId && x.UserId == _user.UserId && !x.IsDeleted)
+            .Select(x => x.Id).FirstOrDefaultAsync(ct);
+        if (employeeId == 0) return Error<PagedResult<PayrollEmployeeDto>>("Employee not linked to this user.", 404);
+        var runIds = _runs.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == _user.TenantId && x.State == PayrollRunState.Posted &&
+            !x.IsDeleted && (!year.HasValue || x.Year == year.Value)).Select(x => x.Id);
+        var q = _payrollEmployees.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == _user.TenantId && x.EmployeeId == employeeId &&
+            runIds.Contains(x.PayrollRunId) && !x.IsDeleted);
+        var total = await q.CountAsync(ct);
+        var skip = (long)(page - 1) * pageSize;
+        if (skip > int.MaxValue) return Error<PagedResult<PayrollEmployeeDto>>("Page exceeds result range.");
+        var rows = await q.OrderByDescending(x => x.PayrollRunId).ThenByDescending(x => x.Id)
+            .Skip((int)skip).Take(pageSize).ToListAsync(ct);
+        return ApiResponse<PagedResult<PayrollEmployeeDto>>.SuccessResponse(new PagedResult<PayrollEmployeeDto>
+        { Page = page, PageSize = pageSize, TotalCount = total,
+            Items = await MapEmployeesAsync(rows, ct) });
     }
 
-    private async Task<PayrollBatchDto> BuildBatchAsync(PayrollRun run, bool existing, CancellationToken ct)
+    public async Task<ApiResponse<PayrollPaymentDto>> RecordPayrollPaymentAsync(
+        RecordPayrollPaymentRequestDto request, CancellationToken ct = default)
     {
-        var employees = await _payrollEmployees.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == run.TenantId && x.PayrollRunId == run.Id)
-            .OrderBy(x => x.EmployeeCodeSnapshot).Take(5000).ToListAsync(ct);
-        var rows = new List<PayrollRowDto>(employees.Count);
-        foreach (var employee in employees) rows.Add(await BuildRowAsync(run, employee, ct));
-        return new PayrollBatchDto
-        {
-            ClientRequestId = run.ClientRequestId,
-            Existing = existing ? rows.Count : 0,
-            Generated = existing ? 0 : rows.Count,
-            Rows = rows
-        };
-    }
-
-    private async Task<PayrollRowDto> BuildRowAsync(PayrollRun run, PayrollEmployee payrollEmployee, CancellationToken ct)
-    {
-        var tenantId = run.TenantId;
-        var employee = await _employees.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && x.Id == payrollEmployee.EmployeeId)
-            .Select(x => new { x.PublicId, x.EmployeeCode, x.FullName }).FirstOrDefaultAsync(ct);
-        var lines = await _payrollLines.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && x.PayrollEmployeeId == payrollEmployee.Id)
-            .Select(x => new { x.SalaryComponentId, x.Amount }).ToListAsync(ct);
-        var componentIds = lines.Select(x => x.SalaryComponentId).Distinct().ToArray();
-        var components = componentIds.Length == 0
-            ? new Dictionary<long, string>()
-            : await _salaryComponents.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenantId && componentIds.Contains(x.Id))
-                .Select(x => new { x.Id, x.Code }).ToDictionaryAsync(x => x.Id, x => x.Code, ct);
-        decimal Amount(string code) => lines.Where(x => components.TryGetValue(x.SalaryComponentId, out var c) && string.Equals(c, code, StringComparison.OrdinalIgnoreCase)).Sum(x => x.Amount);
-
-        var payment = await _payrollPayments.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenantId && x.PayrollEmployeeId == payrollEmployee.Id && x.State == PaymentState.Successful)
-            .OrderByDescending(x => x.Id).FirstOrDefaultAsync(ct);
-        var absentDays = await _attendance.GetQueryable().AsNoTracking()
-            .CountAsync(x => x.TenantId == tenantId && x.EmployeeId == payrollEmployee.EmployeeId && x.AttendanceDate >= run.PeriodStart && x.AttendanceDate <= run.PeriodEnd && x.State == AttendanceState.Absent, ct);
-
-        return new PayrollRowDto
-        {
-            Reference = LegacyPayrollReference(tenantId, run.Id, payrollEmployee.Id),
-            EmployeeReference = employee?.PublicId ?? Guid.Empty,
-            EmployeeCode = payrollEmployee.EmployeeCodeSnapshot ?? employee?.EmployeeCode ?? string.Empty,
-            EmployeeName = payrollEmployee.EmployeeNameSnapshot ?? employee?.FullName ?? string.Empty,
-            Month = run.Month.ToString("D2"),
-            Year = run.Year,
-            GrossSalary = payrollEmployee.GrossAmount,
-            AbsentDays = absentDays,
-            AttendanceDeduction = Amount(AttendanceDeductionCode),
-            LoanDeduction = Amount(LoanRecoveryCode),
-            Bonus = Amount(BonusCode),
-            NetSalary = payrollEmployee.NetAmount,
-            Status = payment != null ? "Paid" : run.State.ToString(),
-            PaymentDate = payment?.PaymentDate.ToDateTime(TimeOnly.MinValue),
-            RowVersion = Convert.ToBase64String(payrollEmployee.RowVersion)
-        };
-    }
-
-    private async Task<Dictionary<string, SalaryComponent>> EnsureCompatibilityComponentsAsync(CancellationToken ct)
-    {
-        var expected = new Dictionary<string, (string Name, SalaryComponentType Type)>(StringComparer.OrdinalIgnoreCase)
-        {
-            [BasicCode] = ("Basic Salary", SalaryComponentType.Earning),
-            [HouseRentCode] = ("House Rent", SalaryComponentType.Earning),
-            [MedicalCode] = ("Medical", SalaryComponentType.Earning),
-            [TransportCode] = ("Transport", SalaryComponentType.Earning),
-            [OtherCode] = ("Other Allowance", SalaryComponentType.Earning),
-            [BonusCode] = ("Bonus", SalaryComponentType.Earning),
-            [AttendanceDeductionCode] = ("Attendance Deduction", SalaryComponentType.Deduction),
-            [LoanRecoveryCode] = ("Loan Recovery", SalaryComponentType.Deduction)
-        };
-        var tenantId = _user.TenantId;
-        var codes = expected.Keys.ToArray();
-        var existing = await _salaryComponents.GetQueryable()
-            .Where(x => x.TenantId == tenantId && codes.Contains(x.Code))
-            .ToListAsync(ct);
-        var byCode = existing.ToDictionary(x => x.Code, StringComparer.OrdinalIgnoreCase);
-        var now = _clock.GetUtcNow().UtcDateTime;
-        foreach (var item in expected)
-        {
-            if (byCode.TryGetValue(item.Key, out var component))
-            {
-                if (component.Type != item.Value.Type)
-                    throw new InvalidOperationException($"Salary component '{item.Key}' has an incompatible type.");
-                if (!component.IsActive)
-                {
-                    component.IsActive = true;
-                    component.UpdatedAt = now;
-                    component.UpdatedBy = _user.UserId;
-                }
-                continue;
-            }
-
-            component = new SalaryComponent
-            {
-                TenantId = tenantId,
-                Name = item.Value.Name,
-                Code = item.Key,
-                Type = item.Value.Type,
-                IsActive = true,
-                CreatedAt = now,
-                CreatedBy = _user.UserId
-            };
-            await _salaryComponents.AddAsync(component);
-            byCode[item.Key] = component;
-        }
-        await _uow.SaveChangesAsync(ct);
-        return byCode;
-    }
-
-    private static List<CalculatedSalaryLine> CalculateStructureLines(
-        IReadOnlyList<SalaryStructureLine> lines,
-        IReadOnlyDictionary<long, SalaryComponent> components)
-    {
-        var amounts = new Dictionary<long, decimal>();
-        var unresolved = new List<SalaryStructureLine>();
-        foreach (var line in lines)
-        {
-            if (!components.TryGetValue(line.SalaryComponentId, out _)) continue;
-            if (!string.Equals(line.CalculationMethodCode, "Percentage", StringComparison.OrdinalIgnoreCase) || !line.BasedOnSalaryComponentId.HasValue || !line.Percentage.HasValue)
-                amounts[line.SalaryComponentId] = Math.Max(0m, line.Amount);
-            else
-                unresolved.Add(line);
-        }
-        for (var pass = 0; pass < lines.Count && unresolved.Count > 0; pass++)
-        {
-            for (var i = unresolved.Count - 1; i >= 0; i--)
-            {
-                var line = unresolved[i];
-                if (!line.BasedOnSalaryComponentId.HasValue || !amounts.TryGetValue(line.BasedOnSalaryComponentId.Value, out var baseAmount)) continue;
-                amounts[line.SalaryComponentId] = Math.Max(0m, Math.Round(baseAmount * line.Percentage!.Value / 100m, 2));
-                unresolved.RemoveAt(i);
-            }
-        }
-        foreach (var line in unresolved) amounts[line.SalaryComponentId] = Math.Max(0m, line.Amount);
-
-        return lines.Where(x => components.ContainsKey(x.SalaryComponentId))
-            .Select(x => new CalculatedSalaryLine(x, components[x.SalaryComponentId], amounts.GetValueOrDefault(x.SalaryComponentId)))
-            .ToList();
-    }
-
-    private PayrollLine NewPayrollLine(long tenantId, long payrollEmployeeId, long componentId, decimal amount, string description, DateTime now) => new()
-    {
-        TenantId = tenantId,
-        PayrollEmployeeId = payrollEmployeeId,
-        SalaryComponentId = componentId,
-        Amount = Math.Round(amount, 2),
-        Description = description,
-        CreatedAt = now,
-        CreatedBy = _user.UserId
-    };
-
-    private static Guid LegacyPayrollReference(long tenantId, long payrollRunId, long payrollEmployeeId) =>
-        StableGuid("legacy-payroll-row", tenantId, payrollRunId, payrollEmployeeId);
-
-    private static Guid StableGuid(string scope, long tenantId, long value1, long value2)
-    {
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes($"{scope}:{tenantId}:{value1}:{value2}"));
-        return new Guid(hash.AsSpan(0, 16));
-    }
-
-    private static bool TryAttendanceState(string value, out AttendanceState state)
-    {
-        switch (value.Trim().ToLowerInvariant())
-        {
-            case "present": state = AttendanceState.Present; return true;
-            case "absent": state = AttendanceState.Absent; return true;
-            case "late": state = AttendanceState.Late; return true;
-            case "leave": state = AttendanceState.Leave; return true;
-            case "holiday":
-            case "excused": state = AttendanceState.Excused; return true;
-            default: state = default; return false;
-        }
-    }
-
-    private static bool TryPaymentMethod(string value, out PaymentMethodType method)
-    {
-        switch (value.Trim().ToLowerInvariant())
-        {
-            case "cash": method = PaymentMethodType.Cash; return true;
-            case "bank": method = PaymentMethodType.BankTransfer; return true;
-            case "bkash":
-            case "nagad": method = PaymentMethodType.MobileFinancialService; return true;
-            default: method = default; return false;
-        }
-    }
-
-    private bool CanHr() => _user.IsAuthenticated && _user.TenantId > 0 && (_user.IsTenantAdmin || _user.IsInRole("Principal") || _user.IsInRole("HR"));
-    private bool CanManage() => CanHr() || _user.IsInRole("Accountant");
-    private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-    private static string? Truncate(string? value, int maxLength) => value == null || value.Length <= maxLength ? value : value[..maxLength];
-    private static bool TryVersion(string? value, out byte[] version)
-    {
+        if (!Manager()) return Denied<PayrollPaymentDto>();
+        if (request == null || request.ClientRequestId == Guid.Empty || request.PayrollEmployeeId <= 0 ||
+            request.PaymentDate == default || !Enum.IsDefined(request.PaymentMethod) ||
+            request.Amount <= 0 || request.Amount > 999999999999m ||
+            !TryVersion(request.PayrollEmployeeRowVersion, out var expected) ||
+            request.BankAccountId is <= 0 || request.EmployeeBankAccountId is <= 0 ||
+            request.ExternalReference?.Length > 150)
+            return Error<PayrollPaymentDto>("Invalid payroll payment request or row version.");
         try
         {
-            version = Convert.FromBase64String(value ?? string.Empty);
-            return version.Length > 0;
+            return await _uow.ExecuteInTransactionAsync(async token =>
+            {
+                var tenant = _user.TenantId;
+                var previous = await _payments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.ClientRequestId == request.ClientRequestId && !x.IsDeleted, token);
+                if (previous != null)
+                {
+                    if (previous.PayrollEmployeeId != request.PayrollEmployeeId ||
+                        previous.Amount != Round(request.Amount) ||
+                        previous.PaymentMethod != request.PaymentMethod ||
+                        previous.PaymentDate != request.PaymentDate ||
+                        previous.BankAccountId != request.BankAccountId ||
+                        previous.EmployeeBankAccountId != request.EmployeeBankAccountId ||
+                        previous.ExternalReference != Trim(request.ExternalReference))
+                        return Error<PayrollPaymentDto>("Idempotency key reused for a different payment.", 409);
+                    return ApiResponse<PayrollPaymentDto>.SuccessResponse(MapPayment(previous),
+                        "Payment request already recorded.");
+                }
+                var employee = await _payrollEmployees.GetQueryable().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Id == request.PayrollEmployeeId && !x.IsDeleted, token);
+                if (employee == null) return Error<PayrollPaymentDto>("Payroll employee not found.", 404);
+                if (!Matches(employee.RowVersion, expected))
+                    return Error<PayrollPaymentDto>("Payroll employee changed. Reload and retry.", 409);
+                var run = await _runs.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Id == employee.PayrollRunId && !x.IsDeleted, token);
+                if (run == null || run.State != PayrollRunState.Posted || run.JournalId == null)
+                    return Error<PayrollPaymentDto>("Payroll must be journal-posted before payment.", 409);
+                if (request.PaymentDate < run.PeriodStart)
+                    return Error<PayrollPaymentDto>("Payment date predates the payroll period.", 409);
+                if (request.BankAccountId.HasValue && !await _bankAccounts.GetQueryable().AsNoTracking()
+                    .AnyAsync(x => x.TenantId == tenant && x.Id == request.BankAccountId.Value &&
+                        x.IsActive && !x.IsDeleted, token))
+                    return Error<PayrollPaymentDto>("Bank account is not available.", 404);
+                if (request.EmployeeBankAccountId.HasValue && !await _employeeBankAccounts.GetQueryable().AsNoTracking()
+                    .AnyAsync(x => x.TenantId == tenant && x.Id == request.EmployeeBankAccountId.Value &&
+                        x.EmployeeId == employee.EmployeeId && x.IsActive && !x.IsDeleted, token))
+                    return Error<PayrollPaymentDto>("Employee bank account does not belong to this employee.", 404);
+                var pending = await _payments.GetQueryable().AsNoTracking().Where(x =>
+                    x.TenantId == tenant && x.PayrollEmployeeId == employee.Id &&
+                    !x.IsDeleted && x.State != PaymentState.Failed &&
+                    x.State != PaymentState.Cancelled && x.State != PaymentState.Refunded)
+                    .SumAsync(x => (decimal?)x.Amount, token) ?? 0m;
+                if (Round(request.Amount) > employee.NetAmount - pending)
+                    return Error<PayrollPaymentDto>("Payment exceeds the outstanding net salary.", 409);
+                var now = _clock.GetUtcNow().UtcDateTime;
+                var row = new PayrollPayment
+                {
+                    TenantId = tenant, PublicId = Guid.NewGuid(),
+                    ClientRequestId = request.ClientRequestId,
+                    PayrollEmployeeId = employee.Id, PaymentDate = request.PaymentDate,
+                    PaymentMethod = request.PaymentMethod, Amount = Round(request.Amount),
+                    BankAccountId = request.BankAccountId,
+                    EmployeeBankAccountId = request.EmployeeBankAccountId,
+                    ExternalReference = Trim(request.ExternalReference),
+                    State = PaymentState.AwaitingVerification, CreatedAt = now,
+                    CreatedBy = _user.UserId
+                };
+                await _payments.AddAsync(row);
+                employee.UpdatedAt = now; employee.UpdatedBy = _user.UserId;
+                _payrollEmployees.Update(employee);
+                await _uow.SaveChangesAsync(token);
+                return ApiResponse<PayrollPaymentDto>.SuccessResponse(MapPayment(row),
+                    "Payment request recorded pending verification and accounting reconciliation.");
+            }, ct);
         }
-        catch
+        catch (DbUpdateConcurrencyException)
+        { return Error<PayrollPaymentDto>("Payroll payment changed concurrently.", 409); }
+        catch (DbUpdateException ex)
         {
-            version = Array.Empty<byte>();
-            return false;
+            _logger.LogWarning(ex, "Payroll payment conflict tenant {TenantId}", _user.TenantId);
+            return Error<PayrollPaymentDto>("Payroll payment conflicts with another request.", 409);
         }
     }
 
-    private async Task SafeRollback()
+    private async Task<Employee?> ActiveEmployeeAsync(Guid reference, CancellationToken ct) =>
+        await _employees.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == _user.TenantId && x.PublicId == reference &&
+            x.State == EmployeeState.Active && !x.IsDeleted, ct);
+
+    private async Task<PayrollRun?> FindRunAsync(Guid reference, CancellationToken ct) =>
+        await _runs.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == _user.TenantId && x.PublicId == reference && !x.IsDeleted, ct);
+
+    private async Task<PayrollRunDto> MapRunAsync(PayrollRun row, CancellationToken ct)
     {
-        try { await _uow.RollbackTransactionAsync(); }
-        catch (Exception ex) { _log.LogError(ex, "Payroll rollback failed."); }
+        var summary = await _payrollEmployees.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == row.TenantId && x.PayrollRunId == row.Id && !x.IsDeleted)
+            .GroupBy(x => x.PayrollRunId).Select(x => new
+            {
+                Count = x.Count(), Gross = x.Sum(z => z.GrossAmount),
+                Deduction = x.Sum(z => z.DeductionAmount), Net = x.Sum(z => z.NetAmount)
+            }).FirstOrDefaultAsync(ct);
+        return MapRun(row, summary?.Count ?? 0, summary?.Gross ?? 0m,
+            summary?.Deduction ?? 0m, summary?.Net ?? 0m);
     }
 
-    private sealed record CalculatedSalaryLine(SalaryStructureLine Source, SalaryComponent Component, decimal Amount);
-    private sealed record PayrollCalculation(IReadOnlyList<CalculatedSalaryLine> StructureLines, decimal Bonus, decimal AttendanceDeduction, decimal LoanDeduction);
+    private async Task<List<PayrollEmployeeDto>> MapEmployeesAsync(
+        IReadOnlyList<PayrollEmployee> rows, CancellationToken ct)
+    {
+        if (rows.Count == 0) return [];
+        var tenant = _user.TenantId;
+        var employeeIds = rows.Select(x => x.EmployeeId).Distinct().ToArray();
+        var details = await _employees.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && employeeIds.Contains(x.Id))
+            .Select(x => new { x.Id, x.PublicId }).ToDictionaryAsync(x => x.Id, ct);
+        var ids = rows.Select(x => x.Id).ToArray();
+        var lines = await _payrollLines.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && ids.Contains(x.PayrollEmployeeId) && !x.IsDeleted)
+            .OrderBy(x => x.Id).ToListAsync(ct);
+        var components = await _components.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && lines.Select(y => y.SalaryComponentId).Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, ct);
+        var byEmployee = lines.ToLookup(x => x.PayrollEmployeeId);
+        return rows.Select(row => new PayrollEmployeeDto
+        {
+            Id = row.Id, EmployeeReference = details.GetValueOrDefault(row.EmployeeId)?.PublicId ?? Guid.Empty,
+            EmployeeCode = row.EmployeeCodeSnapshot ?? string.Empty,
+            EmployeeName = row.EmployeeNameSnapshot ?? string.Empty,
+            GrossAmount = row.GrossAmount, DeductionAmount = row.DeductionAmount,
+            NetAmount = row.NetAmount,
+            Lines = byEmployee[row.Id].Select(line =>
+            {
+                components.TryGetValue(line.SalaryComponentId, out var component);
+                return new PayrollLineDto
+                {
+                    Id = line.Id, SalaryComponentId = line.SalaryComponentId,
+                    SalaryComponentName = component?.Name ?? string.Empty,
+                    ComponentType = component?.Type ?? SalaryComponentType.Earning,
+                    Amount = line.Amount, Description = line.Description
+                };
+            }).ToList()
+        }).ToList();
+    }
+
+    private static SalaryComponentDto Map(SalaryComponent x) => new()
+    {
+        Id = x.Id, Code = x.Code, Name = x.Name, Type = x.Type,
+        IsTaxable = x.IsTaxable, IsActive = x.IsActive, RowVersion = Version(x.RowVersion)
+    };
+    private static SalaryStructureDto MapStructure(SalaryStructure x, Employee employee,
+        IReadOnlyList<SalaryStructureLine> lines, IReadOnlyList<SalaryComponent> components) => new()
+    {
+        Id = x.Id, EmployeeReference = employee.PublicId, EmployeeCode = employee.EmployeeCode,
+        EmployeeName = employee.FullName, EffectiveFrom = x.EffectiveFrom, EffectiveTo = x.EffectiveTo,
+        IsCurrent = x.IsCurrent,
+        Lines = lines.Select(line =>
+        {
+            var component = components.First(y => y.Id == line.SalaryComponentId);
+            return new SalaryStructureLineDto
+            {
+                Id = line.Id, SalaryComponentId = line.SalaryComponentId,
+                SalaryComponentName = component.Name, Type = component.Type, Amount = line.Amount
+            };
+        }).ToList(),
+        GrossMonthlyAmount = lines.Where(line => components.Any(x =>
+            x.Id == line.SalaryComponentId && x.Type == SalaryComponentType.Earning))
+            .Sum(line => line.Amount), RowVersion = Version(x.RowVersion)
+    };
+    private static PayrollRunDto MapRun(PayrollRun x, int count, decimal gross, decimal deduction, decimal net) => new()
+    {
+        Id = x.Id, RunNumber = x.RunNumber, CampusId = x.CampusId,
+        PeriodStart = x.PeriodStart, PeriodEnd = x.PeriodEnd, Reference = x.PublicId,
+        Year = x.Year, Month = x.Month, State = x.State, CalculatedAt = x.CalculatedAt,
+        ApprovedAt = x.ApprovedAt, ApprovedByUserId = x.ApprovedByUserId,
+        PostedAt = x.PostedAt, JournalId = x.JournalId, EmployeeCount = count,
+        GrossAmount = gross, DeductionAmount = deduction, NetAmount = net,
+        RowVersion = Version(x.RowVersion)
+    };
+    private static BonusDto MapBonus(Bonus x, Employee employee) => new()
+    {
+        Id = x.Id, EmployeeReference = employee.PublicId, EmployeeName = employee.FullName,
+        BonusDate = x.BonusDate, Amount = x.Amount, Reason = x.Reason,
+        RowVersion = Version(x.RowVersion)
+    };
+    private static LoanAdvanceDto MapLoan(LoanAdvance x, Employee employee) => new()
+    {
+        Id = x.Id, EmployeeReference = employee.PublicId, EmployeeName = employee.FullName,
+        IssueDate = x.IssueDate, PrincipalAmount = x.PrincipalAmount,
+        OutstandingAmount = x.OutstandingAmount, InstallmentAmount = x.InstallmentAmount,
+        Remarks = x.Remarks, IsClosed = x.IsClosed, RowVersion = Version(x.RowVersion)
+    };
+    private static PayrollPaymentDto MapPayment(PayrollPayment x) => new()
+    {
+        Id = x.Id, Reference = x.PublicId, PayrollEmployeeId = x.PayrollEmployeeId,
+        PaymentDate = x.PaymentDate, PaymentMethod = x.PaymentMethod, Amount = x.Amount,
+        CurrencyCode = x.CurrencyCode, State = x.State, BankAccountId = x.BankAccountId,
+        EmployeeBankAccountId = x.EmployeeBankAccountId, ExternalReference = x.ExternalReference,
+        JournalId = x.JournalId
+    };
+
+    private Task<ApiResponse<T>> ExecuteWriteAsync<T>(
+        string operation, Func<CancellationToken, Task<ApiResponse<T>>> action, CancellationToken ct) =>
+        ExecuteWriteCoreAsync(operation, action, ct);
+
+    private async Task<ApiResponse<T>> ExecuteWriteCoreAsync<T>(
+        string operation, Func<CancellationToken, Task<ApiResponse<T>>> action, CancellationToken ct)
+    {
+        try { return await _uow.ExecuteInTransactionAsync(action, ct); }
+        catch (DbUpdateConcurrencyException)
+        { return Error<T>("Payroll changed concurrently.", 409); }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Payroll write conflict on {Operation}", operation);
+            return Error<T>("Payroll conflicts with an existing transaction.", 409);
+        }
+    }
+
+    private bool Manager() => _user.IsAuthenticated && _user.TenantId > 0 &&
+        (_user.IsTenantAdmin || _user.IsInRole("Principal") ||
+         _user.IsInRole("HR") || _user.IsInRole("Accountant"));
+    private bool Approver() => _user.IsAuthenticated && _user.TenantId > 0 &&
+        (_user.IsTenantAdmin || _user.IsInRole("Principal") || _user.IsInRole("Accountant"));
+    private static bool ValidNameCode(string? name, string? code, int limit) =>
+        !string.IsNullOrWhiteSpace(name) && name.Trim().Length <= limit &&
+        !string.IsNullOrWhiteSpace(code) && code.Trim().Length <= 50;
+    private static string? Trim(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
+    private static decimal Round(decimal amount) => Math.Round(amount, 2, MidpointRounding.AwayFromZero);
+    private static string Version(byte[] bytes) => Convert.ToBase64String(bytes);
+    private static bool TryVersion(string? text, out byte[] bytes)
+    {
+        bytes = [];
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        try { bytes = Convert.FromBase64String(text); return bytes.Length > 0; }
+        catch (FormatException) { return false; }
+    }
+    private static bool Matches(byte[] actual, string? encoded) =>
+        TryVersion(encoded, out var expected) && Matches(actual, expected);
+    private static bool Matches(byte[] actual, byte[] expected) =>
+        actual != null && actual.Length == expected.Length && actual.Length > 0 &&
+        CryptographicOperations.FixedTimeEquals(actual, expected);
+    private static ApiResponse<T> Denied<T>() => Error<T>("Payroll access denied.", 403);
+    private static ApiResponse<T> Error<T>(string message, int status = 400) =>
+        ApiResponse<T>.ErrorResponse(message, status);
 }
