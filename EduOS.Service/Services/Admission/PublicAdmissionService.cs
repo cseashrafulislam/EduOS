@@ -440,7 +440,7 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
     private static AdmissionApplicationCreatedDto MapCreated(AdmissionApplicant a) => new()
     {
         Reference = a.PublicId, ApplicationNumber = a.ApplicationNumber,
-        Status = ToLegacy(a.State), RowVersion = Convert.ToBase64String(a.RowVersion)
+        State = a.State, RowVersion = Convert.ToBase64String(a.RowVersion)
     };
     private static string Mask(string? mobile) =>
         string.IsNullOrEmpty(mobile) ? "" : mobile.Length < 5 ? "****" :

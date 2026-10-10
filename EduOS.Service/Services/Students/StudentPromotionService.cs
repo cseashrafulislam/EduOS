@@ -218,11 +218,11 @@ public sealed class StudentPromotionService : IStudentPromotionService
             select new { Record = record, Source = source, Target = target }).Take(200).ToListAsync(ct);
         IReadOnlyList<StudentPromotionHistoryDto> result = records.Select(x => new StudentPromotionHistoryDto
         {
-            Reference = x.Record.PublicId, Decision = ToLegacy(x.Record.Decision),
+            Reference = x.Record.PublicId, Decision = x.Record.Decision,
             FromAcademicYearId = x.Source.AcademicYearId, ToAcademicYearId = x.Target.AcademicYearId,
-            FromClassId = x.Source.AcademicLevelId, ToClassId = x.Target.AcademicLevelId,
-            FromSectionId = x.Source.AcademicBatchId, ToSectionId = x.Target.AcademicBatchId,
-            FromGroupId = x.Source.AcademicTrackId, ToGroupId = x.Target.AcademicTrackId,
+            FromAcademicLevelId = x.Source.AcademicLevelId, ToAcademicLevelId = x.Target.AcademicLevelId,
+            FromAcademicBatchId = x.Source.AcademicBatchId, ToAcademicBatchId = x.Target.AcademicBatchId,
+            FromAcademicTrackId = x.Source.AcademicTrackId, ToAcademicTrackId = x.Target.AcademicTrackId,
             FromRoll = x.Source.RollNo, ToRoll = x.Target.RollNo,
             ProcessedAt = x.Record.ProcessedAt, Note = x.Record.Note
         }).ToList();
