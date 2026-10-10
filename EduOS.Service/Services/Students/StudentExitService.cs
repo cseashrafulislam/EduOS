@@ -64,7 +64,9 @@ public sealed class StudentExitService : IStudentExitService
             {
                 var oldStudent = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenantId &&
                     x.Id == replay.StudentId, cancellationToken);
-                if (oldStudent == null || oldStudent.PublicId != request.StudentReference || replay.ExitType != type)
+                if (oldStudent == null || oldStudent.PublicId != request.StudentReference || replay.ExitType != type ||
+                    !string.Equals(replay.Reason, Trim(request.Reason), StringComparison.Ordinal) ||
+                    !string.Equals(replay.ConductRemark, Trim(request.ConductRemark), StringComparison.Ordinal))
                     return ApiResponse<StudentExitResultDto>.ErrorResponse("Request ID is already used for a different exit.", 409);
                 var oldCertificate = await CertificateNoAsync(replay, cancellationToken);
                 scope.Complete();
