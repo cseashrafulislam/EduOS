@@ -72,6 +72,8 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
             </div>
             <form id="campusForm" novalidate>
+                @Html.AntiForgeryToken()
+                <input type="hidden" id="campusRowVersion" />
                 <div class="modal-body">
                     <input type="hidden" id="campusId" name="id" />
                     <div class="row g-3">
