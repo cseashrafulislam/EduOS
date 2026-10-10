@@ -228,7 +228,7 @@
                 method: 'POST',
                 cache: 'no-store',
                 credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'RequestVerificationToken': document.querySelector('meta[name="request-verification-token"]')?.content || '' },
                 body: JSON.stringify({
                     clientRequestId: pendingRequestId ||= crypto.randomUUID(),
                     subscriptionPlanId: selectedPlanId,
@@ -280,7 +280,7 @@
         if (Number(status.data?.currentStage) !== 4) return;
         const completed = await fetch('/api/onboarding/complete-step', {
             method: 'POST', credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'RequestVerificationToken': document.querySelector('meta[name="request-verification-token"]')?.content || '' },
             body: JSON.stringify({ stage: 4, skipped: false })
         });
         const result = await completed.json().catch(() => null);
