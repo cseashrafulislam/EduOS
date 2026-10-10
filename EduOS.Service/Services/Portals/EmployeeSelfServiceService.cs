@@ -54,26 +54,13 @@ public sealed class EmployeeSelfServiceService : IEmployeeSelfServiceService
         {
             var employee = await CurrentEmployeeQuery().FirstOrDefaultAsync(cancellationToken);
             if (employee == null) return ApiResponse<EmployeePortalProfileDto>.ErrorResponse("Active employee profile not found.", 404);
-            var tenantId = _currentUser.TenantId;
-            var today = DateOnly.FromDateTime(DateTime.UtcNow);
-            var structureId = await _structures.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenantId && x.EmployeeId == employee.Id && x.IsCurrent &&
-                    x.EffectiveFrom <= today && (!x.EffectiveTo.HasValue || x.EffectiveTo >= today))
-                .OrderByDescending(x => x.EffectiveFrom).Select(x => (long?)x.Id).FirstOrDefaultAsync(cancellationToken);
-            decimal grossSalary = 0m;
-            if (structureId.HasValue)
-                grossSalary = await (from line in _structureLines.GetQueryable().AsNoTracking()
-                    join component in _salaryComponents.GetQueryable().AsNoTracking() on line.SalaryComponentId equals component.Id
-                    where line.TenantId == tenantId && component.TenantId == tenantId &&
-                        line.SalaryStructureId == structureId.Value && component.Type == SalaryComponentType.Earning
-                    select (decimal?)line.Amount).SumAsync(cancellationToken) ?? 0m;
             var dto = new EmployeePortalProfileDto
             {
                 Reference = employee.PublicId, EmployeeCode = employee.EmployeeCode, FullName = employee.FullName,
                 Phone = employee.Phone ?? string.Empty, Email = employee.Email,
-                DesignationId = employee.DesignationId, DepartmentId = employee.OrganizationUnitId,
-                JoiningDate = employee.JoiningDate.ToDateTime(TimeOnly.MinValue), Salary = grossSalary,
-                PhotoUrl = employee.PhotoUrl, IsTeacher = employee.CanTeach
+                DesignationId = employee.DesignationId, OrganizationUnitId = employee.OrganizationUnitId,
+                JoiningDate = employee.JoiningDate,
+                PhotoUrl = employee.PhotoUrl, CanTeach = employee.CanTeach, State = employee.State
             };
             return ApiResponse<EmployeePortalProfileDto>.SuccessResponse(dto);
         }
@@ -103,8 +90,8 @@ public sealed class EmployeeSelfServiceService : IEmployeeSelfServiceService
                 .ToListAsync(cancellationToken);
             IReadOnlyList<EmployeePortalAttendanceDto> result = records.Select(x => new EmployeePortalAttendanceDto
             {
-                Date = x.AttendanceDate.ToDateTime(TimeOnly.MinValue), Status = x.State.ToString(),
-                InTime = x.InTime?.ToTimeSpan(), OutTime = x.OutTime?.ToTimeSpan(),
+                AttendanceDate = x.AttendanceDate, State = x.State,
+                InTime = x.InTime, OutTime = x.OutTime,
                 OvertimeHours = x.OvertimeHours, Remarks = x.Remarks
             }).ToList();
             return ApiResponse<IReadOnlyList<EmployeePortalAttendanceDto>>.SuccessResponse(result);
@@ -132,10 +119,10 @@ public sealed class EmployeeSelfServiceService : IEmployeeSelfServiceService
                     leave.Reason, leave.State, leave.ReviewNote }).ToListAsync(cancellationToken);
             IReadOnlyList<EmployeePortalLeaveDto> result = records.Select(x => new EmployeePortalLeaveDto
             {
-                Id = x.Id, LeaveType = x.TypeName,
-                FromDate = x.FromDate.ToDateTime(TimeOnly.MinValue), ToDate = x.ToDate.ToDateTime(TimeOnly.MinValue),
-                TotalDays = decimal.ToInt32(x.TotalDays), Reason = x.Reason,
-                Status = x.State.ToString(), Remarks = x.ReviewNote
+                Id = x.Id, LeaveTypeName = x.TypeName,
+                FromDate = x.FromDate, ToDate = x.ToDate,
+                TotalDays = x.TotalDays, Reason = x.Reason,
+                State = x.State, ReviewNote = x.ReviewNote
             }).ToList();
             return ApiResponse<IReadOnlyList<EmployeePortalLeaveDto>>.SuccessResponse(result);
         }
@@ -192,10 +179,10 @@ public sealed class EmployeeSelfServiceService : IEmployeeSelfServiceService
                 var pending = consumed?.PendingDays ?? 0m;
                 return new EmployeePortalLeaveBalanceDto
                 {
-                    LeaveTypeId = type.Id, LeaveType = type.Name,
-                    AnnualEntitlement = decimal.ToInt32(maximum),
-                    UsedDays = decimal.ToInt32(used), PendingDays = decimal.ToInt32(pending),
-                    RemainingDays = decimal.ToInt32(Math.Max(0m, maximum - used - pending))
+                    LeaveTypeId = type.Id, LeaveTypeName = type.Name,
+                    AnnualEntitlement = maximum,
+                    UsedDays = used, PendingDays = pending,
+                    RemainingDays = Math.Max(0m, maximum - used - pending)
                 };
             }).ToList();
             return ApiResponse<IReadOnlyList<EmployeePortalLeaveBalanceDto>>.SuccessResponse(rows);
@@ -211,12 +198,13 @@ public sealed class EmployeeSelfServiceService : IEmployeeSelfServiceService
     {
         if (!CanUsePortal()) return ApiResponse<EmployeePortalLeaveDto>.ErrorResponse("Employee self-service is not available.", 403);
         if (request == null) return ApiResponse<EmployeePortalLeaveDto>.ErrorResponse("Leave request is required.");
-        var from = DateOnly.FromDateTime(request.FromDate);
-        var to = DateOnly.FromDateTime(request.ToDate);
+        var from = request.FromDate;
+        var to = request.ToDate;
         var reason = request.Reason?.Trim() ?? string.Empty;
         var requestedDays = to.DayNumber - from.DayNumber + 1;
-        if (request.LeaveTypeId <= 0 || from > to || from.Year != to.Year || requestedDays > 366 ||
-            reason.Length is < 3 or > 1000)
+        if (request.ClientRequestId == Guid.Empty || request.LeaveTypeId <= 0 || from == default ||
+            from > to || from.Year != to.Year || requestedDays > 366 ||
+            reason.Length is < 3 or > 2000)
             return ApiResponse<EmployeePortalLeaveDto>.ErrorResponse("Leave application is invalid.");
         try
         {
@@ -229,6 +217,17 @@ public sealed class EmployeeSelfServiceService : IEmployeeSelfServiceService
 
             using var scope = new TransactionScope(TransactionScopeOption.Required,
                 new TransactionOptions { IsolationLevel = IsolationLevel.Serializable }, TransactionScopeAsyncFlowOption.Enabled);
+            var replay = await _leaveApplications.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenantId && x.EmployeeId == employee.Id &&
+                x.ClientRequestId == request.ClientRequestId && !x.IsDeleted, cancellationToken);
+            if (replay != null)
+            {
+                if (replay.LeaveTypeId != type.Id || replay.FromDate != from ||
+                    replay.ToDate != to || replay.Reason != reason)
+                    return ApiResponse<EmployeePortalLeaveDto>.ErrorResponse("Request ID used for different leave details.", 409);
+                scope.Complete();
+                return ApiResponse<EmployeePortalLeaveDto>.SuccessResponse(ToLeaveDto(replay, type.Name), "Leave request already submitted.");
+            }
             var existing = await _leaveApplications.GetQueryable().Where(x => x.TenantId == tenantId &&
                 x.EmployeeId == employee.Id && x.FromDate <= to && x.ToDate >= from &&
                 (x.State == LeaveState.Submitted || x.State == LeaveState.Approved)).ToListAsync(cancellationToken);
@@ -237,10 +236,7 @@ public sealed class EmployeeSelfServiceService : IEmployeeSelfServiceService
                 var exact = existing.FirstOrDefault(x => x.LeaveTypeId == type.Id && x.FromDate == from &&
                     x.ToDate == to && x.Reason == reason);
                 if (exact != null)
-                {
-                    scope.Complete();
-                    return ApiResponse<EmployeePortalLeaveDto>.SuccessResponse(ToLeaveDto(exact, type.Name), "Leave request already exists.");
-                }
+                    return ApiResponse<EmployeePortalLeaveDto>.ErrorResponse("Leave already exists; use the original request ID for retry.", 409);
                 return ApiResponse<EmployeePortalLeaveDto>.ErrorResponse("An approved or submitted leave overlaps this period.", 409);
             }
 
@@ -262,7 +258,7 @@ public sealed class EmployeeSelfServiceService : IEmployeeSelfServiceService
                 return ApiResponse<EmployeePortalLeaveDto>.ErrorResponse("Leave exceeds remaining entitlement.");
             var entity = new EmployeeLeaveApplication
             {
-                TenantId = tenantId, ClientRequestId = Guid.NewGuid(), EmployeeId = employee.Id,
+                TenantId = tenantId, ClientRequestId = request.ClientRequestId, EmployeeId = employee.Id,
                 LeaveTypeId = type.Id, FromDate = from, ToDate = to, TotalDays = requestedDays,
                 Reason = reason, State = LeaveState.Submitted,
                 CreatedBy = _currentUser.UserId, CreatedAt = DateTime.UtcNow
@@ -293,10 +289,10 @@ public sealed class EmployeeSelfServiceService : IEmployeeSelfServiceService
         x.TenantId == _currentUser.TenantId && x.UserId == _currentUser.UserId && x.State == EmployeeState.Active);
     private static EmployeePortalLeaveDto ToLeaveDto(EmployeeLeaveApplication leave, string leaveType) => new()
     {
-        Id = leave.Id, LeaveType = leaveType,
-        FromDate = leave.FromDate.ToDateTime(TimeOnly.MinValue), ToDate = leave.ToDate.ToDateTime(TimeOnly.MinValue),
-        TotalDays = decimal.ToInt32(leave.TotalDays), Reason = leave.Reason,
-        Status = leave.State.ToString(), Remarks = leave.ReviewNote
+        Id = leave.Id, LeaveTypeName = leaveType,
+        FromDate = leave.FromDate, ToDate = leave.ToDate,
+        TotalDays = leave.TotalDays, Reason = leave.Reason,
+        State = leave.State, ReviewNote = leave.ReviewNote
     };
     private bool CanUsePortal() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0 &&
         (_currentUser.IsInRole("Teacher") || _currentUser.IsInRole("Staff"));
