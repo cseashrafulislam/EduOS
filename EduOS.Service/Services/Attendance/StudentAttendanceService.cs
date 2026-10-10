@@ -20,6 +20,7 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
     private readonly IGenericRepository<StudentAttendanceAdjustment> _adjustments;
     private readonly IGenericRepository<AttendanceSession> _sessions;
     private readonly IGenericRepository<StudentEnrollment> _enrollments;
+    private readonly IGenericRepository<StudentSubjectRegistration> _registrations;
     private readonly IGenericRepository<Student> _students;
     private readonly IGenericRepository<AcademicBatch> _batches;
     private readonly IGenericRepository<AcademicYear> _years;
@@ -34,6 +35,7 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
     public StudentAttendanceService(IGenericRepository<StudentAttendance> attendances,
         IGenericRepository<StudentAttendanceAdjustment> adjustments,
         IGenericRepository<AttendanceSession> sessions, IGenericRepository<StudentEnrollment> enrollments,
+        IGenericRepository<StudentSubjectRegistration> registrations,
         IGenericRepository<Student> students, IGenericRepository<AcademicBatch> batches,
         IGenericRepository<AcademicYear> years, IGenericRepository<Employee> employees,
         IGenericRepository<InstructorAssignment> instructors, IGenericRepository<SubjectOffering> offerings,
@@ -44,6 +46,7 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
         _adjustments = adjustments;
         _sessions = sessions;
         _enrollments = enrollments;
+        _registrations = registrations;
         _students = students;
         _batches = batches;
         _years = years;
@@ -97,13 +100,25 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                 if (scopeError != null) return Error<StudentAttendanceRosterDto>(scopeError, 409);
 
                 var requested = request.Students.Select(x => x.StudentEnrollmentReference).ToArray();
-                var enrollments = await _enrollments.GetQueryable().AsNoTracking().Where(x =>
-                    x.TenantId == _user.TenantId && x.AcademicBatchId == session.AcademicBatchId &&
-                    x.State == EnrollmentState.Active && x.IsCurrent && requested.Contains(x.PublicId))
-                    .Select(x => new { x.Id, x.PublicId }).ToListAsync(token);
+                var enrollments = await (from enrollment in _enrollments.GetQueryable().AsNoTracking()
+                    join student in _students.GetQueryable().AsNoTracking() on enrollment.StudentId equals student.Id
+                    where enrollment.TenantId == _user.TenantId && student.TenantId == _user.TenantId &&
+                        enrollment.AcademicBatchId == session.AcademicBatchId &&
+                        enrollment.State == EnrollmentState.Active && enrollment.IsCurrent &&
+                        student.StatusCode == "Active" && requested.Contains(enrollment.PublicId)
+                    select new { enrollment.Id, enrollment.PublicId }).ToListAsync(token);
                 if (enrollments.Count != requested.Length)
                     return Error<StudentAttendanceRosterDto>("One or more enrollments are not active in this batch.", 409);
                 var enrollmentIds = enrollments.Select(x => x.Id).ToArray();
+                if (session.SubjectOfferingId.HasValue)
+                {
+                    var permitted = await _registrations.GetQueryable().AsNoTracking().Where(x =>
+                        x.TenantId == _user.TenantId && x.SubjectOfferingId == session.SubjectOfferingId.Value &&
+                        x.State == SubjectRegistrationState.Approved && enrollmentIds.Contains(x.StudentEnrollmentId))
+                        .Select(x => x.StudentEnrollmentId).Distinct().CountAsync(token);
+                    if (permitted != enrollmentIds.Length)
+                        return Error<StudentAttendanceRosterDto>("A student is not registered for this subject.", 409);
+                }
                 var existing = await _attendances.GetQueryable().Where(x =>
                     x.TenantId == _user.TenantId && x.AttendanceSessionId == session.Id &&
                     enrollmentIds.Contains(x.StudentEnrollmentId) && !x.IsDeleted)
@@ -224,6 +239,16 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
             orderby enrollment.RollNo, student.FullName
             select new { enrollment.Id, enrollment.PublicId, enrollment.RollNo,
                 StudentReference = student.PublicId, student.StudentCode, student.FullName }).Take(2000).ToListAsync(ct);
+        if (offeringId.HasValue && students.Count > 0)
+        {
+            var eligible = students.Select(x => x.Id).ToArray();
+            var permitted = await _registrations.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == tenant && x.SubjectOfferingId == offeringId.Value &&
+                x.State == SubjectRegistrationState.Approved && eligible.Contains(x.StudentEnrollmentId))
+                .Select(x => x.StudentEnrollmentId).ToListAsync(ct);
+            var set = permitted.ToHashSet();
+            students = students.Where(x => set.Contains(x.Id)).ToList();
+        }
         var ids = students.Select(x => x.Id).ToArray();
         var rows = session == null || ids.Length == 0 ? new List<StudentAttendance>() :
             await _attendances.GetQueryable().AsNoTracking().Where(x =>
