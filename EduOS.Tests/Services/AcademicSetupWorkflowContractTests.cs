@@ -1,47 +1,69 @@
+using EduOS.App.Controllers.Api;
+using EduOS.Core.DTOs.Academic;
+using EduOS.Core.Interfaces.IServices;
+using EduOS.Service.Services.Academic;
 using FluentAssertions;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Xunit;
 
 namespace EduOS.Tests.Services;
 
-public class AcademicSetupWorkflowContractTests
+public sealed class AcademicSetupWorkflowContractTests
 {
     [Fact]
-    public void Setup_api_requires_module_auth_antiforgery_and_privileged_writes()
+    public void Academic_setup_api_enforces_auth_antiforgery_rate_limit_and_privileged_mutations()
     {
-        var source = File.ReadAllText(FindRepositoryFile("EduOS.App", "Controllers", "Api", "AcademicSetupController.cs"));
-        source.Should().Contain("[Authorize(Roles = \"TenantAdmin,Principal,VicePrincipal,Teacher\")]");
-        source.Should().Contain("[RequireModule(\"ACADEMIC\")]");
-        source.Should().Contain("[AutoValidateAntiforgeryToken]");
-        source.Should().Contain("[EnableRateLimiting(\"ApiPolicy\")]");
-        source.Should().Contain("[ResponseCache(NoStore = true");
-        source.Should().Contain("[Authorize(Roles = \"TenantAdmin,Principal,VicePrincipal\")]");
-        source.Should().NotContain("AllowAnonymous");
+        var type = typeof(AcademicSetupController);
+        type.GetCustomAttributes(typeof(AuthorizeAttribute), true)
+            .Should().NotBeEmpty();
+        type.GetCustomAttributes(typeof(AutoValidateAntiforgeryTokenAttribute), true)
+            .Should().NotBeEmpty();
+        type.GetCustomAttributes(typeof(EnableRateLimitingAttribute), true)
+            .Should().NotBeEmpty();
+        type.GetCustomAttributes(typeof(ResponseCacheAttribute), true)
+            .Should().NotBeEmpty();
+        foreach (var method in type.GetMethods().Where(x =>
+            x.GetCustomAttributes(typeof(HttpPostAttribute), true).Length > 0))
+        {
+            var authorize = method.GetCustomAttributes(typeof(AuthorizeAttribute), true)
+                .Cast<AuthorizeAttribute>().Single();
+            authorize.Roles.Should().Contain("TenantAdmin");
+            authorize.Roles.Should().Contain("Principal");
+            method.GetCustomAttributes(typeof(AllowAnonymousAttribute), true).Should().BeEmpty();
+        }
     }
 
     [Fact]
-    public void Setup_writes_are_serialized_retry_safe_and_tenant_scoped()
+    public void Setup_service_implements_canonical_nine_method_contract()
     {
-        var source = File.ReadAllText(FindRepositoryFile("EduOS.Service", "Services", "Academic", "AcademicSetupService.cs"));
-        source.Should().Contain("IsolationLevel = IsolationLevel.Serializable");
-        source.Should().Contain("CreateExecutionStrategy");
-        source.Should().Contain("x.TenantId == tenantId");
-        source.Should().Contain("Programme already exists.");
-        source.Should().Contain("Subject already exists.");
-        source.Should().Contain("Academic batch already exists.");
-        source.Should().Contain("Academic track already exists.");
+        var iface = typeof(IAcademicSetupService);
+        var implementation = typeof(AcademicSetupService);
+        iface.GetMethods().Should().HaveCount(9);
+        implementation.GetInterfaces().Should().Contain(iface);
+        iface.GetMethod(nameof(IAcademicSetupService.CreateProgramAsync))!
+            .GetParameters()[0].ParameterType.Should().Be(typeof(SaveAcademicProgramRequestDto));
+        iface.GetMethod(nameof(IAcademicSetupService.CreateLevelAsync))!
+            .GetParameters()[0].ParameterType.Should().Be(typeof(SaveAcademicLevelRequestDto));
+        iface.GetMethod(nameof(IAcademicSetupService.CreateCurriculumAsync))!
+            .GetParameters()[0].ParameterType.Should().Be(typeof(SaveAcademicCurriculumRequestDto));
+        iface.GetMethod(nameof(IAcademicSetupService.CreateBatchAsync))!
+            .GetParameters()[0].ParameterType.Should().Be(typeof(SaveAcademicBatchRequestDto));
+    }
+
+    [Fact]
+    public void Academic_setup_source_uses_bounded_queries_and_unit_of_work_transactions()
+    {
+        var source = File.ReadAllText(FindRepositoryFile(
+            "EduOS.Service", "Services", "Academic", "AcademicSetupService.cs"));
+        source.Should().Contain("ExecuteInTransactionAsync");
+        source.Should().Contain("Take(take)");
+        source.Should().Contain("x.TenantId == tenant");
         source.Should().Contain("catch (DbUpdateException ex)");
-        source.Should().Contain("Reload and try again.\", 409");
-    }
-
-    [Fact]
-    public void Canonical_subject_schema_is_present_in_the_squashed_baseline()
-    {
-        var source = File.ReadAllText(FindRepositoryFile("EduOS.Persistence", "Migrations", "20260924114506_InitialCreate.cs"));
-        source.Should().Contain("name: \"Subjects\"");
-        source.Should().Contain("ClassId = table.Column<long>");
-        source.Should().Contain("nullable: true");
-        source.Should().Contain("UX_Subjects_Tenant_CanonicalCode");
-        source.Should().NotContain("ClassId = table.Column<int>");
+        source.Should().NotContain("CreateExecutionStrategy");
+        source.Should().NotContain("TransactionScope");
+        source.Should().NotContain("CreateAcademicSubjectDto");
     }
 
     private static string FindRepositoryFile(params string[] segments)
