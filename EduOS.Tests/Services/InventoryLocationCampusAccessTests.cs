@@ -145,8 +145,19 @@ public sealed class InventoryLocationCampusAccessTests
         { TenantId = 101, CampusId = first.Id, Code = $"A{i:D3}", Name = $"Store {i}" }));
         db.InventoryLocations.Add(new InventoryLocation { TenantId = 101, CampusId = blocked.Id, Code = "B001", Name = "Blocked" });
         db.InventoryLocations.Add(new InventoryLocation { TenantId = 101, Code = "SHARED", Name = "Shared" });
-        db.InventoryLocations.Add(new InventoryLocation { TenantId = 202, Code = "FOREIGN", Name = "Other tenant" });
         await db.SaveChangesAsync();
+        // Seed the foreign tenant with its own tenant context; never bypass the write guard.
+        var foreignHttp = new DefaultHttpContext();
+        foreignHttp.Items["TenantId"] = 202L;
+        await using (var foreignDb = new EduOSDbContext(options,
+            new HttpContextAccessor { HttpContext = foreignHttp }))
+        {
+            foreignDb.InventoryLocations.Add(new InventoryLocation
+            { TenantId = 202, Code = "FOREIGN", Name = "Other tenant" });
+            await foreignDb.SaveChangesAsync();
+            (await foreignDb.InventoryLocations.CountAsync()).Should().Be(1);
+        }
+        (await db.InventoryLocations.AnyAsync(x => x.Code == "FOREIGN")).Should().BeFalse();
         var service = new InventoryCatalogService(db, new User(101, "InventoryManager"),
             TimeProvider.System, NullLogger<InventoryCatalogService>.Instance);
         (await service.GetLocationsAsync(null)).Data!.Should().HaveCount(121);
