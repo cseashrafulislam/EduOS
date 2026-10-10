@@ -1,4 +1,6 @@
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Auth;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Hostel;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Enums.Domain;
@@ -110,12 +112,13 @@ public sealed class HostelCanonicalEligibilityTests
         (await Service(db).GetRoomsAsync()).Success.Should().BeTrue();
     }
 
-    private static HostelService Service(EduOSDbContext db, bool canManage = true) => new(
+    private static HostelService Service(EduOSDbContext db, bool canManage = true, string? role = null) => new(
         new GenericRepository<EduOS.Core.Entities.Hostel.Hostel>(db),
         new GenericRepository<HostelRoom>(db), new GenericRepository<HostelBed>(db),
         new GenericRepository<StudentHostelAllocation>(db),
         new GenericRepository<StudentEnrollment>(db), new GenericRepository<Student>(db),
-        new UnitOfWork(db), new CurrentUser(canManage), TimeProvider.System, NullLogger<HostelService>.Instance);
+        new GenericRepository<UserCampusAccess>(db), new GenericRepository<Campus>(db),
+        new UnitOfWork(db), new CurrentUser(canManage, role), TimeProvider.System, NullLogger<HostelService>.Instance);
 
     private static EduOSDbContext Context(long tenant, DbContextOptions<EduOSDbContext> options)
     {
@@ -142,7 +145,7 @@ public sealed class HostelCanonicalEligibilityTests
         public void Dispose() { }
     }
 
-    private sealed class CurrentUser(bool canManage) : ICurrentUserService
+    private sealed class CurrentUser(bool canManage, string? role) : ICurrentUserService
     {
         public bool IsAuthenticated => true;
         public long UserId => 7;
@@ -150,9 +153,9 @@ public sealed class HostelCanonicalEligibilityTests
         public string? FullName => "Hostel Test";
         public string? Email => "hostel@example.test";
         public bool IsSuperAdmin => false;
-        public bool IsTenantAdmin => canManage;
-        public IReadOnlyList<string> Roles => canManage ? new[] { "TenantAdmin" } : new[] { "Student" };
-        public bool IsInRole(string role) => canManage && role == "TenantAdmin";
+        public bool IsTenantAdmin => canManage && (role is null or "TenantAdmin");
+        public IReadOnlyList<string> Roles => canManage ? new[] { role ?? "TenantAdmin" } : new[] { "Student" };
+        public bool IsInRole(string requestedRole) => canManage && requestedRole == (role ?? "TenantAdmin");
         public string? IpAddress => "127.0.0.1";
         public string? UserAgent => "Tests";
     }

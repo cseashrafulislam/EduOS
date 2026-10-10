@@ -1,6 +1,8 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Hostel;
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Auth;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Hostel;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Enums.Domain;
@@ -21,6 +23,8 @@ public sealed class HostelService : IHostelService
     private readonly IGenericRepository<StudentHostelAllocation> _allocations;
     private readonly IGenericRepository<StudentEnrollment> _enrollments;
     private readonly IGenericRepository<Student> _students;
+    private readonly IGenericRepository<UserCampusAccess> _campusAccesses;
+    private readonly IGenericRepository<Campus> _campuses;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUser;
     private readonly TimeProvider _clock;
@@ -29,10 +33,12 @@ public sealed class HostelService : IHostelService
     public HostelService(IGenericRepository<EduOS.Core.Entities.Hostel.Hostel> hostels, IGenericRepository<HostelRoom> rooms,
         IGenericRepository<HostelBed> beds, IGenericRepository<StudentHostelAllocation> allocations,
         IGenericRepository<StudentEnrollment> enrollments, IGenericRepository<Student> students,
+        IGenericRepository<UserCampusAccess> campusAccesses, IGenericRepository<Campus> campuses,
         IUnitOfWork unitOfWork, ICurrentUserService currentUser, TimeProvider clock, ILogger<HostelService> logger)
     {
         _hostels = hostels; _rooms = rooms; _beds = beds; _allocations = allocations;
-        _enrollments = enrollments; _students = students; _unitOfWork = unitOfWork;
+        _enrollments = enrollments; _students = students; _campusAccesses = campusAccesses;
+        _campuses = campuses; _unitOfWork = unitOfWork;
         _currentUser = currentUser; _clock = clock; _logger = logger;
     }
 
@@ -40,12 +46,17 @@ public sealed class HostelService : IHostelService
     {
         if (!CanManage()) return Denied<IReadOnlyList<HostelRoomDto>>();
         var tenant = _currentUser.TenantId;
-        var data = await (from room in _rooms.GetQueryable().AsNoTracking()
+        var roomsQuery = from room in _rooms.GetQueryable().AsNoTracking()
             join hostel in _hostels.GetQueryable().AsNoTracking() on room.HostelId equals hostel.Id
             where room.TenantId == tenant && hostel.TenantId == tenant && room.IsActive && hostel.IsActive
             orderby hostel.Name, room.RoomNumber
-            select new { Room = room, HostelName = hostel.Name, HostelReference = hostel.PublicId })
-            .ToListAsync(cancellationToken);
+            select new { Room = room, HostelName = hostel.Name, HostelReference = hostel.PublicId, hostel.CampusId };
+        if (!_currentUser.IsTenantAdmin)
+        {
+            var allowed = AllowedCampusIds(tenant);
+            roomsQuery = roomsQuery.Where(x => allowed.Contains(x.CampusId));
+        }
+        var data = await roomsQuery.ToListAsync(cancellationToken);
         var roomIds = data.Select(x => x.Room.Id).ToArray();
         var occupied = await (from allocation in _allocations.GetQueryable().AsNoTracking()
             join bed in _beds.GetQueryable().AsNoTracking() on allocation.HostelBedId equals bed.Id
@@ -76,7 +87,12 @@ public sealed class HostelService : IHostelService
                         enrollment.IsCurrent && enrollment.State == EnrollmentState.Active && student.StatusCode == "Active" &&
                         !_allocations.GetQueryable().Any(x => x.TenantId == tenant && x.StudentId == student.Id &&
                             x.State == HostelAllocationState.Active)
-                    select new { enrollment.PublicId, student.FullName, student.StudentCode, enrollment.RollNo };
+                    select new { enrollment.PublicId, enrollment.CampusId, student.FullName, student.StudentCode, enrollment.RollNo };
+        if (!_currentUser.IsTenantAdmin)
+        {
+            var allowed = AllowedCampusIds(tenant);
+            query = query.Where(x => allowed.Contains(x.CampusId));
+        }
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim();
@@ -110,7 +126,12 @@ public sealed class HostelService : IHostelService
                         !_allocations.GetQueryable().Any(x => x.TenantId == tenant && x.HostelBedId == bed.Id &&
                             x.State == HostelAllocationState.Active)
                     select new { BedId = bed.Id, bed.BedNumber, room.RoomNumber, room.RentPerBed,
-                        HostelName = hostel.Name, hostel.GenderRestriction };
+                        HostelName = hostel.Name, hostel.GenderRestriction, hostel.CampusId };
+        if (!_currentUser.IsTenantAdmin)
+        {
+            var allowed = AllowedCampusIds(tenant);
+            query = query.Where(x => allowed.Contains(x.CampusId));
+        }
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim();
@@ -144,8 +165,16 @@ public sealed class HostelService : IHostelService
                     join hostel in _hostels.GetQueryable().AsNoTracking() on room.HostelId equals hostel.Id
                     where allocation.TenantId == tenant && student.TenantId == tenant && bed.TenantId == tenant &&
                         room.TenantId == tenant && hostel.TenantId == tenant && allocation.State == HostelAllocationState.Active
-                    select new { allocation.Id, allocation.StartDate, allocation.RowVersion,
-                        student.FullName, student.StudentCode, HostelName = hostel.Name, room.RoomNumber, bed.BedNumber };
+                    select new { allocation.Id, allocation.StudentId, allocation.StudentEnrollmentId, hostel.CampusId,
+                        allocation.StartDate, allocation.RowVersion, student.FullName, student.StudentCode,
+                        HostelName = hostel.Name, room.RoomNumber, bed.BedNumber };
+        if (!_currentUser.IsTenantAdmin)
+        {
+            var allowed = AllowedCampusIds(tenant);
+            query = query.Where(x => allowed.Contains(x.CampusId) &&
+                _enrollments.GetQueryable().Any(e => e.TenantId == tenant &&
+                    e.Id == x.StudentEnrollmentId && e.StudentId == x.StudentId && e.CampusId == x.CampusId));
+        }
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim();
@@ -198,6 +227,22 @@ public sealed class HostelService : IHostelService
                 x.ClientRequestId == request.ClientRequestId, cancellationToken);
             if (existing != null)
             {
+                if (!_currentUser.IsTenantAdmin)
+                {
+                    var enrollmentCampus = await _enrollments.GetQueryable().AsNoTracking()
+                        .Where(x => x.TenantId == tenant && x.Id == existing.StudentEnrollmentId &&
+                            x.StudentId == existing.StudentId).Select(x => (long?)x.CampusId)
+                        .FirstOrDefaultAsync(cancellationToken);
+                    var bedCampus = await (from bed in _beds.GetQueryable().AsNoTracking()
+                        join room in _rooms.GetQueryable().AsNoTracking() on bed.HostelRoomId equals room.Id
+                        join hostel in _hostels.GetQueryable().AsNoTracking() on room.HostelId equals hostel.Id
+                        where bed.TenantId == tenant && room.TenantId == tenant && hostel.TenantId == tenant &&
+                            bed.Id == existing.HostelBedId
+                        select (long?)hostel.CampusId).FirstOrDefaultAsync(cancellationToken);
+                    if (!enrollmentCampus.HasValue || enrollmentCampus != bedCampus ||
+                        !await CanManageCampusAsync(enrollmentCampus.Value, tenant, cancellationToken))
+                        return Denied<StudentHostelAllocationDto>();
+                }
                 var enrollmentReference = await _enrollments.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
                     x.Id == existing.StudentEnrollmentId).Select(x => x.PublicId).FirstOrDefaultAsync(cancellationToken);
                 if (enrollmentReference != request.StudentEnrollmentReference || existing.HostelBedId != request.HostelBedId ||
@@ -212,6 +257,11 @@ public sealed class HostelService : IHostelService
                 x.PublicId == request.StudentEnrollmentReference && x.IsCurrent &&
                 x.State == EnrollmentState.Active, cancellationToken);
             if (enrollment == null) return Error("Active student enrollment not found.", 404);
+            if (!await _campuses.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
+                x.Id == enrollment.CampusId && x.IsActive, cancellationToken))
+                return Error("Enrollment campus is inactive.", 409);
+            if (!await CanManageCampusAsync(enrollment.CampusId, tenant, cancellationToken))
+                return Denied<StudentHostelAllocationDto>();
             var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
                 x.Id == enrollment.StudentId && x.StatusCode == "Active", cancellationToken);
             if (student == null) return Error("Active student not found.", 404);
@@ -287,6 +337,22 @@ public sealed class HostelService : IHostelService
             var allocation = await _allocations.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenant &&
                 x.Id == id, cancellationToken);
             if (allocation == null) return Error("Hostel allocation not found.", 404);
+            if (!_currentUser.IsTenantAdmin)
+            {
+                var enrollmentCampus = await _enrollments.GetQueryable().AsNoTracking()
+                    .Where(x => x.TenantId == tenant && x.Id == allocation.StudentEnrollmentId &&
+                        x.StudentId == allocation.StudentId).Select(x => (long?)x.CampusId)
+                    .FirstOrDefaultAsync(cancellationToken);
+                var bedCampus = await (from bed in _beds.GetQueryable().AsNoTracking()
+                    join room in _rooms.GetQueryable().AsNoTracking() on bed.HostelRoomId equals room.Id
+                    join hostel in _hostels.GetQueryable().AsNoTracking() on room.HostelId equals hostel.Id
+                    where bed.TenantId == tenant && room.TenantId == tenant && hostel.TenantId == tenant &&
+                        bed.Id == allocation.HostelBedId
+                    select (long?)hostel.CampusId).FirstOrDefaultAsync(cancellationToken);
+                if (!enrollmentCampus.HasValue || enrollmentCampus != bedCampus ||
+                    !await CanManageCampusAsync(enrollmentCampus.Value, tenant, cancellationToken))
+                    return Denied<StudentHostelAllocationDto>();
+            }
             if (allocation.State != HostelAllocationState.Active)
                 return ApiResponse<StudentHostelAllocationDto>.SuccessResponse(await MapAsync(allocation, cancellationToken), "Allocation already closed.");
             if (!TryDecodeVersion(request.RowVersion, out var bytes) ||
@@ -337,6 +403,16 @@ public sealed class HostelService : IHostelService
             State = row.State, RowVersion = Convert.ToBase64String(row.RowVersion)
         };
     }
+
+    private IQueryable<long> AllowedCampusIds(long tenant) =>
+        from access in _campusAccesses.GetQueryable().AsNoTracking()
+        join campus in _campuses.GetQueryable().AsNoTracking() on access.CampusId equals campus.Id
+        where access.TenantId == tenant && campus.TenantId == tenant &&
+            access.UserId == _currentUser.UserId && access.IsActive && campus.IsActive
+        select campus.Id;
+
+    private Task<bool> CanManageCampusAsync(long campusId, long tenant, CancellationToken ct) =>
+        _currentUser.IsTenantAdmin ? Task.FromResult(true) : AllowedCampusIds(tenant).AnyAsync(x => x == campusId, ct);
 
     private bool CanRead() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0;
     private bool CanManage() => CanRead() && (_currentUser.IsTenantAdmin ||
