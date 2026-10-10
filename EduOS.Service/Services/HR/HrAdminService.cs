@@ -372,6 +372,15 @@ public sealed class HrAdminService : IHrAdminService
             if (otherPrimaries.Any(x => x.EffectiveFrom >= request.EffectiveFrom ||
                 x.EffectiveTo.HasValue && x.EffectiveTo.Value >= request.EffectiveFrom))
                 return Error<EmployeeCampusAssignmentDto>("Primary campus assignments overlap; use a later effective date.", 409);
+            EmployeeAssignmentHistory? history = null;
+            if (request.IsPrimary)
+            {
+                history = await _history.GetQueryable().FirstOrDefaultAsync(x =>
+                    x.TenantId == _user.TenantId && x.EmployeeId == employee.Id &&
+                    x.IsCurrent && !x.IsDeleted, token);
+                if (history != null && history.EffectiveFrom > request.EffectiveFrom)
+                    return Error<EmployeeCampusAssignmentDto>("Campus history requires an effective date not before the current assignment.", 409);
+            }
             if (current != null)
             {
                 current.EffectiveTo = request.EffectiveFrom.AddDays(-1);
@@ -386,26 +395,30 @@ public sealed class HrAdminService : IHrAdminService
             }
             if (request.IsPrimary)
             {
-                var history = await _history.GetQueryable().FirstOrDefaultAsync(x =>
-                    x.TenantId == _user.TenantId && x.EmployeeId == employee.Id &&
-                    x.IsCurrent && !x.IsDeleted, token);
-                if (history != null && history.EffectiveFrom >= request.EffectiveFrom)
-                    return Error<EmployeeCampusAssignmentDto>("Campus history requires a later effective date.", 409);
-                if (history != null)
+                if (history != null && history.EffectiveFrom == request.EffectiveFrom)
                 {
-                    history.EffectiveTo = request.EffectiveFrom.AddDays(-1);
-                    history.IsCurrent = false; history.UpdatedAt = now; history.UpdatedBy = _user.UserId;
+                    history.CampusId = campus.Id; history.Reason = "Primary campus assignment";
+                    history.UpdatedAt = now; history.UpdatedBy = _user.UserId;
                     _history.Update(history);
                 }
-                await _history.AddAsync(new EmployeeAssignmentHistory
+                else
                 {
-                    TenantId = _user.TenantId, EmployeeId = employee.Id, CampusId = campus.Id,
-                    OrganizationUnitId = employee.OrganizationUnitId,
-                    DesignationId = employee.DesignationId,
-                    EmploymentTypeCode = employee.EmploymentTypeCode,
-                    EffectiveFrom = request.EffectiveFrom, IsCurrent = true,
-                    Reason = "Primary campus assignment", CreatedAt = now, CreatedBy = _user.UserId
-                });
+                    if (history != null)
+                    {
+                        history.EffectiveTo = request.EffectiveFrom.AddDays(-1);
+                        history.IsCurrent = false; history.UpdatedAt = now; history.UpdatedBy = _user.UserId;
+                        _history.Update(history);
+                    }
+                    await _history.AddAsync(new EmployeeAssignmentHistory
+                    {
+                        TenantId = _user.TenantId, EmployeeId = employee.Id, CampusId = campus.Id,
+                        OrganizationUnitId = employee.OrganizationUnitId,
+                        DesignationId = employee.DesignationId,
+                        EmploymentTypeCode = employee.EmploymentTypeCode,
+                        EffectiveFrom = request.EffectiveFrom, IsCurrent = true,
+                        Reason = "Primary campus assignment", CreatedAt = now, CreatedBy = _user.UserId
+                    });
+                }
             }
             var row = new EmployeeCampusAssignment
             {
@@ -596,9 +609,12 @@ public sealed class HrAdminService : IHrAdminService
         {
             var row = await _leaves.GetQueryable().FirstOrDefaultAsync(x =>
                 x.TenantId == _user.TenantId && x.Id == request.Id && !x.IsDeleted, token);
-            if (row == null || !await _employees.GetQueryable().AsNoTracking().AnyAsync(x =>
-                x.TenantId == _user.TenantId && x.Id == row.EmployeeId && !x.IsDeleted, token))
-                return Error<bool>("Employee leave application not found.", 404);
+            if (row == null) return Error<bool>("Employee leave application not found.", 404);
+            var employee = await _employees.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == _user.TenantId && x.Id == row.EmployeeId && !x.IsDeleted, token);
+            if (employee == null) return Error<bool>("Employee leave application not found.", 404);
+            if (employee.UserId.HasValue && employee.UserId.Value == _user.UserId)
+                return Error<bool>("Reviewers cannot approve or reject their own leave.", 403);
             if (!Matches(row.RowVersion, version)) return Error<bool>("Leave application changed.", 409);
             if (row.State != LeaveState.Submitted)
                 return Error<bool>("Only submitted leave can be reviewed.", 409);
