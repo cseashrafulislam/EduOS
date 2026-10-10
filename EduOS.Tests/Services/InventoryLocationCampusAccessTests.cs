@@ -52,6 +52,19 @@ public sealed class InventoryLocationCampusAccessTests
         await db.SaveChangesAsync();
         (await storeKeeper.GetLocationsAsync(null)).Data!.Select(x => x.Code)
             .Should().BeEquivalentTo(["SHARED"]);
+
+        // Deactivating a campus immediately invalidates previously granted access.
+        grant.IsActive = true;
+        first.IsActive = false;
+        await db.SaveChangesAsync();
+        (await storeKeeper.GetLocationsAsync(null)).Data!.Select(x => x.Code)
+            .Should().BeEquivalentTo(["SHARED"]);
+        (await storeKeeper.GetLocationsAsync(first.Id)).StatusCode.Should().Be(403);
+        (await storeKeeper.GetLocationsPageAsync(1, 25, first.Id, null)).StatusCode.Should().Be(403);
+        first.IsActive = true;
+        await db.SaveChangesAsync();
+        (await storeKeeper.GetLocationsAsync(first.Id)).Data!.Select(x => x.Code)
+            .Should().BeEquivalentTo(["A1"]);
     }
 
 
@@ -103,6 +116,12 @@ public sealed class InventoryLocationCampusAccessTests
         (await new InventoryCatalogService(db, new User(101, "TenantAdmin"),
             TimeProvider.System, NullLogger<InventoryCatalogService>.Instance)
             .SaveLocationAsync(null, Request(null, "SH2", "Shared"))).StatusCode.Should().Be(201);
+
+        grant.IsActive = true;
+        first.IsActive = false;
+        await db.SaveChangesAsync();
+        (await service.SaveLocationAsync(null, Request(first.Id, "A4", "Inactive campus"))).StatusCode.Should().Be(403);
+        (await service.SaveLocationAsync(owned.Id, Request(first.Id, "A1", "Modified", version))).StatusCode.Should().Be(403);
     }
 
     [Fact]

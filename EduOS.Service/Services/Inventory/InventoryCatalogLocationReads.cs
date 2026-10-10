@@ -15,7 +15,9 @@ public sealed partial class InventoryCatalogService
         if (!CanAccessAllCampuses())
             rows = rows.Where(x => x.CampusId == null || _db.UserCampusAccesses.Any(a =>
                 a.TenantId == tenantId && a.UserId == userId && a.CampusId == x.CampusId &&
-                a.IsActive && !a.IsDeleted));
+                a.IsActive && !a.IsDeleted &&
+                _db.Campuses.Any(c => c.TenantId == tenantId && c.Id == a.CampusId &&
+                    c.IsActive && !c.IsDeleted)));
         return rows;
     }
 
