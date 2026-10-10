@@ -3,6 +3,7 @@ using EduOS.Core.DTOs.Assessment;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Assessment;
 using EduOS.Core.Entities.HR;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
