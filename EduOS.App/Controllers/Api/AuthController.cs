@@ -448,7 +448,7 @@ namespace EduOS.App.Controllers.Api
         [Authorize]
         [HttpPut("profile")]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> UpdateProfile([FromBody] UpdateUserProfileDto dto)
+        public async Task<IActionResult> UpdateProfile([FromBody] UpdateUserProfileRequestDto dto)
         {
             if (!ModelState.IsValid)
                 return BadRequest(new { success = false, message = GetModelStateError() });
@@ -458,11 +458,13 @@ namespace EduOS.App.Controllers.Api
             if (user == null)
                 return Unauthorized(new { success = false, message = "User session not found." });
 
-            if (!string.IsNullOrWhiteSpace(dto.Address) && !user.PersonId.HasValue)
+            if (dto.Address != null && !string.IsNullOrWhiteSpace(dto.Address) && !user.PersonId.HasValue)
                 return Conflict(new { success = false, message = "Link a verified person profile before updating an address." });
 
             user.FullName = dto.FullName.Trim();
-            user.PhoneNumber = string.IsNullOrWhiteSpace(dto.PhoneNumber) ? null : dto.PhoneNumber.Trim();
+            if (dto.PhoneNumber != null) user.PhoneNumber = string.IsNullOrWhiteSpace(dto.PhoneNumber) ? null : dto.PhoneNumber.Trim();
+            if (dto.PhotoUrl != null) user.PhotoUrl = string.IsNullOrWhiteSpace(dto.PhotoUrl) ? null : dto.PhotoUrl.Trim();
+            user.PreferredLanguage = dto.PreferredLanguage.Trim();
             user.UpdatedAt = DateTime.UtcNow;
             PersonAddress? address = null;
             if (user.PersonId.HasValue)
@@ -478,8 +480,8 @@ namespace EduOS.App.Controllers.Api
                     };
                     _db.PersonAddresses.Add(address);
                 }
-                else if (address != null)
-                    address.AddressLine1 = string.IsNullOrWhiteSpace(dto.Address) ? null : dto.Address.Trim();
+                else if (address != null && dto.Address != null)
+                    address.AddressLine1 = dto.Address.Trim();
             }
 
             var result = await _userManager.UpdateAsync(user);
@@ -508,7 +510,7 @@ namespace EduOS.App.Controllers.Api
         [Authorize]
         [HttpPost("change-password")]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequestDto dto)
         {
             if (!ModelState.IsValid)
                 return BadRequest(new { success = false, message = GetModelStateError() });
