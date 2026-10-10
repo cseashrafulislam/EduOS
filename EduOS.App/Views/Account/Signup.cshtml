@@ -31,6 +31,7 @@
           data-fair="@T["Fair"]"
           data-strong="@T["Strong"]"
           data-very-strong="@T["VeryStrong"]">
+        @Html.AntiForgeryToken()
         <div class="row g-3">
             <div class="col-md-6">
                 <label class="form-label" for="institutionName">@T["InstitutionName"]</label>
