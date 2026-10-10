@@ -265,7 +265,7 @@
                 return;
             }
             if (Number(onboarding?.currentStep) !== 6) {
-                window.location.assign(safeLocalUrl(onboarding?.nextStepUrl));
+                window.location.assign(safeLocalUrl(window.eduosOnboardingStageUrl(onboarding?.currentStage)));
                 return;
             }
 
@@ -274,7 +274,7 @@
                 cache: 'no-store',
                 credentials: 'same-origin',
                 headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                body: JSON.stringify({ step: 6, skipped: false })
+                body: JSON.stringify({ stage: 8, skipped: false })
             });
             const completionPayload = await completed.json().catch(() => null);
             if (!completed.ok || !completionPayload?.success) {
