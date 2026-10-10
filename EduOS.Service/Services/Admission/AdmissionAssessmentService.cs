@@ -290,12 +290,12 @@ public sealed class AdmissionAssessmentService : IAdmissionAssessmentService
         if (request == null || string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 150 ||
             request.TotalMarks <= 0 || request.PassMarks < 0 || request.PassMarks > request.TotalMarks ||
             request.DurationMinutes is < 1 or > 1440 || request.AcademicYearId <= 0 ||
-            request.CampusId <= 0 || request.AcademicUnitId <= 0)
+            request.CampusId <= 0 || request.AcademicLevelId <= 0)
             return (null, "Admission test request is invalid.");
         var date = DateOnly.FromDateTime(request.TestDate);
         var formQuery = _forms.GetQueryable().AsNoTracking().Where(x => x.TenantId == _currentUser.TenantId &&
             x.AcademicYearId == request.AcademicYearId && x.CampusId == request.CampusId &&
-            x.AcademicLevelId == request.AcademicUnitId &&
+            x.AcademicLevelId == request.AcademicLevelId &&
             x.State != AdmissionFormState.Archived);
         if (request.AdmissionIntakeFormReference.HasValue)
             formQuery = formQuery.Where(x => x.PublicId == request.AdmissionIntakeFormReference.Value);
