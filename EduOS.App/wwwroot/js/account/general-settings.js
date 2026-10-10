@@ -93,8 +93,8 @@
             showAlert('danger', i18n.stepFailed);
             return;
         }
-        if (Number(onboarding.currentStep) !== 7) {
-            window.location.assign(safeLocalUrl(onboarding.nextStepUrl));
+        if (Number(onboarding.currentStage) !== 9) {
+            window.location.assign(safeLocalUrl(window.eduosOnboardingStageUrl(onboarding.currentStage)));
             return;
         }
 
@@ -120,7 +120,7 @@
         if (onboarding?.isComplete) {
             if (saveButton) saveButton.textContent = i18n.dashboard || '';
             if (skipButton) skipButton.hidden = true;
-        } else if (onboarding && Number(onboarding.currentStep) !== 7) {
+        } else if (onboarding && Number(onboarding.currentStage) !== 9) {
             if (saveButton) saveButton.textContent = i18n.continueSetup || '';
             if (skipButton) skipButton.hidden = true;
         }
