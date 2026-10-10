@@ -73,7 +73,7 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
         if (!string.IsNullOrEmpty(term))
             query = query.Where(x => x.FullName.StartsWith(term) || x.EmployeeCode.StartsWith(term));
         IReadOnlyList<AcademicInstructorChoiceDto> rows = await query.OrderBy(x => x.FullName).ThenBy(x => x.Id)
-            .Select(x => new AcademicInstructorChoiceDto { Id = x.Id, Name = x.FullName, EmployeeCode = x.EmployeeCode })
+            .Select(x => new AcademicInstructorChoiceDto { EmployeeReference = x.PublicId, Name = x.FullName, EmployeeCode = x.EmployeeCode })
             .Take(Math.Clamp(take, 1, 100)).ToListAsync(cancellationToken);
         return ApiResponse<IReadOnlyList<AcademicInstructorChoiceDto>>.SuccessResponse(rows);
     }
