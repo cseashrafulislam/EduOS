@@ -63,7 +63,7 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
             return ApiResponse<AdmissionEnrollmentOptionsDto>.ErrorResponse("Applicant reference is required.");
         var tenant = _user.TenantId;
         var application = await _applicants.GetQueryable().AsNoTracking()
-            .FirstOrDefaultAsync(x => x.TenantId == tenant && x.PublicId == applicationReference, cancellationToken);
+            .FirstOrDefaultAsync(x => x.TenantId == tenant && x.PublicId == applicationReference && !x.IsDeleted, cancellationToken);
         if (application == null) return ApiResponse<AdmissionEnrollmentOptionsDto>.ErrorResponse("Applicant not found.", 404);
         if (application.State is not (AdmissionApplicantState.Qualified or AdmissionApplicantState.Admitted))
             return ApiResponse<AdmissionEnrollmentOptionsDto>.ErrorResponse("Applicant must qualify before enrollment.", 409);
@@ -94,7 +94,7 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
             .ToListAsync(cancellationToken);
         return ApiResponse<AdmissionEnrollmentOptionsDto>.SuccessResponse(new AdmissionEnrollmentOptionsDto
         {
-            Sections = sections, Groups = tracks
+            AcademicBatches = sections, AcademicTracks = tracks
         });
     }
 
@@ -102,24 +102,18 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
         AdmitAdmissionApplicationDto request, CancellationToken cancellationToken = default)
     {
         if (!CanManage()) return Denied<AdmittedStudentDto>();
-        if (applicationReference == Guid.Empty || request == null || request.SectionId <= 0 ||
-            request.GroupId is <= 0 || string.IsNullOrWhiteSpace(request.Roll) || request.Roll.Trim().Length > 50 ||
+        if (applicationReference == Guid.Empty || request == null || request.AcademicBatchId <= 0 ||
+            request.AcademicTrackId is <= 0 || string.IsNullOrWhiteSpace(request.Roll) || request.Roll.Trim().Length > 50 ||
             !TryVersion(request.RowVersion, out var expected))
             return ApiResponse<AdmittedStudentDto>.ErrorResponse("Valid applicant, batch, roll and row version are required.");
         var tenant = _user.TenantId;
         var roll = request.Roll.Trim();
         try
         {
-            var strategy = _uow.CreateExecutionStrategy();
-            return await strategy.ExecuteAsync(async () =>
+            return await _uow.ExecuteInTransactionAsync(async token =>
             {
-                var started = false;
-                try
-                {
-                    await _uow.BeginTransactionAsync();
-                    started = true;
                     var application = await _applicants.GetQueryable().FirstOrDefaultAsync(x =>
-                        x.TenantId == tenant && x.PublicId == applicationReference, cancellationToken);
+                        x.TenantId == tenant && x.PublicId == applicationReference && !x.IsDeleted, cancellationToken);
                     if (application == null) return ApiResponse<AdmittedStudentDto>.ErrorResponse("Applicant not found.", 404);
                     if (application.ConvertedStudentId.HasValue && application.ConvertedEnrollmentId.HasValue)
                     {
@@ -129,7 +123,9 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
                             x.TenantId == tenant && x.Id == application.ConvertedEnrollmentId.Value, cancellationToken);
                         if (existingStudent == null || existingEnrollment == null ||
                             existingStudent.AdmissionApplicantId != application.Id ||
-                            existingEnrollment.StudentId != existingStudent.Id)
+                            existingEnrollment.StudentId != existingStudent.Id ||
+                            existingEnrollment.AcademicBatchId != request.AcademicBatchId ||
+                            existingEnrollment.RollNo != roll)
                             return ApiResponse<AdmittedStudentDto>.ErrorResponse("Applicant conversion has inconsistent references.", 409);
                         return ApiResponse<AdmittedStudentDto>.SuccessResponse(Map(existingStudent, existingEnrollment),
                             "Applicant was already admitted.");
@@ -149,18 +145,26 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
                         x.TenantId == tenant && x.AdmissionApplicantId == application.Id)
                         .OrderByDescending(x => x.Id).FirstOrDefaultAsync(cancellationToken);
                     if (decision == null || decision.State != AdmissionDecisionState.Accepted ||
-                        decision.OfferedAcademicBatchId != request.SectionId)
+                        decision.OfferedAcademicBatchId != request.AcademicBatchId)
                         return ApiResponse<AdmittedStudentDto>.ErrorResponse("An accepted offer for the selected batch is required.", 409);
 
                     var batch = await _batches.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                        x.TenantId == tenant && x.Id == request.SectionId && x.IsActive &&
+                        x.TenantId == tenant && x.Id == request.AcademicBatchId && x.IsActive &&
                         x.CampusId == form.CampusId && x.AcademicYearId == form.AcademicYearId &&
                         x.AcademicProgramId == form.AcademicProgramId && x.AcademicLevelId == form.AcademicLevelId &&
                         (!form.AcademicTermId.HasValue || x.AcademicTermId == form.AcademicTermId) &&
                         (!form.AcademicTrackId.HasValue || x.AcademicTrackId == form.AcademicTrackId),
                         cancellationToken);
                     if (batch == null) return ApiResponse<AdmittedStudentDto>.ErrorResponse("Batch is not eligible for this intake.", 409);
-                    if (request.GroupId.HasValue && request.GroupId != batch.AcademicTrackId)
+                    // Batch rowversion is the concurrency gate for capacity and roll assignments.
+                    // The write is part of the same transaction as the student conversion.
+                    var lockedBatch = await _batches.GetQueryable().FirstAsync(x =>
+                        x.TenantId == tenant && x.Id == batch.Id && !x.IsDeleted, cancellationToken);
+                    lockedBatch.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
+                    lockedBatch.UpdatedBy = _user.UserId;
+                    _batches.Update(lockedBatch);
+                    await _uow.SaveChangesAsync(cancellationToken);
+                    if (request.AcademicTrackId.HasValue && request.AcademicTrackId != batch.AcademicTrackId)
                         return ApiResponse<AdmittedStudentDto>.ErrorResponse("Selected academic track does not match the batch.", 409);
                     var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
                     var yearActive = await _years.GetQueryable().AsNoTracking().AnyAsync(x =>
@@ -177,10 +181,10 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
                         return ApiResponse<AdmittedStudentDto>.ErrorResponse("Exactly one active curriculum must match the batch.", 409);
                     if (batch.Capacity > 0 && await _enrollments.GetQueryable().AsNoTracking().CountAsync(x =>
                         x.TenantId == tenant && x.AcademicBatchId == batch.Id &&
-                        x.IsCurrent && x.IsActive && x.State == EnrollmentState.Active, cancellationToken) >= batch.Capacity)
+                        x.IsCurrent && x.State == EnrollmentState.Active && !x.IsDeleted, cancellationToken) >= batch.Capacity)
                         return ApiResponse<AdmittedStudentDto>.ErrorResponse("The batch is at capacity.", 409);
                     if (await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
-                        x.AcademicBatchId == batch.Id && x.RollNo == roll && x.IsCurrent && x.IsActive, cancellationToken))
+                        x.AcademicBatchId == batch.Id && x.RollNo == roll && x.IsCurrent && !x.IsDeleted, cancellationToken))
                         return ApiResponse<AdmittedStudentDto>.ErrorResponse("Roll is already assigned in this batch.", 409);
 
                     var now = _clock.GetUtcNow().UtcDateTime;
@@ -210,7 +214,7 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
                         DateOfBirth = application.DateOfBirth, Gender = application.Gender,
                         Phone = application.Phone, Email = application.Email, Address = application.Address,
                         AdmissionDate = today, PreferredLanguage = person.PreferredLanguage,
-                        StatusCode = "Active", IsActive = true, CreatedAt = now, CreatedBy = _user.UserId
+                        StatusCode = "Active", CreatedAt = now, CreatedBy = _user.UserId
                     };
                     await _students.AddAsync(student);
                     await _uow.SaveChangesAsync(cancellationToken);
@@ -257,7 +261,7 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
                         AcademicBatchId = batch.Id, AcademicCurriculumId = curricula[0],
                         AcademicTrackId = batch.AcademicTrackId, MediumId = batch.MediumId, ShiftId = batch.ShiftId,
                         RollNo = roll, EnrollmentDate = today, State = EnrollmentState.Active,
-                        IsCurrent = true, IsActive = true, CreatedAt = now, CreatedBy = _user.UserId
+                        IsCurrent = true, CreatedAt = now, CreatedBy = _user.UserId
                     };
                     await _enrollments.AddAsync(enrollment);
                     await _uow.SaveChangesAsync(cancellationToken);
@@ -269,18 +273,11 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
                     application.UpdatedBy = _user.UserId;
                     await _uow.SaveChangesAsync(cancellationToken);
                     var result = Map(student, enrollment);
-                    await _uow.CommitTransactionAsync();
-                    started = false;
                     return new ApiResponse<AdmittedStudentDto>
                     {
                         Success = true, StatusCode = 201, Message = "Applicant admitted.", Data = result
                     };
-                }
-                finally
-                {
-                    if (started) await _uow.RollbackTransactionAsync();
-                }
-            });
+            }, cancellationToken);
         }
         catch (DbUpdateConcurrencyException ex)
         {
@@ -303,7 +300,7 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
     {
         StudentReference = student.PublicId, StudentCode = student.StudentCode,
         StudentId = student.Id, EnrollmentId = enrollment.Id, Roll = enrollment.RollNo,
-        ApplicationStatus = AdmissionApplicationStatus.Admitted
+        ApplicationState = AdmissionApplicantState.Admitted
     };
 
     private bool CanManage() => _user.IsAuthenticated && _user.TenantId > 0 &&
