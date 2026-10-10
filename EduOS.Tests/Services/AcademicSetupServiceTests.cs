@@ -154,7 +154,7 @@ public sealed class AcademicSetupServiceTests
             }]
         });
         invalid.StatusCode.Should().Be(409);
-        (await db.AcademicCurricula.CountAsync()).Should().Be(0);
+        (await db.Set<AcademicCurriculum>().CountAsync()).Should().Be(0);
     }
 
     [Fact]
