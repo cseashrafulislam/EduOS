@@ -130,15 +130,15 @@ public sealed class SubscriptionService : ISubscriptionService
                     amount == 0m ? "Subscription activated." : "Subscription invoice issued; payment required.");
             }, ct);
         }
-        catch (DbUpdateException ex)
-        {
-            _logger.LogWarning(ex, "Subscription write conflict for tenant {TenantId}", tenantId);
-            return Error<TenantSubscriptionDto>("Subscription conflicts with another request. Reload and retry.", 409);
-        }
         catch (DbUpdateConcurrencyException ex)
         {
             _logger.LogWarning(ex, "Subscription concurrency conflict for tenant {TenantId}", tenantId);
             return Error<TenantSubscriptionDto>("Subscription was changed. Reload and retry.", 409);
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Subscription write conflict for tenant {TenantId}", tenantId);
+            return Error<TenantSubscriptionDto>("Subscription conflicts with another request. Reload and retry.", 409);
         }
     }
 
