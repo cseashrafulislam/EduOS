@@ -76,8 +76,9 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
         if (!CanManage()) return Task.FromResult(Error<CampusDto>("Tenant administrator required.", 403));
         if (id is <= 0 || request == null || !ValidCode(request.Code, 50) ||
             !ValidName(request.Name, 150) || request.Email?.Length > 200 ||
-            request.Phone?.Length > 30 || request.Address?.Length > 500)
-            return Task.FromResult(Error<CampusDto>("Invalid campus."));
+            request.Phone?.Length > 30 || request.Address?.Length > 500 ||
+            !request.IsActive)
+            return Task.FromResult(Error<CampusDto>("Invalid or inactive campus; use Archive for removal."));
         return WriteAsync("save campus", async token =>
         {
             var tenantId = _user.TenantId;
@@ -89,6 +90,8 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
             if (id.HasValue && row == null) return Error<CampusDto>("Campus not found.", 404);
             if (row != null && !Match(row.RowVersion, request.RowVersion))
                 return Error<CampusDto>("Campus changed. Reload and retry.", 409);
+            if (row != null && row.IsHeadOffice && !request.IsHeadOffice)
+                return Error<CampusDto>("Select another head-office campus before removing this designation.", 409);
             var code = request.Code.Trim().ToUpperInvariant();
             if (await _campuses.GetQueryable().AsNoTracking().AnyAsync(x =>
                 x.TenantId == tenantId && x.Code == code && !x.IsDeleted &&
@@ -351,10 +354,15 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
             if (id.HasValue && row == null) return Error<AcademicTermDto>("Academic term not found.", 404);
             if (row != null && !Match(row.RowVersion, request.RowVersion))
                 return Error<AcademicTermDto>("Academic term changed. Reload.", 409);
+            if (row != null && await _batches.GetQueryable().AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenant && x.AcademicTermId == row.Id && !x.IsDeleted &&
+                (row.AcademicYearId != year.Id ||
+                 x.StartDate < request.StartDate || x.EndDate > request.EndDate), token))
+                return Error<AcademicTermDto>("Term cannot change beyond dates of existing batches or their year.", 409);
             if (row != null && row.AcademicYearId != year.Id &&
-                await _batches.GetQueryable().AsNoTracking().AnyAsync(x =>
+                await _admissions.GetQueryable().AsNoTracking().AnyAsync(x =>
                     x.TenantId == tenant && x.AcademicTermId == row.Id && !x.IsDeleted, token))
-                return Error<AcademicTermDto>("Term with batches cannot move to a different year.", 409);
+                return Error<AcademicTermDto>("Term with admission records cannot move to another year.", 409);
             if (await _terms.GetQueryable().AsNoTracking().AnyAsync(x =>
                 x.TenantId == tenant && x.AcademicYearId == year.Id &&
                 x.Name == request.Name.Trim() && !x.IsDeleted &&
