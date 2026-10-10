@@ -138,10 +138,10 @@ public sealed class HostelCanonicalEligibilityTests
     private sealed class UnitOfWork(EduOSDbContext db) : IUnitOfWork
     {
         public Task<int> SaveChangesAsync(CancellationToken ct = default) => db.SaveChangesAsync(ct);
-        public Task BeginTransactionAsync() => Task.CompletedTask;
-        public Task CommitTransactionAsync() => Task.CompletedTask;
-        public Task RollbackTransactionAsync() => Task.CompletedTask;
-        public IExecutionStrategy CreateExecutionStrategy() => db.Database.CreateExecutionStrategy();
+        public Task<TResult> ExecuteInTransactionAsync<TResult>(
+            Func<CancellationToken, Task<TResult>> operation, CancellationToken cancellationToken = default) =>
+            operation(cancellationToken);
+
         public void Dispose() { }
     }
 
