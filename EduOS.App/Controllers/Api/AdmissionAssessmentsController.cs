@@ -30,6 +30,14 @@ public class AdmissionAssessmentsController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("tests/{testId:long}/applicants")]
+    public async Task<IActionResult> GetApplicants(long testId, [FromQuery] AdmissionAssessmentRosterQueryDto query, CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await _service.GetApplicantsAsync(testId, query, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("tests")]
     public async Task<IActionResult> CreateTest([FromBody] SaveAdmissionTestDto request, CancellationToken cancellationToken)
     {

@@ -60,3 +60,22 @@ public class AdmissionMeritListDto
     public AdmissionTestDto Test { get; set; } = new();
     public List<AdmissionResultDto> Results { get; set; } = new();
 }
+
+public sealed class AdmissionAssessmentRosterQueryDto
+{
+    [Range(1, int.MaxValue)] public int Page { get; set; } = 1;
+    [Range(1, 100)] public int PageSize { get; set; } = 20;
+    [StringLength(100)] public string? Search { get; set; }
+}
+
+public sealed class AdmissionAssessmentApplicantDto
+{
+    public long ApplicantId { get; set; }
+    public Guid ApplicantReference { get; set; }
+    public string ApplicationNumber { get; set; } = string.Empty;
+    public string ApplicantName { get; set; } = string.Empty;
+    public bool HasResult { get; set; }
+    public decimal? ObtainedMarks { get; set; }
+    public string? Grade { get; set; }
+    public string? Remarks { get; set; }
+}

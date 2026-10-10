@@ -6,6 +6,7 @@ namespace EduOS.Core.Interfaces.IServices;
 public interface IAdmissionAssessmentService
 {
     Task<ApiResponse<IReadOnlyList<AdmissionTestDto>>> GetTestsAsync(CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<AdmissionAssessmentApplicantDto>>> GetApplicantsAsync(long testId, AdmissionAssessmentRosterQueryDto query, CancellationToken cancellationToken = default);
     Task<ApiResponse<AdmissionTestDto>> CreateTestAsync(SaveAdmissionTestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<AdmissionTestDto>> UpdateTestAsync(long id, SaveAdmissionTestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<AdmissionResultDto>>> SaveResultsAsync(long testId, SaveAdmissionResultsDto request, CancellationToken cancellationToken = default);

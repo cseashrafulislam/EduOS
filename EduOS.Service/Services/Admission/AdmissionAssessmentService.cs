@@ -57,6 +57,61 @@ public sealed class AdmissionAssessmentService : IAdmissionAssessmentService
         }
     }
 
+    public async Task<ApiResponse<PagedResult<AdmissionAssessmentApplicantDto>>> GetApplicantsAsync(
+        long testId, AdmissionAssessmentRosterQueryDto query, CancellationToken cancellationToken = default)
+    {
+        if (!CanManage()) return Denied<PagedResult<AdmissionAssessmentApplicantDto>>();
+        if (testId <= 0 || query == null || query.Page < 1 || query.PageSize is < 1 or > 100 || query.Search?.Length > 100)
+            return ApiResponse<PagedResult<AdmissionAssessmentApplicantDto>>.ErrorResponse("Invalid assessment roster pagination.");
+        var skip = ((long)query.Page - 1) * query.PageSize;
+        if (skip > int.MaxValue) return ApiResponse<PagedResult<AdmissionAssessmentApplicantDto>>.ErrorResponse("Page is outside the result range.");
+        var tenant = _currentUser.TenantId;
+        try
+        {
+            var formId = await (from test in _tests.GetQueryable().AsNoTracking()
+                join form in _forms.GetQueryable().AsNoTracking() on test.AdmissionIntakeFormId equals form.Id
+                where test.Id == testId && test.TenantId == tenant && form.TenantId == tenant
+                select (long?)form.Id).FirstOrDefaultAsync(cancellationToken);
+            if (!formId.HasValue)
+                return ApiResponse<PagedResult<AdmissionAssessmentApplicantDto>>.ErrorResponse("Admission test not found.", 404);
+            var applicants = _applicants.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == tenant && x.AdmissionIntakeFormId == formId.Value &&
+                x.State != AdmissionApplicantState.Draft && x.State != AdmissionApplicantState.Withdrawn);
+            var search = query.Search?.Trim();
+            if (!string.IsNullOrWhiteSpace(search))
+                applicants = applicants.Where(x => x.FullName.Contains(search) || x.ApplicationNumber.Contains(search));
+            var count = await applicants.CountAsync(cancellationToken);
+            var page = await applicants.OrderBy(x => x.ApplicationNumber).ThenBy(x => x.Id)
+                .Skip((int)skip).Take(query.PageSize)
+                .Select(x => new { x.Id, x.PublicId, x.ApplicationNumber, x.FullName }).ToListAsync(cancellationToken);
+            var ids = page.Select(x => x.Id).ToArray();
+            var existing = await _results.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == tenant && x.AdmissionTestId == testId && ids.Contains(x.AdmissionApplicantId))
+                .Select(x => new { x.AdmissionApplicantId, x.ObtainedMarks, x.Grade, x.Remarks })
+                .ToListAsync(cancellationToken);
+            var byId = existing.ToDictionary(x => x.AdmissionApplicantId);
+            var items = page.Select(x =>
+            {
+                var found = byId.TryGetValue(x.Id, out var result);
+                return new AdmissionAssessmentApplicantDto
+                {
+                    ApplicantId = x.Id, ApplicantReference = x.PublicId,
+                    ApplicationNumber = x.ApplicationNumber, ApplicantName = x.FullName,
+                    HasResult = found, ObtainedMarks = found ? result!.ObtainedMarks : null,
+                    Grade = found ? result!.Grade : null, Remarks = found ? result!.Remarks : null
+                };
+            }).ToList();
+            return ApiResponse<PagedResult<AdmissionAssessmentApplicantDto>>.SuccessResponse(
+                new PagedResult<AdmissionAssessmentApplicantDto>
+                { Items = items, TotalCount = count, Page = query.Page, PageSize = query.PageSize });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Admission roster failed for tenant {TenantId} test {TestId}", tenant, testId);
+            return ApiResponse<PagedResult<AdmissionAssessmentApplicantDto>>.ErrorResponse("Admission roster could not be loaded.", 500);
+        }
+    }
+
     public async Task<ApiResponse<AdmissionTestDto>> CreateTestAsync(SaveAdmissionTestDto request,
         CancellationToken cancellationToken = default)
     {
