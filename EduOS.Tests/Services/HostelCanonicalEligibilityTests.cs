@@ -1,3 +1,4 @@
+using EduOS.Core.DTOs.Hostel;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.SaaS;
@@ -35,6 +36,8 @@ public sealed class HostelCanonicalEligibilityTests
             await other.SaveChangesAsync();
         }
         await using var db = Context(101, options);
+        db.Add(new Campus { TenantId = 101, Name = "Main", Code = "MAIN", IsActive = true });
+        await db.SaveChangesAsync();
         var eligible = Student(101, "Active", "eligible");
         var transferred = Student(101, "Transferred", "transferred");
         var previous = Student(101, "Active", "previous");
@@ -101,6 +104,138 @@ public sealed class HostelCanonicalEligibilityTests
         var response = await Service(db, false).GetRoomsAsync();
         response.Success.Should().BeFalse();
         response.StatusCode.Should().Be(403);
+    }
+
+    [Theory]
+    [InlineData(0, 0, false)]
+    [InlineData(1, 0, true)]
+    [InlineData(1, 1, false)]
+    [InlineData(2, 1, true)]
+    [InlineData(2, 2, false)]
+    public async Task Available_beds_respect_active_allocation_count_and_room_capacity(
+        int capacity, int activeCount, bool expectedAvailable)
+    {
+        var options = new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("hostel-capacity-" + Guid.NewGuid().ToString("N")).Options;
+        await using var db = Context(101, options);
+        db.Add(new Campus { TenantId = 101, Name = "Main", Code = "MAIN", IsActive = true });
+        await db.SaveChangesAsync();
+        var hostel = new EduOS.Core.Entities.Hostel.Hostel
+        {
+            TenantId = 101, CampusId = 1, Name = "Main Hostel", Code = "MH"
+        };
+        db.Add(hostel);
+        await db.SaveChangesAsync();
+        var room = new HostelRoom
+        {
+            TenantId = 101, HostelId = hostel.Id, RoomNumber = "101",
+            Capacity = capacity, IsActive = true, RentPerBed = 100m
+        };
+        db.Add(room);
+        await db.SaveChangesAsync();
+        var occupiedBeds = Enumerable.Range(0, activeCount).Select(i => new HostelBed
+        {
+            TenantId = 101, HostelRoomId = room.Id, BedNumber = "O" + i, IsActive = true
+        }).ToList();
+        var availableBed = new HostelBed
+        {
+            TenantId = 101, HostelRoomId = room.Id, BedNumber = "AVAILABLE", IsActive = true
+        };
+        db.AddRange(occupiedBeds);
+        db.Add(availableBed);
+        await db.SaveChangesAsync();
+        for (var i = 0; i < occupiedBeds.Count; i++)
+            db.Add(new StudentHostelAllocation
+            {
+                TenantId = 101, StudentId = i + 100, StudentEnrollmentId = i + 200,
+                HostelBedId = occupiedBeds[i].Id, ClientRequestId = Guid.NewGuid(),
+                StartDate = new DateOnly(2026, 10, 1), State = HostelAllocationState.Active
+            });
+        await db.SaveChangesAsync();
+
+        var result = await Service(db).GetAvailableBedsAsync(1, 20, null);
+
+        result.Success.Should().BeTrue();
+        result.Data!.TotalCount.Should().Be(expectedAvailable ? 1 : 0);
+        if (expectedAvailable)
+            result.Data.Items.Should().ContainSingle(x => x.BedId == availableBed.Id);
+        else
+            result.Data.Items.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(HostelAllocationState.Closed, 0, true)]
+    [InlineData(HostelAllocationState.Closed, 1, false)]
+    [InlineData(HostelAllocationState.Cancelled, 0, false)]
+    public async Task Close_replay_requires_matching_date_and_closed_state(
+        HostelAllocationState state, int offsetDays, bool expectedSuccess)
+    {
+        var options = new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("hostel-close-" + Guid.NewGuid().ToString("N")).Options;
+        await using var db = Context(101, options);
+        var closedOn = new DateOnly(2026, 10, 8);
+        var allocation = new StudentHostelAllocation
+        {
+            TenantId = 101, StudentId = 99, StudentEnrollmentId = 99, HostelBedId = 99,
+            ClientRequestId = Guid.NewGuid(), StartDate = closedOn.AddDays(-10),
+            EndDate = state == HostelAllocationState.Closed ? closedOn : null,
+            State = state, RowVersion = [1,2,3,4,5,6,7,8]
+        };
+        db.Add(allocation);
+        await db.SaveChangesAsync();
+        var originalEndDate = allocation.EndDate;
+        var result = await Service(db).CloseAsync(allocation.Id, new CloseStudentHostelAllocationRequestDto
+        {
+            EndDate = closedOn.AddDays(offsetDays),
+            RowVersion = Convert.ToBase64String([9,9,9,9,9,9,9,9])
+        });
+        result.Success.Should().Be(expectedSuccess);
+        if (!expectedSuccess) result.StatusCode.Should().Be(409);
+        var saved = await db.Set<StudentHostelAllocation>().SingleAsync(x => x.Id == allocation.Id);
+        saved.State.Should().Be(state);
+        saved.EndDate.Should().Be(originalEndDate);
+    }
+
+
+    [Fact]
+    public async Task Tenant_admin_catalogue_and_eligible_students_exclude_inactive_campuses()
+    {
+        var options = new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("hostel-inactive-campus-" + Guid.NewGuid().ToString("N")).Options;
+        await using var db = Context(101, options);
+        var active = new Campus { TenantId = 101, Name = "Active", Code = "AC", IsActive = true };
+        var inactive = new Campus { TenantId = 101, Name = "Inactive", Code = "IC", IsActive = false };
+        db.AddRange(active, inactive);
+        await db.SaveChangesAsync();
+        var activeHostel = new EduOS.Core.Entities.Hostel.Hostel
+        { TenantId = 101, CampusId = active.Id, Name = "Active hostel", Code = "AH" };
+        var inactiveHostel = new EduOS.Core.Entities.Hostel.Hostel
+        { TenantId = 101, CampusId = inactive.Id, Name = "Inactive hostel", Code = "IH" };
+        db.AddRange(activeHostel, inactiveHostel);
+        await db.SaveChangesAsync();
+        var activeRoom = new HostelRoom { TenantId = 101, HostelId = activeHostel.Id, RoomNumber = "A1", Capacity = 2 };
+        var inactiveRoom = new HostelRoom { TenantId = 101, HostelId = inactiveHostel.Id, RoomNumber = "I1", Capacity = 2 };
+        db.AddRange(activeRoom, inactiveRoom);
+        await db.SaveChangesAsync();
+        db.AddRange(new HostelBed { TenantId = 101, HostelRoomId = activeRoom.Id, BedNumber = "A" },
+            new HostelBed { TenantId = 101, HostelRoomId = inactiveRoom.Id, BedNumber = "I" });
+        var first = Student(101, "Active", "active-campus");
+        var second = Student(101, "Active", "inactive-campus");
+        db.AddRange(first, second);
+        await db.SaveChangesAsync();
+        var firstEnrollment = Enrollment(first, true);
+        firstEnrollment.CampusId = active.Id;
+        var secondEnrollment = Enrollment(second, true);
+        secondEnrollment.CampusId = inactive.Id;
+        db.AddRange(firstEnrollment, secondEnrollment);
+        await db.SaveChangesAsync();
+        var service = Service(db);
+        (await service.GetRoomsAsync()).Data!.Select(x => x.HostelName).Should().Equal("Active hostel");
+        (await service.GetAvailableBedsAsync(1, 20, null)).Data!.Items
+            .Select(x => x.HostelName).Should().Equal("Active hostel");
+        var eligible = await service.GetEligibleStudentsAsync(1, 20, null);
+        eligible.Data!.Items.Should().ContainSingle(x => x.StudentCode == first.StudentCode);
+        eligible.Data.TotalCount.Should().Be(1);
     }
 
     [Fact]

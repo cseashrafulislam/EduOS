@@ -273,12 +273,16 @@ public sealed class LibraryService : ILibraryService
             var issue = await _issues.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenant &&
                 x.PublicId == reference, ct);
             if (issue == null) return Error("Issue not found.", 404);
-            if (issue.State != BookIssueState.Issued)
+            if (issue.State == BookIssueState.Returned)
             {
+                if (request.ReturnDate != default && request.ReturnDate != issue.ReturnDate)
+                    return Error("Return request conflicts with the recorded return date.", 409);
                 var closed = await MapIssueAsync(issue, ct);
                 tx.Complete();
                 return ApiResponse<BookIssueDto>.SuccessResponse(closed, "Issue already closed.");
             }
+            if (issue.State != BookIssueState.Issued)
+                return Error("Only issued copies may be returned.", 409);
             if (!MatchesVersion(issue.RowVersion, request.RowVersion))
                 return Error("Issue changed. Reload and retry.", 409);
             var date = request.ReturnDate == default ? DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime) : request.ReturnDate;

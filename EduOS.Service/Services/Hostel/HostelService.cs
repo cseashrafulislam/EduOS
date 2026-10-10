@@ -48,7 +48,8 @@ public sealed class HostelService : IHostelService
         var tenant = _currentUser.TenantId;
         var roomsQuery = from room in _rooms.GetQueryable().AsNoTracking()
             join hostel in _hostels.GetQueryable().AsNoTracking() on room.HostelId equals hostel.Id
-            where room.TenantId == tenant && hostel.TenantId == tenant && room.IsActive && hostel.IsActive
+            where room.TenantId == tenant && hostel.TenantId == tenant && room.IsActive && hostel.IsActive &&
+                _campuses.GetQueryable().Any(c => c.TenantId == tenant && c.Id == hostel.CampusId && c.IsActive)
             orderby hostel.Name, room.RoomNumber
             select new { Room = room, HostelName = hostel.Name, HostelReference = hostel.PublicId, hostel.CampusId };
         if (!_currentUser.IsTenantAdmin)
@@ -85,6 +86,7 @@ public sealed class HostelService : IHostelService
                     join student in _students.GetQueryable().AsNoTracking() on enrollment.StudentId equals student.Id
                     where enrollment.TenantId == tenant && student.TenantId == tenant &&
                         enrollment.IsCurrent && enrollment.State == EnrollmentState.Active && student.StatusCode == "Active" &&
+                        _campuses.GetQueryable().Any(c => c.TenantId == tenant && c.Id == enrollment.CampusId && c.IsActive) &&
                         !_allocations.GetQueryable().Any(x => x.TenantId == tenant && x.StudentId == student.Id &&
                             x.State == HostelAllocationState.Active)
                     select new { enrollment.PublicId, enrollment.CampusId, student.FullName, student.StudentCode, enrollment.RollNo };
@@ -122,9 +124,14 @@ public sealed class HostelService : IHostelService
                     join room in _rooms.GetQueryable().AsNoTracking() on bed.HostelRoomId equals room.Id
                     join hostel in _hostels.GetQueryable().AsNoTracking() on room.HostelId equals hostel.Id
                     where bed.TenantId == tenant && room.TenantId == tenant && hostel.TenantId == tenant &&
-                        bed.IsActive && room.IsActive && hostel.IsActive &&
+                        bed.IsActive && room.IsActive && hostel.IsActive && room.Capacity > 0 &&
+                        _campuses.GetQueryable().Any(c => c.TenantId == tenant && c.Id == hostel.CampusId && c.IsActive) &&
                         !_allocations.GetQueryable().Any(x => x.TenantId == tenant && x.HostelBedId == bed.Id &&
-                            x.State == HostelAllocationState.Active)
+                            x.State == HostelAllocationState.Active) &&
+                        _allocations.GetQueryable().Count(x => x.TenantId == tenant &&
+                            x.State == HostelAllocationState.Active &&
+                            _beds.GetQueryable().Any(b => b.TenantId == tenant && b.Id == x.HostelBedId &&
+                                b.HostelRoomId == room.Id)) < room.Capacity
                     select new { BedId = bed.Id, bed.BedNumber, room.RoomNumber, room.RentPerBed,
                         HostelName = hostel.Name, hostel.GenderRestriction, hostel.CampusId };
         if (!_currentUser.IsTenantAdmin)
@@ -353,12 +360,18 @@ public sealed class HostelService : IHostelService
                     !await CanManageCampusAsync(enrollmentCampus.Value, tenant, cancellationToken))
                     return Denied<StudentHostelAllocationDto>();
             }
+            var end = request.EndDate == default ? DateOnly.FromDateTime(_clock.GetLocalNow().DateTime) : request.EndDate;
+            if (allocation.State == HostelAllocationState.Closed)
+            {
+                if (allocation.EndDate.HasValue && (request.EndDate == default || allocation.EndDate.Value == end))
+                    return ApiResponse<StudentHostelAllocationDto>.SuccessResponse(await MapAsync(allocation, cancellationToken), "Allocation already closed.");
+                return Error("Allocation was already closed with a different end date.", 409);
+            }
             if (allocation.State != HostelAllocationState.Active)
-                return ApiResponse<StudentHostelAllocationDto>.SuccessResponse(await MapAsync(allocation, cancellationToken), "Allocation already closed.");
+                return Error("Allocation cannot be closed in its current state.", 409);
             if (!TryDecodeVersion(request.RowVersion, out var bytes) ||
                 !allocation.RowVersion.AsSpan().SequenceEqual(bytes))
                 return Error("Hostel allocation changed. Reload and retry.", 409);
-            var end = request.EndDate == default ? DateOnly.FromDateTime(_clock.GetLocalNow().DateTime) : request.EndDate;
             if (end < allocation.StartDate) return Error("End date cannot precede start date.");
             allocation.EndDate = end;
             allocation.State = HostelAllocationState.Closed;

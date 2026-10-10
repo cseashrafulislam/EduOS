@@ -66,11 +66,36 @@ public class TransportServiceTests
         var service = CreateService(context, 101);
         var response = await service.CloseAsync(assignment.PublicId, new CloseStudentTransportRequestDto
         {
-            EndDate = DateOnly.FromDateTime(DateTime.Today),
+            EndDate = DateOnly.FromDateTime(DateTime.Today.AddDays(-1)),
             RowVersion = Convert.ToBase64String(new byte[] { 9,9,9,9,9,9,9,9 })
         });
         response.Success.Should().BeTrue();
         response.Data!.State.Should().Be(TransportAssignmentState.Closed);
+    }
+
+    [Theory]
+    [InlineData(TransportAssignmentState.Closed, 1, false)]
+    [InlineData(TransportAssignmentState.Cancelled, 0, false)]
+    [InlineData(TransportAssignmentState.Closed, 0, true)]
+    public async Task Close_replay_requires_matching_date_and_closed_state(
+        TransportAssignmentState state, int offsetDays, bool expectedSuccess)
+    {
+        await using var db = CreateContext(CreateOptions(), 101);
+        var assignment = await SeedAssignmentAsync(db, 101, false, [1,2,3,4,5,6,7,8]);
+        assignment.State = state;
+        if (state == TransportAssignmentState.Cancelled) assignment.EndDate = null;
+        await db.SaveChangesAsync();
+        var originalEndDate = assignment.EndDate;
+        var result = await CreateService(db, 101).CloseAsync(assignment.PublicId, new CloseStudentTransportRequestDto
+        {
+            EndDate = DateOnly.FromDateTime(DateTime.Today.AddDays(-1 + offsetDays)),
+            RowVersion = Convert.ToBase64String([9,9,9,9,9,9,9,9])
+        });
+        result.Success.Should().Be(expectedSuccess);
+        if (!expectedSuccess) result.StatusCode.Should().Be(409);
+        var saved = await db.Set<StudentTransport>().SingleAsync(x => x.Id == assignment.Id);
+        saved.State.Should().Be(state);
+        saved.EndDate.Should().Be(originalEndDate);
     }
 
     [Fact]
@@ -211,6 +236,76 @@ public class TransportServiceTests
         response.Success.Should().BeFalse();
         response.StatusCode.Should().Be(403);
         (await db.Set<StudentTransport>().SingleAsync()).State.Should().Be(TransportAssignmentState.Active);
+    }
+
+
+    [Fact]
+    public async Task Tenant_admin_catalogue_and_eligible_students_ignore_inactive_campus()
+    {
+        await using var db = CreateContext(CreateOptions(), 101);
+        var active = new Campus { TenantId = 101, Name = "Active", Code = "ACTIVE", IsActive = true };
+        var inactive = new Campus { TenantId = 101, Name = "Inactive", Code = "INACTIVE", IsActive = false };
+        db.AddRange(active, inactive);
+        await db.SaveChangesAsync();
+        db.AddRange(
+            new TransportRoute { TenantId = 101, CampusId = active.Id, Name = "Active route", Code = "AR" },
+            new TransportRoute { TenantId = 101, CampusId = inactive.Id, Name = "Inactive route", Code = "IR" },
+            new TransportRoute { TenantId = 101, Name = "Shared route", Code = "SH" },
+            new Vehicle { TenantId = 101, CampusId = active.Id, VehicleNumber = "ACTIVE-BUS", Capacity = 20 },
+            new Vehicle { TenantId = 101, CampusId = inactive.Id, VehicleNumber = "INACTIVE-BUS", Capacity = 20 });
+        var first = new Student { TenantId = 101, PersonId = 1, StudentCode = "ACTIVE-STU", FullName = "Active learner", StatusCode = "Active" };
+        var second = new Student { TenantId = 101, PersonId = 2, StudentCode = "INACTIVE-STU", FullName = "Inactive learner", StatusCode = "Active" };
+        db.AddRange(first, second);
+        await db.SaveChangesAsync();
+        db.AddRange(
+            new StudentEnrollment { TenantId = 101, StudentId = first.Id, CampusId = active.Id, PublicId = Guid.NewGuid(),
+                ClientRequestId = Guid.NewGuid(), IsCurrent = true, State = EnrollmentState.Active,
+                AcademicYearId = 1, AcademicProgramId = 1, AcademicLevelId = 1, AcademicBatchId = 1,
+                AcademicCurriculumId = 1, RollNo = "1" },
+            new StudentEnrollment { TenantId = 101, StudentId = second.Id, CampusId = inactive.Id, PublicId = Guid.NewGuid(),
+                ClientRequestId = Guid.NewGuid(), IsCurrent = true, State = EnrollmentState.Active,
+                AcademicYearId = 1, AcademicProgramId = 1, AcademicLevelId = 1, AcademicBatchId = 1,
+                AcademicCurriculumId = 1, RollNo = "2" });
+        await db.SaveChangesAsync();
+        var service = CreateService(db, 101);
+        (await service.GetRoutesAsync()).Data!.Select(x => x.Name).Should().BeEquivalentTo(["Active route", "Shared route"]);
+        (await service.GetVehiclesAsync()).Data!.Select(x => x.VehicleNumber).Should().Equal("ACTIVE-BUS");
+        var eligible = await service.GetEligibleStudentsAsync(1, 25, null);
+        eligible.Success.Should().BeTrue();
+        eligible.Data!.Items.Select(x => x.StudentCode).Should().Equal("ACTIVE-STU");
+        eligible.Data.TotalCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Tenant_admin_cannot_assign_transport_to_inactive_campus()
+    {
+        await using var db = CreateContext(CreateOptions(), 101);
+        var campus = new Campus { TenantId = 101, Name = "Inactive", Code = "INACTIVE", IsActive = false };
+        var student = new Student { TenantId = 101, PersonId = 1, StudentCode = "STU-1", FullName = "Learner", StatusCode = "Active" };
+        db.AddRange(campus, student);
+        await db.SaveChangesAsync();
+        var enrollment = new StudentEnrollment
+        {
+            TenantId = 101, StudentId = student.Id, CampusId = campus.Id, PublicId = Guid.NewGuid(),
+            ClientRequestId = Guid.NewGuid(), IsCurrent = true, State = EnrollmentState.Active,
+            AcademicYearId = 1, AcademicProgramId = 1, AcademicLevelId = 1, AcademicBatchId = 1,
+            AcademicCurriculumId = 1, RollNo = "1"
+        };
+        var route = new TransportRoute { TenantId = 101, CampusId = campus.Id, Name = "Route", Code = "R" };
+        var vehicle = new Vehicle { TenantId = 101, CampusId = campus.Id, VehicleNumber = "BUS", Capacity = 5 };
+        db.AddRange(enrollment, route, vehicle);
+        await db.SaveChangesAsync();
+        db.Add(new RouteVehicleAssignment { TenantId = 101, RouteId = route.Id, VehicleId = vehicle.Id,
+            IsCurrent = true, EffectiveFrom = DateOnly.FromDateTime(DateTime.Today.AddDays(-1)) });
+        await db.SaveChangesAsync();
+        var result = await CreateService(db, 101).AssignAsync(new AssignStudentTransportRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), StudentEnrollmentReference = enrollment.PublicId,
+            RouteReference = route.PublicId, VehicleReference = vehicle.PublicId
+        });
+        result.Success.Should().BeFalse();
+        result.StatusCode.Should().Be(409);
+        (await db.Set<StudentTransport>().CountAsync()).Should().Be(0);
     }
 
     private static TransportService CreateService(EduOSDbContext context, long tenant, bool canManage = true, string? role = null) => new(

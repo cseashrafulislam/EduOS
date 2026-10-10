@@ -241,20 +241,27 @@ public sealed class AdmissionAssessmentService : IAdmissionAssessmentService
                     x.TenantId == tenant && x.Id == testId && !x.IsDeleted, token);
                 if (test == null) return ApiResponse<bool>.ErrorResponse("Admission test not found.", 404);
                 if (test.IsPublished) return ApiResponse<bool>.SuccessResponse(true);
-                var applicants = _applicants.GetQueryable().AsNoTracking().Where(x =>
+                var applicants = _applicants.GetQueryable().Where(x =>
                     x.TenantId == tenant && x.AdmissionIntakeFormId == test.AdmissionIntakeFormId && !x.IsDeleted);
                 var records = await (from entry in _results.GetQueryable()
                     join applicant in applicants on entry.AdmissionApplicantId equals applicant.Id
                     where entry.TenantId == tenant && entry.AdmissionTestId == testId && !entry.IsDeleted
-                    select new { Result = entry, applicant.SubmittedAt }).ToListAsync(token);
+                    select new { Result = entry, applicant.SubmittedAt }).AsTracking().ToListAsync(token);
                 if (records.Count == 0)
                     return ApiResponse<bool>.ErrorResponse("At least one result is required.", 409);
                 var ranked = records.Where(x => x.Result.IsPassed)
                     .OrderByDescending(x => x.Result.ObtainedMarks)
                     .ThenBy(x => x.SubmittedAt).ThenBy(x => x.Result.AdmissionApplicantId).ToArray();
-                for (var i = 0; i < ranked.Length; i++) ranked[i].Result.MeritPosition = i + 1;
+                for (var i = 0; i < ranked.Length; i++)
+                {
+                    ranked[i].Result.MeritPosition = i + 1;
+                    _results.Update(ranked[i].Result);
+                }
                 foreach (var failed in records.Where(x => !x.Result.IsPassed))
+                {
                     failed.Result.MeritPosition = null;
+                    _results.Update(failed.Result);
+                }
                 test.IsPublished = true;
                 test.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
                 test.UpdatedBy = _currentUser.UserId;

@@ -101,6 +101,12 @@ public sealed class AdmissionAssessmentServiceTests
         published.Data.Results.Single(x => x.AdmissionApplicantReference == failed.PublicId)
             .MeritPosition.Should().BeNull();
         edited.StatusCode.Should().Be(409);
+        await using var verify = Context(options, 101);
+        var persisted = await verify.Set<AdmissionResult>().AsNoTracking()
+            .Where(x => x.AdmissionTestId == test.Data.Id).ToListAsync();
+        persisted.Single(x => x.AdmissionApplicantId == first.Id).MeritPosition.Should().Be(1);
+        persisted.Single(x => x.AdmissionApplicantId == second.Id).MeritPosition.Should().Be(2);
+        persisted.Single(x => x.AdmissionApplicantId == failed.Id).MeritPosition.Should().BeNull();
     }
 
     [Fact]

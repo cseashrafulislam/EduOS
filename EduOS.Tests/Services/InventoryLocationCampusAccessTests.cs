@@ -145,8 +145,19 @@ public sealed class InventoryLocationCampusAccessTests
         { TenantId = 101, CampusId = first.Id, Code = $"A{i:D3}", Name = $"Store {i}" }));
         db.InventoryLocations.Add(new InventoryLocation { TenantId = 101, CampusId = blocked.Id, Code = "B001", Name = "Blocked" });
         db.InventoryLocations.Add(new InventoryLocation { TenantId = 101, Code = "SHARED", Name = "Shared" });
-        db.InventoryLocations.Add(new InventoryLocation { TenantId = 202, Code = "FOREIGN", Name = "Other tenant" });
         await db.SaveChangesAsync();
+        // Seed the foreign tenant with its own tenant context; never bypass the write guard.
+        var foreignHttp = new DefaultHttpContext();
+        foreignHttp.Items["TenantId"] = 202L;
+        await using (var foreignDb = new EduOSDbContext(options,
+            new HttpContextAccessor { HttpContext = foreignHttp }))
+        {
+            foreignDb.InventoryLocations.Add(new InventoryLocation
+            { TenantId = 202, Code = "FOREIGN", Name = "Other tenant" });
+            await foreignDb.SaveChangesAsync();
+            (await foreignDb.InventoryLocations.CountAsync()).Should().Be(1);
+        }
+        (await db.InventoryLocations.AnyAsync(x => x.Code == "FOREIGN")).Should().BeFalse();
         var service = new InventoryCatalogService(db, new User(101, "InventoryManager"),
             TimeProvider.System, NullLogger<InventoryCatalogService>.Instance);
         (await service.GetLocationsAsync(null)).Data!.Should().HaveCount(121);
@@ -164,6 +175,39 @@ public sealed class InventoryLocationCampusAccessTests
         (await new InventoryCatalogService(db, new User(101, "Student"),
             TimeProvider.System, NullLogger<InventoryCatalogService>.Instance)
             .GetLocationsPageAsync(1, 25, null, null)).StatusCode.Should().Be(403);
+    }
+
+    [Fact]
+    public async Task Tenant_admin_location_reads_hide_inactive_campuses_until_reactivated()
+    {
+        var options = new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("inventory-admin-campus-" + Guid.NewGuid().ToString("N")).Options;
+        var http = new DefaultHttpContext();
+        http.Items["TenantId"] = 101L;
+        await using var db = new EduOSDbContext(options, new HttpContextAccessor { HttpContext = http });
+        var active = new Campus { TenantId = 101, Code = "A", Name = "Active" };
+        var disabled = new Campus { TenantId = 101, Code = "B", Name = "Disabled" };
+        db.Campuses.AddRange(active, disabled);
+        await db.SaveChangesAsync();
+        db.InventoryLocations.AddRange(
+            new InventoryLocation { TenantId = 101, CampusId = active.Id, Code = "A1", Name = "Active Store" },
+            new InventoryLocation { TenantId = 101, CampusId = disabled.Id, Code = "B1", Name = "Disabled Store" },
+            new InventoryLocation { TenantId = 101, Code = "SHARED", Name = "Shared Store" });
+        await db.SaveChangesAsync();
+        var admin = new InventoryCatalogService(db, new User(101, "TenantAdmin"),
+            TimeProvider.System, NullLogger<InventoryCatalogService>.Instance);
+        (await admin.GetLocationsAsync(null)).Data!.Select(x => x.Code)
+            .Should().BeEquivalentTo(["A1", "B1", "SHARED"]);
+        disabled.IsActive = false;
+        await db.SaveChangesAsync();
+        (await admin.GetLocationsAsync(null)).Data!.Select(x => x.Code)
+            .Should().BeEquivalentTo(["A1", "SHARED"]);
+        (await admin.GetLocationsAsync(disabled.Id)).Data!.Should().BeEmpty();
+        (await admin.GetLocationsPageAsync(1, 25, null, "B1")).Data!.TotalCount.Should().Be(0);
+        disabled.IsActive = true;
+        await db.SaveChangesAsync();
+        (await admin.GetLocationsPageAsync(1, 25, null, "B1")).Data!.Items
+            .Select(x => x.Code).Should().ContainSingle().Which.Should().Be("B1");
     }
 
     private sealed class User(long tenantId, string role) : ICurrentUserService

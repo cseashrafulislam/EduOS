@@ -362,6 +362,12 @@ public sealed partial class ExamWorkflowService : IAssessmentAdministrationServi
                     x.AcademicBatchId == request.AcademicBatchId && !x.IsDeleted, token);
                 if (prior)
                     return Error<ResultPublicationDto>("Existing publication requires controlled version management.", 409);
+                var enrolled = await _enrollments.GetQueryable().AsNoTracking().Where(x =>
+                    x.TenantId == _user.TenantId && x.AcademicBatchId == scope.Value.Batch.Id &&
+                    x.State == EnrollmentState.Active && x.IsCurrent && !x.IsDeleted)
+                    .ToDictionaryAsync(x => x.RollNo, token);
+                if (calculated.Sheet!.Results.Any(result => !enrolled.ContainsKey(result.RollNo)))
+                    return Error<ResultPublicationDto>("Student enrollment roster changed.", 409);
                 var now = _clock.GetUtcNow().UtcDateTime;
                 var publication = new ResultPublication
                 {
@@ -376,14 +382,9 @@ public sealed partial class ExamWorkflowService : IAssessmentAdministrationServi
                 };
                 await _publications.AddAsync(publication);
                 await _uow.SaveChangesAsync(token);
-                var enrolled = await _enrollments.GetQueryable().AsNoTracking().Where(x =>
-                    x.TenantId == _user.TenantId && x.AcademicBatchId == scope.Value.Batch.Id &&
-                    x.State == EnrollmentState.Active && x.IsCurrent && !x.IsDeleted)
-                    .ToDictionaryAsync(x => x.RollNo, token);
-                foreach (var result in calculated.Sheet!.Results)
+                foreach (var result in calculated.Sheet.Results)
                 {
-                    if (!enrolled.TryGetValue(result.RollNo, out var enrollment))
-                        return Error<ResultPublicationDto>("Student enrollment roster changed.", 409);
+                    var enrollment = enrolled[result.RollNo];
                     await _summaries.AddAsync(new StudentResultSummary
                     {
                         TenantId = _user.TenantId, ResultPublicationId = publication.Id,

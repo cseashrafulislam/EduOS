@@ -58,7 +58,8 @@ public sealed class TransportService : ITransportService
     {
         if (!CanManage()) return Denied<IReadOnlyList<RouteDto>>();
         var tenant = _currentUser.TenantId;
-        var routesQuery = _routes.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant && x.IsActive);
+        var routesQuery = _routes.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant && x.IsActive &&
+            (!x.CampusId.HasValue || _campuses.GetQueryable().Any(c => c.TenantId == tenant && c.Id == x.CampusId.Value && c.IsActive)));
         if (!_currentUser.IsTenantAdmin)
         {
             var allowed = AllowedCampusIds(tenant);
@@ -89,7 +90,8 @@ public sealed class TransportService : ITransportService
     {
         if (!CanManage()) return Denied<IReadOnlyList<VehicleDto>>();
         var tenant = _currentUser.TenantId;
-        var vehiclesQuery = _vehicles.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant && x.IsActive);
+        var vehiclesQuery = _vehicles.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant && x.IsActive &&
+            (!x.CampusId.HasValue || _campuses.GetQueryable().Any(c => c.TenantId == tenant && c.Id == x.CampusId.Value && c.IsActive)));
         if (!_currentUser.IsTenantAdmin)
         {
             var allowed = AllowedCampusIds(tenant);
@@ -122,6 +124,7 @@ public sealed class TransportService : ITransportService
                     join student in _students.GetQueryable().AsNoTracking() on enrollment.StudentId equals student.Id
                     where enrollment.TenantId == tenant && student.TenantId == tenant && student.StatusCode == "Active" &&
                           enrollment.IsCurrent && enrollment.State == EnrollmentState.Active &&
+                          _campuses.GetQueryable().Any(c => c.TenantId == tenant && c.Id == enrollment.CampusId && c.IsActive) &&
                           !_assignments.GetQueryable().Any(x => x.TenantId == tenant && x.StudentId == student.Id &&
                               x.State == TransportAssignmentState.Active)
                     select new { enrollment.PublicId, enrollment.CampusId, student.FullName, student.StudentCode, enrollment.RollNo };
@@ -253,6 +256,8 @@ public sealed class TransportService : ITransportService
                 x.PublicId == request.StudentEnrollmentReference && x.IsCurrent &&
                 x.State == EnrollmentState.Active, cancellationToken);
             if (enrollment == null) return Error("Active student enrollment not found.", 404);
+            if (!await _campuses.GetQueryable().AsNoTracking().AnyAsync(c => c.TenantId == tenant && c.Id == enrollment.CampusId && c.IsActive, cancellationToken))
+                return Error("Enrollment campus is inactive.", 409);
             if (!await CanManageCampusAsync(enrollment.CampusId, tenant, cancellationToken))
                 return Denied<StudentTransportDto>();
             var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
@@ -340,11 +345,17 @@ public sealed class TransportService : ITransportService
                 if (!campus.HasValue || !await CanManageCampusAsync(campus.Value, tenant, cancellationToken))
                     return Denied<StudentTransportDto>();
             }
+            var endDate = request.EndDate == default ? DateOnly.FromDateTime(_clock.GetLocalNow().DateTime) : request.EndDate;
+            if (entity.State == TransportAssignmentState.Closed)
+            {
+                if (entity.EndDate.HasValue && (request.EndDate == default || entity.EndDate.Value == endDate))
+                    return ApiResponse<StudentTransportDto>.SuccessResponse(await MapAsync(entity, cancellationToken), "Assignment already closed.");
+                return Error("Assignment was already closed with a different end date.", 409);
+            }
             if (entity.State != TransportAssignmentState.Active)
-                return ApiResponse<StudentTransportDto>.SuccessResponse(await MapAsync(entity, cancellationToken), "Assignment already closed.");
+                return Error("Assignment cannot be closed in its current state.", 409);
             if (!TryDecodeVersion(request.RowVersion, out var version) || !entity.RowVersion.AsSpan().SequenceEqual(version))
                 return Error("Assignment was changed. Reload and retry.", 409);
-            var endDate = request.EndDate == default ? DateOnly.FromDateTime(_clock.GetLocalNow().DateTime) : request.EndDate;
             if (endDate < entity.StartDate) return Error("End date cannot precede start date.");
             entity.EndDate = endDate;
             entity.State = TransportAssignmentState.Closed;

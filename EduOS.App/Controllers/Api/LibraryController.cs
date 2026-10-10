@@ -13,6 +13,7 @@ namespace EduOS.App.Controllers.Api;
 [RequireModule("LIBRARY")]
 [AutoValidateAntiforgeryToken]
 [EnableRateLimiting("ApiPolicy")]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class LibraryController : ControllerBase
 {
     private readonly ILibraryService _service;

@@ -416,6 +416,9 @@ public sealed class LmsWorkflowService : ILmsWorkflowService
         var assignment = await _assignments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == tenant && x.PublicId == request.AssignmentReference && x.IsPublished && !x.IsDeleted, ct);
         if (assignment == null) return Error<AssignmentSubmissionDto>("Assignment not found.", 404);
+        if (!await _courses.GetQueryable().AsNoTracking().AnyAsync(x =>
+            x.TenantId == tenant && x.Id == assignment.CourseId && x.IsActive && !x.IsDeleted, ct))
+            return Error<AssignmentSubmissionDto>("Course is not available.", 409);
         var enrollment = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == tenant && x.Id == request.CourseEnrollmentId && x.CourseId == assignment.CourseId &&
             x.State == CourseEnrollmentState.Active && !x.IsDeleted, ct);
@@ -429,8 +432,9 @@ public sealed class LmsWorkflowService : ILmsWorkflowService
             assignment.DueAt.HasValue && assignment.DueAt < now)
             return Error<AssignmentSubmissionDto>("Assignment submission window is closed.", 409);
         if (request.FileAssetId.HasValue && !await _files.GetQueryable().AsNoTracking().AnyAsync(x =>
-            x.TenantId == tenant && x.Id == request.FileAssetId.Value && x.IsVerifiedSafe && !x.IsDeleted, ct))
-            return Error<AssignmentSubmissionDto>("Safe uploaded file not found.", 409);
+            x.TenantId == tenant && x.Id == request.FileAssetId.Value &&
+            x.UploadedByUserId == _user.UserId && x.IsVerifiedSafe && !x.IsDeleted, ct))
+            return Error<AssignmentSubmissionDto>("Submission file is unavailable.", 409);
         try
         {
             return await _uow.ExecuteInTransactionAsync(async token =>

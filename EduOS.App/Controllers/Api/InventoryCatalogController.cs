@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 namespace EduOS.App.Controllers.Api;
 [ApiController, Route("api/inventory/catalog"), Authorize, RequireModule("INVENTORY"), AutoValidateAntiforgeryToken, EnableRateLimiting("ApiPolicy")]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class InventoryCatalogController : ControllerBase
 {
     private readonly IInventoryCatalogService service;

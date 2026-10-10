@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 namespace EduOS.App.Controllers;
 
-[Authorize]
+[Authorize(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper,Accountant")]
 [RequireModule("INVENTORY")]
 public sealed class InventoryCatalogController : Controller
 {
