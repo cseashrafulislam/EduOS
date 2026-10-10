@@ -219,8 +219,8 @@
             return;
         }
 
-        if (Number(onboarding?.currentStep) !== 9) {
-            window.location.assign(safeLocalUrl(onboarding?.nextStepUrl));
+        if (Number(onboarding?.currentStage) !== 7) {
+            window.location.assign(safeLocalUrl(window.eduosOnboardingStageUrl(onboarding?.currentStage)));
             return;
         }
 
@@ -234,7 +234,7 @@
                     'Accept': 'application/json',
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ step: 9, skipped: false })
+                body: JSON.stringify({ stage: 7, skipped: false })
             });
             const payload = await response.json().catch(() => null);
             if (!response.ok || !payload?.success) {
@@ -289,7 +289,7 @@
 
     function continueActionLabel() {
         if (onboarding?.isComplete) return i18n.dashboard || '';
-        if (onboarding && Number(onboarding.currentStep) !== 9) return i18n.continueSetup || '';
+        if (onboarding && Number(onboarding.currentStage) !== 7) return i18n.continueSetup || '';
         return continueButton?.dataset.idleLabel || i18n.continueLabel || '';
     }
 
