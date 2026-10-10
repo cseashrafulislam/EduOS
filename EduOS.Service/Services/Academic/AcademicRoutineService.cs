@@ -7,7 +7,7 @@ using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using System.Transactions;
+using System.Security.Cryptography;
 
 namespace EduOS.Service.Services.Academic;
 
@@ -63,7 +63,7 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
         _logger = logger;
     }
 
-    public async Task<ApiResponse<IReadOnlyList<AcademicInstructorChoiceDto>>> GetInstructorChoicesAsync(string? search, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<IReadOnlyList<AcademicInstructorChoiceDto>>> GetInstructorChoicesAsync(string? search, int take = 50, CancellationToken cancellationToken = default)
     {
         if (!CanManage()) return Denied<IReadOnlyList<AcademicInstructorChoiceDto>>();
         if (search?.Length > 100) return Error<IReadOnlyList<AcademicInstructorChoiceDto>>("Search is too long.");
@@ -74,7 +74,7 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
             query = query.Where(x => x.FullName.StartsWith(term) || x.EmployeeCode.StartsWith(term));
         IReadOnlyList<AcademicInstructorChoiceDto> rows = await query.OrderBy(x => x.FullName).ThenBy(x => x.Id)
             .Select(x => new AcademicInstructorChoiceDto { Id = x.Id, Name = x.FullName, EmployeeCode = x.EmployeeCode })
-            .Take(100).ToListAsync(cancellationToken);
+            .Take(Math.Clamp(take, 1, 100)).ToListAsync(cancellationToken);
         return ApiResponse<IReadOnlyList<AcademicInstructorChoiceDto>>.SuccessResponse(rows);
     }
 
@@ -88,62 +88,44 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
         return ApiResponse<IReadOnlyList<RoutineTimeSlotDto>>.SuccessResponse(rows);
     }
 
-    public async Task<ApiResponse<RoutineTimeSlotDto>> CreateTimeSlotAsync(CreateRoutineTimeSlotDto request, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<RoutineTimeSlotDto>> CreateTimeSlotAsync(SaveRoutineTimeSlotRequestDto request, CancellationToken ct = default)
     {
         if (!CanManage()) return Denied<RoutineTimeSlotDto>();
-        if (request == null || string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 100)
-            return Error<RoutineTimeSlotDto>("Time-slot name is required.");
-        if (request.StartTime < TimeSpan.Zero || request.EndTime <= request.StartTime || request.EndTime >= TimeSpan.FromDays(1))
-            return Error<RoutineTimeSlotDto>("Time-slot start and end time are invalid.");
-
-        var tenantId = _currentUser.TenantId;
+        if (request == null || string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 100 ||
+            request.StartTime >= request.EndTime || request.EndTime == default || request.DisplayOrder < 0)
+            return Error<RoutineTimeSlotDto>("Invalid time-slot name or time range.");
+        var tenant = _currentUser.TenantId;
         var name = request.Name.Trim();
-        var start = TimeOnly.FromTimeSpan(request.StartTime);
-        var end = TimeOnly.FromTimeSpan(request.EndTime);
         try
         {
-            var strategy = _unitOfWork.CreateExecutionStrategy();
-            return await strategy.ExecuteAsync(async () =>
+            return await _unitOfWork.ExecuteInTransactionAsync(async token =>
             {
-                using var scope = SerializableScope();
-                var existing = await _timeSlots.GetQueryable()
-                    .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.IsActive &&
-                                              (x.Name == name || (x.StartTime == start && x.EndTime == end)), cancellationToken);
+                var existing = await _timeSlots.GetQueryable().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && (x.Name == name ||
+                    (x.IsActive && x.StartTime == request.StartTime && x.EndTime == request.EndTime)), token);
                 if (existing != null)
                 {
-                    if (existing.Name != name || existing.StartTime != start || existing.EndTime != end || existing.IsBreak != request.IsBreak)
-                        return Error<RoutineTimeSlotDto>("An active time slot already uses this name or exact time range.", 409);
-                    scope.Complete();
+                    if (existing.Name != name || existing.StartTime != request.StartTime ||
+                        existing.EndTime != request.EndTime || existing.IsBreak != request.IsBreak ||
+                        existing.IsActive != request.IsActive || existing.DisplayOrder != request.DisplayOrder)
+                        return Error<RoutineTimeSlotDto>("Time slot conflicts with an existing slot.", 409);
                     return ApiResponse<RoutineTimeSlotDto>.SuccessResponse(MapTimeSlot(existing), "Time slot already exists.");
                 }
-
                 var row = new RoutineTimeSlot
                 {
-                    TenantId = tenantId,
-                    Name = name,
-                    StartTime = start,
-                    EndTime = end,
-                    IsBreak = request.IsBreak,
-                    IsActive = true,
-                    DisplayOrder = 0,
-                    CreatedAt = _clock.GetUtcNow().UtcDateTime,
-                    CreatedBy = _currentUser.UserId
+                    TenantId = tenant, Name = name, StartTime = request.StartTime, EndTime = request.EndTime,
+                    IsBreak = request.IsBreak, IsActive = request.IsActive, DisplayOrder = request.DisplayOrder,
+                    CreatedAt = _clock.GetUtcNow().UtcDateTime, CreatedBy = _currentUser.UserId
                 };
                 await _timeSlots.AddAsync(row);
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
-                scope.Complete();
+                await _unitOfWork.SaveChangesAsync(token);
                 return Created(MapTimeSlot(row), "Time slot created.");
-            });
+            }, ct);
         }
         catch (DbUpdateException ex)
         {
-            _logger.LogWarning(ex, "Conflicting routine time slot for tenant {TenantId}", tenantId);
-            return Error<RoutineTimeSlotDto>("Time slot conflicts with another update. Reload and try again.", 409);
-        }
-        catch (TransactionAbortedException ex)
-        {
-            _logger.LogWarning(ex, "Serialized time-slot transaction aborted for tenant {TenantId}", tenantId);
-            return Error<RoutineTimeSlotDto>("Time slot conflicts with another update. Reload and try again.", 409);
+            _logger.LogWarning(ex, "Time-slot write conflict for tenant {TenantId}", tenant);
+            return Error<RoutineTimeSlotDto>("Time slot conflicts with another update.", 409);
         }
     }
 
@@ -175,82 +157,63 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
     }
 
     public async Task<ApiResponse<InstructorAssignmentDto>> AssignInstructorAsync(
-        AssignInstructorDto request, CancellationToken cancellationToken = default)
+        SaveInstructorAssignmentRequestDto request, CancellationToken ct = default)
     {
         if (!CanManage()) return Denied<InstructorAssignmentDto>();
-        if (request == null || request.AcademicBatchId <= 0 || request.SubjectId <= 0 || request.EmployeeId <= 0)
-            return Error<InstructorAssignmentDto>("Batch, subject and instructor are required.");
-        if (request.IsClassAdvisor)
-            return Error<InstructorAssignmentDto>("Class-advisor assignment is not represented by the final instructor-assignment model.", 409);
-
-        var tenantId = _currentUser.TenantId;
+        if (request == null || request.SubjectOfferingReference == Guid.Empty || request.EmployeeReference == Guid.Empty ||
+            request.EffectiveFrom == default || (request.EffectiveTo.HasValue && request.EffectiveTo < request.EffectiveFrom))
+            return Error<InstructorAssignmentDto>("Invalid instructor, subject offering or effective dates.");
+        var tenant = _currentUser.TenantId;
         try
         {
-            var strategy = _unitOfWork.CreateExecutionStrategy();
-            return await strategy.ExecuteAsync(async () =>
+            return await _unitOfWork.ExecuteInTransactionAsync(async token =>
             {
-                using var scope = SerializableScope();
-                var batch = await GetBatchAsync(request.AcademicBatchId, cancellationToken);
-                if (batch == null) return Error<InstructorAssignmentDto>("Academic batch not found.", 404);
-                var term = await ResolveTermAsync(batch, request.AcademicTermId, cancellationToken);
-                if (!term.IsValid) return Error<InstructorAssignmentDto>(term.Error!);
-
-                var employee = await _employees.GetQueryable().AsNoTracking()
-                    .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.EmployeeId &&
-                                              x.State == EmployeeState.Active && x.CanTeach, cancellationToken);
+                var offering = await _offerings.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.PublicId == request.SubjectOfferingReference && x.IsActive, token);
+                if (offering == null) return Error<InstructorAssignmentDto>("Subject offering not found.", 404);
+                var batch = await GetBatchAsync(offering.AcademicBatchId, token);
+                if (batch == null || batch.AcademicYearId != offering.AcademicYearId)
+                    return Error<InstructorAssignmentDto>("Subject offering batch is unavailable.", 409);
+                var employee = await _employees.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.PublicId == request.EmployeeReference &&
+                    x.CanTeach && x.State == EmployeeState.Active, token);
                 if (employee == null) return Error<InstructorAssignmentDto>("Active instructor not found.", 404);
-
-                var offering = await ResolveOfferingAsync(batch, term.TermId, request.SubjectId, cancellationToken);
-                if (offering == null)
-                    return Error<InstructorAssignmentDto>("An active subject offering for this batch, term and subject is required before assigning an instructor.", 409);
-
-                var existing = await _assignments.GetQueryable()
-                    .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.SubjectOfferingId == offering.Id &&
-                                              x.EmployeeId == employee.Id && x.IsActive, cancellationToken);
+                var range = await ResolveEffectiveRangeAsync(batch, offering.AcademicTermId, token);
+                if (!range.IsValid || request.EffectiveFrom < range.From ||
+                    request.EffectiveTo.GetValueOrDefault(range.To ?? DateOnly.MaxValue) >
+                    range.To.GetValueOrDefault(DateOnly.MaxValue))
+                    return Error<InstructorAssignmentDto>("Assignment dates must belong to the academic year or term.", 409);
+                var existing = await _assignments.GetQueryable().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.SubjectOfferingId == offering.Id &&
+                    x.EmployeeId == employee.Id && x.IsActive, token);
                 if (existing != null)
                 {
-                    if (existing.IsPrimary != request.IsPrimary)
-                        return Error<InstructorAssignmentDto>("Instructor is already assigned with different primary-instructor settings.", 409);
-                    var mapped = await MapAssignmentsAsync([existing], cancellationToken);
-                    scope.Complete();
-                    return ApiResponse<InstructorAssignmentDto>.SuccessResponse(mapped[0], "Instructor assignment already exists.");
+                    if (existing.IsPrimary != request.IsPrimary || existing.EffectiveFrom != request.EffectiveFrom ||
+                        existing.EffectiveTo != request.EffectiveTo || existing.IsActive != request.IsActive)
+                        return Error<InstructorAssignmentDto>("Instructor assignment already exists with different details.", 409);
+                    return ApiResponse<InstructorAssignmentDto>.SuccessResponse(
+                        (await MapAssignmentsAsync([existing], token))[0], "Instructor already assigned.");
                 }
-
-                if (request.IsPrimary && await _assignments.GetQueryable().AsNoTracking()
-                    .AnyAsync(x => x.TenantId == tenantId && x.SubjectOfferingId == offering.Id && x.IsPrimary && x.IsActive, cancellationToken))
-                    return Error<InstructorAssignmentDto>("This subject offering already has a primary instructor.", 409);
-
-                var effective = await ResolveEffectiveRangeAsync(batch, term.TermId, cancellationToken);
-                if (!effective.IsValid) return Error<InstructorAssignmentDto>(effective.Error!);
-
+                if (request.IsPrimary && request.IsActive && await _assignments.GetQueryable().AsNoTracking()
+                    .AnyAsync(x => x.TenantId == tenant && x.SubjectOfferingId == offering.Id &&
+                        x.IsPrimary && x.IsActive, token))
+                    return Error<InstructorAssignmentDto>("Subject offering already has a primary instructor.", 409);
                 var row = new InstructorAssignment
                 {
-                    TenantId = tenantId,
-                    SubjectOfferingId = offering.Id,
-                    EmployeeId = employee.Id,
-                    IsPrimary = request.IsPrimary,
-                    EffectiveFrom = effective.From,
-                    EffectiveTo = effective.To,
-                    IsActive = true,
-                    CreatedAt = _clock.GetUtcNow().UtcDateTime,
-                    CreatedBy = _currentUser.UserId
+                    TenantId = tenant, SubjectOfferingId = offering.Id, EmployeeId = employee.Id,
+                    IsPrimary = request.IsPrimary, EffectiveFrom = request.EffectiveFrom,
+                    EffectiveTo = request.EffectiveTo, IsActive = request.IsActive,
+                    CreatedAt = _clock.GetUtcNow().UtcDateTime, CreatedBy = _currentUser.UserId
                 };
                 await _assignments.AddAsync(row);
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
-                var result = await MapAssignmentsAsync([row], cancellationToken);
-                scope.Complete();
-                return Created(result[0], "Instructor assigned.");
-            });
+                await _unitOfWork.SaveChangesAsync(token);
+                return Created((await MapAssignmentsAsync([row], token))[0], "Instructor assigned.");
+            }, ct);
         }
         catch (DbUpdateException ex)
         {
-            _logger.LogWarning(ex, "Conflicting instructor assignment for tenant {TenantId}", tenantId);
-            return Error<InstructorAssignmentDto>("Instructor assignment conflicts with another update. Reload and try again.", 409);
-        }
-        catch (TransactionAbortedException ex)
-        {
-            _logger.LogWarning(ex, "Serialized instructor-assignment transaction aborted for tenant {TenantId}", tenantId);
-            return Error<InstructorAssignmentDto>("Instructor assignment conflicts with another update. Reload and try again.", 409);
+            _logger.LogWarning(ex, "Instructor assignment conflict for tenant {TenantId}", tenant);
+            return Error<InstructorAssignmentDto>("Instructor assignment conflicts with another update.", 409);
         }
     }
 
@@ -319,149 +282,147 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
     }
 
     public async Task<ApiResponse<RoutineEntryDto>> CreateEntryAsync(
-        CreateRoutineEntryDto request, CancellationToken cancellationToken = default)
+        SaveRoutineEntryRequestDto request, CancellationToken ct = default)
     {
         if (!CanManage()) return Denied<RoutineEntryDto>();
-        if (request == null || request.InstructorAssignmentId <= 0 || request.RoutineTimeSlotId <= 0 ||
-            !Enum.IsDefined(typeof(DayOfWeek), request.DayOfWeek))
-            return Error<RoutineEntryDto>("Routine entry request is invalid.");
-
-        var tenantId = _currentUser.TenantId;
+        if (request == null || request.SubjectOfferingReference == Guid.Empty || request.RoutineTimeSlotId <= 0 ||
+            !Enum.IsDefined(request.DayOfWeek) || request.EffectiveFrom == default ||
+            (request.EffectiveTo.HasValue && request.EffectiveTo < request.EffectiveFrom) ||
+            (request.InstructorAssignmentId.HasValue && request.InstructorAssignmentId <= 0))
+            return Error<RoutineEntryDto>("Invalid routine entry.");
+        var tenant = _currentUser.TenantId;
         try
         {
-            var strategy = _unitOfWork.CreateExecutionStrategy();
-            return await strategy.ExecuteAsync(async () =>
+            return await _unitOfWork.ExecuteInTransactionAsync(async token =>
             {
-                using var scope = SerializableScope();
-                var assignment = await _assignments.GetQueryable().AsNoTracking()
-                    .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.InstructorAssignmentId && x.IsActive, cancellationToken);
-                if (assignment == null) return Error<RoutineEntryDto>("Instructor assignment not found.", 404);
-                var offering = await _offerings.GetQueryable().AsNoTracking()
-                    .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == assignment.SubjectOfferingId && x.IsActive, cancellationToken);
-                if (offering == null) return Error<RoutineEntryDto>("Subject offering is unavailable.", 409);
-                var batch = await GetBatchAsync(offering.AcademicBatchId, cancellationToken);
-                if (batch == null) return Error<RoutineEntryDto>("Academic batch is unavailable.", 409);
-                var slot = await _timeSlots.GetQueryable().AsNoTracking()
-                    .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.RoutineTimeSlotId && x.IsActive, cancellationToken);
-                if (slot == null) return Error<RoutineEntryDto>("Routine time slot not found.", 404);
-                if (slot.IsBreak) return Error<RoutineEntryDto>("A break time slot cannot contain a class.", 409);
+                var offering = await _offerings.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.PublicId == request.SubjectOfferingReference && x.IsActive, token);
+                if (offering == null) return Error<RoutineEntryDto>("Subject offering not found.", 404);
+                var batch = await GetBatchAsync(offering.AcademicBatchId, token);
+                if (batch == null || batch.AcademicYearId != offering.AcademicYearId)
+                    return Error<RoutineEntryDto>("Academic batch is unavailable.", 409);
+                var range = await ResolveEffectiveRangeAsync(batch, offering.AcademicTermId, token);
+                if (!range.IsValid || request.EffectiveFrom < range.From ||
+                    request.EffectiveTo.GetValueOrDefault(range.To ?? DateOnly.MaxValue) >
+                    range.To.GetValueOrDefault(DateOnly.MaxValue))
+                    return Error<RoutineEntryDto>("Routine dates must belong to the academic year or term.", 409);
+                var slot = await _timeSlots.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Id == request.RoutineTimeSlotId && x.IsActive, token);
+                if (slot == null) return Error<RoutineEntryDto>("Active time slot not found.", 404);
+                if (slot.IsBreak) return Error<RoutineEntryDto>("Cannot schedule a class during a break.", 409);
 
+                InstructorAssignment? assignment = null;
+                if (request.InstructorAssignmentId.HasValue)
+                {
+                    assignment = await _assignments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                        x.TenantId == tenant && x.Id == request.InstructorAssignmentId.Value &&
+                        x.SubjectOfferingId == offering.Id && x.IsActive, token);
+                    if (assignment == null) return Error<RoutineEntryDto>("Instructor assignment not found for this subject offering.", 409);
+                    if (request.EffectiveFrom < assignment.EffectiveFrom ||
+                        request.EffectiveTo.GetValueOrDefault(DateOnly.MaxValue) >
+                        assignment.EffectiveTo.GetValueOrDefault(DateOnly.MaxValue))
+                        return Error<RoutineEntryDto>("Routine dates must be covered by instructor assignment.", 409);
+                }
                 Room? room = null;
                 if (request.RoomId.HasValue)
                 {
-                    room = await _rooms.GetQueryable().AsNoTracking()
-                        .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.RoomId.Value && x.IsActive, cancellationToken);
+                    room = await _rooms.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                        x.TenantId == tenant && x.Id == request.RoomId && x.IsActive, token);
                     if (room == null) return Error<RoutineEntryDto>("Room not found.", 404);
-                    if (room.CampusId != batch.CampusId)
-                        return Error<RoutineEntryDto>("Room belongs to a different campus.", 409);
-                    if (room.Capacity <= 0 || (batch.Capacity > 0 && room.Capacity < batch.Capacity))
-                        return Error<RoutineEntryDto>("Room capacity is smaller than the academic batch capacity.", 409);
+                    if (room.CampusId != batch.CampusId || room.Capacity <= 0 ||
+                        (batch.Capacity > 0 && room.Capacity < batch.Capacity))
+                        return Error<RoutineEntryDto>("Room capacity or campus is incompatible with this batch.", 409);
                 }
-
-                var replay = await _entries.GetQueryable().AsNoTracking()
-                    .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.SubjectOfferingId == offering.Id &&
-                                              x.InstructorAssignmentId == assignment.Id && x.DayOfWeek == request.DayOfWeek &&
-                                              x.RoutineTimeSlotId == slot.Id && x.RoomId == request.RoomId && x.IsActive, cancellationToken);
-                if (replay != null)
+                var duplicate = await _entries.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.SubjectOfferingId == offering.Id &&
+                    x.RoutineTimeSlotId == slot.Id && x.DayOfWeek == request.DayOfWeek &&
+                    x.EffectiveFrom == request.EffectiveFrom && x.EffectiveTo == request.EffectiveTo &&
+                    x.InstructorAssignmentId == request.InstructorAssignmentId &&
+                    x.RoomId == request.RoomId && x.IsActive, token);
+                if (duplicate != null)
+                    return ApiResponse<RoutineEntryDto>.SuccessResponse(
+                        (await MapEntriesAsync([duplicate], token))[0], "Routine entry already exists.");
+                var relevant = await _entries.GetQueryable().AsNoTracking().Where(x =>
+                    x.TenantId == tenant && x.DayOfWeek == request.DayOfWeek && x.IsActive &&
+                    x.EffectiveFrom <= request.EffectiveTo.GetValueOrDefault(DateOnly.MaxValue) &&
+                    (!x.EffectiveTo.HasValue || x.EffectiveTo.Value >= request.EffectiveFrom))
+                    .Take(2000).ToListAsync(token);
+                if (relevant.Count == 2000) return Error<RoutineEntryDto>("Schedule conflict check exceeded its safe limit.", 409);
+                if (relevant.Count > 0)
                 {
-                    var replayDto = (await MapEntriesAsync([replay], cancellationToken))[0];
-                    scope.Complete();
-                    return ApiResponse<RoutineEntryDto>.SuccessResponse(replayDto, "Routine entry already exists.");
-                }
-
-                var effectiveFrom = assignment.EffectiveFrom;
-                var effectiveTo = assignment.EffectiveTo;
-                var candidateEntries = await _entries.GetQueryable().AsNoTracking()
-                    .Where(x => x.TenantId == tenantId && x.DayOfWeek == request.DayOfWeek && x.IsActive &&
-                                x.EffectiveFrom <= (effectiveTo ?? DateOnly.MaxValue) &&
-                                (x.EffectiveTo == null || x.EffectiveTo >= effectiveFrom))
-                    .Take(2000).ToListAsync(cancellationToken);
-                if (candidateEntries.Count > 0)
-                {
-                    var entryOfferingIds = candidateEntries.Select(x => x.SubjectOfferingId).Distinct().ToArray();
-                    var entryOfferings = await _offerings.GetQueryable().AsNoTracking()
-                        .Where(x => x.TenantId == tenantId && entryOfferingIds.Contains(x.Id))
-                        .ToDictionaryAsync(x => x.Id, cancellationToken);
-                    var entryAssignmentIds = candidateEntries.Where(x => x.InstructorAssignmentId.HasValue)
+                    var others = relevant.Select(x => x.SubjectOfferingId).Distinct().ToArray();
+                    var offerings = await _offerings.GetQueryable().AsNoTracking()
+                        .Where(x => x.TenantId == tenant && others.Contains(x.Id))
+                        .ToDictionaryAsync(x => x.Id, token);
+                    var assignmentIds = relevant.Where(x => x.InstructorAssignmentId.HasValue)
                         .Select(x => x.InstructorAssignmentId!.Value).Distinct().ToArray();
-                    var entryAssignments = entryAssignmentIds.Length == 0
-                        ? new Dictionary<long, InstructorAssignment>()
-                        : await _assignments.GetQueryable().AsNoTracking()
-                            .Where(x => x.TenantId == tenantId && entryAssignmentIds.Contains(x.Id))
-                            .ToDictionaryAsync(x => x.Id, cancellationToken);
-                    var entrySlotIds = candidateEntries.Select(x => x.RoutineTimeSlotId).Distinct().ToArray();
-                    var entrySlots = await _timeSlots.GetQueryable().AsNoTracking()
-                        .Where(x => x.TenantId == tenantId && entrySlotIds.Contains(x.Id))
-                        .ToDictionaryAsync(x => x.Id, cancellationToken);
-
-                    foreach (var other in candidateEntries)
+                    var assigned = await _assignments.GetQueryable().AsNoTracking()
+                        .Where(x => x.TenantId == tenant && assignmentIds.Contains(x.Id))
+                        .ToDictionaryAsync(x => x.Id, token);
+                    var slotIds = relevant.Select(x => x.RoutineTimeSlotId).Distinct().ToArray();
+                    var slots = await _timeSlots.GetQueryable().AsNoTracking()
+                        .Where(x => x.TenantId == tenant && slotIds.Contains(x.Id))
+                        .ToDictionaryAsync(x => x.Id, token);
+                    foreach (var other in relevant)
                     {
-                        if (!entrySlots.TryGetValue(other.RoutineTimeSlotId, out var otherSlot) ||
+                        if (!slots.TryGetValue(other.RoutineTimeSlotId, out var otherSlot) ||
                             !TimeOverlaps(slot, otherSlot)) continue;
-                        if (entryOfferings.TryGetValue(other.SubjectOfferingId, out var otherOffering) &&
+                        if (offerings.TryGetValue(other.SubjectOfferingId, out var otherOffering) &&
                             otherOffering.AcademicBatchId == batch.Id)
-                            return Error<RoutineEntryDto>("Academic batch already has a class during this time.", 409);
-                        if (other.InstructorAssignmentId.HasValue &&
-                            entryAssignments.TryGetValue(other.InstructorAssignmentId.Value, out var otherAssignment) &&
-                            otherAssignment.EmployeeId == assignment.EmployeeId)
-                            return Error<RoutineEntryDto>("Instructor already has a class during this time.", 409);
+                            return Error<RoutineEntryDto>("Batch already has class at this time.", 409);
+                        if (assignment != null && other.InstructorAssignmentId.HasValue &&
+                            assigned.TryGetValue(other.InstructorAssignmentId.Value, out var otherAssignment) &&
+                            assignment.EmployeeId == otherAssignment.EmployeeId)
+                            return Error<RoutineEntryDto>("Instructor already has class at this time.", 409);
                         if (room != null && other.RoomId == room.Id)
-                            return Error<RoutineEntryDto>("Room is already occupied during this time.", 409);
+                            return Error<RoutineEntryDto>("Room is occupied at this time.", 409);
                     }
                 }
-
                 var row = new RoutineEntry
                 {
-                    TenantId = tenantId,
-                    SubjectOfferingId = offering.Id,
-                    RoutineTimeSlotId = slot.Id,
-                    InstructorAssignmentId = assignment.Id,
-                    RoomId = room?.Id,
-                    DayOfWeek = request.DayOfWeek,
-                    EffectiveFrom = effectiveFrom,
-                    EffectiveTo = effectiveTo,
-                    IsActive = true,
-                    CreatedAt = _clock.GetUtcNow().UtcDateTime,
-                    CreatedBy = _currentUser.UserId
+                    TenantId = tenant, SubjectOfferingId = offering.Id, RoutineTimeSlotId = slot.Id,
+                    InstructorAssignmentId = request.InstructorAssignmentId, RoomId = request.RoomId,
+                    DayOfWeek = request.DayOfWeek, EffectiveFrom = request.EffectiveFrom,
+                    EffectiveTo = request.EffectiveTo, IsActive = request.IsActive,
+                    CreatedAt = _clock.GetUtcNow().UtcDateTime, CreatedBy = _currentUser.UserId
                 };
                 await _entries.AddAsync(row);
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
-                var result = (await MapEntriesAsync([row], cancellationToken))[0];
-                scope.Complete();
-                return Created(result, "Routine entry created.");
-            });
+                await _unitOfWork.SaveChangesAsync(token);
+                return Created((await MapEntriesAsync([row], token))[0], "Routine entry created.");
+            }, ct);
         }
         catch (DbUpdateException ex)
         {
-            _logger.LogWarning(ex, "Conflicting routine entry for tenant {TenantId}", tenantId);
-            return Error<RoutineEntryDto>("Routine entry conflicts with another update. Reload and try again.", 409);
-        }
-        catch (TransactionAbortedException ex)
-        {
-            _logger.LogWarning(ex, "Serialized routine-entry transaction aborted for tenant {TenantId}", tenantId);
-            return Error<RoutineEntryDto>("Routine entry conflicts with another update. Reload and try again.", 409);
+            _logger.LogWarning(ex, "Routine entry conflict for tenant {TenantId}", tenant);
+            return Error<RoutineEntryDto>("Routine entry conflicts with another update.", 409);
         }
     }
 
-    public async Task<ApiResponse<RoutineEntryDto>> DeactivateEntryAsync(long id, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<RoutineEntryDto>> DeactivateEntryAsync(long id, string rowVersion,
+        CancellationToken ct = default)
     {
         if (!CanManage()) return Denied<RoutineEntryDto>();
-        var row = await _entries.GetQueryable()
-            .FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.Id == id, cancellationToken);
+        if (id <= 0 || string.IsNullOrWhiteSpace(rowVersion))
+            return Error<RoutineEntryDto>("Entry and row version are required.");
+        byte[] version;
+        try { version = Convert.FromBase64String(rowVersion); }
+        catch (FormatException) { return Error<RoutineEntryDto>("Invalid row version."); }
+        if (version.Length == 0) return Error<RoutineEntryDto>("Invalid row version.");
+        var row = await _entries.GetQueryable().FirstOrDefaultAsync(x =>
+            x.TenantId == _currentUser.TenantId && x.Id == id, ct);
         if (row == null) return Error<RoutineEntryDto>("Routine entry not found.", 404);
+        if (row.RowVersion.Length != version.Length ||
+            !CryptographicOperations.FixedTimeEquals(row.RowVersion, version))
+            return Error<RoutineEntryDto>("Routine entry was changed. Reload and retry.", 409);
         if (!row.IsActive)
-        {
-            var current = (await MapEntriesAsync([row], cancellationToken))[0];
-            return ApiResponse<RoutineEntryDto>.SuccessResponse(current, "Routine entry is already inactive.");
-        }
-
+            return ApiResponse<RoutineEntryDto>.SuccessResponse((await MapEntriesAsync([row], ct))[0], "Routine entry is inactive.");
         row.IsActive = false;
         row.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
         row.UpdatedBy = _currentUser.UserId;
         _entries.Update(row);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-        var mapped = (await MapEntriesAsync([row], cancellationToken))[0];
-        return ApiResponse<RoutineEntryDto>.SuccessResponse(mapped, "Routine entry deactivated.");
+        try { await _unitOfWork.SaveChangesAsync(ct); }
+        catch (DbUpdateConcurrencyException) { return Error<RoutineEntryDto>("Routine entry changed concurrently.", 409); }
+        return ApiResponse<RoutineEntryDto>.SuccessResponse((await MapEntriesAsync([row], ct))[0], "Routine entry deactivated.");
     }
 
     private async Task<AcademicBatch?> GetBatchAsync(long id, CancellationToken cancellationToken) =>
@@ -620,10 +581,6 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
     private bool CanRead() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0 && (IsManager() || _currentUser.IsInRole("Teacher"));
     private bool CanManage() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0 && IsManager();
     private bool IsManager() => _currentUser.IsTenantAdmin || _currentUser.IsInRole("Principal") || _currentUser.IsInRole("VicePrincipal");
-    private static TransactionScope SerializableScope() => new(
-        TransactionScopeOption.Required,
-        new TransactionOptions { IsolationLevel = IsolationLevel.Serializable },
-        TransactionScopeAsyncFlowOption.Enabled);
     private static RoutineTimeSlotDto MapTimeSlot(RoutineTimeSlot x) => new()
     {
         Id = x.Id,
