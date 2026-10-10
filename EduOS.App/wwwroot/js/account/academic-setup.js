@@ -7,6 +7,7 @@
     const continueButton = document.getElementById('continueBtn');
     const yearModal = document.getElementById('academicYearModal');
     const termModal = document.getElementById('termModal');
+    let editedYearRowVersion = '';
 
     document.addEventListener('DOMContentLoaded', async () => {
         if (!list) return;
@@ -24,6 +25,7 @@
         clearErrors();
         const data = {
             id: positiveInteger(valueOf('yearId')),
+            rowVersion: editedYearRowVersion,
             name: valueOf('yearName'),
             startDate: valueOf('yearStartDate'),
             endDate: valueOf('yearEndDate'),
@@ -71,6 +73,7 @@
         let valid = true;
         if (!data.academicYearId) valid = showError('termYearId', i18n.selectYearFirst);
         if (!data.name) valid = showError('termName', i18n.termNameRequired);
+        if (!data.startDate || !data.endDate) valid = showError('termStartDate', i18n.bothTermDates);
         if (Boolean(data.startDate) !== Boolean(data.endDate)) {
             valid = showError(data.startDate ? 'termEndDate' : 'termStartDate', i18n.bothTermDates);
         }
@@ -133,6 +136,7 @@
             card.className = 'setup-record-card academic-record-card';
             card.dataset.recordId = String(year.id);
             card.dataset.recordName = year.name || '';
+            card.dataset.rowVersion = year.rowVersion || '';
 
             const body = document.createElement('div');
             body.className = 'setup-record-content';
@@ -181,6 +185,7 @@
         const row = document.createElement('div');
         row.className = 'academic-term-row';
         row.dataset.termId = String(term.id);
+        row.dataset.rowVersion = term.rowVersion || '';
         const text = document.createElement('span');
         const dates = term.startDate && term.endDate
             ? ` (${formatDate(term.startDate)} → ${formatDate(term.endDate)})`
@@ -260,6 +265,7 @@
             const response = await fetchJson(`/api/institution-onboarding/academic-year/${encodeURIComponent(id)}`);
             if (!response.ok || !response.data) throw new Error('Invalid academic year response');
             const year = response.data;
+            editedYearRowVersion = year.rowVersion || '';
             setValue('yearId', id);
             setValue('yearName', year.name);
             setValue('yearStartDate', dateInputValue(year.startDate));
@@ -282,12 +288,14 @@
 
     async function deleteYear(id) {
         if (!window.confirm(i18n.deleteYearConfirm || '')) return;
-        await deleteRecord(`/api/institution-onboarding/academic-year/${encodeURIComponent(id)}`);
+        const rowVersion = list?.querySelector(`[data-record-id="${id}"]`)?.dataset.rowVersion || '';
+        await deleteRecord(`/api/institution-onboarding/academic-year/${encodeURIComponent(id)}?rowVersion=${encodeURIComponent(rowVersion)}`);
     }
 
     async function deleteTerm(id) {
         if (!window.confirm(i18n.deleteTermConfirm || '')) return;
-        await deleteRecord(`/api/institution-onboarding/academic-term/${encodeURIComponent(id)}`);
+        const rowVersion = list?.querySelector(`[data-term-id="${id}"]`)?.dataset.rowVersion || '';
+        await deleteRecord(`/api/institution-onboarding/academic-term/${encodeURIComponent(id)}?rowVersion=${encodeURIComponent(rowVersion)}`);
     }
 
     async function deleteRecord(url) {
@@ -335,7 +343,8 @@
             method,
             cache: 'no-store',
             credentials: 'same-origin',
-            headers: { 'Accept': 'application/json' }
+            headers: { 'Accept': 'application/json',
+                'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || '' }
         };
         if (data !== undefined) {
             options.headers['Content-Type'] = 'application/json';
@@ -355,6 +364,7 @@
     }
 
     function resetYearForm() {
+        editedYearRowVersion = '';
         document.getElementById('academicYearForm')?.reset();
         setValue('yearId', '');
         clearErrors();
