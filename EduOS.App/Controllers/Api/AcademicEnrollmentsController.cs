@@ -31,17 +31,16 @@ public sealed class AcademicEnrollmentsController : ControllerBase
 
     [HttpPost]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
-    public async Task<IActionResult> Enroll([FromBody] CreateAcademicStudentEnrollmentDto request, CancellationToken cancellationToken) =>
+    public async Task<IActionResult> Enroll([FromBody] CreateStudentEnrollmentRequestDto request, CancellationToken cancellationToken) =>
         ToAction(await _service.EnrollAsync(request, cancellationToken));
 
-    [HttpPost("{studentEnrollmentId:long}/subjects/requests")]
-    [Authorize(Roles = "Student,Guardian,Parent")]
-    public async Task<IActionResult> RequestOptionalSubject(long studentEnrollmentId, [FromBody] RequestOptionalSubjectDto request, CancellationToken cancellationToken) =>
-        ToAction(await _service.RequestOptionalSubjectAsync(studentEnrollmentId, request, cancellationToken));
+    [HttpPost("subjects/requests")]
+    public async Task<IActionResult> RequestOptionalSubject([FromBody] RegisterStudentSubjectRequestDto request, CancellationToken cancellationToken) =>
+        ToAction(await _service.RequestOptionalSubjectAsync(request, cancellationToken));
 
     [HttpPost("subjects/{registrationId:long}/decision")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
-    public async Task<IActionResult> DecideSubject(long registrationId, [FromBody] DecideSubjectRegistrationDto request, CancellationToken cancellationToken) =>
+    public async Task<IActionResult> DecideSubject(long registrationId, [FromBody] ChangeSubjectRegistrationStateRequestDto request, CancellationToken cancellationToken) =>
         ToAction(await _service.DecideSubjectAsync(registrationId, request, cancellationToken));
 
     private IActionResult ToAction<T>(ApiResponse<T> response) => StatusCode(response.StatusCode, response);
