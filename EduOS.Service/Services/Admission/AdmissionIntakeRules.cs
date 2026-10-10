@@ -21,7 +21,7 @@ internal static partial class AdmissionIntakeRules
         if (string.IsNullOrWhiteSpace(code) || code.Length > 50 || !CodeRegex().IsMatch(code)) return "Form code is invalid.";
         if (string.IsNullOrWhiteSpace(request.Title) || request.Title.Trim().Length > 200) return "Form title is required.";
         if (request.Description?.Trim().Length > 2000) return "Form description is too long.";
-        if (request.AcademicYearId <= 0 || request.CampusId <= 0 || request.AcademicUnitId <= 0 || request.AcademicTermId is <= 0) return "Academic references are invalid.";
+        if (request.AcademicYearId <= 0 || request.CampusId <= 0 || request.AcademicLevelId <= 0 || request.AcademicTermId is <= 0) return "Academic references are invalid.";
         if (request.OpensAtUtc == default || request.ClosesAtUtc == default || request.ClosesAtUtc <= request.OpensAtUtc) return "Form closing time must be after its opening time.";
         if (request.ApplicationFee < 0 || request.ApplicationFee > 1_000_000m) return "Application fee is invalid.";
         if (request.Currency == null || request.Currency.Trim().Length != 3 || request.Currency.Any(x => !char.IsLetter(x))) return "Currency must be a three-letter code.";
