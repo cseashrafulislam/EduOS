@@ -8,14 +8,15 @@ namespace EduOS.Tests.Persistence;
 public sealed class CanonicalAccountHierarchyTests
 {
     [Fact]
-    public void Legacy_parent_id_alias_reads_and_updates_the_canonical_parent_account_id()
+    public void Canonical_account_hierarchy_has_one_authoritative_parent_account_id()
     {
         var account = new Account { ParentAccountId = 12 };
-        Assert.Equal(12L, account.ParentId);
-        account.ParentId = 25;
+        Assert.Equal(12L, account.ParentAccountId);
+        account.ParentAccountId = 25;
         Assert.Equal(25L, account.ParentAccountId);
         account.ParentAccountId = null;
-        Assert.Null(account.ParentId);
+        Assert.Null(account.ParentAccountId);
+        Assert.Null(typeof(Account).GetProperty("ParentId"));
     }
 
     [Fact]
@@ -25,7 +26,7 @@ public sealed class CanonicalAccountHierarchyTests
             .UseInMemoryDatabase($"account-hierarchy-{Guid.NewGuid():N}").Options);
         var mapping = context.Model.FindEntityType(typeof(Account));
         Assert.NotNull(mapping);
-        Assert.Null(mapping!.FindProperty(nameof(Account.ParentId)));
+        Assert.Null(mapping!.FindProperty("ParentId"));
         Assert.NotNull(mapping.FindProperty(nameof(Account.ParentAccountId)));
         Assert.Single(mapping.GetForeignKeys().Where(fk => fk.PrincipalEntityType.ClrType == typeof(Account)));
     }
