@@ -20,7 +20,7 @@ public class TenantModuleServiceTests
     [Fact]
     public async Task Preset_selection_and_paid_plan_are_both_required_for_module_availability()
     {
-        var setup = await CreateSetupAsync("BASIC", SubscriptionStatus.Active);
+        var setup = await CreateSetupAsync("BASIC", SubscriptionState.Active);
         await using var context = setup.Context;
         var service = CreateService(context, setup.CurrentUser);
 
@@ -42,7 +42,7 @@ public class TenantModuleServiceTests
     [Fact]
     public async Task Pending_payment_never_grants_paid_module_access()
     {
-        var setup = await CreateSetupAsync("PRO", SubscriptionStatus.PendingPayment);
+        var setup = await CreateSetupAsync("PRO", SubscriptionState.PendingPayment);
         await using var context = setup.Context;
         var service = CreateService(context, setup.CurrentUser);
         await service.ApplyInstitutionPresetAsync(
@@ -58,7 +58,7 @@ public class TenantModuleServiceTests
     [Fact]
     public async Task Required_module_cannot_be_disabled_even_by_tenant_admin()
     {
-        var setup = await CreateSetupAsync("BASIC", SubscriptionStatus.Active);
+        var setup = await CreateSetupAsync("BASIC", SubscriptionState.Active);
         await using var context = setup.Context;
         var service = CreateService(context, setup.CurrentUser);
         await service.ApplyInstitutionPresetAsync(
@@ -76,7 +76,7 @@ public class TenantModuleServiceTests
     [Fact]
     public async Task Tenant_cannot_enable_module_excluded_from_active_plan()
     {
-        var setup = await CreateSetupAsync("BASIC", SubscriptionStatus.Active);
+        var setup = await CreateSetupAsync("BASIC", SubscriptionState.Active);
         await using var context = setup.Context;
         var service = CreateService(context, setup.CurrentUser);
 
@@ -91,7 +91,7 @@ public class TenantModuleServiceTests
     [Fact]
     public async Task Existing_module_selection_requires_a_concurrency_token()
     {
-        var setup = await CreateSetupAsync("PRO", SubscriptionStatus.Active);
+        var setup = await CreateSetupAsync("PRO", SubscriptionState.Active);
         await using var context = setup.Context;
         var service = CreateService(context, setup.CurrentUser);
         var library = await context.ProductModules.SingleAsync(x => x.Code == "LIBRARY");
@@ -117,7 +117,7 @@ public class TenantModuleServiceTests
     [Fact]
     public async Task Seeded_required_modules_form_a_valid_onboarding_selection()
     {
-        var setup = await CreateSetupAsync("BASIC", SubscriptionStatus.Active);
+        var setup = await CreateSetupAsync("BASIC", SubscriptionState.Active);
         await using var context = setup.Context;
         var service = CreateService(context, setup.CurrentUser);
         await service.ApplyInstitutionPresetAsync(
@@ -148,7 +148,7 @@ public class TenantModuleServiceTests
 
     private static async Task<TestSetup> CreateSetupAsync(
         string planCode,
-        SubscriptionStatus subscriptionStatus)
+        SubscriptionState subscriptionStatus)
     {
         var httpContext = new DefaultHttpContext();
         // HttpContextAccessor uses a shared AsyncLocal and is unsafe as a fixture
