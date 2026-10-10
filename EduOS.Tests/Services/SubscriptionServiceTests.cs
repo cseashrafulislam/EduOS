@@ -196,10 +196,10 @@ public class SubscriptionServiceTests
     {
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) =>
             context.SaveChangesAsync(cancellationToken);
-        public Task BeginTransactionAsync() => Task.CompletedTask;
-        public Task CommitTransactionAsync() => Task.CompletedTask;
-        public Task RollbackTransactionAsync() => Task.CompletedTask;
-        public IExecutionStrategy CreateExecutionStrategy() => context.Database.CreateExecutionStrategy();
+        public Task<TResult> ExecuteInTransactionAsync<TResult>(
+            Func<CancellationToken, Task<TResult>> operation, CancellationToken cancellationToken = default) =>
+            operation(cancellationToken);
+
         public void Dispose() { }
     }
 
