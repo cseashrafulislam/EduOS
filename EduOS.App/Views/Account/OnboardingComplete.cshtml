@@ -19,5 +19,9 @@
     <div class="d-grid gap-2">
         <a href="/Dashboard" class="btn btn-primary auth-primary-action">@T["GoToDashboard"]</a>
         <a href="/Account/InstitutionProfile" class="btn btn-link text-muted">@T["ReviewSettings"]</a>
+        @if (User.IsInRole("TenantAdmin"))
+        {
+            <a href="/CommunicationAdministration/Index" class="btn btn-outline-primary">Configure communication</a>
+        }
     </div>
 </section>

@@ -38,6 +38,7 @@ public sealed partial class CommunicationAdministrationService
             var row = templateId.HasValue
                 ? await query.FirstOrDefaultAsync(x => x.Id == templateId.Value, cancellationToken)
                 : await query.FirstOrDefaultAsync(x => x.Code == code, cancellationToken);
+            if (!templateId.HasValue && row != null) return ApiResponse<MessageTemplateDto>.ErrorResponse("Template already exists.", 409);
             if (templateId.HasValue && row == null) return ApiResponse<MessageTemplateDto>.ErrorResponse("Template not found.", 404);
             if (row != null && templateId.HasValue && !MatchesVersion(row.RowVersion, request.RowVersion))
                 return ApiResponse<MessageTemplateDto>.ErrorResponse("Template changed. Reload and retry.", 409);

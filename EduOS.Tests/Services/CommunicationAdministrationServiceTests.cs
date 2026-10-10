@@ -26,6 +26,8 @@ public sealed class CommunicationAdministrationServiceTests
         (await Service(db, 202, true).GetNoticeCategoriesAsync()).Data.Should().BeEmpty();
         (await Service(db, 101, false).SaveNoticeCategoryAsync(null, new SaveNoticeCategoryRequestDto
         { Code = "PRIVATE", Name = "Private" })).StatusCode.Should().Be(403);
+        (await admin.SaveNoticeCategoryAsync(null, new SaveNoticeCategoryRequestDto
+        { Code = "GENERAL", Name = "Overwrite attempt" })).StatusCode.Should().Be(409);
         (await db.NoticeCategories.CountAsync()).Should().Be(1);
     }
 

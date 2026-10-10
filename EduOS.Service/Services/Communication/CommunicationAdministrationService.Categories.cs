@@ -30,6 +30,7 @@ public sealed partial class CommunicationAdministrationService
             var row = categoryId.HasValue
                 ? await query.FirstOrDefaultAsync(x => x.Id == categoryId.Value, cancellationToken)
                 : await query.FirstOrDefaultAsync(x => x.Code == code, cancellationToken);
+            if (!categoryId.HasValue && row != null) return ApiResponse<NoticeCategoryDto>.ErrorResponse("Category already exists.", 409);
             if (categoryId.HasValue && row == null) return ApiResponse<NoticeCategoryDto>.ErrorResponse("Category not found.", 404);
             if (row != null && categoryId.HasValue && !MatchesVersion(row.RowVersion, request.RowVersion))
                 return ApiResponse<NoticeCategoryDto>.ErrorResponse("Category changed. Reload and retry.", 409);
