@@ -2350,7 +2350,9 @@ public class EduOSDbContext :
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(operation);
-        if (Database.CurrentTransaction != null) return await operation(cancellationToken);
+        // EF InMemory is used only by tests and cannot start relational transactions.
+        if (!Database.IsRelational() || Database.CurrentTransaction != null)
+            return await operation(cancellationToken);
         var strategy = Database.CreateExecutionStrategy();
         return await strategy.ExecuteAsync(async () =>
         {
