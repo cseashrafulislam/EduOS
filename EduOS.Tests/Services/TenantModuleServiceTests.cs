@@ -1,6 +1,6 @@
 using EduOS.Core.Entities.SaaS;
-using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Enums;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
 using EduOS.Persistence.Repositories;
