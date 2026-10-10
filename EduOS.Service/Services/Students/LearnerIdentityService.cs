@@ -81,7 +81,7 @@ public sealed class LearnerIdentityService : ILearnerIdentityService
             return Error("The identifier format is invalid.");
 
         var student = await _students.GetQueryable()
-            .FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.Id == request.StudentId && x.IsActive, cancellationToken);
+            .FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.Id == request.StudentId && x.StatusCode == "Active" && !x.IsDeleted, cancellationToken);
         if (student == null) return Error("Student not found.", 404);
 
         if (string.IsNullOrWhiteSpace(student.FullName) ||
@@ -171,8 +171,7 @@ public sealed class LearnerIdentityService : ILearnerIdentityService
             return await DenyWithAuditAsync(person.Id, student.Id, purpose, "IDENTIFIER_PERSON_CONFLICT",
                 "The supplied identifier conflicts with the student's current identity.", 409, cancellationToken);
 
-        await _unitOfWork.BeginTransactionAsync();
-        try
+        return await _unitOfWork.ExecuteInTransactionAsync(async token =>
         {
             if (matchingIdentifier == null)
             {
@@ -212,15 +211,8 @@ public sealed class LearnerIdentityService : ILearnerIdentityService
             await AddAccessLogAsync(person.Id, student.Id, null, "RegisterOrLink",
                 matchingIdentifier == null ? "Created" : "Reused", purpose, matchingIdentifier == null ? "IDENTIFIER_ADDED" : "IDENTITY_ALREADY_LINKED");
             await _unitOfWork.SaveChangesAsync(cancellationToken);
-            await _unitOfWork.CommitTransactionAsync();
-
             return Success(matchingIdentifier == null ? "IdentifierAdded" : "AlreadyLinked", person.PublicId, "Learner identity is linked.");
-        }
-        catch
-        {
-            await SafeRollbackAsync();
-            throw;
-        }
+        }, cancellationToken);
     }
 
     private async Task<ApiResponse<LearnerIdentityResultDto>> CreateIdentityAsync(
@@ -231,8 +223,7 @@ public sealed class LearnerIdentityService : ILearnerIdentityService
         LearnerIdentityPurpose purpose,
         CancellationToken cancellationToken)
     {
-        await _unitOfWork.BeginTransactionAsync();
-        try
+        return await _unitOfWork.ExecuteInTransactionAsync(async token =>
         {
             var now = DateTime.UtcNow;
             var person = new Person
@@ -283,14 +274,8 @@ public sealed class LearnerIdentityService : ILearnerIdentityService
             await AddAccessLogAsync(person.Id, student.Id, null, "RegisterOrLink", "Created", purpose, "IDENTITY_CREATED");
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
-            await _unitOfWork.CommitTransactionAsync();
             return Success("Created", person.PublicId, "Learner identity created.", 201);
-        }
-        catch
-        {
-            await SafeRollbackAsync();
-            throw;
-        }
+        }, cancellationToken);
     }
 
     private async Task<ApiResponse<LearnerIdentityResultDto>> CreateOrReuseConsentRequestAsync(
@@ -430,12 +415,6 @@ public sealed class LearnerIdentityService : ILearnerIdentityService
             _ => PersonIdentifierKind.Other
         };
         return target != PersonIdentifierKind.Other;
-    }
-
-    private async Task SafeRollbackAsync()
-    {
-        try { await _unitOfWork.RollbackTransactionAsync(); }
-        catch (Exception ex) { _logger.LogError(ex, "Learner identity rollback failed."); }
     }
 
     private static string? Truncate(string? value, int maxLength)
