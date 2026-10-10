@@ -17,6 +17,8 @@ public class UserSummaryDto
 public class UpdateUserProfileRequestDto
 {
     [Required, MaxLength(200)] public string FullName { get; set; } = string.Empty;
+    [MaxLength(30)] public string? PhoneNumber { get; set; }
+    [MaxLength(1000)] public string? Address { get; set; }
     [MaxLength(500)] public string? PhotoUrl { get; set; }
     [Required, MaxLength(20)] public string PreferredLanguage { get; set; } = "bn-BD";
 }
