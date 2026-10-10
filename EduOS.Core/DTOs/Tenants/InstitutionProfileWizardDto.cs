@@ -23,7 +23,6 @@ public sealed class InstitutionProfileWizardDto
 public sealed class InstitutionCampusWizardRequestDto : EduOS.Core.DTOs.SaaS.SaveCampusRequestDto
 {
     public long? Id { get; set; }
-    public string? HeadName { get; set; }
 }
 
 public sealed class InstitutionAcademicYearWizardRequestDto : EduOS.Core.DTOs.Academic.SaveAcademicYearRequestDto
