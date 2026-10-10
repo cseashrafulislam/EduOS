@@ -24,17 +24,17 @@ function renderSidebar(status) {
 
     if (bar) bar.style.width = status.progressPercentage + '%';
     if (text) text.textContent = status.progressPercentage + '%';
-    if (doneCount) doneCount.textContent = status.completedSteps;
-    if (totalCount) totalCount.textContent = status.totalSteps;
+    if (doneCount) doneCount.textContent = status.completedStages;
+    if (totalCount) totalCount.textContent = status.totalStages;
 
     // Step list
     const list = document.getElementById('stepsList');
     if (!list) return;
     list.innerHTML = '';
 
-    (status.steps || []).forEach(step => {
+    (status.stages || []).forEach(step => {
         const a = document.createElement('a');
-        a.href = step.isLocked ? '#' : step.url;
+        a.href = step.isLocked ? '#' : window.eduosOnboardingStageUrl(step.stage);
         a.className = 'step-item';
         if (step.isCurrent) a.classList.add('current');
         if (step.isCompleted) a.classList.add('completed');
