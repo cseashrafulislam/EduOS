@@ -2,7 +2,6 @@ using EduOS.Core.Common;
 using EduOS.Core.DTOs.Academic;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Students;
-using EduOS.Core.Enums.Academics;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
@@ -10,7 +9,6 @@ using EduOS.Core.Interfaces.IServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
-using System.Transactions;
 
 namespace EduOS.Service.Services.Academic;
 
@@ -54,27 +52,27 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
         _uow = unitOfWork; _user = currentUser; _clock = clock; _logger = logger;
     }
 
-    public async Task<ApiResponse<AcademicStudentEnrollmentDto>> GetCurrentAsync(Guid studentReference,
+    public async Task<ApiResponse<StudentEnrollmentDto>> GetCurrentAsync(Guid studentReference,
         CancellationToken ct = default)
     {
-        if (!CanRead() || studentReference == Guid.Empty) return NotFound<AcademicStudentEnrollmentDto>();
+        if (!CanRead() || studentReference == Guid.Empty) return NotFound<StudentEnrollmentDto>();
         var student = await AuthorizedStudentAsync(studentReference, ct);
-        if (student == null) return NotFound<AcademicStudentEnrollmentDto>();
+        if (student == null) return NotFound<StudentEnrollmentDto>();
         var enrollment = await _enrollments.GetQueryable().AsNoTracking().Where(x => x.TenantId == _user.TenantId &&
-            x.StudentId == student.Id && x.IsCurrent && x.IsActive)
+            x.StudentId == student.Id && x.IsCurrent && x.State == EnrollmentState.Active)
             .OrderByDescending(x => x.EnrollmentDate).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
-        return enrollment == null ? NotFound<AcademicStudentEnrollmentDto>() :
-            ApiResponse<AcademicStudentEnrollmentDto>.SuccessResponse(await BuildEnrollmentDtoAsync(enrollment, student, ct));
+        return enrollment == null ? NotFound<StudentEnrollmentDto>() :
+            ApiResponse<StudentEnrollmentDto>.SuccessResponse(await BuildEnrollmentDtoAsync(enrollment, student, ct));
     }
 
-    public Task<ApiResponse<AcademicStudentEnrollmentDto>> EnrollAsync(CreateAcademicStudentEnrollmentDto request,
+    public Task<ApiResponse<StudentEnrollmentDto>> EnrollAsync(CreateStudentEnrollmentRequestDto request,
         CancellationToken ct = default)
     {
-        if (!CanManage()) return Task.FromResult(Denied<AcademicStudentEnrollmentDto>());
+        if (!CanManage()) return Task.FromResult(Denied<StudentEnrollmentDto>());
         if (request == null || request.ClientRequestId == Guid.Empty || request.StudentReference == Guid.Empty ||
-            request.AcademicBatchId <= 0 || string.IsNullOrWhiteSpace(request.RollNo) ||
+            request.AcademicBatchId <= 0 || request.AcademicCurriculumId <= 0 || string.IsNullOrWhiteSpace(request.RollNo) ||
             request.RollNo.Trim().Length > 50 || request.Remarks?.Length > 500)
-            return Task.FromResult(Error<AcademicStudentEnrollmentDto>("Student, batch, roll and request reference are required."));
+            return Task.FromResult(Error<StudentEnrollmentDto>("Student, batch, roll and request reference are required."));
         return ExecuteWriteAsync("enroll student", async () =>
         {
             var tenant = _user.TenantId;
@@ -86,71 +84,70 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
                 var linked = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == replay.StudentId, ct);
                 if (linked == null || linked.PublicId != request.StudentReference ||
-                    replay.AcademicBatchId != request.AcademicBatchId ||
+                    replay.AcademicBatchId != request.AcademicBatchId || replay.AcademicCurriculumId != request.AcademicCurriculumId ||
                     !string.Equals(replay.RollNo, roll, StringComparison.OrdinalIgnoreCase) ||
-                    request.EnrollmentDate.HasValue && replay.EnrollmentDate != DateOnly.FromDateTime(request.EnrollmentDate.Value))
-                    return Error<AcademicStudentEnrollmentDto>("Request ID was previously used for different enrollment data.", 409);
-                return ApiResponse<AcademicStudentEnrollmentDto>.SuccessResponse(
+                    request.EnrollmentDate != default && replay.EnrollmentDate != request.EnrollmentDate)
+                    return Error<StudentEnrollmentDto>("Request ID was previously used for different enrollment data.", 409);
+                return ApiResponse<StudentEnrollmentDto>.SuccessResponse(
                     await BuildEnrollmentDtoAsync(replay, linked, ct), "Enrollment already exists.");
             }
 
             var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                x.TenantId == tenant && x.PublicId == request.StudentReference && x.IsActive, ct);
-            if (student == null) return Error<AcademicStudentEnrollmentDto>("Active student not found.", 404);
+                x.TenantId == tenant && x.PublicId == request.StudentReference && x.StatusCode == "Active" && !x.IsDeleted, ct);
+            if (student == null) return Error<StudentEnrollmentDto>("Active student not found.", 404);
             var batch = await _batches.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Id == request.AcademicBatchId && x.IsActive, ct);
-            if (batch == null) return Error<AcademicStudentEnrollmentDto>("Active academic batch not found.", 404);
+            if (batch == null) return Error<StudentEnrollmentDto>("Active academic batch not found.", 404);
             var year = await _years.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Id == batch.AcademicYearId && x.IsActive, ct);
-            if (year == null) return Error<AcademicStudentEnrollmentDto>("Academic year is unavailable.", 409);
-            var date = request.EnrollmentDate.HasValue
-                ? DateOnly.FromDateTime(request.EnrollmentDate.Value)
-                : DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+            if (year == null) return Error<StudentEnrollmentDto>("Academic year is unavailable.", 409);
+            var date = request.EnrollmentDate != default
+                ? request.EnrollmentDate : DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime);
             if (date < year.StartDate || date > year.EndDate ||
                 batch.StartDate.HasValue && date < batch.StartDate.Value ||
                 batch.EndDate.HasValue && date > batch.EndDate.Value)
-                return Error<AcademicStudentEnrollmentDto>("Enrollment date is outside the academic batch period.", 409);
+                return Error<StudentEnrollmentDto>("Enrollment date is outside the academic batch period.", 409);
             var current = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                x.TenantId == tenant && x.StudentId == student.Id && x.IsCurrent && x.IsActive, ct);
+                x.TenantId == tenant && x.StudentId == student.Id && x.IsCurrent && x.State == EnrollmentState.Active, ct);
             if (current != null)
             {
                 if (current.AcademicBatchId == batch.Id && string.Equals(current.RollNo, roll, StringComparison.OrdinalIgnoreCase) &&
                     current.EnrollmentDate == date)
-                    return ApiResponse<AcademicStudentEnrollmentDto>.SuccessResponse(
+                    return ApiResponse<StudentEnrollmentDto>.SuccessResponse(
                         await BuildEnrollmentDtoAsync(current, student, ct), "Student already enrolled.");
-                return Error<AcademicStudentEnrollmentDto>("Student already has a current enrollment.", 409);
+                return Error<StudentEnrollmentDto>("Student already has a current enrollment.", 409);
             }
             if (await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x =>
                 x.TenantId == tenant && x.AcademicBatchId == batch.Id && x.RollNo == roll &&
-                x.IsCurrent && x.IsActive, ct))
-                return Error<AcademicStudentEnrollmentDto>("Roll already assigned in this academic batch.", 409);
+                x.IsCurrent && x.State == EnrollmentState.Active, ct))
+                return Error<StudentEnrollmentDto>("Roll already assigned in this academic batch.", 409);
             var occupied = await _enrollments.GetQueryable().AsNoTracking().CountAsync(x =>
                 x.TenantId == tenant && x.AcademicBatchId == batch.Id &&
-                x.IsCurrent && x.IsActive && x.State == EnrollmentState.Active, ct);
+                x.IsCurrent && x.State == EnrollmentState.Active, ct);
             if (batch.Capacity <= 0 || occupied >= batch.Capacity)
-                return Error<AcademicStudentEnrollmentDto>("Batch capacity has been reached.", 409);
+                return Error<StudentEnrollmentDto>("Batch capacity has been reached.", 409);
 
             var curricula = await _curricula.GetQueryable().AsNoTracking().Where(x =>
                 x.TenantId == tenant && x.AcademicProgramId == batch.AcademicProgramId &&
                 x.AcademicTrackId == batch.AcademicTrackId && x.MediumId == batch.MediumId &&
-                x.IsCurrent && x.IsActive && x.EffectiveFrom <= date &&
+                x.Id == request.AcademicCurriculumId && x.IsCurrent && x.State == EnrollmentState.Active && x.EffectiveFrom <= date &&
                 (!x.EffectiveTo.HasValue || x.EffectiveTo >= date))
                 .Take(2).ToListAsync(ct);
             if (curricula.Count != 1)
-                return Error<AcademicStudentEnrollmentDto>("Exactly one effective curriculum is required for this batch.", 409);
+                return Error<StudentEnrollmentDto>("Exactly one effective curriculum is required for this batch.", 409);
             var curriculum = curricula[0];
             var requiredSubjects = await _curriculumSubjects.GetQueryable().AsNoTracking().Where(x =>
                 x.TenantId == tenant && x.AcademicCurriculumId == curriculum.Id &&
                 x.AcademicLevelId == batch.AcademicLevelId && x.IsActive && !x.IsOptional).ToListAsync(ct);
             if (requiredSubjects.Count == 0)
-                return Error<AcademicStudentEnrollmentDto>("Curriculum must contain required subjects.", 409);
+                return Error<StudentEnrollmentDto>("Curriculum must contain required subjects.", 409);
             var requiredIds = requiredSubjects.Select(x => x.Id).ToArray();
             var offerings = await _offerings.GetQueryable().AsNoTracking().Where(x =>
                 x.TenantId == tenant && x.AcademicBatchId == batch.Id && x.IsActive &&
                 requiredIds.Contains(x.CurriculumSubjectId)).ToListAsync(ct);
             if (offerings.GroupBy(x => x.CurriculumSubjectId).Any(x => x.Count() != 1) ||
                 requiredSubjects.Any(x => offerings.All(y => y.CurriculumSubjectId != x.Id)))
-                return Error<AcademicStudentEnrollmentDto>("Each required curriculum subject needs exactly one active batch offering.", 409);
+                return Error<StudentEnrollmentDto>("Each required curriculum subject needs exactly one active batch offering.", 409);
 
             var now = _clock.GetUtcNow().UtcDateTime;
             var entity = new StudentEnrollment
@@ -162,7 +159,7 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
                 AcademicCurriculumId = curriculum.Id, AcademicTrackId = batch.AcademicTrackId,
                 MediumId = batch.MediumId, ShiftId = batch.ShiftId, RollNo = roll,
                 EnrollmentDate = date, State = EnrollmentState.Active,
-                IsCurrent = true, IsActive = true, Remarks = Trim(request.Remarks),
+                IsCurrent = true, Remarks = Trim(request.Remarks),
                 CreatedAt = now, CreatedBy = _user.UserId
             };
             await _enrollments.AddAsync(entity);
@@ -301,7 +298,7 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
         var student = await AuthorizedStudentAsync(studentReference, ct);
         if (student == null) return NotFound<IReadOnlyList<RoutineEntryDto>>();
         var enrollment = await _enrollments.GetQueryable().AsNoTracking().Where(x =>
-            x.TenantId == _user.TenantId && x.StudentId == student.Id && x.IsCurrent && x.IsActive)
+            x.TenantId == _user.TenantId && x.StudentId == student.Id && x.IsCurrent && x.State == EnrollmentState.Active)
             .OrderByDescending(x => x.EnrollmentDate).FirstOrDefaultAsync(ct);
         if (enrollment == null) return NotFound<IReadOnlyList<RoutineEntryDto>>();
         var ids = await _registrations.GetQueryable().AsNoTracking().Where(x => x.TenantId == _user.TenantId &&
@@ -348,7 +345,7 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
     private async Task<Student?> AuthorizedStudentAsync(Guid reference, CancellationToken ct)
     {
         var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-            x.TenantId == _user.TenantId && x.PublicId == reference && x.IsActive, ct);
+            x.TenantId == _user.TenantId && x.PublicId == reference && x.StatusCode == "Active" && !x.IsDeleted, ct);
         return student != null && await CanAccessStudentAsync(student, ct) ? student : null;
     }
 
@@ -364,7 +361,7 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
             select link.Id).AnyAsync(ct);
     }
 
-    private async Task<AcademicStudentEnrollmentDto> BuildEnrollmentDtoAsync(StudentEnrollment entity,
+    private async Task<StudentEnrollmentDto> BuildEnrollmentDtoAsync(StudentEnrollment entity,
         Student student, CancellationToken ct)
     {
         var tenant = _user.TenantId;
@@ -372,18 +369,18 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
             x.Id == entity.AcademicBatchId).Select(x => x.Name).FirstOrDefaultAsync(ct);
         var curriculumName = await _curricula.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
             x.Id == entity.AcademicCurriculumId).Select(x => x.Name).FirstOrDefaultAsync(ct);
-        return new AcademicStudentEnrollmentDto
+        return new StudentEnrollmentDto
         {
-            Id = entity.Id, StudentReference = student.PublicId, StudentName = student.FullName,
+            Id = entity.Id, Reference = entity.PublicId, StudentReference = student.PublicId,
+            StudentCode = student.StudentCode, StudentName = student.FullName,
             CampusId = entity.CampusId, AcademicYearId = entity.AcademicYearId, AcademicTermId = entity.AcademicTermId,
             AcademicProgramId = entity.AcademicProgramId, AcademicLevelId = entity.AcademicLevelId,
-            AcademicBatchId = entity.AcademicBatchId, BatchName = batchName ?? string.Empty,
-            AcademicCurriculumId = entity.AcademicCurriculumId, CurriculumName = curriculumName ?? string.Empty,
-            RollNo = entity.RollNo, EnrollmentDate = entity.EnrollmentDate.ToDateTime(TimeOnly.MinValue),
-            EnrollmentStatus = Enum.Parse<EnrollmentStatus>(entity.State.ToString()),
-            IsCurrent = entity.IsCurrent, IsActive = entity.IsActive,
-            RowVersion = Convert.ToBase64String(entity.RowVersion),
-            Subjects = await GetRegistrationDtosAsync(entity.Id, ct)
+            AcademicBatchId = entity.AcademicBatchId, AcademicBatchName = batchName ?? string.Empty,
+            AcademicCurriculumId = entity.AcademicCurriculumId, AcademicCurriculumName = curriculumName ?? string.Empty,
+            RollNo = entity.RollNo, EnrollmentDate = entity.EnrollmentDate, State = entity.State,
+            AcademicTrackId = entity.AcademicTrackId, MediumId = entity.MediumId, ShiftId = entity.ShiftId,
+            Remarks = entity.Remarks, IsCurrent = entity.IsCurrent,
+            RowVersion = Convert.ToBase64String(entity.RowVersion)
         };
     }
 
@@ -415,15 +412,7 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
     {
         try
         {
-            var strategy = _uow.CreateExecutionStrategy();
-            return await strategy.ExecuteAsync(async () =>
-            {
-                using var scope = new TransactionScope(TransactionScopeOption.Required,
-                    new TransactionOptions { IsolationLevel = IsolationLevel.Serializable }, TransactionScopeAsyncFlowOption.Enabled);
-                var result = await action();
-                if (result.Success) scope.Complete();
-                return result;
-            });
+            return await _uow.ExecuteInTransactionAsync(_ => action());
         }
         catch (DbUpdateConcurrencyException ex)
         {
@@ -434,11 +423,6 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
         {
             _logger.LogWarning(ex, "Academic enrollment conflict during {Operation} tenant {TenantId}", operation, _user.TenantId);
             return Error<T>("Enrollment conflicts with another request.", 409);
-        }
-        catch (TransactionAbortedException ex)
-        {
-            _logger.LogWarning(ex, "Academic enrollment transaction aborted during {Operation} tenant {TenantId}", operation, _user.TenantId);
-            return Error<T>("Concurrent enrollment conflict. Reload and retry.", 409);
         }
     }
 
