@@ -5,6 +5,7 @@ using EduOS.Core.Entities.Assessment;
 using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Students;
+using EduOS.Core.Entities.System;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
@@ -43,6 +44,7 @@ public sealed partial class ExamWorkflowService : IAssessmentAdministrationServi
     private readonly IGenericRepository<CertificateTemplate> _templates;
     private readonly IGenericRepository<CertificateIssue> _certificates;
     private readonly IGenericRepository<TranscriptIssue> _transcripts;
+    private readonly IGenericRepository<AuditLog> _auditLogs;
     private readonly IUnitOfWork _uow;
     private readonly ICurrentUserService _user;
     private readonly TimeProvider _clock;
@@ -62,7 +64,8 @@ public sealed partial class ExamWorkflowService : IAssessmentAdministrationServi
         IGenericRepository<AssessmentComponent> components,
         IGenericRepository<StudentAssessmentComponentMark> componentMarks,
         IGenericRepository<CertificateTemplate> templates, IGenericRepository<CertificateIssue> certificates,
-        IGenericRepository<TranscriptIssue> transcripts, IUnitOfWork uow, ICurrentUserService user,
+        IGenericRepository<TranscriptIssue> transcripts, IGenericRepository<AuditLog> auditLogs,
+        IUnitOfWork uow, ICurrentUserService user,
         TimeProvider clock, ILogger<ExamWorkflowService> logger)
     {
         _assessments = assessments; _subjects = subjects; _schedules = schedules;
@@ -73,7 +76,7 @@ public sealed partial class ExamWorkflowService : IAssessmentAdministrationServi
         _terms = terms; _campuses = campuses; _rooms = rooms; _students = students;
         _employees = employees; _instructors = instructors; _components = components;
         _componentMarks = componentMarks; _templates = templates;
-        _certificates = certificates; _transcripts = transcripts;
+        _certificates = certificates; _transcripts = transcripts; _auditLogs = auditLogs;
         _uow = uow; _user = user; _clock = clock; _logger = logger;
     }
 
