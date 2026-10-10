@@ -328,96 +328,150 @@ public sealed class AcademicSetupService : IAcademicSetupService
         });
     }
 
-    public Task<ApiResponse<AcademicCurriculumDto>> CreateCurriculumAsync(CreateAcademicCurriculumDto request, CancellationToken cancellationToken = default)
+    public Task<ApiResponse<AcademicCurriculumDto>> CreateCurriculumAsync(
+        SaveAcademicCurriculumRequestDto request, CancellationToken ct = default)
     {
         if (!CanManage()) return Task.FromResult(Denied<AcademicCurriculumDto>());
-        if (request == null || request.AcademicProgramId <= 0 || string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Code))
-            return Task.FromResult(Error<AcademicCurriculumDto>("Programme, curriculum name and code are required."));
-        if (!string.IsNullOrWhiteSpace(request.Remarks))
-            return Task.FromResult(Error<AcademicCurriculumDto>("Curriculum remarks are not persisted in the canonical curriculum model."));
-        if (!request.EffectiveFromAcademicYearId.HasValue)
-            return Task.FromResult(Error<AcademicCurriculumDto>("A starting academic year is required to establish the curriculum effective date."));
+        if (request == null || request.ClientRequestId == Guid.Empty ||
+            request.AcademicProgramId <= 0 || !ValidNameCode(request.Name, request.Code, 150) ||
+            request.VersionNo < 1 || request.EffectiveFrom == default ||
+            request.EffectiveTo.HasValue && request.EffectiveTo.Value < request.EffectiveFrom ||
+            request.AcademicTrackId is <= 0 || request.MediumId is <= 0 ||
+            request.Subjects == null || request.Subjects.Count > 500 ||
+            request.Subjects.Any(x => !ValidSubject(x)) ||
+            request.Subjects.Select(x => new { x.AcademicLevelId, x.SubjectId }).Distinct().Count() != request.Subjects.Count)
+            return Task.FromResult(Error<AcademicCurriculumDto>("Invalid curriculum, dates or subject lines."));
         return ExecuteWriteAsync("create curriculum", async () =>
         {
-            var tenantId = _currentUser.TenantId;
-            if (!await _programs.GetQueryable().AnyAsync(x => x.TenantId == tenantId && x.Id == request.AcademicProgramId && x.IsActive, cancellationToken))
-                return Error<AcademicCurriculumDto>("Programme not found.", 404);
-            var fromYear = await ResolveYearAsync(request.EffectiveFromAcademicYearId, cancellationToken);
-            if (request.EffectiveFromAcademicYearId.HasValue && fromYear == null) return Error<AcademicCurriculumDto>("Effective-from academic year not found.", 404);
-            var toYear = await ResolveYearAsync(request.EffectiveToAcademicYearId, cancellationToken);
-            if (request.EffectiveToAcademicYearId.HasValue && toYear == null) return Error<AcademicCurriculumDto>("Effective-to academic year not found.", 404);
-            if (fromYear != null && toYear != null && toYear.EndDate < fromYear.StartDate)
-                return Error<AcademicCurriculumDto>("Curriculum effective years are out of order.");
-            var name = request.Name.Trim();
+            var tenant = _currentUser.TenantId;
+            var program = await _programs.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.Id == request.AcademicProgramId && x.IsActive && !x.IsDeleted, ct);
+            if (program == null) return Error<AcademicCurriculumDto>("Academic program unavailable.", 404);
+            if (request.AcademicTrackId.HasValue && !await _tracks.GetQueryable().AsNoTracking()
+                .AnyAsync(x => x.TenantId == tenant && x.Id == request.AcademicTrackId.Value &&
+                    x.IsActive && (!x.AcademicProgramId.HasValue || x.AcademicProgramId == program.Id), ct))
+                return Error<AcademicCurriculumDto>("Academic track invalid for program.", 409);
+            if (request.MediumId.HasValue && !await _mediums.GetQueryable().AsNoTracking()
+                .AnyAsync(x => x.TenantId == tenant && x.Id == request.MediumId.Value && x.IsActive, ct))
+                return Error<AcademicCurriculumDto>("Medium not found.", 404);
             var code = NormalizeCode(request.Code);
-            var existing = await _curricula.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Code == code, cancellationToken);
+            var existing = await _curricula.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.Code == code, ct);
             if (existing != null)
             {
-                if (existing.AcademicProgramId != request.AcademicProgramId || existing.Name != name || existing.EffectiveFrom != (fromYear?.StartDate ?? DateOnly.FromDateTime(DateTime.UtcNow)) || existing.EffectiveTo != toYear?.EndDate || existing.IsCurrent != request.IsCurrent)
-                    return Error<AcademicCurriculumDto>("Curriculum code is already in use with different settings.", 409);
-                return ApiResponse<AcademicCurriculumDto>.SuccessResponse(MapCurriculum(existing), "Curriculum already exists.");
+                if (existing.AcademicProgramId != request.AcademicProgramId ||
+                    existing.AcademicTrackId != request.AcademicTrackId ||
+                    existing.MediumId != request.MediumId ||
+                    existing.Name != request.Name.Trim() || existing.VersionNo != request.VersionNo ||
+                    existing.EffectiveFrom != request.EffectiveFrom ||
+                    existing.EffectiveTo != request.EffectiveTo || existing.IsCurrent != request.IsCurrent ||
+                    existing.IsActive != request.IsActive)
+                    return Error<AcademicCurriculumDto>("Curriculum code already exists with other settings.", 409);
+                var registered = await _curriculumSubjects.GetQueryable().AsNoTracking()
+                    .Where(x => x.TenantId == tenant && x.AcademicCurriculumId == existing.Id && !x.IsDeleted)
+                    .ToListAsync(ct);
+                if (registered.Count != request.Subjects.Count || request.Subjects.Any(x => !registered.Any(y =>
+                    y.AcademicLevelId == x.AcademicLevelId && y.SubjectId == x.SubjectId &&
+                    y.FullMarks == x.FullMarks && y.PassMarks == x.PassMarks &&
+                    y.CreditHours == x.CreditHours && y.IsOptional == x.IsOptional &&
+                    y.HasPractical == x.HasPractical && y.IsActive == x.IsActive &&
+                    y.DisplayOrder == x.DisplayOrder)))
+                    return Error<AcademicCurriculumDto>("Existing curriculum subjects differ from this request.", 409);
+                var dto = MapCurriculum(existing);
+                dto.Subjects = registered.Select(MapCurriculumSubject).ToList();
+                return ApiResponse<AcademicCurriculumDto>.SuccessResponse(dto, "Curriculum already exists.");
             }
-            if (request.IsCurrent && await _curricula.GetQueryable().AnyAsync(x => x.TenantId == tenantId && x.AcademicProgramId == request.AcademicProgramId && x.IsCurrent && x.IsActive, cancellationToken))
-                return Error<AcademicCurriculumDto>("The programme already has a current curriculum.", 409);
+            if (request.IsCurrent && request.IsActive && await _curricula.GetQueryable().AsNoTracking()
+                .AnyAsync(x => x.TenantId == tenant && x.AcademicProgramId == program.Id &&
+                    x.AcademicTrackId == request.AcademicTrackId &&
+                    x.MediumId == request.MediumId && x.IsCurrent && !x.IsDeleted, ct))
+                return Error<AcademicCurriculumDto>("A current curriculum exists for this program, track and medium.", 409);
+            if (request.Subjects.Count > 0)
+            {
+                var levelIds = request.Subjects.Select(x => x.AcademicLevelId).Distinct().ToArray();
+                var subjectIds = request.Subjects.Select(x => x.SubjectId).Distinct().ToArray();
+                var levelCount = await _levels.GetQueryable().AsNoTracking().CountAsync(x =>
+                    x.TenantId == tenant && x.AcademicProgramId == program.Id &&
+                    x.IsActive && levelIds.Contains(x.Id), ct);
+                var subjectCount = await _subjects.GetQueryable().AsNoTracking().CountAsync(x =>
+                    x.TenantId == tenant && x.IsActive && subjectIds.Contains(x.Id), ct);
+                if (levelCount != levelIds.Length || subjectCount != subjectIds.Length)
+                    return Error<AcademicCurriculumDto>("Curriculum subject or level is not valid for this program.", 409);
+            }
             var row = new AcademicCurriculum
             {
-                TenantId = tenantId,
-                AcademicProgramId = request.AcademicProgramId,
-                Name = name,
-                Code = code,
-                EffectiveFrom = fromYear!.StartDate,
-                EffectiveTo = toYear?.EndDate,
-                IsCurrent = request.IsCurrent,
-                IsActive = true
+                TenantId = tenant, AcademicProgramId = program.Id, AcademicTrackId = request.AcademicTrackId,
+                MediumId = request.MediumId, Name = request.Name.Trim(), Code = code,
+                VersionNo = request.VersionNo, EffectiveFrom = request.EffectiveFrom,
+                EffectiveTo = request.EffectiveTo, IsCurrent = request.IsCurrent,
+                IsActive = request.IsActive
             };
             await _curricula.AddAsync(row);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            return Created(MapCurriculum(row), "Curriculum created.");
+            await _unitOfWork.SaveChangesAsync(ct);
+            var items = new List<CurriculumSubject>();
+            foreach (var requestItem in request.Subjects)
+            {
+                var item = new CurriculumSubject
+                {
+                    TenantId = tenant, AcademicCurriculumId = row.Id,
+                    AcademicLevelId = requestItem.AcademicLevelId, SubjectId = requestItem.SubjectId,
+                    FullMarks = requestItem.FullMarks, PassMarks = requestItem.PassMarks,
+                    CreditHours = requestItem.CreditHours, IsOptional = requestItem.IsOptional,
+                    HasPractical = requestItem.HasPractical, IsActive = requestItem.IsActive,
+                    DisplayOrder = requestItem.DisplayOrder
+                };
+                items.Add(item);
+                await _curriculumSubjects.AddAsync(item);
+            }
+            await _unitOfWork.SaveChangesAsync(ct);
+            var result = MapCurriculum(row);
+            result.Subjects = items.Select(MapCurriculumSubject).ToList();
+            return Created(result, "Curriculum and subjects created.");
         });
     }
 
-    public Task<ApiResponse<CurriculumSubjectDto>> RegisterCurriculumSubjectAsync(long academicCurriculumId, RegisterCurriculumSubjectDto request, CancellationToken cancellationToken = default)
+    public Task<ApiResponse<CurriculumSubjectDto>> RegisterCurriculumSubjectAsync(
+        long academicCurriculumId, SaveCurriculumSubjectRequestDto request, CancellationToken ct = default)
     {
         if (!CanManage()) return Task.FromResult(Denied<CurriculumSubjectDto>());
-        if (academicCurriculumId <= 0 || request == null || request.AcademicLevelId <= 0 || request.SubjectId <= 0 || request.FullMarks <= 0 || request.PassMarks < 0 || request.PassMarks > request.FullMarks || request.CreditHours < 0)
-            return Task.FromResult(Error<CurriculumSubjectDto>("Curriculum, level, subject and valid mark settings are required."));
+        if (academicCurriculumId <= 0 || !ValidSubject(request) || request!.Id.HasValue)
+            return Task.FromResult(Error<CurriculumSubjectDto>("Valid curriculum subject without existing ID is required."));
         return ExecuteWriteAsync("register curriculum subject", async () =>
         {
-            var tenantId = _currentUser.TenantId;
-            var curriculum = await _curricula.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == academicCurriculumId && x.IsActive, cancellationToken);
+            var tenant = _currentUser.TenantId;
+            var curriculum = await _curricula.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.Id == academicCurriculumId && x.IsActive && !x.IsDeleted, ct);
             if (curriculum == null) return Error<CurriculumSubjectDto>("Curriculum not found.", 404);
-            var level = await _levels.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.AcademicLevelId && x.IsActive, cancellationToken);
-            if (level == null) return Error<CurriculumSubjectDto>("Academic level not found.", 404);
-            if (level.AcademicProgramId != curriculum.AcademicProgramId) return Error<CurriculumSubjectDto>("Academic level belongs to a different programme.", 409);
-            if (!await _subjects.GetQueryable().AnyAsync(x => x.TenantId == tenantId && x.Id == request.SubjectId && x.IsActive, cancellationToken))
-                return Error<CurriculumSubjectDto>("Subject not found.", 404);
-            if (request.AcademicTrackId.HasValue && request.AcademicTrackId != curriculum.AcademicTrackId)
-                return Error<CurriculumSubjectDto>("Track is fixed by the parent curriculum.", 409);
-            if (request.MediumId.HasValue && request.MediumId != curriculum.MediumId)
-                return Error<CurriculumSubjectDto>("Medium is fixed by the parent curriculum.", 409);
-            var existing = await _curriculumSubjects.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId && x.AcademicCurriculumId == academicCurriculumId && x.AcademicLevelId == request.AcademicLevelId && x.SubjectId == request.SubjectId && x.IsActive, cancellationToken);
+            if (!await _levels.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.Id == request.AcademicLevelId &&
+                    x.AcademicProgramId == curriculum.AcademicProgramId && x.IsActive, ct) ||
+                !await _subjects.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.Id == request.SubjectId && x.IsActive, ct))
+                return Error<CurriculumSubjectDto>("Academic level or subject is unavailable.", 409);
+            var existing = await _curriculumSubjects.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.AcademicCurriculumId == academicCurriculumId &&
+                x.AcademicLevelId == request.AcademicLevelId && x.SubjectId == request.SubjectId && !x.IsDeleted, ct);
             if (existing != null)
             {
-                if (existing.FullMarks != request.FullMarks || existing.PassMarks != request.PassMarks || existing.CreditHours != request.CreditHours || existing.IsOptional != request.IsOptional || existing.HasPractical != request.HasPractical)
-                    return Error<CurriculumSubjectDto>("Subject is already registered with different curriculum settings.", 409);
-                return ApiResponse<CurriculumSubjectDto>.SuccessResponse(MapCurriculumSubject(existing), "Curriculum subject already registered.");
+                if (existing.FullMarks != request.FullMarks || existing.PassMarks != request.PassMarks ||
+                    existing.CreditHours != request.CreditHours || existing.IsOptional != request.IsOptional ||
+                    existing.HasPractical != request.HasPractical || existing.IsActive != request.IsActive ||
+                    existing.DisplayOrder != request.DisplayOrder)
+                    return Error<CurriculumSubjectDto>("Curriculum subject already exists with different settings.", 409);
+                return ApiResponse<CurriculumSubjectDto>.SuccessResponse(MapCurriculumSubject(existing));
             }
             var row = new CurriculumSubject
             {
-                TenantId = tenantId,
-                AcademicCurriculumId = academicCurriculumId,
-                AcademicLevelId = request.AcademicLevelId,
-                SubjectId = request.SubjectId,
-                FullMarks = request.FullMarks,
-                PassMarks = request.PassMarks,
-                CreditHours = request.CreditHours,
-                IsOptional = request.IsOptional,
-                HasPractical = request.HasPractical,
-                IsActive = true
+                TenantId = tenant, AcademicCurriculumId = academicCurriculumId,
+                AcademicLevelId = request.AcademicLevelId, SubjectId = request.SubjectId,
+                FullMarks = request.FullMarks, PassMarks = request.PassMarks,
+                CreditHours = request.CreditHours, IsOptional = request.IsOptional,
+                HasPractical = request.HasPractical, DisplayOrder = request.DisplayOrder,
+                IsActive = request.IsActive
             };
             await _curriculumSubjects.AddAsync(row);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            return Created(MapCurriculumSubject(row), "Subject registered in curriculum.");
+            await _unitOfWork.SaveChangesAsync(ct);
+            return Created(MapCurriculumSubject(row), "Curriculum subject registered.");
         });
     }
 
