@@ -33,7 +33,7 @@ public class EmployeeSelfServiceServiceTests
         var result = await CreateService(context, new TestCurrentUser(10, 99)).GetAttendanceAsync();
         result.Success.Should().BeTrue();
         result.Data.Should().ContainSingle();
-        result.Data![0].Status.Should().Be("Present");
+        result.Data![0].State.Should().Be(AttendanceState.Present);
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public class EmployeeSelfServiceServiceTests
         await context.SaveChangesAsync(); SetTenant(accessor, 10);
         var result = await CreateService(context, new TestCurrentUser(10, 99)).GetLeaveHistoryAsync();
         result.Success.Should().BeTrue(); result.Data.Should().ContainSingle();
-        result.Data![0].LeaveType.Should().Be("Casual"); result.Data[0].Reason.Should().Be("Own leave");
+        result.Data![0].LeaveTypeName.Should().Be("Casual"); result.Data[0].Reason.Should().Be("Own leave");
     }
 
     [Fact]
@@ -93,7 +93,8 @@ public class EmployeeSelfServiceServiceTests
         await context.SaveChangesAsync(); SetTenant(accessor, 10);
         var result = await CreateService(context, new TestCurrentUser(10, 99)).ApplyLeaveAsync(new EmployeePortalLeaveApplyDto
         {
-            LeaveTypeId = type.Id, FromDate = new DateTime(year, 2, 10), ToDate = new DateTime(year, 2, 11),
+            ClientRequestId = Guid.NewGuid(), LeaveTypeId = type.Id,
+            FromDate = new DateOnly(year, 2, 10), ToDate = new DateOnly(year, 2, 11),
             Reason = "Need two more days"
         });
         result.Success.Should().BeFalse(); result.StatusCode.Should().Be(400);
@@ -117,7 +118,8 @@ public class EmployeeSelfServiceServiceTests
         await context.SaveChangesAsync(); SetTenant(accessor, 10);
         var result = await CreateService(context, new TestCurrentUser(10, 99)).ApplyLeaveAsync(new EmployeePortalLeaveApplyDto
         {
-            LeaveTypeId = type.Id, FromDate = new DateTime(year, 3, 12), ToDate = new DateTime(year, 3, 13),
+            ClientRequestId = Guid.NewGuid(), LeaveTypeId = type.Id,
+            FromDate = new DateOnly(year, 3, 12), ToDate = new DateOnly(year, 3, 13),
             Reason = "Overlapping request"
         });
         result.Success.Should().BeFalse(); result.StatusCode.Should().Be(409);
