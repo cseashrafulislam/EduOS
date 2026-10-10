@@ -23,31 +23,28 @@ public class AcademicCalendarServiceTests
         var seed = await SeedAsync(options, 101);
         await using var context = CreateContext(options, 101, 7, "TenantAdmin");
         var service = CreateService(context, new TestCurrentUser(101, 7, "TenantAdmin"));
-        var policyRequest = new SaveAcademicCalendarPolicyDto
+        var policyRequest = new SaveAcademicCalendarPolicyRequestDto
         {
-            ClientRequestId = Guid.NewGuid(),
-            AcademicYearId = seed.YearId,
             CampusId = seed.CampusId,
-            WeekendDays = [DayOfWeek.Friday]
+            WeekendDay1 = DayOfWeek.Friday
         };
 
         var policy = await service.SavePolicyAsync(policyRequest);
         var policyReplay = await service.SavePolicyAsync(policyRequest);
-        var eventRequest = new CreateAcademicCalendarEventDto
+        var eventRequest = new SaveAcademicCalendarEventRequestDto
         {
-            ClientRequestId = Guid.NewGuid(),
             CampusId = seed.CampusId,
             AcademicYearId = seed.YearId,
             AcademicTermId = seed.TermId,
-            EventType = AcademicCalendarEventType.Holiday,
+            EventType = CalendarEventKind.Holiday,
             Title = "Autumn holiday",
-            StartDate = new DateTime(2026, 9, 27),
-            EndDate = new DateTime(2026, 9, 27),
+            StartDate = new DateOnly(2026, 9, 27),
+            EndDate = new DateOnly(2026, 9, 27),
             IsPublicVisible = true
         };
         var calendarEvent = await service.CreateEventAsync(eventRequest);
         var eventReplay = await service.CreateEventAsync(eventRequest);
-        var days = await service.GetWorkingDaysAsync(seed.YearId, seed.CampusId, new DateTime(2026, 9, 25), new DateTime(2026, 9, 27));
+        var days = await service.GetWorkingDaysAsync(seed.YearId, seed.CampusId, new DateOnly(2026, 9, 25), new DateOnly(2026, 9, 27));
 
         policy.StatusCode.Should().Be(201);
         policyReplay.Data!.Id.Should().Be(policy.Data!.Id);
@@ -74,29 +71,27 @@ public class AcademicCalendarServiceTests
         await using (var managerContext = CreateContext(options, 101, 7, "TenantAdmin"))
         {
             var manager = CreateService(managerContext, new TestCurrentUser(101, 7, "TenantAdmin"));
-            (await manager.SavePolicyAsync(new SaveAcademicCalendarPolicyDto
+            (await manager.SavePolicyAsync(new SaveAcademicCalendarPolicyRequestDto
             {
-                ClientRequestId = Guid.NewGuid(),
-                AcademicYearId = seed.YearId,
                 CampusId = seed.CampusId,
-                WeekendDays = [DayOfWeek.Friday]
+                WeekendDay1 = DayOfWeek.Friday
             })).Success.Should().BeTrue();
             (await manager.CreateEventAsync(Event(seed, "Public exam", true))).Success.Should().BeTrue();
             (await manager.CreateEventAsync(Event(seed, "Private planning meeting", false))).Success.Should().BeTrue();
             var privateHoliday = Event(seed, "Confidential closure reason", false);
-            privateHoliday.EventType = AcademicCalendarEventType.Holiday;
-            privateHoliday.StartDate = privateHoliday.EndDate = new DateTime(2026, 9, 22);
+            privateHoliday.EventType = CalendarEventKind.Holiday;
+            privateHoliday.StartDate = privateHoliday.EndDate = new DateOnly(2026, 9, 22);
             (await manager.CreateEventAsync(privateHoliday)).Success.Should().BeTrue();
         }
 
         await using var studentContext = CreateContext(options, 101, 71, "Student");
         var student = CreateService(studentContext, new TestCurrentUser(101, 71, "Student"));
-        var events = await student.GetEventsAsync(seed.YearId, seed.CampusId, new DateTime(2026, 9, 1), new DateTime(2026, 9, 30));
+        var events = await student.GetEventsAsync(seed.YearId, seed.CampusId, new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 30));
 
         events.Success.Should().BeTrue();
         events.Data.Should().ContainSingle();
         events.Data!.Single().Title.Should().Be("Public exam");
-        var workingDay = await student.GetWorkingDaysAsync(seed.YearId, seed.CampusId, new DateTime(2026, 9, 22), new DateTime(2026, 9, 22));
+        var workingDay = await student.GetWorkingDaysAsync(seed.YearId, seed.CampusId, new DateOnly(2026, 9, 22), new DateOnly(2026, 9, 22));
         workingDay.Data.Should().ContainSingle();
         workingDay.Data![0].IsWorkingDay.Should().BeFalse();
         workingDay.Data[0].HolidayNames.Should().ContainSingle().Which.Should().Be("Holiday");
@@ -115,8 +110,8 @@ public class AcademicCalendarServiceTests
             var row = await managerContext.AcademicCalendarEvents.SingleAsync(x => x.Id == eventId);
             row.RowVersion = [1, 2, 3, 4, 5, 6, 7, 8];
             await managerContext.SaveChangesAsync();
-            var stale = await manager.UpdateEventAsync(eventId, Update("Changed by stale client", [8, 7, 6, 5, 4, 3, 2, 1]));
-            var updated = await manager.UpdateEventAsync(eventId, Update("Assessment and review week", row.RowVersion));
+            var stale = await manager.UpdateEventAsync(eventId, Update(seed, "Changed by stale client", [8, 7, 6, 5, 4, 3, 2, 1]));
+            var updated = await manager.UpdateEventAsync(eventId, Update(seed, "Assessment and review week", row.RowVersion));
 
             stale.Success.Should().BeFalse();
             stale.StatusCode.Should().Be(409);
@@ -127,12 +122,10 @@ public class AcademicCalendarServiceTests
         await SeedAsync(options, 202);
         await using var otherContext = CreateContext(options, 202, 8, "TenantAdmin");
         var other = CreateService(otherContext, new TestCurrentUser(202, 8, "TenantAdmin"));
-        var crossTenant = await other.SavePolicyAsync(new SaveAcademicCalendarPolicyDto
+        var crossTenant = await other.SavePolicyAsync(new SaveAcademicCalendarPolicyRequestDto
         {
-            ClientRequestId = Guid.NewGuid(),
-            AcademicYearId = seed.YearId,
             CampusId = seed.CampusId,
-            WeekendDays = [DayOfWeek.Friday]
+            WeekendDay1 = DayOfWeek.Friday
         });
 
         crossTenant.Success.Should().BeFalse();
@@ -140,27 +133,28 @@ public class AcademicCalendarServiceTests
         (await otherContext.AcademicCalendarPolicies.IgnoreQueryFilters().CountAsync()).Should().Be(0);
     }
 
-    private static CreateAcademicCalendarEventDto Event(CalendarSeed seed, string title, bool visible) => new()
+    private static SaveAcademicCalendarEventRequestDto Event(CalendarSeed seed, string title, bool visible) => new()
     {
-        ClientRequestId = Guid.NewGuid(),
         CampusId = seed.CampusId,
         AcademicYearId = seed.YearId,
         AcademicTermId = seed.TermId,
-        EventType = AcademicCalendarEventType.Academic,
+        EventType = CalendarEventKind.Academic,
         Title = title,
-        StartDate = new DateTime(2026, 9, 20),
-        EndDate = new DateTime(2026, 9, 21),
+        StartDate = new DateOnly(2026, 9, 20),
+        EndDate = new DateOnly(2026, 9, 21),
         IsPublicVisible = visible
     };
 
-    private static UpdateAcademicCalendarEventDto Update(string title, byte[] rowVersion) => new()
+    private static SaveAcademicCalendarEventRequestDto Update(CalendarSeed seed, string title, byte[] rowVersion) => new()
     {
-        EventType = AcademicCalendarEventType.Examination,
+        CampusId = seed.CampusId,
+        AcademicYearId = seed.YearId,
+        AcademicTermId = seed.TermId,
+        EventType = CalendarEventKind.Examination,
         Title = title,
-        StartDate = new DateTime(2026, 9, 20),
-        EndDate = new DateTime(2026, 9, 22),
+        StartDate = new DateOnly(2026, 9, 20),
+        EndDate = new DateOnly(2026, 9, 22),
         IsPublicVisible = true,
-        IsActive = true,
         RowVersion = Convert.ToBase64String(rowVersion)
     };
 
@@ -179,10 +173,10 @@ public class AcademicCalendarServiceTests
     {
         await using var context = CreateContext(options, tenantId, tenantId, "TenantAdmin");
         var campus = new Campus { TenantId = tenantId, Name = $"Campus {tenantId}", Code = $"C-{tenantId}", IsActive = true };
-        var year = new AcademicYear { TenantId = tenantId, Name = "2026", StartDate = new DateTime(2026, 1, 1), EndDate = new DateTime(2026, 12, 31), IsCurrent = true, IsActive = true };
+        var year = new AcademicYear { TenantId = tenantId, Name = "2026", Code = "2026", StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31), IsCurrent = true, IsActive = true };
         context.AddRange(campus, year);
         await context.SaveChangesAsync();
-        var term = new AcademicTerm { TenantId = tenantId, AcademicYearId = year.Id, Name = "Autumn", StartDate = new DateTime(2026, 7, 1), EndDate = new DateTime(2026, 12, 15), IsActive = true };
+        var term = new AcademicTerm { TenantId = tenantId, AcademicYearId = year.Id, Name = "Autumn", StartDate = new DateOnly(2026, 7, 1), EndDate = new DateOnly(2026, 12, 15), IsActive = true };
         context.AcademicTerms.Add(term);
         await context.SaveChangesAsync();
         return new CalendarSeed(campus.Id, year.Id, term.Id);
