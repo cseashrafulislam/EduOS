@@ -25,6 +25,7 @@
 
         const data = {
             id: positiveInteger(valueOf('campusId')),
+            rowVersion: valueOf('campusRowVersion'),
             name: valueOf('campusName'),
             code: valueOf('campusCode'),
             address: valueOf('campusAddress'),
@@ -45,7 +46,8 @@
                 method: 'POST',
                 cache: 'no-store',
                 credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json',
+                    'RequestVerificationToken': csrfToken() },
                 body: JSON.stringify(data)
             });
             const payload = await response.json().catch(() => null);
@@ -99,6 +101,7 @@
             article.className = 'setup-record-card';
             article.dataset.recordId = String(campus.id);
             article.dataset.recordName = campus.name || '';
+            article.dataset.rowVersion = campus.rowVersion || '';
 
             const content = document.createElement('div');
             content.className = 'setup-record-content';
@@ -175,7 +178,7 @@
         if (!button || !record || !id) return;
 
         if (button.dataset.action === 'edit') await editCampus(id);
-        if (button.dataset.action === 'delete') await deleteCampus(id, record.dataset.recordName || '');
+        if (button.dataset.action === 'delete') await deleteCampus(id, record.dataset.recordName || '', record.dataset.rowVersion || '');
     }
 
     async function editCampus(id) {
@@ -189,6 +192,7 @@
             if (!response.ok || !payload?.success || !payload.data) throw new Error('Invalid campus response');
             const campus = payload.data;
             setValue('campusId', id);
+            setValue('campusRowVersion', campus.rowVersion || '');
             setValue('campusName', campus.name);
             setValue('campusCode', campus.code);
             setValue('campusAddress', campus.address);
@@ -203,15 +207,15 @@
         }
     }
 
-    async function deleteCampus(id, name) {
+    async function deleteCampus(id, name, rowVersion) {
         const question = String(i18n.deleteConfirm || '').replace('{name}', name);
         if (!window.confirm(question)) return;
         try {
-            const response = await fetch(`/api/institution-onboarding/campus/${encodeURIComponent(id)}`, {
+            const response = await fetch(`/api/institution-onboarding/campus/${encodeURIComponent(id)}?rowVersion=${encodeURIComponent(rowVersion)}`, {
                 method: 'DELETE',
                 cache: 'no-store',
                 credentials: 'same-origin',
-                headers: { 'Accept': 'application/json' }
+                headers: { 'Accept': 'application/json', 'RequestVerificationToken': csrfToken() }
             });
             const payload = await response.json().catch(() => null);
             if (!response.ok || !payload?.success) {
@@ -232,7 +236,8 @@
                 method: 'POST',
                 cache: 'no-store',
                 credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json',
+                    'RequestVerificationToken': csrfToken() },
                 body: JSON.stringify({ stage: 5, skipped: false })
             });
             const payload = await response.json().catch(() => null);
@@ -258,9 +263,12 @@
 
     function resetForm() {
         document.getElementById('campusForm')?.reset();
+        setValue('campusRowVersion', '');
         setValue('campusId', '');
         clearErrors();
     }
+
+    function csrfToken() { return document.querySelector('input[name="__RequestVerificationToken"]')?.value || ''; }
 
     function valueOf(id) {
         return document.getElementById(id)?.value?.trim() ?? '';
