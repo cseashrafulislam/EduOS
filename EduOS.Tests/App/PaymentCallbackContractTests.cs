@@ -30,43 +30,65 @@ public class PaymentCallbackContractTests
     }
 
     [Fact]
-    public void Successful_gateway_callback_claims_payment_before_invoice_side_effects()
+    public void Verified_gateway_callback_updates_payment_and_invoice_atomically_before_activation()
     {
-        var service = ReadService();
-        var callback = Slice(service,
+        var callback = Slice(ReadService(),
             "public async Task<ApiResponse<bool>> HandleAamarPayCallbackAsync",
-            "// SUBMIT MANUAL PAYMENT");
-        var successful = Slice(callback,
-            "payment.Status = PaymentStatus.Successful;",
-            "else\n                {");
+            "public Task<ApiResponse<SubscriptionPaymentDto>> SubmitManualPaymentAsync");
 
-        var save = successful.IndexOf("await _unitOfWork.SaveChangesAsync();", StringComparison.Ordinal);
-        var invoice = successful.IndexOf("// Update invoice", StringComparison.Ordinal);
+        var verify = callback.IndexOf("await _gateway.VerifyTransactionAsync(callback.MerTxnid)", StringComparison.Ordinal);
+        var transaction = callback.IndexOf("using var tx = SerializableScope();", StringComparison.Ordinal);
+        var state = callback.IndexOf("payment.State = PaymentState.Successful;", StringComparison.Ordinal);
+        var invoice = callback.IndexOf("invoice.PaidAmount += payment.Amount;", StringComparison.Ordinal);
+        var paymentUpdate = callback.IndexOf("_payments.Update(payment);", StringComparison.Ordinal);
+        var invoiceUpdate = callback.IndexOf("_invoices.Update(invoice);", StringComparison.Ordinal);
+        var save = callback.IndexOf("await _uow.SaveChangesAsync();", StringComparison.Ordinal);
+        var activation = callback.IndexOf("await ActivatePaidSubscriptionAsync(invoice);", StringComparison.Ordinal);
+        var commit = callback.IndexOf("tx.Complete();", activation, StringComparison.Ordinal);
 
-        save.Should().BeGreaterThanOrEqualTo(0);
-        invoice.Should().BeGreaterThan(save);
-        callback.Should().Contain("catch (DbUpdateConcurrencyException ex)");
-        callback.Should().Contain("Already processed");
+        verify.Should().BeGreaterThanOrEqualTo(0);
+        transaction.Should().BeGreaterThan(verify);
+        state.Should().BeGreaterThan(transaction);
+        invoice.Should().BeGreaterThan(state);
+        paymentUpdate.Should().BeGreaterThan(invoice);
+        invoiceUpdate.Should().BeGreaterThan(paymentUpdate);
+        save.Should().BeGreaterThan(invoiceUpdate);
+        activation.Should().BeGreaterThan(save);
+        commit.Should().BeGreaterThan(activation);
+        callback.Should().Contain("payment.State == PaymentState.Successful");
+        callback.Should().Contain("payment.Amount <= 0");
+        callback.Should().Contain("catch (DbUpdateConcurrencyException)");
     }
 
     [Fact]
-    public void Manual_approval_claims_review_before_subscription_activation_side_effects()
+    public void Manual_payment_review_updates_payment_and_invoice_atomically_before_activation()
     {
-        var service = ReadService();
-        var verify = Slice(service,
+        var verify = Slice(ReadService(),
             "public async Task<ApiResponse<bool>> VerifyManualPaymentAsync",
-            "// GET PAYMENTS BY INVOICE");
-        var approve = Slice(verify,
-            "if (dto.Approve)",
-            "else\n                {");
+            "public async Task<ApiResponse<List<SubscriptionPaymentDto>>> GetByInvoiceAsync");
+        var transaction = verify.IndexOf("using var tx = SerializableScope();", StringComparison.Ordinal);
+        var stateGuard = verify.IndexOf("payment.State != PaymentState.AwaitingVerification", StringComparison.Ordinal);
+        var fileCheck = verify.IndexOf("file?.IsVerifiedSafe != true", StringComparison.Ordinal);
+        var paymentMutation = verify.IndexOf("payment.State = PaymentState.Successful;", StringComparison.Ordinal);
+        var invoiceMutation = verify.IndexOf("invoice.PaidAmount += payment.Amount;", StringComparison.Ordinal);
+        var paymentUpdate = verify.IndexOf("_payments.Update(payment);", StringComparison.Ordinal);
+        var invoiceUpdate = verify.IndexOf("_invoices.Update(invoice);", StringComparison.Ordinal);
+        var save = verify.IndexOf("await _uow.SaveChangesAsync();", StringComparison.Ordinal);
+        var activation = verify.IndexOf("await ActivatePaidSubscriptionAsync(invoice);", StringComparison.Ordinal);
+        var commit = verify.IndexOf("tx.Complete();", StringComparison.Ordinal);
 
-        var save = approve.IndexOf("await _unitOfWork.SaveChangesAsync();", StringComparison.Ordinal);
-        var invoiceMutation = approve.IndexOf("if (invoice != null)", StringComparison.Ordinal);
-
-        save.Should().BeGreaterThanOrEqualTo(0);
-        invoiceMutation.Should().BeGreaterThan(save);
-        verify.Should().Contain("catch (DbUpdateConcurrencyException ex)");
-        verify.Should().Contain("Payment was already reviewed");
+        transaction.Should().BeGreaterThanOrEqualTo(0);
+        stateGuard.Should().BeGreaterThan(transaction);
+        fileCheck.Should().BeGreaterThan(stateGuard);
+        paymentMutation.Should().BeGreaterThan(fileCheck);
+        invoiceMutation.Should().BeGreaterThan(paymentMutation);
+        paymentUpdate.Should().BeGreaterThan(invoiceMutation);
+        invoiceUpdate.Should().BeGreaterThan(paymentUpdate);
+        save.Should().BeGreaterThan(invoiceUpdate);
+        activation.Should().BeGreaterThan(save);
+        commit.Should().BeGreaterThan(activation);
+        verify.Should().Contain("if (!_user.IsSuperAdmin)");
+        verify.Should().Contain("catch (DbUpdateConcurrencyException)");
     }
 
     private static string ReadController()
