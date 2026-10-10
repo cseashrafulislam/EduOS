@@ -307,7 +307,7 @@
     async function completeStep() {
         setLoading(continueButton, true);
         try {
-            const response = await sendJson('/api/onboarding/complete-step', 'POST', { step: 5, skipped: false });
+            const response = await sendJson('/api/onboarding/complete-step', 'POST', { stage: 6, skipped: false });
             if (!response.ok) {
                 showAlert('danger', i18n.stepFailed);
                 return;
