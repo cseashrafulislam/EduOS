@@ -18,6 +18,7 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
 {
     private readonly IGenericRepository<Tenant> _tenants;
     private readonly IGenericRepository<Campus> _campuses;
+    private readonly IGenericRepository<TenantSetting> _settings;
     private readonly IGenericRepository<AcademicYear> _years;
     private readonly IGenericRepository<AcademicTerm> _terms;
     private readonly IGenericRepository<AcademicBatch> _batches;
@@ -30,14 +31,15 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
     private readonly ILogger<InstitutionFoundationService> _logger;
 
     public InstitutionFoundationService(IGenericRepository<Tenant> tenants,
-        IGenericRepository<Campus> campuses, IGenericRepository<AcademicYear> years,
+        IGenericRepository<Campus> campuses, IGenericRepository<TenantSetting> settings,
+        IGenericRepository<AcademicYear> years,
         IGenericRepository<AcademicTerm> terms, IGenericRepository<AcademicBatch> batches,
         IGenericRepository<AdmissionIntakeForm> admissions,
         IGenericRepository<TenantSubscription> subscriptions, IGenericRepository<SubscriptionPlan> plans,
         IUnitOfWork uow, ICurrentUserService user, TimeProvider clock,
         ILogger<InstitutionFoundationService> logger)
     {
-        _tenants = tenants; _campuses = campuses; _years = years; _terms = terms;
+        _tenants = tenants; _campuses = campuses; _settings = settings; _years = years; _terms = terms;
         _batches = batches; _admissions = admissions; _subscriptions = subscriptions;
         _plans = plans; _uow = uow; _user = user; _clock = clock; _logger = logger;
     }
@@ -45,10 +47,16 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
     public async Task<ApiResponse<IReadOnlyList<CampusDto>>> GetCampusesAsync(CancellationToken ct = default)
     {
         if (!CanManage()) return Error<IReadOnlyList<CampusDto>>("Tenant administrator required.", 403);
-        IReadOnlyList<CampusDto> result = (await _campuses.GetQueryable().AsNoTracking()
+        var campuses = await _campuses.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == _user.TenantId && !x.IsDeleted)
             .OrderByDescending(x => x.IsHeadOffice).ThenBy(x => x.Name)
-            .Take(500).ToListAsync(ct)).Select(Map).ToList();
+            .Take(500).ToListAsync(ct);
+        var keys = campuses.Select(x => CampusHeadKey(x.Id)).ToArray();
+        var names = await _settings.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == _user.TenantId && keys.Contains(x.Key) && !x.IsDeleted)
+            .ToDictionaryAsync(x => x.Key, x => x.Value, ct);
+        IReadOnlyList<CampusDto> result = campuses.Select(x =>
+            Map(x, names.GetValueOrDefault(CampusHeadKey(x.Id)))).ToList();
         return ApiResponse<IReadOnlyList<CampusDto>>.SuccessResponse(result);
     }
 
@@ -57,8 +65,9 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
         if (!CanManage()) return Error<CampusDto>("Tenant administrator required.", 403);
         var row = await _campuses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == _user.TenantId && x.Id == id && !x.IsDeleted, ct);
-        return row == null ? Error<CampusDto>("Campus not found.", 404) :
-            ApiResponse<CampusDto>.SuccessResponse(Map(row));
+        if (row == null) return Error<CampusDto>("Campus not found.", 404);
+        var head = await GetHeadNameAsync(row.Id, ct);
+        return ApiResponse<CampusDto>.SuccessResponse(Map(row, head));
     }
 
     public Task<ApiResponse<CampusDto>> SaveCampusAsync(long? id,
@@ -126,7 +135,23 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
             if (id.HasValue) _campuses.Update(row);
             TouchTenant(tenant, timestamp);
             await _uow.SaveChangesAsync(token);
-            return ApiResponse<CampusDto>.SuccessResponse(Map(row), "Campus saved.");
+            var headKey = CampusHeadKey(row.Id);
+            var setting = await _settings.GetQueryable().FirstOrDefaultAsync(x =>
+                x.TenantId == tenantId && x.Key == headKey && !x.IsDeleted, token);
+            if (setting == null)
+                await _settings.AddAsync(new TenantSetting
+                {
+                    TenantId = tenantId, Key = headKey, Category = "Campus",
+                    Value = Trim(request.HeadName) ?? "", CreatedAt = timestamp, CreatedBy = _user.UserId
+                });
+            else
+            {
+                setting.Value = Trim(request.HeadName) ?? "";
+                setting.UpdatedAt = timestamp; setting.UpdatedBy = _user.UserId;
+                _settings.Update(setting);
+            }
+            await _uow.SaveChangesAsync(token);
+            return ApiResponse<CampusDto>.SuccessResponse(Map(row, Trim(request.HeadName)), "Campus saved.");
         }, ct);
     }
 
@@ -387,12 +412,18 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
         }, ct);
     }
 
-    private static CampusDto Map(Campus row) => new()
+    private static CampusDto Map(Campus row, string? headName = null) => new()
     {
         Id = row.Id, Reference = row.PublicId, Name = row.Name, Code = row.Code,
         Address = row.Address, Email = row.Email, Phone = row.Phone,
-        IsHeadOffice = row.IsHeadOffice, IsActive = row.IsActive, RowVersion = Version(row.RowVersion)
+        HeadName = headName, IsHeadOffice = row.IsHeadOffice, IsActive = row.IsActive,
+        RowVersion = Version(row.RowVersion)
     };
+    private static string CampusHeadKey(long id) => "Campus." + id + ".HeadName";
+    private Task<string?> GetHeadNameAsync(long id, CancellationToken ct) =>
+        _settings.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == _user.TenantId && x.Key == CampusHeadKey(id) && !x.IsDeleted)
+            .Select(x => x.Value).FirstOrDefaultAsync(ct);
     private static AcademicYearDto Map(AcademicYear row) => new()
     {
         Id = row.Id, Name = row.Name, Code = row.Code, CampusId = row.CampusId,
