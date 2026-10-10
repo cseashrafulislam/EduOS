@@ -1,237 +1,126 @@
 using EduOS.Core.DTOs.SaaS;
+using EduOS.Core.DTOs.Tenants;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
-namespace EduOS.App.Controllers.Api
+namespace EduOS.App.Controllers.Api;
+
+[Authorize(Roles = "TenantAdmin")]
+[AutoValidateAntiforgeryToken]
+[EnableRateLimiting("ApiPolicy")]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+[ApiController]
+[Route("api/institution-onboarding")]
+public sealed class InstitutionOnboardingController : ControllerBase
 {
-    [Authorize(Roles = "TenantAdmin")]
-    [AutoValidateAntiforgeryToken]
-    [ApiController]
-    [Route("api/institution-onboarding")]
-    public class InstitutionOnboardingController : ControllerBase
+    private readonly IInstitutionRegistrationService _registration;
+    private readonly IInstitutionFoundationService _foundation;
+    private readonly IInstitutionProfileWizardService _profile;
+    private readonly IOnboardingService _onboarding;
+
+    public InstitutionOnboardingController(IInstitutionRegistrationService registration,
+        IInstitutionFoundationService foundation, IInstitutionProfileWizardService profile,
+        IOnboardingService onboarding)
     {
-        private readonly IInstitutionOnboardingService _service;
-
-        public InstitutionOnboardingController(IInstitutionOnboardingService service)
-        {
-            _service = service;
-        }
-
-        // ============================================================
-        // PUBLIC (no auth)
-        // ============================================================
-
-        /// <summary>
-        /// Register a new institution. Creates tenant + admin user + sends email verification.
-        /// </summary>
-        [AllowAnonymous]
-        [EnableRateLimiting("SignupPolicy")]
-        [HttpPost("signup")]
-        public async Task<IActionResult> Signup([FromBody] InstitutionSignupRequestDto dto)
-        {
-            if (dto == null)
-                return BadRequest(new { success = false, message = "Invalid request body." });
-
-            if (!ModelState.IsValid)
-            {
-                var errors = ModelState.Values
-                    .SelectMany(v => v.Errors)
-                    .Select(e => e.ErrorMessage)
-                    .ToList();
-                return BadRequest(new { success = false, message = string.Join(" | ", errors) });
-            }
-
-            var baseUrl = $"{Request.Scheme}://{Request.Host}";
-            var result = await _service.RegisterInstitutionAsync(dto, baseUrl);
-
-            return StatusCode(result.StatusCode, result);
-        }
-
-        /// <summary>
-        /// Email verification link target. Redirects to success or fail page.
-        /// </summary>
-        [AllowAnonymous]
-        [HttpGet("verify-email")]
-        public async Task<IActionResult> VerifyEmail(
-            [FromQuery] string email,
-            [FromQuery] string token)
-        {
-            if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(token))
-                return Redirect("/Account/VerifyFailed");
-
-            var baseUrl = $"{Request.Scheme}://{Request.Host}";
-            var ok = await _service.VerifyEmailAsync(email, token, baseUrl);
-
-            return ok
-                ? Redirect("/Account/VerifyEmailSuccess")
-                : Redirect("/Account/VerifyFailed");
-        }
-
-        // ============================================================
-        // AUTHENTICATED (onboarding wizard steps)
-        // ============================================================
-
-        /// <summary>
-        /// Get current institution profile for the logged-in tenant.
-        /// </summary>
-        [HttpGet("institution-profile")]
-        public async Task<IActionResult> GetInstitutionProfile()
-        {
-            var result = await _service.GetInstitutionProfileAsync();
-            return StatusCode(result.StatusCode, result);
-        }
-
-        /// <summary>
-        /// Save institution profile details (name, type, owner info, address).
-        /// Accepts multipart/form-data (for logo upload in same form if needed).
-        /// </summary>
-        [HttpPost("institution-profile")]
-        [EnableRateLimiting("ApiPolicy")]
-        [Consumes("multipart/form-data", "application/json")]
-        public async Task<IActionResult> SaveInstitutionProfile(
-            [FromForm] InstitutionProfileSetupDto dto)
-        {
-            if (dto == null)
-                return BadRequest(new { success = false, message = "Invalid request." });
-
-            var result = await _service.SaveInstitutionProfileAsync(dto);
-            return StatusCode(result.StatusCode, result);
-        }
-
-        // ── Campus ────────────────────────────────────────────────
-
-        /// <summary>
-        /// List all campuses for the current tenant.
-        /// </summary>
-        [HttpGet("campus-list")]
-        public async Task<IActionResult> GetCampusList()
-        {
-            var result = await _service.GetCampusListAsync();
-            return StatusCode(result.StatusCode, result);
-        }
-
-        /// <summary>
-        /// Get a single campus by ID.
-        /// </summary>
-        [HttpGet("campus/{id:long}")]
-        public async Task<IActionResult> GetCampus(long id)
-        {
-            var result = await _service.GetCampusByIdAsync(id);
-            return StatusCode(result.StatusCode, result);
-        }
-
-        /// <summary>
-        /// Create or update a campus (Id = null → create, Id set → update).
-        /// </summary>
-        [HttpPost("campus")]
-        [EnableRateLimiting("ApiPolicy")]
-        public async Task<IActionResult> SaveCampus([FromBody] CampusSetupDto dto)
-        {
-            if (dto == null || string.IsNullOrWhiteSpace(dto.Name))
-                return BadRequest(new { success = false, message = "Campus name is required." });
-
-            var result = await _service.SaveCampusAsync(dto);
-            return StatusCode(result.StatusCode, result);
-        }
-
-        /// <summary>
-        /// Soft-delete a campus.
-        /// </summary>
-        [HttpDelete("campus/{id:long}")]
-        [EnableRateLimiting("ApiPolicy")]
-        public async Task<IActionResult> DeleteCampus(long id)
-        {
-            var result = await _service.DeleteCampusAsync(id);
-            return StatusCode(result.StatusCode, result);
-        }
-
-        // ── Academic Year ─────────────────────────────────────────
-
-        [HttpGet("academic-years")]
-        public async Task<IActionResult> GetAcademicYears()
-        {
-            var result = await _service.GetAcademicYearListAsync();
-            return StatusCode(result.StatusCode, result);
-        }
-
-        [HttpGet("academic-year/{id:long}")]
-        public async Task<IActionResult> GetAcademicYear(long id)
-        {
-            var result = await _service.GetAcademicYearByIdAsync(id);
-            return StatusCode(result.StatusCode, result);
-        }
-
-        [HttpPost("academic-year")]
-        [EnableRateLimiting("ApiPolicy")]
-        public async Task<IActionResult> SaveAcademicYear([FromBody] AcademicYearSetupDto dto)
-        {
-            if (dto == null || string.IsNullOrWhiteSpace(dto.Name))
-                return BadRequest(new { success = false, message = "Academic year name is required." });
-
-            var result = await _service.SaveAcademicYearAsync(dto);
-            return StatusCode(result.StatusCode, result);
-        }
-
-        [HttpDelete("academic-year/{id:long}")]
-        [EnableRateLimiting("ApiPolicy")]
-        public async Task<IActionResult> DeleteAcademicYear(long id)
-        {
-            var result = await _service.DeleteAcademicYearAsync(id);
-            return StatusCode(result.StatusCode, result);
-        }
-
-        // ── Academic Term ─────────────────────────────────────────
-
-        [HttpGet("academic-terms")]
-        public async Task<IActionResult> GetAcademicTerms()
-        {
-            var result = await _service.GetAcademicTermListAsync();
-            return StatusCode(result.StatusCode, result);
-        }
-
-        [HttpGet("academic-term/{id:long}")]
-        public async Task<IActionResult> GetAcademicTerm(long id)
-        {
-            var result = await _service.GetAcademicTermByIdAsync(id);
-            return StatusCode(result.StatusCode, result);
-        }
-
-        [HttpPost("academic-term")]
-        [EnableRateLimiting("ApiPolicy")]
-        public async Task<IActionResult> SaveAcademicTerm([FromBody] AcademicTermSetupDto dto)
-        {
-            if (dto == null || dto.AcademicYearId <= 0)
-                return BadRequest(new { success = false, message = "Academic year is required." });
-
-            if (string.IsNullOrWhiteSpace(dto.Name))
-                return BadRequest(new { success = false, message = "Term name is required." });
-
-            var result = await _service.SaveAcademicTermAsync(dto);
-            return StatusCode(result.StatusCode, result);
-        }
-
-        [HttpDelete("academic-term/{id:long}")]
-        [EnableRateLimiting("ApiPolicy")]
-        public async Task<IActionResult> DeleteAcademicTerm(long id)
-        {
-            var result = await _service.DeleteAcademicTermAsync(id);
-            return StatusCode(result.StatusCode, result);
-        }
-
-        // ── Final ─────────────────────────────────────────────────
-
-        /// <summary>
-        /// Mark onboarding complete after campus and academic year are done.
-        /// Validates minimum requirements before allowing completion.
-        /// </summary>
-        [HttpPost("final-complete")]
-        [EnableRateLimiting("ApiPolicy")]
-        public async Task<IActionResult> FinalComplete()
-        {
-            var result = await _service.FinalCompleteAsync();
-            return StatusCode(result.StatusCode, result);
-        }
+        _registration = registration; _foundation = foundation;
+        _profile = profile; _onboarding = onboarding;
     }
+
+    [AllowAnonymous]
+    [EnableRateLimiting("SignupPolicy")]
+    [HttpPost("signup")]
+    public async Task<IActionResult> Signup([FromBody] InstitutionSignupRequestDto request, CancellationToken ct) =>
+        Result(await _registration.RegisterInstitutionAsync(request, ct));
+
+    [AllowAnonymous]
+    [HttpGet("verify-email")]
+    public async Task<IActionResult> VerifyEmail([FromQuery] string email, [FromQuery] string token,
+        CancellationToken ct)
+    {
+        var checkedToken = await _registration.VerifyEmailAsync(email, token, ct);
+        return Redirect(checkedToken.Success && checkedToken.Data
+            ? "/Account/VerifyEmailSuccess" : "/Account/VerifyFailed");
+    }
+
+    [HttpGet("institution-profile")]
+    public async Task<IActionResult> Profile(CancellationToken ct) =>
+        Result(await _profile.GetAsync(ct));
+
+    [HttpPost("institution-profile")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> SaveProfile([FromForm] InstitutionProfileWizardDto request,
+        CancellationToken ct) => Result(await _profile.SaveAsync(request, ct));
+
+    [HttpGet("campus-list")]
+    public async Task<IActionResult> Campuses(CancellationToken ct) =>
+        Result(await _foundation.GetCampusesAsync(ct));
+
+    [HttpGet("campus/{id:long}")]
+    public async Task<IActionResult> Campus(long id, CancellationToken ct) =>
+        Result(await _foundation.GetCampusAsync(id, ct));
+
+    [HttpPost("campus")]
+    public async Task<IActionResult> SaveCampus([FromBody] InstitutionCampusWizardRequestDto request,
+        CancellationToken ct) =>
+        Result(await _foundation.SaveCampusAsync(request.Id, request, ct));
+
+    [HttpDelete("campus/{id:long}")]
+    public async Task<IActionResult> ArchiveCampus(long id, [FromQuery] string rowVersion,
+        CancellationToken ct) =>
+        Result(await _foundation.ArchiveCampusAsync(id, rowVersion, ct));
+
+    [HttpGet("academic-years")]
+    public async Task<IActionResult> AcademicYears(CancellationToken ct) =>
+        Result(await _foundation.GetAcademicYearsAsync(ct));
+
+    [HttpGet("academic-year/{id:long}")]
+    public async Task<IActionResult> AcademicYear(long id, CancellationToken ct) =>
+        Result(await _foundation.GetAcademicYearAsync(id, ct));
+
+    [HttpPost("academic-year")]
+    public async Task<IActionResult> SaveAcademicYear(
+        [FromBody] InstitutionAcademicYearWizardRequestDto request, CancellationToken ct)
+    {
+        if (request == null) return BadRequest("Academic year is required.");
+        if (string.IsNullOrWhiteSpace(request.Code))
+        {
+            var existing = request.Id.HasValue ? await _foundation.GetAcademicYearAsync(request.Id.Value, ct) : null;
+            if (existing != null && !existing.Success) return Result(existing);
+            request.Code = existing?.Data?.Code ?? "AY-" + Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
+        }
+        return Result(await _foundation.SaveAcademicYearAsync(request.Id, request, ct));
+    }
+
+    [HttpDelete("academic-year/{id:long}")]
+    public async Task<IActionResult> ArchiveAcademicYear(long id, [FromQuery] string rowVersion,
+        CancellationToken ct) =>
+        Result(await _foundation.ArchiveAcademicYearAsync(id, rowVersion, ct));
+
+    [HttpGet("academic-terms")]
+    public async Task<IActionResult> AcademicTerms([FromQuery] long? academicYearId,
+        CancellationToken ct) =>
+        Result(await _foundation.GetAcademicTermsAsync(academicYearId, ct));
+
+    [HttpGet("academic-term/{id:long}")]
+    public async Task<IActionResult> AcademicTerm(long id, CancellationToken ct) =>
+        Result(await _foundation.GetAcademicTermAsync(id, ct));
+
+    [HttpPost("academic-term")]
+    public async Task<IActionResult> SaveAcademicTerm(
+        [FromBody] InstitutionAcademicTermWizardRequestDto request, CancellationToken ct) =>
+        Result(await _foundation.SaveAcademicTermAsync(request.Id, request, ct));
+
+    [HttpDelete("academic-term/{id:long}")]
+    public async Task<IActionResult> ArchiveAcademicTerm(long id, [FromQuery] string rowVersion,
+        CancellationToken ct) =>
+        Result(await _foundation.ArchiveAcademicTermAsync(id, rowVersion, ct));
+
+    [HttpPost("final-complete")]
+    public async Task<IActionResult> FinalComplete(CancellationToken ct) =>
+        Result(await _onboarding.CompleteOnboardingAsync(ct));
+
+    private IActionResult Result<T>(EduOS.Core.Common.ApiResponse<T> result) =>
+        StatusCode(result.StatusCode, result);
 }
