@@ -9,6 +9,7 @@ public class AssessmentDto
     public long AcademicYearId { get; set; }
     public string AcademicYearName { get; set; } = string.Empty;
     public long? AcademicTermId { get; set; }
+    public long? GradeSchemeId { get; set; }
     public string? AcademicTermName { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Code { get; set; } = string.Empty;
@@ -27,6 +28,7 @@ public class SaveAssessmentRequestDto
     public long CampusId { get; set; }
     public long AcademicYearId { get; set; }
     public long? AcademicTermId { get; set; }
+    public long? GradeSchemeId { get; set; }
     [Required, MaxLength(150)] public string Name { get; set; } = string.Empty;
     [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
     public AssessmentKind Type { get; set; } = AssessmentKind.Exam;
