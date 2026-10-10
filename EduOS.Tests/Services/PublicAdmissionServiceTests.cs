@@ -61,7 +61,7 @@ public sealed class PublicAdmissionServiceTests
         var result = await fixture.Service.GetStatusAsync(fixture.Tenant.Code,
             applicant.PublicId, "01712345678");
 
-        result.Success.Should().BeTrue();
+        result.Success.Should().BeTrue($"status {result.StatusCode}: {result.Message}");
         result.Data!.Assessment.Should().NotBeNull();
         result.Data.Assessment!.TestName.Should().Be("Published Admission Test");
         result.Data.Assessment.ObtainedMarks.Should().Be(88m);
@@ -108,11 +108,11 @@ public sealed class PublicAdmissionServiceTests
         request.CustomResponses["blood_group"] = "B+";
         var changed = await fixture.Service.CreateAsync(fixture.Tenant.Code, request);
 
-        forms.Success.Should().BeTrue();
+        forms.Success.Should().BeTrue($"forms {forms.StatusCode}: {forms.Message}");
         forms.Data.Should().ContainSingle(x => x.Reference == fixture.Form.PublicId);
         forms.Data!.Single().Fields.Should().ContainSingle(x => x.FieldKey == "blood_group");
         missingRequired.Success.Should().BeFalse();
-        created.StatusCode.Should().Be(201);
+        created.StatusCode.Should().Be(201, $"creation response: {created.Message}");
         replay.Success.Should().BeTrue();
         replay.Data!.Reference.Should().Be(created.Data!.Reference);
         changed.StatusCode.Should().Be(409);
@@ -256,6 +256,19 @@ public sealed class PublicAdmissionServiceTests
             };
             f.Db.Add(f.Form);
             await f.Db.SaveChangesAsync();
+            (await f.Db.Tenants.IgnoreQueryFilters().AnyAsync(x =>
+                x.Id == f.Tenant.Id && x.State == TenantState.Active &&
+                x.OnboardingStage == OnboardingStage.Completed &&
+                x.OnboardingCompletedAt.HasValue)).Should().BeTrue("fixture tenant must be public-ready");
+            (await f.Db.TenantSubscriptions.AnyAsync(x =>
+                x.TenantId == f.Tenant.Id && x.State == SubscriptionState.Active &&
+                x.StartsAt <= Now.UtcDateTime && x.EndsAt > Now.UtcDateTime))
+                .Should().BeTrue("fixture subscription must be active");
+            (await (from selected in f.Db.TenantModules
+                join product in f.Db.ProductModules on selected.ProductModuleId equals product.Id
+                where selected.TenantId == f.Tenant.Id && selected.IsEnabled &&
+                    product.IsActive && product.Code == "ADMISSION"
+                select selected.Id).AnyAsync()).Should().BeTrue("admission module must be enabled");
             f.Service = new PublicAdmissionService(
                 new GenericRepository<Tenant>(f.Db),
                 new GenericRepository<TenantModule>(f.Db),
