@@ -1,5 +1,7 @@
 using EduOS.Core.DTOs.Transport;
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Auth;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Entities.Transport;
 using EduOS.Core.Enums.Domain;
@@ -148,7 +150,70 @@ public class TransportServiceTests
         (await service.GetVehiclesAsync()).Success.Should().BeTrue();
     }
 
-    private static TransportService CreateService(EduOSDbContext context, long tenant, bool canManage = true) => new(
+
+    [Fact]
+    public async Task Manager_catalogue_excludes_other_revoked_and_inactive_campuses()
+    {
+        await using var db = CreateContext(CreateOptions(), 101);
+        var north = new Campus { TenantId = 101, Name = "North", Code = "N", IsActive = true };
+        var south = new Campus { TenantId = 101, Name = "South", Code = "S", IsActive = true };
+        var inactive = new Campus { TenantId = 101, Name = "Inactive", Code = "I", IsActive = false };
+        db.AddRange(north, south, inactive);
+        await db.SaveChangesAsync();
+        var grant = new UserCampusAccess { TenantId = 101, UserId = 7, CampusId = north.Id, IsActive = true };
+        db.AddRange(grant, new UserCampusAccess { TenantId = 101, UserId = 7, CampusId = inactive.Id, IsActive = true });
+        db.AddRange(
+            new TransportRoute { TenantId = 101, CampusId = north.Id, Name = "North route", Code = "NR" },
+            new TransportRoute { TenantId = 101, CampusId = south.Id, Name = "South route", Code = "SR" },
+            new TransportRoute { TenantId = 101, CampusId = inactive.Id, Name = "Inactive route", Code = "IR" },
+            new Vehicle { TenantId = 101, CampusId = north.Id, VehicleNumber = "N-1", Capacity = 20 },
+            new Vehicle { TenantId = 101, CampusId = south.Id, VehicleNumber = "S-1", Capacity = 20 },
+            new Vehicle { TenantId = 101, CampusId = inactive.Id, VehicleNumber = "I-1", Capacity = 20 });
+        await db.SaveChangesAsync();
+        var manager = CreateService(db, 101, true, "TransportManager");
+        (await manager.GetRoutesAsync()).Data!.Select(x => x.Name).Should().Equal("North route");
+        (await manager.GetVehiclesAsync()).Data!.Select(x => x.VehicleNumber).Should().Equal("N-1");
+        grant.IsActive = false;
+        await db.SaveChangesAsync();
+        (await manager.GetRoutesAsync()).Data.Should().BeEmpty();
+        (await manager.GetVehiclesAsync()).Data.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Manager_cannot_close_assignment_for_ungranted_campus()
+    {
+        await using var db = CreateContext(CreateOptions(), 101);
+        var assignment = await SeedAssignmentAsync(db, 101, true, [1,2,3,4,5,6,7,8]);
+        var north = new Campus { TenantId = 101, Name = "North", Code = "N" };
+        var south = new Campus { TenantId = 101, Name = "South", Code = "S" };
+        db.AddRange(north, south);
+        await db.SaveChangesAsync();
+        db.Add(new UserCampusAccess { TenantId = 101, UserId = 7, CampusId = north.Id, IsActive = true });
+        var enrollment = new StudentEnrollment
+        {
+            TenantId = 101, PublicId = Guid.NewGuid(), ClientRequestId = Guid.NewGuid(),
+            StudentId = assignment.StudentId, CampusId = south.Id, AcademicYearId = 1,
+            AcademicProgramId = 1, AcademicLevelId = 1, AcademicBatchId = 1,
+            AcademicCurriculumId = 1, RollNo = "7",
+            EnrollmentDate = DateOnly.FromDateTime(DateTime.UtcNow),
+            State = EnrollmentState.Active, IsCurrent = true
+        };
+        db.Add(enrollment);
+        await db.SaveChangesAsync();
+        assignment.StudentEnrollmentId = enrollment.Id;
+        await db.SaveChangesAsync();
+        var response = await CreateService(db, 101, true, "TransportManager").CloseAsync(
+            assignment.PublicId, new CloseStudentTransportRequestDto
+            {
+                EndDate = DateOnly.FromDateTime(DateTime.Today),
+                RowVersion = Convert.ToBase64String(assignment.RowVersion)
+            });
+        response.Success.Should().BeFalse();
+        response.StatusCode.Should().Be(403);
+        (await db.Set<StudentTransport>().SingleAsync()).State.Should().Be(TransportAssignmentState.Active);
+    }
+
+    private static TransportService CreateService(EduOSDbContext context, long tenant, bool canManage = true, string? role = null) => new(
         new GenericRepository<TransportRoute>(context),
         new GenericRepository<RouteStop>(context),
         new GenericRepository<Vehicle>(context),
@@ -156,8 +221,10 @@ public class TransportServiceTests
         new GenericRepository<StudentTransport>(context),
         new GenericRepository<StudentEnrollment>(context),
         new GenericRepository<Student>(context),
+        new GenericRepository<UserCampusAccess>(context),
+        new GenericRepository<Campus>(context),
         new TestUnitOfWork(context),
-        new TestCurrentUser(tenant, canManage), TimeProvider.System, NullLogger<TransportService>.Instance);
+        new TestCurrentUser(tenant, canManage, role), TimeProvider.System, NullLogger<TransportService>.Instance);
 
     private static async Task<StudentTransport> SeedAssignmentAsync(EduOSDbContext context, long tenant, bool active, byte[] rowVersion)
     {
@@ -223,7 +290,7 @@ public class TransportServiceTests
         public void Dispose() { }
     }
 
-    private sealed class TestCurrentUser(long tenant, bool canManage) : ICurrentUserService
+    private sealed class TestCurrentUser(long tenant, bool canManage, string? role) : ICurrentUserService
     {
         public bool IsAuthenticated => true;
         public long UserId => 7;
@@ -231,9 +298,9 @@ public class TransportServiceTests
         public string? FullName => "Transport User";
         public string? Email => "transport@example.test";
         public bool IsSuperAdmin => false;
-        public bool IsTenantAdmin => canManage;
-        public IReadOnlyList<string> Roles => canManage ? ["TenantAdmin"] : ["Student"];
-        public bool IsInRole(string role) => canManage && role == "TenantAdmin";
+        public bool IsTenantAdmin => canManage && (role is null or "TenantAdmin");
+        public IReadOnlyList<string> Roles => canManage ? [role ?? "TenantAdmin"] : ["Student"];
+        public bool IsInRole(string requestedRole) => canManage && requestedRole == (role ?? "TenantAdmin");
         public string? IpAddress => "127.0.0.1";
         public string? UserAgent => "Tests";
     }
