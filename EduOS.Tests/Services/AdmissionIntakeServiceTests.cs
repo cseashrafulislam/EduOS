@@ -1,8 +1,10 @@
 using EduOS.Core.DTOs.Admission;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Admission;
+using EduOS.Core.Entities.Files;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Enums;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
 using EduOS.Persistence.Repositories;
@@ -13,7 +15,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
-using System.Security.Claims;
 using Xunit;
 
 namespace EduOS.Tests.Services;
@@ -23,184 +24,192 @@ public sealed class AdmissionIntakeServiceTests
     private static readonly DateTimeOffset Now = new(2026, 9, 21, 12, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public async Task Form_create_is_retry_safe_and_publish_is_concurrency_protected()
+    public async Task Form_code_is_unique_and_publication_requires_current_version()
     {
-        var options = CreateOptions();
-        await using var context = CreateContext(options, 101);
-        var refs = await SeedReferencesAsync(context, 101);
-        var service = CreateService(context, new TestCurrentUser(101));
-        var request = FormRequest(refs);
-
+        await using var db = Context(Options(), 101);
+        var scope = await SeedReferencesAsync(db, 101);
+        var service = Service(db, new TestUser(101));
+        var request = FormRequest(scope);
         var created = await service.CreateFormAsync(request);
-        var replay = await service.CreateFormAsync(request);
-        var conflicting = FormRequest(refs);
-        conflicting.ClientRequestId = request.ClientRequestId;
-        conflicting.Title = "Different form";
-        var conflict = await service.CreateFormAsync(conflicting);
-
+        var duplicate = await service.CreateFormAsync(request);
         created.StatusCode.Should().Be(201);
-        replay.Data!.Id.Should().Be(created.Data!.Id);
-        conflict.StatusCode.Should().Be(409);
-
-        var row = await context.AdmissionIntakeForms.SingleAsync();
-        row.RowVersion = [1, 2, 3, 4, 5, 6, 7, 8];
-        await context.SaveChangesAsync();
-        var stale = await service.PublishFormAsync(row.Id, new AdmissionRowVersionDto { RowVersion = Convert.ToBase64String([9]) });
-        var published = await service.PublishFormAsync(row.Id, new AdmissionRowVersionDto { RowVersion = Convert.ToBase64String(row.RowVersion) });
-
-        stale.StatusCode.Should().Be(409);
-        published.Data!.Status.Should().Be(AdmissionIntakeFormStatus.Published);
+        duplicate.StatusCode.Should().Be(409);
+        var form = await db.AdmissionIntakeForms.SingleAsync();
+        form.RowVersion = [1, 2, 3, 4, 5, 6, 7, 8];
+        await db.SaveChangesAsync();
+        (await service.PublishFormAsync(form.Id, new AdmissionRowVersionDto
+        { RowVersion = Convert.ToBase64String([9]) })).StatusCode.Should().Be(409);
+        var published = await service.PublishFormAsync(form.Id,
+            new AdmissionRowVersionDto { RowVersion = Convert.ToBase64String(form.RowVersion) });
+        published.Success.Should().BeTrue(published.Message);
+        published.Data!.State.Should().Be(AdmissionFormState.Published);
     }
 
     [Fact]
-    public async Task Other_tenant_cannot_list_or_review_documents()
+    public async Task Document_listing_and_review_do_not_cross_tenant_boundaries()
     {
-        var options = CreateOptions();
-        Guid applicantReference;
-        long documentId;
-        await using (var tenant202 = CreateContext(options, 202))
+        var options = Options();
+        Guid reference; long docId;
+        await using (var foreign = Context(options, 202))
         {
-            var refs = await SeedReferencesAsync(tenant202, 202);
-            var form = await SeedPublishedFormAsync(tenant202, 202, refs);
-            var applicant = await SeedApplicantAsync(tenant202, 202, refs, form);
-            var document = new AdmissionApplicantDocument
-            {
-                TenantId = 202, PublicId = Guid.NewGuid(), ClientRequestId = Guid.NewGuid(), ApplicantId = applicant.Id,
-                AdmissionIntakeFormId = form.Id, DocumentType = "birth-certificate", OriginalFileName = "birth.pdf",
-                StorageKey = "tenant-202/admissions/birth.pdf", ContentType = "application/pdf", FileSizeBytes = 4,
-                Sha256 = Convert.ToBase64String(new byte[32]), IsCurrent = true, UploadedAtUtc = Now.UtcDateTime
-            };
-            tenant202.Add(document);
-            await tenant202.SaveChangesAsync();
-            applicantReference = applicant.PublicId;
-            documentId = document.Id;
+            var refs = await SeedReferencesAsync(foreign, 202);
+            var form = await SeedPublishedFormAsync(foreign, 202, refs);
+            var applicant = await SeedApplicantAsync(foreign, 202, form);
+            var doc = await SeedDocumentAsync(foreign, 202, applicant, true);
+            reference = applicant.PublicId; docId = doc.Id;
         }
-
-        await using var tenant101 = CreateContext(options, 101);
-        var service = CreateService(tenant101, new TestCurrentUser(101));
-        (await service.GetDocumentsAsync(applicantReference)).StatusCode.Should().Be(404);
-        (await service.ReviewDocumentAsync(applicantReference, documentId, new ReviewAdmissionDocumentDto
-        {
-            Status = AdmissionDocumentVerificationStatus.Verified,
-            RowVersion = Convert.ToBase64String([1])
-        })).StatusCode.Should().Be(404);
+        await using var own = Context(options, 101);
+        var service = Service(own, new TestUser(101));
+        (await service.GetDocumentsAsync(reference)).StatusCode.Should().Be(404);
+        (await service.ReviewDocumentAsync(reference, docId, new ReviewAdmissionDocumentDto
+        { Status = AdmissionDocumentVerificationStatus.Verified,
+            RowVersion = Convert.ToBase64String([1]) })).StatusCode.Should().Be(404);
     }
 
     [Fact]
-    public async Task Officer_can_verify_and_download_only_current_document_with_row_version()
+    public async Task Cleared_private_file_requires_current_row_version_for_verification_and_download()
     {
-        var options = CreateOptions();
-        await using var context = CreateContext(options, 101);
-        var refs = await SeedReferencesAsync(context, 101);
-        var form = await SeedPublishedFormAsync(context, 101, refs);
-        var applicant = await SeedApplicantAsync(context, 101, refs, form);
-        var document = new AdmissionApplicantDocument
-        {
-            TenantId = 101, PublicId = Guid.NewGuid(), ClientRequestId = Guid.NewGuid(), ApplicantId = applicant.Id,
-            AdmissionIntakeFormId = form.Id, DocumentType = "birth-certificate", OriginalFileName = "birth.pdf",
-            StorageKey = "tenant-101/admissions/birth.pdf", ContentType = "application/pdf", FileSizeBytes = 4,
-            Sha256 = Convert.ToBase64String(new byte[32]), IsCurrent = true, UploadedAtUtc = Now.UtcDateTime
-        };
-        context.Add(document);
-        await context.SaveChangesAsync();
-        document.RowVersion = [1, 2, 3, 4, 5, 6, 7, 8];
-        await context.SaveChangesAsync();
+        await using var db = Context(Options(), 101);
+        var refs = await SeedReferencesAsync(db, 101);
+        var form = await SeedPublishedFormAsync(db, 101, refs);
+        var applicant = await SeedApplicantAsync(db, 101, form);
+        var doc = await SeedDocumentAsync(db, 101, applicant, true);
+        doc.RowVersion = [1, 2, 3, 4, 5, 6, 7, 8];
+        await db.SaveChangesAsync();
         var storage = new Mock<IFileUploadService>();
-        storage.Setup(x => x.GetPrivateFileAsync(document.StorageKey)).ReturnsAsync(new FileDownloadResult
-        {
-            Content = "%PDF"u8.ToArray(), ContentType = "application/pdf", FileName = "stored.pdf"
-        });
-        var service = CreateService(context, new TestCurrentUser(101), storage.Object);
-
-        var stale = await service.ReviewDocumentAsync(applicant.PublicId, document.Id, new ReviewAdmissionDocumentDto
-        {
-            Status = AdmissionDocumentVerificationStatus.Verified, RowVersion = Convert.ToBase64String([9])
-        });
-        var verified = await service.ReviewDocumentAsync(applicant.PublicId, document.Id, new ReviewAdmissionDocumentDto
-        {
-            Status = AdmissionDocumentVerificationStatus.Verified, RowVersion = Convert.ToBase64String(document.RowVersion)
-        });
-        var content = await service.GetDocumentContentAsync(applicant.PublicId, document.Id);
-
-        stale.StatusCode.Should().Be(409);
-        verified.Data!.VerificationStatus.Should().Be(AdmissionDocumentVerificationStatus.Verified);
-        content.Data!.Content.Should().Equal("%PDF"u8.ToArray());
-        content.Data.FileName.Should().Be("birth.pdf");
+        var asset = await db.FileAssets.SingleAsync();
+        storage.Setup(x => x.GetPrivateFileAsync(asset.StorageKey)).ReturnsAsync(new FileDownloadResult
+        { Content = "%PDF"u8.ToArray(), ContentType = "application/pdf", FileName = "birth.pdf" });
+        var service = Service(db, new TestUser(101), storage.Object);
+        (await service.ReviewDocumentAsync(applicant.PublicId, doc.Id, new ReviewAdmissionDocumentDto
+        { Status = AdmissionDocumentVerificationStatus.Verified,
+            RowVersion = Convert.ToBase64String([9]) })).StatusCode.Should().Be(409);
+        var verified = await service.ReviewDocumentAsync(applicant.PublicId, doc.Id,
+            new ReviewAdmissionDocumentDto { Status = AdmissionDocumentVerificationStatus.Verified,
+                RowVersion = Convert.ToBase64String(doc.RowVersion) });
+        verified.Success.Should().BeTrue(verified.Message);
+        verified.Data!.IsVerified.Should().BeTrue();
+        var download = await service.GetDocumentContentAsync(applicant.PublicId, doc.Id);
+        download.Success.Should().BeTrue();
+        download.Data!.Content.Should().Equal("%PDF"u8.ToArray());
+        download.Data.FileName.Should().Be("birth.pdf");
     }
 
-    private static AdmissionIntakeService CreateService(EduOSDbContext context, ICurrentUserService user, IFileUploadService? storage = null) => new(
-        new GenericRepository<AdmissionIntakeForm>(context), new GenericRepository<AdmissionApplicant>(context),
-        new GenericRepository<AdmissionApplicantDocument>(context), new GenericRepository<AcademicYear>(context),
-        new GenericRepository<AcademicTerm>(context), new GenericRepository<Campus>(context), new GenericRepository<Class>(context),
-        context, user, storage ?? new Mock<IFileUploadService>().Object, new FixedTimeProvider(Now), NullLogger<AdmissionIntakeService>.Instance);
+    private static AdmissionIntakeService Service(EduOSDbContext db, ICurrentUserService user,
+        IFileUploadService? storage = null) => new(
+        new GenericRepository<AdmissionIntakeForm>(db),
+        new GenericRepository<AdmissionFormField>(db),
+        new GenericRepository<AdmissionApplicant>(db),
+        new GenericRepository<AdmissionApplicantDocument>(db),
+        new GenericRepository<FileAsset>(db),
+        new GenericRepository<AcademicYear>(db),
+        new GenericRepository<AcademicTerm>(db),
+        new GenericRepository<Campus>(db),
+        new GenericRepository<AcademicLevel>(db),
+        db, user, storage ?? new Mock<IFileUploadService>().Object,
+        new FixedClock(Now), NullLogger<AdmissionIntakeService>.Instance);
 
-    internal static CreateAdmissionIntakeFormDto FormRequest(References refs) => new()
+    private static CreateAdmissionIntakeFormDto FormRequest(Scope scope) => new()
     {
-        ClientRequestId = Guid.NewGuid(), Code = "admission-2027-main-six", Title = "Class Six Admission",
-        AcademicYearId = refs.YearId, CampusId = refs.CampusId, AcademicUnitId = refs.UnitId,
-        OpensAtUtc = Now.UtcDateTime.AddDays(-1), ClosesAtUtc = Now.UtcDateTime.AddDays(30), Currency = "BDT",
-        Fields = [new AdmissionFormFieldDto { Key = "blood_group", Label = "Blood group", Type = AdmissionFormFieldType.Text, IsRequired = true, MaxLength = 5 }],
-        DocumentRequirements = [new AdmissionDocumentRequirementDto { DocumentType = "birth-certificate", Label = "Birth certificate", IsRequired = true, MaxFileSizeMb = 5, AllowedExtensions = [".pdf"] }]
+        ClientRequestId = Guid.NewGuid(), Code = "intake_2026", Title = "Class Six Admission",
+        AcademicYearId = scope.YearId, CampusId = scope.CampusId, AcademicLevelId = scope.LevelId,
+        OpensAtUtc = Now.UtcDateTime.AddDays(-1), ClosesAtUtc = Now.UtcDateTime.AddDays(30),
+        Currency = "BDT",
+        Fields = [new AdmissionFormFieldDto
+        { FieldKey = "blood_group", Label = "Blood group",
+            DataType = CustomFieldDataType.Text, IsRequired = true, IsActive = true }]
     };
 
-    internal static async Task<AdmissionIntakeForm> SeedPublishedFormAsync(EduOSDbContext context, long tenantId, References refs)
+    private static async Task<Scope> SeedReferencesAsync(EduOSDbContext db, long tenant)
     {
-        var request = FormRequest(refs);
+        var year = new AcademicYear { TenantId = tenant, Code = "Y2026", Name = "2026",
+            StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31) };
+        var campus = new Campus { TenantId = tenant, Name = "Main", Code = "MAIN" };
+        var program = new AcademicProgram { TenantId = tenant, Code = "SCHOOL", Name = "School" };
+        db.AddRange(year, campus, program);
+        await db.SaveChangesAsync();
+        var level = new AcademicLevel { TenantId = tenant, AcademicProgramId = program.Id,
+            Name = "Class Six", Code = "C6", LevelNo = 6 };
+        db.Add(level); await db.SaveChangesAsync();
+        return new Scope(year.Id, campus.Id, program.Id, level.Id);
+    }
+
+    private static async Task<AdmissionIntakeForm> SeedPublishedFormAsync(EduOSDbContext db,
+        long tenant, Scope scope)
+    {
         var form = new AdmissionIntakeForm
         {
-            TenantId = tenantId, PublicId = Guid.NewGuid(), ClientRequestId = Guid.NewGuid(), Code = $"FORM-{tenantId}", Title = request.Title,
-            AcademicYearId = refs.YearId, CampusId = refs.CampusId, AcademicUnitId = refs.UnitId,
-            OpensAtUtc = request.OpensAtUtc, ClosesAtUtc = request.ClosesAtUtc, Currency = "BDT",
-            FieldsJson = System.Text.Json.JsonSerializer.Serialize(request.Fields, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)),
-            DocumentRequirementsJson = System.Text.Json.JsonSerializer.Serialize(request.DocumentRequirements, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)),
-            Status = AdmissionIntakeFormStatus.Published, PublishedAtUtc = Now.UtcDateTime
+            TenantId = tenant, Code = "PUBLISHED", Title = "Open Intake",
+            CampusId = scope.CampusId, AcademicYearId = scope.YearId,
+            AcademicLevelId = scope.LevelId, AcademicProgramId = scope.ProgramId,
+            State = AdmissionFormState.Published, OpensAt = Now.UtcDateTime.AddDays(-1),
+            ClosesAt = Now.UtcDateTime.AddDays(30)
         };
-        context.Add(form);
-        await context.SaveChangesAsync();
+        db.Add(form); await db.SaveChangesAsync();
         return form;
     }
 
-    internal static async Task<AdmissionApplicant> SeedApplicantAsync(EduOSDbContext context, long tenantId, References refs, AdmissionIntakeForm form)
+    private static async Task<AdmissionApplicant> SeedApplicantAsync(EduOSDbContext db,
+        long tenant, AdmissionIntakeForm form)
     {
-        var applicant = new AdmissionApplicant
+        var row = new AdmissionApplicant
         {
-            TenantId = tenantId, PublicId = Guid.NewGuid(), ClientRequestId = Guid.NewGuid(), ApplicationNumber = $"APP-{tenantId}",
-            AdmissionIntakeFormId = form.Id, CustomResponsesJson = "{\"blood_group\":\"A+\"}", AcademicYearId = refs.YearId,
-            CampusId = refs.CampusId, AcademicUnitId = refs.UnitId, ApplicantName = "Applicant", DateOfBirth = new DateTime(2012, 1, 1),
-            Gender = Gender.Male, PrimaryMobile = "+8801712345678", PreferredLanguage = "bn-BD", Status = AdmissionApplicationStatus.UnderReview,
-            SubmittedAtUtc = Now.UtcDateTime
+            TenantId = tenant, AdmissionIntakeFormId = form.Id,
+            ClientRequestId = Guid.NewGuid(), ApplicationNumber = "APP-" + Guid.NewGuid().ToString("N"),
+            FullName = "Applicant", Phone = "+8801712345678",
+            DateOfBirth = new DateOnly(2012, 1, 1), Gender = "Male",
+            State = AdmissionApplicantState.Submitted, SubmittedAt = Now.UtcDateTime
         };
-        context.Add(applicant);
-        await context.SaveChangesAsync();
-        return applicant;
+        db.Add(row); await db.SaveChangesAsync();
+        return row;
     }
 
-    internal static async Task<References> SeedReferencesAsync(EduOSDbContext context, long tenantId)
+    private static async Task<AdmissionApplicantDocument> SeedDocumentAsync(EduOSDbContext db,
+        long tenant, AdmissionApplicant applicant, bool safe)
     {
-        var year = new AcademicYear { TenantId = tenantId, Name = "2027", StartDate = new DateTime(2027, 1, 1), EndDate = new DateTime(2027, 12, 31), IsActive = true };
-        var campus = new Campus { TenantId = tenantId, Name = "Main", Code = $"M-{tenantId}", IsActive = true };
-        var unit = new Class { TenantId = tenantId, Name = "Class Six", NumericValue = 6, IsActive = true };
-        context.AddRange(year, campus, unit);
-        await context.SaveChangesAsync();
-        return new References(year.Id, campus.Id, unit.Id);
+        var asset = new FileAsset
+        {
+            TenantId = tenant, StorageProvider = "PrivateFileSystem",
+            StorageKey = "tenant-" + tenant + "/admissions/birth.pdf",
+            OriginalFileName = "birth.pdf", ContentType = "application/pdf",
+            SizeBytes = 4, Sha256 = Convert.ToHexString(new byte[32]),
+            IsVerifiedSafe = safe
+        };
+        db.Add(asset); await db.SaveChangesAsync();
+        var doc = new AdmissionApplicantDocument
+        {
+            TenantId = tenant, AdmissionApplicantId = applicant.Id,
+            FileAssetId = asset.Id, DocumentTypeCode = "BIRTH_CERTIFICATE",
+            VersionNo = 1, IsVerified = false
+        };
+        db.Add(doc); await db.SaveChangesAsync();
+        return doc;
     }
 
-    private static DbContextOptions<EduOSDbContext> CreateOptions() => new DbContextOptionsBuilder<EduOSDbContext>().UseInMemoryDatabase($"admission-intake-{Guid.NewGuid():N}").Options;
-
-    internal static EduOSDbContext CreateContext(DbContextOptions<EduOSDbContext> options, long tenantId)
+    private static DbContextOptions<EduOSDbContext> Options() =>
+        new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("admission-intake-" + Guid.NewGuid().ToString("N")).Options;
+    private static EduOSDbContext Context(DbContextOptions<EduOSDbContext> options, long tenant)
     {
-        var http = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "7"), new Claim(ClaimTypes.Role, "TenantAdmin")], "TestAuthentication")) };
-        http.Items["TenantId"] = tenantId;
+        var http = new DefaultHttpContext(); http.Items["TenantId"] = tenant;
         return new EduOSDbContext(options, new HttpContextAccessor { HttpContext = http });
     }
 
-    internal sealed record References(long YearId, long CampusId, long UnitId);
-    private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider { public override DateTimeOffset GetUtcNow() => now; }
-    internal sealed class TestCurrentUser(long tenantId) : ICurrentUserService
+    private sealed record Scope(long YearId, long CampusId, long ProgramId, long LevelId);
+    private sealed class FixedClock(DateTimeOffset date) : TimeProvider
+    { public override DateTimeOffset GetUtcNow() => date; }
+    private sealed class TestUser(long tenant) : ICurrentUserService
     {
-        public bool IsAuthenticated => true; public long UserId => 7; public long TenantId => tenantId; public string? FullName => "Admission User";
-        public string? Email => "admission@example.test"; public bool IsSuperAdmin => false; public bool IsTenantAdmin => true;
-        public IReadOnlyList<string> Roles => ["TenantAdmin"]; public bool IsInRole(string role) => role == "TenantAdmin";
-        public string? IpAddress => "127.0.0.1"; public string? UserAgent => "EduOS tests";
+        public bool IsAuthenticated => true;
+        public long UserId => 7;
+        public long TenantId => tenant;
+        public string? FullName => "Admission";
+        public string? Email => "officer@example.test";
+        public bool IsSuperAdmin => false;
+        public bool IsTenantAdmin => true;
+        public IReadOnlyList<string> Roles => ["TenantAdmin"];
+        public bool IsInRole(string role) => role == "TenantAdmin";
+        public string? IpAddress => "127.0.0.1";
+        public string? UserAgent => "Tests";
     }
 }
