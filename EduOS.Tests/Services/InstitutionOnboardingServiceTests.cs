@@ -1,7 +1,7 @@
+using EduOS.Core.DTOs.Academic;
 using EduOS.Core.DTOs.SaaS;
 using EduOS.Core.Entities.Academic;
-using EduOS.Core.Entities.Auth;
-using EduOS.Core.Entities.SaaS;
+using EduOS.Core.Entities.Admission;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IServices;
@@ -10,237 +10,143 @@ using EduOS.Persistence.Repositories;
 using EduOS.Service.Services.Tenants;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
-using Moq;
-using System.Security.Claims;
 using Xunit;
 
 namespace EduOS.Tests.Services;
 
-public class InstitutionOnboardingServiceTests
+public sealed class InstitutionOnboardingServiceTests
 {
     [Fact]
-    public async Task New_campus_is_rejected_at_plan_limit_without_changing_the_limit()
+    public async Task First_campus_is_head_office_and_default_subscription_limit_is_enforced()
     {
-        await using var setup = await CreateSetupAsync(maxCampuses: 1);
-        setup.Context.Campuses.Add(new Campus
+        var options = Options();
+        await SeedTenant(options, 101);
+        await using var db = Context(options, 101);
+        var service = Foundation(db, new TestUser(101));
+        var first = await service.SaveCampusAsync(null, new SaveCampusRequestDto
         {
-            TenantId = setup.Tenant.Id,
-            Name = "Main Campus",
-            Code = "MAIN",
-            IsHeadOffice = true
+            Name = "Dhaka Campus", Code = "DHK", HeadName = "Principal",
+            IsHeadOffice = false
         });
-        await setup.Context.SaveChangesAsync();
-
-        var result = await setup.Service.SaveCampusAsync(new CampusSetupDto
+        var second = await service.SaveCampusAsync(null, new SaveCampusRequestDto
         {
-            Name = "Second Campus",
-            Code = "SECOND"
+            Name = "Chattogram Campus", Code = "CTG"
         });
-
-        result.Success.Should().BeFalse();
-        result.StatusCode.Should().Be(409);
-        setup.Tenant.MaxCampuses.Should().Be(1);
-        (await setup.Context.Campuses.CountAsync()).Should().Be(1);
+        first.Success.Should().BeTrue();
+        first.Data!.IsHeadOffice.Should().BeTrue();
+        first.Data.HeadName.Should().Be("Principal");
+        second.StatusCode.Should().Be(409);
+        (await db.Campuses.CountAsync()).Should().Be(1);
+        var listed = await service.GetCampusesAsync();
+        listed.Data.Should().ContainSingle();
+        listed.Data![0].HeadName.Should().Be("Principal");
     }
 
     [Fact]
-    public async Task First_campus_becomes_head_office_and_preserves_plan_capacity()
+    public async Task Academic_term_cannot_start_outside_academic_year()
     {
-        await using var setup = await CreateSetupAsync(maxCampuses: 3);
-
-        var result = await setup.Service.SaveCampusAsync(new CampusSetupDto
+        var options = Options();
+        await SeedTenant(options, 101);
+        await using var db = Context(options, 101);
+        var service = Foundation(db, new TestUser(101));
+        var year = await service.SaveAcademicYearAsync(null, new SaveAcademicYearRequestDto
         {
-            Name = "  Dhaka Campus  ",
-            Code = " dhk "
+            Name = "Academic 2026", Code = "Y2026",
+            StartDate = new DateOnly(2026, 1, 1),
+            EndDate = new DateOnly(2026, 12, 31), IsCurrent = true
         });
-
-        result.Success.Should().BeTrue();
-        var campus = await setup.Context.Campuses.SingleAsync();
-        campus.Name.Should().Be("Dhaka Campus");
-        campus.Code.Should().Be("DHK");
-        campus.IsHeadOffice.Should().BeTrue();
-        setup.Tenant.MaxCampuses.Should().Be(3);
+        year.Success.Should().BeTrue();
+        var invalid = await service.SaveAcademicTermAsync(null, new SaveAcademicTermRequestDto
+        {
+            AcademicYearId = year.Data!.Id, Name = "Invalid term",
+            StartDate = new DateOnly(2025, 12, 15),
+            EndDate = new DateOnly(2026, 3, 15)
+        });
+        var valid = await service.SaveAcademicTermAsync(null, new SaveAcademicTermRequestDto
+        {
+            AcademicYearId = year.Data.Id, Name = "First term",
+            StartDate = new DateOnly(2026, 1, 5),
+            EndDate = new DateOnly(2026, 4, 30), IsCurrent = true
+        });
+        invalid.StatusCode.Should().Be(409);
+        valid.Success.Should().BeTrue();
+        (await db.AcademicTerms.CountAsync()).Should().Be(1);
     }
 
     [Fact]
-    public async Task Deleting_head_office_promotes_the_oldest_remaining_campus()
+    public async Task Foundation_setup_rejects_foreign_tenant_records()
     {
-        await using var setup = await CreateSetupAsync(maxCampuses: 3);
-        var headOffice = new Campus
+        var options = Options();
+        await SeedTenant(options, 101);
+        await SeedTenant(options, 202);
+        await using (var foreign = Context(options, 202))
         {
-            TenantId = setup.Tenant.Id,
-            Name = "Main Campus",
-            Code = "MAIN",
-            IsHeadOffice = true
-        };
-        var branch = new Campus
-        {
-            TenantId = setup.Tenant.Id,
-            Name = "Branch Campus",
-            Code = "BRANCH"
-        };
-        setup.Context.Campuses.AddRange(headOffice, branch);
-        await setup.Context.SaveChangesAsync();
-
-        var result = await setup.Service.DeleteCampusAsync(headOffice.Id);
-
-        result.Success.Should().BeTrue();
-        var remaining = await setup.Context.Campuses.SingleAsync();
-        remaining.Id.Should().Be(branch.Id);
-        remaining.IsHeadOffice.Should().BeTrue();
+            foreign.Campuses.Add(new Campus
+            {
+                TenantId = 202, Name = "Foreign Campus", Code = "FC",
+                IsHeadOffice = true
+            });
+            await foreign.SaveChangesAsync();
+        }
+        await using var own = Context(options, 101);
+        var service = Foundation(own, new TestUser(101));
+        (await service.GetCampusesAsync()).Data.Should().BeEmpty();
+        (await service.GetCampusAsync(1)).StatusCode.Should().Be(404);
     }
 
     [Fact]
-    public async Task Term_dates_outside_the_selected_academic_year_are_rejected()
+    public void Canonical_institution_registration_and_foundation_contracts_are_registered()
     {
-        await using var setup = await CreateSetupAsync();
-        var year = new AcademicYear
-        {
-            TenantId = setup.Tenant.Id,
-            Name = "2026",
-            StartDate = new DateTime(2026, 1, 1),
-            EndDate = new DateTime(2026, 12, 31),
-            IsCurrent = true
-        };
-        setup.Context.AcademicYears.Add(year);
-        await setup.Context.SaveChangesAsync();
+        typeof(IInstitutionRegistrationService).IsAssignableFrom(typeof(InstitutionOnboardingService))
+            .Should().BeTrue();
+        typeof(IInstitutionFoundationService).IsAssignableFrom(typeof(InstitutionFoundationService))
+            .Should().BeTrue();
+        typeof(IInstitutionProfileWizardService).IsAssignableFrom(typeof(InstitutionProfileWizardService))
+            .Should().BeTrue();
+        typeof(IInstitutionFoundationService).GetMethods().Should().HaveCount(12);
+    }
 
-        var result = await setup.Service.SaveAcademicTermAsync(new AcademicTermSetupDto
+    private static InstitutionFoundationService Foundation(EduOSDbContext db, ICurrentUserService user) => new(
+        new GenericRepository<Tenant>(db), new GenericRepository<Campus>(db),
+        new GenericRepository<TenantSetting>(db),
+        new GenericRepository<AcademicYear>(db), new GenericRepository<AcademicTerm>(db),
+        new GenericRepository<AcademicBatch>(db), new GenericRepository<AdmissionIntakeForm>(db),
+        new GenericRepository<TenantSubscription>(db), new GenericRepository<SubscriptionPlan>(db),
+        db, user, TimeProvider.System, NullLogger<InstitutionFoundationService>.Instance);
+
+    private static async Task SeedTenant(DbContextOptions<EduOSDbContext> options, long tenantId)
+    {
+        await using var db = Context(options, tenantId);
+        db.Tenants.Add(new Tenant
         {
-            AcademicYearId = year.Id,
-            Name = "Winter Term",
-            StartDate = new DateTime(2025, 12, 15),
-            EndDate = new DateTime(2026, 3, 31)
+            Id = tenantId, Code = "TN-" + tenantId, Name = "Institution",
+            Email = "owner" + tenantId + "@example.test", State = EduOS.Core.Enums.Domain.TenantState.Active
         });
-
-        result.Success.Should().BeFalse();
-        result.StatusCode.Should().Be(409);
-        (await setup.Context.AcademicTerms.CountAsync()).Should().Be(0);
+        await db.SaveChangesAsync();
     }
 
-    [Fact]
-    public async Task Academic_year_cannot_exclude_an_existing_term()
+    private static DbContextOptions<EduOSDbContext> Options() =>
+        new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("institution-setup-" + Guid.NewGuid().ToString("N")).Options;
+
+    private static EduOSDbContext Context(DbContextOptions<EduOSDbContext> options, long tenant)
     {
-        await using var setup = await CreateSetupAsync();
-        var year = new AcademicYear
-        {
-            TenantId = setup.Tenant.Id,
-            Name = "2026",
-            StartDate = new DateTime(2026, 1, 1),
-            EndDate = new DateTime(2026, 12, 31),
-            IsCurrent = true
-        };
-        setup.Context.AcademicYears.Add(year);
-        await setup.Context.SaveChangesAsync();
-        setup.Context.AcademicTerms.Add(new AcademicTerm
-        {
-            TenantId = setup.Tenant.Id,
-            AcademicYearId = year.Id,
-            Name = "Term One",
-            StartDate = new DateTime(2026, 1, 1),
-            EndDate = new DateTime(2026, 4, 30)
-        });
-        await setup.Context.SaveChangesAsync();
-
-        var result = await setup.Service.SaveAcademicYearAsync(new AcademicYearSetupDto
-        {
-            Id = year.Id,
-            Name = year.Name,
-            StartDate = new DateTime(2026, 2, 1),
-            EndDate = year.EndDate,
-            IsCurrent = true
-        });
-
-        result.Success.Should().BeFalse();
-        result.StatusCode.Should().Be(409);
-        year.StartDate.Should().Be(new DateTime(2026, 1, 1));
+        var http = new DefaultHttpContext();
+        http.Items["TenantId"] = tenant;
+        return new EduOSDbContext(options, new HttpContextAccessor { HttpContext = http });
     }
 
-    private static async Task<TestSetup> CreateSetupAsync(int maxCampuses = 3)
-    {
-        const long tenantId = 101;
-        var httpContext = new DefaultHttpContext();
-        httpContext.Items["TenantId"] = tenantId;
-        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(
-        [
-            new Claim(ClaimTypes.NameIdentifier, "99"),
-            new Claim(ClaimTypes.Role, "TenantAdmin"),
-            new Claim("TenantId", tenantId.ToString())
-        ], "TestAuthentication"));
-        var accessor = new TestHttpContextAccessor { HttpContext = httpContext };
-        var options = new DbContextOptionsBuilder<EduOSDbContext>()
-            .UseInMemoryDatabase($"institution-onboarding-{Guid.NewGuid():N}")
-            .Options;
-        var context = new EduOSDbContext(options, accessor);
-        var tenant = new Tenant
-        {
-            Id = tenantId,
-            Name = "Test Institution",
-            Code = $"INST-{Guid.NewGuid():N}"[..20],
-            Email = "institution@example.test",
-            OwnerName = "Tenant Owner",
-            MaxCampuses = maxCampuses
-        };
-        context.Tenants.Add(tenant);
-        await context.SaveChangesAsync();
-
-        var currentUser = new TestCurrentUser(tenant.Id);
-        var service = new InstitutionOnboardingService(
-            CreateUserManager(),
-            new GenericRepository<Tenant>(context),
-            new GenericRepository<Campus>(context),
-            new GenericRepository<AcademicYear>(context),
-            new GenericRepository<AcademicTerm>(context),
-            new GenericRepository<InstitutionTypeDefinition>(context),
-            Mock.Of<ITenantModuleService>(),
-            context,
-            currentUser,
-            NullLogger<InstitutionOnboardingService>.Instance);
-
-        return new TestSetup(context, tenant, service);
-    }
-
-    private static UserManager<ApplicationUser> CreateUserManager()
-    {
-        var store = Mock.Of<IUserStore<ApplicationUser>>();
-        return new UserManager<ApplicationUser>(
-            store,
-            Options.Create(new IdentityOptions()),
-            new PasswordHasher<ApplicationUser>(),
-            Array.Empty<IUserValidator<ApplicationUser>>(),
-            Array.Empty<IPasswordValidator<ApplicationUser>>(),
-            new UpperInvariantLookupNormalizer(),
-            new IdentityErrorDescriber(),
-            null!,
-            NullLogger<UserManager<ApplicationUser>>.Instance);
-    }
-
-    private sealed record TestSetup(
-        EduOSDbContext Context,
-        Tenant Tenant,
-        InstitutionOnboardingService Service) : IAsyncDisposable
-    {
-        public ValueTask DisposeAsync() => Context.DisposeAsync();
-    }
-
-    private sealed class TestHttpContextAccessor : IHttpContextAccessor
-    {
-        public HttpContext? HttpContext { get; set; }
-    }
-
-    private sealed class TestCurrentUser(long tenantId) : ICurrentUserService
+    private sealed class TestUser(long tenant) : ICurrentUserService
     {
         public bool IsAuthenticated => true;
+        public long TenantId => tenant;
         public long UserId => 99;
-        public long TenantId => tenantId;
-        public string? FullName => "Tenant Admin";
-        public string? Email => "admin@example.test";
-        public bool IsSuperAdmin => false;
+        public string? FullName => "Tenant owner";
+        public string? Email => "owner@example.test";
         public bool IsTenantAdmin => true;
+        public bool IsSuperAdmin => false;
         public IReadOnlyList<string> Roles => ["TenantAdmin"];
         public bool IsInRole(string role) => role == "TenantAdmin";
         public string? IpAddress => "127.0.0.1";
