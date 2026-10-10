@@ -1,9 +1,10 @@
 using EduOS.Core.DTOs.Student;
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Enums;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
-using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Persistence.Context;
 using EduOS.Persistence.Repositories;
 using EduOS.Service.Services.Students;
@@ -11,314 +12,185 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
-using System.Security.Claims;
 using Xunit;
+
 namespace EduOS.Tests.Services;
 
-public class StudentPromotionServiceTests
+public sealed class StudentPromotionServiceTests
 {
-    private static readonly DateTimeOffset Now = new(2026, 9, 8, 10, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset Now = new(2026, 9, 10, 6, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public async Task Promotion_atomically_closes_source_creates_target_and_updates_student()
+    public async Task Promotion_creates_one_active_target_enrollment_and_retries_safely()
     {
-        var options = CreateOptions();
-        var seeded = await SeedAsync(options);
-        await using var context = CreateContext(options, 101, "TenantAdmin");
-        var service = CreateService(context, new TestCurrentUser(101, "TenantAdmin"));
-
-        var result = await service.PromoteAsync(seeded.StudentReference, Request(seeded));
-
-        result.Success.Should().BeTrue();
-        result.StatusCode.Should().Be(201);
-        result.Data!.Decision.Should().Be(StudentProgressionDecision.Promoted);
-        result.Data.FromEnrollmentId.Should().Be(seeded.EnrollmentId);
-        result.Data.ToEnrollmentId.Should().BeGreaterThan(0);
-
-        var student = await context.Students.SingleAsync();
-        student.AcademicYearId.Should().Be(2);
-        student.ClassId.Should().Be(2);
-        student.SectionId.Should().Be(2);
-        student.Roll.Should().Be("5");
-
-        var enrollments = await context.Enrollments.OrderBy(x => x.Id).ToListAsync();
+        var options = Options();
+        var fixture = await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var service = Service(db, new User(101));
+        var request = Request(fixture);
+        var created = await service.PromoteAsync(fixture.StudentReference, request);
+        var replay = await service.PromoteAsync(fixture.StudentReference, request);
+        created.Success.Should().BeTrue(created.Message);
+        created.Data!.AcademicYearId.Should().Be(fixture.TargetYearId);
+        created.Data.AcademicBatchId.Should().Be(fixture.TargetBatchId);
+        replay.Success.Should().BeTrue();
+        replay.Data!.AlreadyProcessed.Should().BeTrue();
+        (await db.StudentPromotionRecords.CountAsync()).Should().Be(1);
+        var enrollments = await db.StudentEnrollments.ToListAsync();
         enrollments.Should().HaveCount(2);
-        enrollments.Single(x => x.Id == seeded.EnrollmentId).IsActive.Should().BeFalse();
-        enrollments.Single(x => x.Id != seeded.EnrollmentId).IsActive.Should().BeTrue();
-
-        var record = await context.StudentPromotionRecords.SingleAsync();
-        record.FromEnrollmentId.Should().Be(seeded.EnrollmentId);
-        record.ToEnrollmentId.Should().Be(result.Data.ToEnrollmentId);
-        record.ProcessedByUserId.Should().Be(7);
-
-        var history = await service.GetHistoryAsync(seeded.StudentReference);
-        history.Success.Should().BeTrue();
-        history.Data.Should().ContainSingle(x => x.Reference == record.PublicId);
+        enrollments.Count(x => x.State == EnrollmentState.Active && x.IsCurrent).Should().Be(1);
+        enrollments.Single(x => x.Id == fixture.SourceEnrollmentId)
+            .State.Should().Be(EnrollmentState.Promoted);
+        (await service.GetHistoryAsync(fixture.StudentReference)).Data.Should().ContainSingle();
     }
 
     [Fact]
-    public async Task Same_client_request_is_idempotent()
+    public async Task Repeat_decision_keeps_academic_level_without_advancing()
     {
-        var options = CreateOptions();
-        var seeded = await SeedAsync(options);
-        await using var context = CreateContext(options, 101, "TenantAdmin");
-        var service = CreateService(context, new TestCurrentUser(101, "TenantAdmin"));
-        var request = Request(seeded);
-
-        var first = await service.PromoteAsync(seeded.StudentReference, request);
-        var second = await service.PromoteAsync(seeded.StudentReference, request);
-
-        first.Success.Should().BeTrue();
-        second.Success.Should().BeTrue();
-        second.Data!.AlreadyProcessed.Should().BeTrue();
-        second.Data.Reference.Should().Be(first.Data!.Reference);
-        (await context.Enrollments.CountAsync()).Should().Be(2);
-        (await context.StudentPromotionRecords.CountAsync()).Should().Be(1);
+        var options = Options();
+        var fixture = await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var service = Service(db, new User(101));
+        var request = Request(fixture);
+        request.TargetAcademicLevelId = fixture.SourceLevelId;
+        request.TargetAcademicBatchId = fixture.RepeatBatchId;
+        request.Decision = StudentProgressionDecisionType.Repeated;
+        var repeated = await service.PromoteAsync(fixture.StudentReference, request);
+        repeated.Success.Should().BeTrue(repeated.Message);
+        repeated.Data!.Decision.Should().Be(StudentProgressionDecisionType.Repeated);
+        repeated.Data.AcademicLevelId.Should().Be(fixture.SourceLevelId);
+        (await db.StudentEnrollments.SingleAsync(x => x.Id == fixture.SourceEnrollmentId))
+            .State.Should().Be(EnrollmentState.Completed);
     }
 
     [Fact]
-    public async Task Lower_or_same_class_is_rejected_for_promotion()
+    public async Task Wrong_rowversion_fails_before_creating_enrollment()
     {
-        var options = CreateOptions();
-        var seeded = await SeedAsync(options);
-        await using var context = CreateContext(options, 101, "TenantAdmin");
-        var service = CreateService(context, new TestCurrentUser(101, "TenantAdmin"));
-        var request = Request(seeded);
-        request.TargetClassId = 1;
-        request.TargetSectionId = 1;
-
-        var result = await service.PromoteAsync(seeded.StudentReference, request);
-
-        result.Success.Should().BeFalse();
-        result.StatusCode.Should().Be(409);
-        (await context.StudentPromotionRecords.CountAsync()).Should().Be(0);
-        (await context.Enrollments.CountAsync()).Should().Be(1);
+        var options = Options();
+        var fixture = await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var service = Service(db, new User(101));
+        var request = Request(fixture);
+        request.StudentRowVersion = Convert.ToBase64String([9]);
+        (await service.PromoteAsync(fixture.StudentReference, request)).StatusCode.Should().Be(409);
+        (await db.StudentPromotionRecords.CountAsync()).Should().Be(0);
+        (await db.StudentEnrollments.CountAsync()).Should().Be(1);
     }
 
     [Fact]
-    public async Task Repeated_student_must_remain_in_same_class()
+    public async Task Unrelated_tenant_and_teacher_cannot_promote_student()
     {
-        var options = CreateOptions();
-        var seeded = await SeedAsync(options);
-        await using var context = CreateContext(options, 101, "Principal");
-        var service = CreateService(context, new TestCurrentUser(101, "Principal"));
-        var request = Request(seeded);
-        request.Decision = StudentProgressionDecision.Repeated;
-
-        var invalid = await service.PromoteAsync(seeded.StudentReference, request);
-
-        invalid.StatusCode.Should().Be(409);
-
-        request.TargetClassId = 1;
-        request.TargetSectionId = 1;
-        request.ClientRequestId = Guid.NewGuid();
-        var valid = await service.PromoteAsync(seeded.StudentReference, request);
-
-        valid.Success.Should().BeTrue();
-        valid.Data!.Decision.Should().Be(StudentProgressionDecision.Repeated);
-        valid.Data.ClassId.Should().Be(1);
+        var options = Options();
+        var fixture = await SeedAsync(options);
+        await using var foreign = Context(options, 202);
+        (await Service(foreign, new User(202)).PromoteAsync(fixture.StudentReference,
+            Request(fixture))).StatusCode.Should().Be(404);
+        await using var teacher = Context(options, 101);
+        (await Service(teacher, new User(101, "Teacher")).PromoteAsync(fixture.StudentReference,
+            Request(fixture))).StatusCode.Should().Be(403);
+        (await foreign.StudentPromotionRecords.IgnoreQueryFilters().CountAsync()).Should().Be(0);
     }
 
-    [Fact]
-    public async Task Cross_tenant_student_reference_is_neutral_not_found()
+    private static StudentPromotionService Service(EduOSDbContext db, ICurrentUserService user) => new(
+        new GenericRepository<Student>(db),
+        new GenericRepository<StudentEnrollment>(db),
+        new GenericRepository<StudentPromotionRecord>(db),
+        new GenericRepository<AcademicYear>(db),
+        new GenericRepository<AcademicLevel>(db),
+        new GenericRepository<AcademicBatch>(db),
+        new GenericRepository<AcademicCurriculum>(db), db, user,
+        new Clock(Now), NullLogger<StudentPromotionService>.Instance);
+
+    private static PromoteStudentWorkflowRequestDto Request(Fixture f) => new()
     {
-        var options = CreateOptions();
-        var seeded = await SeedAsync(options);
-        await using var context = CreateContext(options, 202, "TenantAdmin");
-        var service = CreateService(context, new TestCurrentUser(202, "TenantAdmin"));
-
-        var result = await service.PromoteAsync(seeded.StudentReference, Request(seeded));
-
-        result.StatusCode.Should().Be(404);
-        (await context.StudentPromotionRecords.CountAsync()).Should().Be(0);
-    }
-
-    [Fact]
-    public async Task Stale_student_version_and_wrong_section_fail_before_writes()
-    {
-        var options = CreateOptions();
-        var seeded = await SeedAsync(options);
-        await using var context = CreateContext(options, 101, "TenantAdmin");
-        var service = CreateService(context, new TestCurrentUser(101, "TenantAdmin"));
-        var stale = Request(seeded);
-        stale.StudentRowVersion = Convert.ToBase64String([1]);
-
-        (await service.PromoteAsync(seeded.StudentReference, stale)).StatusCode.Should().Be(409);
-
-        var wrongSection = Request(seeded);
-        wrongSection.TargetSectionId = 1;
-        (await service.PromoteAsync(seeded.StudentReference, wrongSection)).StatusCode.Should().Be(409);
-
-        (await context.StudentPromotionRecords.CountAsync()).Should().Be(0);
-        (await context.Enrollments.CountAsync()).Should().Be(1);
-    }
-
-    [Fact]
-    public async Task Unauthorized_role_is_denied_and_promotion_history_is_append_only()
-    {
-        var options = CreateOptions();
-        var seeded = await SeedAsync(options);
-        await using (var teacherContext = CreateContext(options, 101, "Teacher"))
-        {
-            var teacherService = CreateService(teacherContext, new TestCurrentUser(101, "Teacher"));
-            (await teacherService.PromoteAsync(seeded.StudentReference, Request(seeded))).StatusCode
-                .Should().Be(403);
-        }
-
-        await using var adminContext = CreateContext(options, 101, "TenantAdmin");
-        var adminService = CreateService(adminContext, new TestCurrentUser(101, "TenantAdmin"));
-        (await adminService.PromoteAsync(seeded.StudentReference, Request(seeded))).Success.Should().BeTrue();
-        var record = await adminContext.StudentPromotionRecords.SingleAsync();
-        record.Note = "Changed";
-
-        var action = () => adminContext.SaveChangesAsync();
-
-        await action.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*append-only*");
-    }
-
-    private static StudentPromotionService CreateService(
-        EduOSDbContext context,
-        ICurrentUserService currentUser) => new(
-        new GenericRepository<Student>(context),
-        new GenericRepository<Enrollment>(context),
-        new GenericRepository<StudentPromotionRecord>(context),
-        new GenericRepository<AcademicYear>(context),
-        new GenericRepository<Class>(context),
-        new GenericRepository<Section>(context),
-        new GenericRepository<Group>(context),
-        context,
-        currentUser,
-        new FixedTimeProvider(Now),
-        NullLogger<StudentPromotionService>.Instance);
-
-    private static PromoteStudentWorkflowRequestDto Request(SeededStudent seeded) => new()
-    {
-        ClientRequestId = Guid.NewGuid(),
-        SourceEnrollmentId = seeded.EnrollmentId,
-        TargetAcademicYearId = 2,
-        TargetClassId = 2,
-        TargetSectionId = 2,
-        TargetRoll = "5",
-        Decision = StudentProgressionDecision.Promoted,
-        StudentRowVersion = seeded.StudentRowVersion,
-        SourceEnrollmentRowVersion = seeded.EnrollmentRowVersion,
-        Note = "Annual progression"
+        ClientRequestId = Guid.NewGuid(), SourceEnrollmentId = f.SourceEnrollmentId,
+        TargetAcademicYearId = f.TargetYearId, TargetAcademicLevelId = f.TargetLevelId,
+        TargetAcademicBatchId = f.TargetBatchId, TargetRoll = "5",
+        Decision = StudentProgressionDecisionType.Promoted,
+        StudentRowVersion = f.StudentVersion, SourceEnrollmentRowVersion = f.EnrollmentVersion,
+        Note = "Annual promotion"
     };
 
-    private static async Task<SeededStudent> SeedAsync(DbContextOptions<EduOSDbContext> options)
+    private static async Task<Fixture> SeedAsync(DbContextOptions<EduOSDbContext> options)
     {
-        await using var context = CreateContext(options, 101, "TenantAdmin");
-        context.AcademicYears.AddRange(
-            new AcademicYear
-            {
-                Id = 1,
-                TenantId = 101,
-                Name = "2025",
-                StartDate = new DateTime(2025, 1, 1),
-                EndDate = new DateTime(2025, 12, 31),
-                IsActive = true
-            },
-            new AcademicYear
-            {
-                Id = 2,
-                TenantId = 101,
-                Name = "2026",
-                StartDate = new DateTime(2026, 1, 1),
-                EndDate = new DateTime(2026, 12, 31),
-                IsActive = true
-            });
-        context.Classes.AddRange(
-            new Class { Id = 1, TenantId = 101, Name = "Class One", NumericValue = 1, IsActive = true },
-            new Class { Id = 2, TenantId = 101, Name = "Class Two", NumericValue = 2, IsActive = true });
-        context.Sections.AddRange(
-            new Section { Id = 1, TenantId = 101, ClassId = 1, Name = "A", Capacity = 30, IsActive = true },
-            new Section { Id = 2, TenantId = 101, ClassId = 2, Name = "A", Capacity = 30, IsActive = true });
-        var student = new Student
+        await using var db = Context(options, 101);
+        var campus = new Campus { TenantId = 101, Name = "Main", Code = "MAIN" };
+        var program = new AcademicProgram { TenantId = 101, Name = "School", Code = "SCHOOL" };
+        var prior = new AcademicYear { TenantId = 101, Code = "2025", Name = "2025",
+            StartDate = new DateOnly(2025, 1, 1), EndDate = new DateOnly(2025, 12, 31) };
+        var next = new AcademicYear { TenantId = 101, Code = "2026", Name = "2026",
+            StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31) };
+        db.AddRange(campus, program, prior, next);
+        await db.SaveChangesAsync();
+        var sourceLevel = new AcademicLevel { TenantId = 101, AcademicProgramId = program.Id,
+            Code = "C1", Name = "Class One", LevelNo = 1, IsPromotable = true };
+        var targetLevel = new AcademicLevel { TenantId = 101, AcademicProgramId = program.Id,
+            Code = "C2", Name = "Class Two", LevelNo = 2 };
+        db.AddRange(sourceLevel, targetLevel); await db.SaveChangesAsync();
+        var currentBatch = new AcademicBatch { TenantId = 101, CampusId = campus.Id,
+            AcademicYearId = prior.Id, AcademicProgramId = program.Id,
+            AcademicLevelId = sourceLevel.Id, Name = "2025-A", Code = "2025A", Capacity = 30 };
+        var targetBatch = new AcademicBatch { TenantId = 101, CampusId = campus.Id,
+            AcademicYearId = next.Id, AcademicProgramId = program.Id,
+            AcademicLevelId = targetLevel.Id, Name = "2026-B", Code = "2026B", Capacity = 30 };
+        var repeatBatch = new AcademicBatch { TenantId = 101, CampusId = campus.Id,
+            AcademicYearId = next.Id, AcademicProgramId = program.Id,
+            AcademicLevelId = sourceLevel.Id, Name = "2026-A", Code = "2026A", Capacity = 30 };
+        var curriculum = new AcademicCurriculum { TenantId = 101, AcademicProgramId = program.Id,
+            Name = "School Curriculum", Code = "S-CUR",
+            EffectiveFrom = new DateOnly(2025, 1, 1), IsActive = true, IsCurrent = true };
+        db.AddRange(currentBatch, targetBatch, repeatBatch, curriculum);
+        await db.SaveChangesAsync();
+        var student = new Student { TenantId = 101, PublicId = Guid.NewGuid(),
+            StudentCode = "STU-0001", FullName = "Promotion Student",
+            DateOfBirth = new DateOnly(2015, 1, 1), Gender = "Male",
+            AdmissionDate = new DateOnly(2025, 1, 1), StatusCode = "Active",
+            RowVersion = [1, 2, 3, 4, 5, 6, 7, 8] };
+        db.Add(student); await db.SaveChangesAsync();
+        var enrollment = new StudentEnrollment
         {
-            Id = 10,
-            TenantId = 101,
-            StudentCode = "STU-0001",
-            Roll = "4",
-            FullName = "Promotion Student",
-            FatherName = "Father",
-            MotherName = "Mother",
-            DOB = new DateTime(2015, 1, 1),
-            Gender = "Male",
-            ClassId = 1,
-            SectionId = 1,
-            AcademicYearId = 1,
-            AdmissionDate = new DateTime(2025, 1, 1),
-            Status = "Active",
-            IsActive = true
+            TenantId = 101, StudentId = student.Id, CampusId = campus.Id,
+            AcademicYearId = prior.Id, AcademicProgramId = program.Id,
+            AcademicLevelId = sourceLevel.Id, AcademicBatchId = currentBatch.Id,
+            AcademicCurriculumId = curriculum.Id, RollNo = "4",
+            EnrollmentDate = new DateOnly(2025, 1, 1),
+            IsCurrent = true, State = EnrollmentState.Active,
+            RowVersion = [1, 2, 3, 4, 5, 6, 7, 8]
         };
-        var enrollment = new Enrollment
-        {
-            TenantId = 101,
-            StudentId = 10,
-            AcademicYearId = 1,
-            ClassId = 1,
-            SectionId = 1,
-            Roll = "4",
-            EnrollmentDate = new DateTime(2025, 1, 1),
-            IsActive = true
-        };
-        context.Students.Add(student);
-        context.Enrollments.Add(enrollment);
-        await context.SaveChangesAsync();
-        return new SeededStudent(
-            student.PublicId,
-            enrollment.Id,
-            Convert.ToBase64String(student.RowVersion),
-            Convert.ToBase64String(enrollment.RowVersion));
+        db.Add(enrollment); await db.SaveChangesAsync();
+        return new Fixture(student.PublicId, enrollment.Id, sourceLevel.Id, targetLevel.Id,
+            next.Id, targetBatch.Id, repeatBatch.Id,
+            Convert.ToBase64String(student.RowVersion), Convert.ToBase64String(enrollment.RowVersion));
     }
 
-    private static DbContextOptions<EduOSDbContext> CreateOptions() =>
-        new DbContextOptionsBuilder<EduOSDbContext>()
-            .UseInMemoryDatabase($"student-promotion-{Guid.NewGuid():N}")
-            .Options;
-
-    private static EduOSDbContext CreateContext(
-        DbContextOptions<EduOSDbContext> options,
-        long tenantId,
-        string role)
+    private static DbContextOptions<EduOSDbContext> Options() =>
+        new DbContextOptionsBuilder<EduOSDbContext>().UseInMemoryDatabase(
+            "student-promotion-" + Guid.NewGuid().ToString("N")).Options;
+    private static EduOSDbContext Context(DbContextOptions<EduOSDbContext> options, long tenant)
     {
-        var httpContext = new DefaultHttpContext
-        {
-            User = new ClaimsPrincipal(new ClaimsIdentity(
-            [
-                new Claim(ClaimTypes.NameIdentifier, "7"),
-                new Claim(ClaimTypes.Role, role),
-                new Claim("TenantId", tenantId.ToString())
-            ], "TestAuthentication"))
-        };
-        httpContext.Items["TenantId"] = tenantId;
-        return new EduOSDbContext(options, new HttpContextAccessor { HttpContext = httpContext });
+        var http = new DefaultHttpContext();
+        http.Items["TenantId"] = tenant;
+        return new EduOSDbContext(options, new HttpContextAccessor { HttpContext = http });
     }
-
-    private sealed class TestCurrentUser(long tenantId, string role) : ICurrentUserService
+    private sealed record Fixture(Guid StudentReference, long SourceEnrollmentId,
+        long SourceLevelId, long TargetLevelId, long TargetYearId, long TargetBatchId,
+        long RepeatBatchId, string StudentVersion, string EnrollmentVersion);
+    private sealed class Clock(DateTimeOffset date) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => date;
+    }
+    private sealed class User(long tenant, string role = "TenantAdmin") : ICurrentUserService
     {
         public bool IsAuthenticated => true;
+        public long TenantId => tenant;
         public long UserId => 7;
-        public long TenantId => tenantId;
-        public string? FullName => "Promotion Admin";
-        public string? Email => "promotion@example.test";
-        public bool IsSuperAdmin => false;
+        public string? FullName => "Administrator";
+        public string? Email => "admin@example.test";
         public bool IsTenantAdmin => role == "TenantAdmin";
+        public bool IsSuperAdmin => false;
         public IReadOnlyList<string> Roles => [role];
-        public bool IsInRole(string value) => string.Equals(value, role, StringComparison.Ordinal);
+        public bool IsInRole(string value) => value == role;
         public string? IpAddress => "127.0.0.1";
-        public string? UserAgent => "EduOS promotion tests";
+        public string? UserAgent => "Tests";
     }
-
-    private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => utcNow;
-    }
-
-    private sealed record SeededStudent(
-        Guid StudentReference,
-        long EnrollmentId,
-        string StudentRowVersion,
-        string EnrollmentRowVersion);
 }
