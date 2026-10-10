@@ -30,6 +30,9 @@ public sealed class StudentExitIntegrityContractTests
     {
         Source.Should().Contain("x.ClientRequestId == request.ClientRequestId");
         Source.Should().Contain("Exit already processed.");
+        Source.Should().Contain("!string.Equals(replay.Reason, Trim(request.Reason), StringComparison.Ordinal)");
+        Source.Should().Contain("!string.Equals(replay.ConductRemark, Trim(request.ConductRemark), StringComparison.Ordinal)");
+        Source.Should().Contain("request.ConductRemark?.Length > 1000");
         Source.Should().Contain("catch (DbUpdateConcurrencyException ex)");
         Source.Should().Contain("catch (DbUpdateException ex)");
         Source.Should().Contain("catch (TransactionAbortedException ex)");
