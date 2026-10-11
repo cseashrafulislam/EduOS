@@ -51,6 +51,7 @@ public sealed class TenantRoleUpdateRequestDto
 
 public sealed class TenantRolePermissionsRequestDto
 {
+    [Required] public string ConcurrencyStamp { get; set; } = "";
     [Required] public IReadOnlyList<long> PermissionIds { get; set; } = Array.Empty<long>();
 }
 
