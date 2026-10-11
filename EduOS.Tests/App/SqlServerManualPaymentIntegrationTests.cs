@@ -143,7 +143,7 @@ public sealed class SqlServerManualPaymentIntegrationTests
             new GenericRepository<TenantSubscription>(adminDb), Options.Create(new AamarPaySettings()),
             Options.Create(new ManualPaymentSettings { Enabled = true, BankName = "Test Bank", AccountName = "Test Account", AccountNumber = "000001" }),
             NullLogger<SubscriptionPaymentService>.Instance);
-        var pending = await admin.GetPendingManualVerificationsAsync(1, 25);
+        var pending = await admin.GetPendingManualVerificationsAsync(1, 25, null);
         Assert.True(pending.Success, pending.Message);
         Assert.Contains(pending.Data!.Items, x => x.SubscriptionInvoiceId == invoiceId && !x.ReceiptIsVerifiedSafe);
         var payment = pending.Data.Items.Single(x => x.SubscriptionInvoiceId == invoiceId);
