@@ -509,6 +509,90 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
         return ApiResponse<bool>.SuccessResponse(true, "Invitation accepted. Sign in to select your institution.");
     }
 
+    public async Task<ApiResponse<IReadOnlyList<TenantCampusAccessDto>>> GetMemberCampusesAsync(
+        long membershipId, CancellationToken ct = default)
+    {
+        if (!CanManage) return Denied<IReadOnlyList<TenantCampusAccessDto>>();
+        var member = await _db.TenantMemberships.AsNoTracking().FirstOrDefaultAsync(x =>
+            x.Id == membershipId && x.TenantId == TenantId && !x.IsDeleted, ct);
+        if (member == null)
+            return ApiResponse<IReadOnlyList<TenantCampusAccessDto>>.ErrorResponse("Membership not found.", 404);
+        var campuses = await _db.Campuses.AsNoTracking().Where(x => x.TenantId == TenantId &&
+            !x.IsDeleted && x.IsActive).OrderBy(x => x.Name)
+            .Select(x => new { x.Id, x.Name }).ToListAsync(ct);
+        var allowed = await _db.UserCampusAccesses.AsNoTracking().Where(x =>
+            x.TenantId == TenantId && x.UserId == member.UserId && x.IsActive && !x.IsDeleted)
+            .Select(x => x.CampusId).ToListAsync(ct);
+        var ids = allowed.ToHashSet();
+        IReadOnlyList<TenantCampusAccessDto> results = campuses.Select(x => new TenantCampusAccessDto
+        {
+            Id = x.Id, Name = x.Name, IsSelected = ids.Contains(x.Id),
+            IsDefault = member.DefaultCampusId == x.Id
+        }).ToArray();
+        return ApiResponse<IReadOnlyList<TenantCampusAccessDto>>.SuccessResponse(results);
+    }
+
+    public async Task<ApiResponse<bool>> SetMemberCampusesAsync(long membershipId,
+        TenantMemberCampusRequestDto request, CancellationToken ct = default)
+    {
+        if (!CanManage) return Denied<bool>();
+        if (request == null || request.CampusIds == null || request.CampusIds.Count > 200 ||
+            request.CampusIds.Any(id => id <= 0) ||
+            !TryVersion(request.RowVersion, out var version))
+            return ApiResponse<bool>.ErrorResponse("Invalid campus list or membership version.", 400);
+        var selected = request.CampusIds.Distinct().ToArray();
+        if (request.DefaultCampusId.HasValue && !selected.Contains(request.DefaultCampusId.Value))
+            return ApiResponse<bool>.ErrorResponse("Default campus must be in the selected campuses.", 400);
+        if (await _db.Campuses.AsNoTracking().CountAsync(x =>
+            x.TenantId == TenantId && selected.Contains(x.Id) && !x.IsDeleted && x.IsActive, ct)
+            != selected.Length)
+            return ApiResponse<bool>.ErrorResponse("One or more campuses do not belong to this institution.", 403);
+        try
+        {
+            await _db.ExecuteInTransactionAsync(async token =>
+            {
+                var member = await _db.TenantMemberships.SingleOrDefaultAsync(x =>
+                    x.Id == membershipId && x.TenantId == TenantId && !x.IsDeleted, token);
+                if (member == null) throw new AdminRejectException("Membership not found.", 404);
+                if (member.Status != MembershipStatus.Active)
+                    throw new AdminRejectException("Only active members may receive campus access.", 409);
+                _db.Entry(member).Property(x => x.RowVersion).OriginalValue = version;
+                var entries = await _db.UserCampusAccesses.Where(x =>
+                    x.TenantId == TenantId && x.UserId == member.UserId && !x.IsDeleted).ToListAsync(token);
+                foreach (var entry in entries)
+                {
+                    entry.IsActive = selected.Contains(entry.CampusId);
+                    entry.IsDefault = false; // TenantMembership.DefaultCampusId is authoritative.
+                    entry.UpdatedAt = DateTime.UtcNow;
+                    entry.UpdatedBy = _current.UserId;
+                }
+                foreach (var id in selected.Except(entries.Select(x => x.CampusId)))
+                    _db.UserCampusAccesses.Add(new UserCampusAccess
+                    {
+                        TenantId = TenantId, UserId = member.UserId, CampusId = id,
+                        IsActive = true, IsDefault = false, CreatedBy = _current.UserId
+                    });
+                member.DefaultCampusId = request.DefaultCampusId;
+                if (member.LastSelectedCampusId.HasValue && !selected.Contains(member.LastSelectedCampusId.Value))
+                    member.LastSelectedCampusId = request.DefaultCampusId;
+                member.UpdatedAt = DateTime.UtcNow;
+                member.UpdatedBy = _current.UserId;
+                await _db.SaveChangesAsync(token);
+                var user = await _users.FindByIdAsync(member.UserId.ToString());
+                if (user == null) throw new AdminRejectException("Member account is unavailable.", 409);
+                var rotated = await _users.UpdateSecurityStampAsync(user);
+                if (!rotated.Succeeded) throw new AdminRejectException("Account changed concurrently.", 409);
+                return true;
+            }, ct);
+            return ApiResponse<bool>.SuccessResponse(true, "Campus access updated. User sessions invalidated.");
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return ApiResponse<bool>.ErrorResponse("Campus access changed. Reload and retry.", 409);
+        }
+        catch (AdminRejectException ex) { return ApiResponse<bool>.ErrorResponse(ex.Message, ex.StatusCode); }
+    }
+
     private static string HashInvitationToken(string value) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
 
