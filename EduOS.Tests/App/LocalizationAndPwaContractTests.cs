@@ -200,6 +200,9 @@ public class LocalizationAndPwaContractTests
         });
 
         planScript.Should().Contain("/api/subscription/current");
+        planScript.Should().Contain("onboardingPayload.data.isComplete");
+        planScript.Should().Contain("existingSubscription || !selectedPlanId");
+        planScript.Should().Contain("currentPlanReadOnly");
         planScript.Should().Contain("/api/subscription/invoices/unpaid");
         // Free subscriptions may complete the payment stage, but only after
         // obtaining current server-side onboarding state and using an antiforgery token.
