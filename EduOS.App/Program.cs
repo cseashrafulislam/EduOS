@@ -359,6 +359,7 @@ app.UseCors(CorsExtensions.DefaultPolicy);
 app.UseRateLimiter();
 
 app.UseAuthentication();
+app.UseAuthSessionGuard();
 app.UseTenantContext();
 app.UseOnboardingGuard();
 app.UseAuthorization();
