@@ -82,8 +82,8 @@ public sealed class TenantQueryFilterIsolationTests
         firstHttp.User = new ClaimsPrincipal(new ClaimsIdentity(
             [new Claim(ClaimTypes.NameIdentifier, "7"), new Claim(ClaimTypes.Role, "InventoryManager")],
             "Test"));
-        await using var first = new EduOSDbContext(options,
-            new HttpContextAccessor { HttpContext = firstHttp });
+        var firstAccessor = new HttpContextAccessor { HttpContext = firstHttp };
+        await using var first = new EduOSDbContext(options, firstAccessor);
         first.InventoryLocations.Add(new InventoryLocation
         {
             TenantId = 101, Code = "OWNED", Name = "Owned"
@@ -100,6 +100,9 @@ public sealed class TenantQueryFilterIsolationTests
             });
             await other.SaveChangesAsync();
         }
+        // The second simulated request ran sequentially in the same AsyncLocal flow.
+        // Restore the original request before accessing its DbContext again.
+        firstAccessor.HttpContext = firstHttp;
         Assert.Equal(101L, first.CurrentTenantId);
         Assert.False(await first.InventoryLocations.AnyAsync(x => x.Code == "FOREIGN"));
         Assert.Equal(2, await first.InventoryLocations.IgnoreQueryFilters().CountAsync());
