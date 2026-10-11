@@ -231,6 +231,7 @@ public sealed class TenantModuleService : ITenantModuleService
             {
                 Id = selected?.Id ?? 0, ProductModuleId = module.Id,
                 ModuleCode = module.Code, ModuleName = module.Name,
+                ModuleNameBangla = module.NameBangla, Category = module.Category, IsCore = module.IsCore,
                 IsEnabled = isEnabled, IsRequiredByPreset = isRequired,
                 IsEntitledByPlan = module.IsCore || entitled.Contains(module.Id),
                 EnabledAt = selected?.EnabledAt, DisabledAt = selected?.DisabledAt,
