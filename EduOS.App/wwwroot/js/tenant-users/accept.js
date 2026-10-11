@@ -32,7 +32,8 @@
                     token, password, confirmPassword,
                     fullName: document.getElementById('inviteFullName').value.trim() || null,
                     mfaCode: document.getElementById('inviteMfaCode').value.trim() || null,
-                    useRecoveryCode: document.getElementById('inviteRecovery').checked
+                    useRecoveryCode: document.getElementById('inviteRecovery').checked,
+                    agreeTerms: document.getElementById('inviteAgreeTerms').checked
                 })
             });
             const payload = await response.json().catch(() => null);
