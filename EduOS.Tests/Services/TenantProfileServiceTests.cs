@@ -50,6 +50,62 @@ public sealed class TenantProfileServiceTests
     }
 
     [Fact]
+    public async Task Regional_preferences_save_canonical_values_and_reject_bad_format_or_stale_version()
+    {
+        await using var setup = await CreateSetupAsync();
+        var valid = await setup.Service.UpdateRegionalSettingsAsync(new UpdateTenantRegionalSettingsRequestDto
+        {
+            CurrencyCode = "USD", TimeZoneId = "Asia/Dhaka", DefaultLanguage = "en",
+            DateFormat = "yyyy-MM-dd", RowVersion = Convert.ToBase64String(setup.Tenant.RowVersion)
+        });
+        valid.Success.Should().BeTrue(valid.Message);
+        setup.Tenant.CurrencyCode.Should().Be("USD");
+        setup.Tenant.TimeZoneId.Should().Be("Asia/Dhaka");
+        setup.Tenant.DefaultLanguage.Should().Be("en");
+        setup.Tenant.DateFormat.Should().Be("yyyy-MM-dd");
+        valid.Data!.DateFormat.Should().Be("yyyy-MM-dd");
+        valid.Data.CurrencyCode.Should().Be("USD");
+
+        var bad = await setup.Service.UpdateRegionalSettingsAsync(new UpdateTenantRegionalSettingsRequestDto
+        {
+            CurrencyCode = "USD", TimeZoneId = "Asia/Dhaka", DefaultLanguage = "en",
+            DateFormat = "yyyy/MM/dd", RowVersion = Convert.ToBase64String(setup.Tenant.RowVersion)
+        });
+        bad.Success.Should().BeFalse();
+        bad.StatusCode.Should().Be(400);
+        setup.Tenant.DateFormat.Should().Be("yyyy-MM-dd");
+
+        var stale = await setup.Service.UpdateRegionalSettingsAsync(new UpdateTenantRegionalSettingsRequestDto
+        {
+            CurrencyCode = "BDT", TimeZoneId = "Asia/Dhaka", DefaultLanguage = "en",
+            DateFormat = "dd-MM-yyyy", RowVersion = Convert.ToBase64String(new byte[8])
+        });
+        stale.StatusCode.Should().Be(409);
+        setup.Tenant.CurrencyCode.Should().Be("USD");
+    }
+
+    [Fact]
+    public void Regional_preferences_wizard_posts_to_canonical_endpoint_with_csrf_and_rowversion()
+    {
+        var view = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "GeneralSettings.cshtml"));
+        var js = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "general-settings.js"));
+        var controller = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "TenantProfileController.cs"));
+        view.Should().Contain("@Html.AntiForgeryToken()");
+        view.Should().Contain("id=\"currencySymbol\" maxlength=\"10\" readonly");
+        controller.Should().Contain("[HttpPut(\"regional-settings\")]");
+        js.Should().Contain("'/api/tenant-profile/regional-settings'");
+        js.Should().Contain("currencyCode: valueOf('currency')");
+        js.Should().Contain("timeZoneId: valueOf('timeZone')");
+        js.Should().Contain("defaultLanguage: valueOf('language')");
+        js.Should().Contain("dateFormat: valueOf('dateFormat')");
+        js.Should().Contain("rowVersion: currentRowVersion");
+        js.Should().Contain("'RequestVerificationToken': antiforgeryToken()");
+        js.Should().Contain("responseError(payload, i18n.saveFailed");
+        js.Should().Contain("'/api/onboarding/complete-step'");
+        js.Should().NotContain("/api/tenant-profile/general-settings");
+    }
+
+    [Fact]
     public async Task Branding_rejects_pdf_before_invoking_file_storage()
     {
         await using var setup = await CreateSetupAsync();
