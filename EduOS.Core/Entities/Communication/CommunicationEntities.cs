@@ -84,6 +84,13 @@ public class CommunicationGateway : BaseTenantEntity
     public NotificationChannelType Channel { get; set; }
     [MaxLength(1000)] public string? Endpoint { get; set; }
     [MaxLength(4000)] public string? ProtectedCredential { get; set; }
+    [MaxLength(20)] public string? SmsSenderId { get; set; }
+    [MaxLength(253)] public string? SmtpHost { get; set; }
+    public int? SmtpPort { get; set; }
+    [MaxLength(320)] public string? SmtpUsername { get; set; }
+    [MaxLength(320)] public string? FromEmail { get; set; }
+    [MaxLength(150)] public string? FromName { get; set; }
+    public bool UseSsl { get; set; } = true;
     public bool IsDefault { get; set; }
     public bool IsActive { get; set; } = true;
 }
