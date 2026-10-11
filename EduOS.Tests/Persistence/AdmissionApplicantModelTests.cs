@@ -19,9 +19,11 @@ public class AdmissionApplicantModelTests
 
         entity.Should().NotBeNull();
         entity!.GetQueryFilter().Should().NotBeNull();
-        entity.FindProperty(nameof(AdmissionApplicant.DateOfBirth))!
-            .FindAnnotation(RelationalAnnotationNames.ColumnType)!
-            .Value.Should().Be("date");
+        // DateOnly is mapped to SQL Server 'date' by provider convention, so a
+        // hand-authored ColumnType annotation need not exist in the EF model.
+        var birthDate = entity.FindProperty(nameof(AdmissionApplicant.DateOfBirth))!;
+        birthDate.ClrType.Should().Be(typeof(DateOnly?));
+        birthDate.GetColumnType().Should().Be("date");
         entity.FindProperty(nameof(AdmissionApplicant.RowVersion))!.IsConcurrencyToken.Should().BeTrue();
         entity.GetForeignKeys().Should().HaveCount(6);
         entity.GetForeignKeys().Should().OnlyContain(x => x.DeleteBehavior == DeleteBehavior.Restrict);
