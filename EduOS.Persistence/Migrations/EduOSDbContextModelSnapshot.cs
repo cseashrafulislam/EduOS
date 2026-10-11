@@ -13797,6 +13797,10 @@ namespace EduOS.Persistence.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
+                    b.Property<string>("PayerAccountNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<int>("PaymentMethod")
                         .HasColumnType("int");
 
