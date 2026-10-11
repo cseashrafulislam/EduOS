@@ -404,6 +404,154 @@ namespace EduOS.App.Controllers.Api
             });
         }
 
+        // ==================== MFA Management (voluntary) ====================
+
+        [Authorize]
+        [EnableRateLimiting("AccountSecurityPolicy")]
+        [HttpPost("mfa/disable")]
+        public async Task<IActionResult> DisableMfa([FromBody] MfaSecurityActionDto dto)
+        {
+            Response.Headers.CacheControl = "no-store";
+            var user = await GetCurrentUserAsync();
+            if (user == null) return Unauthorized(new { success = false, message = "Session unavailable." });
+            if (!user.TwoFactorEnabled) return Conflict(new { success = false, message = "MFA is already disabled." });
+            if (!User.HasClaim("amr", "mfa"))
+                return StatusCode(403, new { success = false, message = "Sign in with MFA before changing authenticator settings." });
+            if (dto == null || string.IsNullOrWhiteSpace(dto.CurrentPassword) || string.IsNullOrWhiteSpace(dto.Code) ||
+                !await _userManager.CheckPasswordAsync(user, dto.CurrentPassword))
+                return BadRequest(new { success = false, message = "Password or verification code is invalid." });
+            try
+            {
+                await _db.ExecuteInTransactionAsync(async ct =>
+                {
+                    if (!await VerifyMfaActionCodeAsync(user, dto))
+                        throw new AuthTransactionRejectedException("Password or verification code is invalid.", 400);
+                    var disabled = await _userManager.SetTwoFactorEnabledAsync(user, false);
+                    if (!disabled.Succeeded)
+                        throw new AuthTransactionRejectedException("MFA state changed. Sign in again.");
+                    var reset = await _userManager.ResetAuthenticatorKeyAsync(user);
+                    if (!reset.Succeeded)
+                        throw new AuthTransactionRejectedException("Authenticator reset failed.");
+                    return true;
+                });
+            }
+            catch (AuthTransactionRejectedException ex)
+            {
+                return StatusCode(ex.StatusCode, new { success = false, message = ex.Message });
+            }
+            await AuthSessionRegistry.RevokeAllAsync(_db, user.Id);
+            await _signInManager.SignOutAsync();
+            _logger.LogWarning("MFA disabled by user {UserId}", user.Id);
+            return Ok(new { success = true, message = "MFA disabled. Sign in again." });
+        }
+
+        [Authorize]
+        [EnableRateLimiting("AccountSecurityPolicy")]
+        [HttpPost("mfa/recovery-codes/regenerate")]
+        public async Task<IActionResult> RegenerateRecoveryCodes([FromBody] MfaSecurityActionDto dto)
+        {
+            Response.Headers.CacheControl = "no-store";
+            var user = await GetCurrentUserAsync();
+            if (user == null) return Unauthorized(new { success = false, message = "Session unavailable." });
+            if (!user.TwoFactorEnabled || !User.HasClaim("amr", "mfa"))
+                return StatusCode(403, new { success = false, message = "Sign in with MFA to manage recovery codes." });
+            if (dto == null || string.IsNullOrWhiteSpace(dto.CurrentPassword) || string.IsNullOrWhiteSpace(dto.Code) ||
+                !await _userManager.CheckPasswordAsync(user, dto.CurrentPassword))
+                return BadRequest(new { success = false, message = "Password or verification code is invalid." });
+            if (_mfaSettings.RecoveryCodeCount is < 5 or > 20)
+                return StatusCode(500, new { success = false, message = "Recovery-code configuration is invalid." });
+            string[] codes;
+            try
+            {
+                codes = await _db.ExecuteInTransactionAsync(async ct =>
+                {
+                    if (!await VerifyMfaActionCodeAsync(user, dto))
+                        throw new AuthTransactionRejectedException("Password or verification code is invalid.", 400);
+                    var newCodes = (await _userManager.GenerateNewTwoFactorRecoveryCodesAsync(
+                        user, _mfaSettings.RecoveryCodeCount))?.ToArray() ?? [];
+                    if (newCodes.Length != _mfaSettings.RecoveryCodeCount)
+                        throw new AuthTransactionRejectedException("Recovery codes could not be regenerated.");
+                    var stamp = await _userManager.UpdateSecurityStampAsync(user);
+                    if (!stamp.Succeeded)
+                        throw new AuthTransactionRejectedException("Account changed. Retry after signing in.");
+                    return newCodes;
+                });
+            }
+            catch (AuthTransactionRejectedException ex)
+            {
+                return StatusCode(ex.StatusCode, new { success = false, message = ex.Message });
+            }
+            await AuthSessionRegistry.RevokeAllAsync(_db, user.Id);
+            await _signInManager.SignOutAsync();
+            _logger.LogInformation("MFA recovery codes rotated for user {UserId}", user.Id);
+            return Ok(new { success = true, message = "Store these recovery codes securely. Sign in again.",
+                data = new { recoveryCodes = codes } });
+        }
+
+        private async Task<bool> VerifyMfaActionCodeAsync(ApplicationUser user, MfaSecurityActionDto dto)
+        {
+            if (dto.UseRecoveryCode)
+                return (await _userManager.RedeemTwoFactorRecoveryCodeAsync(user, dto.Code.Trim())).Succeeded;
+            return await _userManager.VerifyTwoFactorTokenAsync(
+                user, TokenOptions.DefaultAuthenticatorProvider, NormalizeMfaCode(dto.Code));
+        }
+
+        // ==================== Active Sessions ====================
+
+        [Authorize]
+        [HttpGet("sessions")]
+        public async Task<IActionResult> GetSessions()
+        {
+            Response.Headers.CacheControl = "no-store";
+            var user = await GetCurrentUserAsync();
+            if (user == null) return Unauthorized(new { success = false, message = "Session unavailable." });
+            var records = await AuthSessionRegistry.ListAsync(_db, user.Id,
+                User.FindFirstValue(AuthSessionRegistry.ClaimType));
+            return Ok(new { success = true, data = records });
+        }
+
+        [Authorize]
+        [EnableRateLimiting("AccountSecurityPolicy")]
+        [HttpPost("sessions/revoke")]
+        public async Task<IActionResult> RevokeSession([FromBody] RevokeUserSessionDto dto)
+        {
+            Response.Headers.CacheControl = "no-store";
+            var user = await GetCurrentUserAsync();
+            if (user == null) return Unauthorized(new { success = false, message = "Session unavailable." });
+            if (dto == null || string.IsNullOrWhiteSpace(dto.SessionId))
+                return BadRequest(new { success = false, message = "Session ID required." });
+            var revoked = await AuthSessionRegistry.RevokeAsync(_db, user.Id, dto.SessionId);
+            if (!revoked) return NotFound(new { success = false, message = "Session no longer active." });
+            if (dto.SessionId == User.FindFirstValue(AuthSessionRegistry.ClaimType))
+                await _signInManager.SignOutAsync();
+            _logger.LogInformation("User {UserId} revoked session {SessionId}", user.Id, dto.SessionId);
+            return Ok(new { success = true, message = "Session revoked." });
+        }
+
+        [Authorize]
+        [EnableRateLimiting("AccountSecurityPolicy")]
+        [HttpPost("sessions/revoke-all")]
+        public async Task<IActionResult> RevokeAllSessions([FromBody] MfaSetupRequestDto dto)
+        {
+            Response.Headers.CacheControl = "no-store";
+            var user = await GetCurrentUserAsync();
+            if (user == null) return Unauthorized(new { success = false, message = "Session unavailable." });
+            if (dto == null || string.IsNullOrWhiteSpace(dto.CurrentPassword) ||
+                !await _userManager.CheckPasswordAsync(user, dto.CurrentPassword))
+                return BadRequest(new { success = false, message = "Current password is invalid." });
+            await _db.ExecuteInTransactionAsync(async ct =>
+            {
+                await AuthSessionRegistry.RevokeAllAsync(_db, user.Id);
+                var stamp = await _userManager.UpdateSecurityStampAsync(user);
+                if (!stamp.Succeeded)
+                    throw new AuthTransactionRejectedException("Concurrent account change. Retry.");
+                return true;
+            });
+            await _signInManager.SignOutAsync();
+            _logger.LogInformation("User {UserId} revoked all sessions", user.Id);
+            return Ok(new { success = true, message = "All sessions revoked. Please sign in again." });
+        }
+
         // ==================== Forgot Password ====================
 
         [AllowAnonymous]
