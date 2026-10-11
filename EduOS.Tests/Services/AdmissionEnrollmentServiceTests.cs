@@ -78,6 +78,21 @@ public class AdmissionEnrollmentServiceTests
     }
 
     [Fact]
+    public async Task Zero_capacity_batch_never_admits_unlimited_students()
+    {
+        await using var context = CreateContext(101);
+        var seed = await SeedAsync(context, 101, AdmissionApplicantState.Qualified);
+        seed.Batch.Capacity = 0;
+        await context.SaveChangesAsync();
+        var service = CreateService(context, new TestCurrentUser(101));
+        var rejected = await service.AdmitAsync(seed.Application.PublicId, Request(seed));
+        rejected.StatusCode.Should().Be(409);
+        (await context.Set<Student>().CountAsync()).Should().Be(0);
+        (await context.Set<StudentEnrollment>().CountAsync()).Should().Be(0);
+        seed.Application.State.Should().Be(AdmissionApplicantState.Qualified);
+    }
+
+    [Fact]
     public async Task User_without_admission_permission_cannot_convert_applicant()
     {
         await using var context = CreateContext(101);
