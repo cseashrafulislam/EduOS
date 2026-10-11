@@ -16,6 +16,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using System.Security.Cryptography;
 using Moq;
 using System.Security.Claims;
 using Xunit;
@@ -130,6 +131,56 @@ public sealed class SqlServerManualPaymentIntegrationTests
         Assert.Equal(1, await db.SubscriptionPayments.CountAsync(x => x.TenantId == tenantId));
         Assert.Equal(1, await db.FileAssets.CountAsync(x => x.TenantId == tenantId));
         storage.Verify(x => x.DeletePrivateAsync(It.IsAny<string>()), Times.Once);
+        var data = new byte[] { 0x25, 0x50, 0x44, 0x46, 0x2D, 0x31, 0x2E, 0x37 };
+        storage.Setup(x => x.GetPrivateFileAsync(It.IsAny<string>())).ReturnsAsync(
+            new FileDownloadResult { Content = data, ContentType = "application/pdf", FileName = "receipt.pdf" });
+        // No scanner installed must never be treated as a successful security review.
+        await using var adminDb = new EduOSDbContext(options);
+        var admin = new SubscriptionPaymentService(
+            new SubscriptionPaymentRepository(adminDb), new SubscriptionInvoiceRepository(adminDb),
+            new GenericRepository<Tenant>(adminDb), new GenericRepository<FileAsset>(adminDb), adminDb,
+            new TestCurrentUser(tenantId, userId, true), Mock.Of<IAamarPayClient>(), storage.Object,
+            new GenericRepository<TenantSubscription>(adminDb), Options.Create(new AamarPaySettings()),
+            Options.Create(new ManualPaymentSettings { Enabled = true, BankName = "Test Bank", AccountName = "Test Account", AccountNumber = "000001" }),
+            NullLogger<SubscriptionPaymentService>.Instance);
+        var pending = await admin.GetPendingManualVerificationsAsync(1, 25);
+        Assert.True(pending.Success, pending.Message);
+        Assert.Contains(pending.Data!.Items, x => x.SubscriptionInvoiceId == invoiceId && !x.ReceiptIsVerifiedSafe);
+        var payment = pending.Data.Items.Single(x => x.SubscriptionInvoiceId == invoiceId);
+        Assert.Equal("123456", payment.PayerAccountNumber);
+        Assert.Equal(409, (await admin.GetDepositSlipAsync(payment.Id)).StatusCode);
+        Assert.Equal(409, (await admin.VerifyManualPaymentAsync(new VerifyManualPaymentDto
+        {
+            PaymentId = payment.Id, Approve = true, RowVersion = payment.RowVersion
+        })).StatusCode);
+        Assert.Equal(503, (await admin.ScanDepositSlipAsync(payment.Id)).StatusCode);
+        storage.Setup(x => x.ScanPrivateForMalwareAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Convert.ToHexString(SHA256.HashData(data)));
+        var cleared = await admin.ScanDepositSlipAsync(payment.Id);
+        Assert.True(cleared.Success, cleared.Message);
+        Assert.True((await admin.GetDepositSlipAsync(payment.Id)).Success);
+        var verified = await admin.VerifyManualPaymentAsync(new VerifyManualPaymentDto
+        {
+            PaymentId = payment.Id, Approve = true, RowVersion = payment.RowVersion,
+            VerificationNote = "Bank credit confirmed"
+        });
+        Assert.True(verified.Success, verified.Message);
+        Assert.Equal(409, (await admin.VerifyManualPaymentAsync(new VerifyManualPaymentDto
+        {
+            PaymentId = payment.Id, Approve = true, RowVersion = payment.RowVersion
+        })).StatusCode);
+        adminDb.ChangeTracker.Clear();
+        var posted = await adminDb.SubscriptionPayments.IgnoreQueryFilters().AsNoTracking()
+            .SingleAsync(x => x.TenantId == tenantId && x.Id == payment.Id);
+        var paidInvoice = await adminDb.SubscriptionInvoices.IgnoreQueryFilters().AsNoTracking()
+            .SingleAsync(x => x.Id == invoiceId && x.TenantId == tenantId);
+        var active = await adminDb.TenantSubscriptions.IgnoreQueryFilters().AsNoTracking()
+            .SingleAsync(x => x.Id == paidInvoice.TenantSubscriptionId && x.TenantId == tenantId);
+        Assert.Equal(PaymentState.Successful, posted.State);
+        Assert.Equal(InvoiceState.Paid, paidInvoice.State);
+        Assert.Equal(0m, paidInvoice.DueAmount);
+        Assert.Equal(100m, paidInvoice.PaidAmount);
+        Assert.Equal(SubscriptionState.Active, active.State);
     }
 
     private static PrivateFileUploadDto Upload(Stream content) => new()
@@ -138,17 +189,17 @@ public sealed class SqlServerManualPaymentIntegrationTests
         ContentType = "application/pdf"
     };
 
-    private sealed class TestCurrentUser(long tenant, long user) : ICurrentUserService
+    private sealed class TestCurrentUser(long tenant, long user, bool superAdmin = false) : ICurrentUserService
     {
         public bool IsAuthenticated => true;
         public long UserId => user;
         public long TenantId => tenant;
         public string? FullName => "Payment CI";
         public string? Email => "payment@example.test";
-        public bool IsTenantAdmin => true;
-        public bool IsSuperAdmin => false;
-        public IReadOnlyList<string> Roles => ["TenantAdmin"];
-        public bool IsInRole(string role) => role == "TenantAdmin";
+        public bool IsTenantAdmin => !superAdmin;
+        public bool IsSuperAdmin => superAdmin;
+        public IReadOnlyList<string> Roles => [superAdmin ? "SuperAdmin" : "TenantAdmin"];
+        public bool IsInRole(string role) => role == (superAdmin ? "SuperAdmin" : "TenantAdmin");
         public string? IpAddress => "127.0.0.1";
         public string? UserAgent => "SQL Server CI";
     }
