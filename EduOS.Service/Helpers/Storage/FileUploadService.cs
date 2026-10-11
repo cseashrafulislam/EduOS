@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
@@ -23,6 +24,7 @@ namespace EduOS.Service.Helpers.Storage
         Task<FileUploadResult> UploadPrivateAsync(IFormFile file, string folder);
         Task<FileUploadResult> UploadPrivateForTenantAsync(IFormFile file, string folder, long tenantId);
         Task<FileDownloadResult?> GetPrivateFileAsync(string storageKey);
+        Task<string?> ScanPrivateForMalwareAsync(string storageKey, CancellationToken cancellationToken = default);
         Task<bool> DeletePrivateAsync(string storageKey);
         Task<bool> DeleteAsync(string fileUrl);
         Task<bool> DeleteByPathAsync(string relativePath);
@@ -246,6 +248,67 @@ namespace EduOS.Service.Helpers.Storage
                 result.ErrorMessage = "Private file upload failed.";
                 _logger.LogError(ex, "Private file upload failed for {FileName}", file?.FileName);
                 return result;
+            }
+        }
+
+        /// <summary>
+        /// Returns the scanned file SHA-256 only after Microsoft Defender has reported a clean
+        /// scan. A missing/unavailable scanner or changed file fails closed (null).
+        /// Do not mark a file as verified based on a file signature alone.
+        /// </summary>
+        public async Task<string?> ScanPrivateForMalwareAsync(string storageKey, CancellationToken cancellationToken = default)
+        {
+            if (!TryResolvePath(_settings.PrivateBasePath, storageKey, out var fullPath) ||
+                !File.Exists(fullPath) || !OperatingSystem.IsWindows())
+                return null;
+            try
+            {
+                var info = new FileInfo(fullPath);
+                if (info.Length <= 0 || info.Length > 5L * 1024 * 1024) return null;
+                var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+                var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+                var defender = Path.Combine(programFiles, "Windows Defender", "MpCmdRun.exe");
+                var platform = Path.Combine(programData, "Microsoft", "Windows Defender", "Platform");
+                if (Directory.Exists(platform))
+                {
+                    var current = Directory.GetDirectories(platform).OrderByDescending(Path.GetFileName).FirstOrDefault(x =>
+                        File.Exists(Path.Combine(x, "MpCmdRun.exe")));
+                    if (current != null) defender = Path.Combine(current, "MpCmdRun.exe");
+                }
+                if (!File.Exists(defender))
+                {
+                    _logger.LogError("Microsoft Defender command line scanner is unavailable. Private receipt remains quarantined.");
+                    return null;
+                }
+                string before;
+                await using (var input = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                    before = Convert.ToHexString(await SHA256.HashDataAsync(input, cancellationToken));
+                var start = new ProcessStartInfo(defender) { UseShellExecute = false, CreateNoWindow = true };
+                foreach (var arg in new[] { "-Scan", "-ScanType", "3", "-File", fullPath }) start.ArgumentList.Add(arg);
+                using var process = new Process { StartInfo = start };
+                if (!process.Start()) return null;
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                timeout.CancelAfter(TimeSpan.FromMinutes(2));
+                try { await process.WaitForExitAsync(timeout.Token); }
+                catch (OperationCanceledException)
+                {
+                    if (!process.HasExited) process.Kill(entireProcessTree: true);
+                    _logger.LogWarning("Private receipt malware scan timed out or was cancelled.");
+                    return null;
+                }
+                if (process.ExitCode != 0 || !File.Exists(fullPath))
+                {
+                    _logger.LogWarning("Microsoft Defender did not clear private receipt; scan exit code {ExitCode}.", process.ExitCode);
+                    return null;
+                }
+                await using var check = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                var after = Convert.ToHexString(await SHA256.HashDataAsync(check, cancellationToken));
+                return string.Equals(before, after, StringComparison.Ordinal) ? after : null;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or InvalidOperationException)
+            {
+                _logger.LogError(ex, "Private receipt malware scan failed; receipt remains unverified.");
+                return null;
             }
         }
 
