@@ -89,7 +89,9 @@
                 <div class="col-md-3"><label for="sectionName" class="form-label">Section *</label><input id="sectionName" class="form-control" maxlength="150" required placeholder="Grade 9 — A" /></div>
                 <div class="col-md-3"><label for="sectionCode" class="form-label">Code *</label><input id="sectionCode" class="form-control" maxlength="50" required placeholder="G9-A" /></div>
                 <div class="col-md-2"><label for="sectionCapacity" class="form-label">Capacity</label><input id="sectionCapacity" class="form-control" type="number" min="0" max="100000" value="40" /></div>
-                <div class="col-md-1"><button class="btn btn-primary w-100" type="submit">Add</button></div>
+                <div class="col-md-3"><label for="sectionStart" class="form-label">Section start *</label><input id="sectionStart" type="date" class="form-control" required /></div>
+                <div class="col-md-3"><label for="sectionEnd" class="form-label">Section end *</label><input id="sectionEnd" type="date" class="form-control" required /></div>
+                <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Add Section</button></div>
             </form>
             <div class="table-responsive"><table class="table table-hover"><thead><tr><th>Section</th><th>Code</th><th>Campus</th><th>Year</th><th>Class</th><th>Capacity</th></tr></thead><tbody id="sectionRows"></tbody></table></div>
         </div>
@@ -125,6 +127,7 @@
                 <div class="col-md-3"><label for="mappingLevel" class="form-label">Class *</label><select id="mappingLevel" class="form-select" required></select></div>
                 <div class="col-md-3"><label for="mappingSubject" class="form-label">Subject *</label><select id="mappingSubject" class="form-select" required></select></div>
                 <div class="col-md-1"><label for="mappingMarks" class="form-label">Marks</label><input id="mappingMarks" type="number" min="1" max="100000" value="100" class="form-control" /></div>
+                <div class="col-md-1"><label for="mappingPassMarks" class="form-label">Pass</label><input id="mappingPassMarks" type="number" min="0" max="100000" value="33" class="form-control" required /></div>
                 <div class="col-md-2"><button type="submit" class="btn btn-outline-primary w-100">Add Mapping</button></div>
             </form>
             <div class="table-responsive"><table class="table table-hover"><thead><tr><th>Curriculum</th><th>Programme</th><th>Version</th><th>Effective</th><th>Subjects</th></tr></thead><tbody id="curriculumRows"></tbody></table></div>
@@ -134,4 +137,5 @@
 </div>
 @section Scripts {
     <script src="~/js/academic/management.js" asp-append-version="true"></script>
+    <script src="~/js/academic/management-forms.js" asp-append-version="true"></script>
 }
