@@ -1,3 +1,5 @@
+using System.Data;
+
 namespace EduOS.Core.Interfaces.IRepositories;
 
 /// <summary>
@@ -17,5 +19,15 @@ public interface IUnitOfWork
     /// </summary>
     Task<TResult> ExecuteInTransactionAsync<TResult>(
         Func<CancellationToken, Task<TResult>> operation,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Use a stricter isolation level only when predicate-based integrity checks
+    /// must serialize concurrent writers (e.g. overlapping academic timetables).
+    /// Provider retry, commit and rollback still belong to Persistence.
+    /// </summary>
+    Task<TResult> ExecuteInTransactionAsync<TResult>(
+        Func<CancellationToken, Task<TResult>> operation,
+        IsolationLevel isolationLevel,
         CancellationToken cancellationToken = default);
 }
