@@ -237,43 +237,55 @@ public sealed class SubscriptionPaymentService : ISubscriptionPaymentService
             if (!upload.Success || string.IsNullOrWhiteSpace(upload.FileUrl))
                 return ApiResponse<SubscriptionPaymentDto>.ErrorResponse(upload.ErrorMessage ?? "Deposit slip upload failed.");
             storageKey = upload.FileUrl;
-            using var tx = SerializableScope();
-            var invoice = await _invoices.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenant && x.Id == dto.InvoiceId);
-            if (invoice == null || invoice.DueAmount != dto.Amount ||
-                invoice.State is InvoiceState.Paid or InvoiceState.Cancelled or InvoiceState.Refunded)
-                return ApiResponse<SubscriptionPaymentDto>.ErrorResponse("Invoice balance changed. Reload and retry.", 409);
-            if (await _payments.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
-                x.SubscriptionInvoiceId == dto.InvoiceId &&
-                (x.State == PaymentState.Initiated || x.State == PaymentState.AwaitingVerification)))
-                return ApiResponse<SubscriptionPaymentDto>.ErrorResponse("A payment is already pending.", 409);
-            var now = DateTime.UtcNow;
-            var file = new FileAsset
+            // One EF-managed transaction ensures the file metadata and payment commit together.
+            // The uploaded private file is deleted if validation, a write or the commit fails.
+            var response = await _uow.ExecuteInTransactionAsync(async token =>
             {
-                TenantId = tenant, StorageProvider = "local-private", StorageKey = storageKey,
-                OriginalFileName = Path.GetFileName(depositSlip.FileName), ContentType = depositSlip.ContentType,
-                SizeBytes = depositSlip.Length, Visibility = FileVisibility.Private,
-                UploadedByUserId = _user.UserId, UploadedAt = now,
-                MalwareScanStateCode = "Pending", IsVerifiedSafe = false, CreatedAt = now
-            };
-            await _files.AddAsync(file);
-            await _uow.SaveChangesAsync();
-            var payment = new SubscriptionPayment
-            {
-                TenantId = tenant, PublicId = Guid.NewGuid(), ClientRequestId = Guid.NewGuid(),
-                SubscriptionInvoiceId = invoice.Id, TransactionId = TransactionId("MAN", tenant, invoice.Id),
-                PaymentMethod = PaymentMethodType.BankTransfer, Amount = dto.Amount, CurrencyCode = invoice.CurrencyCode,
-                State = PaymentState.AwaitingVerification, InitiatedAt = now,
-                PayerBankName = dto.PayerBankName.Trim(), DepositSlipNumber = dto.DepositSlipNumber.Trim(),
-                DepositDate = DateOnly.FromDateTime(dto.DepositDate),
-                DepositSlipFileId = file.Id, VerificationNote = dto.Note?.Trim(),
-                CreatedAt = now, CreatedBy = _user.UserId
-            };
-            await _payments.AddAsync(payment);
-            await _uow.SaveChangesAsync();
-            var result = Map(payment, invoice.InvoiceNumber);
-            tx.Complete();
-            storageKey = null;
-            return ApiResponse<SubscriptionPaymentDto>.SuccessResponse(result, "Payment submitted for verification.");
+                var invoice = await _invoices.GetQueryable().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Id == dto.InvoiceId, token);
+                if (invoice == null || invoice.DueAmount != dto.Amount ||
+                    invoice.State is InvoiceState.Paid or InvoiceState.Cancelled or InvoiceState.Refunded)
+                    return ApiResponse<SubscriptionPaymentDto>.ErrorResponse("Invoice balance changed. Reload and retry.", 409);
+                if (await _payments.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
+                    x.SubscriptionInvoiceId == dto.InvoiceId &&
+                    (x.State == PaymentState.Initiated || x.State == PaymentState.AwaitingVerification), token))
+                    return ApiResponse<SubscriptionPaymentDto>.ErrorResponse("A payment is already pending.", 409);
+
+                var now = DateTime.UtcNow;
+                var file = new FileAsset
+                {
+                    TenantId = tenant, StorageProvider = "local-private", StorageKey = storageKey!,
+                    OriginalFileName = Path.GetFileName(depositSlip.FileName), ContentType = depositSlip.ContentType,
+                    SizeBytes = depositSlip.Length, Visibility = FileVisibility.Private,
+                    UploadedByUserId = _user.UserId, UploadedAt = now,
+                    MalwareScanStateCode = "Pending", IsVerifiedSafe = false, CreatedAt = now
+                };
+                await _files.AddAsync(file);
+                await _uow.SaveChangesAsync(token);
+                var payment = new SubscriptionPayment
+                {
+                    TenantId = tenant, PublicId = Guid.NewGuid(), ClientRequestId = Guid.NewGuid(),
+                    SubscriptionInvoiceId = invoice.Id, TransactionId = TransactionId("MAN", tenant, invoice.Id),
+                    PaymentMethod = PaymentMethodType.BankTransfer, Amount = dto.Amount, CurrencyCode = invoice.CurrencyCode,
+                    State = PaymentState.AwaitingVerification, InitiatedAt = now,
+                    PayerBankName = dto.PayerBankName.Trim(), DepositSlipNumber = dto.DepositSlipNumber.Trim(),
+                    DepositDate = DateOnly.FromDateTime(dto.DepositDate),
+                    DepositSlipFileId = file.Id, VerificationNote = dto.Note?.Trim(),
+                    CreatedAt = now, CreatedBy = _user.UserId
+                };
+                await _payments.AddAsync(payment);
+                await _uow.SaveChangesAsync(token);
+                return ApiResponse<SubscriptionPaymentDto>.SuccessResponse(
+                    Map(payment, invoice.InvoiceNumber), "Payment submitted for verification.");
+            }, System.Data.IsolationLevel.Serializable);
+            // This is reached only AFTER the transaction commits successfully.
+            if (response.Success) storageKey = null;
+            return response;
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            _logger.LogWarning(ex, "Concurrent manual subscription payment edit for tenant {TenantId}, invoice {InvoiceId}", tenant, dto.InvoiceId);
+            return ApiResponse<SubscriptionPaymentDto>.ErrorResponse("Payment changed concurrently. Reload and try again.", 409);
         }
         catch (DbUpdateException ex)
         {
