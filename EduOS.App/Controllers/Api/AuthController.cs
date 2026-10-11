@@ -472,7 +472,13 @@ namespace EduOS.App.Controllers.Api
             user.FullName = dto.FullName.Trim();
             if (dto.PhoneNumber != null) user.PhoneNumber = string.IsNullOrWhiteSpace(dto.PhoneNumber) ? null : dto.PhoneNumber.Trim();
             if (dto.PhotoUrl != null) user.PhotoUrl = string.IsNullOrWhiteSpace(dto.PhotoUrl) ? null : dto.PhotoUrl.Trim();
-            user.PreferredLanguage = dto.PreferredLanguage.Trim();
+            if (!string.IsNullOrWhiteSpace(dto.PreferredLanguage))
+            {
+                var preferred = dto.PreferredLanguage.Trim();
+                if (preferred != "bn-BD" && preferred != "en-BD")
+                    return BadRequest(new { success = false, message = "Unsupported preferred language." });
+                user.PreferredLanguage = preferred;
+            }
             user.UpdatedAt = DateTime.UtcNow;
             PersonAddress? address = null;
             if (user.PersonId.HasValue)
