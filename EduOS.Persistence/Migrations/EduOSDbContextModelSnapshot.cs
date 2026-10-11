@@ -2744,8 +2744,6 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("VerifiedByUserId");
 
-                    b.HasIndex("TenantId", "AdmissionApplicantId");
-
                     b.HasIndex("TenantId", "AdmissionApplicantId", "DocumentTypeCode", "VersionNo")
                         .IsUnique()
                         .HasDatabaseName("UX_AdmissionApplicantDocuments_Tenant_Applicant_Type_Version")
