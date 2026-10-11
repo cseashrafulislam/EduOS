@@ -19,7 +19,10 @@ public sealed class AdmissionIntakeModelTests
         var document = model.FindEntityType(typeof(AdmissionApplicantDocument))!;
         var applicant = model.FindEntityType(typeof(AdmissionApplicant))!;
 
-        applicant.FindProperty(nameof(AdmissionApplicant.AdmissionIntakeFormId))!.ClrType.Should().Be(typeof(long?));
+        applicant.FindProperty(nameof(AdmissionApplicant.AdmissionIntakeFormId))!.ClrType.Should().Be(typeof(long));
+        applicant.GetForeignKeys().Should().ContainSingle(x =>
+            x.Properties.Any(p => p.Name == nameof(AdmissionApplicant.AdmissionIntakeFormId)) &&
+            x.IsRequired && x.DeleteBehavior == DeleteBehavior.Restrict);
         form.FindProperty(nameof(AdmissionIntakeForm.RowVersion))!.IsConcurrencyToken.Should().BeTrue();
         document.FindProperty(nameof(AdmissionApplicantDocument.RowVersion))!.IsConcurrencyToken.Should().BeTrue();
         form.GetIndexes().Should().Contain(x => x.IsUnique && x.Properties.Select(p => p.Name).SequenceEqual(new[] { nameof(AdmissionIntakeForm.TenantId), nameof(AdmissionIntakeForm.Code) }));
