@@ -134,10 +134,58 @@
         action.className = `btn ${canContinue ? 'btn-success' : 'btn-outline-primary'}`;
         action.textContent = canContinue ? i18n.continueSetup : i18n.reload;
         action.addEventListener('click', () => {
-            if (canContinue) window.location.assign('/Account/CampusSetup');
+            if (canContinue) advancePaidOnboarding(action);
             else window.location.reload();
         });
         panel.replaceChildren(text, action);
+    }
+
+    async function advancePaidOnboarding(button) {
+        button.disabled = true;
+        const label = button.textContent;
+        button.textContent = i18n.submitting || 'Continuing...';
+        try {
+            const statusResponse = await fetch('/api/onboarding/status', {
+                cache: 'no-store', credentials: 'same-origin', headers: { 'Accept': 'application/json' }
+            });
+            const status = await statusResponse.json().catch(() => null);
+            if (!statusResponse.ok || !status?.success) {
+                showAlert('danger', status?.message || 'Unable to verify setup progress.');
+                return;
+            }
+            const stage = status.data?.currentStage;
+            const current = typeof stage === 'number' ? stage :
+                ({ Payment: 4, CampusSetup: 5, AcademicSetup: 6, ModuleSetup: 7,
+                    BrandingSetup: 8, GeneralSettings: 9, GatewaySetup: 10, Completed: 11 })[stage];
+            if (current >= 5) {
+                window.location.assign('/Account/CampusSetup');
+                return;
+            }
+            if (current !== 4) {
+                showAlert('danger', 'Complete the current onboarding stage before continuing.');
+                return;
+            }
+            const response = await fetch('/api/onboarding/complete-step', {
+                method: 'POST', cache: 'no-store', credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json', 'Accept': 'application/json',
+                    'RequestVerificationToken': antiforgeryToken()
+                },
+                body: JSON.stringify({ stage: 4, skipped: false })
+            });
+            const payload = await response.json().catch(() => null);
+            if (!response.ok || !payload?.success) {
+                showAlert('danger', payload?.message || 'Payment is active, but setup could not advance.');
+                return;
+            }
+            window.location.assign('/Account/CampusSetup');
+        } catch (error) {
+            console.error('Could not advance paid onboarding.', error);
+            showAlert('danger', i18n.networkError || 'Unable to advance setup. Please retry.');
+        } finally {
+            button.disabled = false;
+            button.textContent = label;
+        }
     }
 
     function selectPaymentMethod(event) {
