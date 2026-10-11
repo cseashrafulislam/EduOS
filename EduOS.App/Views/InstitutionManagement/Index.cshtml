@@ -1,0 +1,158 @@
+@{
+    ViewData["Title"] = "Institution & Campus Management";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<div class="container-fluid py-4" id="institutionManagementApp">
+    @Html.AntiForgeryToken()
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+        <div>
+            <h1 class="h4 fw-bold mb-1">Institution &amp; Campus Management</h1>
+            <p class="text-muted mb-0">Manage the current institution without restarting onboarding.</p>
+        </div>
+        <button type="button" id="reloadInstitution" class="btn btn-outline-secondary">Refresh</button>
+    </div>
+    <div id="institutionMessage" role="alert" aria-live="polite" class="alert d-none"></div>
+    <ul class="nav nav-tabs mb-3" role="tablist" aria-label="Institution management sections">
+        <li class="nav-item"><button type="button" id="institutionProfileTab" class="nav-link active">Institution Profile</button></li>
+        <li class="nav-item"><button type="button" id="institutionCampusTab" class="nav-link">Campuses</button></li>
+    </ul>
+    <section id="institutionProfileSection">
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-body">
+                <h2 class="h5">Institution details</h2>
+                <form id="institutionProfileForm" class="row g-3">
+                    <div class="col-md-6">
+                        <label for="institutionName" class="form-label">Institution name *</label>
+                        <input id="institutionName" maxlength="200" required class="form-control" autocomplete="organization" />
+                    </div>
+                    <div class="col-md-6">
+                        <label for="institutionEmail" class="form-label">Verified institution email</label>
+                        <input id="institutionEmail" class="form-control" readonly />
+                        <small class="text-muted">Email changes require a separate verified workflow.</small>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="institutionPhone" class="form-label">Phone</label>
+                        <input id="institutionPhone" maxlength="30" class="form-control" type="tel" />
+                    </div>
+                    <div class="col-md-6">
+                        <label for="institutionCountry" class="form-label">Country code *</label>
+                        <input id="institutionCountry" maxlength="10" required class="form-control" />
+                    </div>
+                    <div class="col-12">
+                        <label for="institutionAddress" class="form-label">Address</label>
+                        <textarea id="institutionAddress" maxlength="500" rows="2" class="form-control"></textarea>
+                    </div>
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-primary">Save profile</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-body">
+                <h2 class="h5">Regional settings</h2>
+                <form id="institutionRegionForm" class="row g-3">
+                    <div class="col-md-4">
+                        <label for="institutionCurrency" class="form-label">Currency (ISO 4217)</label>
+                        <input id="institutionCurrency" maxlength="3" required class="form-control" placeholder="BDT" />
+                    </div>
+                    <div class="col-md-4">
+                        <label for="institutionTimezone" class="form-label">Time zone</label>
+                        <input id="institutionTimezone" maxlength="100" required class="form-control" placeholder="Asia/Dhaka" />
+                    </div>
+                    <div class="col-md-4">
+                        <label for="institutionLanguage" class="form-label">Default language</label>
+                        <select id="institutionLanguage" class="form-select">
+                            <option value="bn-BD">বাংলা (Bangladesh)</option>
+                            <option value="en">English</option>
+                            <option value="en-BD">English (Bangladesh)</option>
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <button class="btn btn-primary" type="submit">Save regional settings</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <h2 class="h5">Institution subdomain</h2>
+                <form id="institutionDomainForm" class="row g-2">
+                    <div class="col-md-8">
+                        <label for="institutionSubdomain" class="form-label">Subdomain prefix</label>
+                        <input id="institutionSubdomain" class="form-control" pattern="[a-z0-9]+(-[a-z0-9]+)*" maxlength="100" required />
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button type="submit" class="btn btn-outline-primary">Check &amp; save subdomain</button>
+                    </div>
+                    <div class="col-12 small text-muted">Renaming a subdomain may affect existing bookmarks and integrations.</div>
+                </form>
+            </div>
+        </div>
+    </section>
+    <section id="institutionCampusSection" class="d-none">
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between flex-wrap align-items-center gap-2 mb-3">
+                    <div>
+                        <h2 class="h5 mb-1">Campus directory</h2>
+                        <p class="text-muted small mb-0">The head office designation is exclusive to one campus.</p>
+                    </div>
+                    <button type="button" id="newCampus" class="btn btn-primary">Add campus</button>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead><tr><th>Campus</th><th>Code</th><th>Contact</th><th>Type</th><th>Manage</th></tr></thead>
+                        <tbody id="institutionCampusesBody"><tr><td colspan="5">Loading campuses...</td></tr></tbody>
+                    </table>
+                </div>
+                <p class="text-muted small mb-0" id="institutionCampusesCount"></p>
+            </div>
+        </div>
+        <div id="campusEditor" class="card border-0 shadow-sm d-none">
+            <div class="card-body">
+                <h2 id="campusEditorHeading" class="h5">Add campus</h2>
+                <p class="small text-muted">Archiving is blocked while the campus has users, academic history or active dependencies.</p>
+                <form id="institutionCampusForm" class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label" for="campusName">Campus name *</label>
+                        <input id="campusName" maxlength="150" class="form-control" required />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="campusCode">Campus code *</label>
+                        <input id="campusCode" maxlength="50" class="form-control" required />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="campusPhone">Phone</label>
+                        <input id="campusPhone" maxlength="30" class="form-control" type="tel" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="campusEmail">Email</label>
+                        <input id="campusEmail" maxlength="200" class="form-control" type="email" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="campusHeadName">Campus head name</label>
+                        <input id="campusHeadName" maxlength="150" class="form-control" />
+                    </div>
+                    <div class="col-md-6 d-flex align-items-end">
+                        <div class="form-check">
+                            <input id="campusHeadOffice" type="checkbox" class="form-check-input" />
+                            <label for="campusHeadOffice" class="form-check-label">Head office / main campus</label>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label" for="campusAddress">Address</label>
+                        <textarea id="campusAddress" maxlength="500" class="form-control" rows="2"></textarea>
+                    </div>
+                    <div class="col-12 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">Save campus</button>
+                        <button type="button" id="cancelCampus" class="btn btn-outline-secondary">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </section>
+</div>
+@section Scripts {
+    <script src="~/js/institution-management/index.js" asp-append-version="true"></script>
+}
