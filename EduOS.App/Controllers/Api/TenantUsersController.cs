@@ -14,7 +14,7 @@ namespace EduOS.App.Controllers.Api;
 public sealed class TenantUsersController(ITenantUserAdministrationService service) : ControllerBase
 {
     [HttpPost("invitations")]
-    public async Task<IActionResult> SendInvitation([FromBody] TenantInviteRequestDto request, CancellationToken ct)
+    public async Task<IActionResult> SendInvitation([FromBody] CreateTenantInvitationRequestDto request, CancellationToken ct)
     {
         var r = await service.SendInvitationAsync(request, ct);
         return StatusCode(r.StatusCode, r);
@@ -23,7 +23,7 @@ public sealed class TenantUsersController(ITenantUserAdministrationService servi
     [AllowAnonymous]
     [EnableRateLimiting("AccountSecurityPolicy")]
     [HttpPost("invitations/accept")]
-    public async Task<IActionResult> AcceptInvitation([FromBody] TenantInviteAcceptRequestDto request, CancellationToken ct)
+    public async Task<IActionResult> AcceptInvitation([FromBody] AcceptTenantInvitationRequestDto request, CancellationToken ct)
     {
         var r = await service.AcceptInvitationAsync(request, ct);
         return StatusCode(r.StatusCode, r);
@@ -75,7 +75,7 @@ public sealed class TenantUsersController(ITenantUserAdministrationService servi
 
     [HttpPut("{membershipId:long}/campuses")]
     public async Task<IActionResult> SetCampuses(long membershipId,
-        [FromBody] TenantMemberCampusRequestDto request, CancellationToken ct)
+        [FromBody] SetMembershipCampusAccessRequestDto request, CancellationToken ct)
     {
         var r = await service.SetMemberCampusesAsync(membershipId, request, ct);
         return StatusCode(r.StatusCode, r);
