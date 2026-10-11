@@ -572,7 +572,7 @@ namespace EduOS.App.Controllers.Api
         // ==================== Change Password ====================
 
         [Authorize]
-        [EnableRateLimiting("LoginPolicy")]
+        [EnableRateLimiting("AccountSecurityPolicy")]
         [HttpPost("change-password")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequestDto dto)
