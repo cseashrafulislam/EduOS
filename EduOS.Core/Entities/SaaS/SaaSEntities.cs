@@ -191,6 +191,7 @@ public class SubscriptionPayment : BaseTenantEntity
     public DateTime InitiatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? CompletedAt { get; set; }
     [MaxLength(150)] public string? PayerBankName { get; set; }
+    [MaxLength(100)] public string? PayerAccountNumber { get; set; }
     [MaxLength(100)] public string? DepositSlipNumber { get; set; }
     public DateOnly? DepositDate { get; set; }
     public long? DepositSlipFileId { get; set; }
