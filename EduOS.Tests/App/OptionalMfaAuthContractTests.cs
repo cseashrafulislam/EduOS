@@ -109,8 +109,8 @@ public sealed class OptionalMfaAuthContractTests
     public void Profile_and_address_changes_commit_in_one_transaction()
     {
         var auth = File.ReadAllText(Asset("AuthController.cs"));
-        Assert.Contains("await using var transaction = await _db.Database.BeginTransactionAsync()", auth);
-        Assert.Contains("await transaction.CommitAsync()", auth);
+        Assert.Contains("_db.ExecuteInTransactionAsync", auth);
+        Assert.Contains("throw new AuthTransactionRejectedException(", auth);
     }
 
     [Fact]
@@ -138,11 +138,11 @@ public sealed class OptionalMfaAuthContractTests
         Assert.Contains("ResetAuthenticatorKeyAsync(user)", setup);
         Assert.Contains("AuthenticateAsync(IdentityConstants.ApplicationScheme)", setup);
         Assert.Contains("BuildSessionClaims(user, \"pwd\"", setup);
-        Assert.Contains("await _db.Database.BeginTransactionAsync()", enable);
+        Assert.Contains("_db.ExecuteInTransactionAsync(async ct =>", enable);
         Assert.Contains("GenerateNewTwoFactorRecoveryCodesAsync", enable);
         Assert.Contains("SetTwoFactorEnabledAsync(user, true)", enable);
         Assert.Contains("UpdateSecurityStampAsync(user)", enable);
-        Assert.Contains("await transaction.CommitAsync()", enable);
+        Assert.Contains("throw new AuthTransactionRejectedException(", enable);
         Assert.Contains("BuildSessionClaims(user, \"mfa\"", enable);
     }
 
@@ -174,7 +174,7 @@ public sealed class OptionalMfaAuthContractTests
         var dto = new UpdateUserProfileRequestDto { FullName = "Example User" };
         Assert.Null(dto.PreferredLanguage);
         var api = File.ReadAllText(Asset("AuthController.cs"));
-        Assert.Contains("if (!string.IsNullOrWhiteSpace(dto.PreferredLanguage))", api);
+        Assert.Contains("var preferred = dto.PreferredLanguage?.Trim()", api);
         Assert.Contains("Unsupported preferred language.", api);
     }
 }
