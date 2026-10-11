@@ -6,6 +6,11 @@ on:
       - 'EduOS.App/Views/AcademicManagement/**'
       - 'EduOS.App/wwwroot/js/academic/management*.js'
       - 'EduOS.App/Controllers/AcademicManagementController.cs'
+      - 'EduOS.App/Views/Attendance/**'
+      - 'EduOS.App/Views/StudentLeaves/**'
+      - 'EduOS.App/Views/AcademicRoutines/**'
+      - 'EduOS.App/wwwroot/js/attendance/**'
+      - 'EduOS.App/wwwroot/js/academic/routines.js'
       - 'tests/browser/**'
       - '.github/workflows/academic-browser.yml'
   workflow_dispatch:
