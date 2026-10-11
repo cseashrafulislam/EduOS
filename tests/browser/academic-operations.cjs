@@ -10,6 +10,7 @@ function markup(file, startTag) {
     const start = razor.indexOf(startTag), end = razor.indexOf('@section Scripts', start);
     assert(start !== -1 && end > start, file + ' markup missing');
     return '<!doctype html><html><body>' +
+        '<input name="__RequestVerificationToken" value="academic-ops-csrf">' +
         razor.slice(start, end)
             .replace('@Html.AntiForgeryToken()',
                 '<input name="__RequestVerificationToken" value="academic-ops-csrf">')
