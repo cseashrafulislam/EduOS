@@ -551,8 +551,8 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
                 {
                     UserId = user.Id, TenantId = stored.TenantId, LegalDocumentId = termsId,
                     AcceptedAt = DateTime.UtcNow,
-                    IpAddress = _current.IpAddress,
-                    UserAgent = _current.UserAgent
+                    IpAddress = _current.IpAddress is { Length: > 100 } ip ? ip[..100] : _current.IpAddress,
+                    UserAgent = _current.UserAgent is { Length: > 500 } ua ? ua[..500] : _current.UserAgent
                 });
                 stored.AcceptedAt = DateTime.UtcNow;
                 stored.UpdatedAt = DateTime.UtcNow;
