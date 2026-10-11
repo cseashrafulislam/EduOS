@@ -299,10 +299,11 @@ public class LocalizationAndPwaContractTests
     }
 
     [Fact]
-    public void Privileged_mfa_flow_is_antiforgery_protected_localized_and_avoids_dom_injection()
+    public void Optional_mfa_flow_is_antiforgery_protected_localized_and_avoids_dom_injection()
     {
         var authController = File.ReadAllText(Asset("AuthController.cs"));
-        var middleware = File.ReadAllText(Asset("PrivilegedMfaMiddleware.cs"));
+        var profileView = File.ReadAllText(Asset("Profile.cshtml"));
+        var profileScript = File.ReadAllText(Asset("profile.js"));
         var program = File.ReadAllText(Asset("Program.cs"));
         var loginScript = File.ReadAllText(Asset("login.js"));
         var challengeView = File.ReadAllText(Asset("MfaChallenge.cshtml"));
@@ -317,11 +318,13 @@ public class LocalizationAndPwaContractTests
         authController.Should().Contain("Response.Headers.CacheControl = \"no-store\"");
         authController.Should().NotContain("Request.Headers[\"X-Forwarded-For\"]");
 
-        middleware.Should().Contain("SuperAdmin");
-        middleware.Should().Contain("TenantAdmin");
-        middleware.Should().Contain("x.Type == \"amr\" && x.Value == \"mfa\"");
-        middleware.Should().Contain("MFA_REQUIRED");
-        program.Should().Contain("app.UsePrivilegedMfa()");
+        program.Should().NotContain("app.UsePrivilegedMfa()");
+        profileView.Should().Contain("id=\"mfaSetupLink\"");
+        profileView.Should().Contain("id=\"mfaStatus\"");
+        profileScript.Should().Contain("loadMfaStatus()");
+        profileScript.Should().Contain("/api/auth/mfa/status");
+        profileScript.Should().Contain("setupLink.classList.remove('d-none')");
+        setupView.Should().Contain("href=\"/Account/Profile\"");
         loginScript.Should().Contain("sessionStorage.setItem('eduos.mfaChallenge'");
 
         new[] { challengeView, setupView }.Should().AllSatisfy(view =>
