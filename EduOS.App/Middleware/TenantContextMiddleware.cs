@@ -53,7 +53,7 @@ namespace EduOS.App.Middleware
                     return;
                 }
 
-                if (!user.IsActive)
+                if (!user.IsActive || user.IsDeleted || !user.EmailConfirmed)
                 {
                     _logger.LogWarning("Deactivated user {UserId} attempted to use an authenticated session.", userId);
                     await RejectAsync(context, StatusCodes.Status403Forbidden, "Your account has been deactivated. Please contact support.");
