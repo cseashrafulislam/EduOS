@@ -20,11 +20,6 @@ public sealed class PermissionAccessHandler(EduOSDbContext db, ICurrentUserServi
         if (!current.IsAuthenticated || current.TenantId <= 0 || current.UserId <= 0) return;
         var tenant = current.TenantId;
         var user = current.UserId;
-        if (current.IsTenantAdmin)
-        {
-            context.Succeed(requirement);
-            return;
-        }
         var code = requirement.PermissionCode;
         var now = DateTime.UtcNow;
         var permissionId = await db.Permissions.AsNoTracking()
@@ -38,6 +33,11 @@ public sealed class PermissionAccessHandler(EduOSDbContext db, ICurrentUserServi
             .Select(x => (bool?)x.IsAllowed).FirstOrDefaultAsync();
         if (overridePermission == false) return;
         if (overridePermission == true)
+        {
+            context.Succeed(requirement);
+            return;
+        }
+        if (current.IsTenantAdmin)
         {
             context.Succeed(requirement);
             return;
