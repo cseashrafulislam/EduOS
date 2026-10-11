@@ -185,6 +185,26 @@
                         </div>
                     </div>
 
+                    <!-- Optional MFA: a user opts in from Profile, never during first login. -->
+                    <section class="card shadow-sm border-0 rounded-4 mt-4" aria-labelledby="mfaTitle">
+                        <div class="card-header bg-white border-0 p-4 pb-0">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-shield-check text-primary fs-4" aria-hidden="true"></i>
+                                <div>
+                                    <h5 id="mfaTitle" class="fw-bold mb-1">Two-Factor Authentication (Optional)</h5>
+                                    <p class="small text-muted mb-0">Add an authenticator to your account only if you choose to.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body p-4">
+                            <p class="mb-2">Status: <span id="mfaStatus" role="status" aria-live="polite">Checking...</span></p>
+                            <p id="mfaStatusHelp" class="small text-muted mb-3">Password login works normally until you enable MFA.</p>
+                            <a id="mfaSetupLink" class="btn btn-outline-primary d-none" href="/Account/MfaSetup">
+                                <i class="bi bi-shield-plus me-1" aria-hidden="true"></i> Set Up MFA
+                            </a>
+                        </div>
+                    </section>
+
                     <!-- =================================================
                          PASSWORD
                          ================================================= -->
