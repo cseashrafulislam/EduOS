@@ -77,6 +77,7 @@
     <None Include="..\EduOS.App\Views\Account\MfaSetup.cshtml" Link="TestAssets\MfaSetup.cshtml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\wwwroot\js\account\mfa-challenge.js" Link="TestAssets\mfa-challenge.js" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\wwwroot\js\account\mfa-setup.js" Link="TestAssets\mfa-setup.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\appsettings.json" Link="TestAssets\appsettings.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.Persistence\Seed\SuperAdminSeeder.cs" Link="TestAssets\SuperAdminSeeder.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\wwwroot\js\account\login.js" Link="TestAssets\login.js" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\wwwroot\js\account\signup.js" Link="TestAssets\signup.js" CopyToOutputDirectory="PreserveNewest" />
