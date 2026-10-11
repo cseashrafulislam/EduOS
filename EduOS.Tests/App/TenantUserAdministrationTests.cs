@@ -58,6 +58,30 @@ public sealed class TenantUserAdministrationTests
     }
 
     [Fact]
+    public async Task Permission_save_rejects_stale_role_version_without_writing_grants()
+    {
+        var access = ContextFor(100, isAdmin: true);
+        await using var db = access.Db;
+        db.Roles.Add(new ApplicationRole
+        {
+            Id = 333, TenantId = 100, Name = "Teacher",
+            NormalizedName = "TEACHER", IsActive = true,
+            ConcurrencyStamp = "current"
+        });
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        var service = Service(db, access.User, access.Email);
+        var result = await service.SetRolePermissionsAsync(333,
+            new TenantRolePermissionsRequestDto
+            {
+                ConcurrencyStamp = "stale", PermissionIds = Array.Empty<long>()
+            });
+        Assert.False(result.Success);
+        Assert.Equal(409, result.StatusCode);
+        Assert.Empty(db.RolePermissions);
+    }
+
+    [Fact]
     public async Task Non_tenant_admin_is_denied_role_creation_and_membership_listing()
     {
         var access = ContextFor(100, isAdmin: false);
