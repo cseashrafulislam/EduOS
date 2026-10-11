@@ -2,6 +2,7 @@ using EduOS.App.Controllers;
 using EduOS.App.Controllers.Api;
 using EduOS.Core.DTOs.Auth;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Xunit;
