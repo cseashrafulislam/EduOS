@@ -20,6 +20,7 @@ public class Tenant : BaseEntity
     [MaxLength(10)] public string CurrencyCode { get; set; } = "BDT";
     [MaxLength(100)] public string TimeZoneId { get; set; } = "Asia/Dhaka";
     [MaxLength(20)] public string DefaultLanguage { get; set; } = "bn-BD";
+    [MaxLength(20)] public string DateFormat { get; set; } = "dd-MM-yyyy";
     public TenantState State { get; set; } = TenantState.PendingVerification;
     public OnboardingStage OnboardingStage { get; set; } = OnboardingStage.EmailVerification;
     public DateTime? OnboardingCompletedAt { get; set; }
