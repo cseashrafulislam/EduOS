@@ -14,6 +14,9 @@
         if (parameters.get('status') === 'password-reset') {
             showAlert('success', submitButton.dataset.resetSuccess || '');
         }
+        if (parameters.get('status') === 'password-changed') {
+            showAlert('success', submitButton.dataset.passwordChangedSuccess || 'Password changed. Sign in again.');
+        }
 
         form.addEventListener('submit', async event => {
             event.preventDefault();
