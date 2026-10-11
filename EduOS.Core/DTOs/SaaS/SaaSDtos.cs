@@ -19,6 +19,7 @@ public class TenantDto
     public string CurrencyCode { get; set; } = "BDT";
     public string TimeZoneId { get; set; } = "Asia/Dhaka";
     public string DefaultLanguage { get; set; } = "bn-BD";
+    public string DateFormat { get; set; } = "dd-MM-yyyy";
     public TenantState State { get; set; }
     public OnboardingStage OnboardingStage { get; set; }
     public DateTime? OnboardingCompletedAt { get; set; }
