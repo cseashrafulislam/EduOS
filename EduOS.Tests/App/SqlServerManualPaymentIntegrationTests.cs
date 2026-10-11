@@ -161,8 +161,8 @@ public sealed class SqlServerManualPaymentIntegrationTests
         Assert.True((await admin.GetDepositSlipAsync(payment.Id)).Success);
         var verified = await admin.VerifyManualPaymentAsync(new VerifyManualPaymentDto
         {
-            PaymentId = payment.Id, Approve = true, RowVersion = payment.RowVersion,
-            VerificationNote = "Bank credit confirmed"
+            PaymentId = payment.Id, Approve = true, BankCreditConfirmed = true,
+            RowVersion = payment.RowVersion, VerificationNote = "Bank credit confirmed"
         });
         Assert.True(verified.Success, verified.Message);
         Assert.Equal(409, (await admin.VerifyManualPaymentAsync(new VerifyManualPaymentDto
