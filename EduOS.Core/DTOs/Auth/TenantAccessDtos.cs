@@ -42,4 +42,5 @@ public sealed class AcceptTenantInvitationRequestDto
     [StringLength(200)] public string? FullName { get; set; }
     [StringLength(30)] public string? MfaCode { get; set; }
     public bool UseRecoveryCode { get; set; }
+    public bool AgreeTerms { get; set; }
 }
