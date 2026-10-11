@@ -29,6 +29,12 @@
                 <label for="inviteRecovery" class="form-check-label">Use recovery code instead</label>
             </div>
         </div>
+        <div class="form-check mb-3">
+            <input id="inviteAgreeTerms" type="checkbox" class="form-check-input" required />
+            <label for="inviteAgreeTerms" class="form-check-label">
+                I agree to the <a href="/TenantUsers/Terms" target="_blank" rel="noopener noreferrer">current Terms of Service</a>.
+            </label>
+        </div>
         <button id="acceptInviteBtn" type="submit" class="btn btn-primary w-100">Accept Invitation</button>
     </form>
     <p class="small text-muted mt-3">Invitations expire after 48 hours and can be used only once. If you are signed in already, sign out before accepting.</p>
