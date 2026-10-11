@@ -7,6 +7,7 @@ using EduOS.Core.Interfaces.IServices;
 using EduOS.Persistence.Context;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using System.Data;
 
 namespace EduOS.Service.Services.Auth;
 
@@ -270,17 +271,10 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
                         RoleId = roleId, PermissionId = id, IsAllowed = true, CreatedBy = _current.UserId
                     });
                 await _db.SaveChangesAsync(token);
-                var memberIds = await _db.UserRoles.Where(x => x.RoleId == roleId)
-                    .Select(x => x.UserId).Distinct().ToListAsync(token);
-                foreach (var id in memberIds)
-                {
-                    var user = await _users.FindByIdAsync(id.ToString());
-                    if (user == null) continue;
-                    var stamp = await _users.UpdateSecurityStampAsync(user);
-                    if (!stamp.Succeeded) throw new AdminRejectException("Account changed concurrently.", 409);
-                }
+                // Permission changes are evaluated through RolePermissions at authorization
+                // time. Never rotate thousands of stamps inside a permission transaction.
                 return true;
-            });
+            }, IsolationLevel.Serializable, ct);
             return ApiResponse<bool>.SuccessResponse(true, "Role permissions updated.");
         }
         catch (AdminRejectException ex) { return ApiResponse<bool>.ErrorResponse(ex.Message, ex.StatusCode); }
