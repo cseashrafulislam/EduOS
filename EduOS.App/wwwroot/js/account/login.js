@@ -24,6 +24,8 @@
             const email = emailField?.value?.trim();
             const password = document.getElementById('password')?.value;
             const rememberMe = document.getElementById('rememberMe')?.checked ?? false;
+            const institutionChoice = document.getElementById('institutionChoice');
+            const tenantId = institutionChoice?.value ? Number(institutionChoice.value) : null;
 
             if (!email || !password) {
                 showAlert('danger', form.dataset.requiredMessage);
@@ -38,9 +40,29 @@
                     cache: 'no-store',
                     credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                    body: JSON.stringify({ email, password, rememberMe })
+                    body: JSON.stringify({ email, password, rememberMe, tenantId })
                 });
                 const payload = await response.json().catch(() => null);
+
+                if (response.status === 409 && payload?.success === true &&
+                    payload.data?.requiresTenantSelection === true &&
+                    Array.isArray(payload.data?.tenants)) {
+                    const panel = document.getElementById('institutionChoicePanel');
+                    const choice = document.getElementById('institutionChoice');
+                    if (!panel || !choice) return;
+                    choice.replaceChildren();
+                    for (const tenant of payload.data.tenants) {
+                        if (!Number.isSafeInteger(Number(tenant.id)) || Number(tenant.id) <= 0) continue;
+                        const option = document.createElement('option');
+                        option.value = String(tenant.id);
+                        option.textContent = String(tenant.name || 'Institution');
+                        choice.appendChild(option);
+                    }
+                    panel.hidden = false;
+                    choice.focus();
+                    showAlert('info', 'Select your institution, then sign in.');
+                    return;
+                }
 
                 if (response.status === 202
                     && payload?.success
