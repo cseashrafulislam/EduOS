@@ -64,6 +64,24 @@ namespace EduOS.App.Controllers.Api
                 return BadRequest(new { success = false, message = "Invalid username/email or password." });
             }
 
+            if (await _userManager.IsLockedOutAsync(user))
+            {
+                _logger.LogWarning("Locked out login attempt for user {UserId}", user.Id);
+                await SaveLoginHistoryAsync(user, ip, userAgent, false, "Account locked out");
+                // Do not disclose account existence or lockout state to a caller with a wrong password.
+                if (!await _userManager.CheckPasswordAsync(user, dto.Password))
+                    return BadRequest(new { success = false, message = "Invalid username/email or password." });
+                return BadRequest(new { success = false, message = "Account temporarily locked due to multiple failed attempts. Please try again in 15 minutes." });
+            }
+
+            if (!await _userManager.CheckPasswordAsync(user, dto.Password))
+            {
+                await _userManager.AccessFailedAsync(user);
+                _logger.LogWarning("Failed login attempt for user {UserId}", user.Id);
+                await SaveLoginHistoryAsync(user, ip, userAgent, false, "Wrong password");
+                return BadRequest(new { success = false, message = "Invalid username/email or password." });
+            }
+
             if (!user.IsActive || user.IsDeleted)
             {
                 await SaveLoginHistoryAsync(user, ip, userAgent, false, "Account deactivated");
@@ -74,21 +92,6 @@ namespace EduOS.App.Controllers.Api
             {
                 await SaveLoginHistoryAsync(user, ip, userAgent, false, "Email not verified");
                 return BadRequest(new { success = false, message = "Please verify your email before signing in." });
-            }
-
-            if (await _userManager.IsLockedOutAsync(user))
-            {
-                _logger.LogWarning("Locked out login attempt for user {UserId}", user.Id);
-                await SaveLoginHistoryAsync(user, ip, userAgent, false, "Account locked out");
-                return BadRequest(new { success = false, message = "Account temporarily locked due to multiple failed attempts. Please try again in 15 minutes." });
-            }
-
-            if (!await _userManager.CheckPasswordAsync(user, dto.Password))
-            {
-                await _userManager.AccessFailedAsync(user);
-                _logger.LogWarning("Failed login attempt for user {UserId}", user.Id);
-                await SaveLoginHistoryAsync(user, ip, userAgent, false, "Wrong password");
-                return BadRequest(new { success = false, message = "Invalid username/email or password." });
             }
 
             var session = await GetSessionContextAsync(user);
