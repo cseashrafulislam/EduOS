@@ -372,8 +372,14 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
         if (request.RoleId is > 0 && !await LocalRoles.AnyAsync(x =>
             x.Id == request.RoleId && x.IsActive, ct))
             return ApiResponse<bool>.ErrorResponse("Role does not belong to this institution.", 403);
-        if (request.RoleId is < 0)
-            return ApiResponse<bool>.ErrorResponse("Invalid institution role.", 400);
+        if (request.RoleId is < 0 || request.CampusId is < 0)
+            return ApiResponse<bool>.ErrorResponse("Invalid institution role or campus.", 400);
+        if (request.CampusId is > 0 && !await _db.Campuses.AsNoTracking().AnyAsync(x =>
+            x.TenantId == TenantId && x.Id == request.CampusId && x.IsActive && !x.IsDeleted, ct))
+            return ApiResponse<bool>.ErrorResponse("Campus does not belong to this institution.", 403);
+        if (request.ClientRequestId != Guid.Empty && await _db.TenantInvitations.AsNoTracking()
+            .AnyAsync(x => x.TenantId == TenantId && x.PublicId == request.ClientRequestId, ct))
+            return ApiResponse<bool>.ErrorResponse("Invitation request already processed. Use a new request to resend.", 409);
         var target = await _users.FindByEmailAsync(email);
         if (target != null && await _db.TenantMemberships.AnyAsync(x =>
             x.TenantId == TenantId && x.UserId == target.Id && !x.IsDeleted, ct))
@@ -398,7 +404,8 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
                 }
                 _db.TenantInvitations.Add(new TenantInvitation
                 {
-                    TenantId = TenantId, Email = email, RoleId = request.RoleId,
+                    PublicId = request.ClientRequestId == Guid.Empty ? Guid.NewGuid() : request.ClientRequestId,
+                    TenantId = TenantId, Email = email, RoleId = request.RoleId, CampusId = request.CampusId,
                     TokenHash = hash, InvitedByUserId = _current.UserId,
                     ExpiresAt = DateTime.UtcNow.AddHours(48),
                     CreatedBy = _current.UserId
@@ -510,12 +517,22 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
                     x.TenantId == stored.TenantId && x.UserId == user.Id && !x.IsDeleted, tx))
                     throw new AdminRejectException("This user is already a member.", 409);
 
+                if (stored.CampusId.HasValue && !await _db.Campuses.IgnoreQueryFilters().AsNoTracking()
+                    .AnyAsync(x => x.Id == stored.CampusId && x.TenantId == stored.TenantId &&
+                        x.IsActive && !x.IsDeleted, tx))
+                    throw new AdminRejectException("The invited campus is no longer available.", 409);
                 _db.TenantMemberships.Add(new TenantMembership
                 {
                     TenantId = stored.TenantId, UserId = user.Id,
                     Status = MembershipStatus.Active, IsOwner = false,
-                    JoinedAt = DateTime.UtcNow
+                    DefaultCampusId = stored.CampusId, JoinedAt = DateTime.UtcNow
                 });
+                if (stored.CampusId.HasValue)
+                    _db.UserCampusAccesses.Add(new UserCampusAccess
+                    {
+                        TenantId = stored.TenantId, UserId = user.Id,
+                        CampusId = stored.CampusId.Value, IsActive = true, IsDefault = false
+                    });
                 if (stored.RoleId.HasValue)
                     _db.UserRoles.Add(new IdentityUserRole<long>
                     {
