@@ -20,7 +20,7 @@ public class UpdateUserProfileRequestDto
     [MaxLength(30)] public string? PhoneNumber { get; set; }
     [MaxLength(1000)] public string? Address { get; set; }
     [MaxLength(500)] public string? PhotoUrl { get; set; }
-    [Required, MaxLength(20)] public string PreferredLanguage { get; set; } = "bn-BD";
+    [MaxLength(20)] public string? PreferredLanguage { get; set; }
 }
 
 public class TenantMembershipDto
