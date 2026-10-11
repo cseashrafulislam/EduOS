@@ -166,9 +166,17 @@ namespace EduOS.App.Controllers.Api
 
         [Authorize(Roles = "SuperAdmin")]
         [HttpGet("admin/pending-verifications")]
-        public async Task<IActionResult> GetPendingVerifications()
+        public async Task<IActionResult> GetPendingVerifications([FromQuery] int page = 1, [FromQuery] int pageSize = 25)
         {
-            var result = await _paymentService.GetPendingManualVerificationsAsync();
+            var result = await _paymentService.GetPendingManualVerificationsAsync(page, pageSize);
+            return StatusCode(result.StatusCode, result);
+        }
+
+        [Authorize(Roles = "SuperAdmin")]
+        [HttpPost("admin/payments/{paymentId:long}/scan-receipt")]
+        public async Task<IActionResult> ScanReceipt(long paymentId)
+        {
+            var result = await _paymentService.ScanDepositSlipAsync(paymentId);
             return StatusCode(result.StatusCode, result);
         }
 
