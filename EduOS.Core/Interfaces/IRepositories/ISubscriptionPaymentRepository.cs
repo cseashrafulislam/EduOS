@@ -9,5 +9,5 @@ public interface ISubscriptionPaymentRepository : IGenericRepository<Subscriptio
     Task<SubscriptionPayment?> GetByTransactionIdForCallbackAsync(string transactionId, CancellationToken cancellationToken = default);
     Task<SubscriptionPayment?> GetByGatewayTransactionIdAsync(string gatewayTransactionId, CancellationToken cancellationToken = default);
     Task<(List<SubscriptionPayment> Items, int TotalCount)> GetByInvoiceAsync(long invoiceId, long tenantId, int page, int pageSize, CancellationToken cancellationToken = default);
-    Task<(List<SubscriptionPayment> Items, int TotalCount)> GetPendingManualVerificationForPlatformAsync(int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<(List<SubscriptionPayment> Items, int TotalCount)> GetPendingManualVerificationForPlatformAsync(int page, int pageSize, string? search, CancellationToken cancellationToken = default);
 }
