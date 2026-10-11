@@ -79,3 +79,18 @@ public sealed class TenantInviteAcceptRequestDto
     [Required, Compare(nameof(Password))] public string ConfirmPassword { get; set; } = "";
     [StringLength(200)] public string? FullName { get; set; }
 }
+
+public sealed class TenantCampusAccessDto
+{
+    public long Id { get; set; }
+    public string Name { get; set; } = "";
+    public bool IsSelected { get; set; }
+    public bool IsDefault { get; set; }
+}
+
+public sealed class TenantMemberCampusRequestDto
+{
+    [Required] public string RowVersion { get; set; } = "";
+    [Required] public IReadOnlyList<long> CampusIds { get; set; } = Array.Empty<long>();
+    public long? DefaultCampusId { get; set; }
+}
