@@ -285,6 +285,12 @@ public class LocalizationAndPwaContractTests
         brandingScript.Should().Contain("replaceChildren");
         brandingScript.Should().Contain("safeAssetUrl");
         gatewayScript.Should().NotContain("/api/onboarding/complete'");
+        gatewayScript.Should().Contain("/api/communication-admin/gateways");
+        gatewayScript.Should().Contain("RequestVerificationToken");
+        gatewayScript.Should().Contain("rowVersion");
+        gatewayScript.Should().Contain("hasCredential");
+        gatewayScript.Should().NotContain("/api/tenant-settings/sms-gateway");
+        gatewayScript.Should().NotContain("/api/tenant-settings/email-gateway");
         profileController.Should().Contain("[AutoValidateAntiforgeryToken]");
         profileController.Should().Contain("[Authorize(Roles = \"TenantAdmin,SuperAdmin\")]");
         settingController.Should().Contain("[AutoValidateAntiforgeryToken]");
