@@ -49,6 +49,11 @@ jobs:
       - name: Build
         run: dotnet build EduOS.slnx --configuration Release --no-restore
 
+      - name: Validate payment browser JavaScript syntax
+        run: |
+          node --check EduOS.App/wwwroot/js/account/payment.js
+          node --check EduOS.App/wwwroot/js/account/payment-verification.js
+
       - name: Test authentication security regressions
         run: dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-build --filter "FullyQualifiedName~AuthSecurityStampIntegrationTests|FullyQualifiedName~OptionalMfaAuthContractTests|FullyQualifiedName~MfaChallengeServiceTests|FullyQualifiedName~AuthTenantSessionIntegrationTests|FullyQualifiedName~TenantMembershipResolutionTests|FullyQualifiedName~AuthManagementEndpointContractTests|FullyQualifiedName~TenantUserAdministrationTests|FullyQualifiedName~TenantPermissionAccessTests|FullyQualifiedName~TenantUserSecurityContractsTests" --logger "trx;LogFileName=auth-tests.trx" --results-directory TestResults
 
