@@ -1114,6 +1114,10 @@ public class EduOSDbContext :
         UniqueTenant<SubscriptionInvoice>(modelBuilder, nameof(SubscriptionInvoice.InvoiceNumber));
         UniqueTenant<SubscriptionPayment>(modelBuilder, nameof(SubscriptionPayment.ClientRequestId));
         UniqueTenant<SubscriptionPayment>(modelBuilder, nameof(SubscriptionPayment.TransactionId));
+        modelBuilder.Entity<SubscriptionPayment>()
+            .HasIndex(x => new { x.InitiatedAt, x.Id })
+            .HasDatabaseName("IX_SubscriptionPayments_PlatformPending")
+            .HasFilter("[IsDeleted] = 0 AND [PaymentMethod] = 2 AND [State] = 2");
         UniqueTenant<UsageStatistics>(modelBuilder, nameof(EduOS.Core.Entities.SaaS.UsageStatistics.PeriodStart), nameof(EduOS.Core.Entities.SaaS.UsageStatistics.PeriodEnd));
         modelBuilder.Entity<LegalDocument>().HasIndex(x => new { x.Code, x.Version }).IsUnique();
         modelBuilder.Entity<UserLegalAcceptance>().HasIndex(x => new { x.UserId, x.TenantId, x.LegalDocumentId }).IsUnique().HasFilter("[IsDeleted] = 0");
