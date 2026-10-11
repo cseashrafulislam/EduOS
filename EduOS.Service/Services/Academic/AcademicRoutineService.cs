@@ -7,6 +7,7 @@ using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Data;
 using System.Security.Cryptography;
 
 namespace EduOS.Service.Services.Academic;
@@ -120,7 +121,7 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
                 await _timeSlots.AddAsync(row);
                 await _unitOfWork.SaveChangesAsync(token);
                 return Created(MapTimeSlot(row), "Time slot created.");
-            }, ct);
+            }, IsolationLevel.Serializable, ct);
         }
         catch (DbUpdateException ex)
         {
@@ -208,7 +209,7 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
                 await _assignments.AddAsync(row);
                 await _unitOfWork.SaveChangesAsync(token);
                 return Created((await MapAssignmentsAsync([row], token))[0], "Instructor assigned.");
-            }, ct);
+            }, IsolationLevel.Serializable, ct);
         }
         catch (DbUpdateException ex)
         {
@@ -389,7 +390,7 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
                 await _entries.AddAsync(row);
                 await _unitOfWork.SaveChangesAsync(token);
                 return Created((await MapEntriesAsync([row], token))[0], "Routine entry created.");
-            }, ct);
+            }, IsolationLevel.Serializable, ct);
         }
         catch (DbUpdateException ex)
         {
