@@ -243,12 +243,14 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                 var session = await _sessions.GetQueryable().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == sessionId && !x.IsDeleted, token);
                 if (session == null) return Error<StudentAttendanceRosterDto>("Attendance session not found.", 404);
-                if (!Matches(session.RowVersion, expected))
-                    return Error<StudentAttendanceRosterDto>("Attendance session changed. Reload and retry.", 409);
+                // Finalization is idempotent: a retry after a lost HTTP response
+                // must return the posted register even if SQL rowversion advanced.
                 if (session.IsFinalized)
                     return ApiResponse<StudentAttendanceRosterDto>.SuccessResponse(
                         await ReadRosterAsync(session.AcademicBatchId, session.AttendanceDate,
                             session.SubjectOfferingId, token), "Attendance already finalized.");
+                if (!Matches(session.RowVersion, expected))
+                    return Error<StudentAttendanceRosterDto>("Attendance session changed. Reload and retry.", 409);
                 var scopeError = await ValidateScopeAsync(session.AcademicBatchId, session.AttendanceDate,
                     session.SubjectOfferingId, token);
                 if (scopeError != null) return Error<StudentAttendanceRosterDto>(scopeError, 409);
