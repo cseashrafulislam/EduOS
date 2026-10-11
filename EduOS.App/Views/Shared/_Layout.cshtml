@@ -61,6 +61,13 @@
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#dashboard" /></svg>
                     <span>@T["Dashboard"]</span>
                 </a>
+                @if (User?.IsInRole("TenantAdmin") == true)
+                {
+                    <a class="nav-link @ActiveFor("/TenantUsers")" href="/TenantUsers/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#users" /></svg>
+                        <span>User &amp; Role Management</span>
+                    </a>
+                }
                 <a class="nav-link @ActiveFor("/Account/InstitutionProfile")" href="/Account/InstitutionProfile">
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#institution" /></svg>
                     <span>@T["InstitutionSetup"]</span>
