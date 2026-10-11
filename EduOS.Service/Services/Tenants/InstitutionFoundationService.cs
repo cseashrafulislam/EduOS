@@ -183,7 +183,7 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
                 x.TenantId == tenant && !x.IsDeleted &&
                 (x.DefaultCampusId == id || x.LastSelectedCampusId == id), token) ||
                 await _campusAccess.GetQueryable().AsNoTracking().AnyAsync(x =>
-                x.TenantId == tenant && x.CampusId == id && !x.IsDeleted, token))
+                x.TenantId == tenant && x.CampusId == id && x.IsActive && !x.IsDeleted, token))
                 return Error<bool>("Campus is assigned to users. Reassign their campus access and defaults first.", 409);
             if (await _years.GetQueryable().AsNoTracking().AnyAsync(x =>
                 x.TenantId == tenant && x.CampusId == id && !x.IsDeleted, token) ||

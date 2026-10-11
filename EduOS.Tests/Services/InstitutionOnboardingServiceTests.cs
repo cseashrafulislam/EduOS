@@ -62,7 +62,7 @@ public sealed class InstitutionOnboardingServiceTests
     }
 
     [Fact]
-    public async Task Archive_rejects_user_campus_assignment_even_if_inactive()
+    public async Task Archive_rejects_active_user_campus_assignment()
     {
         var options = Options();
         await SeedTenant(options, 101);
@@ -73,13 +73,34 @@ public sealed class InstitutionOnboardingServiceTests
         await db.SaveChangesAsync();
         db.UserCampusAccesses.Add(new EduOS.Core.Entities.Auth.UserCampusAccess
         {
-            TenantId = 101, UserId = 77, CampusId = second.Id, IsActive = false
+            TenantId = 101, UserId = 77, CampusId = second.Id, IsActive = true
         });
         await db.SaveChangesAsync();
         var response = await Foundation(db, new TestUser(101)).ArchiveCampusAsync(second.Id,
             Convert.ToBase64String(second.RowVersion));
         response.StatusCode.Should().Be(409);
         (await db.Campuses.SingleAsync(x => x.Id == second.Id)).IsDeleted.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Archive_allows_disconnected_campus_after_access_revocation()
+    {
+        var options = Options();
+        await SeedTenant(options, 101);
+        await using var db = Context(options, 101);
+        var main = new Campus { TenantId = 101, Name = "Main", Code = "MAIN", IsHeadOffice = true };
+        var unused = new Campus { TenantId = 101, Name = "Unused", Code = "UNUSED" };
+        db.Campuses.AddRange(main, unused);
+        await db.SaveChangesAsync();
+        db.UserCampusAccesses.Add(new EduOS.Core.Entities.Auth.UserCampusAccess
+        {
+            TenantId = 101, UserId = 77, CampusId = unused.Id, IsActive = false
+        });
+        await db.SaveChangesAsync();
+        var result = await Foundation(db, new TestUser(101)).ArchiveCampusAsync(unused.Id,
+            Convert.ToBase64String(unused.RowVersion));
+        result.Success.Should().BeTrue();
+        (await db.Campuses.IgnoreQueryFilters().SingleAsync(x => x.Id == unused.Id)).IsDeleted.Should().BeTrue();
     }
 
     [Fact]
