@@ -17,8 +17,12 @@ public class DashboardController : Controller
     {
         var vm = await _dashboardService.GetDashboardAsync();
 
-        if (vm == null)
-            return RedirectToAction("Login", "Account");
+        if (vm == null || !vm.Success || vm.Data == null)
+        {
+            if (vm?.StatusCode == StatusCodes.Status401Unauthorized) return Challenge();
+            if (vm?.StatusCode == StatusCodes.Status403Forbidden) return Forbid();
+            return StatusCode(vm?.StatusCode is >= 400 and <= 599 ? vm.StatusCode : StatusCodes.Status503ServiceUnavailable);
+        }
 
         return View(vm.Data);
     }
