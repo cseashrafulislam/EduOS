@@ -2,6 +2,7 @@ using EduOS.Core.Common;
 using EduOS.Core.DTOs.Communication;
 using EduOS.Core.Entities.Communication;
 using EduOS.Core.Enums.Domain;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.ComponentModel.DataAnnotations;
