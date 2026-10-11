@@ -10,9 +10,11 @@ function markup(file, startTag) {
     const start = razor.indexOf(startTag), end = razor.indexOf('@section Scripts', start);
     assert(start !== -1 && end > start, file + ' markup missing');
     return '<!doctype html><html><body>' +
-        '<input name="__RequestVerificationToken" value="academic-ops-csrf">' +
-        razor.slice(start, end).replace('data-can-manage="@canManage.ToString().ToLowerInvariant()"',
-            'data-can-manage="true"') + '</body></html>';
+        razor.slice(start, end)
+            .replace('@Html.AntiForgeryToken()',
+                '<input name="__RequestVerificationToken" value="academic-ops-csrf">')
+            .replace('data-can-manage="@canManage.ToString().ToLowerInvariant()"',
+                'data-can-manage="true"') + '</body></html>';
 }
 const attendanceHtml = markup('EduOS.App/Views/Attendance/Index.cshtml', '<section class="admission-page"');
 const routineHtml = markup('EduOS.App/Views/AcademicRoutines/Index.cshtml', '<section id="routineApp"');
