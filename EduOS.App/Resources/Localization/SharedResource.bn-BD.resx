@@ -428,7 +428,9 @@
   <data name="ContinueToPayment" xml:space="preserve"><value>পেমেন্টে এগিয়ে যান</value></data>
   <data name="SubscriptionCreateFailed" xml:space="preserve"><value>সাবস্ক্রিপশন তৈরি করা যায়নি। প্ল্যানটি দেখে আবার চেষ্টা করুন।</value></data>
   <data name="ExistingSubscriptionRedirecting" xml:space="preserve"><value>আপনার চলমান সাবস্ক্রিপশন পাওয়া গেছে। সঠিক সেটআপ ধাপে নেওয়া হচ্ছে…</value></data>
-  <data name="PlanSelectionSafeNote" xml:space="preserve"><value>প্ল্যানের সীমা এখানে দেখানো আছে; এককালীন সেটআপ ফি আলাদাভাবে দেখিয়ে ইনভয়েসে যোগ করা হবে।</value></data>
+    <data name="CurrentPlanReadOnly" xml:space="preserve"><value>আপনার বর্তমান প্ল্যান ({name}) {date} পর্যন্ত সক্রিয়। তুলনার জন্য অন্য প্ল্যানগুলো নিচে দেখা যাবে। পেইড সাবস্ক্রিপশন পরিবর্তন বা নবায়নের জন্য আলাদা বিলিং প্রক্রিয়া প্রয়োজন; এখানে নতুন সাবস্ক্রিপশন তৈরি হবে না।</value></data>
+  <data name="CurrentPlanSelected" xml:space="preserve"><value>বর্তমান প্ল্যান সক্রিয়</value></data>
+<data name="PlanSelectionSafeNote" xml:space="preserve"><value>প্ল্যানের সীমা এখানে দেখানো আছে; এককালীন সেটআপ ফি আলাদাভাবে দেখিয়ে ইনভয়েসে যোগ করা হবে।</value></data>
   <data name="PaymentTitle" xml:space="preserve"><value>পেমেন্ট সম্পন্ন করুন</value></data>
   <data name="PaymentHelp" xml:space="preserve"><value>যাচাইকৃত ইনভয়েস অনলাইনে পরিশোধ করুন অথবা পর্যালোচনার জন্য ব্যাংক রসিদ দিন।</value></data>
   <data name="PaymentMethod" xml:space="preserve"><value>পেমেন্ট পদ্ধতি</value></data>
