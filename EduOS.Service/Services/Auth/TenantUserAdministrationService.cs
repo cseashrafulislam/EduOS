@@ -182,13 +182,26 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
         var role = await LocalRoles.SingleOrDefaultAsync(x => x.Id == roleId, ct);
         if (role == null) return ApiResponse<bool>.ErrorResponse("Role not found.", 404);
         _db.Entry(role).Property(x => x.ConcurrencyStamp).OriginalValue = request.ConcurrencyStamp;
+        var previous = JsonSerializer.Serialize(new { role.Description, role.IsActive });
         role.Description = request.Description?.Trim();
         role.IsActive = request.IsActive;
         role.ConcurrencyStamp = Guid.NewGuid().ToString();
         role.UpdatedAt = DateTime.UtcNow;
         try
         {
-            await _db.SaveChangesAsync(ct);
+            await _db.ExecuteInTransactionAsync(async token =>
+            {
+                await _db.SaveChangesAsync(token);
+                _db.AuditLogs.Add(new AuditLog
+                {
+                    TenantId = TenantId, UserId = _current.UserId,
+                    Action = "TenantRoleUpdated", EntityName = nameof(ApplicationRole),
+                    EntityId = role.Id, OldValue = previous,
+                    NewValue = JsonSerializer.Serialize(new { role.Description, role.IsActive })
+                });
+                await _db.SaveChangesAsync(token);
+                return true;
+            }, ct);
             return ApiResponse<bool>.SuccessResponse(true, "Role updated. Affected user access is validated on the next request.");
         }
         catch (DbUpdateConcurrencyException)
