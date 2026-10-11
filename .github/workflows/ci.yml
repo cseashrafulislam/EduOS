@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch:
   pull_request:
     branches: [ master, Ashraful ]
   push:
@@ -49,7 +50,7 @@ jobs:
         run: dotnet build EduOS.slnx --configuration Release --no-restore
 
       - name: Test authentication security regressions
-        run: dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-build --filter "FullyQualifiedName~AuthSecurityStampIntegrationTests|FullyQualifiedName~OptionalMfaAuthContractTests|FullyQualifiedName~MfaChallengeServiceTests" --logger "console;verbosity=normal"
+        run: dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-build --filter "FullyQualifiedName~AuthSecurityStampIntegrationTests|FullyQualifiedName~OptionalMfaAuthContractTests|FullyQualifiedName~MfaChallengeServiceTests" --logger "trx;LogFileName=auth-tests.trx" --results-directory TestResults
 
       - name: Test public admission regression
         run: dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-build --filter "FullyQualifiedName~PublicAdmissionServiceTests" --logger "console;verbosity=normal"
@@ -64,3 +65,11 @@ jobs:
 
       - name: Validate application publish
         run: dotnet publish EduOS.App/EduOS.App.csproj --configuration Release --no-build --output /tmp/eduos-publish
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eduos-test-results
+          path: TestResults/**/*.trx
+          if-no-files-found: ignore
