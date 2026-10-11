@@ -59,6 +59,9 @@ public sealed class SqlServerAuthTenantIntegrationTests
                 });
                 await db.SaveChangesAsync();
             }
+            // Trusted system provisioning must never keep tenant A entities
+            // tracked while entering tenant B's explicit system scope.
+            db.ChangeTracker.Clear();
             using (db.BeginSystemTenantScope(tenantBId))
             {
                 db.Roles.Add(roleB);
