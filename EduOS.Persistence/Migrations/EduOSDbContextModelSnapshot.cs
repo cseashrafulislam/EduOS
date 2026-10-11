@@ -6147,6 +6147,14 @@ namespace EduOS.Persistence.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
+                    b.Property<string>("FromEmail")
+                        .HasMaxLength(320)
+                        .HasColumnType("nvarchar(320)");
+
+                    b.Property<string>("FromName")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -6171,6 +6179,21 @@ namespace EduOS.Persistence.Migrations
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
 
+                    b.Property<string>("SmsSenderId")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("SmtpHost")
+                        .HasMaxLength(253)
+                        .HasColumnType("nvarchar(253)");
+
+                    b.Property<int?>("SmtpPort")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SmtpUsername")
+                        .HasMaxLength(320)
+                        .HasColumnType("nvarchar(320)");
+
                     b.Property<long>("TenantId")
                         .HasColumnType("bigint");
 
@@ -6180,7 +6203,20 @@ namespace EduOS.Persistence.Migrations
                     b.Property<long?>("UpdatedBy")
                         .HasColumnType("bigint");
 
+                    b.Property<bool>("UseSsl")
+                        .HasColumnType("bit");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Channel")
+                        .IsUnique()
+                        .HasDatabaseName("UX_CommunicationGateways_Tenant_Channel_Default")
+                        .HasFilter("[IsDeleted] = 0 AND [IsDefault] = 1");
+
+                    b.HasIndex("TenantId", "Channel", "ProviderCode")
+                        .IsUnique()
+                        .HasDatabaseName("UX_CommunicationGateways_Tenant_Channel_Provider")
+                        .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("CommunicationGateways");
                 });
