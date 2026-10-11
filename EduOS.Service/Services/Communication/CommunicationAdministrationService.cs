@@ -43,7 +43,9 @@ public sealed partial class CommunicationAdministrationService : ICommunicationA
     private static CommunicationGatewayDto Map(CommunicationGateway row) => new()
     {
         Id = row.Id, ProviderCode = row.ProviderCode, Channel = row.Channel, Endpoint = row.Endpoint,
-        HasCredential = !string.IsNullOrEmpty(row.ProtectedCredential), IsDefault = row.IsDefault,
+        SmsSenderId = row.SmsSenderId, SmtpHost = row.SmtpHost, SmtpPort = row.SmtpPort,
+        SmtpUsername = row.SmtpUsername, FromEmail = row.FromEmail, FromName = row.FromName,
+        UseSsl = row.UseSsl, HasCredential = !string.IsNullOrEmpty(row.ProtectedCredential), IsDefault = row.IsDefault,
         IsActive = row.IsActive, RowVersion = Convert.ToBase64String(row.RowVersion)
     };
     private static MessageTemplateDto Map(MessageTemplate row) => new()
