@@ -158,6 +158,9 @@ public class TenantModuleDto
     public long ProductModuleId { get; set; }
     public string ModuleCode { get; set; } = string.Empty;
     public string ModuleName { get; set; } = string.Empty;
+    public string? ModuleNameBangla { get; set; }
+    public string Category { get; set; } = string.Empty;
+    public bool IsCore { get; set; }
     public bool IsEnabled { get; set; }
     public bool IsRequiredByPreset { get; set; }
     public bool IsEntitledByPlan { get; set; }
