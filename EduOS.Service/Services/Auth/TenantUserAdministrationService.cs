@@ -323,8 +323,9 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
         TenantInviteRequestDto request, CancellationToken ct = default)
     {
         if (!CanManage) return Denied<bool>();
-        if (request == null || !new System.ComponentModel.DataAnnotations.EmailAddressAttribute()
-            .IsValid(request.Email) || request.Email.Length > 200)
+        if (request == null || string.IsNullOrWhiteSpace(request.Email) ||
+            !new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(request.Email) ||
+            request.Email.Length > 200)
             return ApiResponse<bool>.ErrorResponse("Valid email is required.", 400);
         if (string.IsNullOrWhiteSpace(_portalDomain) ||
             Uri.CheckHostName(_portalDomain) != UriHostNameType.Dns)
@@ -374,7 +375,7 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
         }
 
         var host = _portalDomain.Trim().ToLowerInvariant();
-        var link = "https://" + host + "/TenantUsers/Accept?token=" + Uri.EscapeDataString(token);
+        var link = "https://" + host + "/TenantUsers/Accept#token=" + Uri.EscapeDataString(token);
         try
         {
             await _emails.SendEmailAsync(email, "EduOS institution invitation",
