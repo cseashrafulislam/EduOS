@@ -12,6 +12,18 @@ public sealed class ModuleAuthorizationPolicyProvider : DefaultAuthorizationPoli
 
     public override Task<AuthorizationPolicy?> GetPolicyAsync(string policyName)
     {
+        if (policyName.StartsWith(RequirePermissionAttribute.PolicyPrefix, StringComparison.Ordinal))
+        {
+            var code = policyName[RequirePermissionAttribute.PolicyPrefix.Length..];
+            if (code.Length is < 1 or > 100 || !code.All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '-' or '.'))
+                return Task.FromResult<AuthorizationPolicy?>(null);
+            var permissionPolicy = new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .AddRequirements(new PermissionAccessRequirement(code))
+                .Build();
+            return Task.FromResult<AuthorizationPolicy?>(permissionPolicy);
+        }
+
         if (!policyName.StartsWith(RequireModuleAttribute.PolicyPrefix, StringComparison.Ordinal))
             return base.GetPolicyAsync(policyName);
 
