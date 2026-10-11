@@ -351,7 +351,7 @@
 
     function formatExpiry(value) {
         const raw = String(value || '');
-        const iso = /(?:Z|[+-]\\d{2}:\\d{2})$/i.test(raw) ? raw : raw + 'Z';
+        const iso = /(?:Z|[+-]\d{2}:\d{2})$/i.test(raw) ? raw : raw + 'Z';
         const date = new Date(iso);
         return Number.isNaN(date.getTime()) ? raw :
             date.toLocaleDateString(i18n.culture || 'en-BD');
