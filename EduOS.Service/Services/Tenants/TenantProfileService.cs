@@ -17,6 +17,18 @@ namespace EduOS.Service.Services.Tenants;
 
 public sealed class TenantProfileService : ITenantProfileService
 {
+    private static readonly HashSet<string> AllowedDateFormats = new(StringComparer.Ordinal)
+    {
+        "dd-MM-yyyy", "dd/MM/yyyy", "yyyy-MM-dd", "MM-dd-yyyy"
+    };
+    private static readonly HashSet<string> AllowedLanguages = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "en", "en-BD", "bn-BD"
+    };
+    private static readonly HashSet<string> AllowedCurrencies = new(StringComparer.Ordinal)
+    {
+        "BDT", "USD", "INR", "GBP", "EUR", "AED"
+    };
     private static readonly HashSet<string> ReservedSubdomains = new(StringComparer.OrdinalIgnoreCase)
     {
         "www", "api", "admin", "app", "mail", "ftp", "test", "staging", "dev", "demo",
@@ -86,9 +98,10 @@ public sealed class TenantProfileService : ITenantProfileService
     public async Task<ApiResponse<TenantDto>> UpdateRegionalSettingsAsync(UpdateTenantRegionalSettingsRequestDto request, CancellationToken cancellationToken = default)
     {
         if (!CanManage()) return ApiResponse<TenantDto>.ErrorResponse("Tenant administrator access is required.", 403);
-        if (request == null || !Regex.IsMatch(request.CurrencyCode ?? "", "^[A-Z]{3}$") ||
-            string.IsNullOrWhiteSpace(request.TimeZoneId) || string.IsNullOrWhiteSpace(request.DefaultLanguage))
-            return ApiResponse<TenantDto>.ErrorResponse("Regional settings are invalid.");
+        if (request == null || !AllowedCurrencies.Contains(request.CurrencyCode ?? "") ||
+            string.IsNullOrWhiteSpace(request.TimeZoneId) || !AllowedLanguages.Contains(request.DefaultLanguage ?? "") ||
+            !AllowedDateFormats.Contains(request.DateFormat ?? ""))
+            return ApiResponse<TenantDto>.ErrorResponse("Select valid currency, language and date format.");
         try
         {
             var tenant = await GetTenantAsync(cancellationToken);
@@ -101,6 +114,7 @@ public sealed class TenantProfileService : ITenantProfileService
             tenant.CurrencyCode = request.CurrencyCode;
             tenant.TimeZoneId = request.TimeZoneId.Trim();
             tenant.DefaultLanguage = request.DefaultLanguage.Trim();
+            tenant.DateFormat = request.DateFormat;
             tenant.UpdatedAt = DateTime.UtcNow; tenant.UpdatedBy = _user.UserId;
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             return ApiResponse<TenantDto>.SuccessResponse(await MapAsync(tenant, cancellationToken));
@@ -274,7 +288,7 @@ public sealed class TenantProfileService : ITenantProfileService
             Email = tenant.Email, Phone = tenant.Phone, Address = tenant.Address,
             CountryCode = tenant.CountryCode, LogoUrl = tenant.LogoUrl, FaviconUrl = tenant.FaviconUrl,
             CurrencyCode = tenant.CurrencyCode, TimeZoneId = tenant.TimeZoneId,
-            DefaultLanguage = tenant.DefaultLanguage, State = tenant.State,
+            DefaultLanguage = tenant.DefaultLanguage, DateFormat = tenant.DateFormat, State = tenant.State,
             OnboardingStage = tenant.OnboardingStage, OnboardingCompletedAt = tenant.OnboardingCompletedAt,
             EmailVerifiedAt = tenant.EmailVerifiedAt, RowVersion = Convert.ToBase64String(tenant.RowVersion)
         };
