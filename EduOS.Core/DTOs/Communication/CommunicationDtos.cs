@@ -146,6 +146,13 @@ public class CommunicationGatewayDto
     public string ProviderCode { get; set; } = string.Empty;
     public NotificationChannelType Channel { get; set; }
     public string? Endpoint { get; set; }
+    public string? SmsSenderId { get; set; }
+    public string? SmtpHost { get; set; }
+    public int? SmtpPort { get; set; }
+    public string? SmtpUsername { get; set; }
+    public string? FromEmail { get; set; }
+    public string? FromName { get; set; }
+    public bool UseSsl { get; set; }
     public bool HasCredential { get; set; }
     public bool IsDefault { get; set; }
     public bool IsActive { get; set; }
@@ -157,6 +164,13 @@ public class SaveCommunicationGatewayRequestDto
     [Required, MaxLength(100)] public string ProviderCode { get; set; } = string.Empty;
     public NotificationChannelType Channel { get; set; }
     [MaxLength(1000)] public string? Endpoint { get; set; }
+    [MaxLength(20)] public string? SmsSenderId { get; set; }
+    [MaxLength(253)] public string? SmtpHost { get; set; }
+    public int? SmtpPort { get; set; }
+    [MaxLength(320)] public string? SmtpUsername { get; set; }
+    [EmailAddress, MaxLength(320)] public string? FromEmail { get; set; }
+    [MaxLength(150)] public string? FromName { get; set; }
+    public bool? UseSsl { get; set; }
     public string? Credential { get; set; }
     public bool ClearCredential { get; set; }
     public bool IsDefault { get; set; }
