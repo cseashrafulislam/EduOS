@@ -1,13 +1,9 @@
-using EduOS.Persistence.Context;
-using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace EduOS.Persistence.Migrations;
 
-[DbContext(typeof(EduOSDbContext))]
-[Migration("20261011235000_GatewaySetupCommunicationConfig")]
 public partial class GatewaySetupCommunicationConfig : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
