@@ -1,4 +1,5 @@
 using EduOS.Core.DTOs.SaaS;
+using EduOS.Core.DTOs.Academic;
 using EduOS.Core.DTOs.Tenants;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
@@ -93,13 +94,19 @@ public sealed class InstitutionOnboardingController : ControllerBase
         [FromBody] InstitutionAcademicYearWizardRequestDto request, CancellationToken ct)
     {
         if (request == null) return BadRequest("Academic year is required.");
-        if (string.IsNullOrWhiteSpace(request.Code))
+        var code = request.Code;
+        if (string.IsNullOrWhiteSpace(code))
         {
             var existing = request.Id.HasValue ? await _foundation.GetAcademicYearAsync(request.Id.Value, ct) : null;
             if (existing != null && !existing.Success) return Result(existing);
-            request.Code = existing?.Data?.Code ?? "AY-" + Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
+            code = existing?.Data?.Code ?? "AY-" + Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
         }
-        return Result(await _foundation.SaveAcademicYearAsync(request.Id, request, ct));
+        return Result(await _foundation.SaveAcademicYearAsync(request.Id, new SaveAcademicYearRequestDto
+        {
+            Name = request.Name, Code = code, CampusId = request.CampusId,
+            CycleType = request.CycleType, StartDate = request.StartDate, EndDate = request.EndDate,
+            IsCurrent = request.IsCurrent, IsActive = request.IsActive, RowVersion = request.RowVersion
+        }, ct));
     }
 
     [HttpDelete("academic-year/{id:long}")]
@@ -118,8 +125,16 @@ public sealed class InstitutionOnboardingController : ControllerBase
 
     [HttpPost("academic-term")]
     public async Task<IActionResult> SaveAcademicTerm(
-        [FromBody] InstitutionAcademicTermWizardRequestDto request, CancellationToken ct) =>
-        Result(await _foundation.SaveAcademicTermAsync(request.Id, request, ct));
+        [FromBody] InstitutionAcademicTermWizardRequestDto request, CancellationToken ct)
+    {
+        if (request == null) return BadRequest("Academic term is required.");
+        return Result(await _foundation.SaveAcademicTermAsync(request.Id, new SaveAcademicTermRequestDto
+        {
+            AcademicYearId = request.AcademicYearId, Name = request.Name, Code = request.Code,
+            StartDate = request.StartDate, EndDate = request.EndDate, IsCurrent = request.IsCurrent,
+            IsActive = request.IsActive, DisplayOrder = request.DisplayOrder, RowVersion = request.RowVersion
+        }, ct));
+    }
 
     [HttpDelete("academic-term/{id:long}")]
     public async Task<IActionResult> ArchiveAcademicTerm(long id, [FromQuery] string rowVersion,
