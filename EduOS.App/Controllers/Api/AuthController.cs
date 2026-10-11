@@ -31,8 +31,9 @@ namespace EduOS.App.Controllers.Api
         private readonly EduOSDbContext _db;
         private readonly IMfaChallengeService _mfaChallengeService;
         private readonly MfaSettings _mfaSettings;
+        private readonly string _portalDomain;
 
-        public AuthController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, ILogger<AuthController> logger, EduOSDbContext db, IMfaChallengeService mfaChallengeService, IOptions<MfaSettings> mfaSettings)
+        public AuthController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, ILogger<AuthController> logger, EduOSDbContext db, IMfaChallengeService mfaChallengeService, IOptions<MfaSettings> mfaSettings, IOptions<TenantPortalSettings> portalSettings)
         {
             _userManager = userManager;
             _signInManager = signInManager;
@@ -40,6 +41,7 @@ namespace EduOS.App.Controllers.Api
             _db = db;
             _mfaChallengeService = mfaChallengeService;
             _mfaSettings = mfaSettings.Value;
+            _portalDomain = portalSettings.Value.BaseDomain;
         }
 
         // ==================== Login ====================
@@ -412,9 +414,17 @@ namespace EduOS.App.Controllers.Api
             {
                 try
                 {
+                    var domain = _portalDomain?.Trim();
+                    if (string.IsNullOrWhiteSpace(domain) || Uri.CheckHostName(domain) != UriHostNameType.Dns)
+                    {
+                        _logger.LogError("Canonical tenant portal domain is not configured for password reset.");
+                        return Ok(new { success = true, message });
+                    }
                     var token = await _userManager.GeneratePasswordResetTokenAsync(user);
-                    var baseUrl = $"{Request.Scheme}://{Request.Host}";
-                    var resetUrl = $"{baseUrl}/Account/ResetPassword?email={Uri.EscapeDataString(user.Email!)}&token={Uri.EscapeDataString(token)}";
+                    // Never construct a password-reset URL from an untrusted Host header.
+                    var resetUrl = "https://" + domain.ToLowerInvariant() +
+                        "/Account/ResetPassword?email=" + Uri.EscapeDataString(user.Email!) +
+                        "&token=" + Uri.EscapeDataString(token);
                     BackgroundJob.Enqueue<IEmailJob>(x => x.SendPasswordResetEmailAsync(user.Email!, user.FullName, resetUrl));
                     _logger.LogInformation("Password reset email queued for user {UserId}", user.Id);
                 }
