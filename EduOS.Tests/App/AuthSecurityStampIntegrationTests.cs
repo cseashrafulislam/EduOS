@@ -78,8 +78,8 @@ public sealed class AuthSecurityStampIntegrationTests
         environment.SetupGet(x => x.EnvironmentName).Returns(Environments.Development);
         services.AddLogging();
         services.AddDataProtection();
-        services.AddDbContext<EduOSDbContext>(options =>
-            options.UseInMemoryDatabase("auth-stamp-" + Guid.NewGuid().ToString("N")));
+        var databaseName = "auth-stamp-" + Guid.NewGuid().ToString("N");
+        services.AddDbContext<EduOSDbContext>(options => options.UseInMemoryDatabase(databaseName));
         services.AddIdentityConfiguration(environment.Object);
         return services;
     }
