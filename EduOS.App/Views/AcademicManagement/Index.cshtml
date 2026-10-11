@@ -1,0 +1,137 @@
+@{
+    ViewData["Title"] = "Academic Setup & Management";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<div id="academicManagement" class="container-fluid py-4">
+    @Html.AntiForgeryToken()
+    <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-3">
+        <div>
+            <h1 class="h4 fw-bold mb-1">Academic Setup &amp; Management</h1>
+            <p class="text-muted mb-0">Years, terms, class programmes, class levels, sections, subjects and curriculum.</p>
+        </div>
+        <button id="academicRefresh" type="button" class="btn btn-outline-secondary">Refresh</button>
+    </div>
+    <div id="academicNotice" class="alert d-none" role="alert" aria-live="polite"></div>
+    <ul class="nav nav-tabs flex-wrap mb-3" role="tablist" aria-label="Academic setup">
+        <li class="nav-item"><button data-panel="years" class="nav-link active" type="button">Academic Years</button></li>
+        <li class="nav-item"><button data-panel="terms" class="nav-link" type="button">Terms</button></li>
+        <li class="nav-item"><button data-panel="classes" class="nav-link" type="button">Classes / Grades</button></li>
+        <li class="nav-item"><button data-panel="sections" class="nav-link" type="button">Sections</button></li>
+        <li class="nav-item"><button data-panel="subjects" class="nav-link" type="button">Subjects</button></li>
+        <li class="nav-item"><button data-panel="curricula" class="nav-link" type="button">Curriculum</button></li>
+    </ul>
+    <section data-section="years" class="card border-0 shadow-sm">
+        <div class="card-body">
+            <h2 class="h5">Academic years</h2>
+            <form id="yearForm" class="row g-3 mb-3">
+                <input id="yearId" type="hidden" /><input id="yearVersion" type="hidden" />
+                <div class="col-lg-3"><label for="yearName" class="form-label">Name *</label><input id="yearName" class="form-control" maxlength="100" required placeholder="Academic 2026" /></div>
+                <div class="col-lg-2"><label for="yearCode" class="form-label">Code *</label><input id="yearCode" class="form-control" maxlength="30" required placeholder="2026" /></div>
+                <div class="col-lg-3"><label for="yearCampus" class="form-label">Campus</label><select id="yearCampus" class="form-select"></select></div>
+                <div class="col-lg-2"><label for="yearStart" class="form-label">Start date *</label><input id="yearStart" type="date" class="form-control" required /></div>
+                <div class="col-lg-2"><label for="yearEnd" class="form-label">End date *</label><input id="yearEnd" type="date" class="form-control" required /></div>
+                <div class="col-md-4"><label for="yearCycle" class="form-label">Cycle</label><select id="yearCycle" class="form-select"><option value="1">Annual</option><option value="2">Semester</option><option value="3">Trimester</option><option value="4">Quarterly</option><option value="5">Modular</option><option value="6">Batch-based</option></select></div>
+                <div class="col-md-3 d-flex align-items-end"><label class="form-check"><input id="yearCurrent" type="checkbox" class="form-check-input" /><span class="form-check-label">Current year</span></label></div>
+                <div class="col-md-5 d-flex align-items-end gap-2"><button type="submit" class="btn btn-primary">Save Year</button><button type="button" data-reset="year" class="btn btn-outline-secondary">Clear</button></div>
+            </form>
+            <div class="table-responsive"><table class="table table-hover align-middle"><thead><tr><th>Year</th><th>Code</th><th>Campus</th><th>Dates</th><th>Current</th><th>Actions</th></tr></thead><tbody id="yearRows"></tbody></table></div>
+        </div>
+    </section>
+    <section data-section="terms" class="card border-0 shadow-sm d-none">
+        <div class="card-body">
+            <h2 class="h5">Terms / Semesters</h2>
+            <form id="termForm" class="row g-3 mb-3">
+                <input id="termId" type="hidden" /><input id="termVersion" type="hidden" />
+                <div class="col-md-4"><label for="termYear" class="form-label">Academic year *</label><select id="termYear" class="form-select" required></select></div>
+                <div class="col-md-4"><label for="termName" class="form-label">Term name *</label><input id="termName" class="form-control" maxlength="100" required /></div>
+                <div class="col-md-4"><label for="termCode" class="form-label">Code</label><input id="termCode" class="form-control" maxlength="30" /></div>
+                <div class="col-md-3"><label for="termStart" class="form-label">Start date *</label><input id="termStart" type="date" class="form-control" required /></div>
+                <div class="col-md-3"><label for="termEnd" class="form-label">End date *</label><input id="termEnd" type="date" class="form-control" required /></div>
+                <div class="col-md-2 d-flex align-items-end"><label class="form-check"><input id="termCurrent" type="checkbox" class="form-check-input" /><span class="form-check-label">Current term</span></label></div>
+                <div class="col-md-4 d-flex align-items-end gap-2"><button type="submit" class="btn btn-primary">Save Term</button><button type="button" data-reset="term" class="btn btn-outline-secondary">Clear</button></div>
+            </form>
+            <div class="table-responsive"><table class="table table-hover"><thead><tr><th>Term</th><th>Year</th><th>Code</th><th>Dates</th><th>Current</th><th>Actions</th></tr></thead><tbody id="termRows"></tbody></table></div>
+        </div>
+    </section>
+    <section data-section="classes" class="card border-0 shadow-sm d-none">
+        <div class="card-body">
+            <h2 class="h5">Class programmes and grades</h2>
+            <p class="text-muted small">Programme = academic stream (e.g. Secondary); Level = Class/Grade within that programme. Do not duplicate records per section.</p>
+            <form id="programForm" class="row g-2 align-items-end mb-4">
+                <div class="col-md-3"><label for="programName" class="form-label">Programme name *</label><input id="programName" class="form-control" maxlength="200" required placeholder="Secondary" /></div>
+                <div class="col-md-2"><label for="programCode" class="form-label">Code *</label><input id="programCode" class="form-control" maxlength="50" required placeholder="SEC" /></div>
+                <div class="col-md-2"><label for="programDuration" class="form-label">Months</label><input id="programDuration" type="number" min="0" max="1200" value="0" class="form-control" /></div>
+                <div class="col-md-3"><label for="programCampus" class="form-label">Offered at campus</label><select id="programCampus" class="form-select"></select></div>
+                <div class="col-md-2"><button type="submit" class="btn btn-primary w-100">Add Programme</button></div>
+            </form>
+            <h3 class="h6">Available programmes</h3>
+            <div id="programList" class="mb-4"></div>
+            <form id="levelForm" class="row g-2 align-items-end mb-3">
+                <div class="col-md-3"><label for="levelProgram" class="form-label">Programme *</label><select id="levelProgram" class="form-select" required></select></div>
+                <div class="col-md-3"><label for="levelName" class="form-label">Class / Grade name *</label><input id="levelName" class="form-control" required maxlength="150" placeholder="Grade 9" /></div>
+                <div class="col-md-2"><label for="levelCode" class="form-label">Code *</label><input id="levelCode" class="form-control" required maxlength="50" placeholder="G9" /></div>
+                <div class="col-md-2"><label for="levelNumber" class="form-label">Level number *</label><input id="levelNumber" class="form-control" required type="number" min="1" max="1000" value="1" /></div>
+                <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Add Class</button></div>
+            </form>
+            <div class="table-responsive"><table class="table table-hover"><thead><tr><th>Class / Grade</th><th>Code</th><th>Programme</th><th>Level</th></tr></thead><tbody id="levelRows"></tbody></table></div>
+        </div>
+    </section>
+    <section data-section="sections" class="card border-0 shadow-sm d-none">
+        <div class="card-body">
+            <h2 class="h5">Sections / Cohorts</h2>
+            <p class="small text-muted">Section is recorded as an Academic Batch and remains tied to campus, year, programme and class.</p>
+            <form id="sectionForm" class="row g-2 align-items-end mb-3">
+                <div class="col-md-3"><label for="sectionCampus" class="form-label">Campus *</label><select id="sectionCampus" class="form-select" required></select></div>
+                <div class="col-md-3"><label for="sectionYear" class="form-label">Academic year *</label><select id="sectionYear" class="form-select" required></select></div>
+                <div class="col-md-3"><label for="sectionProgram" class="form-label">Programme *</label><select id="sectionProgram" class="form-select" required></select></div>
+                <div class="col-md-3"><label for="sectionLevel" class="form-label">Class / Grade *</label><select id="sectionLevel" class="form-select" required></select></div>
+                <div class="col-md-3"><label for="sectionTerm" class="form-label">Term (optional)</label><select id="sectionTerm" class="form-select"></select></div>
+                <div class="col-md-3"><label for="sectionName" class="form-label">Section *</label><input id="sectionName" class="form-control" maxlength="150" required placeholder="Grade 9 — A" /></div>
+                <div class="col-md-3"><label for="sectionCode" class="form-label">Code *</label><input id="sectionCode" class="form-control" maxlength="50" required placeholder="G9-A" /></div>
+                <div class="col-md-2"><label for="sectionCapacity" class="form-label">Capacity</label><input id="sectionCapacity" class="form-control" type="number" min="0" max="100000" value="40" /></div>
+                <div class="col-md-1"><button class="btn btn-primary w-100" type="submit">Add</button></div>
+            </form>
+            <div class="table-responsive"><table class="table table-hover"><thead><tr><th>Section</th><th>Code</th><th>Campus</th><th>Year</th><th>Class</th><th>Capacity</th></tr></thead><tbody id="sectionRows"></tbody></table></div>
+        </div>
+    </section>
+    <section data-section="subjects" class="card border-0 shadow-sm d-none">
+        <div class="card-body">
+            <h2 class="h5">Subjects</h2>
+            <form id="subjectForm" class="row g-2 align-items-end mb-3">
+                <div class="col-md-4"><label for="subjectName" class="form-label">Subject name *</label><input id="subjectName" required maxlength="200" class="form-control" /></div>
+                <div class="col-md-3"><label for="subjectCode" class="form-label">Code *</label><input id="subjectCode" required maxlength="50" class="form-control" /></div>
+                <div class="col-md-3"><label for="subjectCredits" class="form-label">Default credits</label><input id="subjectCredits" type="number" min="0" max="1000" step="0.01" value="0" class="form-control" /></div>
+                <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Add Subject</button></div>
+            </form>
+            <div class="table-responsive"><table class="table table-hover"><thead><tr><th>Subject</th><th>Code</th><th>Credit hours</th></tr></thead><tbody id="subjectRows"></tbody></table></div>
+        </div>
+    </section>
+    <section data-section="curricula" class="card border-0 shadow-sm d-none">
+        <div class="card-body">
+            <h2 class="h5">Curriculum versions &amp; subject mapping</h2>
+            <p class="small text-muted">Create a new curriculum version for historical changes. Existing curriculum assignments are not silently overwritten.</p>
+            <form id="curriculumForm" class="row g-2 align-items-end mb-4">
+                <div class="col-md-3"><label for="curriculumProgram" class="form-label">Programme *</label><select id="curriculumProgram" class="form-select" required></select></div>
+                <div class="col-md-3"><label for="curriculumName" class="form-label">Curriculum name *</label><input id="curriculumName" maxlength="150" class="form-control" required /></div>
+                <div class="col-md-2"><label for="curriculumCode" class="form-label">Code *</label><input id="curriculumCode" maxlength="50" class="form-control" required /></div>
+                <div class="col-md-2"><label for="curriculumVersion" class="form-label">Version *</label><input id="curriculumVersion" type="number" min="1" value="1" class="form-control" required /></div>
+                <div class="col-md-2"><label for="curriculumFrom" class="form-label">Effective from *</label><input id="curriculumFrom" type="date" class="form-control" required /></div>
+                <div class="col-md-3 d-flex align-items-end"><label class="form-check"><input id="curriculumCurrent" type="checkbox" class="form-check-input" /><span class="form-check-label">Current curriculum</span></label></div>
+                <div class="col-md-3"><button type="submit" class="btn btn-primary w-100">Create Curriculum</button></div>
+            </form>
+            <h3 class="h6">Add subject to an existing curriculum</h3>
+            <form id="curriculumSubjectForm" class="row g-2 align-items-end mb-4">
+                <div class="col-md-3"><label for="curriculumSelection" class="form-label">Curriculum *</label><select id="curriculumSelection" class="form-select" required></select></div>
+                <div class="col-md-3"><label for="mappingLevel" class="form-label">Class *</label><select id="mappingLevel" class="form-select" required></select></div>
+                <div class="col-md-3"><label for="mappingSubject" class="form-label">Subject *</label><select id="mappingSubject" class="form-select" required></select></div>
+                <div class="col-md-1"><label for="mappingMarks" class="form-label">Marks</label><input id="mappingMarks" type="number" min="1" max="100000" value="100" class="form-control" /></div>
+                <div class="col-md-2"><button type="submit" class="btn btn-outline-primary w-100">Add Mapping</button></div>
+            </form>
+            <div class="table-responsive"><table class="table table-hover"><thead><tr><th>Curriculum</th><th>Programme</th><th>Version</th><th>Effective</th><th>Subjects</th></tr></thead><tbody id="curriculumRows"></tbody></table></div>
+        </div>
+    </section>
+    <p class="small text-muted mt-3">Lists are bounded for responsiveness. Use an exact prefix search in the API catalog for larger institutions.</p>
+</div>
+@section Scripts {
+    <script src="~/js/academic/management.js" asp-append-version="true"></script>
+}
