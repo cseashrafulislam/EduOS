@@ -10,12 +10,11 @@
     const saveButton = document.getElementById('saveSettingsBtn');
     const skipButton = document.getElementById('skipBtn');
     let onboarding = null;
+    let currentRowVersion = '';
 
     document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('currency')?.addEventListener('change', event => {
-            const symbol = currencySymbols[event.currentTarget.value];
-            const field = document.getElementById('currencySymbol');
-            if (field && symbol) field.value = symbol;
+            updateCurrencySymbol(event.currentTarget.value);
         });
         document.getElementById('settingsForm')?.addEventListener('submit', saveSettings);
         skipButton?.addEventListener('click', () => advance(true));
@@ -33,10 +32,12 @@
             const payload = await response.json().catch(() => null);
             if (!response.ok || !payload?.success || !payload.data) throw new Error('settings');
             const settings = payload.data;
-            setSelect('currency', settings.currency || 'BDT');
-            setValue('currencySymbol', settings.currencySymbol || '৳');
-            setSelect('timeZone', settings.timeZone || 'Asia/Dhaka');
-            setSelect('language', normalizeLanguage(settings.language));
+            if (!settings.rowVersion) throw new Error('Missing tenant row version.');
+            currentRowVersion = settings.rowVersion;
+            setSelect('currency', settings.currencyCode || 'BDT');
+            updateCurrencySymbol(valueOf('currency'));
+            setSelect('timeZone', settings.timeZoneId || 'Asia/Dhaka');
+            setSelect('language', normalizeLanguage(settings.defaultLanguage));
             setSelect('dateFormat', settings.dateFormat || 'dd-MM-yyyy');
         } catch {
             showAlert('danger', i18n.loadFailed);
@@ -59,26 +60,37 @@
 
     async function saveSettings(event) {
         event.preventDefault();
+        if (!currentRowVersion) {
+            showAlert('danger', i18n.loadFailed || 'Reload regional preferences before saving.');
+            return;
+        }
         setButtonLoading(saveButton, true, i18n.saving);
         try {
-            const response = await fetch('/api/tenant-profile/general-settings', {
-                method: 'PUT',
-                cache: 'no-store',
-                credentials: 'same-origin',
-                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            const response = await fetch('/api/tenant-profile/regional-settings', {
+                method: 'PUT', cache: 'no-store', credentials: 'same-origin',
+                headers: {
+                    'Accept': 'application/json', 'Content-Type': 'application/json',
+                    'RequestVerificationToken': antiforgeryToken()
+                },
                 body: JSON.stringify({
-                    currency: valueOf('currency'),
-                    currencySymbol: valueOf('currencySymbol'),
-                    timeZone: valueOf('timeZone'),
-                    language: valueOf('language'),
-                    dateFormat: valueOf('dateFormat')
+                    currencyCode: valueOf('currency'),
+                    timeZoneId: valueOf('timeZone'),
+                    defaultLanguage: valueOf('language'),
+                    dateFormat: valueOf('dateFormat'),
+                    rowVersion: currentRowVersion
                 })
             });
             const payload = await response.json().catch(() => null);
-            if (!response.ok || !payload?.success) throw new Error('save');
+            if (!response.ok || !payload?.success) {
+                showAlert('danger', responseError(payload, i18n.saveFailed || i18n.networkError));
+                if (response.status === 409) await loadSettings();
+                return;
+            }
+            currentRowVersion = payload.data?.rowVersion || currentRowVersion;
             await advance(false);
-        } catch {
-            showAlert('danger', i18n.saveFailed || i18n.networkError);
+        } catch (error) {
+            console.error('Regional preference request failed.', error);
+            showAlert('danger', error.message || i18n.networkError);
         } finally {
             setButtonLoading(saveButton, false, i18n.saveAndContinue);
         }
@@ -104,14 +116,17 @@
                 method: 'POST',
                 cache: 'no-store',
                 credentials: 'same-origin',
-                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                headers: {
+                    'Accept': 'application/json', 'Content-Type': 'application/json',
+                    'RequestVerificationToken': antiforgeryToken()
+                },
                 body: JSON.stringify({ stage: 9, skipped })
             });
             const payload = await response.json().catch(() => null);
-            if (!response.ok || !payload?.success) throw new Error('step');
+            if (!response.ok || !payload?.success) throw new Error(responseError(payload, i18n.stepFailed));
             window.location.assign('/Account/GatewaySetup');
-        } catch {
-            showAlert('danger', i18n.stepFailed);
+        } catch (error) {
+            showAlert('danger', error.message || i18n.stepFailed);
             setButtonLoading(skipButton, false, i18n.skipForNow);
         }
     }
@@ -127,7 +142,27 @@
     }
 
     function normalizeLanguage(value) {
-        return String(value || '').toLowerCase() === 'bn' ? 'bn-BD' : value || 'en';
+        return String(value || '').toLowerCase().startsWith('bn') ? 'bn-BD' : 'en';
+    }
+
+    function updateCurrencySymbol(currency) {
+        const field = document.getElementById('currencySymbol');
+        if (field) field.value = currencySymbols[currency] || currency || '';
+    }
+
+    function antiforgeryToken() {
+        const token = document.querySelector('#settingsForm input[name="__RequestVerificationToken"]')?.value;
+        if (!token) throw new Error('Session verification failed. Reload and retry.');
+        return token;
+    }
+
+    function responseError(payload, fallback) {
+        if (payload?.errors && typeof payload.errors === 'object') {
+            const message = Object.values(payload.errors).flat().find(x => typeof x === 'string' && x.trim());
+            if (message) return message;
+        }
+        return typeof payload?.message === 'string' && payload.message.trim()
+            ? payload.message.trim() : fallback;
     }
 
     function setSelect(id, value) {
