@@ -41,7 +41,7 @@
     <div class="app-shell">
         <aside class="sidebar" id="sidebarMenu" aria-label="@T["MainNavigation"]">
             <div class="brand-box">
-                <a class="brand-link" href="/Dashboard/Index" aria-label="EduOS @T["Dashboard"]">
+                <a class="brand-link" href="@(User?.IsInRole("SuperAdmin") == true ? "/Dashboard/Admin" : "/Dashboard/Index")" aria-label="EduOS @T["Dashboard"]">
                     <span class="brand-logo" aria-hidden="true">
                         <svg class="edu-icon edu-icon-lg"><use href="/images/eduos-icons.svg#graduation" /></svg>
                     </span>
@@ -55,6 +55,22 @@
                 </button>
             </div>
 
+            @if (User?.IsInRole("SuperAdmin") == true)
+            {
+                <div class="menu-title">Platform Administration</div>
+                <nav class="nav flex-column">
+                    <a class="nav-link @ActiveFor("/Dashboard/Admin")" href="/Dashboard/Admin">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#dashboard" /></svg>
+                        <span>@T["Dashboard"]</span>
+                    </a>
+                    <a class="nav-link @ActiveFor("/Account/PaymentVerification")" href="/Account/PaymentVerification">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                        <span>@T["ManualPaymentVerification"]</span>
+                    </a>
+                </nav>
+            }
+            else
+            {
             <div class="menu-title">@T["Main"]</div>
             <nav class="nav flex-column">
                 <a class="nav-link @ActiveFor("/Dashboard")" href="/Dashboard/Index">
@@ -229,6 +245,7 @@
 
 
             </nav>
+            }
         </aside>
 
         <button class="sidebar-backdrop" type="button" data-sidebar-close aria-label="@T["CloseMenu"]" tabindex="-1"></button>
@@ -269,7 +286,7 @@
                                 <span class="user-avatar" aria-hidden="true">@userInitial</span>
                                 <span class="user-info">
                                     <span class="name">@userName</span>
-                                    <span class="role">@T["TenantAdmin"]</span>
+                                    <span class="role">@(User?.IsInRole("SuperAdmin") == true ? "SuperAdmin" : T["TenantAdmin"].Value)</span>
                                 </span>
                                 <svg class="edu-icon user-chevron" aria-hidden="true"><use href="/images/eduos-icons.svg#chevron-down" /></svg>
                             </button>
