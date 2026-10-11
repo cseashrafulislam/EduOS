@@ -131,6 +131,8 @@ public class SelfServicePortalServiceTests
     public async Task Timetable_returns_active_current_enrollment_subject_in_correct_day_order()
     {
         await using var context = CreateContext(out var accessor);
+        // EF's tenant filter must be active before the fixture queries enrollments.
+        SetTenant(accessor, 10);
         var student = Student(10, 99, "OWN"); var subject = new Subject { TenantId = 10, Name = "Bangla", Code = "BAN" };
         var employee = new Employee { TenantId = 10, PersonId = 1, DesignationId = 1, EmployeeCode = "T-1", FullName = "Teacher",
             JoiningDate = DateOnly.FromDateTime(DateTime.UtcNow), State = EmployeeState.Active, CanTeach = true };
