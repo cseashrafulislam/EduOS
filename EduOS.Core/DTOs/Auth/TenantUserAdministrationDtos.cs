@@ -64,3 +64,17 @@ public sealed class TenantMemberStatusRequestDto
     [Required] public string RowVersion { get; set; } = "";
     [Required] public MembershipStatus Status { get; set; }
 }
+
+public sealed class TenantInviteRequestDto
+{
+    [Required, EmailAddress, StringLength(200)] public string Email { get; set; } = "";
+    public long? RoleId { get; set; }
+}
+
+public sealed class TenantInviteAcceptRequestDto
+{
+    [Required, StringLength(64, MinimumLength = 64)] public string Token { get; set; } = "";
+    [Required, MinLength(6)] public string Password { get; set; } = "";
+    [Required, Compare(nameof(Password))] public string ConfirmPassword { get; set; } = "";
+    [StringLength(200)] public string? FullName { get; set; }
+}
