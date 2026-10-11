@@ -273,6 +273,7 @@ public class SubscriptionPaymentDto
     public DateTime InitiatedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
     public string? PayerBankName { get; set; }
+    public string? PayerAccountNumber { get; set; }
     public string? DepositSlipNumber { get; set; }
     public DateOnly? DepositDate { get; set; }
     public long? DepositSlipFileId { get; set; }
