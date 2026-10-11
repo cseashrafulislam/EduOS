@@ -8,6 +8,7 @@ using EduOS.Core.Interfaces.IServices;
 using EduOS.Core.Settings;
 using EduOS.Persistence.Context;
 using Hangfire;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -204,6 +205,10 @@ namespace EduOS.App.Controllers.Api
             if (!await _userManager.CheckPasswordAsync(user, dto.CurrentPassword))
                 return BadRequest(new { success = false, message = "Current password is incorrect." });
 
+            var session = await GetSessionContextAsync(user);
+            if (!session.IsValid)
+                return StatusCode(StatusCodes.Status403Forbidden, new { success = false, message = "Your institution membership is unavailable." });
+
             var sharedKey = await _userManager.GetAuthenticatorKeyAsync(user);
 
             if (string.IsNullOrWhiteSpace(sharedKey))
@@ -213,6 +218,14 @@ namespace EduOS.App.Controllers.Api
                     return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Authenticator setup failed." });
 
                 sharedKey = await _userManager.GetAuthenticatorKeyAsync(user);
+                if (string.IsNullOrWhiteSpace(sharedKey))
+                    return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Authenticator setup failed." });
+
+                // ResetAuthenticatorKeyAsync changes Identity's security stamp.
+                // Renew only the current session with its original tenant/role claims.
+                var auth = await HttpContext.AuthenticateAsync(IdentityConstants.ApplicationScheme);
+                await _signInManager.SignInWithClaimsAsync(user, auth.Properties?.IsPersistent == true,
+                    BuildSessionClaims(user, "pwd", session.Role, session.TenantId));
             }
 
             if (string.IsNullOrWhiteSpace(sharedKey))
@@ -264,26 +277,37 @@ namespace EduOS.App.Controllers.Api
             if (!session.IsValid)
                 return StatusCode(StatusCodes.Status403Forbidden, new { success = false, message = "Your institution membership is unavailable." });
 
-            var recoveryCodes = (await _userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, _mfaSettings.RecoveryCodeCount))?.ToArray() ?? [];
-
-            if (recoveryCodes.Length != _mfaSettings.RecoveryCodeCount)
-                return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Recovery codes could not be generated." });
-
-            var enabled = await _userManager.SetTwoFactorEnabledAsync(user, true);
-
-            if (!enabled.Succeeded)
-                return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Multi-factor authentication could not be enabled." });
-
-            await _signInManager.SignInWithClaimsAsync(user, isPersistent: false,
-                BuildSessionClaims(user, "mfa", session.Role, session.TenantId));
-            _logger.LogInformation("MFA enabled for user {UserId}", user.Id);
-
-            return Ok(new
+            // Both Identity user updates and recovery-code changes use this scoped
+            // EduOSDbContext. Any failure must roll back the entire activation.
+            await using (var transaction = await _db.Database.BeginTransactionAsync())
             {
-                success = true,
-                message = "Multi-factor authentication is enabled.",
-                data = new { recoveryCodes }
-            });
+                var recoveryCodes = (await _userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, _mfaSettings.RecoveryCodeCount))?.ToArray() ?? [];
+                if (recoveryCodes.Length != _mfaSettings.RecoveryCodeCount)
+                    return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Recovery codes could not be generated." });
+
+                var enabled = await _userManager.SetTwoFactorEnabledAsync(user, true);
+                if (!enabled.Succeeded)
+                    return Conflict(new { success = false, message = "MFA setup changed. Reload and try again." });
+
+                // Immediately revoke all existing password-only cookies, including
+                // sessions opened in other devices before MFA was enabled.
+                var rotated = await _userManager.UpdateSecurityStampAsync(user);
+                if (!rotated.Succeeded)
+                    return Conflict(new { success = false, message = "Account security changed. Reload and try again." });
+
+                await transaction.CommitAsync();
+
+                var auth = await HttpContext.AuthenticateAsync(IdentityConstants.ApplicationScheme);
+                await _signInManager.SignInWithClaimsAsync(user, auth.Properties?.IsPersistent == true,
+                    BuildSessionClaims(user, "mfa", session.Role, session.TenantId));
+                _logger.LogInformation("MFA enabled for user {UserId}", user.Id);
+                return Ok(new
+                {
+                    success = true,
+                    message = "Multi-factor authentication is enabled.",
+                    data = new { recoveryCodes }
+                });
+            }
         }
 
         // ==================== MFA Login ====================
