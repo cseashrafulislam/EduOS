@@ -1,0 +1,142 @@
+using EduOS.App.Middleware;
+using EduOS.App.Security;
+using EduOS.Core.Entities.Auth;
+using EduOS.Persistence.Context;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
+using Xunit;
+
+namespace EduOS.Tests.App;
+
+public sealed class AuthTenantSessionIntegrationTests
+{
+    private static EduOSDbContext Db() => new(
+        new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("auth-tenant-session-" + Guid.NewGuid().ToString("N")).Options);
+
+    [Fact]
+    public async Task Tenant_role_grants_do_not_cross_memberships()
+    {
+        await using var db = Db();
+        db.Roles.AddRange(
+            new ApplicationRole { Id = 1, TenantId = null, Name = "Principal", NormalizedName = "PRINCIPAL", IsActive = true },
+            new ApplicationRole { Id = 2, TenantId = 200, Name = "Teacher", NormalizedName = "TEACHER", IsActive = true });
+        db.UserRoles.AddRange(
+            new IdentityUserRole<long> { UserId = 50, RoleId = 1 },
+            new IdentityUserRole<long> { UserId = 50, RoleId = 2 });
+        await db.SaveChangesAsync();
+
+        var tenantOne = await TenantRoleResolver.GetTenantRolesAsync(db, 50, 100, false, 2);
+        var tenantTwo = await TenantRoleResolver.GetTenantRolesAsync(db, 50, 200, false, 2);
+        Assert.Equal(new[] { "User" }, tenantOne);
+        Assert.Contains("Teacher", tenantTwo);
+        Assert.DoesNotContain("Principal", tenantTwo);
+        Assert.DoesNotContain("Principal", tenantOne);
+    }
+
+    [Fact]
+    public async Task Membership_ownership_grants_admin_only_for_selected_institution()
+    {
+        await using var db = Db();
+        var ownerRoles = await TenantRoleResolver.GetTenantRolesAsync(db, 50, 100, true, 2);
+        var visitorRoles = await TenantRoleResolver.GetTenantRolesAsync(db, 50, 200, false, 2);
+        Assert.Contains("TenantAdmin", ownerRoles);
+        Assert.DoesNotContain("TenantAdmin", visitorRoles);
+    }
+
+    [Fact]
+    public async Task Tenant_scoped_super_admin_name_never_grants_platform_admin()
+    {
+        await using var db = Db();
+        db.Roles.Add(new ApplicationRole
+        {
+            Id = 1, TenantId = 100, Name = "SuperAdmin",
+            NormalizedName = "SUPERADMIN", IsActive = true
+        });
+        db.UserRoles.Add(new IdentityUserRole<long> { UserId = 50, RoleId = 1 });
+        await db.SaveChangesAsync();
+        Assert.False(await TenantRoleResolver.IsPlatformAdminAsync(db, 50));
+        var roles = await TenantRoleResolver.GetTenantRolesAsync(db, 50, 100, false, 1);
+        Assert.DoesNotContain("SuperAdmin", roles);
+    }
+
+    [Fact]
+    public async Task Legacy_global_role_only_applies_to_single_membership()
+    {
+        await using var db = Db();
+        db.Roles.Add(new ApplicationRole
+        {
+            Id = 1, TenantId = null, Name = "Teacher",
+            NormalizedName = "TEACHER", IsActive = true
+        });
+        db.UserRoles.Add(new IdentityUserRole<long> { UserId = 50, RoleId = 1 });
+        await db.SaveChangesAsync();
+        Assert.Contains("Teacher", await TenantRoleResolver.GetTenantRolesAsync(db, 50, 100, false, 1));
+        Assert.DoesNotContain("Teacher", await TenantRoleResolver.GetTenantRolesAsync(db, 50, 100, false, 2));
+    }
+
+    [Fact]
+    public async Task Authenticated_sessions_are_scoped_revocable_and_cannot_be_used_by_another_user_or_tenant()
+    {
+        await using var db = Db();
+        var sid = await AuthSessionRegistry.CreateAsync(db, 50, 100, "127.0.0.1", "browser", false);
+        Assert.Equal(48, sid.Length);
+        Assert.True(await AuthSessionRegistry.IsValidAsync(db, 50, sid, 100));
+        Assert.False(await AuthSessionRegistry.IsValidAsync(db, 51, sid, 100));
+        Assert.False(await AuthSessionRegistry.IsValidAsync(db, 50, sid, 200));
+        var sessions = await AuthSessionRegistry.ListAsync(db, 50, sid);
+        Assert.Single(sessions);
+        Assert.True(await AuthSessionRegistry.RevokeAsync(db, 50, sid));
+        Assert.False(await AuthSessionRegistry.IsValidAsync(db, 50, sid, 100));
+        Assert.False(await AuthSessionRegistry.RevokeAsync(db, 51, sid));
+    }
+
+    [Fact]
+    public async Task Revoking_all_sessions_invalidates_all_cookie_ids_for_a_user_only()
+    {
+        await using var db = Db();
+        var first = await AuthSessionRegistry.CreateAsync(db, 50, 100, "", "", false);
+        var second = await AuthSessionRegistry.CreateAsync(db, 50, 100, "", "", true);
+        var other = await AuthSessionRegistry.CreateAsync(db, 51, 100, "", "", false);
+        await AuthSessionRegistry.RevokeAllAsync(db, 50);
+        Assert.False(await AuthSessionRegistry.IsValidAsync(db, 50, first, 100));
+        Assert.False(await AuthSessionRegistry.IsValidAsync(db, 50, second, 100));
+        Assert.True(await AuthSessionRegistry.IsValidAsync(db, 51, other, 100));
+    }
+
+    [Fact]
+    public async Task Expired_or_missing_session_is_not_accepted()
+    {
+        await using var db = Db();
+        var sid = await AuthSessionRegistry.CreateAsync(db, 50, 100, "", "", false);
+        var token = await db.UserTokens.SingleAsync(x => x.UserId == 50 && x.Name == sid);
+        token.Value = System.Text.Json.JsonSerializer.Serialize(new AuthSessionRegistry.SessionRecord
+        {
+            TenantId = 100, CreatedAtUtc = DateTime.UtcNow.AddDays(-3),
+            ExpiresAtUtc = DateTime.UtcNow.AddDays(-1)
+        });
+        await db.SaveChangesAsync();
+        Assert.False(await AuthSessionRegistry.IsValidAsync(db, 50, sid, 100));
+        Assert.False(await AuthSessionRegistry.IsValidAsync(db, 50, "invalid", 100));
+    }
+
+    [Fact]
+    public async Task Middleware_allows_only_a_valid_cookie_bound_to_the_same_institution()
+    {
+        await using var db = Db();
+        var sid = await AuthSessionRegistry.CreateAsync(db, 50, 100, "", "", false);
+        var calls = 0;
+        var middleware = new AuthSessionMiddleware(_ => { calls++; return Task.CompletedTask; });
+        var http = new DefaultHttpContext();
+        http.User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, "50"),
+            new Claim("TenantId", "100"),
+            new Claim(AuthSessionRegistry.ClaimType, sid)
+        }, "Test"));
+        await middleware.InvokeAsync(http, db);
+        Assert.Equal(1, calls);
+    }
+}
