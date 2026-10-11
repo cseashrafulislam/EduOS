@@ -77,11 +77,12 @@
             .addEventListener('click', () => reset(kind));
 
     el('programForm').addEventListener('submit', event => submit(event, async () => {
-        const campusId = idOf('programCampus');
+        const campusIds = [...el('programCampus').selectedOptions]
+            .map(x => Number(x.value)).filter(x => x > 0);
         await api('/api/academic-setup/programmes', { method: 'POST', body: JSON.stringify({
             name: field('programName'), code: field('programCode').toUpperCase(),
             durationInMonths: Number(field('programDuration')) || 0,
-            campusIds: campusId ? [campusId] : [],
+            campusIds,
             isAdmissionOpen: true, isActive: true, displayOrder: 0
         }) });
     }, 'Programme created.'));

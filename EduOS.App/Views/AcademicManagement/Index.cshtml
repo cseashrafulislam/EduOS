@@ -61,7 +61,7 @@
                 <div class="col-md-3"><label for="programName" class="form-label">Programme name *</label><input id="programName" class="form-control" maxlength="200" required placeholder="Secondary" /></div>
                 <div class="col-md-2"><label for="programCode" class="form-label">Code *</label><input id="programCode" class="form-control" maxlength="50" required placeholder="SEC" /></div>
                 <div class="col-md-2"><label for="programDuration" class="form-label">Months</label><input id="programDuration" type="number" min="0" max="1200" value="0" class="form-control" /></div>
-                <div class="col-md-3"><label for="programCampus" class="form-label">Offered at campus</label><select id="programCampus" class="form-select"></select></div>
+                <div class="col-md-3"><label for="programCampus" class="form-label">Offered at campuses (Ctrl/Cmd + click)</label><select id="programCampus" class="form-select" multiple size="3" aria-describedby="programCampusHelp"></select><small id="programCampusHelp" class="text-muted">Leave empty for all campuses.</small></div>
                 <div class="col-md-2"><button type="submit" class="btn btn-primary w-100">Add Programme</button></div>
             </form>
             <h3 class="h6">Available programmes</h3>
