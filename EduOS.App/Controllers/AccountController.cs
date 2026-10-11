@@ -1,3 +1,6 @@
+using EduOS.App.Security;
+using EduOS.Persistence.Context;
+using System.Security.Claims;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -12,12 +15,14 @@ namespace EduOS.App.Controllers
         private readonly ICurrentUserService _currentUser;
         private readonly IMemoryCache _cache;
         private readonly SignInManager<ApplicationUser> _signInManager;
+        private readonly EduOSDbContext _db;
 
-        public AccountController(ICurrentUserService currentUser, IMemoryCache cache, SignInManager<ApplicationUser> signInManager)
+        public AccountController(ICurrentUserService currentUser, IMemoryCache cache, SignInManager<ApplicationUser> signInManager, EduOSDbContext db)
         {
             _currentUser = currentUser;
             _cache = cache;
             _signInManager = signInManager;
+            _db = db;
         }
 
         // ==================== Auth Pages ====================
@@ -153,8 +158,12 @@ namespace EduOS.App.Controllers
         public async Task<IActionResult> Logout()
         {
             if (_currentUser.IsAuthenticated)
+            {
                 _cache.Remove($"tenant:user:{_currentUser.UserId}");
-
+                var sid = User.FindFirstValue(AuthSessionRegistry.ClaimType);
+                if (!string.IsNullOrWhiteSpace(sid))
+                    await AuthSessionRegistry.RevokeAsync(_db, _currentUser.UserId, sid);
+            }
             await _signInManager.SignOutAsync();
             return RedirectToAction(nameof(Login), "Account");
         }
