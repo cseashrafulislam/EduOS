@@ -210,6 +210,7 @@ public sealed class StudentDirectoryService : IStudentDirectoryService
 
         return new StudentDirectoryDetailsDto
         {
+            RowVersion = Convert.ToBase64String(student.RowVersion),
             Reference = student.PublicId,
             StudentCode = student.StudentCode,
             RollNo = current?.RollNo ?? string.Empty,
