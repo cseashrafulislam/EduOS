@@ -66,29 +66,35 @@ public class PaymentCallbackContractTests
         var verify = Slice(ReadService(),
             "public async Task<ApiResponse<bool>> VerifyManualPaymentAsync",
             "public async Task<ApiResponse<List<SubscriptionPaymentDto>>> GetByInvoiceAsync");
-        var transaction = verify.IndexOf("using var tx = SerializableScope();", StringComparison.Ordinal);
-        var stateGuard = verify.IndexOf("payment.State != PaymentState.AwaitingVerification", StringComparison.Ordinal);
-        var fileCheck = verify.IndexOf("file?.IsVerifiedSafe != true", StringComparison.Ordinal);
-        var paymentMutation = verify.IndexOf("payment.State = PaymentState.Successful;", StringComparison.Ordinal);
-        var invoiceMutation = verify.IndexOf("invoice.PaidAmount += payment.Amount;", StringComparison.Ordinal);
-        var paymentUpdate = verify.IndexOf("_payments.Update(payment);", StringComparison.Ordinal);
-        var invoiceUpdate = verify.IndexOf("_invoices.Update(invoice);", StringComparison.Ordinal);
-        var save = verify.IndexOf("await _uow.SaveChangesAsync();", StringComparison.Ordinal);
-        var activation = verify.IndexOf("await ActivatePaidSubscriptionAsync(invoice);", StringComparison.Ordinal);
-        var commit = verify.IndexOf("tx.Complete();", StringComparison.Ordinal);
-
-        transaction.Should().BeGreaterThanOrEqualTo(0);
-        stateGuard.Should().BeGreaterThan(transaction);
-        fileCheck.Should().BeGreaterThan(stateGuard);
-        paymentMutation.Should().BeGreaterThan(fileCheck);
-        invoiceMutation.Should().BeGreaterThan(paymentMutation);
-        paymentUpdate.Should().BeGreaterThan(invoiceMutation);
-        invoiceUpdate.Should().BeGreaterThan(paymentUpdate);
-        save.Should().BeGreaterThan(invoiceUpdate);
-        activation.Should().BeGreaterThan(save);
-        commit.Should().BeGreaterThan(activation);
+        verify.Should().Contain("return await _uow.ExecuteInTransactionAsync(async token =>");
+        verify.Should().Contain("System.Data.IsolationLevel.Serializable");
+        verify.Should().Contain("payment.State != PaymentState.AwaitingVerification");
+        verify.Should().Contain("file?.IsVerifiedSafe != true");
+        verify.Should().Contain("payment.State = PaymentState.Successful;");
+        verify.Should().Contain("invoice.PaidAmount += payment.Amount;");
+        verify.Should().Contain("_payments.Update(payment);");
+        verify.Should().Contain("_invoices.Update(invoice);");
+        verify.Should().Contain("await _uow.SaveChangesAsync(token);");
+        verify.Should().Contain("await ActivatePaidSubscriptionAsync(invoice);");
+        verify.Should().Contain("CryptographicOperations.FixedTimeEquals");
+        verify.Should().NotContain("using var tx = SerializableScope();");
         verify.Should().Contain("if (!_user.IsSuperAdmin)");
         verify.Should().Contain("catch (DbUpdateConcurrencyException)");
+    }
+
+    [Fact]
+    public void Unsafe_receipts_cannot_be_read_or_approved_without_real_scan()
+    {
+        var service = ReadService();
+        var download = Slice(service, "public async Task<ApiResponse<PrivateFileDownloadDto>> GetDepositSlipAsync",
+            "public async Task<ApiResponse<bool>> ScanDepositSlipAsync");
+        var scan = Slice(service, "public async Task<ApiResponse<bool>> ScanDepositSlipAsync",
+            "public async Task<ApiResponse<bool>> VerifyManualPaymentAsync");
+        download.Should().Contain("file.MalwareScanStateCode != \"Clean\"");
+        download.Should().Contain("SHA256.HashData(download.Content)");
+        scan.Should().Contain("_storage.ScanPrivateForMalwareAsync(file.StorageKey)");
+        scan.Should().Contain("if (string.IsNullOrWhiteSpace(scannedHash))");
+        scan.Should().Contain("currentFile.IsVerifiedSafe = true;");
     }
 
     [Fact]
