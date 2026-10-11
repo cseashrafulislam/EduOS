@@ -96,6 +96,7 @@
   <data name="LogInTitle" xml:space="preserve"><value>EduOS-এ লগ ইন করুন</value></data>
   <data name="LoginSubtitle" xml:space="preserve"><value>নিরাপদে আপনার প্রতিষ্ঠান পরিচালনা চালিয়ে যান</value></data>
   <data name="Email" xml:space="preserve"><value>ইমেইল</value></data>
+  <data name="UsernameOrEmail" xml:space="preserve"><value>ইউজারনেম অথবা ইমেইল</value></data>
   <data name="EmailAddress" xml:space="preserve"><value>ইমেইল ঠিকানা</value></data>
   <data name="Password" xml:space="preserve"><value>পাসওয়ার্ড</value></data>
   <data name="RememberMe" xml:space="preserve"><value>আমাকে মনে রাখুন</value></data>
