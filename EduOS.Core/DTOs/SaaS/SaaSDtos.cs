@@ -43,6 +43,7 @@ public class UpdateTenantRegionalSettingsRequestDto
     [Required, MaxLength(10)] public string CurrencyCode { get; set; } = "BDT";
     [Required, MaxLength(100)] public string TimeZoneId { get; set; } = "Asia/Dhaka";
     [Required, MaxLength(20)] public string DefaultLanguage { get; set; } = "bn-BD";
+    [Required, MaxLength(20)] public string DateFormat { get; set; } = "dd-MM-yyyy";
     [Required] public string RowVersion { get; set; } = string.Empty;
 }
 
