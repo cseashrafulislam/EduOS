@@ -90,8 +90,15 @@
             const tr = document.createElement('tr');
             tr.dataset.enrollmentReference = student.studentEnrollmentReference;
             tr.dataset.rowVersion = student.rowVersion || '';
-            tr.append(makeCell(student.rollNo || '—'),
-                makeCell([student.studentCode, student.studentName].filter(Boolean).join(' ')));
+            const studentCell = makeCell([student.studentCode, student.studentName].filter(Boolean).join(' '));
+            if (student.hasApprovedLeave) {
+                const hint = document.createElement('small');
+                hint.className = 'd-block text-info';
+                hint.textContent = 'Approved leave on this date';
+                studentCell.append(hint);
+                tr.dataset.approvedLeave = 'true';
+            }
+            tr.append(makeCell(student.rollNo || '—'), studentCell);
             const td = document.createElement('td'), selection = document.createElement('select');
             selection.className = 'form-select form-select-sm'; selection.dataset.state = '1';
             for (const [value, label] of [['','Not marked'],['1','Present'],['2','Absent'],
@@ -173,7 +180,13 @@
     rows.addEventListener('change', updateSummary);
     saveButton.addEventListener('click', saveAttendance);
     markAllButton.addEventListener('click', () => {
-        rows.querySelectorAll('[data-state]').forEach(select => { select.value = '1'; }); updateSummary();
+        rows.querySelectorAll('tr[data-enrollment-reference]').forEach(tr => {
+            // Preserve existing marks and approved-leave students; mass marking
+            // must not quietly erase valid leave or previously recorded attendance.
+            const select = tr.querySelector('[data-state]');
+            if (select && !select.value && tr.dataset.approvedLeave !== 'true') select.value = '1';
+        });
+        updateSummary();
     });
     loadBatches();
 })();

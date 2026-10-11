@@ -4,6 +4,8 @@ public class StudentAttendanceDto
 {
     public long Id { get; set; }
     public long AttendanceSessionId { get; set; }
+    /// <summary>Derived from an approved application; not a posted attendance state.</summary>
+    public bool HasApprovedLeave { get; set; }
     public Guid StudentEnrollmentReference { get; set; }
     public Guid StudentReference { get; set; }
     public string StudentCode { get; set; } = string.Empty;

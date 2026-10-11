@@ -18,6 +18,7 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
 {
     private readonly IGenericRepository<StudentAttendance> _attendances;
     private readonly IGenericRepository<StudentAttendanceAdjustment> _adjustments;
+    private readonly IGenericRepository<StudentLeaveApplication> _leaves;
     private readonly IGenericRepository<AttendanceSession> _sessions;
     private readonly IGenericRepository<StudentEnrollment> _enrollments;
     private readonly IGenericRepository<StudentSubjectRegistration> _registrations;
@@ -34,6 +35,7 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
 
     public StudentAttendanceService(IGenericRepository<StudentAttendance> attendances,
         IGenericRepository<StudentAttendanceAdjustment> adjustments,
+        IGenericRepository<StudentLeaveApplication> leaves,
         IGenericRepository<AttendanceSession> sessions, IGenericRepository<StudentEnrollment> enrollments,
         IGenericRepository<StudentSubjectRegistration> registrations,
         IGenericRepository<Student> students, IGenericRepository<AcademicBatch> batches,
@@ -44,6 +46,7 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
     {
         _attendances = attendances;
         _adjustments = adjustments;
+        _leaves = leaves;
         _sessions = sessions;
         _enrollments = enrollments;
         _registrations = registrations;
@@ -305,6 +308,14 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
             await _attendances.GetQueryable().AsNoTracking().Where(x =>
                 x.TenantId == tenant && x.AttendanceSessionId == session.Id &&
                 ids.Contains(x.StudentEnrollmentId) && !x.IsDeleted).ToListAsync(ct);
+        // Approved leave is a separate workflow. Surface an indicator only;
+        // never silently overwrite a finalized attendance record or its audit history.
+        var approved = ids.Length == 0 ? new HashSet<long>() :
+            (await _leaves.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == tenant && ids.Contains(x.StudentEnrollmentId) &&
+                x.State == LeaveState.Approved && !x.IsDeleted &&
+                x.FromDate <= date && x.ToDate >= date)
+                .Select(x => x.StudentEnrollmentId).Distinct().ToListAsync(ct)).ToHashSet();
         var byId = rows.ToDictionary(x => x.StudentEnrollmentId);
         var dtos = students.Select(x =>
         {
@@ -312,6 +323,7 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
             return new StudentAttendanceDto
             {
                 Id = row?.Id ?? 0, AttendanceSessionId = session?.Id ?? 0,
+                HasApprovedLeave = approved.Contains(x.Id),
                 StudentEnrollmentReference = x.PublicId, StudentReference = x.StudentReference,
                 StudentCode = x.StudentCode, StudentName = x.FullName, RollNo = x.RollNo,
                 State = row?.State ?? default, CheckInTime = row?.CheckInTime, CheckOutTime = row?.CheckOutTime,
