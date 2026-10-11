@@ -533,46 +533,58 @@ namespace EduOS.App.Controllers.Api
             if (dto.Address != null && !string.IsNullOrWhiteSpace(dto.Address) && !user.PersonId.HasValue)
                 return Conflict(new { success = false, message = "Link a verified person profile before updating an address." });
 
-            // Identity UserManager and address updates share EduOSDbContext; commit both atomically.
-            await using var transaction = await _db.Database.BeginTransactionAsync();
-            user.FullName = dto.FullName.Trim();
-            if (dto.PhoneNumber != null) user.PhoneNumber = string.IsNullOrWhiteSpace(dto.PhoneNumber) ? null : dto.PhoneNumber.Trim();
-            if (dto.PhotoUrl != null) user.PhotoUrl = string.IsNullOrWhiteSpace(dto.PhotoUrl) ? null : dto.PhotoUrl.Trim();
-            if (!string.IsNullOrWhiteSpace(dto.PreferredLanguage))
+            var preferred = dto.PreferredLanguage?.Trim();
+            if (!string.IsNullOrEmpty(preferred) && preferred != "bn-BD" && preferred != "en-BD")
+                return BadRequest(new { success = false, message = "Unsupported preferred language." });
+
+            string? addressLine;
+            try
             {
-                var preferred = dto.PreferredLanguage.Trim();
-                if (preferred != "bn-BD" && preferred != "en-BD")
-                    return BadRequest(new { success = false, message = "Unsupported preferred language." });
-                user.PreferredLanguage = preferred;
-            }
-            user.UpdatedAt = DateTime.UtcNow;
-            PersonAddress? address = null;
-            if (user.PersonId.HasValue)
-            {
-                address = await _db.PersonAddresses.FirstOrDefaultAsync(x =>
-                    x.PersonId == user.PersonId.Value && x.IsPrimary && !x.IsDeleted);
-                if (address == null && !string.IsNullOrWhiteSpace(dto.Address))
+                addressLine = await _db.ExecuteInTransactionAsync(async ct =>
                 {
-                    address = new PersonAddress
+                    user.FullName = dto.FullName.Trim();
+                    if (dto.PhoneNumber != null)
+                        user.PhoneNumber = string.IsNullOrWhiteSpace(dto.PhoneNumber) ? null : dto.PhoneNumber.Trim();
+                    if (dto.PhotoUrl != null)
+                        user.PhotoUrl = string.IsNullOrWhiteSpace(dto.PhotoUrl) ? null : dto.PhotoUrl.Trim();
+                    if (!string.IsNullOrEmpty(preferred)) user.PreferredLanguage = preferred;
+                    user.UpdatedAt = DateTime.UtcNow;
+                    PersonAddress? address = null;
+                    if (user.PersonId.HasValue)
                     {
-                        PersonId = user.PersonId.Value,
-                        IsPrimary = true,
-                        AddressTypeCode = "Current",
-                        AddressLine1 = dto.Address.Trim()
-                    };
-                    _db.PersonAddresses.Add(address);
-                }
-                else if (address != null && dto.Address != null)
-                    address.AddressLine1 = dto.Address.Trim();
+                        address = await _db.PersonAddresses.FirstOrDefaultAsync(x =>
+                            x.PersonId == user.PersonId.Value && x.IsPrimary && !x.IsDeleted, ct);
+                        if (address == null && !string.IsNullOrWhiteSpace(dto.Address))
+                        {
+                            address = new PersonAddress
+                            {
+                                PersonId = user.PersonId.Value,
+                                IsPrimary = true,
+                                AddressTypeCode = "Current",
+                                AddressLine1 = dto.Address.Trim()
+                            };
+                            _db.PersonAddresses.Add(address);
+                        }
+                        else if (address != null && dto.Address != null)
+                            address.AddressLine1 = dto.Address.Trim();
+                    }
+
+                    var updated = await _userManager.UpdateAsync(user);
+                    if (!updated.Succeeded)
+                        throw new AuthTransactionRejectedException(
+                            string.Join(" | ", updated.Errors.Select(x => x.Description)), 400);
+                    if (user.PersonId.HasValue) await _db.SaveChangesAsync(ct);
+                    return address?.AddressLine1;
+                });
             }
-
-            var result = await _userManager.UpdateAsync(user);
-
-            if (!result.Succeeded)
-                return BadRequest(new { success = false, message = string.Join(" | ", result.Errors.Select(x => x.Description)) });
-            if (user.PersonId.HasValue) await _db.SaveChangesAsync();
-            await transaction.CommitAsync();
-
+            catch (AuthTransactionRejectedException ex)
+            {
+                return StatusCode(ex.StatusCode, new { success = false, message = ex.Message });
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return Conflict(new { success = false, message = "Profile was changed by another request. Reload and retry." });
+            }
             return Ok(new
             {
                 success = true,
@@ -583,7 +595,7 @@ namespace EduOS.App.Controllers.Api
                     fullName = user.FullName,
                     email = user.Email,
                     phoneNumber = user.PhoneNumber,
-                    address = address?.AddressLine1
+                    address = addressLine
                 }
             });
         }
