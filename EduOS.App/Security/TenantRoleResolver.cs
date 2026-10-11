@@ -19,7 +19,7 @@ public static class TenantRoleResolver
          select role.Id).AnyAsync();
 
     public static async Task<IReadOnlyList<string>> GetTenantRolesAsync(
-        EduOSDbContext db, long userId, long tenantId, bool isOwner, int activeMembershipCount)
+        EduOSDbContext db, long userId, long tenantId, bool isOwner, int institutionMembershipCount)
     {
         if (tenantId <= 0) return Array.Empty<string>();
         var assigned = await (from assignment in db.UserRoles.AsNoTracking()
@@ -28,7 +28,7 @@ public static class TenantRoleResolver
                               where assignment.UserId == userId && role.IsActive && !role.IsDeleted &&
                                     role.Name != null && role.NormalizedName != "SUPERADMIN" &&
                                     (role.TenantId == tenantId ||
-                                     (activeMembershipCount == 1 && role.TenantId == null && !role.IsSystemRole))
+                                     (institutionMembershipCount == 1 && role.TenantId == null && !role.IsSystemRole))
                               select role.Name!).Distinct().ToListAsync();
         var roles = new HashSet<string>(assigned, StringComparer.OrdinalIgnoreCase);
         if (isOwner) roles.Add("TenantAdmin");
