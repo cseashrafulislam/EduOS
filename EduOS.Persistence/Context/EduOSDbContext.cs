@@ -1197,6 +1197,14 @@ public class EduOSDbContext :
 
         // Admission
         modelBuilder.Entity<AdmissionIntakeForm>().HasIndex(x => x.PublicId).IsUnique();
+        modelBuilder.Entity<AdmissionIntakeForm>()
+            .HasIndex(x => new { x.TenantId, x.Code })
+            .HasDatabaseName("UX_AdmissionIntakeForms_Tenant_Code")
+            .IsUnique().HasFilter("[IsDeleted] = 0");
+        modelBuilder.Entity<AdmissionApplicantDocument>()
+            .HasIndex(x => new { x.TenantId, x.AdmissionApplicantId, x.DocumentTypeCode, x.VersionNo })
+            .HasDatabaseName("UX_AdmissionApplicantDocuments_Tenant_Applicant_Type_Version")
+            .IsUnique().HasFilter("[IsDeleted] = 0");
         UniqueTenant<AdmissionApplicant>(modelBuilder, nameof(AdmissionApplicant.ClientRequestId));
         UniqueTenant<AdmissionApplicant>(modelBuilder, nameof(AdmissionApplicant.ApplicationNumber));
         UniqueTenant<AdmissionApplicantFieldValue>(modelBuilder, nameof(AdmissionApplicantFieldValue.AdmissionApplicantId), nameof(AdmissionApplicantFieldValue.AdmissionFormFieldId));
@@ -1452,6 +1460,12 @@ public class EduOSDbContext :
             t.HasCheckConstraint("CK_Refund_Amount", "[Amount] > 0"));
         modelBuilder.Entity<RefundAllocation>().ToTable(t =>
             t.HasCheckConstraint("CK_RefundAllocation_Amount", "[Amount] > 0"));
+        modelBuilder.Entity<AdmissionIntakeForm>().ToTable(t =>
+            t.HasCheckConstraint("CK_AdmissionIntakeForms_DateRange",
+                "[ClosesAt] IS NULL OR [OpensAt] IS NULL OR [ClosesAt] >= [OpensAt]"));
+        modelBuilder.Entity<AdmissionApplicantDocument>().ToTable(t =>
+            t.HasCheckConstraint("CK_AdmissionApplicantDocuments_Version",
+                "[VersionNo] >= 1"));
         modelBuilder.Entity<AdmissionPayment>().ToTable(t =>
             t.HasCheckConstraint("CK_AdmissionPayment_Amount", "[Amount] > 0"));
         modelBuilder.Entity<PayrollPayment>().ToTable(t =>
