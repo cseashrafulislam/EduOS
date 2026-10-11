@@ -18,10 +18,16 @@ public sealed class SubscriptionPaymentPayerAccount : Migration
             type: "nvarchar(100)",
             maxLength: 100,
             nullable: true);
+        migrationBuilder.CreateIndex(
+            name: "IX_SubscriptionPayments_PlatformPending",
+            table: "SubscriptionPayments",
+            columns: new[] { "InitiatedAt", "Id" },
+            filter: "[IsDeleted] = 0 AND [PaymentMethod] = 2 AND [State] = 2");
     }
 
     protected override void Down(MigrationBuilder migrationBuilder)
     {
+        migrationBuilder.DropIndex(name: "IX_SubscriptionPayments_PlatformPending", table: "SubscriptionPayments");
         migrationBuilder.DropColumn(
             name: "PayerAccountNumber",
             table: "SubscriptionPayments");
