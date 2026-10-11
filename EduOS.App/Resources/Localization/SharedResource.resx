@@ -96,6 +96,7 @@
   <data name="LogInTitle" xml:space="preserve"><value>Sign in to EduOS</value></data>
   <data name="LoginSubtitle" xml:space="preserve"><value>Continue managing your institution securely</value></data>
   <data name="Email" xml:space="preserve"><value>Email</value></data>
+  <data name="UsernameOrEmail" xml:space="preserve"><value>Username or email</value></data>
   <data name="EmailAddress" xml:space="preserve"><value>Email address</value></data>
   <data name="Password" xml:space="preserve"><value>Password</value></data>
   <data name="RememberMe" xml:space="preserve"><value>Remember me</value></data>
