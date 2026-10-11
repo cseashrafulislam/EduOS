@@ -50,6 +50,10 @@ async function main() {
             assert.equal(request.headers()['requestverificationtoken'], 'browser-test-csrf');
             const data = request.postDataJSON() || {};
             mutations.push({ path: url.pathname, method: request.method(), data });
+            if (url.pathname.endsWith('/activate')) {
+                const id = Number(url.pathname.split('/').at(-2));
+                catalog.curricula.forEach(x => { x.isCurrent = x.id === id; });
+            }
             let result = {};
             if (url.pathname.endsWith('/academic-year')) {
                 if (data.id) Object.assign(years.find(x => x.id === data.id), data);
@@ -122,6 +126,9 @@ async function main() {
         await page.waitForFunction(() => document.querySelector('#curriculumRows')?.textContent.includes('1'));
         assert(mutations.some(x => x.path.endsWith('/curricula/701/subjects')));
         assert.equal(catalog.curriculumSubjects.length, 1);
+        await page.locator('#curriculumRows button').first().click();
+        await page.waitForFunction(() => document.querySelector('#curriculumRows')?.textContent.includes('Active'));
+        assert(mutations.some(x => x.path.endsWith('/activate') && x.method === 'PUT'));
         await page.locator('[data-panel="sections"]').click();
         await page.locator('#sectionName').fill('Grade Nine A');
         await page.locator('#sectionCode').fill('G9-A');
