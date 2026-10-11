@@ -16,7 +16,7 @@ public sealed partial class CommunicationAdministrationService
     {
         if (!CanManage()) return ApiResponse<CommunicationGatewayDto>.ErrorResponse("Tenant administrator required.", 403);
         if (request == null || string.IsNullOrWhiteSpace(request.ProviderCode) || request.ProviderCode.Trim().Length > 100
-            || !ValidChannel(request.Channel) || request.Endpoint?.Length > 1000 || request.Credential?.Length > 2000
+            || !ValidChannel(request.Channel) || request.Endpoint?.Length > 1000 || request.Credential?.Length > 4000
             || (request.ClearCredential && !string.IsNullOrEmpty(request.Credential)))
             return ApiResponse<CommunicationGatewayDto>.ErrorResponse("Invalid gateway.");
         if (!string.IsNullOrWhiteSpace(request.Endpoint) && !IsPublicHttpsEndpoint(request.Endpoint))
@@ -53,8 +53,13 @@ public sealed partial class CommunicationAdministrationService
                 row.IsActive = request.IsActive;
                 if (request.ClearCredential) row.ProtectedCredential = null;
                 else if (!string.IsNullOrWhiteSpace(request.Credential) && request.Credential != "********")
-                    row.ProtectedCredential = _protector.Protect(request.Credential);
-                var validation = ValidateGateway(row);
+                {
+                    var protectedValue = _protector.Protect(request.Credential);
+                    if (protectedValue.Length > 4000)
+                        return ApiResponse<CommunicationGatewayDto>.ErrorResponse("Gateway credential is too long.");
+                    row.ProtectedCredential = protectedValue;
+                }
+                var validation = ValidateGateway(row, request.SmsSenderId != null);
                 if (validation != null) return ApiResponse<CommunicationGatewayDto>.ErrorResponse(validation, 400);
                 var makeDefault = request.IsDefault && row.IsActive;
                 if (makeDefault)
@@ -81,10 +86,11 @@ public sealed partial class CommunicationAdministrationService
             return ApiResponse<CommunicationGatewayDto>.ErrorResponse("Gateway save failed.", 500);
         }
     }
-    private static string? ValidateGateway(CommunicationGateway row)
+    private static string? ValidateGateway(CommunicationGateway row, bool enforceSmsConfiguration)
     {
         if (!row.IsActive) return null;
-        if (row.Channel == NotificationChannelType.Sms)
+        if (row.Channel == NotificationChannelType.Sms &&
+            (enforceSmsConfiguration || row.SmsSenderId != null))
         {
             if (string.IsNullOrWhiteSpace(row.SmsSenderId) || row.SmsSenderId.Length > 20 ||
                 !IsPublicHttpsEndpoint(row.Endpoint) || string.IsNullOrWhiteSpace(row.ProtectedCredential))
