@@ -623,8 +623,8 @@ function initializeAuthSecurityControls() {
             } catch (error) {
                 showAlert('danger', error.message || 'Unable to update MFA settings.');
             } finally {
-                if (!document.getElementById('mfaNewCodesPanel')?.classList.contains('d-none')) return;
-                button.disabled = false;
+                if (document.getElementById('mfaNewCodesPanel')?.classList.contains('d-none') !== false)
+                    button.disabled = false;
             }
         });
     }
