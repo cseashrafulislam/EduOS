@@ -2,6 +2,7 @@
     'use strict';
     const el = id => document.getElementById(id);
     const form = el('attendanceFilters'), rows = el('attendanceRows'), date = el('attendanceDate');
+    const canCorrect = document.querySelector('section[data-can-correct]')?.dataset.canCorrect === 'true';
     const saveButton = el('saveAttendance'), markAllButton = el('markAllPresent');
     const finalizeButton = el('finalizeAttendance'), summary = el('attendanceSummary');
     if (!form || !rows || !date) return;
@@ -92,6 +93,7 @@
             const tr = document.createElement('tr');
             tr.dataset.enrollmentReference = student.studentEnrollmentReference;
             tr.dataset.rowVersion = student.rowVersion || '';
+            tr.dataset.attendanceId = String(student.id || 0);
             const studentCell = makeCell([student.studentCode, student.studentName].filter(Boolean).join(' '));
             if (student.hasApprovedLeave) {
                 const hint = document.createElement('small');
@@ -109,7 +111,15 @@
                 opt.value = value; opt.textContent = label; selection.append(opt);
             }
             selection.value = student.state ? String(student.state) : '';
-            td.append(selection); tr.append(td);
+            td.append(selection);
+            if (canCorrect && roster?.isFinalized && student.id > 0) {
+                const edit = document.createElement('button');
+                edit.type = 'button'; edit.className = 'btn btn-sm btn-outline-warning mt-1';
+                edit.textContent = 'Correct (audit)';
+                edit.addEventListener('click', () => correctAttendance(tr, edit));
+                td.append(edit);
+            }
+            tr.append(td);
             tr.append(inputCell('time', 'checkIn', student.checkInTime ? String(student.checkInTime).slice(0, 5) : ''));
             tr.append(inputCell('text', 'remarks', student.remarks || ''));
             rows.append(tr);
@@ -170,6 +180,25 @@
             status('success', result.message || 'Attendance saved.');
         } catch (error) { status('danger', error.message); }
         finally { saveButton.disabled = false; }
+    }
+    async function correctAttendance(tr, button) {
+        if (!roster?.isFinalized || !canCorrect) return;
+        const newState = Number(tr.querySelector('[data-state]')?.value);
+        if (!newState || !(newState >= 1 && newState <= 5))
+            return status('danger', 'Select the corrected status first.');
+        const reason = prompt('Reason for changing this finalized attendance record:', '');
+        if (reason === null) return;
+        if (!reason.trim() || reason.trim().length > 1000)
+            return status('danger', 'Provide a reason (up to 1000 characters).');
+        button.disabled = true;
+        try {
+            await api('/api/student-attendance/' + tr.dataset.attendanceId + '/correct', 'POST', {
+                newState, reason: reason.trim(), rowVersion: tr.dataset.rowVersion
+            });
+            await loadRoster();
+            status('success', 'Attendance corrected with an audit record.');
+        } catch (error) { status('danger', error.message); }
+        finally { button.disabled = false; }
     }
     async function finalizeAttendance() {
         if (!roster?.attendanceSessionId || roster.isFinalized || !roster.sessionRowVersion) return;

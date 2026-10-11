@@ -3,7 +3,7 @@
 }
 
 @Html.AntiForgeryToken()
-<section class="admission-page" aria-labelledby="attendanceTitle">
+<section class="admission-page" aria-labelledby="attendanceTitle" data-can-correct="@((User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal")).ToString().ToLowerInvariant())">
     <header class="content-header-card">
         <div>
             <p class="dashboard-eyebrow">Academic Operations</p>
