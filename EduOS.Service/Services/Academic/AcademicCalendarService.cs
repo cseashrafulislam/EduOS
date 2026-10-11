@@ -129,7 +129,9 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
                         (!x.CampusId.HasValue || x.CampusId == campusId));
         if (!CanManage()) query = query.Where(x => x.IsPublicVisible);
 
-        var rows = await query.OrderBy(x => x.StartDate).ThenBy(x => x.Title).Take(1000).ToListAsync(cancellationToken);
+        var rows = await query.OrderBy(x => x.StartDate).ThenBy(x => x.Title).Take(1001).ToListAsync(cancellationToken);
+        if (rows.Count > 1000)
+            return Error<IReadOnlyList<AcademicCalendarEventDto>>("Calendar contains more than 1000 events in the selected range. Narrow the date range.", 409);
         IReadOnlyList<AcademicCalendarEventDto> result = await MapEventsAsync(rows, cancellationToken);
         return ApiResponse<IReadOnlyList<AcademicCalendarEventDto>>.SuccessResponse(result);
     }
@@ -285,7 +287,9 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
                         x.EndDate >= range.From &&
                         (!x.CampusId.HasValue || x.CampusId == campusId))
             .Select(x => new { x.Title, x.StartDate, x.EndDate, x.IsPublicVisible })
-            .Take(1000).ToListAsync(cancellationToken);
+            .Take(1001).ToListAsync(cancellationToken);
+        if (holidays.Count > 1000)
+            return Error<IReadOnlyList<AcademicWorkingDayDto>>("Too many holidays in the selected range. Narrow the date range to avoid an incomplete working-day calculation.", 409);
 
         var canManage = CanManage();
         var rows = new List<AcademicWorkingDayDto>();
