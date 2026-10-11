@@ -30,7 +30,9 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     token, password, confirmPassword,
-                    fullName: document.getElementById('inviteFullName').value.trim() || null
+                    fullName: document.getElementById('inviteFullName').value.trim() || null,
+                    mfaCode: document.getElementById('inviteMfaCode').value.trim() || null,
+                    useRecoveryCode: document.getElementById('inviteRecovery').checked
                 })
             });
             const payload = await response.json().catch(() => null);
