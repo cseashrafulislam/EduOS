@@ -31,6 +31,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Data;
 using System.Diagnostics;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -2375,17 +2376,35 @@ public class EduOSDbContext :
 
     #region IUnitOfWork Transactions
 
-    public async Task<TResult> ExecuteInTransactionAsync<TResult>(Func<CancellationToken, Task<TResult>> operation,
-        CancellationToken cancellationToken = default)
+    public Task<TResult> ExecuteInTransactionAsync<TResult>(
+        Func<CancellationToken, Task<TResult>> operation, CancellationToken cancellationToken = default) =>
+        ExecuteTransactionCoreAsync(operation, null, cancellationToken);
+
+    public Task<TResult> ExecuteInTransactionAsync<TResult>(
+        Func<CancellationToken, Task<TResult>> operation, IsolationLevel isolationLevel,
+        CancellationToken cancellationToken = default) =>
+        ExecuteTransactionCoreAsync(operation, isolationLevel, cancellationToken);
+
+    private async Task<TResult> ExecuteTransactionCoreAsync<TResult>(
+        Func<CancellationToken, Task<TResult>> operation, IsolationLevel? isolationLevel,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(operation);
-        // EF InMemory is used only by tests and cannot start relational transactions.
-        if (!Database.IsRelational() || Database.CurrentTransaction != null)
+        // EF InMemory is test-only and does not support relational transactions.
+        if (!Database.IsRelational()) return await operation(cancellationToken);
+        if (Database.CurrentTransaction != null)
+        {
+            if (isolationLevel.HasValue &&
+                Database.CurrentTransaction.GetDbTransaction().IsolationLevel != isolationLevel.Value)
+                throw new InvalidOperationException("The current transaction does not have the required isolation level.");
             return await operation(cancellationToken);
+        }
         var strategy = Database.CreateExecutionStrategy();
         return await strategy.ExecuteAsync(async () =>
         {
-            await using var transaction = await Database.BeginTransactionAsync(cancellationToken);
+            await using var transaction = isolationLevel.HasValue
+                ? await Database.BeginTransactionAsync(isolationLevel.Value, cancellationToken)
+                : await Database.BeginTransactionAsync(cancellationToken);
             try
             {
                 var result = await operation(cancellationToken);
