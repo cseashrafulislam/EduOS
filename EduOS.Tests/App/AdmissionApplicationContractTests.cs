@@ -64,6 +64,12 @@ public class AdmissionApplicationContractTests
         view.Should().Contain("<option value=\"6\">Qualified");
         script.Should().Contain("/api/admission-intake/forms");
         script.Should().Contain("dataset.documentId");
+        script.Should().Contain("documentItem.documentTypeCode");
+        script.Should().Contain("documentItem.isVerified");
+        script.Should().Contain("documentItem.verificationNote");
+        script.Should().NotContain("documentActionButton('Reject'");
+        typeof(EduOS.Core.DTOs.Admission.AdmissionApplicantDocumentDto).GetProperty("RowVersion").Should().NotBeNull();
+        typeof(EduOS.Core.DTOs.Admission.AdmissionApplicantDocumentDto).GetProperty("OriginalFileName").Should().NotBeNull();
         view.Should().Contain("id=\"intakeFormEditor\"");
         view.Should().Contain("id=\"applicantDocumentList\"");
         script.Should().Contain("credentials: 'same-origin'");

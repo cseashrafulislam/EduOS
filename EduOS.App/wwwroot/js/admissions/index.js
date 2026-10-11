@@ -660,13 +660,13 @@
                 card.className = 'applicant-document-card';
                 const summary = document.createElement('div');
                 const title = document.createElement('strong');
-                title.textContent = documentItem.documentType || '';
+                title.textContent = documentItem.documentTypeCode || '';
                 const detail = document.createElement('span');
-                detail.textContent = `${documentItem.originalFileName || ''} · ${formatFileSize(documentItem.fileSizeBytes)} · ${{ 1: 'Pending', 2: 'Verified', 3: 'Rejected' }[Number(documentItem.verificationStatus)] || 'Unknown'}`;
+                detail.textContent = `${documentItem.originalFileName || 'Private document'} · ${formatFileSize(documentItem.fileSizeBytes)} · ${documentItem.isVerified ? 'Verified' : 'Pending'}`;
                 summary.append(title, detail);
-                if (documentItem.reviewNote) {
+                if (documentItem.verificationNote) {
                     const note = document.createElement('span');
-                    note.textContent = documentItem.reviewNote;
+                    note.textContent = documentItem.verificationNote;
                     summary.append(note);
                 }
                 const controls = document.createElement('div');
@@ -676,8 +676,8 @@
                 download.href = `/api/admission-intake/applications/${encodeURIComponent(reference)}/documents/${encodeURIComponent(documentItem.id)}/content`;
                 download.textContent = 'View / Download';
                 controls.append(download);
-                if (Number(documentItem.verificationStatus) === 1) {
-                    controls.append(documentActionButton('Verify', 2, documentItem), documentActionButton('Reject', 3, documentItem));
+                if (!documentItem.isVerified) {
+                    controls.append(documentActionButton('Verify', 2, documentItem));
                 }
                 card.append(summary, controls);
                 return card;
@@ -702,12 +702,9 @@
         const button = event.target.closest('button[data-document-id]');
         if (!button || !state.currentApplication?.reference) return;
         const status = Number(button.dataset.documentStatus);
-        const note = status === 3 ? window.prompt('Rejection reason / প্রত্যাখ্যানের কারণ') : null;
-        if (status === 3 && note === null) return;
-        if (status === 3 && !note.trim()) {
-            showAlert('danger', 'A rejection reason is required.');
-            return;
-        }
+        // The canonical document record supports verified/pending only; rejection is not persisted.
+        if (status !== 2) return;
+        const note = null;
         button.disabled = true;
         try {
             const response = await fetch(`/api/admission-intake/applications/${encodeURIComponent(state.currentApplication.reference)}/documents/${encodeURIComponent(button.dataset.documentId)}/review`, apiOptions('POST', {

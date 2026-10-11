@@ -169,6 +169,9 @@ public class AdmissionApplicantDocumentDto
     public long? VerifiedByUserId { get; set; }
     public DateTime? VerifiedAt { get; set; }
     public string? VerificationNote { get; set; }
+    public string? OriginalFileName { get; set; }
+    public long? FileSizeBytes { get; set; }
+    public string RowVersion { get; set; } = string.Empty;
 }
 
 public class AddAdmissionApplicantDocumentRequestDto

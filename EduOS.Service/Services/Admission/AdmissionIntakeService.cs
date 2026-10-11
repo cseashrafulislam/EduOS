@@ -347,7 +347,9 @@ public sealed class AdmissionIntakeService : IAdmissionIntakeService
     {
         Id = doc.Id, FileAssetId = doc.FileAssetId, DocumentTypeCode = doc.DocumentTypeCode,
         VersionNo = doc.VersionNo, IsVerified = doc.IsVerified, VerifiedByUserId = doc.VerifiedByUserId,
-        VerifiedAt = doc.VerifiedAt, VerificationNote = doc.VerificationNote
+        VerifiedAt = doc.VerifiedAt, VerificationNote = doc.VerificationNote,
+        OriginalFileName = asset?.OriginalFileName, FileSizeBytes = asset?.SizeBytes,
+        RowVersion = Convert.ToBase64String(doc.RowVersion)
     };
 
     private async Task<ApiResponse<T>> ExecuteWriteAsync<T>(string operation, Func<Task<ApiResponse<T>>> action)
