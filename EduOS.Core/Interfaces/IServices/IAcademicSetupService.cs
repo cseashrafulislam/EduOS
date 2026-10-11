@@ -12,6 +12,7 @@ public interface IAcademicSetupService
     Task<ApiResponse<AcademicTrackDto>> CreateTrackAsync(SaveAcademicTrackRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<SubjectDto>> CreateSubjectAsync(SaveSubjectRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<AcademicCurriculumDto>> CreateCurriculumAsync(SaveAcademicCurriculumRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<AcademicCurriculumDto>> ActivateCurriculumAsync(long curriculumId, string rowVersion, CancellationToken cancellationToken = default);
     Task<ApiResponse<CurriculumSubjectDto>> RegisterCurriculumSubjectAsync(long academicCurriculumId, SaveCurriculumSubjectRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<AcademicBatchDto>> CreateBatchAsync(SaveAcademicBatchRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<RoomDto>> CreateRoomAsync(SaveRoomRequestDto request, CancellationToken cancellationToken = default);

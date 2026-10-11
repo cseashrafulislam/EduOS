@@ -60,6 +60,12 @@ public sealed class AcademicSetupController : ControllerBase
     public async Task<IActionResult> CreateCurriculum([FromBody] SaveAcademicCurriculumRequestDto request, CancellationToken cancellationToken) =>
         ToAction(await _service.CreateCurriculumAsync(request, cancellationToken));
 
+    [HttpPut("curricula/{academicCurriculumId:long}/activate")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
+    public async Task<IActionResult> ActivateCurriculum(long academicCurriculumId,
+        [FromQuery] string rowVersion, CancellationToken cancellationToken) =>
+        ToAction(await _service.ActivateCurriculumAsync(academicCurriculumId, rowVersion, cancellationToken));
+
     [HttpPost("curricula/{academicCurriculumId:long}/subjects")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
     public async Task<IActionResult> RegisterCurriculumSubject(long academicCurriculumId, [FromBody] SaveCurriculumSubjectRequestDto request, CancellationToken cancellationToken) =>

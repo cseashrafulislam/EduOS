@@ -430,6 +430,49 @@ public sealed class AcademicSetupService : IAcademicSetupService
         });
     }
 
+    public Task<ApiResponse<AcademicCurriculumDto>> ActivateCurriculumAsync(
+        long curriculumId, string rowVersion, CancellationToken ct = default)
+    {
+        if (!CanManage()) return Task.FromResult(Denied<AcademicCurriculumDto>());
+        if (curriculumId <= 0 || string.IsNullOrWhiteSpace(rowVersion))
+            return Task.FromResult(Error<AcademicCurriculumDto>("Curriculum ID and version are required."));
+        byte[] expected;
+        try { expected = Convert.FromBase64String(rowVersion); }
+        catch (FormatException) { return Task.FromResult(Error<AcademicCurriculumDto>("Invalid curriculum version.")); }
+        if (expected.Length != 8) return Task.FromResult(Error<AcademicCurriculumDto>("Invalid curriculum version."));
+        return ExecuteWriteAsync("activate curriculum", async () =>
+        {
+            var tenant = _currentUser.TenantId;
+            var target = await _curricula.GetQueryable().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.Id == curriculumId && x.IsActive && !x.IsDeleted, ct);
+            if (target == null) return Error<AcademicCurriculumDto>("Curriculum not found.", 404);
+            if (!System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+                target.RowVersion, expected))
+                return Error<AcademicCurriculumDto>("Curriculum has changed. Reload before activation.", 409);
+            if (target.IsCurrent) return ApiResponse<AcademicCurriculumDto>.SuccessResponse(MapCurriculum(target));
+            var old = await _curricula.GetQueryable().Where(x =>
+                x.TenantId == tenant && x.AcademicProgramId == target.AcademicProgramId &&
+                x.AcademicTrackId == target.AcademicTrackId && x.MediumId == target.MediumId &&
+                x.IsCurrent && !x.IsDeleted && x.Id != curriculumId).ToListAsync(ct);
+            var now = DateTime.UtcNow;
+            foreach (var previous in old)
+            {
+                previous.IsCurrent = false;
+                previous.UpdatedAt = now; previous.UpdatedBy = _currentUser.UserId;
+                _curricula.Update(previous);
+            }
+            // Two flushes in ONE transaction avoid SQL Server's filtered unique
+            // index collision while switching the canonical current curriculum.
+            await _unitOfWork.SaveChangesAsync(ct);
+            target.IsCurrent = true;
+            target.UpdatedAt = now; target.UpdatedBy = _currentUser.UserId;
+            _curricula.Update(target);
+            await _unitOfWork.SaveChangesAsync(ct);
+            return ApiResponse<AcademicCurriculumDto>.SuccessResponse(MapCurriculum(target),
+                "Current curriculum activated.");
+        });
+    }
+
     public Task<ApiResponse<CurriculumSubjectDto>> RegisterCurriculumSubjectAsync(
         long academicCurriculumId, SaveCurriculumSubjectRequestDto request, CancellationToken ct = default)
     {

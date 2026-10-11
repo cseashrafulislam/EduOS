@@ -40,7 +40,7 @@ public sealed class AcademicSetupWorkflowContractTests
     {
         var iface = typeof(IAcademicSetupService);
         var implementation = typeof(AcademicSetupService);
-        iface.GetMethods().Should().HaveCount(9);
+        iface.GetMethods().Should().HaveCount(10);
         implementation.GetInterfaces().Should().Contain(iface);
         iface.GetMethod(nameof(IAcademicSetupService.CreateProgramAsync))!
             .GetParameters()[0].ParameterType.Should().Be(typeof(SaveAcademicProgramRequestDto));
@@ -48,6 +48,7 @@ public sealed class AcademicSetupWorkflowContractTests
             .GetParameters()[0].ParameterType.Should().Be(typeof(SaveAcademicLevelRequestDto));
         iface.GetMethod(nameof(IAcademicSetupService.CreateCurriculumAsync))!
             .GetParameters()[0].ParameterType.Should().Be(typeof(SaveAcademicCurriculumRequestDto));
+        iface.GetMethod(nameof(IAcademicSetupService.ActivateCurriculumAsync)).Should().NotBeNull();
         iface.GetMethod(nameof(IAcademicSetupService.CreateBatchAsync))!
             .GetParameters()[0].ParameterType.Should().Be(typeof(SaveAcademicBatchRequestDto));
     }
