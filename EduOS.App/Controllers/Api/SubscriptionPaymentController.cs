@@ -164,10 +164,22 @@ namespace EduOS.App.Controllers.Api
         // SUPERADMIN: VERIFY MANUAL PAYMENTS
         // ============================================================
 
+        // Preserve the original array response contract for existing admin clients.
         [Authorize(Roles = "SuperAdmin")]
         [HttpGet("admin/pending-verifications")]
-        public async Task<IActionResult> GetPendingVerifications([FromQuery] int page = 1, [FromQuery] int pageSize = 25,
-            [FromQuery] string? search = null)
+        public async Task<IActionResult> GetPendingVerifications()
+        {
+            var result = await _paymentService.GetPendingManualVerificationsAsync(1, 100, null);
+            if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
+            if (result.Data.TotalCount > 100)
+                return Conflict(new { success = false, message = "Pending payments exceed 100. Use the paged verification endpoint." });
+            return Ok(new { success = true, data = result.Data.Items });
+        }
+
+        [Authorize(Roles = "SuperAdmin")]
+        [HttpGet("admin/pending-verifications/paged")]
+        public async Task<IActionResult> GetPendingVerificationsPaged([FromQuery] int page = 1,
+            [FromQuery] int pageSize = 25, [FromQuery] string? search = null)
         {
             var result = await _paymentService.GetPendingManualVerificationsAsync(page, pageSize, search);
             return StatusCode(result.StatusCode, result);
