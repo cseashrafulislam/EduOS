@@ -28,7 +28,7 @@ public sealed class TenantPermissionAccessTests
         await using var db = new EduOSDbContext(
             new DbContextOptionsBuilder<EduOSDbContext>()
                 .UseInMemoryDatabase("perm-test-" + Guid.NewGuid().ToString("N")).Options, accessor);
-        var right = new Permission { Id = 3, Code = "STUDENT_READ", Name = "Read students", ModuleCode = "STUDENT" };
+        var right = new Permission { Id = 3, Code = "student_read", Name = "Read students", ModuleCode = "STUDENT" };
         db.Permissions.Add(right);
         db.Roles.AddRange(
             new ApplicationRole { Id = 11, TenantId = 101, Name = "Teacher", NormalizedName = "TEACHER" },
