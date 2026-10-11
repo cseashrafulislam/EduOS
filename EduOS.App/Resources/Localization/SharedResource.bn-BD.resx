@@ -129,6 +129,7 @@
   <data name="PasswordMinSix" xml:space="preserve"><value>পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।</value></data>
   <data name="PasswordsDoNotMatch" xml:space="preserve"><value>পাসওয়ার্ড দুটি মিলছে না।</value></data>
   <data name="ResetFailed" xml:space="preserve"><value>পাসওয়ার্ড রিসেট হয়নি। লিংকের মেয়াদ শেষ হয়ে থাকতে পারে।</value></data>
+  <data name="PasswordChangedSignInAgain" xml:space="preserve"><value>পাসওয়ার্ড সফলভাবে পরিবর্তন হয়েছে। আবার লগ ইন করুন।</value></data>
   <data name="PasswordResetSuccess" xml:space="preserve"><value>পাসওয়ার্ড সফলভাবে রিসেট হয়েছে। এখন লগ ইন করুন।</value></data>
   <data name="SignupTitle" xml:space="preserve"><value>আপনার প্রতিষ্ঠান তৈরি করুন</value></data>
   <data name="SignupSubtitle" xml:space="preserve"><value>বাংলাদেশ-উপযোগী preset দিয়ে শুরু করে প্রতিষ্ঠানের মতো সাজিয়ে নিন</value></data>
