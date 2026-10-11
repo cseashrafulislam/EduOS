@@ -67,6 +67,8 @@ public sealed class StudentPromotionService : IStudentPromotionService
                 if (replay.StudentId != student.Id) return Error("Client request ID has been used for another student.", 409);
                 var replayResult = await ExistingResultAsync(replay, student, ct);
                 if (!replayResult.Success || replayResult.Data == null ||
+                    replayResult.Data.FromEnrollmentId != request.SourceEnrollmentId ||
+                    !string.Equals(replay.Note?.Trim() ?? string.Empty, request.Note?.Trim() ?? string.Empty, StringComparison.Ordinal) ||
                     replayResult.Data.AcademicYearId != request.TargetAcademicYearId ||
                     replayResult.Data.AcademicLevelId != request.TargetAcademicLevelId ||
                     replayResult.Data.AcademicBatchId != request.TargetAcademicBatchId ||
