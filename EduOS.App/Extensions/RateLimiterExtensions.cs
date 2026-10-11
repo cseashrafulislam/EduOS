@@ -61,7 +61,7 @@ namespace EduOS.App.Extensions
                 options.AddPolicy("MfaPolicy", context =>
                     RateLimitPartition.GetFixedWindowLimiter(
                         GetClientPartition(context),
-                        _ => CreateOptions(5, TimeSpan.FromMinutes(1))));
+                        _ => CreateOptions(5, TimeSpan.FromMinutes(15))));
 
                 // Anonymous challenge completion has its own per-IP budget; invalid
                 // codes are additionally limited by each user's Identity lockout.
