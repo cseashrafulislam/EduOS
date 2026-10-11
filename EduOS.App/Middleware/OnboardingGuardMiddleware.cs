@@ -60,7 +60,8 @@ namespace EduOS.App.Middleware
 
             var path = context.Request.Path;
 
-            if (IsAllowed(path))
+            if (IsAllowed(path) ||
+                (HttpMethods.IsGet(context.Request.Method) && path.StartsWithSegments("/api/platform-catalog")))
             {
                 await _next(context);
                 return;
