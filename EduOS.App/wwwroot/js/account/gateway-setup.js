@@ -180,9 +180,9 @@
                 existing ? 'PUT' : 'POST', data);
             if (await loadGateways()) showAlert('success', successText);
         } catch (error) {
-            showAlert('danger', error.message || i18n.saveFailed);
             if (error.message?.includes('changed') || error.message?.includes('exists'))
                 await loadGateways();
+            showAlert('danger', error.message || i18n.saveFailed);
         } finally {
             saving = false;
             setButtonLoading(button, false);
@@ -290,7 +290,8 @@
     }
     function setButtonLoading(button, loading, label) {
         if (!button) return;
-        button.disabled = loading;
+        const isSaveButton = button.id === 'saveSmsBtn' || button.id === 'saveEmailBtn';
+        button.disabled = loading || (isSaveButton && !gatewaysLoaded);
         button.textContent = loading ? (label || i18n.saving || '') :
             (button.dataset.idleLabel || '');
     }
