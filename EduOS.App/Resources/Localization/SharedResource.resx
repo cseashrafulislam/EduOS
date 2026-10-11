@@ -129,6 +129,7 @@
   <data name="PasswordMinSix" xml:space="preserve"><value>Password must be at least 6 characters.</value></data>
   <data name="PasswordsDoNotMatch" xml:space="preserve"><value>Passwords do not match.</value></data>
   <data name="ResetFailed" xml:space="preserve"><value>Password reset failed. The link may have expired.</value></data>
+  <data name="PasswordChangedSignInAgain" xml:space="preserve"><value>Password changed successfully. Please sign in again.</value></data>
   <data name="PasswordResetSuccess" xml:space="preserve"><value>Password reset successfully. Please sign in.</value></data>
   <data name="SignupTitle" xml:space="preserve"><value>Create your institution</value></data>
   <data name="SignupSubtitle" xml:space="preserve"><value>Start with a Bangladesh-ready preset and configure it for your institution</value></data>
