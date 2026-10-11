@@ -101,6 +101,41 @@ public sealed class OnboardingGuardCanonicalStateTests
         Assert.Equal(((int)OnboardingStage.CampusSetup).ToString(), http.Response.Headers["X-Onboarding-Step"].ToString());
     }
 
+    [Theory]
+    [InlineData("/api/platform-catalog/institution-types")]
+    [InlineData("/api/platform-catalog/modules")]
+    [InlineData("/api/platform-catalog/institution-types/SECONDARY_SCHOOL")]
+    public async Task Public_platform_catalog_get_remains_available_during_onboarding(string path)
+    {
+        using var db = CreateContext();
+        var http = CreateRequest(null, path);
+        http.Request.Method = HttpMethods.Get;
+        var next = false;
+        var middleware = new OnboardingGuardMiddleware(_ => { next = true; return Task.CompletedTask; },
+            NullLogger<OnboardingGuardMiddleware>.Instance);
+
+        await middleware.InvokeAsync(http, db);
+
+        Assert.True(next);
+        Assert.Equal(StatusCodes.Status200OK, http.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Public_platform_catalog_write_is_not_granted_an_onboarding_bypass()
+    {
+        using var db = CreateContext();
+        var http = CreateRequest(null, "/api/platform-catalog/institution-types");
+        http.Request.Method = HttpMethods.Post;
+        var next = false;
+        var middleware = new OnboardingGuardMiddleware(_ => { next = true; return Task.CompletedTask; },
+            NullLogger<OnboardingGuardMiddleware>.Instance);
+
+        await middleware.InvokeAsync(http, db);
+
+        Assert.False(next);
+        Assert.Equal(StatusCodes.Status403Forbidden, http.Response.StatusCode);
+    }
+
     [Fact]
     public async Task Missing_trusted_tenant_context_is_rejected()
     {
