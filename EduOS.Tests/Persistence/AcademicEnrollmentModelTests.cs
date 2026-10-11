@@ -21,15 +21,18 @@ public class AcademicEnrollmentModelTests
         registration.GetDeclaredQueryFilters().Should().NotBeEmpty();
         enrollment.FindProperty(nameof(StudentEnrollment.RowVersion))!.IsConcurrencyToken.Should().BeTrue();
         registration.FindProperty(nameof(StudentSubjectRegistration.RowVersion))!.IsConcurrencyToken.Should().BeTrue();
-        AssertUniqueIndex(enrollment, "UX_StudentEnrollments_Tenant_Request");
-        AssertUniqueIndex(enrollment, "UX_StudentEnrollments_Tenant_CurrentStudent");
-        AssertUniqueIndex(enrollment, "UX_StudentEnrollments_Tenant_Batch_Roll");
-        AssertUniqueIndex(registration, "UX_StudentSubjectRegistrations_Tenant_Request");
-        AssertUniqueIndex(registration, "UX_StudentSubjectRegistrations_Tenant_Enrollment_Subject");
+        AssertUniqueIndex(enrollment, "TenantId", "ClientRequestId");
+        AssertUniqueIndex(enrollment, "TenantId", "StudentId");
+        AssertUniqueIndex(enrollment, "TenantId", "AcademicBatchId", "RollNo");
+        AssertUniqueIndex(registration, "TenantId", "ClientRequestId");
+        AssertUniqueIndex(registration, "TenantId", "StudentEnrollmentId", "SubjectOfferingId");
         enrollment.GetForeignKeys().Should().OnlyContain(x => x.DeleteBehavior == DeleteBehavior.Restrict);
         registration.GetForeignKeys().Should().OnlyContain(x => x.DeleteBehavior == DeleteBehavior.Restrict);
     }
 
-    private static void AssertUniqueIndex(Microsoft.EntityFrameworkCore.Metadata.IEntityType entity, string name) =>
-        entity.GetIndexes().Single(x => x.GetDatabaseName() == name).IsUnique.Should().BeTrue();
+    private static void AssertUniqueIndex(Microsoft.EntityFrameworkCore.Metadata.IEntityType entity,
+        params string[] properties) =>
+        entity.GetIndexes().Should().ContainSingle(x =>
+            x.IsUnique && x.Properties.Select(p => p.Name).SequenceEqual(properties),
+            "the actual tenant-scoped database key must remain unique regardless of generated index naming");
 }
