@@ -94,7 +94,7 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
     {
         if (!CanManage) return Denied<IReadOnlyList<TenantRoleDto>>();
         var roles = await LocalRoles.AsNoTracking().OrderBy(x => x.Name)
-            .Select(x => new { x.Id, x.Name, x.Description, x.IsActive }).ToListAsync(ct);
+            .Select(x => new { x.Id, x.Name, x.Description, x.IsActive, x.ConcurrencyStamp }).ToListAsync(ct);
         var ids = roles.Select(x => x.Id).ToArray();
         var permissions = await _db.RolePermissions.AsNoTracking()
             .Where(x => ids.Contains(x.RoleId) && !x.IsDeleted && x.IsAllowed)
@@ -104,7 +104,7 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
         IReadOnlyList<TenantRoleDto> result = roles.Select(x => new TenantRoleDto
         {
             Id = x.Id, Name = x.Name ?? "", Description = x.Description,
-            IsActive = x.IsActive,
+            IsActive = x.IsActive, ConcurrencyStamp = x.ConcurrencyStamp ?? "",
             PermissionIds = lookup.TryGetValue(x.Id, out var permissionsForRole)
                 ? permissionsForRole : Array.Empty<long>()
         }).ToArray();
@@ -151,8 +151,34 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
         }
         return ApiResponse<TenantRoleDto>.SuccessResponse(new TenantRoleDto
         {
-            Id = role.Id, Name = role.Name!, Description = role.Description, IsActive = true
+            Id = role.Id, Name = role.Name!, Description = role.Description,
+            IsActive = true, ConcurrencyStamp = role.ConcurrencyStamp ?? ""
         }, "Institution role created.");
+    }
+
+    public async Task<ApiResponse<bool>> UpdateRoleAsync(
+        long roleId, TenantRoleUpdateRequestDto request, CancellationToken ct = default)
+    {
+        if (!CanManage) return Denied<bool>();
+        if (request == null || string.IsNullOrWhiteSpace(request.ConcurrencyStamp) ||
+            request.Description?.Length > 300)
+            return ApiResponse<bool>.ErrorResponse("A valid role version and description are required.", 400);
+        var role = await LocalRoles.SingleOrDefaultAsync(x => x.Id == roleId, ct);
+        if (role == null) return ApiResponse<bool>.ErrorResponse("Role not found.", 404);
+        _db.Entry(role).Property(x => x.ConcurrencyStamp).OriginalValue = request.ConcurrencyStamp;
+        role.Description = request.Description?.Trim();
+        role.IsActive = request.IsActive;
+        role.ConcurrencyStamp = Guid.NewGuid().ToString();
+        role.UpdatedAt = DateTime.UtcNow;
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+            return ApiResponse<bool>.SuccessResponse(true, "Role updated. Affected user access is validated on the next request.");
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return ApiResponse<bool>.ErrorResponse("Role was changed by another administrator. Reload and retry.", 409);
+        }
     }
 
     public async Task<ApiResponse<bool>> SetMemberRolesAsync(
