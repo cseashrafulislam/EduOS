@@ -1,4 +1,5 @@
 using EduOS.Core.Common;
+using EduOS.Core.Constants;
 using EduOS.Core.DTOs.Auth;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.System;
@@ -118,7 +119,8 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
     {
         if (!CanManage) return Denied<IReadOnlyList<TenantPermissionDto>>();
         IReadOnlyList<TenantPermissionDto> data = await _db.Permissions.AsNoTracking()
-            .Where(x => !x.IsDeleted && x.IsActive)
+            .Where(x => !x.IsDeleted && x.IsActive &&
+                x.Code != PermissionConstants.AuditLog.Delete)
             .OrderBy(x => x.ModuleCode).ThenBy(x => x.Name)
             .Select(x => new TenantPermissionDto
             {
@@ -323,7 +325,8 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
             return ApiResponse<bool>.ErrorResponse("Invalid permissions.", 400);
         var selected = request.PermissionIds.Distinct().ToArray();
         if (await _db.Permissions.CountAsync(x =>
-            selected.Contains(x.Id) && !x.IsDeleted && x.IsActive, ct) != selected.Length)
+            selected.Contains(x.Id) && !x.IsDeleted && x.IsActive &&
+            x.Code != PermissionConstants.AuditLog.Delete, ct) != selected.Length)
             return ApiResponse<bool>.ErrorResponse("Invalid permission selection.", 400);
         try
         {
