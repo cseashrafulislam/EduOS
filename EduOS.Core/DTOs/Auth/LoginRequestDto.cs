@@ -2,9 +2,16 @@
 {
     public class LoginRequestDto
     {
-        [Required, EmailAddress] public string Email { get; set; } = string.Empty;
-        [Required] public string Password { get; set; } = string.Empty;
+        // Keep 'Email' for backward-compatible JSON; value may be username or email.
+        [Required(ErrorMessage = "Username or email is required.")]
+        [StringLength(256)]
+        public string Email { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Password is required.")]
+        public string Password { get; set; } = string.Empty;
+
         public bool RememberMe { get; set; }
+
     }
 
     public class LoginResponseDto

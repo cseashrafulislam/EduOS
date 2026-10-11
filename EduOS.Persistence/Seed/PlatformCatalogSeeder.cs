@@ -17,6 +17,97 @@ public static class PlatformCatalogSeeder
         await SeedModulesAsync(context);
         await SeedPresetModulesAsync(context);
         await SeedModuleFeaturesAsync(context);
+        await SeedLegalDocumentsAsync(context);
+    }
+
+    private static async Task SeedLegalDocumentsAsync(EduOSDbContext context)
+    {
+        // A document version is immutable once published/accepted.
+        // Initial policy templates: approve the wording before public production use.
+        // To revise a published version, add a new version instead of mutating it.
+        var now = DateTime.UtcNow;
+        var documents = new[]
+        {
+            new LegalDocument
+            {
+                Code = "TERMS_OF_SERVICE",
+                Title = "EduOS Terms & Conditions",
+                Version = "1.0",
+                Content = """
+                    EduOS Terms & Conditions
+
+                    1. Authorized use
+                    EduOS is intended for educational institutions and their authorized administrators, employees, learners and related users. Accounts may be used only for approved institutional purposes.
+
+                    2. Institution responsibilities
+                    The registering institution is responsible for providing accurate registration information, maintaining authorized user access, and ensuring that information entered into EduOS is lawful and accurate.
+
+                    3. Account security
+                    Users must protect their credentials and must not share accounts. Institution administrators are responsible for granting, reviewing and withdrawing institutional access as personnel and responsibilities change.
+
+                    4. Personal and educational information
+                    Institutions must have an appropriate basis for collecting and using information about students, guardians and personnel. Use of EduOS must comply with applicable legal obligations and the relevant institutional policies.
+
+                    5. Acceptable use
+                    Users must not attempt unauthorized access, abuse platform functionality, compromise other institutions' data, upload unlawful content or interfere with service operation.
+
+                    6. Service administration
+                    Availability, subscriptions, payments, support, data retention and termination are governed by the applicable service agreement and published platform policies.
+
+                    7. Changes to these terms
+                    The platform operator may publish a new version of these terms. Previous accepted versions are retained for audit purposes. Additional acceptance may be requested when the terms change.
+
+                    8. Contact
+                    For account, access or service questions, contact the EduOS service operator using the contact details published on the official portal.
+                    """,
+                EffectiveAt = now,
+                CreatedAt = now,
+                IsActive = true
+            },
+            new LegalDocument
+            {
+                Code = "PRIVACY_POLICY",
+                Title = "EduOS Privacy Policy",
+                Version = "1.0",
+                Content = """
+                    EduOS Privacy Policy
+
+                    1. Scope
+                    This notice concerns personal and educational information processed through the EduOS platform.
+
+                    2. Information used
+                    Depending on enabled modules, the platform may process account details, institutional records, academic and attendance information, personnel data and operational activity records supplied by authorized users.
+
+                    3. Purposes
+                    Information is used to provide authorized educational-management functions, manage access, maintain system security, support reporting and operate the service.
+
+                    4. Institution responsibility
+                    Institutions control the information they submit and must provide any notices, permissions or other legal bases required for their use of the platform.
+
+                    5. Access and requests
+                    Access is intended to follow institutional roles and permissions. Questions about institutional records, including correction or access requests, should ordinarily be directed to the relevant institution.
+
+                    6. Retention and disclosures
+                    Retention, disclosures and deletion are subject to applicable law and the institution's agreement with the platform operator. Any detailed retention periods or third-party processing terms must be documented in the approved privacy notice and service agreement.
+
+                    7. Contact and changes
+                    Contact the platform operator through the official EduOS portal for platform privacy inquiries. Updated policy versions may be published as operating and legal requirements change.
+                    """,
+                EffectiveAt = now,
+                CreatedAt = now,
+                IsActive = true
+            }
+        };
+
+        // Includes soft-deleted rows: the database uniquely identifies a legal
+        // document by (Code, Version), not by current active/deleted status.
+        foreach (var document in documents)
+        {
+            var exists = await context.LegalDocuments.IgnoreQueryFilters().AsNoTracking()
+                .AnyAsync(x => x.Code == document.Code && x.Version == document.Version);
+            if (!exists) await context.LegalDocuments.AddAsync(document);
+        }
+        await context.SaveChangesAsync();
     }
 
     private static async Task SeedInstitutionTypesAsync(EduOSDbContext context)
@@ -87,10 +178,10 @@ public static class PlatformCatalogSeeder
             .Select(x => $"{x.InstitutionTypeDefinitionId}:{x.ProductModuleId}")
             .ToHashSet(StringComparer.Ordinal);
 
-        var common = new[] { "CORE_ADMIN","STUDENT","ACADEMIC","COMMUNICATION","DOCUMENTS","REPORTING" };
-        var school = common.Concat(new[] { "ADMISSION","ATTENDANCE","EXAM","FINANCE","HR","PAYROLL","LMS","LIBRARY","TRANSPORT" });
-        var advanced = school.Concat(new[] { "HOSTEL","INVENTORY","API_ACCESS","AI_INSIGHTS","MULTI_CAMPUS" });
-        var presets = new Dictionary<string,IEnumerable<string>>(StringComparer.OrdinalIgnoreCase)
+        var common = new[] { "CORE_ADMIN", "STUDENT", "ACADEMIC", "COMMUNICATION", "DOCUMENTS", "REPORTING" };
+        var school = common.Concat(new[] { "ADMISSION", "ATTENDANCE", "EXAM", "FINANCE", "HR", "PAYROLL", "LMS", "LIBRARY", "TRANSPORT" });
+        var advanced = school.Concat(new[] { "HOSTEL", "INVENTORY", "API_ACCESS", "AI_INSIGHTS", "MULTI_CAMPUS" });
+        var presets = new Dictionary<string, IEnumerable<string>>(StringComparer.OrdinalIgnoreCase)
         {
             ["PRE_PRIMARY"] = school.Except(new[] { "LMS" }),
             ["PRIMARY_SCHOOL"] = school,
@@ -98,12 +189,12 @@ public static class PlatformCatalogSeeder
             ["SCHOOL_COLLEGE"] = advanced,
             ["COLLEGE"] = advanced,
             ["UNIVERSITY"] = advanced,
-            ["MADRASA"] = school.Concat(new[] { "HOSTEL","INVENTORY" }),
+            ["MADRASA"] = school.Concat(new[] { "HOSTEL", "INVENTORY" }),
             ["POLYTECHNIC"] = advanced,
-            ["COACHING_CENTER"] = common.Concat(new[] { "ADMISSION","ATTENDANCE","EXAM","FINANCE","HR","PAYROLL","LMS","AI_INSIGHTS" }),
-            ["TRAINING_INSTITUTE"] = common.Concat(new[] { "ADMISSION","ATTENDANCE","EXAM","FINANCE","HR","PAYROLL","LMS","API_ACCESS","AI_INSIGHTS" }),
-            ["PRIVATE_TUTOR"] = common.Concat(new[] { "ATTENDANCE","EXAM","FINANCE","LMS" }),
-            ["LMS_PROVIDER"] = common.Concat(new[] { "ADMISSION","EXAM","FINANCE","LMS","API_ACCESS","AI_INSIGHTS" }),
+            ["COACHING_CENTER"] = common.Concat(new[] { "ADMISSION", "ATTENDANCE", "EXAM", "FINANCE", "HR", "PAYROLL", "LMS", "AI_INSIGHTS" }),
+            ["TRAINING_INSTITUTE"] = common.Concat(new[] { "ADMISSION", "ATTENDANCE", "EXAM", "FINANCE", "HR", "PAYROLL", "LMS", "API_ACCESS", "AI_INSIGHTS" }),
+            ["PRIVATE_TUTOR"] = common.Concat(new[] { "ATTENDANCE", "EXAM", "FINANCE", "LMS" }),
+            ["LMS_PROVIDER"] = common.Concat(new[] { "ADMISSION", "EXAM", "FINANCE", "LMS", "API_ACCESS", "AI_INSIGHTS" }),
             ["HYBRID_INSTITUTE"] = advanced.Except(new[] { "HOSTEL" })
         };
 
@@ -140,24 +231,24 @@ public static class PlatformCatalogSeeder
             .Select(x => $"{x.ProductModuleId}:{x.FeatureId}")
             .ToHashSet(StringComparer.Ordinal);
 
-        var map = new Dictionary<string,string[]>(StringComparer.OrdinalIgnoreCase)
+        var map = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
         {
             ["ADMISSION"] = ["STUDENT_MGMT"],
             ["STUDENT"] = ["STUDENT_MGMT"],
-            ["ACADEMIC"] = ["CLASS_SECTION","SUBJECT_MGMT","CLASS_ROUTINE"],
+            ["ACADEMIC"] = ["CLASS_SECTION", "SUBJECT_MGMT", "CLASS_ROUTINE"],
             ["ATTENDANCE"] = ["ATTENDANCE"],
-            ["EXAM"] = ["EXAM_MGMT","MARK_ENTRY","RESULT_REPORT","ONLINE_EXAM"],
-            ["FINANCE"] = ["FEE_COLLECTION","INVOICE_GEN","DISCOUNT_SCHOLARSHIP","ACCOUNTING"],
-            ["HR"] = ["EMPLOYEE_MGMT","LEAVE_MGMT"],
+            ["EXAM"] = ["EXAM_MGMT", "MARK_ENTRY", "RESULT_REPORT", "ONLINE_EXAM"],
+            ["FINANCE"] = ["FEE_COLLECTION", "INVOICE_GEN", "DISCOUNT_SCHOLARSHIP", "ACCOUNTING"],
+            ["HR"] = ["EMPLOYEE_MGMT", "LEAVE_MGMT"],
             ["PAYROLL"] = ["PAYROLL"],
             ["LMS"] = ["ONLINE_EXAM"],
             ["LIBRARY"] = ["LIBRARY"],
             ["TRANSPORT"] = ["TRANSPORT"],
             ["HOSTEL"] = ["HOSTEL"],
             ["INVENTORY"] = ["INVENTORY"],
-            ["COMMUNICATION"] = ["SMS_NOTIFY","EMAIL_NOTIFY","NOTICE_BOARD","PARENT_PORTAL"],
+            ["COMMUNICATION"] = ["SMS_NOTIFY", "EMAIL_NOTIFY", "NOTICE_BOARD", "PARENT_PORTAL"],
             ["DOCUMENTS"] = ["RESULT_REPORT"],
-            ["REPORTING"] = ["RESULT_REPORT","ACCOUNTING"],
+            ["REPORTING"] = ["RESULT_REPORT", "ACCOUNTING"],
             ["API_ACCESS"] = ["API_ACCESS"],
             ["MULTI_CAMPUS"] = ["MULTI_CAMPUS"]
         };

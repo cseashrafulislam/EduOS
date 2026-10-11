@@ -48,18 +48,20 @@ namespace EduOS.App.Controllers.Api
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequestDto dto)
         {
+            Response.Headers.CacheControl = "no-store";
             if (dto == null || string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Password))
-                return BadRequest(new { success = false, message = "Email and password are required." });
+                return BadRequest(new { success = false, message = "Username/email and password are required." });
 
-            var email = dto.Email.Trim().ToLowerInvariant();
+            // Legacy LoginRequestDto.Email accepts either a username or email address.
+            var identifier = dto.Email.Trim();
             var ip = GetClientIp();
             var userAgent = Truncate(HttpContext.Request.Headers["User-Agent"].FirstOrDefault(), 500);
-            var user = await _userManager.FindByEmailAsync(email);
+            var user = await _userManager.FindByEmailAsync(identifier) ?? await _userManager.FindByNameAsync(identifier);
 
             if (user == null)
             {
-                await SaveLoginHistoryAsync(null, email, ip, userAgent, false, "User not found");
-                return BadRequest(new { success = false, message = "Invalid email or password." });
+                await SaveLoginHistoryAsync(null, ip, userAgent, false, "User not found");
+                return BadRequest(new { success = false, message = "Invalid username/email or password." });
             }
 
             if (!user.IsActive)
@@ -76,7 +78,7 @@ namespace EduOS.App.Controllers.Api
 
             if (await _userManager.IsLockedOutAsync(user))
             {
-                _logger.LogWarning("Locked out login attempt: {Email}", email);
+                _logger.LogWarning("Locked out login attempt for user {UserId}", user.Id);
                 await SaveLoginHistoryAsync(user, ip, userAgent, false, "Account locked out");
                 return BadRequest(new { success = false, message = "Account temporarily locked due to multiple failed attempts. Please try again in 15 minutes." });
             }
@@ -84,13 +86,19 @@ namespace EduOS.App.Controllers.Api
             if (!await _userManager.CheckPasswordAsync(user, dto.Password))
             {
                 await _userManager.AccessFailedAsync(user);
-                _logger.LogWarning("Failed login attempt: {Email}", email);
+                _logger.LogWarning("Failed login attempt for user {UserId}", user.Id);
                 await SaveLoginHistoryAsync(user, ip, userAgent, false, "Wrong password");
-                return BadRequest(new { success = false, message = "Invalid email or password." });
+                return BadRequest(new { success = false, message = "Invalid username/email or password." });
             }
 
-            await _userManager.ResetAccessFailedCountAsync(user);
+            var session = await GetSessionContextAsync(user);
+            if (!session.IsValid)
+            {
+                await SaveLoginHistoryAsync(user, ip, userAgent, false, "No unique active institution membership");
+                return StatusCode(StatusCodes.Status403Forbidden, new { success = false, message = "An active institution membership is required. Contact your administrator." });
+            }
 
+            // No MFA prompt or setup until the user voluntarily enables it in Settings.
             if (user.TwoFactorEnabled)
             {
                 var securityStamp = await _userManager.GetSecurityStampAsync(user);
@@ -110,10 +118,7 @@ namespace EduOS.App.Controllers.Api
                 });
             }
 
-            var session = await GetSessionContextAsync(user);
-            if (!session.IsValid)
-                return StatusCode(StatusCodes.Status403Forbidden, new
-                { success = false, message = "Select an active institution or contact your administrator." });
+            await _userManager.ResetAccessFailedCountAsync(user);
             await _signInManager.SignInWithClaimsAsync(user, dto.RememberMe,
                 BuildSessionClaims(user, "pwd", session.Role, session.TenantId));
 
@@ -131,7 +136,7 @@ namespace EduOS.App.Controllers.Api
             }
 
             await SaveLoginHistoryAsync(user, ip, userAgent, true, null);
-            _logger.LogInformation("Login successful: {Email} from {Ip}", email, ip);
+            _logger.LogInformation("Login successful for user {UserId} from {Ip}", user.Id, ip);
 
             return Ok(new
             {
@@ -142,6 +147,7 @@ namespace EduOS.App.Controllers.Api
                     userId = user.Id,
                     email = user.Email,
                     fullName = user.FullName,
+                    requiresTwoFactor = false,
                     userType = session.Role,
                     tenantId = session.TenantId,
                     redirectUrl = GetRedirectUrl(session.Role, session.TenantId)
@@ -251,6 +257,10 @@ namespace EduOS.App.Controllers.Api
             if (_mfaSettings.RecoveryCodeCount is < 5 or > 20)
                 return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Recovery-code configuration is invalid." });
 
+            var session = await GetSessionContextAsync(user);
+            if (!session.IsValid)
+                return StatusCode(StatusCodes.Status403Forbidden, new { success = false, message = "Your institution membership is unavailable." });
+
             var recoveryCodes = (await _userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, _mfaSettings.RecoveryCodeCount))?.ToArray() ?? [];
 
             if (recoveryCodes.Length != _mfaSettings.RecoveryCodeCount)
@@ -261,10 +271,6 @@ namespace EduOS.App.Controllers.Api
             if (!enabled.Succeeded)
                 return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Multi-factor authentication could not be enabled." });
 
-            var session = await GetSessionContextAsync(user);
-            if (!session.IsValid)
-                return StatusCode(StatusCodes.Status403Forbidden, new
-                { success = false, message = "Your institution membership is unavailable." });
             await _signInManager.SignInWithClaimsAsync(user, isPersistent: false,
                 BuildSessionClaims(user, "mfa", session.Role, session.TenantId));
             _logger.LogInformation("MFA enabled for user {UserId}", user.Id);
@@ -475,8 +481,10 @@ namespace EduOS.App.Controllers.Api
                 {
                     address = new PersonAddress
                     {
-                        PersonId = user.PersonId.Value, IsPrimary = true,
-                        AddressTypeCode = "Current", AddressLine1 = dto.Address.Trim()
+                        PersonId = user.PersonId.Value,
+                        IsPrimary = true,
+                        AddressTypeCode = "Current",
+                        AddressLine1 = dto.Address.Trim()
                     };
                     _db.PersonAddresses.Add(address);
                 }
@@ -556,13 +564,13 @@ namespace EduOS.App.Controllers.Api
             if (roles.Contains("SuperAdmin", StringComparer.OrdinalIgnoreCase))
                 return (true, "SuperAdmin", null);
             var tenantIds = await (from member in _db.TenantMemberships.IgnoreQueryFilters().AsNoTracking()
-                join tenant in _db.Tenants.IgnoreQueryFilters().AsNoTracking()
-                    on member.TenantId equals tenant.Id
-                where member.UserId == user.Id && !member.IsDeleted &&
-                    member.Status == MembershipStatus.Active &&
-                    !tenant.IsDeleted &&
-                    tenant.State != TenantState.Closed && tenant.State != TenantState.Suspended
-                select member.TenantId).Distinct().Take(2).ToArrayAsync();
+                                   join tenant in _db.Tenants.IgnoreQueryFilters().AsNoTracking()
+                                       on member.TenantId equals tenant.Id
+                                   where member.UserId == user.Id && !member.IsDeleted &&
+                                       member.Status == MembershipStatus.Active &&
+                                       !tenant.IsDeleted &&
+                                       tenant.State != TenantState.Closed && tenant.State != TenantState.Suspended
+                                   select member.TenantId).Distinct().Take(2).ToArrayAsync();
             if (tenantIds.Length != 1) return (false, "", null);
             var role = roles.Contains("TenantAdmin", StringComparer.OrdinalIgnoreCase) ? "TenantAdmin"
                 : roles.FirstOrDefault() ?? "User";
@@ -604,11 +612,7 @@ namespace EduOS.App.Controllers.Api
             }
         }
 
-        private async Task SaveLoginHistoryAsync(ApplicationUser user, string ip, string userAgent, bool isSuccess, string? failReason) =>
-            await SaveLoginHistoryAsync(user, null, ip, userAgent, isSuccess, failReason);
-
-        private async Task SaveLoginHistoryAsync(ApplicationUser? user, string? attemptedEmail,
-            string ip, string userAgent, bool isSuccess, string? failReason)
+        private async Task SaveLoginHistoryAsync(ApplicationUser? user, string ip, string userAgent, bool isSuccess, string? failReason)
         {
             try
             {
@@ -623,9 +627,12 @@ namespace EduOS.App.Controllers.Api
                 }
                 _db.LoginHistories.Add(new LoginHistory
                 {
-                    UserId = user?.Id, TenantId = tenantId,
-                    OccurredAt = DateTime.UtcNow, IpAddress = ip,
-                    UserAgent = userAgent, IsSuccess = isSuccess,
+                    UserId = user?.Id,
+                    TenantId = tenantId,
+                    OccurredAt = DateTime.UtcNow,
+                    IpAddress = ip,
+                    UserAgent = userAgent,
+                    IsSuccess = isSuccess,
                     FailureReason = failReason
                 });
                 await _db.SaveChangesAsync();
