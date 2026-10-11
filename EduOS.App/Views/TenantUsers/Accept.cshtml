@@ -1,0 +1,31 @@
+@{
+    ViewData["Title"] = "Accept Institution Invitation";
+    Layout = "_PublicLayout";
+}
+<section class="auth-card" aria-labelledby="inviteTitle">
+    <div class="auth-heading">
+        <h1 id="inviteTitle">Accept institution invitation</h1>
+        <p>Your email invitation proves you own the address. Choose a password only if this is a new EduOS account. If you already have an account, enter its current password.</p>
+    </div>
+    <div id="inviteAlert" class="alert d-none" role="alert" aria-live="polite"></div>
+    <form id="acceptInvitationForm">
+        <div class="mb-3">
+            <label for="inviteFullName" class="form-label">Full name (new accounts only)</label>
+            <input id="inviteFullName" maxlength="200" autocomplete="name" class="form-control" />
+        </div>
+        <div class="mb-3">
+            <label for="invitePassword" class="form-label">New password or existing account password</label>
+            <input id="invitePassword" type="password" autocomplete="new-password" minlength="6" class="form-control" required />
+        </div>
+        <div class="mb-3">
+            <label for="inviteConfirmPassword" class="form-label">Confirm password</label>
+            <input id="inviteConfirmPassword" type="password" autocomplete="new-password" minlength="6" class="form-control" required />
+        </div>
+        <button id="acceptInviteBtn" type="submit" class="btn btn-primary w-100">Accept Invitation</button>
+    </form>
+    <p class="small text-muted mt-3">Invitations expire after 48 hours and can be used only once. If you are signed in already, sign out before accepting.</p>
+    <a href="/Account/Login">Return to sign in</a>
+</section>
+@section Scripts {
+    <script src="~/js/tenant-users/accept.js" asp-append-version="true"></script>
+}
