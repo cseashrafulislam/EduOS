@@ -183,10 +183,10 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
                     if (batch.Capacity > 0 && await _enrollments.GetQueryable().AsNoTracking().CountAsync(x =>
                         x.TenantId == tenant && x.AcademicBatchId == batch.Id &&
                         x.IsCurrent && x.State == EnrollmentState.Active && !x.IsDeleted, cancellationToken) >= batch.Capacity)
-                        return ApiResponse<AdmittedStudentDto>.ErrorResponse("The batch is at capacity.", 409);
+                        throw new BatchAllocationException("The batch is at capacity.");
                     if (await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
                         x.AcademicBatchId == batch.Id && x.RollNo == roll && x.IsCurrent && !x.IsDeleted, cancellationToken))
-                        return ApiResponse<AdmittedStudentDto>.ErrorResponse("Roll is already assigned in this batch.", 409);
+                        throw new BatchAllocationException("Roll is already assigned in this batch.");
 
                     var now = _clock.GetUtcNow().UtcDateTime;
                     var person = application.PersonId.HasValue
@@ -280,6 +280,11 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
                     };
             }, cancellationToken);
         }
+        catch (BatchAllocationException ex)
+        {
+            // Rolling back the transaction also rolls back the batch concurrency update.
+            return ApiResponse<AdmittedStudentDto>.ErrorResponse(ex.Message, 409);
+        }
         catch (DbUpdateConcurrencyException ex)
         {
             _logger.LogWarning(ex, "Admission conversion version conflict for tenant {TenantId}", tenant);
@@ -296,6 +301,8 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
             return ApiResponse<AdmittedStudentDto>.ErrorResponse("Applicant could not be admitted.", 500);
         }
     }
+
+    private sealed class BatchAllocationException(string message) : Exception(message);
 
     private static AdmittedStudentDto Map(Student student, StudentEnrollment enrollment) => new()
     {

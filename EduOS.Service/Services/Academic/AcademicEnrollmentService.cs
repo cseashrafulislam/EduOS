@@ -152,11 +152,11 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
                 x.TenantId == tenant && x.AcademicBatchId == batch.Id &&
                 x.IsCurrent && x.State == EnrollmentState.Active && !x.IsDeleted, ct);
             if (batch.Capacity <= 0 || occupied >= batch.Capacity)
-                return Error<StudentEnrollmentDto>("Batch capacity has been reached.", 409);
+                throw new BatchAllocationException("Batch capacity has been reached.");
             if (await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x =>
                 x.TenantId == tenant && x.AcademicBatchId == batch.Id && x.RollNo == roll &&
                 x.IsCurrent && !x.IsDeleted, ct))
-                return Error<StudentEnrollmentDto>("Roll already assigned in this academic batch.", 409);
+                throw new BatchAllocationException("Roll already assigned in this academic batch.");
 
             var now = _clock.GetUtcNow().UtcDateTime;
             var entity = new StudentEnrollment
@@ -410,6 +410,12 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
         {
             return await _uow.ExecuteInTransactionAsync(_ => action());
         }
+        catch (BatchAllocationException ex)
+        {
+            // A returned error would commit any earlier batch lock/update.
+            // Throwing inside ExecuteInTransactionAsync guarantees rollback.
+            return Error<T>(ex.Message, 409);
+        }
         catch (DbUpdateConcurrencyException ex)
         {
             _logger.LogWarning(ex, "Academic enrollment concurrency failure during {Operation} tenant {TenantId}", operation, _user.TenantId);
@@ -421,6 +427,8 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
             return Error<T>("Enrollment conflicts with another request.", 409);
         }
     }
+
+    private sealed class BatchAllocationException(string message) : Exception(message);
 
     private bool CanRead() => _user.IsAuthenticated && _user.TenantId > 0 && (CanManage() || CanSelfServe());
     private bool CanSelfServe() => _user.IsAuthenticated && _user.TenantId > 0 &&
