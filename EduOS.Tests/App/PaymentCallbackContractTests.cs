@@ -110,6 +110,22 @@ public class PaymentCallbackContractTests
         script.Should().Contain("response.status === 409 && payload?.message === 'A payment is already pending.'");
     }
 
+    [Fact]
+    public void Manual_transfer_uses_ef_managed_atomic_transaction_and_stable_retry_identity()
+    {
+        var manual = Slice(ReadService(),
+            "public async Task<ApiResponse<SubscriptionPaymentDto>> SubmitManualPaymentAsync",
+            "public async Task<ApiResponse<ManualPaymentInstructionsDto>> GetManualPaymentInstructionsAsync");
+        manual.Should().Contain("_uow.ExecuteInTransactionAsync(async token =>");
+        manual.Should().Contain("System.Data.IsolationLevel.Serializable");
+        manual.Should().Contain("var requestId = Guid.NewGuid();");
+        manual.Should().Contain("x.ClientRequestId == requestId");
+        manual.Should().Contain("ClientRequestId = requestId");
+        manual.Should().Contain("if (response.Success) storageKey = null;");
+        manual.Should().NotContain("using var tx = SerializableScope();");
+        manual.Should().Contain("await _storage.DeletePrivateAsync(storageKey)");
+    }
+
     private static string ReadController()
     {
         return File.ReadAllText(Path.Combine(
