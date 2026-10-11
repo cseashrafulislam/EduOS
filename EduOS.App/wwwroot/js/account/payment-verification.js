@@ -49,7 +49,7 @@
 
         try {
             const search = String(searchInput?.value || '').trim();
-            const response = await fetch(`${apiBase}/pending-verifications?page=${pageNumber}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`, {
+            const response = await fetch(`${apiBase}/pending-verifications/paged?page=${pageNumber}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`, {
                 method: 'GET',
                 cache: 'no-store',
                 credentials: 'same-origin',
