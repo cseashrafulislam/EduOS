@@ -10,6 +10,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     loadProfile();
     loadMfaStatus();
+    initializeAuthSecurityControls();
+    loadActiveSessions();
 });
 
 // ============================================================
@@ -63,6 +65,7 @@ async function loadMfaStatus() {
             status.textContent = 'Enabled';
             status.className = 'badge bg-success';
             help.textContent = 'Your authenticator is enabled. MFA verification applies on subsequent sign-ins.';
+            document.getElementById('mfaManagement')?.classList.remove('d-none');
         } else {
             status.textContent = 'Not enabled';
             status.className = 'badge bg-secondary';
@@ -570,4 +573,123 @@ function escapeHtml(value) {
             return entities[character];
         }
     );
+}
+
+async function authSecurityPost(url, body) {
+    return apiRequest(url, {
+        method: 'POST', cache: 'no-store',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getAntiForgeryToken() },
+        body: JSON.stringify(body)
+    });
+}
+
+function initializeAuthSecurityControls() {
+    for (const [id, url] of [
+        ['mfaDisableBtn', '/api/auth/mfa/disable'],
+        ['mfaRegenerateBtn', '/api/auth/mfa/recovery-codes/regenerate']
+    ]) {
+        const button = document.getElementById(id);
+        if (!button) continue;
+        button.addEventListener('click', async () => {
+            const currentPassword = document.getElementById('mfaManagePassword')?.value || '';
+            const code = document.getElementById('mfaManageCode')?.value.trim() || '';
+            const useRecoveryCode = document.getElementById('mfaManageRecovery')?.checked ?? false;
+            if (!currentPassword || !code) {
+                showAlert('danger', 'Current password and verification code are required.');
+                return;
+            }
+            button.disabled = true;
+            try {
+                const result = await authSecurityPost(url, { currentPassword, code, useRecoveryCode });
+                document.getElementById('mfaManagePassword').value = '';
+                document.getElementById('mfaManageCode').value = '';
+                if (id === 'mfaDisableBtn') {
+                    window.location.assign('/Account/Login');
+                    return;
+                }
+                const codes = result?.data?.recoveryCodes;
+                if (!Array.isArray(codes)) throw new Error('Recovery codes were not returned.');
+                const list = document.getElementById('mfaNewCodes');
+                list?.replaceChildren();
+                for (const codeValue of codes) {
+                    const item = document.createElement('li');
+                    item.textContent = String(codeValue);
+                    list?.appendChild(item);
+                }
+                document.getElementById('mfaNewCodesPanel')?.classList.remove('d-none');
+                document.getElementById('mfaRegenerateBtn').disabled = true;
+                document.getElementById('mfaDisableBtn').disabled = true;
+                showAlert('success', 'Recovery codes regenerated. Save them before signing in again.');
+            } catch (error) {
+                showAlert('danger', error.message || 'Unable to update MFA settings.');
+            } finally {
+                if (!document.getElementById('mfaNewCodesPanel')?.classList.contains('d-none')) return;
+                button.disabled = false;
+            }
+        });
+    }
+
+    document.getElementById('sessionRevokeAllBtn')?.addEventListener('click', async event => {
+        const button = event.currentTarget;
+        const currentPassword = document.getElementById('sessionRevokePassword')?.value || '';
+        if (!currentPassword) {
+            showAlert('danger', 'Enter your current password to sign out all devices.');
+            return;
+        }
+        button.disabled = true;
+        try {
+            await authSecurityPost('/api/auth/sessions/revoke-all', { currentPassword });
+            window.location.assign('/Account/Login');
+        } catch (error) {
+            showAlert('danger', error.message || 'Unable to revoke sessions.');
+            button.disabled = false;
+        }
+    });
+}
+
+async function loadActiveSessions() {
+    const container = document.getElementById('sessionList');
+    if (!container) return;
+    try {
+        const response = await apiRequest('/api/auth/sessions', { cache: 'no-store' });
+        if (!response?.success || !Array.isArray(response.data)) throw new Error('Session list unavailable.');
+        container.replaceChildren();
+        if (!response.data.length) {
+            container.textContent = 'No active sessions found.';
+            return;
+        }
+        for (const session of response.data) {
+            const row = document.createElement('div');
+            row.setAttribute('role', 'listitem');
+            row.className = 'd-flex flex-wrap justify-content-between align-items-center border-bottom py-2 gap-2';
+            const description = document.createElement('div');
+            const detail = document.createElement('strong');
+            detail.textContent = session.isCurrent ? 'This device' : 'Other session';
+            const meta = document.createElement('div');
+            meta.className = 'text-muted small';
+            meta.textContent = [session.ipAddress, session.userAgent, session.createdAtUtc]
+                .filter(Boolean).join(' • ');
+            description.append(detail, meta);
+            const revoke = document.createElement('button');
+            revoke.type = 'button';
+            revoke.className = 'btn btn-sm btn-outline-danger';
+            revoke.textContent = 'Revoke';
+            revoke.addEventListener('click', async () => {
+                revoke.disabled = true;
+                try {
+                    await authSecurityPost('/api/auth/sessions/revoke', { sessionId: session.sessionId });
+                    if (session.isCurrent) window.location.assign('/Account/Login');
+                    else await loadActiveSessions();
+                } catch (error) {
+                    showAlert('danger', error.message || 'Unable to revoke session.');
+                    revoke.disabled = false;
+                }
+            });
+            row.append(description, revoke);
+            container.appendChild(row);
+        }
+    } catch (error) {
+        container.textContent = 'Unable to load active sessions.';
+        showAlert('danger', error.message || 'Unable to load sessions.');
+    }
 }
