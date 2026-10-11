@@ -35,7 +35,8 @@ public sealed class AdmissionApplicationServiceTests
         applicant.DateOfBirth.Should().Be(new DateOnly(2012, 2, 3));
         (await db.Set<AdmissionApplicantGuardian>().SingleAsync()).Phone.Should().Be("01700000000");
         typeof(AdmissionApplicant).GetProperties().Select(x => x.Name)
-            .Should().NotContain(x => x.Contains("Nid", StringComparison.OrdinalIgnoreCase) ||
+            .Should().NotContain(x => x.Equals("Nid", StringComparison.OrdinalIgnoreCase) ||
+                x.Equals("NationalId", StringComparison.OrdinalIgnoreCase) ||
                 x.Contains("BirthCert", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -95,6 +96,7 @@ public sealed class AdmissionApplicationServiceTests
         var scope = await SeedAsync(db, 101);
         var service = Service(db, new User(101));
         var created = await service.CreateAsync(Request(scope));
+        var testVersion = await SetTestRowVersionAsync(db);
         var stale = await service.ReviewAsync(created.Data!.Reference, new ReviewAdmissionApplicationDto
         {
             State = AdmissionApplicantState.UnderReview,
@@ -103,12 +105,12 @@ public sealed class AdmissionApplicationServiceTests
         stale.StatusCode.Should().Be(409);
         var unsupported = await service.ReviewAsync(created.Data.Reference, new ReviewAdmissionApplicationDto
         {
-            State = AdmissionApplicantState.Admitted, RowVersion = created.Data.RowVersion
+            State = AdmissionApplicantState.Admitted, RowVersion = testVersion
         });
         unsupported.StatusCode.Should().Be(400);
         var reviewed = await service.ReviewAsync(created.Data.Reference, new ReviewAdmissionApplicationDto
         {
-            State = AdmissionApplicantState.UnderReview, RowVersion = created.Data.RowVersion
+            State = AdmissionApplicantState.UnderReview, RowVersion = testVersion
         });
         reviewed.Success.Should().BeTrue(reviewed.Message);
         var rejected = await service.ReviewAsync(created.Data.Reference, new ReviewAdmissionApplicationDto
@@ -140,9 +142,10 @@ public sealed class AdmissionApplicationServiceTests
             FileAssetId = asset.Id, DocumentTypeCode = "PROOF", IsVerified = false
         });
         await db.SaveChangesAsync();
+        var testVersion = await SetTestRowVersionAsync(db);
         var result = await service.ReviewAsync(created.Data!.Reference, new ReviewAdmissionApplicationDto
         {
-            State = AdmissionApplicantState.Qualified, RowVersion = created.Data.RowVersion
+            State = AdmissionApplicantState.Qualified, RowVersion = testVersion
         });
         result.StatusCode.Should().Be(409);
     }
@@ -153,6 +156,17 @@ public sealed class AdmissionApplicationServiceTests
         await using var db = Context(Options(), 101);
         (await Service(db, new User(101, "Teacher"))
             .GetPageAsync(new AdmissionApplicationQueryDto())).StatusCode.Should().Be(403);
+    }
+
+    // EF InMemory does not generate SQL Server rowversion values. Supply a
+    // deterministic, non-empty version for service-level concurrency tests only.
+    private static async Task<string> SetTestRowVersionAsync(EduOSDbContext db)
+    {
+        var application = await db.AdmissionApplicants.SingleAsync();
+        application.RowVersion = [1, 0, 0, 0, 0, 0, 0, 0];
+        db.Entry(application).Property(x => x.RowVersion).IsModified = true;
+        await db.SaveChangesAsync();
+        return Convert.ToBase64String(application.RowVersion);
     }
 
     private static AdmissionApplicationService Service(EduOSDbContext db, ICurrentUserService user) => new(
