@@ -26,9 +26,20 @@ public sealed class AdmissionIntakeModelTests
         form.FindProperty(nameof(AdmissionIntakeForm.RowVersion))!.IsConcurrencyToken.Should().BeTrue();
         document.FindProperty(nameof(AdmissionApplicantDocument.RowVersion))!.IsConcurrencyToken.Should().BeTrue();
         form.GetIndexes().Should().Contain(x => x.IsUnique && x.Properties.Select(p => p.Name).SequenceEqual(new[] { nameof(AdmissionIntakeForm.TenantId), nameof(AdmissionIntakeForm.Code) }));
-        document.GetIndexes().Single(x => x.GetDatabaseName() == "UX_AdmissionApplicantDocuments_CurrentType").IsUnique.Should().BeTrue();
+        document.GetIndexes().Should().ContainSingle(x =>
+            x.IsUnique && x.GetDatabaseName() == "UX_AdmissionApplicantDocuments_Tenant_Applicant_Type_Version" &&
+            x.Properties.Select(p => p.Name).SequenceEqual(new[] {
+                nameof(AdmissionApplicantDocument.TenantId),
+                nameof(AdmissionApplicantDocument.AdmissionApplicantId),
+                nameof(AdmissionApplicantDocument.DocumentTypeCode),
+                nameof(AdmissionApplicantDocument.VersionNo)
+            }), "multiple versions of the same document type are allowed, but each version must be unique");
         form.GetCheckConstraints().Should().Contain(x => x.Name == "CK_AdmissionIntakeForms_DateRange");
-        document.GetCheckConstraints().Should().Contain(x => x.Name == "CK_AdmissionApplicantDocuments_FileSize");
+        document.GetCheckConstraints().Should().Contain(x =>
+            x.Name == "CK_AdmissionApplicantDocuments_Version" && x.Sql.Contains("[VersionNo] >= 1"));
+        document.GetForeignKeys().Should().Contain(x =>
+            x.Properties.Any(p => p.Name == nameof(AdmissionApplicantDocument.FileAssetId)) &&
+            x.DeleteBehavior == DeleteBehavior.Restrict);
         form.GetForeignKeys().Should().OnlyContain(x => x.DeleteBehavior == DeleteBehavior.Restrict);
         document.GetForeignKeys().Should().OnlyContain(x => x.DeleteBehavior == DeleteBehavior.Restrict);
     }
