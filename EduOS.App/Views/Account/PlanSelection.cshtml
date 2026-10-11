@@ -26,6 +26,8 @@
         createFailed = T["SubscriptionCreateFailed"].Value,
         networkError = T["NetworkError"].Value,
         recovering = T["ExistingSubscriptionRedirecting"].Value,
+        currentPlanReadOnly = T["CurrentPlanReadOnly"].Value,
+        currentPlanSelected = T["CurrentPlanSelected"].Value,
         periods = new Dictionary<string, string>
         {
             ["1"] = T["PeriodMonth"].Value,
@@ -75,6 +77,7 @@
 
     <footer class="setup-actions plan-selection-actions">
         <p class="setup-safe-note"><span aria-hidden="true">✓</span> @T["PlanSelectionSafeNote"]</p>
+        <a href="/Dashboard/Index" id="planDashboardLink" class="btn btn-outline-secondary d-none">@T["Dashboard"]</a>
         <button type="button" class="btn btn-primary" id="continueBtn" disabled
                 data-idle-label="@T["ContinueToPayment"]" data-loading-label="@T["Processing"]">
             @T["ContinueToPayment"]
