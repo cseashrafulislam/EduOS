@@ -21,10 +21,20 @@ public class AcademicCalendarModelTests
         calendarEvent.GetDeclaredQueryFilters().Should().NotBeEmpty();
         policy.FindProperty(nameof(AcademicCalendarPolicy.RowVersion))!.IsConcurrencyToken.Should().BeTrue();
         calendarEvent.FindProperty(nameof(AcademicCalendarEvent.RowVersion))!.IsConcurrencyToken.Should().BeTrue();
-        policy.GetIndexes().Single(x => x.GetDatabaseName() == "UX_AcademicCalendarPolicies_Tenant_Request").IsUnique.Should().BeTrue();
-        policy.GetIndexes().Single(x => x.GetDatabaseName() == "UX_AcademicCalendarPolicies_Tenant_Scope").IsUnique.Should().BeTrue();
-        calendarEvent.GetIndexes().Single(x => x.GetDatabaseName() == "UX_AcademicCalendarEvents_Tenant_Request").IsUnique.Should().BeTrue();
-        calendarEvent.GetIndexes().Single(x => x.GetDatabaseName() == "UX_AcademicCalendarEvents_Tenant_Scope_Title_Dates").IsUnique.Should().BeTrue();
+        policy.GetIndexes().Should().ContainSingle(x =>
+            x.IsUnique && x.GetDatabaseName() == "UX_AcademicCalendarPolicies_Tenant_Campus" &&
+            x.Properties.Select(p => p.Name).SequenceEqual(new[] {
+                nameof(AcademicCalendarPolicy.TenantId), nameof(AcademicCalendarPolicy.CampusId)
+            }));
+        calendarEvent.GetIndexes().Should().ContainSingle(x =>
+            x.IsUnique && x.GetDatabaseName() == "UX_AcademicCalendarEvents_Tenant_NaturalKey" &&
+            x.Properties.Select(p => p.Name).SequenceEqual(new[] {
+                nameof(AcademicCalendarEvent.TenantId), nameof(AcademicCalendarEvent.CampusId),
+                nameof(AcademicCalendarEvent.AcademicYearId), nameof(AcademicCalendarEvent.AcademicTermId),
+                nameof(AcademicCalendarEvent.EventType), nameof(AcademicCalendarEvent.Title),
+                nameof(AcademicCalendarEvent.StartDate), nameof(AcademicCalendarEvent.EndDate)
+            }));
+        calendarEvent.GetCheckConstraints().Should().Contain(x => x.Name == "CK_AcademicCalendarEvent_DateRange");
         policy.GetForeignKeys().Should().OnlyContain(x => x.DeleteBehavior == DeleteBehavior.Restrict);
         calendarEvent.GetForeignKeys().Should().OnlyContain(x => x.DeleteBehavior == DeleteBehavior.Restrict);
     }
