@@ -152,7 +152,7 @@ public sealed class TenantMembershipResolutionTests
         var store = new Mock<IUserStore<ApplicationUser>>();
         var manager = new Mock<UserManager<ApplicationUser>>(store.Object, null!, null!, null!, null!,
             null!, null!, null!, null!);
-        var user = new ApplicationUser { Id = userId, UserName = "teacher", IsActive = true };
+        var user = new ApplicationUser { Id = userId, UserName = "teacher", IsActive = true, EmailConfirmed = true };
         manager.Setup(x => x.FindByIdAsync(userId.ToString())).ReturnsAsync(user);
         manager.Setup(x => x.GetRolesAsync(user)).ReturnsAsync(new List<string> { "Teacher" });
         return manager.Object;
