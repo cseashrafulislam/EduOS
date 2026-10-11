@@ -3,6 +3,7 @@ using EduOS.Persistence.Context;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Xunit;
 
 namespace EduOS.Tests.Persistence;
@@ -14,8 +15,10 @@ public class AcademicCalendarModelTests
     {
         using var context = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase($"academic-calendar-model-{Guid.NewGuid():N}").Options);
-        var policy = context.Model.FindEntityType(typeof(AcademicCalendarPolicy))!;
-        var calendarEvent = context.Model.FindEntityType(typeof(AcademicCalendarEvent))!;
+        // Relational constraints must be inspected through EF's design-time model.
+        var model = context.GetService<IDesignTimeModel>().Model;
+        var policy = model.FindEntityType(typeof(AcademicCalendarPolicy))!;
+        var calendarEvent = model.FindEntityType(typeof(AcademicCalendarEvent))!;
 
         policy.GetDeclaredQueryFilters().Should().NotBeEmpty();
         calendarEvent.GetDeclaredQueryFilters().Should().NotBeEmpty();
