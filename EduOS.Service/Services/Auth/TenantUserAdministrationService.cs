@@ -4,6 +4,10 @@ using EduOS.Core.Entities.Auth;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IServices;
+using EduOS.Core.Settings;
+using Microsoft.Extensions.Options;
+using System.Security.Cryptography;
+using System.Text;
 using EduOS.Persistence.Context;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -21,13 +25,18 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
     private readonly EduOSDbContext _db;
     private readonly ICurrentUserService _current;
     private readonly UserManager<ApplicationUser> _users;
+    private readonly IEmailService _emails;
+    private readonly string _portalDomain;
 
     public TenantUserAdministrationService(EduOSDbContext db,
-        ICurrentUserService current, UserManager<ApplicationUser> users)
+        ICurrentUserService current, UserManager<ApplicationUser> users,
+        IEmailService emails, IOptions<TenantPortalSettings> portal)
     {
         _db = db;
         _current = current;
         _users = users;
+        _emails = emails;
+        _portalDomain = portal.Value.BaseDomain;
     }
 
     private bool CanManage => _current.IsAuthenticated && _current.IsTenantAdmin && _current.TenantId > 0;
@@ -283,6 +292,176 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
             return ApiResponse<bool>.ErrorResponse("Concurrent permission update. Reload and retry.", 409);
         }
     }
+
+    public async Task<ApiResponse<bool>> SendInvitationAsync(
+        TenantInviteRequestDto request, CancellationToken ct = default)
+    {
+        if (!CanManage) return Denied<bool>();
+        if (request == null || !new System.ComponentModel.DataAnnotations.EmailAddressAttribute()
+            .IsValid(request.Email) || request.Email.Length > 200)
+            return ApiResponse<bool>.ErrorResponse("Valid email is required.", 400);
+        if (string.IsNullOrWhiteSpace(_portalDomain) ||
+            Uri.CheckHostName(_portalDomain) != UriHostNameType.Dns)
+            return ApiResponse<bool>.ErrorResponse("Trusted institution portal hostname is not configured.", 503);
+        var email = request.Email.Trim().ToLowerInvariant();
+        if (request.RoleId is > 0 && !await LocalRoles.AnyAsync(x =>
+            x.Id == request.RoleId && x.IsActive, ct))
+            return ApiResponse<bool>.ErrorResponse("Role does not belong to this institution.", 403);
+        if (request.RoleId is < 0)
+            return ApiResponse<bool>.ErrorResponse("Invalid institution role.", 400);
+        var target = await _users.FindByEmailAsync(email);
+        if (target != null && await _db.TenantMemberships.AnyAsync(x =>
+            x.TenantId == TenantId && x.UserId == target.Id && !x.IsDeleted, ct))
+            return ApiResponse<bool>.ErrorResponse("The user already has an institution membership.", 409);
+
+        // The raw token is intentionally never persisted. Retrying an invitation
+        // revokes any earlier unaccepted link for this institution/email.
+        var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+        var hash = HashInvitationToken(token);
+        try
+        {
+            await _db.ExecuteInTransactionAsync(async tx =>
+            {
+                var previous = await _db.TenantInvitations.Where(x =>
+                    x.TenantId == TenantId && x.Email == email && !x.IsDeleted &&
+                    x.AcceptedAt == null && x.RevokedAt == null).ToListAsync(tx);
+                foreach (var old in previous)
+                {
+                    old.RevokedAt = DateTime.UtcNow;
+                    old.UpdatedBy = _current.UserId;
+                    old.UpdatedAt = DateTime.UtcNow;
+                }
+                _db.TenantInvitations.Add(new TenantInvitation
+                {
+                    TenantId = TenantId, Email = email, RoleId = request.RoleId,
+                    TokenHash = hash, InvitedByUserId = _current.UserId,
+                    ExpiresAt = DateTime.UtcNow.AddHours(48),
+                    CreatedBy = _current.UserId
+                });
+                await _db.SaveChangesAsync(tx);
+                return true;
+            }, IsolationLevel.Serializable, ct);
+        }
+        catch (DbUpdateException)
+        {
+            return ApiResponse<bool>.ErrorResponse("Invitation conflict. Retry safely.", 409);
+        }
+
+        var host = _portalDomain.Trim().ToLowerInvariant();
+        var link = "https://" + host + "/TenantUsers/Accept?token=" + Uri.EscapeDataString(token);
+        try
+        {
+            await _emails.SendEmailAsync(email, "EduOS institution invitation",
+                "You have been invited to an EduOS institution. Open this secure link to accept within 48 hours:\n" +
+                link + "\nIf you did not request this, ignore the email.", isHtml: false);
+        }
+        catch
+        {
+            // Link was committed before dispatch; retrying Send Invitation revokes
+            // the undelivered token and creates a replacement. Never log raw tokens.
+            return ApiResponse<bool>.ErrorResponse("Invitation saved but email delivery failed. Retry the invitation.", 503);
+        }
+        return ApiResponse<bool>.SuccessResponse(true, "Invitation email sent.");
+    }
+
+    public async Task<ApiResponse<bool>> AcceptInvitationAsync(
+        TenantInviteAcceptRequestDto request, CancellationToken ct = default)
+    {
+        // A signed-in user from institution A must never acquire an implicit
+        // system tenant scope for institution B. Ask them to sign out first.
+        if (_current.IsAuthenticated)
+            return ApiResponse<bool>.ErrorResponse("Sign out before accepting an institution invitation.", 403);
+        if (request == null || !ValidInviteToken(request.Token) ||
+            string.IsNullOrWhiteSpace(request.Password) || request.Password != request.ConfirmPassword)
+            return ApiResponse<bool>.ErrorResponse("Invalid invitation or password confirmation.", 400);
+        var tokenHash = HashInvitationToken(request.Token);
+        var invite = await _db.TenantInvitations.IgnoreQueryFilters()
+            .SingleOrDefaultAsync(x => x.TokenHash == tokenHash && !x.IsDeleted &&
+                x.AcceptedAt == null && x.RevokedAt == null && x.ExpiresAt > DateTime.UtcNow, ct);
+        if (invite == null)
+            return ApiResponse<bool>.ErrorResponse("Invitation expired or already used.", 400);
+
+        var tenantActive = await _db.Tenants.IgnoreQueryFilters().AsNoTracking().AnyAsync(t =>
+            t.Id == invite.TenantId && !t.IsDeleted && (t.State == TenantState.Active ||
+            (t.State == TenantState.PendingVerification && t.OnboardingStage != OnboardingStage.Completed)), ct);
+        if (!tenantActive)
+            return ApiResponse<bool>.ErrorResponse("Institution is not available.", 403);
+        if (invite.RoleId.HasValue && !await _db.Roles.IgnoreQueryFilters().AsNoTracking()
+            .AnyAsync(x => x.Id == invite.RoleId && x.TenantId == invite.TenantId &&
+                x.IsActive && !x.IsDeleted && !x.IsSystemRole, ct))
+            return ApiResponse<bool>.ErrorResponse("Invitation role is no longer available.", 409);
+        try
+        {
+            await _db.ExecuteInTransactionAsync(async tx =>
+            {
+                // Re-read under Serializable so simultaneous acceptance cannot create
+                // duplicate memberships or reuse one token.
+                var stored = await _db.TenantInvitations.IgnoreQueryFilters().SingleOrDefaultAsync(x =>
+                    x.Id == invite.Id && x.TokenHash == tokenHash && x.AcceptedAt == null &&
+                    x.RevokedAt == null && x.ExpiresAt > DateTime.UtcNow, tx);
+                if (stored == null) throw new AdminRejectException("Invitation already used.", 409);
+                using var scope = _db.BeginSystemTenantScope(stored.TenantId);
+                var existing = await _users.FindByEmailAsync(stored.Email);
+                ApplicationUser user;
+                if (existing == null)
+                {
+                    var name = request.FullName?.Trim();
+                    if (string.IsNullOrEmpty(name) || name.Length > 200)
+                        throw new AdminRejectException("Full name is required for a new account.", 400);
+                    user = new ApplicationUser
+                    {
+                        UserName = stored.Email, Email = stored.Email, EmailConfirmed = true,
+                        FullName = name, IsActive = true
+                    };
+                    var created = await _users.CreateAsync(user, request.Password);
+                    if (!created.Succeeded)
+                        throw new AdminRejectException("Unable to create account. Check password requirements.", 400);
+                }
+                else
+                {
+                    user = existing;
+                    if (!user.IsActive || user.IsDeleted || !user.EmailConfirmed ||
+                        !await _users.CheckPasswordAsync(user, request.Password))
+                        throw new AdminRejectException("Existing account credentials are invalid.", 400);
+                }
+
+                if (await _db.TenantMemberships.IgnoreQueryFilters().AnyAsync(x =>
+                    x.TenantId == stored.TenantId && x.UserId == user.Id && !x.IsDeleted, tx))
+                    throw new AdminRejectException("This user is already a member.", 409);
+
+                _db.TenantMemberships.Add(new TenantMembership
+                {
+                    TenantId = stored.TenantId, UserId = user.Id,
+                    Status = MembershipStatus.Active, IsOwner = false,
+                    JoinedAt = DateTime.UtcNow
+                });
+                if (stored.RoleId.HasValue)
+                    _db.UserRoles.Add(new IdentityUserRole<long>
+                    {
+                        UserId = user.Id, RoleId = stored.RoleId.Value
+                    });
+                stored.AcceptedAt = DateTime.UtcNow;
+                stored.UpdatedAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync(tx);
+                var rotated = await _users.UpdateSecurityStampAsync(user);
+                if (!rotated.Succeeded)
+                    throw new AdminRejectException("Account changed while accepting invitation.", 409);
+                return true;
+            }, IsolationLevel.Serializable, ct);
+        }
+        catch (AdminRejectException ex) { return ApiResponse<bool>.ErrorResponse(ex.Message, ex.StatusCode); }
+        catch (DbUpdateException)
+        {
+            return ApiResponse<bool>.ErrorResponse("Invitation was already accepted or changed. Retry login.", 409);
+        }
+        return ApiResponse<bool>.SuccessResponse(true, "Invitation accepted. Sign in to select your institution.");
+    }
+
+    private static string HashInvitationToken(string value) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
+
+    private static bool ValidInviteToken(string? token) =>
+        token is { Length: 64 } && token.All(c => c is >= '0' and <= '9' or >= 'A' and <= 'F');
 
     private static bool TryVersion(string? value, out byte[] bytes)
     {
