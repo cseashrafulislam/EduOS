@@ -134,6 +134,36 @@ public class AcademicCalendarServiceTests
         (await otherContext.AcademicCalendarPolicies.IgnoreQueryFilters().CountAsync()).Should().Be(0);
     }
 
+    [Fact]
+    public async Task Large_calendar_ranges_fail_explicitly_instead_of_silently_omitting_holidays()
+    {
+        var options = CreateOptions();
+        var seed = await SeedAsync(options, 101);
+        await using var context = CreateContext(options, 101, 7, "TenantAdmin");
+        var service = CreateService(context, new TestCurrentUser(101, 7, "TenantAdmin"));
+        (await service.SavePolicyAsync(new SaveAcademicCalendarPolicyRequestDto
+        {
+            CampusId = seed.CampusId, WeekendDay1 = DayOfWeek.Friday
+        })).Success.Should().BeTrue();
+        context.AcademicCalendarEvents.AddRange(Enumerable.Range(1, 1001).Select(i => new AcademicCalendarEvent
+        {
+            TenantId = 101, CampusId = seed.CampusId, AcademicYearId = seed.YearId,
+            Title = "Closure-" + i, EventType = CalendarEventKind.Holiday,
+            StartDate = new DateOnly(2026, 9, 20), EndDate = new DateOnly(2026, 9, 20),
+            IsHoliday = true, IsPublicVisible = true
+        }));
+        await context.SaveChangesAsync();
+
+        var events = await service.GetEventsAsync(seed.YearId, seed.CampusId,
+            new DateOnly(2026, 9, 20), new DateOnly(2026, 9, 20));
+        var days = await service.GetWorkingDaysAsync(seed.YearId, seed.CampusId,
+            new DateOnly(2026, 9, 20), new DateOnly(2026, 9, 20));
+        events.Success.Should().BeFalse();
+        events.StatusCode.Should().Be(409);
+        days.Success.Should().BeFalse();
+        days.StatusCode.Should().Be(409);
+    }
+
     private static SaveAcademicCalendarEventRequestDto Event(CalendarSeed seed, string title, bool visible) => new()
     {
         CampusId = seed.CampusId,
