@@ -1,6 +1,8 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Auth;
 using EduOS.Core.Entities.Auth;
+using EduOS.Core.Entities.System;
+using System.Text.Json;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IServices;
@@ -144,7 +146,21 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
             IsSystemRole = false, IsActive = true
         };
         _db.Roles.Add(role);
-        try { await _db.SaveChangesAsync(ct); }
+        try
+        {
+            await _db.ExecuteInTransactionAsync(async tx =>
+            {
+                await _db.SaveChangesAsync(tx);
+                _db.AuditLogs.Add(new AuditLog
+                {
+                    TenantId = TenantId, UserId = _current.UserId,
+                    Action = "TenantRoleCreated", EntityName = nameof(ApplicationRole),
+                    EntityId = role.Id, NewValue = JsonSerializer.Serialize(new { role.Name, role.Description })
+                });
+                await _db.SaveChangesAsync(tx);
+                return true;
+            }, ct);
+        }
         catch (DbUpdateException)
         {
             return ApiResponse<TenantRoleDto>.ErrorResponse("Could not create role. It may already exist.", 409);
@@ -220,6 +236,15 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
 
                 member.UpdatedAt = DateTime.UtcNow;
                 member.UpdatedBy = _current.UserId;
+                _db.AuditLogs.Add(new AuditLog
+                {
+                    TenantId = TenantId, UserId = _current.UserId,
+                    Action = "TenantMemberRolesChanged", EntityName = nameof(TenantMembership),
+                    EntityId = member.Id,
+                    OldValue = JsonSerializer.Serialize(oldRoleIds),
+                    NewValue = JsonSerializer.Serialize(selected),
+                    OccurredAt = DateTime.UtcNow
+                });
                 await _db.SaveChangesAsync(token);
                 var user = await _users.FindByIdAsync(member.UserId.ToString());
                 if (user == null) throw new AdminRejectException("Member account is unavailable.", 409);
