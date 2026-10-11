@@ -1,0 +1,79 @@
+@{
+    ViewData["Title"] = "Student Lifecycle & Transfer Certificate";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<div id="studentLifecycle" class="container-fluid py-4">
+    @Html.AntiForgeryToken()
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+        <div>
+            <h1 class="h4 fw-bold mb-1">Student Exit &amp; Transfer Certificate</h1>
+            <p class="text-muted mb-0">Controlled final transitions: Transfer, Completed or Dropout. Historical enrollments are retained.</p>
+        </div>
+        <a href="/Students/Index" class="btn btn-outline-secondary">Student Directory</a>
+    </div>
+    <div id="lifecycleAlert" class="alert d-none" role="alert" aria-live="polite"></div>
+    <div class="row g-3">
+        <div class="col-xl-5">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h2 class="h5">Find student</h2>
+                    <form id="lifecycleStudentSearch" class="input-group mb-3">
+                        <input id="lifecycleSearchText" class="form-control" maxlength="100" placeholder="Student name or code" aria-label="Student search" />
+                        <button class="btn btn-outline-primary" type="submit">Search</button>
+                    </form>
+                    <div id="lifecycleMatches" class="list-group mb-3">Search for a student to process.</div>
+                    <div id="lifecycleStudent" class="border rounded p-3 d-none">
+                        <div class="fw-semibold" id="lifecycleName"></div>
+                        <div class="small text-muted" id="lifecycleCode"></div>
+                        <div class="mt-2"><strong>Status:</strong> <span id="lifecycleStatus"></span></div>
+                        <div id="lifecycleCurrent" class="small text-muted mt-1"></div>
+                        <p class="small text-muted mt-2 mb-0">All fee settlement, active-enrollment and final-status rules are rechecked on the server.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-7">
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-body">
+                    <h2 class="h5">Process final student exit</h2>
+                    <form id="lifecycleExitForm" class="row g-3">
+                        <div class="col-md-6">
+                            <label for="lifecycleExitType" class="form-label">Exit type *</label>
+                            <select id="lifecycleExitType" class="form-select" required>
+                                <option value="Transfer">Transfer — Issue TC</option>
+                                <option value="Completed">Completed / Graduated</option>
+                                <option value="Dropout">Dropout</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label for="lifecycleReason" class="form-label">Reason *</label>
+                            <textarea id="lifecycleReason" class="form-control" rows="3" maxlength="1000" required></textarea>
+                        </div>
+                        <div class="col-12">
+                            <label for="lifecycleConduct" class="form-label">Conduct remark (optional)</label>
+                            <textarea id="lifecycleConduct" class="form-control" rows="2" maxlength="500"></textarea>
+                        </div>
+                        <div class="col-12">
+                            <button id="lifecycleSubmit" class="btn btn-danger" type="submit" disabled>Confirm Final Exit</button>
+                            <p class="small text-muted mt-2 mb-0">This operation closes the current enrollment. Transfer and completion require all outstanding fees to be settled. A submitted exit is not edited/deleted.</p>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h2 class="h5">Exit and certificate history</h2>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle">
+                            <thead><tr><th>Processed (UTC)</th><th>Type</th><th>Final status</th><th>Certificate no.</th><th>Due at exit</th></tr></thead>
+                            <tbody id="lifecycleHistory"><tr><td colspan="5">Select a student.</td></tr></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@section Scripts {
+    <script src="~/js/students/lifecycle.js" asp-append-version="true"></script>
+}
