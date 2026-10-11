@@ -29,6 +29,11 @@ public sealed class TenantModuleServiceTests
         var student = state.Data!.Single(x => x.ModuleCode == "STUDENT");
         student.IsEnabled.Should().BeTrue();
         student.IsEntitledByPlan.Should().BeTrue();
+        student.IsCore.Should().BeFalse();
+        student.ModuleName.Should().NotBeNullOrWhiteSpace();
+        var core = state.Data.Single(x => x.ModuleCode == "CORE_ADMIN");
+        core.IsCore.Should().BeTrue();
+        core.IsEnabled.Should().BeTrue();
         var library = state.Data.Single(x => x.ModuleCode == "LIBRARY");
         library.IsEnabled.Should().BeTrue();
         library.IsEntitledByPlan.Should().BeFalse();
