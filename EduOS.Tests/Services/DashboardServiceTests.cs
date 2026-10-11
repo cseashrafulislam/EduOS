@@ -64,6 +64,41 @@ public sealed class DashboardServiceTests
     }
 
     [Fact]
+    public async Task Dashboard_recognizes_active_paid_subscription_for_current_tenant()
+    {
+        var http = new DefaultHttpContext();
+        await using var db = new EduOSDbContext(Options(), new HttpContextAccessor { HttpContext = http });
+        await SubscriptionSeeder.SeedAsync(db);
+        var enterprise = await db.SubscriptionPlans.SingleAsync(x => x.Code == "ENTERPRISE");
+        var now = DateTime.UtcNow;
+        var tenant = new Tenant
+        {
+            Name = "Paid School", Code = "DASH-PAID",
+            Email = "paid@example.test", State = TenantState.Active,
+            EmailVerifiedAt = now, OnboardingStage = OnboardingStage.Completed,
+            OnboardingCompletedAt = now
+        };
+        db.Tenants.Add(tenant);
+        await db.SaveChangesAsync();
+        http.Items["TenantId"] = tenant.Id;
+        http.User = Principal(tenant.Id);
+        db.TenantSubscriptions.Add(new TenantSubscription
+        {
+            TenantId = tenant.Id, SubscriptionPlanId = enterprise.Id,
+            StartsAt = now.AddHours(-1), EndsAt = now.AddMonths(1),
+            State = SubscriptionState.Active, IsTrial = false,
+            BillingCycleCode = "Monthly", PriceSnapshot = enterprise.MonthlyPrice, CurrencyCode = "BDT"
+        });
+        await db.SaveChangesAsync();
+        var result = await CreateService(db, new TestCurrentUser(tenant.Id)).GetDashboardAsync();
+        result.Success.Should().BeTrue(result.Message);
+        result.Data!.PlanName.Should().Be("Enterprise");
+        result.Data.SubscriptionStatus.Should().Be("Active");
+        result.Data.SubscriptionEndDate.Should().NotBeNull();
+        result.Data.Alerts.Select(x => x.Code).Should().NotContain("SUBSCRIPTION_MISSING");
+    }
+
+    [Fact]
     public async Task Dashboard_rejects_requests_without_a_tenant_context()
     {
         await using var db = new EduOSDbContext(Options());
