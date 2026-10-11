@@ -13,7 +13,7 @@
             <form id="hrEmployeeSearch" class="row g-2 align-items-end">
                 <div class="col-md-5"><label class="form-label" for="hrEmployeeText">Employee name or code</label><input id="hrEmployeeText" class="form-control" type="search" maxlength="100" /></div>
                 <div class="col-md-3"><label class="form-label" for="hrEmployeeTeacher">Type</label><select id="hrEmployeeTeacher" class="form-select"><option value="">All</option><option value="true">Teachers</option><option value="false">Other staff</option></select></div>
-                <div class="col-md-2"><label class="form-label" for="hrEmployeeActive">State</label><select id="hrEmployeeActive" class="form-select"><option value="">All</option><option value="true">Active</option><option value="false">Inactive</option></select></div>
+                <div class="col-md-2"><label class="form-label" for="hrEmployeeActive">State</label><select id="hrEmployeeActive" class="form-select"><option value="">All</option><option value="1">Active</option><option value="2">Suspended</option><option value="3">Resigned</option><option value="4">Terminated</option><option value="5">Retired</option></select></div>
                 <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Search</button></div>
             </form>
             <div class="table-responsive mt-3">
@@ -31,7 +31,7 @@
             <h3 class="h5">Employee leave review</h3>
             <form id="hrLeaveSearch" class="row g-2 align-items-end">
                 <div class="col-md-4"><label class="form-label" for="hrLeaveText">Employee name or code</label><input id="hrLeaveText" class="form-control" type="search" maxlength="100" /></div>
-                <div class="col-md-3"><label class="form-label" for="hrLeaveStatus">Status</label><select id="hrLeaveStatus" class="form-select"><option value="">All</option><option value="Pending" selected>Pending</option><option value="Approved">Approved</option><option value="Rejected">Rejected</option></select></div>
+                <div class="col-md-3"><label class="form-label" for="hrLeaveStatus">Status</label><select id="hrLeaveStatus" class="form-select"><option value="">All</option><option value="2" selected>Submitted</option><option value="3">Approved</option><option value="4">Rejected</option><option value="1">Draft</option><option value="5">Cancelled</option></select></div>
                 <div class="col-md-3"><label class="form-label" for="hrLeaveFrom">Starting from</label><input id="hrLeaveFrom" class="form-control" type="date" /></div>
                 <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Filter</button></div>
             </form>

@@ -2,6 +2,9 @@
     'use strict';
     const el = id => document.getElementById(id);
     if (!el('hrEmployeeSearch')) return;
+    const csrfToken = document.querySelector('meta[name="request-verification-token"]')?.content;
+    const employeeStates = { 1: 'Active', 2: 'Suspended', 3: 'Resigned', 4: 'Terminated', 5: 'Retired' };
+    const leaveStates = { 1: 'Draft', 2: 'Submitted', 3: 'Approved', 4: 'Rejected', 5: 'Cancelled' };
     const paging = { employees: { page: 1, totalPages: 1 }, leaves: { page: 1, totalPages: 1 } };
     function notify(message, success = false) {
         const alert = el('hrAlert');
@@ -12,6 +15,10 @@
     function clearNotice() { el('hrAlert').className = 'd-none'; el('hrAlert').textContent = ''; }
     async function request(url, method = 'GET', body = undefined) {
         const headers = { Accept: 'application/json' };
+        if (method !== 'GET') {
+            if (!csrfToken) throw new Error('Missing antiforgery token. Reload the page.');
+            headers.RequestVerificationToken = csrfToken;
+        }
         if (body !== undefined) headers['Content-Type'] = 'application/json';
         const response = await fetch(url, { method, credentials: 'same-origin', cache: 'no-store', headers, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
         const result = await response.json().catch(() => null);
@@ -50,7 +57,7 @@
         const query = new URLSearchParams({ page: String(paging.employees.page), pageSize: '25' });
         if (el('hrEmployeeText').value.trim()) query.set('search', el('hrEmployeeText').value.trim());
         if (el('hrEmployeeTeacher').value) query.set('canTeach', el('hrEmployeeTeacher').value);
-        if (el('hrEmployeeActive').value) query.set('isActive', el('hrEmployeeActive').value);
+        if (el('hrEmployeeActive').value) query.set('state', el('hrEmployeeActive').value);
         try {
             const data = await request('/api/hr/employees?' + query);
             const items = data?.items || [];
@@ -58,29 +65,34 @@
             if (!items.length) empty(body, 6, 'No matching employees.');
             for (const employee of items) {
                 const tr = document.createElement('tr');
-                [employee.employeeCode, employee.fullName, employee.designation, employee.department, String(employee.joiningDate || '').slice(0, 10), employee.isActive ? 'Active' : 'Inactive'].forEach(v => tr.append(td(v)));
+                [employee.employeeCode, employee.fullName, employee.designationName, employee.organizationUnitName, String(employee.joiningDate || '').slice(0, 10), employeeStates[employee.state] || employee.state].forEach(v => tr.append(td(v)));
                 body.append(tr);
             }
             setPager('employees', data);
         } catch (error) { empty(body, 6, 'Unable to load employees.'); notify(error.message); }
     }
-    async function reviewLeave(id, status, tr) {
-        const remarks = tr.querySelector('[data-remarks]').value.trim();
+    async function reviewLeave(leave, decision, tr) {
+        if (!leave.rowVersion) { notify('Leave concurrency version missing. Reload before reviewing.'); return; }
+        const note = tr.querySelector('[data-remarks]').value.trim();
+        if (decision === 4 && !note) { notify('A rejection note is required.'); return; }
+        if (!window.confirm((decision === 3 ? 'Approve' : 'Reject') + ' leave for ' + leave.employeeName + '?')) return;
         const buttons = [...tr.querySelectorAll('button')];
-        buttons.forEach(b => b.disabled = true);
+        buttons.forEach(button => button.disabled = true);
         try {
-            await request('/api/hr/leaves/review', 'POST', { id, status, remarks: remarks || null });
-            notify('Leave request ' + status.toLowerCase() + '.', true);
+            await request('/api/hr/leaves/review', 'POST', {
+                id: leave.id, state: decision, reviewNote: note || null, rowVersion: leave.rowVersion
+            });
+            notify('Leave request ' + leaveStates[decision].toLowerCase() + '.', true);
             await loadLeaves();
-        } catch (error) { notify(error.message); buttons.forEach(b => b.disabled = false); }
+        } catch (error) { notify(error.message); buttons.forEach(button => button.disabled = false); }
     }
     async function loadLeaves() {
         const body = el('hrLeaveRows');
         empty(body, 6, 'Loading leave requests…');
         const query = new URLSearchParams({ page: String(paging.leaves.page), pageSize: '25' });
         if (el('hrLeaveText').value.trim()) query.set('search', el('hrLeaveText').value.trim());
-        if (el('hrLeaveStatus').value) query.set('status', el('hrLeaveStatus').value);
-        if (el('hrLeaveFrom').value) query.set('from', el('hrLeaveFrom').value);
+        if (el('hrLeaveStatus').value) query.set('state', el('hrLeaveStatus').value);
+        if (el('hrLeaveFrom').value) query.set('fromDate', el('hrLeaveFrom').value);
         try {
             const data = await request('/api/hr/leaves?' + query);
             const items = data?.items || [];
@@ -88,22 +100,24 @@
             if (!items.length) empty(body, 6, 'No matching leave requests.');
             for (const leave of items) {
                 const tr = document.createElement('tr');
-                [leave.employeeName + ' (' + leave.employeeCode + ')', leave.leaveType, String(leave.fromDate || '').slice(0, 10) + ' – ' + String(leave.toDate || '').slice(0, 10), leave.totalDays, leave.status].forEach(v => tr.append(td(v)));
+                [leave.employeeName + ' (' + leave.employeeCode + ')', leave.leaveTypeName,
+                    String(leave.fromDate || '').slice(0, 10) + ' – ' + String(leave.toDate || '').slice(0, 10),
+                    leave.totalDays, leaveStates[leave.state] || leave.state].forEach(value => tr.append(td(value)));
                 const action = document.createElement('td');
-                if (leave.status === 'Pending') {
+                if (leave.state === 2) {
                     const remarks = document.createElement('input');
-                    remarks.type = 'text'; remarks.maxLength = 500; remarks.className = 'form-control form-control-sm mb-2'; remarks.placeholder = 'Optional remarks'; remarks.dataset.remarks = '1';
+                    remarks.type = 'text'; remarks.maxLength = 1000; remarks.className = 'form-control form-control-sm mb-2';
+                    remarks.placeholder = 'Review note (required for rejection)'; remarks.dataset.remarks = '1';
                     action.append(remarks);
-                    for (const [status, label, style] of [['Approved', 'Approve', 'success'], ['Rejected', 'Reject', 'danger']]) {
+                    for (const [decision, label, style] of [[3, 'Approve', 'success'], [4, 'Reject', 'danger']]) {
                         const button = document.createElement('button');
                         button.type = 'button'; button.className = 'btn btn-sm btn-outline-' + style + ' me-2';
                         button.textContent = label;
-                        button.addEventListener('click', () => reviewLeave(leave.id, status, tr));
+                        button.addEventListener('click', () => reviewLeave(leave, decision, tr));
                         action.append(button);
                     }
-                } else action.textContent = leave.remarks || 'Reviewed';
-                tr.append(action);
-                body.append(tr);
+                } else action.textContent = leave.reviewNote || leaveStates[leave.state] || 'Reviewed';
+                tr.append(action); body.append(tr);
             }
             setPager('leaves', data);
         } catch (error) { empty(body, 6, 'Unable to load leave requests.'); notify(error.message); }
