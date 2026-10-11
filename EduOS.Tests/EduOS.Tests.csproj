@@ -62,6 +62,8 @@
     <None Include="..\EduOS.Service\Services\SaaS\SubscriptionPaymentService.cs" Link="TestAssets\SubscriptionPaymentService.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.Service\Services\Exams\ExamWorkflowService.cs" Link="TestAssets\ExamWorkflowService.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Controllers\Api\AuthController.cs" Link="TestAssets\AuthController.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Middleware\TenantContextMiddleware.cs" Link="TestAssets\TenantContextMiddleware.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Extensions\IdentityExtensions.cs" Link="TestAssets\IdentityExtensions.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Controllers\Api\AdmissionApplicationsController.cs" Link="TestAssets\AdmissionApplicationsController.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Controllers\Api\StudentsController.cs" Link="TestAssets\StudentsApiController.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Controllers\StudentsController.cs" Link="TestAssets\StudentsController.cs" CopyToOutputDirectory="PreserveNewest" />
