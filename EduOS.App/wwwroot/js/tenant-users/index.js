@@ -128,13 +128,13 @@
             campuses.forEach(campus => {
                 const cell = document.createElement('div');
                 cell.className = 'col-md-4';
-                cell.append(checkbox(campus.id, campus.name, campus.isSelected));
+                cell.append(checkbox(campus.campusId, campus.name, campus.isActive));
                 options.append(cell);
             });
             const select = $('memberDefaultCampus');
             select.replaceChildren(new Option('No default campus', ''));
-            campuses.forEach(campus => select.append(new Option(campus.name, String(campus.id))));
-            select.value = String(campuses.find(x => x.isDefault)?.id || '');
+            campuses.forEach(campus => select.append(new Option(campus.name, String(campus.campusId))));
+            select.value = String(campuses.find(x => x.isDefault)?.campusId || '');
         } catch (error) {
             options.textContent = 'Unable to load campus access.';
             message(error.message, true);
@@ -192,6 +192,7 @@
         e.preventDefault();
         await submit(e.submitter, async () => {
             await request('/invitations', { method: 'POST', body: JSON.stringify({
+                clientRequestId: crypto.randomUUID(),
                 email: $('inviteEmail').value.trim(),
                 roleId: $('inviteRole').value ? Number($('inviteRole').value) : null
             }) });
@@ -238,7 +239,7 @@
                 method: 'PUT', body: JSON.stringify({
                     campusIds: campuses,
                     defaultCampusId,
-                    rowVersion: state.selected.rowVersion
+                    membershipRowVersion: state.selected.rowVersion
                 })
             });
             state.selected = null; $('memberEditor').classList.add('d-none');
