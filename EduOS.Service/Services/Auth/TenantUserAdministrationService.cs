@@ -306,10 +306,18 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
                 if (member.Status == MembershipStatus.Left && request.Status != MembershipStatus.Left)
                     throw new AdminRejectException("A departed membership requires a new invitation.", 409);
                 _db.Entry(member).Property(x => x.RowVersion).OriginalValue = version;
+                var priorStatus = member.Status;
                 member.Status = request.Status;
                 member.LeftAt = request.Status == MembershipStatus.Left ? DateTime.UtcNow : null;
                 member.UpdatedBy = _current.UserId;
                 member.UpdatedAt = DateTime.UtcNow;
+                _db.AuditLogs.Add(new AuditLog
+                {
+                    TenantId = TenantId, UserId = _current.UserId,
+                    Action = "TenantMemberStatusChanged", EntityName = nameof(TenantMembership),
+                    EntityId = member.Id, OldValue = priorStatus.ToString(),
+                    NewValue = request.Status.ToString()
+                });
                 await _db.SaveChangesAsync(token);
                 var user = await _users.FindByIdAsync(member.UserId.ToString());
                 if (user == null) throw new AdminRejectException("Member account is unavailable.", 409);
@@ -349,6 +357,7 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
                 role.ConcurrencyStamp = Guid.NewGuid().ToString();
                 role.UpdatedAt = DateTime.UtcNow;
                 var existing = await _db.RolePermissions.Where(x => x.RoleId == roleId && !x.IsDeleted).ToListAsync(token);
+                var oldPermissions = existing.Where(x => x.IsAllowed).Select(x => x.PermissionId).ToArray();
                 foreach (var record in existing)
                 {
                     record.IsAllowed = selected.Contains(record.PermissionId);
@@ -360,6 +369,13 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
                     {
                         RoleId = roleId, PermissionId = id, IsAllowed = true, CreatedBy = _current.UserId
                     });
+                _db.AuditLogs.Add(new AuditLog
+                {
+                    TenantId = TenantId, UserId = _current.UserId,
+                    Action = "TenantRolePermissionsChanged", EntityName = nameof(ApplicationRole),
+                    EntityId = roleId, OldValue = JsonSerializer.Serialize(oldPermissions),
+                    NewValue = JsonSerializer.Serialize(selected)
+                });
                 await _db.SaveChangesAsync(token);
                 // Permission changes are evaluated through RolePermissions at authorization
                 // time. Never rotate thousands of stamps inside a permission transaction.
@@ -641,6 +657,8 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
                 _db.Entry(member).Property(x => x.RowVersion).OriginalValue = version;
                 var entries = await _db.UserCampusAccesses.Where(x =>
                     x.TenantId == TenantId && x.UserId == member.UserId && !x.IsDeleted).ToListAsync(token);
+                var previousCampuses = entries.Where(x => x.IsActive).Select(x => x.CampusId).ToArray();
+                var previousDefault = member.DefaultCampusId;
                 foreach (var entry in entries)
                 {
                     entry.IsActive = selected.Contains(entry.CampusId);
@@ -659,6 +677,14 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
                     member.LastSelectedCampusId = request.DefaultCampusId;
                 member.UpdatedAt = DateTime.UtcNow;
                 member.UpdatedBy = _current.UserId;
+                _db.AuditLogs.Add(new AuditLog
+                {
+                    TenantId = TenantId, UserId = _current.UserId,
+                    Action = "TenantMemberCampusesChanged", EntityName = nameof(TenantMembership),
+                    EntityId = member.Id,
+                    OldValue = JsonSerializer.Serialize(new { campuses = previousCampuses, defaultCampusId = previousDefault }),
+                    NewValue = JsonSerializer.Serialize(new { campuses = selected, defaultCampusId = request.DefaultCampusId })
+                });
                 await _db.SaveChangesAsync(token);
                 var user = await _users.FindByIdAsync(member.UserId.ToString());
                 if (user == null) throw new AdminRejectException("Member account is unavailable.", 409);
