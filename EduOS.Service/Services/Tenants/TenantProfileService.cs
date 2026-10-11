@@ -111,10 +111,10 @@ public sealed class TenantProfileService : ITenantProfileService
             try { TimeZoneInfo.FindSystemTimeZoneById(request.TimeZoneId); }
             catch (TimeZoneNotFoundException) { return ApiResponse<TenantDto>.ErrorResponse("Time zone is not recognized."); }
             catch (InvalidTimeZoneException) { return ApiResponse<TenantDto>.ErrorResponse("Time zone is invalid."); }
-            tenant.CurrencyCode = request.CurrencyCode;
-            tenant.TimeZoneId = request.TimeZoneId.Trim();
-            tenant.DefaultLanguage = request.DefaultLanguage.Trim();
-            tenant.DateFormat = request.DateFormat;
+            tenant.CurrencyCode = request.CurrencyCode!;
+            tenant.TimeZoneId = request.TimeZoneId!.Trim();
+            tenant.DefaultLanguage = request.DefaultLanguage!.Trim();
+            tenant.DateFormat = request.DateFormat!;
             tenant.UpdatedAt = DateTime.UtcNow; tenant.UpdatedBy = _user.UserId;
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             return ApiResponse<TenantDto>.SuccessResponse(await MapAsync(tenant, cancellationToken));
