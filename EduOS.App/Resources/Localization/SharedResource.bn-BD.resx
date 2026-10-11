@@ -383,7 +383,7 @@
   <data name="EndDateAfterStart" xml:space="preserve"><value>শেষের তারিখ শুরুর তারিখের পরে হতে হবে।</value></data>
   <data name="SelectAcademicYearFirst" xml:space="preserve"><value>প্রথমে একটি শিক্ষাবর্ষ বেছে নিন।</value></data>
   <data name="TermNameRequired" xml:space="preserve"><value>টার্মের নাম আবশ্যক।</value></data>
-  <data name="BothTermDatesRequired" xml:space="preserve"><value>টার্মের দুটি তারিখই দিন অথবা দুটিই ফাঁকা রাখুন।</value></data>
+  <data name="BothTermDatesRequired" xml:space="preserve"><value>টার্মের শুরু এবং শেষ—দুটি তারিখই আবশ্যক।</value></data>
   <data name="AcademicSaveFailed" xml:space="preserve"><value>একাডেমিক তথ্য সংরক্ষণ করা যায়নি। নাম ও তারিখের সীমা দেখে আবার চেষ্টা করুন।</value></data>
   <data name="AcademicListLoadFailed" xml:space="preserve"><value>শিক্ষাবর্ষ ও টার্ম লোড করা যায়নি।</value></data>
   <data name="AcademicYearLoadFailed" xml:space="preserve"><value>এই শিক্ষাবর্ষটি লোড করা যায়নি।</value></data>
@@ -413,7 +413,7 @@
   <data name="SaveYear" xml:space="preserve"><value>শিক্ষাবর্ষ সংরক্ষণ করুন</value></data>
   <data name="AcademicTerm" xml:space="preserve"><value>একাডেমিক টার্ম</value></data>
   <data name="TermName" xml:space="preserve"><value>টার্মের নাম</value></data>
-  <data name="TermDateHelp" xml:space="preserve"><value>তারিখ দিলে দুটিই দিন এবং শিক্ষাবর্ষের সীমার মধ্যে রাখুন।</value></data>
+  <data name="TermDateHelp" xml:space="preserve"><value>দুটি তারিখই দিন। টার্মের সময়সীমা নির্বাচিত শিক্ষাবর্ষের মধ্যে থাকতে হবে।</value></data>
   <data name="SaveTerm" xml:space="preserve"><value>টার্ম সংরক্ষণ করুন</value></data>
   <data name="PlanSelectionTitle" xml:space="preserve"><value>আপনার প্ল্যান বেছে নিন</value></data>
   <data name="PlanSelectionHelp" xml:space="preserve"><value>প্রতিষ্ঠানের উপযোগী ধারণক্ষমতা ও বিলিং সময় বেছে নিন। এগিয়ে যাওয়ার আগে সব খরচ দেখানো হবে।</value></data>
