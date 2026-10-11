@@ -82,7 +82,7 @@ public sealed class StudentPromotionService : IStudentPromotionService
             var batches = await _batches.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
                 x.IsActive && !x.IsDeleted && x.CampusId == source.CampusId &&
                 x.AcademicProgramId == source.AcademicProgramId &&
-                yearIds.Contains(x.AcademicYearId) && levelIds.Contains(x.AcademicLevelId))
+                yearIds.Contains(x.AcademicYearId) && levelIds.Contains(x.AcademicLevelId) && x.Capacity > 0)
                 .OrderBy(x => x.AcademicYearId).ThenBy(x => x.Name).Take(200).ToListAsync(ct);
             var yearNames = years.ToDictionary(x => x.Id, x => x.Name);
             var levelNames = levels.ToDictionary(x => x.Id, x => x.Name);
@@ -190,11 +190,19 @@ public sealed class StudentPromotionService : IStudentPromotionService
                 return Error("Target track does not match the selected batch.", 409);
             if (batch.CampusId != source.CampusId)
                 return Error("Campus changes require a transfer workflow.", 409);
+            // A progression can be scheduled for the next academic cycle, but the
+            // new enrollment must never start outside its own year/batch dates.
             var effectiveDate = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+            var targetDate = effectiveDate < targetYear.StartDate ? targetYear.StartDate : effectiveDate;
+            if (batch.StartDate.HasValue && targetDate < batch.StartDate.Value)
+                targetDate = batch.StartDate.Value;
+            if (targetDate > targetYear.EndDate ||
+                batch.EndDate.HasValue && targetDate > batch.EndDate.Value)
+                return Error("Target academic year or batch is outside its enrollment period.", 409);
             var curricula = await _curricula.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
                 x.IsActive && x.IsCurrent && !x.IsDeleted && x.AcademicProgramId == batch.AcademicProgramId &&
                 x.AcademicTrackId == batch.AcademicTrackId && x.MediumId == batch.MediumId &&
-                x.EffectiveFrom <= effectiveDate && (!x.EffectiveTo.HasValue || x.EffectiveTo >= effectiveDate))
+                x.EffectiveFrom <= targetDate && (!x.EffectiveTo.HasValue || x.EffectiveTo >= targetDate))
                 .Take(2).Select(x => x.Id).ToArrayAsync(ct);
             if (curricula.Length != 1)
                 return Error("Target batch must have exactly one matching active curriculum.", 409);
@@ -206,15 +214,17 @@ public sealed class StudentPromotionService : IStudentPromotionService
             if (await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
                 x.AcademicBatchId == batch.Id && x.RollNo == roll && x.State == EnrollmentState.Active && x.IsCurrent && !x.IsDeleted, ct))
                 return Error("Target roll already belongs to an active student.", 409);
-            if (batch.Capacity > 0 && await _enrollments.GetQueryable().AsNoTracking().CountAsync(x =>
+            if (batch.Capacity <= 0 || await _enrollments.GetQueryable().AsNoTracking().CountAsync(x =>
                 x.TenantId == tenant && x.AcademicBatchId == batch.Id && x.State == EnrollmentState.Active && x.IsCurrent && !x.IsDeleted, ct) >= batch.Capacity)
-                return Error("Target batch capacity has been reached.", 409);
+                return Error("Target batch is closed or has reached capacity.", 409);
 
             var now = _clock.GetUtcNow().UtcDateTime;
             source.IsCurrent = false;
             source.State = decision == StudentProgressionDecisionType.Promoted
                 ? EnrollmentState.Promoted : EnrollmentState.Completed;
-            source.EndDate ??= effectiveDate;
+            // Keep the original academic period historically correct when a
+            // delayed annual progression is posted in the following year.
+            source.EndDate ??= effectiveDate > sourceYear.EndDate ? sourceYear.EndDate : effectiveDate;
             source.UpdatedAt = now; source.UpdatedBy = _user.UserId;
             var target = new StudentEnrollment
             {
@@ -224,7 +234,7 @@ public sealed class StudentPromotionService : IStudentPromotionService
                 AcademicLevelId = batch.AcademicLevelId, AcademicBatchId = batch.Id,
                 AcademicCurriculumId = curricula[0], AcademicTrackId = batch.AcademicTrackId,
                 MediumId = batch.MediumId, ShiftId = batch.ShiftId,
-                RollNo = roll, EnrollmentDate = effectiveDate, IsCurrent = true,
+                RollNo = roll, EnrollmentDate = targetDate, IsCurrent = true,
                 State = EnrollmentState.Active, CreatedAt = now, CreatedBy = _user.UserId
             };
             await _enrollments.AddAsync(target);

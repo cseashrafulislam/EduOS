@@ -19,7 +19,7 @@ public class StudentPromotionConcurrencyContractTests
         promoteMethod.Should().Contain("IsolationLevel = IsolationLevel.Serializable");
         promoteMethod.Should().Contain("TransactionScopeAsyncFlowOption.Enabled");
         promoteMethod.Should().Contain("Target roll already belongs to an active student.");
-        promoteMethod.Should().Contain("if (batch.Capacity > 0 && await _enrollments.GetQueryable().AsNoTracking().CountAsync");
+        promoteMethod.Should().Contain("if (batch.Capacity <= 0 || await _enrollments.GetQueryable().AsNoTracking().CountAsync");
         promoteMethod.Should().Contain("tx.Complete();");
     }
 

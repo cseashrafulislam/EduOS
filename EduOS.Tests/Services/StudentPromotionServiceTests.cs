@@ -64,6 +64,40 @@ public sealed partial class StudentPromotionServiceTests
     }
 
     [Fact]
+    public async Task Zero_capacity_target_batch_is_closed_and_does_not_mutate_history()
+    {
+        var options = Options();
+        var seed = await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var target = await db.AcademicBatches.SingleAsync(x => x.Id == seed.TargetBatchId);
+        target.Capacity = 0;
+        await db.SaveChangesAsync();
+        var service = Service(db, new User(101));
+        var result = await service.PromoteAsync(seed.StudentReference, Request(seed));
+        result.StatusCode.Should().Be(409);
+        (await db.StudentPromotionRecords.CountAsync()).Should().Be(0);
+        (await db.StudentEnrollments.CountAsync()).Should().Be(1);
+        (await db.StudentEnrollments.SingleAsync(x => x.Id == seed.SourceEnrollmentId)).IsCurrent.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Progression_date_is_bounded_by_target_academic_cycle()
+    {
+        var options = Options();
+        var seed = await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var targetYear = await db.AcademicYears.SingleAsync(x => x.Id == seed.TargetYearId);
+        targetYear.StartDate = new DateOnly(2027, 1, 1);
+        targetYear.EndDate = new DateOnly(2027, 12, 31);
+        await db.SaveChangesAsync();
+        var service = Service(db, new User(101));
+        var result = await service.PromoteAsync(seed.StudentReference, Request(seed));
+        result.Success.Should().BeTrue(result.Message);
+        var targetEnrollment = await db.StudentEnrollments.SingleAsync(x => x.Id == result.Data!.ToEnrollmentId);
+        targetEnrollment.EnrollmentDate.Should().Be(new DateOnly(2027, 1, 1));
+    }
+
+    [Fact]
     public async Task Wrong_rowversion_fails_before_creating_enrollment()
     {
         var options = Options();
