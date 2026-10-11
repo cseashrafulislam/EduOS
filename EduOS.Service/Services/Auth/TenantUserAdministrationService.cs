@@ -488,6 +488,22 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
                     if (!user.IsActive || user.IsDeleted || !user.EmailConfirmed ||
                         !await _users.CheckPasswordAsync(user, request.Password))
                         throw new AdminRejectException("Existing account credentials are invalid.", 400);
+                    // Invitation acceptance changes account access. Existing MFA-enabled
+                    // identities must complete MFA here too; a valid email link + password
+                    // must never weaken an account's enrolled second factor.
+                    if (user.TwoFactorEnabled)
+                    {
+                        if (string.IsNullOrWhiteSpace(request.MfaCode))
+                            throw new AdminRejectException("Existing account MFA verification is required.", 400);
+                        var validSecondFactor = request.UseRecoveryCode
+                            ? (await _users.RedeemTwoFactorRecoveryCodeAsync(
+                                user, request.MfaCode.Trim())).Succeeded
+                            : await _users.VerifyTwoFactorTokenAsync(user,
+                                TokenOptions.DefaultAuthenticatorProvider,
+                                request.MfaCode.Replace(" ", "").Replace("-", ""));
+                        if (!validSecondFactor)
+                            throw new AdminRejectException("Existing account MFA verification is invalid.", 400);
+                    }
                 }
 
                 if (await _db.TenantMemberships.IgnoreQueryFilters().AnyAsync(x =>
