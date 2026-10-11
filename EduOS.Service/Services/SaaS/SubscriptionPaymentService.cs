@@ -518,13 +518,13 @@ public sealed class SubscriptionPaymentService : ISubscriptionPaymentService
             page.Items.Select(x => Map(x, invoice.InvoiceNumber)).ToList());
     }
 
-    public async Task<ApiResponse<PagedManualPaymentsDto>> GetPendingManualVerificationsAsync(int pageNumber, int pageSize)
+    public async Task<ApiResponse<PagedManualPaymentsDto>> GetPendingManualVerificationsAsync(int pageNumber, int pageSize, string? search)
     {
         if (!_user.IsSuperAdmin)
             return ApiResponse<PagedManualPaymentsDto>.ErrorResponse("Platform administrator access required.", 403);
-        if (pageNumber < 1 || pageSize < 1 || pageSize > 100)
-            return ApiResponse<PagedManualPaymentsDto>.ErrorResponse("Page must be positive and page size must be 1–100.");
-        var page = await _payments.GetPendingManualVerificationForPlatformAsync(pageNumber, pageSize);
+        if (pageNumber < 1 || pageSize < 1 || pageSize > 100 || search?.Length > 100)
+            return ApiResponse<PagedManualPaymentsDto>.ErrorResponse("Invalid paging or search criteria.");
+        var page = await _payments.GetPendingManualVerificationForPlatformAsync(pageNumber, pageSize, search?.Trim());
         var invoiceIds = page.Items.Select(x => x.SubscriptionInvoiceId).Distinct().ToArray();
         var invoiceNos = await _invoices.GetQueryable().IgnoreQueryFilters().AsNoTracking()
             .Where(x => !x.IsDeleted && invoiceIds.Contains(x.Id))
