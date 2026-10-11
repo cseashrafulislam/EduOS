@@ -26,6 +26,14 @@ The existing `AspNetUsers`, `AspNetRoles`, `AspNetUserRoles`, `TenantMemberships
 
 **Important permission boundary:** Existing endpoints guarded solely by `[Authorize(Roles = "...")]` are unchanged. Newly enforced dynamic permission policy only takes effect on routes explicitly annotated with `[RequirePermission("CODE")]`. A full per-action permission migration across Academic/HR/Finance is a separate compatibility-tested rollout. Do not claim that saving a RolePermission automatically changes access to every legacy endpoint.
 
+## Additional security fixes requiring release verification
+
+- **Legacy-role fallback:** Count all existing non-departed institution memberships, including suspended ones. A global legacy role can authorize a user only when it is unambiguously a single-institution account. Updating roles must not delete global legacy role assignments for a user with another institution.
+- **Role-permission concurrency:** `TenantRolePermissionsRequestDto.ConcurrencyStamp` is required. UI sends the last loaded role stamp; server atomically rotates the stamp with the permission changes. A stale version returns HTTP 409. Verify simultaneous edits from two browsers.
+- **Permission code casing:** Dynamic policies normalize case; permission lookup must work with the legacy lowercase permission codes without applying a function to the indexed SQL column.
+- **Sensitive change auditing:** Member role/status, assigned campuses, role activation and permission changes append tenant-bound audit entries within the same transaction.
+- **Role index preflight:** Run `scripts/security/verify_tenant_role_indexes.sql` before rollout. EF expects a non-unique legacy `RoleNameIndex` plus UNIQUE `(TenantId, NormalizedName)`. If deployed SQL Server schema still has a globally unique NormalizedName index, resolve it using a reviewed migration before enabling tenant-specific role creation. The preflight script is read-only; no unreviewed DDL is executed here.
+
 ## Required release verification (NOT inferred from source files)
 
 1. `dotnet restore EduOS.slnx`
