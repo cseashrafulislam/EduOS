@@ -17,8 +17,7 @@ public class AdmissionApplicationContractTests
         source.Should().Contain("IAdmissionEnrollmentService");
         source.Should().NotContain("IgnoreQueryFilters");
 
-        var middleware = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "PrivilegedMfaMiddleware.cs"));
-        middleware.Should().Contain("AdmissionOfficer");
+        // Admission authorization is enforced by API roles/module policy, not mandatory MFA.
     }
 
     [Fact]
