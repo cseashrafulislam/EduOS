@@ -276,6 +276,8 @@ public class SubscriptionPaymentDto
     public string? DepositSlipNumber { get; set; }
     public DateOnly? DepositDate { get; set; }
     public long? DepositSlipFileId { get; set; }
+    public bool ReceiptIsVerifiedSafe { get; set; }
+    public string ReceiptSafetyStatus { get; set; } = "Pending";
     public DateTime? VerifiedAt { get; set; }
     public string? VerificationNote { get; set; }
     public string? FailureReason { get; set; }
