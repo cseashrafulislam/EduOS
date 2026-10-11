@@ -14002,6 +14002,11 @@ namespace EduOS.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<string>("DateFormat")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime2");
 
