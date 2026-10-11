@@ -29,6 +29,7 @@
     <div id="alertContainer" class="d-none" role="alert" tabindex="-1"></div>
 
     <form id="settingsForm" class="setup-form">
+        @Html.AntiForgeryToken()
         <section class="setup-section" aria-labelledby="regionalPreferencesTitle">
             <div class="setup-section-heading">
                 <h3 id="regionalPreferencesTitle">@T["RegionalPreferences"]</h3>
@@ -48,7 +49,7 @@
                 </div>
                 <div class="col-md-6">
                     <label class="form-label" for="currencySymbol">@T["CurrencySymbol"]</label>
-                    <input type="text" class="form-control" id="currencySymbol" maxlength="10" required />
+                    <input type="text" class="form-control" id="currencySymbol" maxlength="10" readonly aria-readonly="true" />
                 </div>
                 <div class="col-md-6">
                     <label class="form-label" for="timeZone">@T["TimeZone"]</label>
