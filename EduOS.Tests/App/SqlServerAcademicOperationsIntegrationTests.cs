@@ -157,8 +157,22 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
         });
         Assert.Equal(409, locked.StatusCode);
         db.ChangeTracker.Clear();
+        var leaveMark = await db.StudentAttendances.AsNoTracking().SingleAsync();
+        Assert.Equal(AttendanceState.Leave, leaveMark.State);
+        var changed = await attendance.CorrectAttendanceAsync(leaveMark.Id, new AttendanceCorrectionRequestDto
+        {
+            NewState = AttendanceState.Absent,
+            Reason = "Attendance review confirmed student was absent",
+            RowVersion = Convert.ToBase64String(leaveMark.RowVersion)
+        });
+        Assert.True(changed.Success, changed.Message);
+        db.ChangeTracker.Clear();
         var posted = await db.StudentAttendances.AsNoTracking().SingleAsync();
-        Assert.Equal(AttendanceState.Leave, posted.State);
+        Assert.Equal(AttendanceState.Absent, posted.State);
+        var adjustment = await db.StudentAttendanceAdjustments.AsNoTracking().SingleAsync();
+        Assert.Equal(AttendanceState.Leave, adjustment.PreviousState);
+        Assert.Equal(AttendanceState.Absent, adjustment.NewState);
+        Assert.Equal(managerId, adjustment.ChangedByUserId);
         var finalizedSession = await db.AttendanceSessions.AsNoTracking().SingleAsync();
         Assert.True(finalizedSession.IsFinalized);
         Assert.Equal(managerId, finalizedSession.FinalizedByUserId);
