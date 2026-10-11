@@ -1,5 +1,6 @@
 using EduOS.Core.DTOs.Academic;
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Learners;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Students;
@@ -25,7 +26,7 @@ public sealed class SqlServerEnrollmentAllocationIntegrationTests
         if (string.IsNullOrWhiteSpace(connection)) return;
         var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
         var suffix = Guid.NewGuid().ToString("N")[..12];
-        long tenantId, batchId, curriculumId;
+        long tenantId, batchId, curriculumId, managerUserId;
         Guid firstStudent, secondStudent;
         await using (var setup = new EduOSDbContext(options))
         {
@@ -33,9 +34,17 @@ public sealed class SqlServerEnrollmentAllocationIntegrationTests
                 Email = "seat-" + suffix + "@example.test", State = TenantState.Active };
             var personA = new Person { FullName = "First CI Student" };
             var personB = new Person { FullName = "Second CI Student" };
-            setup.AddRange(tenant, personA, personB);
+            var username = "manager-" + suffix + "@example.test";
+            var manager = new ApplicationUser
+            {
+                UserName = username, NormalizedUserName = username.ToUpperInvariant(),
+                Email = username, NormalizedEmail = username.ToUpperInvariant(),
+                FullName = "Enrollment SQL CI Manager", EmailConfirmed = true, IsActive = true,
+                SecurityStamp = Guid.NewGuid().ToString(), ConcurrencyStamp = Guid.NewGuid().ToString()
+            };
+            setup.AddRange(tenant, personA, personB, manager);
             await setup.SaveChangesAsync();
-            tenantId = tenant.Id;
+            tenantId = tenant.Id; managerUserId = manager.Id;
             setup.ChangeTracker.Clear();
             using (setup.BeginSystemTenantScope(tenantId))
             {
@@ -91,9 +100,9 @@ public sealed class SqlServerEnrollmentAllocationIntegrationTests
         };
         await using (var db = OpenTenantContext(options, tenantId))
         {
-            var first = await Service(db, tenantId).EnrollAsync(firstRequest);
+            var first = await Service(db, tenantId, managerUserId).EnrollAsync(firstRequest);
             Assert.True(first.Success, first.Message);
-            var replay = await Service(db, tenantId).EnrollAsync(firstRequest);
+            var replay = await Service(db, tenantId, managerUserId).EnrollAsync(firstRequest);
             Assert.True(replay.Success, replay.Message);
             Assert.Equal(first.Data!.Reference, replay.Data!.Reference);
         }
@@ -106,7 +115,7 @@ public sealed class SqlServerEnrollmentAllocationIntegrationTests
         }
         await using (var db = OpenTenantContext(options, tenantId))
         {
-            var denied = await Service(db, tenantId).EnrollAsync(secondRequest);
+            var denied = await Service(db, tenantId, managerUserId).EnrollAsync(secondRequest);
             Assert.Equal(409, denied.StatusCode);
         }
         await using (var check = OpenTenantContext(options, tenantId))
@@ -126,7 +135,7 @@ public sealed class SqlServerEnrollmentAllocationIntegrationTests
         return new EduOSDbContext(options, accessor);
     }
 
-    private static AcademicEnrollmentService Service(EduOSDbContext db, long tenant) => new(
+    private static AcademicEnrollmentService Service(EduOSDbContext db, long tenant, long managerUserId) => new(
         new GenericRepository<StudentEnrollment>(db),
         new GenericRepository<StudentSubjectRegistration>(db),
         new GenericRepository<Student>(db), new GenericRepository<Guardian>(db),
@@ -135,13 +144,13 @@ public sealed class SqlServerEnrollmentAllocationIntegrationTests
         new GenericRepository<CurriculumSubject>(db), new GenericRepository<SubjectOffering>(db),
         new GenericRepository<Subject>(db), new GenericRepository<RoutineEntry>(db),
         new GenericRepository<RoutineTimeSlot>(db), new GenericRepository<Room>(db),
-        db, new TestManager(tenant), TimeProvider.System,
+        db, new TestManager(tenant, managerUserId), TimeProvider.System,
         NullLogger<AcademicEnrollmentService>.Instance);
 
-    private sealed class TestManager(long tenantId) : ICurrentUserService
+    private sealed class TestManager(long tenantId, long managerUserId) : ICurrentUserService
     {
         public bool IsAuthenticated => true;
-        public long UserId => 99;
+        public long UserId => managerUserId;
         public long TenantId => tenantId;
         public string? FullName => "Enrollment SQL CI";
         public string? Email => "ci@example.test";
