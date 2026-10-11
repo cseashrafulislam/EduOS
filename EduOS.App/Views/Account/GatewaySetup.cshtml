@@ -59,11 +59,11 @@
                 </div>
                 <div class="col-12">
                     <label class="form-label" for="smsApiUrl">@T["ApiUrl"]</label>
-                    <input type="url" class="form-control" id="smsApiUrl" maxlength="2048" inputmode="url" placeholder="https://api.example.com/send" />
+                    <input type="url" class="form-control" id="smsApiUrl" maxlength="1000" inputmode="url" placeholder="https://api.example.com/send" />
                 </div>
                 <div class="col-12">
                     <label class="form-label" for="smsApiKey">@T["ApiKey"]</label>
-                    <input type="password" class="form-control" id="smsApiKey" maxlength="1000" autocomplete="new-password" />
+                    <input type="password" class="form-control" id="smsApiKey" maxlength="4000" autocomplete="new-password" />
                     <small class="text-muted">@T["SecretStoredHelp"]</small>
                 </div>
             </div>
@@ -93,7 +93,6 @@
                     <select class="form-select" id="smtpPort">
                         <option value="587">587</option>
                         <option value="465">465</option>
-                        <option value="25">25</option>
                         <option value="2525">2525</option>
                     </select>
                 </div>
@@ -103,7 +102,7 @@
                 </div>
                 <div class="col-md-6">
                     <label class="form-label" for="smtpPassword">@T["Password"]</label>
-                    <input type="password" class="form-control" id="smtpPassword" maxlength="1000" autocomplete="new-password" />
+                    <input type="password" class="form-control" id="smtpPassword" maxlength="4000" autocomplete="new-password" />
                 </div>
                 <div class="col-md-6">
                     <label class="form-label" for="fromEmail">@T["FromEmail"]</label>
