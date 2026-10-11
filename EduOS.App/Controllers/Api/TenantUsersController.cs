@@ -66,6 +66,21 @@ public sealed class TenantUsersController(ITenantUserAdministrationService servi
         return StatusCode(r.StatusCode, r);
     }
 
+    [HttpGet("{membershipId:long}/campuses")]
+    public async Task<IActionResult> GetCampuses(long membershipId, CancellationToken ct)
+    {
+        var r = await service.GetMemberCampusesAsync(membershipId, ct);
+        return StatusCode(r.StatusCode, r);
+    }
+
+    [HttpPut("{membershipId:long}/campuses")]
+    public async Task<IActionResult> SetCampuses(long membershipId,
+        [FromBody] TenantMemberCampusRequestDto request, CancellationToken ct)
+    {
+        var r = await service.SetMemberCampusesAsync(membershipId, request, ct);
+        return StatusCode(r.StatusCode, r);
+    }
+
     [HttpPut("{membershipId:long}/roles")]
     public async Task<IActionResult> SetRoles(long membershipId,
         [FromBody] TenantMemberRolesRequestDto request, CancellationToken ct)
