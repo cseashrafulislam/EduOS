@@ -1,0 +1,32 @@
+name: Academic Authenticated Browser Verification
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment with configured HTTPS URL, tenant admin test user, and secret password'
+        type: choice
+        required: true
+        options: [staging, production]
+permissions:
+  contents: read
+jobs:
+  read-only-smoke:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned browser dependencies
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@1.56.0
+          npx playwright install --with-deps chromium
+      - name: Run read-only authenticated browser checks
+        env:
+          EDUOS_BASE_URL: ${{ vars.EDUOS_BASE_URL }}
+          EDUOS_E2E_USER: ${{ secrets.EDUOS_E2E_USER }}
+          EDUOS_E2E_PASSWORD: ${{ secrets.EDUOS_E2E_PASSWORD }}
+          EDUOS_E2E_TENANT_ID: ${{ vars.EDUOS_E2E_TENANT_ID }}
+        run: node tests/browser/academic-live.cjs
