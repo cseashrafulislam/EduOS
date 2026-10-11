@@ -74,6 +74,9 @@ public class PaymentCallbackContractTests
         verify.Should().Contain("invoice.PaidAmount += payment.Amount;");
         verify.Should().Contain("_payments.Update(payment);");
         verify.Should().Contain("_invoices.Update(invoice);");
+        verify.IndexOf("_payments.Update(payment);", StringComparison.Ordinal).Should()
+            .BeLessThan(verify.IndexOf("payment.State = PaymentState.Successful;", StringComparison.Ordinal),
+                "the original pending state must be attached before immutable-history checks");
         verify.Should().Contain("await _uow.SaveChangesAsync(token);");
         verify.Should().Contain("await ActivatePaidSubscriptionAsync(invoice);");
         verify.Should().Contain("CryptographicOperations.FixedTimeEquals");
