@@ -128,6 +128,47 @@ public sealed class OptionalMfaAuthContractTests
     }
 
     [Fact]
+    public void Mfa_setup_refreshes_the_cookie_and_enable_is_atomic()
+    {
+        var auth = File.ReadAllText(Asset("AuthController.cs"));
+        var setup = auth[auth.IndexOf("public async Task<IActionResult> SetupMfa(",
+            StringComparison.Ordinal)..auth.IndexOf("// ==================== MFA Enable", StringComparison.Ordinal)];
+        var enable = auth[auth.IndexOf("public async Task<IActionResult> EnableMfa(",
+            StringComparison.Ordinal)..auth.IndexOf("// ==================== MFA Login", StringComparison.Ordinal)];
+        Assert.Contains("ResetAuthenticatorKeyAsync(user)", setup);
+        Assert.Contains("AuthenticateAsync(IdentityConstants.ApplicationScheme)", setup);
+        Assert.Contains("BuildSessionClaims(user, \"pwd\"", setup);
+        Assert.Contains("await _db.Database.BeginTransactionAsync()", enable);
+        Assert.Contains("GenerateNewTwoFactorRecoveryCodesAsync", enable);
+        Assert.Contains("SetTwoFactorEnabledAsync(user, true)", enable);
+        Assert.Contains("UpdateSecurityStampAsync(user)", enable);
+        Assert.Contains("await transaction.CommitAsync()", enable);
+        Assert.Contains("BuildSessionClaims(user, \"mfa\"", enable);
+    }
+
+    [Fact]
+    public void Password_reset_links_use_a_canonical_domain_instead_of_request_host()
+    {
+        var auth = File.ReadAllText(Asset("AuthController.cs"));
+        var forgot = auth[auth.IndexOf("public async Task<IActionResult> ForgotPassword(",
+            StringComparison.Ordinal)..auth.IndexOf("// ==================== Reset Password", StringComparison.Ordinal)];
+        Assert.Contains("portalSettings.Value.BaseDomain", auth);
+        Assert.Contains("Uri.CheckHostName(domain)", forgot);
+        Assert.DoesNotContain("Request.Host", forgot);
+        Assert.Contains("\"https://\" + domain.ToLowerInvariant()", forgot);
+    }
+
+    [Fact]
+    public void Credential_changes_have_a_stricter_per_user_rate_limit()
+    {
+        var auth = File.ReadAllText(Asset("AuthController.cs"));
+        var limiter = File.ReadAllText(Asset("RateLimiterExtensions.cs"));
+        Assert.Contains("[EnableRateLimiting(\"AccountSecurityPolicy\")]", auth);
+        Assert.Contains("options.AddPolicy(\"AccountSecurityPolicy\"", limiter);
+        Assert.Contains("CreateOptions(5, TimeSpan.FromMinutes(15))", limiter);
+    }
+
+    [Fact]
     public void Profile_patch_does_not_reset_unrelated_language_preference()
     {
         var dto = new UpdateUserProfileRequestDto { FullName = "Example User" };
