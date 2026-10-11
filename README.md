@@ -8,7 +8,7 @@ EduOS is a configurable, multi-tenant SaaS platform for the Bangladesh education
 
 > **Current status:** foundation under active development. Phase 0 security work, institution/module entitlement, privacy-safe learner identity, canonical programme/level/track/curriculum/batch setup, canonical student batch enrolment and subject registration, collision-safe academic routines with owned student/guardian timetable projection, configurable academic calendar policy/events/working days, date-specific instructor substitution, lesson-plan approval/progress, configurable public admission forms and private document verification, admission assessment/merit publication, intake/review, approved applicant-to-student/guardian/enrolment conversion, annual student promotion/repeat, and manager-controlled student transfer/completion/dropout finalization are implemented and tested. The implemented write workflows are tenant-scoped, transactional, retry-safe and concurrency-protected. Admission eligibility/quota, applicant accounts, offer/payment, bulk import, scoped learner-history projection, legacy identifier migration, transfer request/approval/destination acceptance, readmission, and many other module workflows remain planned and must not be treated as production-complete.
 
-Privileged cookie sessions now require TOTP MFA: password login produces a short-lived encrypted challenge when MFA is enabled, first-time TenantAdmin/SuperAdmin/AdmissionOfficer sessions are restricted to bilingual MFA setup, and recovery codes are displayed once. This is a working security control, not a substitute for production key custody, administrator recovery operations, or penetration testing.
+TOTP MFA is opt-in from Profile for all roles: password login reaches the authorized dashboard or onboarding flow without an MFA setup gate for users who have not enabled MFA. If MFA is already enabled, login produces a short-lived encrypted verification challenge. Recovery codes are displayed once. This is a working security control, not a substitute for production key custody, administrator recovery operations, or penetration testing.
 
 ---
 
@@ -198,12 +198,12 @@ Required completed behaviour:
 | AppPage / RolePagePermission / UserPagePermission | Page/menu authorization | 🟡 Foundation |
 | LoginHistory | Successful/failed login and logout audit | ✅ Auth workflow |
 | RefreshToken | API token lifecycle | 🟡 Foundation |
-| TwoFactorAuth / Identity token store | Legacy model plus active TOTP setup, encrypted login challenge, recovery-code and privileged-session enforcement | ✅ Core MFA workflow |
+| TwoFactorAuth / Identity token store | Optional Profile enrollment, encrypted login challenge for MFA-enabled users, and one-time display of recovery codes | ✅ Core MFA workflow |
 
 Target capabilities:
 
 - Cookie and JWT authentication with secure refresh-token rotation.
-- MFA for privileged roles.
+- Optional MFA for any user through Profile settings; MFA-enabled users must verify at sign-in.
 - Tenant and campus-scoped RBAC plus resource/ownership policies.
 - Invitation, account activation, password reset, lockout, session/device view, and forced logout.
 - One person account linked to multiple permitted institution memberships.
