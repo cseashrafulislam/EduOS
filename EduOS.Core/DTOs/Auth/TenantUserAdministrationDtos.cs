@@ -23,6 +23,7 @@ public sealed class TenantRoleDto
     public string Name { get; set; } = "";
     public string? Description { get; set; }
     public bool IsActive { get; set; }
+    public string ConcurrencyStamp { get; set; } = "";
     public IReadOnlyList<long> PermissionIds { get; set; } = Array.Empty<long>();
 }
 
@@ -44,7 +45,7 @@ public sealed class TenantRoleCreateRequestDto
 public sealed class TenantRoleUpdateRequestDto
 {
     [StringLength(300)] public string? Description { get; set; }
-    [Required] public string RowVersion { get; set; } = "";
+    [Required] public string ConcurrencyStamp { get; set; } = "";
     public bool IsActive { get; set; } = true;
 }
 
