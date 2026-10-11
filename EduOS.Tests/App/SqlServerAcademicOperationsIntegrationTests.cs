@@ -120,6 +120,48 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
         Assert.Empty(await db.StudentAttendances.ToListAsync());
         Assert.Single(await db.StudentLeaveApplications.AsNoTracking().Where(x =>
             x.TenantId == tenantId && x.State == LeaveState.Approved).ToListAsync());
+
+        // A manager can finalize only a fully marked roster; Leave must be
+        // deliberately recorded, never inferred as an already-posted mark.
+        var session = await attendance.EnsureSessionAsync(new EnsureStudentAttendanceSessionDto
+        {
+            AcademicBatchId = batchId, AttendanceDate = new DateOnly(2026, 10, 10)
+        });
+        Assert.True(session.Success, session.Message);
+        var incomplete = await attendance.FinalizeSessionAsync(
+            session.Data!.AttendanceSessionId, session.Data.SessionRowVersion);
+        Assert.Equal(409, incomplete.StatusCode);
+        var saved = await attendance.SaveAsync(new SaveAttendanceRegisterRequestDto
+        {
+            AttendanceSessionId = session.Data.AttendanceSessionId,
+            SessionRowVersion = session.Data.SessionRowVersion,
+            Students = [new SaveStudentAttendanceRequestDto
+            {
+                StudentEnrollmentReference = enrollmentReference, State = AttendanceState.Leave
+            }]
+        });
+        Assert.True(saved.Success, saved.Message);
+        var finalized = await attendance.FinalizeSessionAsync(
+            saved.Data!.AttendanceSessionId, saved.Data.SessionRowVersion);
+        Assert.True(finalized.Success, finalized.Message);
+        Assert.True(finalized.Data!.IsFinalized);
+        var locked = await attendance.SaveAsync(new SaveAttendanceRegisterRequestDto
+        {
+            AttendanceSessionId = finalized.Data.AttendanceSessionId,
+            SessionRowVersion = finalized.Data.SessionRowVersion,
+            Students = [new SaveStudentAttendanceRequestDto
+            {
+                StudentEnrollmentReference = enrollmentReference, State = AttendanceState.Present,
+                RowVersion = finalized.Data.Students[0].RowVersion
+            }]
+        });
+        Assert.Equal(409, locked.StatusCode);
+        db.ChangeTracker.Clear();
+        var posted = await db.StudentAttendances.AsNoTracking().SingleAsync();
+        Assert.Equal(AttendanceState.Leave, posted.State);
+        var finalizedSession = await db.AttendanceSessions.AsNoTracking().SingleAsync();
+        Assert.True(finalizedSession.IsFinalized);
+        Assert.Equal(managerId, finalizedSession.FinalizedByUserId);
     }
 
     private static EduOSDbContext TenantDb(DbContextOptions<EduOSDbContext> options, long tenantId)
