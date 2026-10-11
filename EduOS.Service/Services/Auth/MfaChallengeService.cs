@@ -25,7 +25,7 @@ public sealed class MfaChallengeService : IMfaChallengeService
         _timeProvider = timeProvider;
     }
 
-    public string Create(long userId, string securityStamp, bool rememberMe)
+    public string Create(long userId, string securityStamp, bool rememberMe, long? tenantId = null)
     {
         if (userId <= 0 || string.IsNullOrWhiteSpace(securityStamp))
             throw new ArgumentException("A valid user and security stamp are required.");
@@ -37,6 +37,7 @@ public sealed class MfaChallengeService : IMfaChallengeService
             UserId = userId,
             SecurityStamp = securityStamp,
             RememberMe = rememberMe,
+            TenantId = tenantId,
             IssuedAtUtc = issuedAt,
             ExpiresAtUtc = issuedAt.Add(lifetime)
         };
