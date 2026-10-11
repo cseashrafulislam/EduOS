@@ -51,7 +51,8 @@ public static class SubscriptionSeeder
             new FeatureSeed("MOBILE_APP", "Mobile App", "Mobile application access."),
             new FeatureSeed("API_ACCESS", "API Access", "API and integration access."),
             new FeatureSeed("CUSTOM_DOMAIN", "Custom Domain", "Custom tenant domain."),
-            new FeatureSeed("PRIORITY_SUPPORT", "Priority Support", "Priority support entitlement.")
+            new FeatureSeed("PRIORITY_SUPPORT", "Priority Support", "Priority support entitlement."),
+            new FeatureSeed("AI_INSIGHTS", "AI Insights", "AI-powered institutional insights.")
         };
 
         var existing = await context.Features.ToDictionaryAsync(x => x.Code, StringComparer.OrdinalIgnoreCase);
