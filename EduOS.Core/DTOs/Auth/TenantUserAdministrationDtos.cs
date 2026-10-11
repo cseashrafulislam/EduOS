@@ -78,6 +78,8 @@ public sealed class TenantInviteAcceptRequestDto
     [Required, MinLength(6)] public string Password { get; set; } = "";
     [Required, Compare(nameof(Password))] public string ConfirmPassword { get; set; } = "";
     [StringLength(200)] public string? FullName { get; set; }
+    [StringLength(30)] public string? MfaCode { get; set; }
+    public bool UseRecoveryCode { get; set; }
 }
 
 public sealed class TenantCampusAccessDto
