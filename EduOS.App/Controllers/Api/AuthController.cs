@@ -559,6 +559,7 @@ namespace EduOS.App.Controllers.Api
             if (!await _userManager.CheckPasswordAsync(user, dto.CurrentPassword))
                 return BadRequest(new { success = false, message = "Current password is incorrect." });
 
+            user.UpdatedAt = DateTime.UtcNow;
             var result = await _userManager.ChangePasswordAsync(user, dto.CurrentPassword, dto.NewPassword);
 
             if (!result.Succeeded)
