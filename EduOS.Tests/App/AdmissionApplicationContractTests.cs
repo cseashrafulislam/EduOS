@@ -51,7 +51,7 @@ public class AdmissionApplicationContractTests
         script.Should().Contain("customResponses: collectAdmissionResponses()");
         script.Should().Contain("state: status");
         script.Should().Contain("params.set('state', String(status))");
-        script.Should().Contain("payload.data.academicLevels");
+        script.Should().Contain("state.options.academicLevels");
         script.Should().Contain("Number(payload.data.state)");
         script.Should().NotContain("Number(payload.data.status)");
         view.Should().Contain("admissionFormReference");
