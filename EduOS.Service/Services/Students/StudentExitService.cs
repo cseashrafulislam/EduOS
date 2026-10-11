@@ -20,6 +20,7 @@ public sealed class StudentExitService : IStudentExitService
     private readonly IGenericRepository<StudentEnrollment> _enrollments;
     private readonly IGenericRepository<StudentExitRecord> _exits;
     private readonly IGenericRepository<TransferCertificate> _certificates;
+    private readonly IGenericRepository<StudentStatusHistory> _statusHistory;
     private readonly IGenericRepository<StudentInvoice> _invoices;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUser;
@@ -28,12 +29,14 @@ public sealed class StudentExitService : IStudentExitService
 
     public StudentExitService(IGenericRepository<Student> students,
         IGenericRepository<StudentEnrollment> enrollments, IGenericRepository<StudentExitRecord> exits,
-        IGenericRepository<TransferCertificate> certificates, IGenericRepository<StudentInvoice> invoices,
+        IGenericRepository<TransferCertificate> certificates, IGenericRepository<StudentStatusHistory> statusHistory,
+        IGenericRepository<StudentInvoice> invoices,
         IUnitOfWork unitOfWork, ICurrentUserService currentUser, TimeProvider clock,
         ILogger<StudentExitService> logger)
     {
         _students = students; _enrollments = enrollments; _exits = exits;
-        _certificates = certificates; _invoices = invoices; _unitOfWork = unitOfWork;
+        _certificates = certificates; _statusHistory = statusHistory;
+        _invoices = invoices; _unitOfWork = unitOfWork;
         _currentUser = currentUser; _clock = clock; _logger = logger;
     }
 
@@ -140,12 +143,21 @@ public sealed class StudentExitService : IStudentExitService
                 enrollment.UpdatedAt = now;
                 enrollment.UpdatedBy = _currentUser.UserId;
             }
+            var previousStatus = student.StatusCode;
             student.StatusCode = type switch
             {
                 StudentExitType.Transfer => "TC",
                 StudentExitType.Completed => "Passed",
                 _ => "Dropout"
             };
+            await _statusHistory.AddAsync(new StudentStatusHistory
+            {
+                TenantId = tenantId, StudentId = student.Id,
+                FromStatusCode = previousStatus, ToStatusCode = student.StatusCode,
+                EffectiveAt = now, ChangedByUserId = _currentUser.UserId,
+                Reason = Trim(request.Reason), CreatedAt = now,
+                CreatedBy = _currentUser.UserId
+            });
             student.UpdatedAt = now;
             student.UpdatedBy = _currentUser.UserId;
             await _unitOfWork.SaveChangesAsync(cancellationToken);
