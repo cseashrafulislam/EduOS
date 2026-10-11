@@ -27,6 +27,17 @@ public class MfaChallengeServiceTests
     }
 
     [Fact]
+    public void Selected_tenant_is_cryptographically_bound_to_the_mfa_challenge()
+    {
+        var time = new MutableTimeProvider(new DateTimeOffset(2026, 9, 4, 1, 0, 0, TimeSpan.Zero));
+        var service = CreateService(time);
+        var token = service.Create(42, "security-stamp", false, tenantId: 987);
+        service.TryRead(token, out var challenge).Should().BeTrue();
+        challenge.TenantId.Should().Be(987);
+        token.Should().NotContain("987");
+    }
+
+    [Fact]
     public void Expired_or_tampered_challenge_is_rejected()
     {
         var time = new MutableTimeProvider(new DateTimeOffset(2026, 9, 4, 1, 0, 0, TimeSpan.Zero));
