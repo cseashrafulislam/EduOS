@@ -19,11 +19,12 @@ public sealed class TenantPermissionAccessTests
     {
         var accessor = new HttpContextAccessor();
         var http = new DefaultHttpContext();
-        http.Items["TenantId"] = 101L;
-        http.User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+        var authenticatedPrincipal = new ClaimsPrincipal(new ClaimsIdentity(new[]
         {
             new Claim(ClaimTypes.NameIdentifier, "51"), new Claim(ClaimTypes.Role, "Teacher")
         }, "Test"));
+        // Seed foreign-tenant fixtures as the platform, not as an institution user.
+        http.User = new ClaimsPrincipal(new ClaimsIdentity());
         accessor.HttpContext = http;
         await using var db = new EduOSDbContext(
             new DbContextOptionsBuilder<EduOSDbContext>()
@@ -38,6 +39,8 @@ public sealed class TenantPermissionAccessTests
             new IdentityUserRole<long> { UserId = 51, RoleId = 12 });
         db.RolePermissions.Add(new RolePermission { RoleId = 12, PermissionId = 3, IsAllowed = true });
         await db.SaveChangesAsync();
+        http.Items["TenantId"] = 101L;
+        http.User = authenticatedPrincipal;
 
         var current = new Mock<ICurrentUserService>();
         current.SetupGet(x => x.IsAuthenticated).Returns(true);

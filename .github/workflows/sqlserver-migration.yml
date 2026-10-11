@@ -85,6 +85,17 @@ jobs:
           dotnet ef database update --project EduOS.Persistence --startup-project EduOS.App \
             --context EduOSDbContext --configuration Release --no-build
 
+      - name: Verify real SQL Server auth tenant roles, optimistic concurrency and session revocation
+        shell: bash
+        env:
+          EDUOS_SQL_AUTH_TEST_CONNECTION: ${{ format('Server=127.0.0.1,14333;Database=EduOS_MigrationSmoke;User Id=sa;Password={0};Encrypt=True;TrustServerCertificate=True;Connect Timeout=30', env.CI_SQL_PASSWORD) }}
+        run: |
+          set -euo pipefail
+          dotnet restore EduOS.Tests/EduOS.Tests.csproj
+          dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-restore \
+            --filter "FullyQualifiedName~SqlServerAuthTenantIntegrationTests" \
+            --logger "trx;LogFileName=sql-auth-tests.trx" --results-directory TestResults
+
       - name: Stop isolated SQL Server
         if: always()
         run: docker rm -f eduos-ci-sqlserver >/dev/null 2>&1 || true

@@ -24,10 +24,9 @@ public sealed class TenantUserAdministrationTests
     {
         var access = ContextFor(100, isAdmin: true);
         await using var db = access.Db;
-        db.Roles.AddRange(
+        await SeedSystemRolesAsync(db, access.Accessor,
             new ApplicationRole { TenantId = 100, Name = "Teacher", NormalizedName = "TEACHER" },
             new ApplicationRole { TenantId = 200, Name = "Principal", NormalizedName = "PRINCIPAL" });
-        await db.SaveChangesAsync();
         var service = Service(db, access.User, access.Email);
         var roles = await service.GetRolesAsync();
         Assert.True(roles.Success);
@@ -43,12 +42,11 @@ public sealed class TenantUserAdministrationTests
     {
         var access = ContextFor(100, isAdmin: true);
         await using var db = access.Db;
-        db.Roles.Add(new ApplicationRole
+        await SeedSystemRolesAsync(db, access.Accessor, new ApplicationRole
         {
             Id = 222, TenantId = 200, Name = "Accountant",
             NormalizedName = "ACCOUNTANT", IsActive = true
         });
-        await db.SaveChangesAsync();
         var service = Service(db, access.User, access.Email);
         var result = await service.SetRolePermissionsAsync(222,
             new TenantRolePermissionsRequestDto { PermissionIds = Array.Empty<long>(), ConcurrencyStamp = "test-stamp" });
@@ -98,12 +96,11 @@ public sealed class TenantUserAdministrationTests
     {
         var access = ContextFor(100, isAdmin: true);
         await using var db = access.Db;
-        db.Roles.Add(new ApplicationRole
+        await SeedSystemRolesAsync(db, access.Accessor, new ApplicationRole
         {
             Id = 222, TenantId = 200, Name = "Accountant",
             NormalizedName = "ACCOUNTANT", IsActive = true
         });
-        await db.SaveChangesAsync();
         var service = Service(db, access.User, access.Email);
         var result = await service.SetMemberRolesAsync(44,
             new TenantMemberRolesRequestDto
@@ -140,7 +137,7 @@ public sealed class TenantUserAdministrationTests
         Assert.NotEmpty(action.GetCustomAttributes(typeof(Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute), true));
     }
 
-    private static (EduOSDbContext Db, Mock<ICurrentUserService> User, Mock<IEmailService> Email)
+    private static (EduOSDbContext Db, Mock<ICurrentUserService> User, Mock<IEmailService> Email, HttpContextAccessor Accessor)
         ContextFor(long tenantId, bool isAdmin)
     {
         var access = new HttpContextAccessor();
@@ -160,7 +157,30 @@ public sealed class TenantUserAdministrationTests
         current.SetupGet(x => x.IsTenantAdmin).Returns(isAdmin);
         current.SetupGet(x => x.TenantId).Returns(tenantId);
         current.SetupGet(x => x.UserId).Returns(42);
-        return (db, current, new Mock<IEmailService>());
+        return (db, current, new Mock<IEmailService>(), access);
+    }
+
+    private static async Task SeedSystemRolesAsync(EduOSDbContext db, HttpContextAccessor accessor,
+        params ApplicationRole[] roles)
+    {
+        // Simulate trusted platform provisioning without weakening tenant guards.
+        // A tenant administrator must never insert a role owned by another tenant.
+        var http = accessor.HttpContext!;
+        var priorPrincipal = http.User;
+        var priorTenant = http.Items["TenantId"];
+        try
+        {
+            http.User = new ClaimsPrincipal(new ClaimsIdentity());
+            http.Items.Remove("TenantId");
+            db.Roles.AddRange(roles);
+            await db.SaveChangesAsync();
+            db.ChangeTracker.Clear();
+        }
+        finally
+        {
+            http.User = priorPrincipal;
+            http.Items["TenantId"] = priorTenant;
+        }
     }
 
     private static TenantUserAdministrationService Service(
