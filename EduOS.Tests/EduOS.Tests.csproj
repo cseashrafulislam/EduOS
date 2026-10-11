@@ -35,6 +35,8 @@
     <None Include="..\EduOS.App\Views\Account\_OnboardingLayout.cshtml" Link="TestAssets\_OnboardingLayout.cshtml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Views\Shared\_PublicLayout.cshtml" Link="TestAssets\_PublicLayout.cshtml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Views\Account\Login.cshtml" Link="TestAssets\Login.cshtml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Views\Account\Profile.cshtml" Link="TestAssets\Profile.cshtml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\wwwroot\js\account\profile.js" Link="TestAssets\profile.js" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Views\Account\Signup.cshtml" Link="TestAssets\Signup.cshtml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Views\Account\InstitutionProfile.cshtml" Link="TestAssets\InstitutionProfile.cshtml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Views\Account\CampusSetup.cshtml" Link="TestAssets\CampusSetup.cshtml" CopyToOutputDirectory="PreserveNewest" />
@@ -67,7 +69,6 @@
     <None Include="..\EduOS.App\wwwroot\js\students\index.js" Link="TestAssets\students-index.js" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Views\Admissions\Index.cshtml" Link="TestAssets\AdmissionsIndex.cshtml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\wwwroot\js\admissions\index.js" Link="TestAssets\admissions-index.js" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\EduOS.App\Middleware\PrivilegedMfaMiddleware.cs" Link="TestAssets\PrivilegedMfaMiddleware.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Program.cs" Link="TestAssets\Program.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Views\Account\MfaChallenge.cshtml" Link="TestAssets\MfaChallenge.cshtml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Views\Account\MfaSetup.cshtml" Link="TestAssets\MfaSetup.cshtml" CopyToOutputDirectory="PreserveNewest" />
