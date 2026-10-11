@@ -118,6 +118,9 @@
 
     function renderPermissions() {
         const role = state.roles.find(x => String(x.id) === $('permissionRole').value);
+        $('editRoleDescription').value = role?.description || '';
+        $('editRoleActive').checked = role?.isActive || false;
+        $('saveRoleSettings').disabled = !role;
         const container = $('permissionOptions');
         container.replaceChildren();
         for (const perm of state.permissions) {
@@ -208,6 +211,22 @@
         });
     });
     $('permissionRole').addEventListener('change', renderPermissions);
+    $('saveRoleSettings').addEventListener('click', async event => {
+        const role = state.roles.find(x => String(x.id) === $('permissionRole').value);
+        if (!role) return;
+        if (role.isActive && !$('editRoleActive').checked &&
+            !confirm('Deactivating this role removes its access from assigned users. Continue?')) return;
+        await submit(event.currentTarget, async () => {
+            await request('/roles/' + role.id, { method: 'PUT', body: JSON.stringify({
+                concurrencyStamp: role.concurrencyStamp,
+                description: $('editRoleDescription').value.trim(),
+                isActive: $('editRoleActive').checked
+            }) });
+            await loadCatalog();
+            await loadMembers();
+            message('Role settings saved.');
+        });
+    });
     $('saveRolePermissionsForm').addEventListener('submit', async e => {
         e.preventDefault();
         const roleId = Number($('permissionRole').value);
