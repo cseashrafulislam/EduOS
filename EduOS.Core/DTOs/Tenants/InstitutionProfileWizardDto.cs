@@ -30,9 +30,9 @@ public sealed class InstitutionCampusWizardRequestDto : EduOS.Core.DTOs.SaaS.Sav
 public sealed class InstitutionAcademicYearWizardRequestDto
 {
     public long? Id { get; set; }
-    [System.ComponentModel.DataAnnotations.Required, System.ComponentModel.DataAnnotations.MaxLength(100)]
+    [global::System.ComponentModel.DataAnnotations.Required, global::System.ComponentModel.DataAnnotations.MaxLength(100)]
     public string Name { get; set; } = string.Empty;
-    [System.ComponentModel.DataAnnotations.MaxLength(30)]
+    [global::System.ComponentModel.DataAnnotations.MaxLength(30)]
     public string? Code { get; set; }
     public long? CampusId { get; set; }
     public EduOS.Core.Enums.Domain.AcademicCycleType CycleType { get; set; } = EduOS.Core.Enums.Domain.AcademicCycleType.Annual;
@@ -47,9 +47,9 @@ public sealed class InstitutionAcademicTermWizardRequestDto
 {
     public long? Id { get; set; }
     public long AcademicYearId { get; set; }
-    [System.ComponentModel.DataAnnotations.Required, System.ComponentModel.DataAnnotations.MaxLength(100)]
+    [global::System.ComponentModel.DataAnnotations.Required, global::System.ComponentModel.DataAnnotations.MaxLength(100)]
     public string Name { get; set; } = string.Empty;
-    [System.ComponentModel.DataAnnotations.MaxLength(30)]
+    [global::System.ComponentModel.DataAnnotations.MaxLength(30)]
     public string? Code { get; set; }
     public DateOnly StartDate { get; set; }
     public DateOnly EndDate { get; set; }
