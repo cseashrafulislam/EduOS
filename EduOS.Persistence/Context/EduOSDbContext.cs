@@ -1160,6 +1160,9 @@ public class EduOSDbContext :
         UniqueTenant<TransferCertificate>(modelBuilder, nameof(TransferCertificate.CertificateNumber));
 
         // Academic
+        modelBuilder.Entity<RoutineEntry>()
+            .HasIndex(x => new { x.TenantId, x.DayOfWeek, x.IsActive, x.EffectiveFrom })
+            .HasDatabaseName("IX_RoutineEntries_Tenant_Day_Active_From");
         modelBuilder.Entity<AcademicCalendarPolicy>()
             .HasIndex(x => new { x.TenantId, x.CampusId })
             .HasDatabaseName("UX_AcademicCalendarPolicies_Tenant_Campus")
