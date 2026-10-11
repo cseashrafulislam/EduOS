@@ -32,6 +32,8 @@ const tokenOk = request => {
 async function attendance(browser) {
     const page = await browser.newPage();
     const requests = [];
+    const finalized = [];
+    page.on('dialog', dialog => dialog.accept());
     const roster = {
         attendanceSessionId: 0, sessionRowVersion: '', academicBatchId: 10, attendanceDate: '2026-10-10',
         students: [
@@ -60,7 +62,20 @@ async function attendance(browser) {
             tokenOk(request);
             requests.push(request.postDataJSON());
             return response(route, 200, { ...roster, attendanceSessionId: 99,
-                sessionRowVersion: 'AQIDBAUGBwg=' });
+                sessionRowVersion: 'AQIDBAUGBwg=',
+                summary: { totalStudents: 2, marked: 2, unmarked: 0 },
+                students: roster.students.map((x, i) => ({ ...x, state: i === 0 ? 1 : 4 }))
+            }, 'Attendance saved.');
+        }
+        if (url.pathname === '/api/student-attendance/sessions/99/finalize') {
+            tokenOk(request);
+            assert.equal(url.searchParams.get('rowVersion'), 'AQIDBAUGBwg=');
+            finalized.push(true);
+            return response(route, 200, { ...roster, attendanceSessionId: 99,
+                sessionRowVersion: 'AgIDBAUGBwg=', isFinalized: true,
+                summary: { totalStudents: 2, marked: 2, unmarked: 0 },
+                students: roster.students.map((x, i) => ({ ...x, state: i === 0 ? 1 : 4 }))
+            }, 'Attendance finalized.');
         }
         return response(route, 404, null, 'Unexpected endpoint');
     });
@@ -82,8 +97,13 @@ async function attendance(browser) {
     await page.waitForFunction(() => document.querySelector('#attendanceAlert')?.textContent.includes('Attendance saved'));
     assert.equal(requests.length, 1);
     assert.deepEqual(requests[0].students.map(x => x.state), [1, 4]);
+    await page.locator('#finalizeAttendance').click();
+    await page.waitForFunction(() => document.querySelector('#attendanceAlert')?.textContent.includes('Attendance finalized.'));
+    assert.equal(finalized.length, 1);
+    assert.equal(await page.locator('#saveAttendance').isDisabled(), true);
+    assert.equal(await page.locator('#finalizeAttendance').isDisabled(), true);
     await page.close();
-    console.log('Attendance browser: PASS — approved leave, safe mass marking, CSRF and posting.');
+    console.log('Attendance browser: PASS — approved leave, mass marking, CSRF, save and finalization.');
 }
 async function routine(browser) {
     const page = await browser.newPage();
