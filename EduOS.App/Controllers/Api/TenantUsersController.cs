@@ -58,6 +58,14 @@ public sealed class TenantUsersController(ITenantUserAdministrationService servi
         return StatusCode(r.StatusCode, r);
     }
 
+    [HttpPut("roles/{roleId:long}")]
+    public async Task<IActionResult> UpdateRole(long roleId,
+        [FromBody] TenantRoleUpdateRequestDto request, CancellationToken ct)
+    {
+        var r = await service.UpdateRoleAsync(roleId, request, ct);
+        return StatusCode(r.StatusCode, r);
+    }
+
     [HttpPut("{membershipId:long}/roles")]
     public async Task<IActionResult> SetRoles(long membershipId,
         [FromBody] TenantMemberRolesRequestDto request, CancellationToken ct)
