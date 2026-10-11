@@ -41,6 +41,18 @@ public sealed class TenantModuleServiceTests
     }
 
     [Fact]
+    public async Task Enterprise_plan_entitles_AI_insights_after_catalog_seeding()
+    {
+        await using var setup = await CreateAsync("ENTERPRISE", SubscriptionState.Active);
+        var service = Service(setup.Context, setup.User);
+        var state = await service.GetCurrentTenantModulesAsync();
+        state.Success.Should().BeTrue();
+        var ai = state.Data!.Single(x => x.ModuleCode == "AI_INSIGHTS");
+        ai.IsCore.Should().BeFalse();
+        ai.IsEntitledByPlan.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task Pending_subscription_does_not_grant_paid_modules()
     {
         await using var setup = await CreateAsync("PRO", SubscriptionState.PendingPayment);
