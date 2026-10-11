@@ -97,8 +97,8 @@
     function createModuleCard(module) {
         const card = document.createElement('article');
         card.className = 'module-card';
-        if (module.isSelected) card.classList.add('selected');
-        if (!module.isIncludedInPlan) card.classList.add('not-entitled');
+        if (module.isEnabled) card.classList.add('selected');
+        if (!module.isEntitledByPlan) card.classList.add('not-entitled');
 
         const headingRow = document.createElement('div');
         headingRow.className = 'module-card-heading';
@@ -106,15 +106,15 @@
         const heading = document.createElement('h4');
         heading.textContent = localizedName(module);
 
-        const inputId = moduleInputId(module.code);
+        const inputId = moduleInputId(module.moduleCode);
         const toggle = document.createElement('input');
         toggle.type = 'checkbox';
         toggle.className = 'form-check-input module-toggle';
         toggle.id = inputId;
-        toggle.checked = Boolean(module.isSelected);
+        toggle.checked = Boolean(module.isEnabled);
         toggle.disabled = Boolean(
-            module.isCore || module.isRequiredForInstitution ||
-            (!module.isSelected && !module.canEnable));
+            module.isCore || module.isRequiredByPreset ||
+            (!module.isEnabled && !module.isEntitledByPlan));
         toggle.setAttribute('aria-label', localizedName(module));
         toggle.setAttribute('aria-describedby', `${inputId}-status`);
         toggle.addEventListener('change', () => updateModule(module, toggle));
@@ -123,10 +123,10 @@
         const badges = document.createElement('div');
         badges.className = 'module-badges';
         if (module.isCore) badges.append(createBadge(i18n.core, 'core'));
-        if (module.isRequiredForInstitution) badges.append(createBadge(i18n.required, 'required'));
+        if (module.isRequiredByPreset) badges.append(createBadge(i18n.required, 'required'));
         badges.append(createBadge(
-            module.isIncludedInPlan ? i18n.included : i18n.notIncluded,
-            module.isIncludedInPlan ? 'included' : 'excluded'));
+            module.isEntitledByPlan ? i18n.included : i18n.notIncluded,
+            module.isEntitledByPlan ? 'included' : 'excluded'));
 
         const status = document.createElement('p');
         status.className = 'module-status';
@@ -151,14 +151,15 @@
 
         try {
             const response = await fetch(
-                `/api/tenant-modules/${encodeURIComponent(module.code)}/activation`,
+                `/api/tenant-modules/${encodeURIComponent(module.moduleCode)}/activation`,
                 {
                     method: 'PUT',
                     cache: 'no-store',
                     credentials: 'same-origin',
                     headers: {
                         'Accept': 'application/json',
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'RequestVerificationToken': document.querySelector('meta[name="request-verification-token"]')?.content || ''
                     },
                     body: JSON.stringify({
                         isEnabled: requestedState,
@@ -170,12 +171,12 @@
                 throw new Error(String(response.status));
             }
 
-            modules = modules.map(item => item.code === module.code ? payload.data : item);
-            renderModules(module.code);
+            modules = modules.map(item => item.moduleCode === module.moduleCode ? payload.data : item);
+            renderModules(module.moduleCode);
         } catch (error) {
             toggle.checked = !requestedState;
             showAlert('danger', i18n.changeFailed);
-            if (error instanceof Error && error.message === '428') await loadModules();
+            if (error instanceof Error && error.message === '409') await loadModules();
         } finally {
             toggle.removeAttribute('aria-busy');
             if (toggle.isConnected) toggle.disabled = false;
@@ -183,8 +184,8 @@
     }
 
     function updateSummary() {
-        const selectedCount = modules.filter(x => x.isSelected && x.isIncludedInPlan).length;
-        const requiredUnavailable = modules.some(x => x.isRequiredForInstitution && !x.isAvailable);
+        const selectedCount = modules.filter(x => x.isEnabled && x.isEntitledByPlan).length;
+        const requiredUnavailable = modules.some(x => x.isRequiredByPreset && (!x.isEnabled || !x.isEntitledByPlan));
         if (summary) {
             summary.textContent = requiredUnavailable
                 ? i18n.requiredUnavailable
@@ -199,18 +200,14 @@
     }
 
     function availabilityText(module) {
-        switch (module.availabilityReasonCode) {
-            case 'AVAILABLE': return i18n.moduleAvailable || '';
-            case 'MODULE_NOT_SELECTED': return i18n.moduleNotSelected || '';
-            case 'OUTSIDE_EFFECTIVE_PERIOD': return i18n.moduleOutsidePeriod || '';
-            case 'NOT_INCLUDED_IN_PLAN': return i18n.moduleUpgradeRequired || '';
-            default: return module.isSelected ? i18n.selected : i18n.notSelected;
-        }
+        if (!module.isEntitledByPlan) return i18n.moduleUpgradeRequired || i18n.notIncluded || '';
+        return module.isEnabled ? (i18n.moduleAvailable || i18n.selected || '')
+            : (i18n.moduleNotSelected || i18n.notSelected || '');
     }
 
     function localizedName(module) {
         const isBangla = String(i18n.culture || '').toLowerCase().startsWith('bn');
-        return isBangla && module.nameBangla ? module.nameBangla : module.name;
+        return isBangla && module.moduleNameBangla ? module.moduleNameBangla : module.moduleName;
     }
 
     async function completeStep() {
@@ -232,7 +229,8 @@
                 credentials: 'same-origin',
                 headers: {
                     'Accept': 'application/json',
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                        'RequestVerificationToken': document.querySelector('meta[name="request-verification-token"]')?.content || ''
                 },
                 body: JSON.stringify({ stage: 7, skipped: false })
             });
