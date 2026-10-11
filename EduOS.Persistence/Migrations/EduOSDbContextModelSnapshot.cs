@@ -2746,9 +2746,17 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId", "AdmissionApplicantId");
 
+                    b.HasIndex("TenantId", "AdmissionApplicantId", "DocumentTypeCode", "VersionNo")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AdmissionApplicantDocuments_Tenant_Applicant_Type_Version")
+                        .HasFilter("[IsDeleted] = 0");
+
                     b.HasIndex("TenantId", "FileAssetId");
 
-                    b.ToTable("AdmissionApplicantDocuments");
+                    b.ToTable("AdmissionApplicantDocuments", t =>
+                        {
+                            t.HasCheckConstraint("CK_AdmissionApplicantDocuments_Version", "[VersionNo] >= 1");
+                        });
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.Admission.AdmissionApplicantFieldValue", b =>
@@ -3156,13 +3164,21 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId", "AcademicYearId");
 
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AdmissionIntakeForms_Tenant_Code")
+                        .HasFilter("[IsDeleted] = 0");
+
                     b.HasIndex("TenantId", "CampusId");
 
                     b.HasIndex("TenantId", "MediumId");
 
                     b.HasIndex("TenantId", "ShiftId");
 
-                    b.ToTable("AdmissionIntakeForms");
+                    b.ToTable("AdmissionIntakeForms", t =>
+                        {
+                            t.HasCheckConstraint("CK_AdmissionIntakeForms_DateRange", "[ClosesAt] IS NULL OR [OpensAt] IS NULL OR [ClosesAt] >= [OpensAt]");
+                        });
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.Admission.AdmissionPayment", b =>
