@@ -91,6 +91,29 @@ public sealed class OptionalMfaAuthContractTests
     }
 
     [Fact]
+    public void Mfa_challenge_consumption_and_session_revocation_are_enforced()
+    {
+        var auth = File.ReadAllText(Asset("AuthController.cs"));
+        var identity = File.ReadAllText(Asset("IdentityExtensions.cs"));
+        var tenant = File.ReadAllText(Asset("TenantContextMiddleware.cs"));
+        var profile = File.ReadAllText(Asset("profile.js"));
+        Assert.Contains("_userManager.UpdateSecurityStampAsync(user)", auth);
+        Assert.Contains("if (!consumed.Succeeded)", auth);
+        Assert.Contains("services.Configure<SecurityStampValidatorOptions>", identity);
+        Assert.Contains("options.ValidationInterval = TimeSpan.Zero", identity);
+        Assert.Contains("if (!user.IsActive || user.IsDeleted || !user.EmailConfirmed)", tenant);
+        Assert.Contains("window.location.assign('/Account/Login?status=password-changed')", profile);
+    }
+
+    [Fact]
+    public void Profile_and_address_changes_commit_in_one_transaction()
+    {
+        var auth = File.ReadAllText(Asset("AuthController.cs"));
+        Assert.Contains("await using var transaction = await _db.Database.BeginTransactionAsync()", auth);
+        Assert.Contains("await transaction.CommitAsync()", auth);
+    }
+
+    [Fact]
     public void Profile_patch_does_not_reset_unrelated_language_preference()
     {
         var dto = new UpdateUserProfileRequestDto { FullName = "Example User" };
