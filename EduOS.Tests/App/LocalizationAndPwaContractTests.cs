@@ -230,6 +230,15 @@ public class LocalizationAndPwaContractTests
         view.Should().NotContain("<style>");
         view.Should().NotContain("onclick=");
         script.Should().Contain("/api/tenant-modules");
+        script.Should().Contain("module.moduleCode");
+        script.Should().Contain("module.moduleName");
+        script.Should().Contain("module.isEnabled");
+        script.Should().Contain("module.isEntitledByPlan");
+        script.Should().Contain("module.isRequiredByPreset");
+        script.Should().Contain("RequestVerificationToken");
+        script.Should().NotContain("module.isSelected");
+        script.Should().NotContain("module.isIncludedInPlan");
+        script.Should().NotContain("module.isRequiredForInstitution");
         script.Should().Contain("rowVersion");
         script.Should().Contain("replaceChildren");
         script.Should().Contain("credentials: 'same-origin'");
