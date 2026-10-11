@@ -348,73 +348,151 @@ public sealed class SubscriptionPaymentService : ISubscriptionPaymentService
             !x.IsDeleted && x.TenantId == payment.TenantId &&
             x.Id == payment.DepositSlipFileId && x.Visibility == FileVisibility.Private);
         if (file == null) return ApiResponse<PrivateFileDownloadDto>.ErrorResponse("Deposit slip not found.", 404);
-        if (!file.IsVerifiedSafe)
+        if (!file.IsVerifiedSafe || file.MalwareScanStateCode != "Clean" || string.IsNullOrWhiteSpace(file.Sha256))
             return ApiResponse<PrivateFileDownloadDto>.ErrorResponse("Deposit slip is pending file safety verification.", 409);
         var download = await _storage.GetPrivateFileAsync(file.StorageKey);
         if (download == null) return ApiResponse<PrivateFileDownloadDto>.ErrorResponse("Deposit slip not found.", 404);
+        var actualHash = Convert.ToHexString(SHA256.HashData(download.Content));
+        if (download.Content.LongLength != file.SizeBytes ||
+            !string.Equals(file.Sha256, actualHash, StringComparison.OrdinalIgnoreCase))
+            return ApiResponse<PrivateFileDownloadDto>.ErrorResponse("Deposit slip integrity check failed.", 409);
         return ApiResponse<PrivateFileDownloadDto>.SuccessResponse(new PrivateFileDownloadDto
         {
             Content = download.Content, ContentType = download.ContentType, FileName = download.FileName
         });
     }
 
+    public async Task<ApiResponse<bool>> ScanDepositSlipAsync(long paymentId)
+    {
+        if (!_user.IsSuperAdmin) return ApiResponse<bool>.ErrorResponse("Platform administrator access required.", 403);
+        if (paymentId <= 0) return ApiResponse<bool>.ErrorResponse("Valid payment is required.", 400);
+        var payment = await _payments.GetByIdForPlatformAsync(paymentId);
+        if (payment == null || payment.PaymentMethod != PaymentMethodType.BankTransfer ||
+            payment.State != PaymentState.AwaitingVerification || !payment.DepositSlipFileId.HasValue)
+            return ApiResponse<bool>.ErrorResponse("Pending bank transfer or receipt not found.", 404);
+        var file = await _files.GetQueryable().IgnoreQueryFilters().AsNoTracking()
+            .FirstOrDefaultAsync(x => !x.IsDeleted && x.TenantId == payment.TenantId &&
+                x.Id == payment.DepositSlipFileId.Value && x.Visibility == FileVisibility.Private);
+        if (file == null) return ApiResponse<bool>.ErrorResponse("Private receipt not found.", 404);
+        if (file.IsVerifiedSafe && file.MalwareScanStateCode == "Clean" && !string.IsNullOrWhiteSpace(file.Sha256))
+            return ApiResponse<bool>.SuccessResponse(true, "Receipt was already scanned and cleared.");
+
+        // AV is external I/O and must run BEFORE opening the short database transaction.
+        var scannedHash = await _storage.ScanPrivateForMalwareAsync(file.StorageKey);
+        if (string.IsNullOrWhiteSpace(scannedHash))
+            return ApiResponse<bool>.ErrorResponse("Malware scanner is unavailable or did not clear the receipt. Check Windows Defender and try again.", 503);
+        try
+        {
+            return await _uow.ExecuteInTransactionAsync(async token =>
+            {
+                var currentPayment = await _payments.GetByIdForPlatformAsync(paymentId, token);
+                if (currentPayment?.State != PaymentState.AwaitingVerification ||
+                    currentPayment.DepositSlipFileId != file.Id)
+                    return ApiResponse<bool>.ErrorResponse("Payment changed during the receipt scan.", 409);
+                var currentFile = await _files.GetQueryable().IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(x => !x.IsDeleted && x.TenantId == payment.TenantId &&
+                        x.Id == file.Id && x.Visibility == FileVisibility.Private, token);
+                if (currentFile == null || currentFile.StorageKey != file.StorageKey ||
+                    currentFile.SizeBytes != file.SizeBytes)
+                    return ApiResponse<bool>.ErrorResponse("Receipt changed during scanning.", 409);
+                currentFile.Sha256 = scannedHash;
+                currentFile.MalwareScanStateCode = "Clean";
+                currentFile.MalwareScanCompletedAt = DateTime.UtcNow;
+                currentFile.IsVerifiedSafe = true;
+                currentFile.UpdatedAt = DateTime.UtcNow;
+                currentFile.UpdatedBy = _user.UserId;
+                _files.Update(currentFile);
+                await _uow.SaveChangesAsync(token);
+                _logger.LogInformation("SuperAdmin {ReviewerId} verified receipt security for payment {PaymentId}", _user.UserId, paymentId);
+                return ApiResponse<bool>.SuccessResponse(true, "Receipt passed malware and integrity verification.");
+            }, System.Data.IsolationLevel.Serializable);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return ApiResponse<bool>.ErrorResponse("Receipt changed concurrently. Reload and retry.", 409);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Receipt scan record update failed for payment {PaymentId}", paymentId);
+            return ApiResponse<bool>.ErrorResponse("Receipt verification could not be completed.", 500);
+        }
+    }
+
     public async Task<ApiResponse<bool>> VerifyManualPaymentAsync(VerifyManualPaymentDto dto)
     {
         if (!_user.IsSuperAdmin) return ApiResponse<bool>.ErrorResponse("Platform administrator access required.", 403);
-        if (dto == null || dto.PaymentId <= 0)
-            return ApiResponse<bool>.ErrorResponse("Valid payment reference required.");
+        if (dto == null || dto.PaymentId <= 0 || string.IsNullOrWhiteSpace(dto.RowVersion))
+            return ApiResponse<bool>.ErrorResponse("Payment reference and latest row version are required.");
         if (!dto.Approve && string.IsNullOrWhiteSpace(dto.VerificationNote))
             return ApiResponse<bool>.ErrorResponse("A rejection reason is required.");
+        byte[] expected;
+        try { expected = Convert.FromBase64String(dto.RowVersion); }
+        catch (FormatException) { return ApiResponse<bool>.ErrorResponse("Payment row version is invalid."); }
+        if (expected.Length == 0) return ApiResponse<bool>.ErrorResponse("Payment row version is invalid.");
         try
         {
-            using var tx = SerializableScope();
-            var payment = await _payments.GetByIdForPlatformAsync(dto.PaymentId);
-            if (payment == null) return ApiResponse<bool>.ErrorResponse("Payment not found.", 404);
-            if (payment.PaymentMethod != PaymentMethodType.BankTransfer || payment.State != PaymentState.AwaitingVerification)
-                return ApiResponse<bool>.ErrorResponse("Payment cannot be verified in its current state.", 409);
-            var invoice = await _invoices.GetByIdForSystemAsync(payment.SubscriptionInvoiceId, payment.TenantId);
-            if (invoice == null) return ApiResponse<bool>.ErrorResponse("Invoice not found.", 404);
-            if (payment.CurrencyCode != invoice.CurrencyCode)
-                return ApiResponse<bool>.ErrorResponse("Payment currency and invoice currency differ.", 409);
-            if (dto.Approve && payment.DepositSlipFileId.HasValue)
+            return await _uow.ExecuteInTransactionAsync(async token =>
             {
-                var file = await _files.GetQueryable().IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(x =>
-                    !x.IsDeleted && x.TenantId == payment.TenantId && x.Id == payment.DepositSlipFileId.Value);
-                if (file?.IsVerifiedSafe != true)
-                    return ApiResponse<bool>.ErrorResponse("Deposit slip must pass file safety verification first.", 409);
-            }
-            if (dto.Approve && (invoice.State is InvoiceState.Cancelled or InvoiceState.Refunded or InvoiceState.Paid ||
-                payment.Amount <= 0 || payment.Amount > invoice.DueAmount))
-                return ApiResponse<bool>.ErrorResponse("Invoice balance cannot accept the payment.", 409);
-            var now = DateTime.UtcNow;
-            payment.VerifiedAt = now; payment.VerifiedByUserId = _user.UserId;
-            payment.VerificationNote = dto.VerificationNote?.Trim(); payment.UpdatedAt = now;
-            if (dto.Approve)
-            {
-                payment.State = PaymentState.Successful; payment.CompletedAt = now; payment.FailureReason = null;
-                invoice.PaidAmount += payment.Amount;
-                invoice.DueAmount = invoice.TotalAmount - invoice.PaidAmount;
-                invoice.State = invoice.DueAmount == 0m ? InvoiceState.Paid : InvoiceState.PartiallyPaid;
-                if (invoice.State == InvoiceState.Paid) invoice.PaidAt = now;
-                invoice.UpdatedAt = now;
-            }
-            else
-            {
-                payment.State = PaymentState.Failed;
-                payment.FailureReason = payment.VerificationNote;
-            }
-            // Platform repository methods are deliberately AsNoTracking.
-            _payments.Update(payment);
-            if (dto.Approve) _invoices.Update(invoice);
-            await _uow.SaveChangesAsync();
-            if (dto.Approve && invoice.State == InvoiceState.Paid)
-                await ActivatePaidSubscriptionAsync(invoice);
-            tx.Complete();
-            return ApiResponse<bool>.SuccessResponse(true, dto.Approve ? "Payment approved." : "Payment rejected.");
+                var payment = await _payments.GetByIdForPlatformAsync(dto.PaymentId, token);
+                if (payment == null) return ApiResponse<bool>.ErrorResponse("Payment not found.", 404);
+                if (payment.RowVersion.Length != expected.Length ||
+                    !CryptographicOperations.FixedTimeEquals(payment.RowVersion, expected))
+                    return ApiResponse<bool>.ErrorResponse("Payment was updated by another administrator. Reload and retry.", 409);
+                if (payment.PaymentMethod != PaymentMethodType.BankTransfer || payment.State != PaymentState.AwaitingVerification)
+                    return ApiResponse<bool>.ErrorResponse("Payment cannot be verified in its current state.", 409);
+                var invoice = await _invoices.GetByIdForSystemAsync(payment.SubscriptionInvoiceId, payment.TenantId, token);
+                if (invoice == null) return ApiResponse<bool>.ErrorResponse("Invoice not found.", 404);
+                if (payment.CurrencyCode != invoice.CurrencyCode)
+                    return ApiResponse<bool>.ErrorResponse("Payment currency and invoice currency differ.", 409);
+                if (dto.Approve)
+                {
+                    if (!payment.DepositSlipFileId.HasValue)
+                        return ApiResponse<bool>.ErrorResponse("Deposit slip is required for approval.", 409);
+                    var file = await _files.GetQueryable().IgnoreQueryFilters().AsNoTracking()
+                        .FirstOrDefaultAsync(x => !x.IsDeleted && x.TenantId == payment.TenantId &&
+                            x.Id == payment.DepositSlipFileId.Value && x.Visibility == FileVisibility.Private, token);
+                    if (file?.IsVerifiedSafe != true || file.MalwareScanStateCode != "Clean" ||
+                        string.IsNullOrWhiteSpace(file.Sha256))
+                        return ApiResponse<bool>.ErrorResponse("Deposit slip must pass malware and integrity checks before approval.", 409);
+                    if (invoice.State is InvoiceState.Cancelled or InvoiceState.Refunded or InvoiceState.Paid ||
+                        payment.Amount <= 0 || payment.Amount > invoice.DueAmount)
+                        return ApiResponse<bool>.ErrorResponse("Invoice balance cannot accept the payment.", 409);
+                }
+                var now = DateTime.UtcNow;
+                payment.VerifiedAt = now; payment.VerifiedByUserId = _user.UserId;
+                payment.VerificationNote = dto.VerificationNote?.Trim(); payment.UpdatedAt = now;
+                if (dto.Approve)
+                {
+                    payment.State = PaymentState.Successful; payment.CompletedAt = now; payment.FailureReason = null;
+                    invoice.PaidAmount += payment.Amount;
+                    invoice.DueAmount = invoice.TotalAmount - invoice.PaidAmount;
+                    invoice.State = invoice.DueAmount == 0m ? InvoiceState.Paid : InvoiceState.PartiallyPaid;
+                    if (invoice.State == InvoiceState.Paid) invoice.PaidAt = now;
+                    invoice.UpdatedAt = now;
+                }
+                else
+                {
+                    payment.State = PaymentState.Failed;
+                    payment.FailureReason = payment.VerificationNote;
+                }
+                _payments.Update(payment);
+                if (dto.Approve) _invoices.Update(invoice);
+                await _uow.SaveChangesAsync(token);
+                if (dto.Approve && invoice.State == InvoiceState.Paid)
+                    await ActivatePaidSubscriptionAsync(invoice);
+                _logger.LogInformation("SuperAdmin {ReviewerId} {Decision} manual payment {PaymentId} for tenant {TenantId}",
+                    _user.UserId, dto.Approve ? "approved" : "rejected", payment.Id, payment.TenantId);
+                return ApiResponse<bool>.SuccessResponse(true, dto.Approve ? "Payment approved." : "Payment rejected.");
+            }, System.Data.IsolationLevel.Serializable);
         }
         catch (DbUpdateConcurrencyException)
         {
             return ApiResponse<bool>.ErrorResponse("Payment was verified concurrently.", 409);
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Conflicting manual payment verification {PaymentId}", dto.PaymentId);
+            return ApiResponse<bool>.ErrorResponse("Payment changed concurrently. Reload and retry.", 409);
         }
         catch (Exception ex)
         {
@@ -439,21 +517,38 @@ public sealed class SubscriptionPaymentService : ISubscriptionPaymentService
             page.Items.Select(x => Map(x, invoice.InvoiceNumber)).ToList());
     }
 
-    public async Task<ApiResponse<List<SubscriptionPaymentDto>>> GetPendingManualVerificationsAsync()
+    public async Task<ApiResponse<PagedManualPaymentsDto>> GetPendingManualVerificationsAsync(int pageNumber, int pageSize)
     {
         if (!_user.IsSuperAdmin)
-            return ApiResponse<List<SubscriptionPaymentDto>>.ErrorResponse("Platform administrator access required.", 403);
-        var page = await _payments.GetPendingManualVerificationForPlatformAsync(1, 100);
-        if (page.TotalCount > 100)
-            return ApiResponse<List<SubscriptionPaymentDto>>.ErrorResponse(
-                "Pending payments exceed 100. Use paged platform verification.", 409);
-        var payments = page.Items;
-        var ids = payments.Select(x => x.SubscriptionInvoiceId).Distinct().ToArray();
+            return ApiResponse<PagedManualPaymentsDto>.ErrorResponse("Platform administrator access required.", 403);
+        if (pageNumber < 1 || pageSize < 1 || pageSize > 100)
+            return ApiResponse<PagedManualPaymentsDto>.ErrorResponse("Page must be positive and page size must be 1–100.");
+        var page = await _payments.GetPendingManualVerificationForPlatformAsync(pageNumber, pageSize);
+        var invoiceIds = page.Items.Select(x => x.SubscriptionInvoiceId).Distinct().ToArray();
         var invoiceNos = await _invoices.GetQueryable().IgnoreQueryFilters().AsNoTracking()
-            .Where(x => !x.IsDeleted && ids.Contains(x.Id))
+            .Where(x => !x.IsDeleted && invoiceIds.Contains(x.Id))
             .ToDictionaryAsync(x => x.Id, x => x.InvoiceNumber);
-        return ApiResponse<List<SubscriptionPaymentDto>>.SuccessResponse(
-            payments.Select(x => Map(x, invoiceNos.GetValueOrDefault(x.SubscriptionInvoiceId) ?? string.Empty)).ToList());
+        var fileIds = page.Items.Where(x => x.DepositSlipFileId.HasValue)
+            .Select(x => x.DepositSlipFileId!.Value).Distinct().ToArray();
+        var safety = await _files.GetQueryable().IgnoreQueryFilters().AsNoTracking()
+            .Where(x => !x.IsDeleted && fileIds.Contains(x.Id))
+            .Select(x => new { x.Id, x.TenantId, x.IsVerifiedSafe, x.MalwareScanStateCode })
+            .ToDictionaryAsync(x => x.Id);
+        var mapped = page.Items.Select(x =>
+        {
+            var dto = Map(x, invoiceNos.GetValueOrDefault(x.SubscriptionInvoiceId) ?? string.Empty);
+            if (x.DepositSlipFileId.HasValue && safety.TryGetValue(x.DepositSlipFileId.Value, out var file) &&
+                file.TenantId == x.TenantId)
+            {
+                dto.ReceiptIsVerifiedSafe = file.IsVerifiedSafe && file.MalwareScanStateCode == "Clean";
+                dto.ReceiptSafetyStatus = file.MalwareScanStateCode;
+            }
+            return dto;
+        }).ToList();
+        return ApiResponse<PagedManualPaymentsDto>.SuccessResponse(new PagedManualPaymentsDto
+        {
+            Items = mapped, TotalCount = page.TotalCount, Page = pageNumber, PageSize = pageSize
+        });
     }
 
     private async Task ActivatePaidSubscriptionAsync(SubscriptionInvoice invoice)
