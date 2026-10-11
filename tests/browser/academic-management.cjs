@@ -102,7 +102,19 @@ async function main() {
         await page.locator('#curriculumCode').fill('SC-2026');
         await page.locator('#curriculumFrom').fill('2026-01-01');
         await page.locator('#curriculumForm button[type="submit"]').click();
-        await page.waitForFunction(() => document.querySelector('#curriculumRows')?.textContent.includes('Secondary Curriculum'));
+        try {
+            await page.waitForFunction(() => document.querySelector('#curriculumRows')?.textContent.includes('Secondary Curriculum'),
+                { timeout: 8000 });
+        } catch (error) {
+            console.error('Curriculum UI diagnostic:', JSON.stringify({
+                mutations, curricula: catalog.curricula,
+                notice: await page.locator('#academicNotice').innerText(),
+                selectedProgram: await page.locator('#curriculumProgram').inputValue(),
+                rows: await page.locator('#curriculumRows').innerText(),
+                formValid: await page.locator('#curriculumForm').evaluate(x => x.checkValidity())
+            }, null, 2));
+            throw error;
+        }
 
         await page.locator('#mappingMarks').fill('100');
         await page.locator('#mappingPassMarks').fill('33');
