@@ -289,7 +289,7 @@ namespace EduOS.App.Controllers.Api
         // ==================== MFA Login ====================
 
         [AllowAnonymous]
-        [EnableRateLimiting("MfaPolicy")]
+        [EnableRateLimiting("MfaLoginPolicy")]
         [HttpPost("mfa/login")]
         public async Task<IActionResult> CompleteMfaLogin([FromBody] MfaLoginRequestDto dto)
         {
