@@ -279,37 +279,46 @@ namespace EduOS.App.Controllers.Api
             if (!session.IsValid)
                 return StatusCode(StatusCodes.Status403Forbidden, new { success = false, message = "Your institution membership is unavailable." });
 
-            // Both Identity user updates and recovery-code changes use this scoped
-            // EduOSDbContext. Any failure must roll back the entire activation.
-            await using (var transaction = await _db.Database.BeginTransactionAsync())
+            // The canonical unit of work opens transactions inside SQL Server's
+            // execution strategy; direct BeginTransactionAsync is incompatible with
+            // EnableRetryOnFailure configured in persistence.
+            string[] recoveryCodes;
+            try
             {
-                var recoveryCodes = (await _userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, _mfaSettings.RecoveryCodeCount))?.ToArray() ?? [];
-                if (recoveryCodes.Length != _mfaSettings.RecoveryCodeCount)
-                    return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Recovery codes could not be generated." });
-
-                var enabled = await _userManager.SetTwoFactorEnabledAsync(user, true);
-                if (!enabled.Succeeded)
-                    return Conflict(new { success = false, message = "MFA setup changed. Reload and try again." });
-
-                // Immediately revoke all existing password-only cookies, including
-                // sessions opened in other devices before MFA was enabled.
-                var rotated = await _userManager.UpdateSecurityStampAsync(user);
-                if (!rotated.Succeeded)
-                    return Conflict(new { success = false, message = "Account security changed. Reload and try again." });
-
-                await transaction.CommitAsync();
-
-                var auth = await HttpContext.AuthenticateAsync(IdentityConstants.ApplicationScheme);
-                await _signInManager.SignInWithClaimsAsync(user, auth.Properties?.IsPersistent == true,
-                    BuildSessionClaims(user, "mfa", session.Role, session.TenantId));
-                _logger.LogInformation("MFA enabled for user {UserId}", user.Id);
-                return Ok(new
+                recoveryCodes = await _db.ExecuteInTransactionAsync(async ct =>
                 {
-                    success = true,
-                    message = "Multi-factor authentication is enabled.",
-                    data = new { recoveryCodes }
+                    var generated = (await _userManager.GenerateNewTwoFactorRecoveryCodesAsync(
+                        user, _mfaSettings.RecoveryCodeCount))?.ToArray() ?? [];
+                    if (generated.Length != _mfaSettings.RecoveryCodeCount)
+                        throw new AuthTransactionRejectedException("Recovery codes could not be generated.", 500);
+
+                    var enabled = await _userManager.SetTwoFactorEnabledAsync(user, true);
+                    if (!enabled.Succeeded)
+                        throw new AuthTransactionRejectedException("MFA setup changed. Reload and try again.");
+
+                    // Invalidate password-only sessions on all other devices.
+                    var rotated = await _userManager.UpdateSecurityStampAsync(user);
+                    if (!rotated.Succeeded)
+                        throw new AuthTransactionRejectedException("Account security changed. Reload and try again.");
+                    return generated;
                 });
             }
+            catch (AuthTransactionRejectedException ex)
+            {
+                _logger.LogWarning("MFA activation was rolled back for user {UserId}: {Reason}", user.Id, ex.Message);
+                return StatusCode(ex.StatusCode, new { success = false, message = ex.Message });
+            }
+
+            var auth = await HttpContext.AuthenticateAsync(IdentityConstants.ApplicationScheme);
+            await _signInManager.SignInWithClaimsAsync(user, auth.Properties?.IsPersistent == true,
+                BuildSessionClaims(user, "mfa", session.Role, session.TenantId));
+            _logger.LogInformation("MFA enabled for user {UserId}", user.Id);
+            return Ok(new
+            {
+                success = true,
+                message = "Multi-factor authentication is enabled.",
+                data = new { recoveryCodes }
+            });
         }
 
         // ==================== MFA Login ====================
@@ -612,6 +621,11 @@ namespace EduOS.App.Controllers.Api
             await _signInManager.SignOutAsync();
             _logger.LogInformation("Password changed successfully for user {UserId}", user.Id);
             return Ok(new { success = true, message = "Password changed. Please sign in again.", redirectUrl = "/Account/Login" });
+        }
+
+        private sealed class AuthTransactionRejectedException(string message, int statusCode = 409) : Exception(message)
+        {
+            public int StatusCode { get; } = statusCode;
         }
 
         // ==================== Helpers ====================
