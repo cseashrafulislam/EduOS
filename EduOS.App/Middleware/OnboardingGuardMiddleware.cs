@@ -20,6 +20,7 @@ namespace EduOS.App.Middleware
             "/api/onboarding",
             "/api/tenant-profile",
             "/api/tenant-settings",
+            "/api/communication-admin/gateways",
             "/api/subscription",
             "/api/subscription-plans",
             "/api/subscription-payment",
