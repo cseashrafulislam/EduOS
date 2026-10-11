@@ -5276,9 +5276,6 @@ namespace EduOS.Persistence.Migrations
                     b.Property<long?>("PersonId")
                         .HasColumnType("bigint");
 
-                    b.Property<long?>("PersonId1")
-                        .HasColumnType("bigint");
-
                     b.Property<string>("PhoneNumber")
                         .HasColumnType("nvarchar(max)");
 
@@ -5323,8 +5320,6 @@ namespace EduOS.Persistence.Migrations
                     b.HasIndex("PersonId")
                         .IsUnique()
                         .HasFilter("[PersonId] IS NOT NULL");
-
-                    b.HasIndex("PersonId1");
 
                     b.HasIndex("PublicId")
                         .IsUnique();
@@ -18667,14 +18662,9 @@ namespace EduOS.Persistence.Migrations
 
             modelBuilder.Entity("EduOS.Core.Entities.Auth.ApplicationUser", b =>
                 {
-                    b.HasOne("EduOS.Core.Entities.Learners.Person", null)
-                        .WithMany()
-                        .HasForeignKey("PersonId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("EduOS.Core.Entities.Learners.Person", "Person")
                         .WithMany()
-                        .HasForeignKey("PersonId1")
+                        .HasForeignKey("PersonId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Person");
