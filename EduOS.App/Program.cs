@@ -360,7 +360,6 @@ app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseTenantContext();
-//app.UsePrivilegedMfa();
 app.UseOnboardingGuard();
 app.UseAuthorization();
 
