@@ -1,4 +1,6 @@
+using EduOS.App.Security;
 using EduOS.Core.Entities.Auth;
+using System.Security.Claims;
 using EduOS.Persistence.Context;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -43,7 +45,30 @@ namespace EduOS.App.Extensions
             // password change and successful MFA sign-in invalidate older cookies immediately.
             // This is an intentional security/database trade-off for sensitive ERP accounts.
             services.Configure<SecurityStampValidatorOptions>(options =>
-                options.ValidationInterval = TimeSpan.Zero);
+            {
+                options.ValidationInterval = TimeSpan.Zero;
+                // Identity recreates its principal whenever the security stamp is checked.
+                // Preserve only the signed, session-scoped claims; the next middleware
+                // validates session ownership, membership and exact tenant roles in SQL.
+                options.OnRefreshingPrincipal = refresh =>
+                {
+                    var original = refresh.CurrentPrincipal;
+                    var updated = refresh.NewPrincipal;
+                    if (original == null || updated == null) return Task.CompletedTask;
+                    var identity = updated.Identities.FirstOrDefault();
+                    if (identity == null) return Task.CompletedTask;
+                    var preserved = new[]
+                    {
+                        ClaimTypes.Role, "FullName", "UserType", "TenantId", "amr",
+                        "auth_time", AuthSessionRegistry.ClaimType
+                    };
+                    foreach (var oldClaim in identity.Claims.Where(c => preserved.Contains(c.Type)).ToArray())
+                        identity.RemoveClaim(oldClaim);
+                    foreach (var claim in original.Claims.Where(c => preserved.Contains(c.Type)))
+                        identity.AddClaim(new Claim(claim.Type, claim.Value));
+                    return Task.CompletedTask;
+                };
+            });
 
             // Secure-by-default endpoint posture. Public routes must opt out explicitly.
             services.AddAuthorization(options =>
