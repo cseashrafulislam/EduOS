@@ -1,0 +1,40 @@
+@{
+    ViewData["Title"] = "My Student Leave";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<div class="container-fluid py-4" id="myStudentLeave">
+    @Html.AntiForgeryToken()
+    <header class="mb-3">
+        <h1 class="h4">Student Leave Requests</h1>
+        <p class="text-muted">Apply for your own or an explicitly linked student's leave and review approval status.</p>
+        <a href="/StudentPortal/Index" class="btn btn-outline-secondary btn-sm">Student / Guardian Portal</a>
+    </header>
+    <div id="myLeaveNotice" class="alert d-none" aria-live="polite" role="alert"></div>
+    <div class="row g-3">
+        <div class="col-lg-5">
+            <div class="card"><div class="card-body">
+                <form id="myLeaveForm" class="row g-3">
+                    <div class="col-12"><label for="myLeaveStudent" class="form-label">Linked student *</label><select id="myLeaveStudent" class="form-select" required><option value="">Loading linked students...</option></select></div>
+                    <div class="col-md-6"><label for="myLeaveFrom" class="form-label">From *</label><input type="date" id="myLeaveFrom" class="form-control" required /></div>
+                    <div class="col-md-6"><label for="myLeaveTo" class="form-label">To *</label><input type="date" id="myLeaveTo" class="form-control" required /></div>
+                    <div class="col-12"><label for="myLeaveReason" class="form-label">Reason *</label><textarea id="myLeaveReason" class="form-control" rows="3" maxlength="2000" required></textarea></div>
+                    <div class="col-12"><button id="myLeaveSubmit" type="submit" class="btn btn-primary" disabled>Submit Leave</button></div>
+                </form>
+                <p class="small text-muted mt-3 mb-0">A submitted application requires institutional approval. Approved leave is shown in attendance without automatically posting a mark.</p>
+            </div></div>
+        </div>
+        <div class="col-lg-7">
+            <div class="card"><div class="card-body">
+                <h2 class="h5">Leave History</h2>
+                <div class="table-responsive"><table class="table table-sm align-middle">
+                    <thead><tr><th>From</th><th>To</th><th>Reason</th><th>Status</th><th>Review note</th></tr></thead>
+                    <tbody id="myLeaveRows"><tr><td colspan="5">Select a student.</td></tr></tbody>
+                </table></div>
+                <div id="myLeavePager" class="small text-muted"></div>
+            </div></div>
+        </div>
+    </div>
+</div>
+@section Scripts {
+    <script src="~/js/student-portal/leaves.js" asp-append-version="true"></script>
+}
