@@ -1,0 +1,105 @@
+@{
+    ViewData["Title"] = "User & Role Management";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<div class="container-fluid py-4" id="tenantUsersApp">
+    @Html.AntiForgeryToken()
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+        <div>
+            <h2 class="h4 fw-bold mb-1">User &amp; Role Management</h2>
+            <p class="text-muted mb-0">Manage only users and permissions belonging to this institution.</p>
+        </div>
+        <a href="/Account/Profile" class="btn btn-outline-secondary">My Profile</a>
+    </div>
+    <div id="adminMessage" class="alert d-none" role="alert" aria-live="polite"></div>
+    <ul class="nav nav-tabs mb-3" role="tablist">
+        <li class="nav-item"><button id="tabUsers" class="nav-link active" type="button">Institution Users</button></li>
+        <li class="nav-item"><button id="tabRoles" class="nav-link" type="button">Roles &amp; Permissions</button></li>
+    </ul>
+    <section id="usersSection">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <form id="memberSearchForm" class="row g-2 mb-3">
+                    <div class="col-md-8">
+                        <label for="memberSearch" class="form-label">Search by name or email (starts with)</label>
+                        <input type="search" class="form-control" id="memberSearch" maxlength="100" autocomplete="off" />
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary me-2">Search</button>
+                        <button type="button" id="refreshUsers" class="btn btn-outline-secondary">Refresh</button>
+                    </div>
+                </form>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead><tr><th>User</th><th>Membership</th><th>Roles</th><th>Action</th></tr></thead>
+                        <tbody id="tenantUsersBody"><tr><td colspan="4">Loading...</td></tr></tbody>
+                    </table>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                    <small id="memberCount" class="text-muted"></small>
+                    <div>
+                        <button id="prevMembers" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+                        <button id="nextMembers" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="memberEditor" class="card border-0 shadow-sm mt-3 d-none">
+            <div class="card-body">
+                <h5 id="memberEditorTitle"></h5>
+                <p class="small text-muted">Changes revoke the selected user's old sessions. Ownership cannot be changed here.</p>
+                <form id="saveMemberRolesForm">
+                    <div id="memberRoleOptions" class="row row-cols-1 row-cols-md-3 g-2 mb-3"></div>
+                    <button id="saveMemberRoles" class="btn btn-primary" type="submit">Save roles</button>
+                </form>
+                <hr />
+                <label for="memberStatusSelect" class="form-label">Membership status</label>
+                <div class="d-flex gap-2 align-items-center">
+                    <select id="memberStatusSelect" class="form-select" style="max-width:260px">
+                        <option value="2">Active</option>
+                        <option value="3">Suspended</option>
+                        <option value="4">Left</option>
+                    </select>
+                    <button id="saveMemberStatus" type="button" class="btn btn-outline-danger">Update status</button>
+                </div>
+            </div>
+        </div>
+    </section>
+    <section id="rolesSection" class="d-none">
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-body">
+                <h5>Create institution role</h5>
+                <form id="createTenantRoleForm" class="row g-2">
+                    <div class="col-md-4">
+                        <label class="form-label" for="newRoleName">Role name</label>
+                        <input id="newRoleName" class="form-control" maxlength="100" minlength="2" required />
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label" for="newRoleDescription">Description</label>
+                        <input id="newRoleDescription" class="form-control" maxlength="300" />
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button class="btn btn-primary" type="submit">Create Role</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <h5>Permission assignment</h5>
+                <p class="text-muted small">Permissions shown here are the current global permission catalogue; assignments remain institution scoped.</p>
+                <div class="mb-3">
+                    <label for="permissionRole" class="form-label">Institution role</label>
+                    <select id="permissionRole" class="form-select"></select>
+                </div>
+                <form id="saveRolePermissionsForm">
+                    <div id="permissionOptions" class="row g-2 mb-3"></div>
+                    <button type="submit" class="btn btn-primary">Save permissions</button>
+                </form>
+            </div>
+        </div>
+    </section>
+</div>
+@section Scripts {
+    <script src="~/js/tenant-users/index.js" asp-append-version="true"></script>
+}
