@@ -426,6 +426,8 @@ public sealed class SubscriptionPaymentService : ISubscriptionPaymentService
             return ApiResponse<bool>.ErrorResponse("Payment reference and latest row version are required.");
         if (!dto.Approve && string.IsNullOrWhiteSpace(dto.VerificationNote))
             return ApiResponse<bool>.ErrorResponse("A rejection reason is required.");
+        if (dto.Approve && !dto.BankCreditConfirmed)
+            return ApiResponse<bool>.ErrorResponse("Confirm the received bank credit against the bank statement before approving.");
         byte[] expected;
         try { expected = Convert.FromBase64String(dto.RowVersion); }
         catch (FormatException) { return ApiResponse<bool>.ErrorResponse("Payment row version is invalid."); }
