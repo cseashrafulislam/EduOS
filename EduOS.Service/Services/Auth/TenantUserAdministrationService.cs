@@ -236,12 +236,21 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
                     throw new AdminRejectException("Only active members may receive roles.", 409);
                 _db.Entry(member).Property(x => x.RowVersion).OriginalValue = version;
 
+                // Global legacy Identity grants belong to the account, not to any one
+                // institution. Revoke them only when THIS is the user's sole active
+                // institution; otherwise preserve unrelated institutions' access.
+                var activeMemberships = await _db.TenantMemberships.IgnoreQueryFilters().AsNoTracking()
+                    .Where(x => x.UserId == member.UserId && !x.IsDeleted &&
+                        x.Status == MembershipStatus.Active)
+                    .Select(x => x.TenantId).Distinct().Take(2).ToListAsync(token);
+                var soleInstitution = activeMemberships.Count == 1 &&
+                    activeMemberships[0] == TenantId;
                 var oldRoleIds = await (from link in _db.UserRoles
                                         join role in _db.Roles.IgnoreQueryFilters()
                                             on link.RoleId equals role.Id
                                         where link.UserId == member.UserId &&
                                               ((role.TenantId == TenantId && !role.IsSystemRole) ||
-                                               (role.TenantId == null && !role.IsSystemRole))
+                                               (soleInstitution && role.TenantId == null && !role.IsSystemRole))
                                         select link.RoleId).ToListAsync(token);
                 var obsolete = oldRoleIds.Where(id => !selected.Contains(id)).ToArray();
                 var toRemove = await _db.UserRoles.Where(x => x.UserId == member.UserId &&
