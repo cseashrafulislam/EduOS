@@ -209,19 +209,19 @@
             const title = document.createElement('h4');
             title.textContent = item.title || '';
             const detail = document.createElement('p');
-            detail.textContent = `${item.code || ''} · ${formatDate(item.opensAtUtc)} — ${formatDate(item.closesAtUtc)} · ${item.currency || ''} ${Number(item.applicationFee || 0).toFixed(2)}`;
+            detail.textContent = `${item.code || ''} · ${formatDate(item.opensAt)} — ${formatDate(item.closesAt)} · ${item.currencyCode || ''} ${Number(item.applicationFee || 0).toFixed(2)}`;
             const counts = document.createElement('p');
-            counts.textContent = `${item.fields?.length || 0} custom fields · ${item.documentRequirements?.length || 0} document requirements`;
+            counts.textContent = `${item.fields?.length || 0} custom fields · document policies managed separately`;
             summary.append(title, detail, counts);
             const controls = document.createElement('div');
             controls.className = 'intake-form-actions';
             const badge = document.createElement('span');
-            badge.className = `admission-status status-${Number(item.status) === 2 ? 4 : Number(item.status) === 3 ? 6 : 1}`;
-            badge.textContent = ({ 1: 'Draft', 2: 'Published', 3: 'Closed', 4: 'Archived' })[Number(item.status)] || 'Unknown';
+            badge.className = `admission-status status-${Number(item.state) === 2 ? 4 : Number(item.state) === 3 ? 6 : 1}`;
+            badge.textContent = ({ 1: 'Draft', 2: 'Published', 3: 'Closed', 4: 'Archived' })[Number(item.state)] || 'Unknown';
             controls.append(badge);
-            if (Number(item.status) === 1) {
+            if (Number(item.state) === 1) {
                 controls.append(actionButton('Edit', 'edit', item.id, 'btn-outline-secondary'), actionButton('Publish', 'publish', item.id, 'btn-success'));
-            } else if (Number(item.status) === 2) {
+            } else if (Number(item.state) === 2) {
                 controls.append(actionButton('Close', 'close', item.id, 'btn-outline-danger'));
             }
             card.append(summary, controls);
@@ -277,22 +277,21 @@
         setValue('intakeFormRequestId', item ? '' : createRequestId());
         setValue('intakeCode', item?.code);
         setValue('intakeTitle', item?.title);
-        setValue('intakeDescription', item?.description);
         fillSelect('intakeYearId', state.options.academicYears, true);
         fillSelect('intakeCampusId', state.options.campuses, true);
-        fillSelect('intakeUnitId', state.options.academicUnits, true);
+        fillSelect('intakeUnitId', state.options.academicLevels, true);
         if (item) {
             setValue('intakeYearId', item.academicYearId);
             setValue('intakeCampusId', item.campusId);
-            setValue('intakeUnitId', item.academicUnitId);
+            setValue('intakeUnitId', item.academicLevelId);
         }
         refreshIntakeTerms(item?.academicTermId);
         const now = new Date();
         const closes = new Date(now.valueOf() + 30 * 24 * 60 * 60 * 1000);
-        setValue('intakeOpensAt', toLocalDateTime(item?.opensAtUtc || now));
-        setValue('intakeClosesAt', toLocalDateTime(item?.closesAtUtc || closes));
+        setValue('intakeOpensAt', toLocalDateTime(item?.opensAt || now));
+        setValue('intakeClosesAt', toLocalDateTime(item?.closesAt || closes));
         setValue('intakeFee', item?.applicationFee ?? 0);
-        setValue('intakeCurrency', item?.currency || 'BDT');
+        setValue('intakeCurrency', item?.currencyCode || 'BDT');
         const fields = document.getElementById('intakeFieldRows');
         const requirements = document.getElementById('documentRequirementRows');
         fields?.replaceChildren();
@@ -307,20 +306,34 @@
         if (!container) return;
         const row = document.createElement('div');
         row.className = 'intake-builder-row intake-field-row';
-        const key = builderInput('Key', 'intake-field-key', 'text', field?.key || '');
+        row.dataset.fieldId = String(field?.id || '');
+        row.dataset.rowVersion = field?.rowVersion || '';
+        const key = builderInput('Key', 'intake-field-key', 'text', field?.fieldKey || '');
         key.input.required = true;
         key.input.pattern = '[A-Za-z][A-Za-z0-9_]*';
         const label = builderInput('Label', 'intake-field-label', 'text', field?.label || '');
         label.input.required = true;
         const type = builderSelect('Type', 'intake-field-type', [
-            [1, 'Text'], [2, 'Text area'], [3, 'Number'], [4, 'Date'], [5, 'Choice'], [6, 'Yes / No']
-        ], field?.type || 1);
-        const maximum = builderInput('Max length', 'intake-field-max', 'number', field?.maxLength || '');
+            [1, 'Text'], [2, 'Number'], [3, 'Decimal'], [4, 'Date'], [5, 'Date & time'],
+            [6, 'Yes / No'], [7, 'Choice'], [8, 'Multiple choice'], [9, 'JSON']
+        ], field?.dataType || 1);
+        const validation = parseBuilderJson(field?.validationJson, {});
+        const maximum = builderInput('Max length (metadata)', 'intake-field-max', 'number', validation.maxLength || '');
         maximum.input.min = '1'; maximum.input.max = '4000';
-        const options = builderInput('Choices (comma separated)', 'intake-field-options', 'text', (field?.options || []).join(', '));
+        const options = builderInput('Choices (comma separated)', 'intake-field-options', 'text',
+            parseBuilderJson(field?.optionsJson, []).join(', '));
         const required = builderCheckbox('Required', 'intake-field-required', Boolean(field?.isRequired));
         row.append(key.wrapper, label.wrapper, type.wrapper, maximum.wrapper, options.wrapper, required.wrapper, removeBuilderButton());
         container.append(row);
+    }
+
+    function parseBuilderJson(value, fallback) {
+        if (!value) return fallback;
+        try {
+            const parsed = JSON.parse(value);
+            return Array.isArray(fallback) ? (Array.isArray(parsed) ? parsed : fallback)
+                : (parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : fallback);
+        } catch { return fallback; }
     }
 
     function addDocumentRequirementRow(requirement = null) {
@@ -397,15 +410,18 @@
         const fields = [...document.querySelectorAll('.intake-field-row')].map((row, index) => {
             const type = positiveInteger(row.querySelector('.intake-field-type')?.value) || 1;
             const choices = row.querySelector('.intake-field-options')?.value.split(',').map(x => x.trim()).filter(Boolean) || [];
+            const maximum = positiveInteger(row.querySelector('.intake-field-max')?.value);
             return {
-                key: row.querySelector('.intake-field-key')?.value.trim(),
+                id: positiveInteger(row.dataset.fieldId) || 0,
+                rowVersion: row.dataset.rowVersion || '',
+                fieldKey: row.querySelector('.intake-field-key')?.value.trim(),
                 label: row.querySelector('.intake-field-label')?.value.trim(),
-                labelBangla: null,
-                type,
+                dataType: type,
                 isRequired: Boolean(row.querySelector('.intake-field-required')?.checked),
-                maxLength: positiveInteger(row.querySelector('.intake-field-max')?.value),
                 displayOrder: index,
-                options: type === 5 ? choices : []
+                optionsJson: [7, 8].includes(type) ? JSON.stringify(choices) : null,
+                validationJson: maximum ? JSON.stringify({ maxLength: maximum }) : null,
+                isActive: true
             };
         });
         const documentRequirements = [...document.querySelectorAll('.intake-document-row')].map(row => ({
@@ -417,9 +433,9 @@
             allowedExtensions: row.querySelector('.intake-document-extensions')?.value.split(/[\s,]+/).map(x => x.trim()).filter(Boolean) || []
         }));
         const request = {
-            code: valueOf('intakeCode'), title: valueOf('intakeTitle'), description: valueOf('intakeDescription') || null,
+            code: valueOf('intakeCode'), title: valueOf('intakeTitle'), description: null,
             academicYearId: positiveInteger(valueOf('intakeYearId')), academicTermId: positiveInteger(valueOf('intakeTermId')),
-            campusId: positiveInteger(valueOf('intakeCampusId')), academicUnitId: positiveInteger(valueOf('intakeUnitId')),
+            campusId: positiveInteger(valueOf('intakeCampusId')), academicLevelId: positiveInteger(valueOf('intakeUnitId')),
             opensAtUtc: new Date(valueOf('intakeOpensAt')).toISOString(), closesAtUtc: new Date(valueOf('intakeClosesAt')).toISOString(),
             applicationFee: Number(valueOf('intakeFee') || 0), currency: valueOf('intakeCurrency'), fields, documentRequirements
         };

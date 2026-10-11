@@ -329,6 +329,7 @@ public sealed class AdmissionIntakeService : IAdmissionIntakeService
     {
         Id = form.Id, Reference = form.PublicId, Code = form.Code, Title = form.Title,
         CampusId = form.CampusId, AcademicYearId = form.AcademicYearId,
+        AcademicTermId = form.AcademicTermId,
         AcademicProgramId = form.AcademicProgramId, AcademicLevelId = form.AcademicLevelId,
         VersionNo = form.VersionNo, State = form.State, OpensAt = form.OpensAt, ClosesAt = form.ClosesAt,
         ApplicationFee = form.ApplicationFee, CurrencyCode = form.CurrencyCode, Fields = fields,

@@ -275,7 +275,7 @@
                     <div class="row g-3">
                         <div class="col-md-4"><label class="form-label" for="intakeCode">Code *</label><input id="intakeCode" class="form-control" maxlength="50" pattern="[A-Za-z][A-Za-z0-9_-]*" required /></div>
                         <div class="col-md-8"><label class="form-label" for="intakeTitle">Title / শিরোনাম *</label><input id="intakeTitle" class="form-control" maxlength="200" required /></div>
-                        <div class="col-12"><label class="form-label" for="intakeDescription">Description / বিবরণ</label><textarea id="intakeDescription" class="form-control" maxlength="2000" rows="2"></textarea></div>
+                        <div class="col-12"><small class="text-muted">Form description is not stored by the current canonical intake model.</small></div>
                         <div class="col-md-3"><label class="form-label" for="intakeYearId">Academic Year *</label><select id="intakeYearId" class="form-select" required></select></div>
                         <div class="col-md-3"><label class="form-label" for="intakeTermId">Term</label><select id="intakeTermId" class="form-select"></select></div>
                         <div class="col-md-3"><label class="form-label" for="intakeCampusId">Campus *</label><select id="intakeCampusId" class="form-select" required></select></div>
@@ -292,7 +292,8 @@
                     </div>
 
                     <div class="intake-builder-section">
-                        <div class="admission-heading-actions"><h3 class="h6 mb-0">Document Requirements / প্রয়োজনীয় কাগজপত্র</h3><button id="addDocumentRequirementButton" class="btn btn-sm btn-outline-secondary" type="button">Add document</button></div>
+                        <div class="admission-heading-actions"><h3 class="h6 mb-0">Document Requirements / প্রয়োজনীয় কাগজপত্র</h3><button id="addDocumentRequirementButton" class="btn btn-sm btn-outline-secondary" type="button" disabled title="Document policies require their own persisted workflow">Add document (not available)</button></div>
+                        <p class="text-muted small mb-1">Document requirements are not persisted by the intake API. Existing private document review remains available.</p>
                         <div id="documentRequirementRows" class="intake-builder-rows"></div>
                     </div>
                 </div>

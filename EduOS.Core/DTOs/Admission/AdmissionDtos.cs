@@ -7,6 +7,7 @@ public class AdmissionIntakeFormDto
     public long CampusId { get; set; }
     public string CampusName { get; set; } = string.Empty;
     public long AcademicYearId { get; set; }
+    public long? AcademicTermId { get; set; }
     public string AcademicYearName { get; set; } = string.Empty;
     public long AcademicProgramId { get; set; }
     public string AcademicProgramName { get; set; } = string.Empty;

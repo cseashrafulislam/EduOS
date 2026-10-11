@@ -40,6 +40,14 @@ public class AdmissionApplicationContractTests
         script.Should().Contain("payload.data.academicTracks");
         script.Should().Contain("academicBatchId: positiveInteger(");
         script.Should().Contain("admissionFormReference: selectedForm.reference");
+        script.Should().Contain("academicLevelId: positiveInteger(valueOf('intakeUnitId'))");
+        script.Should().Contain("fieldKey: row.querySelector(");
+        script.Should().Contain("dataType: type");
+        script.Should().Contain("optionsJson: [7, 8].includes(type)");
+        script.Should().Contain("item.currencyCode");
+        script.Should().NotContain("Number(item.status)");
+        view.Should().Contain("Add document (not available)");
+        typeof(EduOS.Core.DTOs.Admission.AdmissionIntakeFormDto).GetProperty("AcademicTermId").Should().NotBeNull();
         script.Should().Contain("customResponses: collectAdmissionResponses()");
         script.Should().Contain("state: status");
         script.Should().Contain("params.set('state', String(status))");
