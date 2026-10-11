@@ -330,7 +330,8 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
         long roleId, TenantRolePermissionsRequestDto request, CancellationToken ct = default)
     {
         if (!CanManage) return Denied<bool>();
-        if (request?.PermissionIds == null || request.PermissionIds.Count > 1000 || request.PermissionIds.Any(id => id <= 0))
+        if (request?.PermissionIds == null || string.IsNullOrWhiteSpace(request.ConcurrencyStamp) ||
+            request.PermissionIds.Count > 1000 || request.PermissionIds.Any(id => id <= 0))
             return ApiResponse<bool>.ErrorResponse("Invalid permissions.", 400);
         var selected = request.PermissionIds.Distinct().ToArray();
         if (await _db.Permissions.CountAsync(x =>
@@ -344,6 +345,9 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
                 var role = await LocalRoles.SingleOrDefaultAsync(x => x.Id == roleId, token);
                 if (role == null || !role.IsActive)
                     throw new AdminRejectException("Institution role not found or inactive.", 404);
+                _db.Entry(role).Property(x => x.ConcurrencyStamp).OriginalValue = request.ConcurrencyStamp;
+                role.ConcurrencyStamp = Guid.NewGuid().ToString();
+                role.UpdatedAt = DateTime.UtcNow;
                 var existing = await _db.RolePermissions.Where(x => x.RoleId == roleId && !x.IsDeleted).ToListAsync(token);
                 foreach (var record in existing)
                 {
@@ -364,6 +368,10 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
             return ApiResponse<bool>.SuccessResponse(true, "Role permissions updated.");
         }
         catch (AdminRejectException ex) { return ApiResponse<bool>.ErrorResponse(ex.Message, ex.StatusCode); }
+        catch (DbUpdateConcurrencyException)
+        {
+            return ApiResponse<bool>.ErrorResponse("Role permissions changed. Reload and retry.", 409);
+        }
         catch (DbUpdateException)
         {
             return ApiResponse<bool>.ErrorResponse("Concurrent permission update. Reload and retry.", 409);
