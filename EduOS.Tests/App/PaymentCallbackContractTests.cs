@@ -132,6 +132,25 @@ public class PaymentCallbackContractTests
         manual.Should().Contain("await _storage.DeletePrivateAsync(storageKey)");
     }
 
+    [Fact]
+    public void SuperAdmin_sidebar_and_review_page_enforce_safe_receipt_decisions()
+    {
+        var layout = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "_Layout.cshtml"));
+        var view = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "PaymentVerification.cshtml"));
+        var script = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "payment-verification.js"));
+        layout.Should().Contain("User?.IsInRole(\"SuperAdmin\")");
+        layout.Should().Contain("href=\"/Account/PaymentVerification\"");
+        view.Should().Contain("id=\"btnScanReceipt\"");
+        view.Should().Contain("id=\"bankCreditConfirmed\"");
+        view.Should().Contain("id=\"btnNextPage\"");
+        script.Should().Contain("rowVersion: selectedPayment.rowVersion");
+        script.Should().Contain("bankCreditConfirmed:");
+        script.Should().Contain("scan-receipt");
+        script.Should().Contain("pageSize=${pageSize}&search=${encodeURIComponent(search)}");
+        script.Should().Contain("updateReceiptSafety");
+        script.Should().Contain("'RequestVerificationToken': getAntiForgeryToken()");
+    }
+
     private static string ReadController()
     {
         return File.ReadAllText(Path.Combine(
