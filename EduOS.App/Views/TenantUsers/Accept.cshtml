@@ -21,6 +21,14 @@
             <label for="inviteConfirmPassword" class="form-label">Confirm password</label>
             <input id="inviteConfirmPassword" type="password" autocomplete="new-password" minlength="6" class="form-control" required />
         </div>
+        <div class="mb-3">
+            <label for="inviteMfaCode" class="form-label">MFA code (existing MFA-enabled accounts only)</label>
+            <input id="inviteMfaCode" type="text" maxlength="30" class="form-control" autocomplete="one-time-code" />
+            <div class="form-check mt-2">
+                <input id="inviteRecovery" type="checkbox" class="form-check-input" />
+                <label for="inviteRecovery" class="form-check-label">Use recovery code instead</label>
+            </div>
+        </div>
         <button id="acceptInviteBtn" type="submit" class="btn btn-primary w-100">Accept Invitation</button>
     </form>
     <p class="small text-muted mt-3">Invitations expire after 48 hours and can be used only once. If you are signed in already, sign out before accepting.</p>
