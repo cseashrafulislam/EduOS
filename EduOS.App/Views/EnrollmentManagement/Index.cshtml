@@ -1,0 +1,81 @@
+@{
+    ViewData["Title"] = "Student Enrollment Management";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<div id="enrollmentManagement" class="container-fluid py-4">
+    @Html.AntiForgeryToken()
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+        <div>
+            <h1 class="h4 fw-bold mb-1">Student Enrollment Management</h1>
+            <p class="text-muted mb-0">Assign an existing student to an eligible academic section without creating a second student record.</p>
+        </div>
+        <a class="btn btn-outline-secondary" href="/Students/Index">Student Directory</a>
+    </div>
+    <div id="enrollmentNotice" class="alert d-none" role="alert" aria-live="polite"></div>
+    <div class="row g-3">
+        <div class="col-xl-5">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h2 class="h5">1. Find student</h2>
+                    <form id="enrollmentStudentSearchForm" class="input-group mb-3">
+                        <input id="enrollmentStudentSearch" class="form-control" maxlength="100" placeholder="Student code or name" aria-label="Search student" />
+                        <button class="btn btn-outline-primary" type="submit">Search</button>
+                    </form>
+                    <div id="enrollmentStudentResults" class="list-group mb-3" aria-live="polite">Enter a name or student code to search.</div>
+                    <div id="enrollmentStudentSelection" class="border rounded p-3 d-none">
+                        <div id="enrollmentStudentName" class="fw-semibold"></div>
+                        <div id="enrollmentStudentCode" class="small text-muted"></div>
+                        <hr />
+                        <div class="small fw-semibold">Current enrollment</div>
+                        <div id="enrollmentCurrent" class="small text-muted" aria-live="polite">Checking...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-7">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h2 class="h5">2. Select section &amp; curriculum</h2>
+                    <form id="enrollmentForm" class="row g-3">
+                        <div class="col-md-7">
+                            <label for="enrollmentBatchSearch" class="form-label">Find section (prefix search)</label>
+                            <input id="enrollmentBatchSearch" maxlength="100" class="form-control" placeholder="Grade Nine, G9-A" />
+                        </div>
+                        <div class="col-md-5 d-flex align-items-end">
+                            <button id="enrollmentBatchSearchButton" type="button" class="btn btn-outline-secondary w-100">Search sections</button>
+                        </div>
+                        <div class="col-12">
+                            <label for="enrollmentBatch" class="form-label">Academic section *</label>
+                            <select id="enrollmentBatch" class="form-select" required></select>
+                            <small class="text-muted">Only the first 100 matches are shown. Search by section name or code for larger institutions.</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="enrollmentDate" class="form-label">Enrollment date *</label>
+                            <input id="enrollmentDate" type="date" required class="form-control" />
+                        </div>
+                        <div class="col-md-6">
+                            <label for="enrollmentRoll" class="form-label">Roll number *</label>
+                            <input id="enrollmentRoll" maxlength="50" required class="form-control" />
+                        </div>
+                        <div class="col-12">
+                            <label for="enrollmentCurriculum" class="form-label">Applicable current curriculum *</label>
+                            <select id="enrollmentCurriculum" class="form-select" required></select>
+                            <small id="enrollmentCurriculumHelp" class="text-muted">Choose a section and enrollment date first.</small>
+                        </div>
+                        <div class="col-12">
+                            <label for="enrollmentRemarks" class="form-label">Remarks</label>
+                            <textarea id="enrollmentRemarks" maxlength="500" rows="2" class="form-control"></textarea>
+                        </div>
+                        <div class="col-12">
+                            <button id="enrollmentSubmit" type="submit" class="btn btn-primary" disabled>Enroll Student</button>
+                        </div>
+                    </form>
+                    <p class="small text-muted mt-3 mb-0">Admission conversion is handled separately. Enrollment is atomic, capacity-aware, retry-safe and subject to the selected curriculum's required subject offerings.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@section Scripts {
+    <script src="~/js/students/enrollment-management.js" asp-append-version="true"></script>
+}
