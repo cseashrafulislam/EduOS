@@ -157,6 +157,9 @@ public sealed class InventoryLocationCampusAccessTests
             await foreignDb.SaveChangesAsync();
             (await foreignDb.InventoryLocations.CountAsync()).Should().Be(1);
         }
+        // HttpContextAccessor shares the current request via AsyncLocal; the simulated
+        // foreign request must restore this test's original request scope.
+        new HttpContextAccessor { HttpContext = http };
         (await db.InventoryLocations.AnyAsync(x => x.Code == "FOREIGN")).Should().BeFalse();
         var service = new InventoryCatalogService(db, new User(101, "InventoryManager"),
             TimeProvider.System, NullLogger<InventoryCatalogService>.Instance);
