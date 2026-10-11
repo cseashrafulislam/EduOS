@@ -46,6 +46,11 @@
         const [roles, permissions] = await Promise.all([request('/roles'), request('/permissions')]);
         state.roles = roles;
         state.permissions = permissions;
+        const invitationRoles = $('inviteRole');
+        const invitationSelected = invitationRoles.value;
+        invitationRoles.replaceChildren(new Option('No initial role', ''));
+        roles.filter(x => x.isActive).forEach(role => invitationRoles.append(new Option(role.name, String(role.id))));
+        if (roles.some(x => String(x.id) === invitationSelected)) invitationRoles.value = invitationSelected;
         const selector = $('permissionRole');
         const selected = selector.value;
         selector.replaceChildren();
@@ -155,6 +160,18 @@
         if (state.page * state.pageSize >= state.total) return; state.page++;
         try { await loadMembers(); } catch (error) { message(error.message, true); }
     });
+    $('inviteUserForm').addEventListener('submit', async e => {
+        e.preventDefault();
+        await submit(e.submitter, async () => {
+            await request('/invitations', { method: 'POST', body: JSON.stringify({
+                email: $('inviteEmail').value.trim(),
+                roleId: $('inviteRole').value ? Number($('inviteRole').value) : null
+            }) });
+            e.target.reset();
+            message('An invitation email has been sent. The user must accept it before appearing here.');
+        });
+    });
+
     $('createTenantRoleForm').addEventListener('submit', async e => {
         e.preventDefault();
         await submit(e.submitter, async () => {
