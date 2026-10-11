@@ -1108,6 +1108,14 @@ public class EduOSDbContext :
             .HasFilter("[IsDeleted] = 0 AND [IsActive] = 1 AND [IsPrimary] = 1");
         UniqueTenant<Campus>(modelBuilder, nameof(Campus.Code));
         UniqueTenant<TenantSetting>(modelBuilder, nameof(TenantSetting.Key));
+        modelBuilder.Entity<CommunicationGateway>()
+            .HasIndex(x => new { x.TenantId, x.Channel, x.ProviderCode })
+            .HasDatabaseName("UX_CommunicationGateways_Tenant_Channel_Provider")
+            .IsUnique().HasFilter("[IsDeleted] = 0");
+        modelBuilder.Entity<CommunicationGateway>()
+            .HasIndex(x => new { x.TenantId, x.Channel })
+            .HasDatabaseName("UX_CommunicationGateways_Tenant_Channel_Default")
+            .IsUnique().HasFilter("[IsDeleted] = 0 AND [IsDefault] = 1");
         UniqueTenant<TenantTerminology>(modelBuilder, nameof(TenantTerminology.Key));
         UniqueTenant<TenantModule>(modelBuilder, nameof(TenantModule.ProductModuleId));
         UniqueTenant<TenantFeature>(modelBuilder, nameof(TenantFeature.FeatureId));
