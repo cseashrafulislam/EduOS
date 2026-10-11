@@ -16,7 +16,7 @@ using Xunit;
 
 namespace EduOS.Tests.Services;
 
-public sealed class StudentPromotionServiceTests
+public sealed partial class StudentPromotionServiceTests
 {
     private static readonly DateTimeOffset Now = new(2026, 9, 10, 6, 0, 0, TimeSpan.Zero);
 
