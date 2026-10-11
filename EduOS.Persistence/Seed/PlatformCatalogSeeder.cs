@@ -250,6 +250,7 @@ public static class PlatformCatalogSeeder
             ["DOCUMENTS"] = ["RESULT_REPORT"],
             ["REPORTING"] = ["RESULT_REPORT", "ACCOUNTING"],
             ["API_ACCESS"] = ["API_ACCESS"],
+            ["AI_INSIGHTS"] = ["AI_INSIGHTS"],
             ["MULTI_CAMPUS"] = ["MULTI_CAMPUS"]
         };
 
