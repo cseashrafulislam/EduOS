@@ -383,7 +383,7 @@
   <data name="EndDateAfterStart" xml:space="preserve"><value>End date must be after start date.</value></data>
   <data name="SelectAcademicYearFirst" xml:space="preserve"><value>Select an academic year first.</value></data>
   <data name="TermNameRequired" xml:space="preserve"><value>Term name is required.</value></data>
-  <data name="BothTermDatesRequired" xml:space="preserve"><value>Provide both term dates or leave both empty.</value></data>
+  <data name="BothTermDatesRequired" xml:space="preserve"><value>Term start date and end date are both required.</value></data>
   <data name="AcademicSaveFailed" xml:space="preserve"><value>The academic record could not be saved. Check names and date ranges, then try again.</value></data>
   <data name="AcademicListLoadFailed" xml:space="preserve"><value>Academic years and terms could not be loaded.</value></data>
   <data name="AcademicYearLoadFailed" xml:space="preserve"><value>This academic year could not be loaded.</value></data>
@@ -413,7 +413,7 @@
   <data name="SaveYear" xml:space="preserve"><value>Save year</value></data>
   <data name="AcademicTerm" xml:space="preserve"><value>Academic term</value></data>
   <data name="TermName" xml:space="preserve"><value>Term name</value></data>
-  <data name="TermDateHelp" xml:space="preserve"><value>If dates are used, provide both and keep them within the academic year.</value></data>
+  <data name="TermDateHelp" xml:space="preserve"><value>Both dates are required and must fall within the selected academic year.</value></data>
   <data name="SaveTerm" xml:space="preserve"><value>Save term</value></data>
   <data name="PlanSelectionTitle" xml:space="preserve"><value>Choose your plan</value></data>
   <data name="PlanSelectionHelp" xml:space="preserve"><value>Select the capacity and billing period that fit your institution. Every charge is shown before you continue.</value></data>
