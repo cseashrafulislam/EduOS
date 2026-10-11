@@ -1159,6 +1159,14 @@ public class EduOSDbContext :
         UniqueTenant<TransferCertificate>(modelBuilder, nameof(TransferCertificate.CertificateNumber));
 
         // Academic
+        modelBuilder.Entity<AcademicCalendarPolicy>()
+            .HasIndex(x => new { x.TenantId, x.CampusId })
+            .HasDatabaseName("UX_AcademicCalendarPolicies_Tenant_Campus")
+            .IsUnique().HasFilter("[IsDeleted] = 0");
+        modelBuilder.Entity<AcademicCalendarEvent>()
+            .HasIndex(x => new { x.TenantId, x.CampusId, x.AcademicYearId, x.AcademicTermId, x.EventType, x.Title, x.StartDate, x.EndDate })
+            .HasDatabaseName("UX_AcademicCalendarEvents_Tenant_NaturalKey")
+            .IsUnique().HasFilter("[IsDeleted] = 0");
         UniqueTenant<AcademicYear>(modelBuilder, nameof(AcademicYear.Code));
         modelBuilder.Entity<AcademicTerm>().HasIndex(x => new { x.TenantId, x.AcademicYearId, x.Code })
             .IsUnique().HasFilter("[Code] IS NOT NULL AND [IsDeleted] = 0");
