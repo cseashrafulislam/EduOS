@@ -180,7 +180,10 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
                     lockedBatch.UpdatedBy = _user.UserId;
                     _batches.Update(lockedBatch);
                     await _uow.SaveChangesAsync(cancellationToken);
-                    if (batch.Capacity > 0 && await _enrollments.GetQueryable().AsNoTracking().CountAsync(x =>
+                    // Match AcademicEnrollmentService: zero/nonpositive capacity is closed,
+                    // never implicitly unlimited. Existing zero-capacity batches require
+                    // review before enabling admissions during deployment.
+                    if (batch.Capacity <= 0 || await _enrollments.GetQueryable().AsNoTracking().CountAsync(x =>
                         x.TenantId == tenant && x.AcademicBatchId == batch.Id &&
                         x.IsCurrent && x.State == EnrollmentState.Active && !x.IsDeleted, cancellationToken) >= batch.Capacity)
                         throw new BatchAllocationException("The batch is at capacity.");
