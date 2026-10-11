@@ -91,6 +91,26 @@ public class PaymentCallbackContractTests
         verify.Should().Contain("catch (DbUpdateConcurrencyException)");
     }
 
+    [Fact]
+    public void Bank_transfer_form_generates_a_csrf_token_for_multipart_requests()
+    {
+        var view = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "Payment.cshtml"));
+        view.Should().Contain("id=\\\"manualForm\\\" method=\\\"post\\\"");
+        view.Should().Contain("@Html.AntiForgeryToken()");
+        view.Should().Contain("name=\\\"depositSlip\\\"");
+    }
+
+    [Fact]
+    public void Bank_transfer_javascript_sends_csrf_and_does_not_hide_server_validation()
+    {
+        var script = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "payment.js"));
+        script.Should().Contain("new FormData(form)");
+        script.Should().Contain("'RequestVerificationToken': antiforgeryToken()");
+        script.Should().Contain("responseError(payload, i18n.submitFailed)");
+        script.Should().Contain("response.status === 409 && payload?.message === 'A payment is already pending.'");
+        script.Should().NotContain("if (response.status === 409) {\\n                showStatus(i18n.awaiting");
+    }
+
     private static string ReadController()
     {
         return File.ReadAllText(Path.Combine(
