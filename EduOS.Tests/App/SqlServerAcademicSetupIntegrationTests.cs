@@ -42,7 +42,7 @@ public sealed class SqlServerAcademicSetupIntegrationTests
                 var next = new AcademicCurriculum { TenantId = tenantId, AcademicProgramId = program.Id,
                     Name = "2026", Code = "SEC-2026", VersionNo = 2,
                     EffectiveFrom = new DateOnly(2026, 1, 1), IsCurrent = false };
-                setup.AcademicCurricula.AddRange(old, next);
+                setup.AcademicCurriculums.AddRange(old, next);
                 await setup.SaveChangesAsync();
                 curriculum1 = old.Id; curriculum2 = next.Id;
             }
@@ -60,14 +60,14 @@ public sealed class SqlServerAcademicSetupIntegrationTests
             new GenericRepository<AcademicTrack>(db), new GenericRepository<Medium>(db),
             new GenericRepository<Shift>(db), db, new AcademicAdmin(tenantId),
             NullLogger<AcademicSetupService>.Instance);
-        var target = await db.AcademicCurricula.AsNoTracking().SingleAsync(x => x.Id == curriculum2);
+        var target = await db.AcademicCurriculums.AsNoTracking().SingleAsync(x => x.Id == curriculum2);
         Assert.Equal(8, target.RowVersion.Length);
         var stale = await sut.ActivateCurriculumAsync(curriculum2, Convert.ToBase64String(new byte[8]));
         Assert.Equal(409, stale.StatusCode);
         var updated = await sut.ActivateCurriculumAsync(curriculum2, Convert.ToBase64String(target.RowVersion));
         Assert.True(updated.Success, updated.Message);
         db.ChangeTracker.Clear();
-        var rows = await db.AcademicCurricula.AsNoTracking()
+        var rows = await db.AcademicCurriculums.AsNoTracking()
             .Where(x => x.TenantId == tenantId && !x.IsDeleted).ToListAsync();
         Assert.Equal(2, rows.Count);
         Assert.Single(rows, x => x.IsCurrent && x.Id == curriculum2);
