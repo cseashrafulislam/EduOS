@@ -25,6 +25,13 @@ public class SaveStudentAttendanceRequestDto
     public string? RowVersion { get; set; }
 }
 
+public sealed class EnsureStudentAttendanceSessionDto
+{
+    [Range(1, long.MaxValue)] public long AcademicBatchId { get; set; }
+    public DateOnly AttendanceDate { get; set; }
+    [Range(1, long.MaxValue)] public long? SubjectOfferingId { get; set; }
+}
+
 public class SaveAttendanceRegisterRequestDto
 {
     public long AttendanceSessionId { get; set; }

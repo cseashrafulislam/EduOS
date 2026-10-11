@@ -4,7 +4,7 @@
     const form = el('attendanceFilters'), rows = el('attendanceRows'), date = el('attendanceDate');
     const saveButton = el('saveAttendance'), markAllButton = el('markAllPresent'), summary = el('attendanceSummary');
     if (!form || !rows || !date) return;
-    let loaded = false, batches = [];
+    let loaded = false, batches = [], roster = null;
     const local = new Date();
     date.value = [local.getFullYear(), String(local.getMonth() + 1).padStart(2, '0'), String(local.getDate()).padStart(2, '0')].join('-');
     function status(type, message) {
@@ -61,12 +61,11 @@
         selectOptions('sectionId', options, 'Select batch / section');
     }
     function invalidate() {
-        loaded = false; saveButton.disabled = true; markAllButton.disabled = true;
+        loaded = false; roster = null; saveButton.disabled = true; markAllButton.disabled = true;
         render([]); clearStatus();
     }
     function requestScope() {
-        return { date: date.value, academicYearId: Number(el('academicYearId').value),
-            classId: Number(el('classId').value), sectionId: Number(el('sectionId').value) };
+        return { academicBatchId: Number(el('sectionId').value), attendanceDate: date.value };
     }
     function makeCell(value) { const cell = document.createElement('td'); cell.textContent = value === null || value === undefined ? '' : String(value); return cell; }
     function inputCell(type, key, value) {
@@ -79,19 +78,25 @@
         rows.replaceChildren();
         if (!students?.length) {
             const tr = document.createElement('tr'), cell = makeCell('No roster loaded.');
-            cell.colSpan = 6; cell.className = 'text-center text-muted py-4'; tr.append(cell); rows.append(tr); updateSummary(); return;
+            cell.colSpan = 5; cell.className = 'text-center text-muted py-4';
+            tr.append(cell); rows.append(tr); updateSummary(); return;
         }
         for (const student of students) {
-            const tr = document.createElement('tr'); tr.dataset.studentReference = student.studentReference;
-            tr.append(makeCell(student.roll || '—'), makeCell([student.studentCode, student.studentName].filter(Boolean).join(' ')));
+            const tr = document.createElement('tr');
+            tr.dataset.enrollmentReference = student.studentEnrollmentReference;
+            tr.dataset.rowVersion = student.rowVersion || '';
+            tr.append(makeCell(student.rollNo || '—'),
+                makeCell([student.studentCode, student.studentName].filter(Boolean).join(' ')));
             const td = document.createElement('td'), selection = document.createElement('select');
-            selection.className = 'form-select form-select-sm'; selection.dataset.status = '1';
-            for (const [value, label] of [['','Not marked'],['Present','Present'],['Absent','Absent'],['Late','Late'],['Leave','Leave']]) {
-                const opt = document.createElement('option'); opt.value = value; opt.textContent = label; selection.append(opt);
+            selection.className = 'form-select form-select-sm'; selection.dataset.state = '1';
+            for (const [value, label] of [['','Not marked'],['1','Present'],['2','Absent'],
+                ['3','Late'],['4','Leave'],['5','Excused']]) {
+                const opt = document.createElement('option');
+                opt.value = value; opt.textContent = label; selection.append(opt);
             }
-            selection.value = student.status || ''; td.append(selection); tr.append(td);
-            tr.append(inputCell('time', 'inTime', student.inTime ? String(student.inTime).slice(0, 5) : ''));
-            tr.append(inputCell('time', 'outTime', student.outTime ? String(student.outTime).slice(0, 5) : ''));
+            selection.value = student.state ? String(student.state) : '';
+            td.append(selection); tr.append(td);
+            tr.append(inputCell('time', 'checkIn', student.checkInTime ? String(student.checkInTime).slice(0, 5) : ''));
             tr.append(inputCell('text', 'remarks', student.remarks || ''));
             rows.append(tr);
         }
@@ -100,42 +105,60 @@
     async function loadRoster(event) {
         if (event) event.preventDefault();
         if (!form.reportValidity()) return;
-        clearStatus(); invalidate();
+        invalidate();
         try {
-            const params = new URLSearchParams(requestScope());
-            const result = await api('/api/student-attendance/roster?' + params);
-            render(result.data?.students || []);
+            const result = await api('/api/student-attendance/roster?' + new URLSearchParams(requestScope()));
+            roster = result.data;
+            render(roster?.students || []);
             loaded = true;
-            saveButton.disabled = !(result.data?.students?.length > 0);
+            saveButton.disabled = !(roster?.students?.length > 0);
             markAllButton.disabled = saveButton.disabled;
         } catch (error) { status('danger', error.message); }
     }
     function readRow(tr) {
-        const str = key => tr.querySelector('[data-' + key.replace(/[A-Z]/g, x => '-' + x.toLowerCase()) + ']')?.value || '';
-        return { studentReference: tr.dataset.studentReference, status: str('status'),
-            inTime: str('inTime') ? str('inTime') + ':00' : null, outTime: str('outTime') ? str('outTime') + ':00' : null,
-            remarks: str('remarks').trim() || null };
+        const stateValue = tr.querySelector('[data-state]')?.value || '';
+        const checkIn = tr.querySelector('[data-check-in]')?.value || '';
+        return {
+            studentEnrollmentReference: tr.dataset.enrollmentReference,
+            state: Number(stateValue), checkInTime: checkIn ? checkIn + ':00' : null,
+            remarks: tr.querySelector('[data-remarks]')?.value.trim() || null,
+            rowVersion: tr.dataset.rowVersion || null
+        };
     }
     async function saveAttendance() {
         if (!loaded || saveButton.disabled) return;
-        const items = [...rows.querySelectorAll('tr[data-student-reference]')].map(readRow);
-        if (items.some(x => !x.status)) { status('danger', 'Mark every student before saving, or use Mark all present explicitly.'); return; }
-        if (items.some(x => x.inTime && x.outTime && x.inTime > x.outTime)) {
-            status('danger', 'An out time cannot precede its in time.'); return;
+        const students = [...rows.querySelectorAll('tr[data-enrollment-reference]')].map(readRow);
+        if (students.some(x => !x.state)) {
+            status('danger', 'Mark every student before saving, or use Mark all present.'); return;
         }
         saveButton.disabled = true; clearStatus();
         try {
-            const result = await api('/api/student-attendance', 'POST', { ...requestScope(), items });
-            render(result.data?.students || []);
+            if (!roster?.attendanceSessionId) {
+                const created = await api('/api/student-attendance/sessions', 'POST', requestScope());
+                if (!created.data?.attendanceSessionId || !created.data?.sessionRowVersion)
+                    throw new Error('Attendance session could not be opened. Reload and retry.');
+                if (created.data.students?.some(x => x.id > 0)) {
+                    status('warning', 'Attendance was recorded by another user. Reload the roster before saving.');
+                    await loadRoster(); return;
+                }
+                roster = created.data;
+            }
+            const result = await api('/api/student-attendance', 'POST', {
+                attendanceSessionId: roster.attendanceSessionId,
+                sessionRowVersion: roster.sessionRowVersion, students
+            });
+            roster = result.data;
+            render(roster?.students || []);
             status('success', result.message || 'Attendance saved.');
         } catch (error) { status('danger', error.message); }
         finally { saveButton.disabled = false; }
     }
     function updateSummary() {
-        const values = [...rows.querySelectorAll('[data-status]')].map(x => x.value), count = status => values.filter(x => x === status).length;
-        summary.textContent = values.length ? 'Total ' + values.length + ' · Present ' + count('Present') +
-            ' · Absent ' + count('Absent') + ' · Late ' + count('Late') + ' · Leave ' + count('Leave') +
-            ' · Unmarked ' + count('') : '';
+        const values = [...rows.querySelectorAll('[data-state]')].map(x => x.value);
+        const count = value => values.filter(x => x === value).length;
+        summary.textContent = values.length ? 'Total ' + values.length + ' · Present ' + count('1') +
+            ' · Absent ' + count('2') + ' · Late ' + count('3') + ' · Leave ' + count('4') +
+            ' · Excused ' + count('5') + ' · Unmarked ' + count('') : '';
     }
     el('academicYearId').addEventListener('change', yearChanged);
     el('classId').addEventListener('change', levelChanged);
@@ -145,7 +168,7 @@
     rows.addEventListener('change', updateSummary);
     saveButton.addEventListener('click', saveAttendance);
     markAllButton.addEventListener('click', () => {
-        rows.querySelectorAll('[data-status]').forEach(select => { select.value = 'Present'; }); updateSummary();
+        rows.querySelectorAll('[data-status]').forEach(select => { select.value = '1'; }); updateSummary();
     });
     loadBatches();
 })();

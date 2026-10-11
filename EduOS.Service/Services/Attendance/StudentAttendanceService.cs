@@ -72,6 +72,57 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
             await ReadRosterAsync(query.AcademicBatchId, query.AttendanceDate, query.SubjectOfferingId, ct));
     }
 
+
+    public async Task<ApiResponse<StudentAttendanceRosterDto>> EnsureSessionAsync(
+        EnsureStudentAttendanceSessionDto request, CancellationToken ct = default)
+    {
+        if (!CanWrite()) return Error<StudentAttendanceRosterDto>("Attendance permission is required.", 403);
+        if (request == null || request.AcademicBatchId <= 0 || request.AttendanceDate == default ||
+            request.SubjectOfferingId is <= 0)
+            return Error<StudentAttendanceRosterDto>("Valid batch, date and optional subject are required.");
+        var scopeError = await ValidateScopeAsync(request.AcademicBatchId, request.AttendanceDate, request.SubjectOfferingId, ct);
+        if (scopeError != null) return Error<StudentAttendanceRosterDto>(scopeError, 409);
+        var tenant = _user.TenantId;
+        // The existing unique (TenantId, ClientRequestId) index prevents two writers from
+        // creating different sessions for the same scope without a shared schema migration.
+        var scopeKey = FormattableString.Invariant(
+            $"student-attendance:v1:{tenant}:{request.AcademicBatchId}:{request.AttendanceDate:yyyy-MM-dd}:{request.SubjectOfferingId?.ToString() ?? "all"}");
+        var digest = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(scopeKey));
+        var scopeRequestId = new Guid(digest.AsSpan(0, 16));
+        try
+        {
+            return await _uow.ExecuteInTransactionAsync(async token =>
+            {
+                var existing = await _sessions.GetQueryable().AsNoTracking().Where(x =>
+                    x.TenantId == tenant && x.AcademicBatchId == request.AcademicBatchId &&
+                    x.AttendanceDate == request.AttendanceDate && x.SubjectOfferingId == request.SubjectOfferingId &&
+                    !x.IsDeleted).OrderBy(x => x.Id).Take(2).ToListAsync(token);
+                if (existing.Count > 1)
+                    return Error<StudentAttendanceRosterDto>("Multiple attendance sessions exist for this scope. Resolve before writing.", 409);
+                if (existing.Count == 0)
+                {
+                    var now = _clock.GetUtcNow().UtcDateTime;
+                    await _sessions.AddAsync(new AttendanceSession
+                    {
+                        TenantId = tenant, ClientRequestId = scopeRequestId,
+                        AcademicBatchId = request.AcademicBatchId, AttendanceDate = request.AttendanceDate,
+                        SubjectOfferingId = request.SubjectOfferingId, CreatedAt = now, CreatedBy = _user.UserId
+                    });
+                    await _uow.SaveChangesAsync(token);
+                }
+                var roster = await ReadRosterAsync(request.AcademicBatchId, request.AttendanceDate,
+                    request.SubjectOfferingId, token);
+                return ApiResponse<StudentAttendanceRosterDto>.SuccessResponse(roster,
+                    existing.Count == 0 ? "Attendance session opened." : "Attendance session already exists.");
+            }, ct);
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Attendance session collision for tenant {TenantId}", tenant);
+            return Error<StudentAttendanceRosterDto>("Attendance session was opened concurrently. Reload and retry.", 409);
+        }
+    }
+
     public async Task<ApiResponse<StudentAttendanceRosterDto>> SaveAsync(SaveAttendanceRegisterRequestDto request,
         CancellationToken ct = default)
     {

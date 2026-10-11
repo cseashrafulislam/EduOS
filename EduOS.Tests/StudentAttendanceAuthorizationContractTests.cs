@@ -26,6 +26,18 @@ public sealed class StudentAttendanceAuthorizationContractTests
     }
 
     [Fact]
+    public void Attendance_session_creation_is_protected_post_and_uses_canonical_service()
+    {
+        var method = typeof(StudentAttendanceController).GetMethod(nameof(StudentAttendanceController.EnsureSession))!;
+        var route = Assert.Single(method.GetCustomAttributes(typeof(HttpPostAttribute), true).Cast<HttpPostAttribute>());
+        Assert.Equal("sessions", route.Template);
+        Assert.Empty(method.GetCustomAttributes(typeof(AllowAnonymousAttribute), true));
+        Assert.NotNull(typeof(EduOS.Core.Interfaces.IServices.IStudentAttendanceService)
+            .GetMethod("EnsureSessionAsync"));
+        Assert.Null(typeof(EduOS.Core.DTOs.Attendance.EnsureStudentAttendanceSessionDto).GetProperty("TenantId"));
+    }
+
+    [Fact]
     public void Attendance_save_is_post_only_and_not_anonymous()
     {
         var method = typeof(StudentAttendanceController).GetMethods().Single(x => x.Name == nameof(StudentAttendanceController.Save));

@@ -31,6 +31,14 @@ public sealed class StudentAttendanceController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpPost("sessions")]
+    public async Task<IActionResult> EnsureSession([FromBody] EnsureStudentAttendanceSessionDto request, CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await _service.EnsureSessionAsync(request, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost]
     public async Task<IActionResult> Save([FromBody] SaveAttendanceRegisterRequestDto request, CancellationToken cancellationToken)
     {
