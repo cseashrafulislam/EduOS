@@ -18,7 +18,7 @@ public sealed class TenantUserSecurityContractsTests
         var method = controller.GetMethod(nameof(TenantUsersController.SetCampuses))!;
         Assert.Empty(method.GetCustomAttributes(typeof(AllowAnonymousAttribute), true));
         Assert.True(method.GetCustomAttributes(typeof(HttpPutAttribute), true).Any());
-        Assert.NotNull(typeof(TenantMemberCampusRequestDto).GetProperty(nameof(TenantMemberCampusRequestDto.RowVersion)));
+        Assert.NotNull(typeof(SetMembershipCampusAccessRequestDto).GetProperty(nameof(SetMembershipCampusAccessRequestDto.MembershipRowVersion)));
         Assert.Contains(typeof(ITenantUserAdministrationService).GetMethods(),
             x => x.Name == nameof(ITenantUserAdministrationService.SetMemberCampusesAsync));
     }
