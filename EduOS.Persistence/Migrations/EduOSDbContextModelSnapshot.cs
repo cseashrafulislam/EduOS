@@ -1440,6 +1440,9 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("TenantId", "DayOfWeek", "IsActive", "EffectiveFrom")
+                        .HasDatabaseName("IX_RoutineEntries_Tenant_Day_Active_From");
+
                     b.HasIndex("TenantId", "InstructorAssignmentId");
 
                     b.HasIndex("TenantId", "RoomId");
