@@ -68,6 +68,13 @@
                         <span>User &amp; Role Management</span>
                     </a>
                 }
+                @if (User?.IsInRole("TenantAdmin") == true)
+                {
+                    <a class="nav-link @ActiveFor("/InstitutionManagement")" href="/InstitutionManagement/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#institution" /></svg>
+                        <span>Institution &amp; Campuses</span>
+                    </a>
+                }
                 <a class="nav-link @ActiveFor("/Account/InstitutionProfile")" href="/Account/InstitutionProfile">
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#institution" /></svg>
                     <span>@T["InstitutionSetup"]</span>

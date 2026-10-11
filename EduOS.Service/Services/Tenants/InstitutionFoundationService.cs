@@ -2,6 +2,7 @@ using EduOS.Core.Common;
 using EduOS.Core.DTOs.Academic;
 using EduOS.Core.DTOs.SaaS;
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Admission;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Enums.Domain;
@@ -19,6 +20,8 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
     private readonly IGenericRepository<Tenant> _tenants;
     private readonly IGenericRepository<Campus> _campuses;
     private readonly IGenericRepository<TenantSetting> _settings;
+    private readonly IGenericRepository<TenantMembership> _memberships;
+    private readonly IGenericRepository<UserCampusAccess> _campusAccess;
     private readonly IGenericRepository<AcademicYear> _years;
     private readonly IGenericRepository<AcademicTerm> _terms;
     private readonly IGenericRepository<AcademicBatch> _batches;
@@ -32,6 +35,7 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
 
     public InstitutionFoundationService(IGenericRepository<Tenant> tenants,
         IGenericRepository<Campus> campuses, IGenericRepository<TenantSetting> settings,
+        IGenericRepository<TenantMembership> memberships, IGenericRepository<UserCampusAccess> campusAccess,
         IGenericRepository<AcademicYear> years,
         IGenericRepository<AcademicTerm> terms, IGenericRepository<AcademicBatch> batches,
         IGenericRepository<AdmissionIntakeForm> admissions,
@@ -39,7 +43,8 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
         IUnitOfWork uow, ICurrentUserService user, TimeProvider clock,
         ILogger<InstitutionFoundationService> logger)
     {
-        _tenants = tenants; _campuses = campuses; _settings = settings; _years = years; _terms = terms;
+        _tenants = tenants; _campuses = campuses; _settings = settings;
+        _memberships = memberships; _campusAccess = campusAccess; _years = years; _terms = terms;
         _batches = batches; _admissions = admissions; _subscriptions = subscriptions;
         _plans = plans; _uow = uow; _user = user; _clock = clock; _logger = logger;
     }
@@ -169,6 +174,17 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
                 x.TenantId == tenant && x.Id == id && !x.IsDeleted, token);
             if (row == null) return Error<bool>("Campus not found.", 404);
             if (!Match(row.RowVersion, version)) return Error<bool>("Campus changed. Reload and retry.", 409);
+            // Soft-delete is still a destructive change for references: block archiving
+            // the last usable campus, user assignments and membership defaults.
+            if (!await _campuses.GetQueryable().AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenant && x.Id != id && x.IsActive && !x.IsDeleted, token))
+                return Error<bool>("An institution must retain at least one active campus.", 409);
+            if (await _memberships.GetQueryable().AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenant && !x.IsDeleted &&
+                (x.DefaultCampusId == id || x.LastSelectedCampusId == id), token) ||
+                await _campusAccess.GetQueryable().AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenant && x.CampusId == id && !x.IsDeleted, token))
+                return Error<bool>("Campus is assigned to users. Reassign their campus access and defaults first.", 409);
             if (await _years.GetQueryable().AsNoTracking().AnyAsync(x =>
                 x.TenantId == tenant && x.CampusId == id && !x.IsDeleted, token) ||
                 await _batches.GetQueryable().AsNoTracking().AnyAsync(x =>

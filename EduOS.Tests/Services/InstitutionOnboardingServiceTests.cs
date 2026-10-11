@@ -45,6 +45,44 @@ public sealed class InstitutionOnboardingServiceTests
     }
 
     [Fact]
+    public async Task Archive_cannot_remove_last_active_campus()
+    {
+        var options = Options();
+        await SeedTenant(options, 101);
+        await using var db = Context(options, 101);
+        var service = Foundation(db, new TestUser(101));
+        var added = await service.SaveCampusAsync(null, new SaveCampusRequestDto
+        {
+            Name = "Main Campus", Code = "MAIN"
+        });
+        added.Success.Should().BeTrue();
+        var archive = await service.ArchiveCampusAsync(added.Data!.Id, added.Data.RowVersion);
+        archive.StatusCode.Should().Be(409);
+        (await db.Campuses.CountAsync(x => x.IsActive && !x.IsDeleted)).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Archive_rejects_user_campus_assignment_even_if_inactive()
+    {
+        var options = Options();
+        await SeedTenant(options, 101);
+        await using var db = Context(options, 101);
+        var first = new Campus { TenantId = 101, Name = "Main", Code = "MAIN", IsHeadOffice = true };
+        var second = new Campus { TenantId = 101, Name = "Second", Code = "SECOND", IsActive = true };
+        db.Campuses.AddRange(first, second);
+        await db.SaveChangesAsync();
+        db.UserCampusAccesses.Add(new EduOS.Core.Entities.Auth.UserCampusAccess
+        {
+            TenantId = 101, UserId = 77, CampusId = second.Id, IsActive = false
+        });
+        await db.SaveChangesAsync();
+        var response = await Foundation(db, new TestUser(101)).ArchiveCampusAsync(second.Id,
+            Convert.ToBase64String(second.RowVersion));
+        response.StatusCode.Should().Be(409);
+        (await db.Campuses.SingleAsync(x => x.Id == second.Id)).IsDeleted.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Academic_term_cannot_start_outside_academic_year()
     {
         var options = Options();
@@ -111,6 +149,8 @@ public sealed class InstitutionOnboardingServiceTests
     private static InstitutionFoundationService Foundation(EduOSDbContext db, ICurrentUserService user) => new(
         new GenericRepository<Tenant>(db), new GenericRepository<Campus>(db),
         new GenericRepository<TenantSetting>(db),
+        new GenericRepository<EduOS.Core.Entities.Auth.TenantMembership>(db),
+        new GenericRepository<EduOS.Core.Entities.Auth.UserCampusAccess>(db),
         new GenericRepository<AcademicYear>(db), new GenericRepository<AcademicTerm>(db),
         new GenericRepository<AcademicBatch>(db), new GenericRepository<AdmissionIntakeForm>(db),
         new GenericRepository<TenantSubscription>(db), new GenericRepository<SubscriptionPlan>(db),
