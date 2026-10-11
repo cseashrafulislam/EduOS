@@ -23,7 +23,7 @@ public sealed class OptionalMfaAuthContractTests
         Assert.Contains("if (!user.IsActive || user.IsDeleted)", login);
         Assert.Contains("if (!user.EmailConfirmed)", login);
         Assert.Contains("if (user.TwoFactorEnabled)", login);
-        Assert.Contains("BuildSessionClaims(user, \"pwd\"", login);
+        Assert.Contains("SignInSessionAsync(user, dto.RememberMe, \"pwd\"", login);
         Assert.Contains("requiresTwoFactor = false", login);
         Assert.Contains("GetRedirectUrl(session.Role, session.TenantId)", login);
         Assert.DoesNotContain("/Account/MfaSetup", login);
@@ -137,13 +137,13 @@ public sealed class OptionalMfaAuthContractTests
             StringComparison.Ordinal)..auth.IndexOf("// ==================== MFA Login", StringComparison.Ordinal)];
         Assert.Contains("ResetAuthenticatorKeyAsync(user)", setup);
         Assert.Contains("AuthenticateAsync(IdentityConstants.ApplicationScheme)", setup);
-        Assert.Contains("BuildSessionClaims(user, \"pwd\"", setup);
+        Assert.Contains("SignInSessionAsync(user, auth.Properties?.IsPersistent == true, \"pwd\"", setup);
         Assert.Contains("_db.ExecuteInTransactionAsync(async ct =>", enable);
         Assert.Contains("GenerateNewTwoFactorRecoveryCodesAsync", enable);
         Assert.Contains("SetTwoFactorEnabledAsync(user, true)", enable);
         Assert.Contains("UpdateSecurityStampAsync(user)", enable);
         Assert.Contains("throw new AuthTransactionRejectedException(", enable);
-        Assert.Contains("BuildSessionClaims(user, \"mfa\"", enable);
+        Assert.Contains("SignInSessionAsync(user, auth.Properties?.IsPersistent == true, \"mfa\"", enable);
     }
 
     [Fact]
