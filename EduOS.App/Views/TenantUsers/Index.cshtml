@@ -17,6 +17,25 @@
         <li class="nav-item"><button id="tabRoles" class="nav-link" type="button">Roles &amp; Permissions</button></li>
     </ul>
     <section id="usersSection">
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-body">
+                <h5>Invite a user</h5>
+                <p class="small text-muted">An email invitation lets the user choose a password or authenticate an existing account. No password is shared with administrators.</p>
+                <form id="inviteUserForm" class="row g-2">
+                    <div class="col-md-5">
+                        <label class="form-label" for="inviteEmail">Email address</label>
+                        <input id="inviteEmail" class="form-control" type="email" maxlength="200" required autocomplete="off" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label" for="inviteRole">Initial institution role (optional)</label>
+                        <select id="inviteRole" class="form-select"></select>
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button class="btn btn-primary" type="submit">Send Invitation</button>
+                    </div>
+                </form>
+            </div>
+        </div>
         <div class="card border-0 shadow-sm">
             <div class="card-body">
                 <form id="memberSearchForm" class="row g-2 mb-3">
