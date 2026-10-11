@@ -52,6 +52,28 @@ public sealed class AcademicEnrollmentServiceTests
     }
 
     [Fact]
+    public async Task Eligible_curricula_are_resolved_by_batch_and_date_without_cross_tenant_leakage()
+    {
+        var options = Options();
+        var seed = await SeedAsync(options, 10);
+        await using (var own = Context(options, 101, 7, "TenantAdmin"))
+        {
+            var service = Service(own, new TestUser(101, 7, "TenantAdmin"));
+            var available = await service.GetEligibleCurriculaAsync(seed.BatchId, new DateOnly(2026, 9, 21));
+            available.Success.Should().BeTrue();
+            available.Data!.Should().ContainSingle(x => x.Id == seed.CurriculumId);
+            var invalidDate = await service.GetEligibleCurriculaAsync(seed.BatchId, new DateOnly(2027, 1, 1));
+            invalidDate.StatusCode.Should().Be(409);
+        }
+        await using (var foreign = Context(options, 202, 8, "TenantAdmin"))
+        {
+            var service = Service(foreign, new TestUser(202, 8, "TenantAdmin"));
+            var denied = await service.GetEligibleCurriculaAsync(seed.BatchId, new DateOnly(2026, 9, 21));
+            denied.StatusCode.Should().Be(404);
+        }
+    }
+
+    [Fact]
     public async Task Guardian_cannot_access_unlinked_student_and_approved_elective_controls_timetable()
     {
         var options = Options();
