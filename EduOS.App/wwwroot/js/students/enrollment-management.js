@@ -107,22 +107,36 @@
             const search = query ? '&search=' + encodeURIComponent(query) : '';
             const catalog = await api('/api/academic-setup/catalog?take=100' + search);
             state.batches = (catalog.batches || []).filter(x => x.isActive);
-            state.curricula = (catalog.curricula || []).filter(x => x.isActive && x.isCurrent);
             menu('enrollmentBatch', state.batches, 'Select section');
-            refreshCurricula();
+            await refreshCurricula();
         } catch (e) { message(e.message, true); }
     }
-    function refreshCurricula() {
+    let curriculumLookupVersion = 0;
+    async function refreshCurricula() {
+        const version = ++curriculumLookupVersion;
         const batch = selectedBatch(), date = text('enrollmentDate');
-        let curricula = state.curricula.filter(x => batch && x.academicProgramId === batch.academicProgramId &&
-            (x.academicTrackId ?? null) === (batch.academicTrackId ?? null) &&
-            (x.mediumId ?? null) === (batch.mediumId ?? null));
-        if (date) curricula = curricula.filter(x => x.effectiveFrom <= date &&
-            (!x.effectiveTo || x.effectiveTo >= date));
-        menu('enrollmentCurriculum', curricula, 'Select applicable current curriculum');
-        el('enrollmentCurriculumHelp').textContent = curricula.length ?
-            'Select the curriculum effective for the enrollment date.' :
-            'No matching current curriculum. Verify programme, track, medium, date and section setup.';
+        state.curricula = [];
+        menu('enrollmentCurriculum', [], 'Select applicable current curriculum');
+        refreshSubmit();
+        if (!batch || !date) {
+            el('enrollmentCurriculumHelp').textContent = 'Select a section and enrollment date.';
+            return;
+        }
+        try {
+            const curricula = await api('/api/academic-enrollments/batches/' + batch.id +
+                '/curricula?enrollmentDate=' + encodeURIComponent(date));
+            if (version !== curriculumLookupVersion) return;
+            state.curricula = (curricula || []).filter(x => x.isActive && x.isCurrent);
+            menu('enrollmentCurriculum', state.curricula, 'Select applicable current curriculum');
+            el('enrollmentCurriculumHelp').textContent = state.curricula.length ?
+                'Choose the curriculum effective for this section and date.' :
+                'No current curriculum matches this section and date. Complete academic setup first.';
+        } catch (e) {
+            if (version === curriculumLookupVersion) {
+                el('enrollmentCurriculumHelp').textContent = 'Cannot resolve curriculum: ' + e.message;
+                message(e.message, true);
+            }
+        }
         refreshSubmit();
     }
     async function enroll(event) {
