@@ -60,6 +60,17 @@ jobs:
           dotnet tool install --global dotnet-ef --version 10.0.12
           dotnet ef migrations has-pending-model-changes --project EduOS.Persistence --startup-project EduOS.App --context EduOSDbContext --configuration Release --no-build
 
+      - name: Diagnose EF model drift when snapshot check fails
+        if: failure()
+        continue-on-error: true
+        run: |
+          dotnet ef migrations add ModelDriftPreview --project EduOS.Persistence --startup-project EduOS.App --context EduOSDbContext --configuration Release --no-build --output-dir Migrations/Diagnostics
+          if [ -f EduOS.Persistence/Migrations/Diagnostics/*ModelDriftPreview.cs ]; then
+            echo "::group::EF pending migration operations"
+            awk '/protected override void Up\(/,/protected override void Down\(/' EduOS.Persistence/Migrations/Diagnostics/*ModelDriftPreview.cs | head -250
+            echo "::endgroup::"
+          fi
+
       - name: Test
         run: dotnet test EduOS.slnx --configuration Release --no-build --logger "trx;LogFileName=tests.trx" --results-directory TestResults
 
