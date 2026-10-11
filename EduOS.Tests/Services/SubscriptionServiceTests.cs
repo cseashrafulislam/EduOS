@@ -21,6 +21,7 @@ public sealed class SubscriptionServiceTests
     public async Task Paid_subscription_creates_one_immutable_invoice_and_advances_to_payment()
     {
         await using var setup = await SetupAsync();
+        setup.ActivateRequest();
         var plan = await AddPlanAsync(setup.Db, 1000m);
         var request = Request(plan.Id);
         var created = await setup.Service.StartAsync(request);
@@ -44,6 +45,7 @@ public sealed class SubscriptionServiceTests
     public async Task Trial_subscription_activates_without_invoice()
     {
         await using var setup = await SetupAsync();
+        setup.ActivateRequest();
         var plan = await AddPlanAsync(setup.Db, 500m, trialDays: 14);
         var result = await setup.Service.StartAsync(new StartSubscriptionRequestDto
         {
@@ -60,6 +62,7 @@ public sealed class SubscriptionServiceTests
     public async Task Nonpublic_plan_is_not_available_and_cannot_create_subscription()
     {
         await using var setup = await SetupAsync();
+        setup.ActivateRequest();
         var plan = await AddPlanAsync(setup.Db, 500m, isPublic: false);
         var result = await setup.Service.StartAsync(Request(plan.Id));
         result.StatusCode.Should().Be(404);
@@ -70,6 +73,7 @@ public sealed class SubscriptionServiceTests
     public async Task Pending_subscription_blocks_second_payment_request()
     {
         await using var setup = await SetupAsync();
+        setup.ActivateRequest();
         var plan = await AddPlanAsync(setup.Db, 500m);
         setup.Db.TenantSubscriptions.Add(new TenantSubscription
         {
@@ -93,6 +97,7 @@ public sealed class SubscriptionServiceTests
     public async Task Tenant_must_verify_email_before_starting_subscription()
     {
         await using var setup = await SetupAsync();
+        setup.ActivateRequest();
         setup.Tenant.EmailVerifiedAt = null;
         await setup.Db.SaveChangesAsync();
         var plan = await AddPlanAsync(setup.Db, 500m);
@@ -131,9 +136,9 @@ public sealed class SubscriptionServiceTests
             new Claim(ClaimTypes.Role, "TenantAdmin"),
             new Claim("TenantId", tenantId.ToString())
         }, "TestAuthentication"));
+        var accessor = new HttpContextAccessor { HttpContext = http };
         var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
-            .UseInMemoryDatabase("subscription-" + Guid.NewGuid().ToString("N")).Options,
-            new HttpContextAccessor { HttpContext = http });
+            .UseInMemoryDatabase("subscription-" + Guid.NewGuid().ToString("N")).Options, accessor);
         var tenant = new Tenant
         {
             Id = tenantId, Name = "Test School", Code = "SCH-" + Guid.NewGuid().ToString("N")[..12],
@@ -151,11 +156,15 @@ public sealed class SubscriptionServiceTests
             new GenericRepository<Tenant>(db),
             db, user, TimeProvider.System,
             NullLogger<SubscriptionService>.Instance);
-        return new Setup(db, tenant, service);
+        return new Setup(db, tenant, service, accessor, http);
     }
 
-    private sealed record Setup(EduOSDbContext Db, Tenant Tenant, SubscriptionService Service) : IAsyncDisposable
+    private sealed record Setup(EduOSDbContext Db, Tenant Tenant, SubscriptionService Service,
+        IHttpContextAccessor Accessor, DefaultHttpContext RequestContext) : IAsyncDisposable
     {
+        // AsyncLocal changes inside SetupAsync do not flow back into the awaiting
+        // test method. Establish the intended request scope explicitly there.
+        public void ActivateRequest() => Accessor.HttpContext = RequestContext;
         public ValueTask DisposeAsync() => Db.DisposeAsync();
     }
 
