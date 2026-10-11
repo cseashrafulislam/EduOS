@@ -1,3 +1,4 @@
+using EduOS.App.Security;
 using EduOS.Core.DTOs.Auth;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Learners;
@@ -97,10 +98,12 @@ namespace EduOS.App.Controllers.Api
                 return BadRequest(new { success = false, message = "Please verify your email before signing in." });
             }
 
-            var session = await GetSessionContextAsync(user);
+            var session = await GetSessionContextAsync(user, dto.TenantId);
+            if (session.RequiresSelection)
+                return Conflict(new { success = true, data = new { requiresTenantSelection = true, tenants = session.Tenants } });
             if (!session.IsValid)
             {
-                await SaveLoginHistoryAsync(user, ip, userAgent, false, "No unique active institution membership");
+                await SaveLoginHistoryAsync(user, ip, userAgent, false, "Invalid institution selection or membership");
                 return StatusCode(StatusCodes.Status403Forbidden, new { success = false, message = "An active institution membership is required. Contact your administrator." });
             }
 
@@ -108,7 +111,7 @@ namespace EduOS.App.Controllers.Api
             if (user.TwoFactorEnabled)
             {
                 var securityStamp = await _userManager.GetSecurityStampAsync(user);
-                var challengeToken = _mfaChallengeService.Create(user.Id, securityStamp, dto.RememberMe);
+                var challengeToken = _mfaChallengeService.Create(user.Id, securityStamp, dto.RememberMe, session.TenantId);
                 Response.Headers.CacheControl = "no-store";
 
                 return StatusCode(StatusCodes.Status202Accepted, new
@@ -125,8 +128,7 @@ namespace EduOS.App.Controllers.Api
             }
 
             await _userManager.ResetAccessFailedCountAsync(user);
-            await _signInManager.SignInWithClaimsAsync(user, dto.RememberMe,
-                BuildSessionClaims(user, "pwd", session.Role, session.TenantId));
+            await SignInSessionAsync(user, dto.RememberMe, "pwd", session);
 
             user.LastLoginAt = DateTime.UtcNow;
             user.LastLoginIp = ip;
@@ -226,8 +228,7 @@ namespace EduOS.App.Controllers.Api
                 // ResetAuthenticatorKeyAsync changes Identity's security stamp.
                 // Renew only the current session with its original tenant/role claims.
                 var auth = await HttpContext.AuthenticateAsync(IdentityConstants.ApplicationScheme);
-                await _signInManager.SignInWithClaimsAsync(user, auth.Properties?.IsPersistent == true,
-                    BuildSessionClaims(user, "pwd", session.Role, session.TenantId));
+                await SignInSessionAsync(user, auth.Properties?.IsPersistent == true, "pwd", session);
             }
 
             if (string.IsNullOrWhiteSpace(sharedKey))
@@ -310,8 +311,7 @@ namespace EduOS.App.Controllers.Api
             }
 
             var auth = await HttpContext.AuthenticateAsync(IdentityConstants.ApplicationScheme);
-            await _signInManager.SignInWithClaimsAsync(user, auth.Properties?.IsPersistent == true,
-                BuildSessionClaims(user, "mfa", session.Role, session.TenantId));
+            await SignInSessionAsync(user, auth.Properties?.IsPersistent == true, "mfa", session);
             _logger.LogInformation("MFA enabled for user {UserId}", user.Id);
             return Ok(new
             {
@@ -347,7 +347,7 @@ namespace EduOS.App.Controllers.Api
                 return BadRequest(new { success = false, message = "The verification request is invalid or expired." });
 
             // Resolve current permissions before consuming a recovery code or login challenge.
-            var session = await GetSessionContextAsync(user);
+            var session = await GetSessionContextAsync(user, challenge.TenantId);
             if (!session.IsValid)
                 return StatusCode(StatusCodes.Status403Forbidden, new { success = false, message = "Select an active institution or contact your administrator." });
 
@@ -375,9 +375,9 @@ namespace EduOS.App.Controllers.Api
                 _logger.LogWarning("MFA login challenge replay or concurrency conflict for user {UserId}", user.Id);
                 return Conflict(new { success = false, message = "Verification was already used or account state changed. Please sign in again." });
             }
+            await AuthSessionRegistry.RevokeAllAsync(_db, user.Id);
             await _userManager.ResetAccessFailedCountAsync(user);
-            await _signInManager.SignInWithClaimsAsync(user, challenge.RememberMe,
-                BuildSessionClaims(user, "mfa", session.Role, session.TenantId));
+            await SignInSessionAsync(user, challenge.RememberMe, "mfa", session);
 
             user.LastLoginAt = DateTime.UtcNow;
             user.LastLoginIp = ip;
@@ -475,6 +475,7 @@ namespace EduOS.App.Controllers.Api
                 return BadRequest(new { success = false, message = "Password reset failed. The link may have expired." });
             }
 
+            await AuthSessionRegistry.RevokeAllAsync(_db, user.Id);
             _logger.LogInformation("Password reset successfully for user {UserId}", user.Id);
             return Ok(new { success = true, message = "Password reset successful." });
         }
@@ -487,6 +488,10 @@ namespace EduOS.App.Controllers.Api
         {
             // LoginHistory is an append-only access record in the canonical schema.
             // LogoutAt is no longer a mutable field; invalidate the authentication cookie.
+            var userId = _userManager.GetUserId(User);
+            var sid = User.FindFirstValue(AuthSessionRegistry.ClaimType);
+            if (long.TryParse(userId, out var id) && sid != null)
+                await AuthSessionRegistry.RevokeAsync(_db, id, sid);
             await _signInManager.SignOutAsync();
             return Ok(new { success = true, message = "Logged out successfully." });
         }
@@ -628,8 +633,8 @@ namespace EduOS.App.Controllers.Api
             if (!result.Succeeded)
                 return BadRequest(new { success = false, message = string.Join(" | ", result.Errors.Select(x => x.Description)) });
 
-            // ChangePasswordAsync already updates the security stamp, invalidating old cookies.
-            // Never refresh a password-only session into an MFA-enabled account implicitly.
+            // Password changes revoke all server-side sessions as well as security stamps.
+            await AuthSessionRegistry.RevokeAllAsync(_db, user.Id);
             await _signInManager.SignOutAsync();
             _logger.LogInformation("Password changed successfully for user {UserId}", user.Id);
             return Ok(new { success = true, message = "Password changed. Please sign in again.", redirectUrl = "/Account/Login" });
@@ -651,37 +656,88 @@ namespace EduOS.App.Controllers.Api
             return long.TryParse(value, out var userId) ? await _userManager.FindByIdAsync(userId.ToString()) : null;
         }
 
-        private async Task<(bool IsValid, string Role, long? TenantId)> GetSessionContextAsync(ApplicationUser user)
+        private sealed record TenantChoice(long Id, string Name);
+        private sealed record SessionResolution(bool IsValid, bool RequiresSelection,
+            string Role, long? TenantId, IReadOnlyList<string> Roles, IReadOnlyList<TenantChoice> Tenants);
+
+        private async Task<SessionResolution> GetSessionContextAsync(ApplicationUser user, long? requestedTenantId = null)
         {
-            var roles = await _userManager.GetRolesAsync(user);
-            if (roles.Contains("SuperAdmin", StringComparer.OrdinalIgnoreCase))
-                return (true, "SuperAdmin", null);
-            var tenantIds = await (from member in _db.TenantMemberships.IgnoreQueryFilters().AsNoTracking()
-                                   join tenant in _db.Tenants.IgnoreQueryFilters().AsNoTracking()
-                                       on member.TenantId equals tenant.Id
-                                   where member.UserId == user.Id && !member.IsDeleted &&
-                                       member.Status == MembershipStatus.Active &&
-                                       !tenant.IsDeleted &&
-                                       (tenant.State == TenantState.Active ||
-                                        (tenant.State == TenantState.PendingVerification && tenant.OnboardingStage != OnboardingStage.Completed))
-                                   select member.TenantId).Distinct().Take(2).ToArrayAsync();
-            if (tenantIds.Length != 1) return (false, "", null);
-            var role = roles.Contains("TenantAdmin", StringComparer.OrdinalIgnoreCase) ? "TenantAdmin"
-                : roles.FirstOrDefault() ?? "User";
-            return (true, role, tenantIds[0]);
+            if (await TenantRoleResolver.IsPlatformAdminAsync(_db, user.Id))
+                return new SessionResolution(true, false, "SuperAdmin", null, new[] { "SuperAdmin" }, Array.Empty<TenantChoice>());
+
+            var members = await (from member in _db.TenantMemberships.IgnoreQueryFilters().AsNoTracking()
+                                 join tenant in _db.Tenants.IgnoreQueryFilters().AsNoTracking()
+                                     on member.TenantId equals tenant.Id
+                                 where member.UserId == user.Id && !member.IsDeleted &&
+                                     member.Status == MembershipStatus.Active && !tenant.IsDeleted &&
+                                     (tenant.State == TenantState.Active ||
+                                      (tenant.State == TenantState.PendingVerification && tenant.OnboardingStage != OnboardingStage.Completed))
+                                 select new { member.TenantId, member.IsOwner, tenant.Name }).ToListAsync();
+            var choices = members.GroupBy(x => x.TenantId)
+                .Select(x => new TenantChoice(x.Key, x.First().Name)).OrderBy(x => x.Name).ToArray();
+            if (choices.Length == 0)
+                return new SessionResolution(false, false, "", null, Array.Empty<string>(), choices);
+
+            if (!requestedTenantId.HasValue &&
+                User.FindFirstValue(ClaimTypes.NameIdentifier) == user.Id.ToString() &&
+                long.TryParse(User.FindFirstValue("TenantId"), out var currentTenant))
+                requestedTenantId = currentTenant;
+
+            if (!requestedTenantId.HasValue && choices.Length > 1)
+                return new SessionResolution(false, true, "", null, Array.Empty<string>(), choices);
+
+            var selected = requestedTenantId ?? choices[0].Id;
+            var memberRow = members.FirstOrDefault(x => x.TenantId == selected);
+            if (memberRow == null)
+                return new SessionResolution(false, false, "", null, Array.Empty<string>(), choices);
+            var roles = await TenantRoleResolver.GetTenantRolesAsync(_db, user.Id, selected,
+                memberRow.IsOwner, choices.Length);
+            var role = roles.Contains("TenantAdmin", StringComparer.OrdinalIgnoreCase)
+                ? "TenantAdmin" : roles.FirstOrDefault() ?? "User";
+            return new SessionResolution(true, false, role, selected, roles, choices);
         }
 
-        private static List<Claim> BuildSessionClaims(ApplicationUser user,
-            string authenticationMethod, string role, long? tenantId)
+        private async Task SignInSessionAsync(ApplicationUser user, bool rememberMe,
+            string authenticationMethod, SessionResolution session)
+        {
+            var previousSid = User.FindFirstValue(AuthSessionRegistry.ClaimType);
+            var sid = await AuthSessionRegistry.CreateAsync(_db, user.Id, session.TenantId,
+                GetClientIp(), HttpContext.Request.Headers["User-Agent"].FirstOrDefault() ?? "", rememberMe);
+            try
+            {
+                // The default Identity principal can contain global roles that belong to
+                // another institution. Replace ALL role claims with server-resolved roles.
+                var principal = await _signInManager.CreateUserPrincipalAsync(user);
+                var claimsToRemove = new[] { ClaimTypes.Role, "UserType", "TenantId",
+                    "amr", "auth_time", "FullName", AuthSessionRegistry.ClaimType };
+                foreach (var identity in principal.Identities)
+                    foreach (var claim in identity.Claims.Where(c => claimsToRemove.Contains(c.Type)).ToArray())
+                        identity.RemoveClaim(claim);
+                var primary = principal.Identities.First();
+                primary.AddClaims(session.Roles.Select(role => new Claim(ClaimTypes.Role, role)));
+                primary.AddClaims(BuildSessionClaims(user, authenticationMethod, session.Role, session.TenantId, sid));
+                await HttpContext.SignInAsync(IdentityConstants.ApplicationScheme, principal,
+                    new AuthenticationProperties { IsPersistent = rememberMe });
+            }
+            catch
+            {
+                await AuthSessionRegistry.RevokeAsync(_db, user.Id, sid);
+                throw;
+            }
+            if (previousSid != null)
+                await AuthSessionRegistry.RevokeAsync(_db, user.Id, previousSid);
+        }
+
+        private static List<Claim> BuildSessionClaims(ApplicationUser user, string authenticationMethod,
+            string role, long? tenantId, string sessionId)
         {
             var claims = new List<Claim>
             {
-                new(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                new(ClaimTypes.Email, user.Email ?? string.Empty),
                 new("FullName", user.FullName ?? string.Empty),
                 new("UserType", role),
                 new("amr", authenticationMethod),
-                new("auth_time", DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString())
+                new("auth_time", DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString()),
+                new(AuthSessionRegistry.ClaimType, sessionId)
             };
             if (tenantId.HasValue) claims.Add(new Claim("TenantId", tenantId.Value.ToString()));
             return claims;
