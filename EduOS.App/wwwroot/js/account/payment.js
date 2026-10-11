@@ -208,6 +208,22 @@
         bankDetails.replaceChildren(...children);
     }
 
+    function antiforgeryToken() {
+        const token = document.querySelector('#manualForm input[name="__RequestVerificationToken"]')?.value;
+        if (!token) throw new Error(i18n.networkError || 'Session verification failed. Reload and try again.');
+        return token;
+    }
+
+    function responseError(payload, fallback) {
+        if (typeof payload?.message === 'string' && payload.message.trim()) return payload.message.trim();
+        const errors = payload?.errors;
+        if (errors && typeof errors === 'object') {
+            const first = Object.values(errors).flat().find(x => typeof x === 'string' && x.trim());
+            if (first) return first.trim();
+        }
+        return fallback || i18n.submitFailed || 'Payment submission failed.';
+    }
+
     async function startOnlinePayment() {
         if (!invoice) return;
         const button = document.getElementById('payOnlineBtn');
@@ -217,7 +233,10 @@
                 method: 'POST',
                 cache: 'no-store',
                 credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json', 'Accept': 'application/json',
+                    'RequestVerificationToken': antiforgeryToken()
+                },
                 body: JSON.stringify({ invoiceId, paymentMethod: 2 })
             });
             const payload = await response.json().catch(() => null);
@@ -271,16 +290,19 @@
                 method: 'POST',
                 cache: 'no-store',
                 credentials: 'same-origin',
-                headers: { 'Accept': 'application/json' },
+                headers: {
+                    'Accept': 'application/json',
+                    'RequestVerificationToken': antiforgeryToken()
+                },
                 body: data
             });
             const payload = await response.json().catch(() => null);
-            if (response.status === 409) {
+            if (response.status === 409 && payload?.message === 'A payment is already pending.') {
                 showStatus(i18n.awaiting, false);
                 return;
             }
             if (!response.ok || !payload?.success) {
-                showAlert('danger', i18n.submitFailed);
+                showAlert('danger', responseError(payload, i18n.submitFailed));
                 return;
             }
             showStatus(i18n.submitted, false);
