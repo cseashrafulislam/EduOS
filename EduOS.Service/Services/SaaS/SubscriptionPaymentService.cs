@@ -434,6 +434,25 @@ public sealed class SubscriptionPaymentService : ISubscriptionPaymentService
         if (expected.Length == 0) return ApiResponse<bool>.ErrorResponse("Payment row version is invalid.");
         try
         {
+            string? expectedReceiptHash = null;
+            if (dto.Approve)
+            {
+                var pending = await _payments.GetByIdForPlatformAsync(dto.PaymentId);
+                if (pending?.DepositSlipFileId == null)
+                    return ApiResponse<bool>.ErrorResponse("Pending payment receipt not found.", 409);
+                var receipt = await _files.GetQueryable().IgnoreQueryFilters().AsNoTracking()
+                    .FirstOrDefaultAsync(x => !x.IsDeleted && x.TenantId == pending.TenantId &&
+                        x.Id == pending.DepositSlipFileId.Value && x.Visibility == FileVisibility.Private);
+                if (receipt?.IsVerifiedSafe != true || receipt.MalwareScanStateCode != "Clean" ||
+                    string.IsNullOrWhiteSpace(receipt.Sha256))
+                    return ApiResponse<bool>.ErrorResponse("Receipt must be malware-verified before approval.", 409);
+                var content = await _storage.GetPrivateFileAsync(receipt.StorageKey);
+                if (content == null || content.Content.LongLength != receipt.SizeBytes)
+                    return ApiResponse<bool>.ErrorResponse("Receipt is missing or changed since scanning.", 409);
+                expectedReceiptHash = Convert.ToHexString(SHA256.HashData(content.Content));
+                if (!string.Equals(receipt.Sha256, expectedReceiptHash, StringComparison.OrdinalIgnoreCase))
+                    return ApiResponse<bool>.ErrorResponse("Receipt contents changed since the safety scan.", 409);
+            }
             return await _uow.ExecuteInTransactionAsync(async token =>
             {
                 var payment = await _payments.GetByIdForPlatformAsync(dto.PaymentId, token);
@@ -455,7 +474,8 @@ public sealed class SubscriptionPaymentService : ISubscriptionPaymentService
                         .FirstOrDefaultAsync(x => !x.IsDeleted && x.TenantId == payment.TenantId &&
                             x.Id == payment.DepositSlipFileId.Value && x.Visibility == FileVisibility.Private, token);
                     if (file?.IsVerifiedSafe != true || file.MalwareScanStateCode != "Clean" ||
-                        string.IsNullOrWhiteSpace(file.Sha256))
+                        string.IsNullOrWhiteSpace(file.Sha256) || expectedReceiptHash == null ||
+                        !string.Equals(file.Sha256, expectedReceiptHash, StringComparison.OrdinalIgnoreCase))
                         return ApiResponse<bool>.ErrorResponse("Deposit slip must pass malware and integrity checks before approval.", 409);
                     if (invoice.State is InvoiceState.Cancelled or InvoiceState.Refunded or InvoiceState.Paid ||
                         payment.Amount <= 0 || payment.Amount > invoice.DueAmount)
