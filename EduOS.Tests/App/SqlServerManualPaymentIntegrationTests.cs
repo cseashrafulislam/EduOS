@@ -15,6 +15,7 @@ using EduOS.Core.Settings;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Security.Cryptography;
 using Moq;
@@ -136,13 +137,14 @@ public sealed class SqlServerManualPaymentIntegrationTests
             new FileDownloadResult { Content = data, ContentType = "application/pdf", FileName = "receipt.pdf" });
         // No scanner installed must never be treated as a successful security review.
         await using var adminDb = new EduOSDbContext(options);
+        var diagnostic = new PaymentDiagnosticLogger();
         var admin = new SubscriptionPaymentService(
             new SubscriptionPaymentRepository(adminDb), new SubscriptionInvoiceRepository(adminDb),
             new GenericRepository<Tenant>(adminDb), new GenericRepository<FileAsset>(adminDb), adminDb,
             new TestCurrentUser(tenantId, userId, true), Mock.Of<IAamarPayClient>(), storage.Object,
             new GenericRepository<TenantSubscription>(adminDb), Options.Create(new AamarPaySettings()),
             Options.Create(new ManualPaymentSettings { Enabled = true, BankName = "Test Bank", AccountName = "Test Account", AccountNumber = "000001" }),
-            NullLogger<SubscriptionPaymentService>.Instance);
+            diagnostic);
         var pending = await admin.GetPendingManualVerificationsAsync(1, 25, null);
         Assert.True(pending.Success, pending.Message);
         Assert.Contains(pending.Data!.Items, x => x.SubscriptionInvoiceId == invoiceId && !x.ReceiptIsVerifiedSafe);
@@ -164,7 +166,8 @@ public sealed class SqlServerManualPaymentIntegrationTests
             PaymentId = payment.Id, Approve = true, BankCreditConfirmed = true,
             RowVersion = payment.RowVersion, VerificationNote = "Bank credit confirmed"
         });
-        Assert.True(verified.Success, verified.Message);
+        Assert.True(verified.Success, verified.Message + " / " + diagnostic.LastException?.GetType().Name +
+            ": " + diagnostic.LastException?.Message);
         Assert.Equal(409, (await admin.VerifyManualPaymentAsync(new VerifyManualPaymentDto
         {
             PaymentId = payment.Id, Approve = true, BankCreditConfirmed = true, RowVersion = payment.RowVersion
@@ -188,6 +191,19 @@ public sealed class SqlServerManualPaymentIntegrationTests
         Content = content, Length = content.Length, FileName = "receipt.pdf",
         ContentType = "application/pdf"
     };
+
+    private sealed class PaymentDiagnosticLogger : ILogger<SubscriptionPaymentService>
+    {
+        public Exception? LastException { get; private set; }
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull =>
+            NullLogger<SubscriptionPaymentService>.Instance.BeginScope(state);
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel level, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (exception != null) LastException = exception;
+        }
+    }
 
     private sealed class TestCurrentUser(long tenant, long user, bool superAdmin = false) : ICurrentUserService
     {
