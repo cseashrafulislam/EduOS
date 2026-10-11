@@ -539,14 +539,21 @@ namespace EduOS.App.Controllers.Api
             if (dto == null || string.IsNullOrWhiteSpace(dto.CurrentPassword) ||
                 !await _userManager.CheckPasswordAsync(user, dto.CurrentPassword))
                 return BadRequest(new { success = false, message = "Current password is invalid." });
-            await _db.ExecuteInTransactionAsync(async ct =>
+            try
             {
-                await AuthSessionRegistry.RevokeAllAsync(_db, user.Id);
-                var stamp = await _userManager.UpdateSecurityStampAsync(user);
-                if (!stamp.Succeeded)
-                    throw new AuthTransactionRejectedException("Concurrent account change. Retry.");
-                return true;
-            });
+                await _db.ExecuteInTransactionAsync(async ct =>
+                {
+                    await AuthSessionRegistry.RevokeAllAsync(_db, user.Id);
+                    var stamp = await _userManager.UpdateSecurityStampAsync(user);
+                    if (!stamp.Succeeded)
+                        throw new AuthTransactionRejectedException("Concurrent account change. Retry.");
+                    return true;
+                });
+            }
+            catch (AuthTransactionRejectedException ex)
+            {
+                return Conflict(new { success = false, message = ex.Message });
+            }
             await _signInManager.SignOutAsync();
             _logger.LogInformation("User {UserId} revoked all sessions", user.Id);
             return Ok(new { success = true, message = "All sessions revoked. Please sign in again." });
