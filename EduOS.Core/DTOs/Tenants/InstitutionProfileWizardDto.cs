@@ -25,12 +25,36 @@ public sealed class InstitutionCampusWizardRequestDto : EduOS.Core.DTOs.SaaS.Sav
     public long? Id { get; set; }
 }
 
-public sealed class InstitutionAcademicYearWizardRequestDto : EduOS.Core.DTOs.Academic.SaveAcademicYearRequestDto
+// These wizard contracts deliberately omit the required canonical Code field.
+// The onboarding controller allocates codes server-side before calling Foundation.
+public sealed class InstitutionAcademicYearWizardRequestDto
 {
     public long? Id { get; set; }
+    [System.ComponentModel.DataAnnotations.Required, System.ComponentModel.DataAnnotations.MaxLength(100)]
+    public string Name { get; set; } = string.Empty;
+    [System.ComponentModel.DataAnnotations.MaxLength(30)]
+    public string? Code { get; set; }
+    public long? CampusId { get; set; }
+    public EduOS.Core.Enums.Domain.AcademicCycleType CycleType { get; set; } = EduOS.Core.Enums.Domain.AcademicCycleType.Annual;
+    public DateOnly StartDate { get; set; }
+    public DateOnly EndDate { get; set; }
+    public bool IsCurrent { get; set; }
+    public bool IsActive { get; set; } = true;
+    public string? RowVersion { get; set; }
 }
 
-public sealed class InstitutionAcademicTermWizardRequestDto : EduOS.Core.DTOs.Academic.SaveAcademicTermRequestDto
+public sealed class InstitutionAcademicTermWizardRequestDto
 {
     public long? Id { get; set; }
+    public long AcademicYearId { get; set; }
+    [System.ComponentModel.DataAnnotations.Required, System.ComponentModel.DataAnnotations.MaxLength(100)]
+    public string Name { get; set; } = string.Empty;
+    [System.ComponentModel.DataAnnotations.MaxLength(30)]
+    public string? Code { get; set; }
+    public DateOnly StartDate { get; set; }
+    public DateOnly EndDate { get; set; }
+    public bool IsCurrent { get; set; }
+    public bool IsActive { get; set; } = true;
+    public int DisplayOrder { get; set; }
+    public string? RowVersion { get; set; }
 }
