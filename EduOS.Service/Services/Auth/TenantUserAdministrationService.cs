@@ -358,7 +358,7 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
     }
 
     public async Task<ApiResponse<bool>> SendInvitationAsync(
-        TenantInviteRequestDto request, CancellationToken ct = default)
+        CreateTenantInvitationRequestDto request, CancellationToken ct = default)
     {
         if (!CanManage) return Denied<bool>();
         if (request == null || string.IsNullOrWhiteSpace(request.Email) ||
@@ -430,7 +430,7 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
     }
 
     public async Task<ApiResponse<bool>> AcceptInvitationAsync(
-        TenantInviteAcceptRequestDto request, CancellationToken ct = default)
+        AcceptTenantInvitationRequestDto request, CancellationToken ct = default)
     {
         // A signed-in user from institution A must never acquire an implicit
         // system tenant scope for institution B. Ask them to sign out first.
@@ -538,14 +538,14 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
         return ApiResponse<bool>.SuccessResponse(true, "Invitation accepted. Sign in to select your institution.");
     }
 
-    public async Task<ApiResponse<IReadOnlyList<TenantCampusAccessDto>>> GetMemberCampusesAsync(
+    public async Task<ApiResponse<IReadOnlyList<UserCampusAccessDto>>> GetMemberCampusesAsync(
         long membershipId, CancellationToken ct = default)
     {
-        if (!CanManage) return Denied<IReadOnlyList<TenantCampusAccessDto>>();
+        if (!CanManage) return Denied<IReadOnlyList<UserCampusAccessDto>>();
         var member = await _db.TenantMemberships.AsNoTracking().FirstOrDefaultAsync(x =>
             x.Id == membershipId && x.TenantId == TenantId && !x.IsDeleted, ct);
         if (member == null)
-            return ApiResponse<IReadOnlyList<TenantCampusAccessDto>>.ErrorResponse("Membership not found.", 404);
+            return ApiResponse<IReadOnlyList<UserCampusAccessDto>>.ErrorResponse("Membership not found.", 404);
         var campuses = await _db.Campuses.AsNoTracking().Where(x => x.TenantId == TenantId &&
             !x.IsDeleted && x.IsActive).OrderBy(x => x.Name)
             .Select(x => new { x.Id, x.Name }).ToListAsync(ct);
@@ -553,21 +553,21 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
             x.TenantId == TenantId && x.UserId == member.UserId && x.IsActive && !x.IsDeleted)
             .Select(x => x.CampusId).ToListAsync(ct);
         var ids = allowed.ToHashSet();
-        IReadOnlyList<TenantCampusAccessDto> results = campuses.Select(x => new TenantCampusAccessDto
+        IReadOnlyList<UserCampusAccessDto> results = campuses.Select(x => new UserCampusAccessDto
         {
-            Id = x.Id, Name = x.Name, IsSelected = ids.Contains(x.Id),
+            CampusId = x.Id, Name = x.Name, IsActive = ids.Contains(x.Id),
             IsDefault = member.DefaultCampusId == x.Id
         }).ToArray();
-        return ApiResponse<IReadOnlyList<TenantCampusAccessDto>>.SuccessResponse(results);
+        return ApiResponse<IReadOnlyList<UserCampusAccessDto>>.SuccessResponse(results);
     }
 
     public async Task<ApiResponse<bool>> SetMemberCampusesAsync(long membershipId,
-        TenantMemberCampusRequestDto request, CancellationToken ct = default)
+        SetMembershipCampusAccessRequestDto request, CancellationToken ct = default)
     {
         if (!CanManage) return Denied<bool>();
         if (request == null || request.CampusIds == null || request.CampusIds.Count > 200 ||
             request.CampusIds.Any(id => id <= 0) ||
-            !TryVersion(request.RowVersion, out var version))
+            !TryVersion(request.MembershipRowVersion, out var version))
             return ApiResponse<bool>.ErrorResponse("Invalid campus list or membership version.", 400);
         var selected = request.CampusIds.Distinct().ToArray();
         if (request.DefaultCampusId.HasValue && !selected.Contains(request.DefaultCampusId.Value))
