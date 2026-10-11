@@ -201,7 +201,12 @@ public class LocalizationAndPwaContractTests
 
         planScript.Should().Contain("/api/subscription/current");
         planScript.Should().Contain("/api/subscription/invoices/unpaid");
-        planScript.Should().NotContain("/api/onboarding/complete-step");
+        // Free subscriptions may complete the payment stage, but only after
+        // obtaining current server-side onboarding state and using an antiforgery token.
+        planScript.Should().Contain("/api/onboarding/status");
+        planScript.Should().Contain("Number(status.data?.currentStage) !== 4");
+        planScript.Should().Contain("/api/onboarding/complete-step");
+        planScript.Should().Contain("RequestVerificationToken");
         paymentScript.Should().Contain("manual-instructions");
         paymentScript.Should().Contain("trustedGatewayUrl");
         paymentScript.Should().NotContain("/api/onboarding/complete-step");
