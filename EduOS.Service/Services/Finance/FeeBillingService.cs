@@ -63,19 +63,32 @@ public sealed class FeeBillingService : IFeeBillingService
         var tenant = _user.TenantId;
         var years = await _years.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == tenant && x.IsActive && !x.IsDeleted).OrderByDescending(x => x.StartDate)
-            .Take(200).Select(x => new FeeOptionDto { Id = x.Id, Name = x.Name }).ToListAsync(ct);
+            .Take(200).Select(x => new FeeOptionDto { Id = x.Id, Name = x.Name,
+                CampusId = x.CampusId, EffectiveFrom = x.StartDate, EffectiveTo = x.EndDate }).ToListAsync(ct);
         var levels = await _levels.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == tenant && x.IsActive && !x.IsDeleted).OrderBy(x => x.Name)
             .Take(300).Select(x => new FeeOptionDto { Id = x.Id, Name = x.Name }).ToListAsync(ct);
         var batches = await _batches.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == tenant && x.IsActive && !x.IsDeleted).OrderBy(x => x.Name)
             .Take(500).Select(x => new FeeOptionDto { Id = x.Id, Name = x.Name,
-                AcademicYearId = x.AcademicYearId, AcademicLevelId = x.AcademicLevelId }).ToListAsync(ct);
+                AcademicYearId = x.AcademicYearId, AcademicLevelId = x.AcademicLevelId,
+                AcademicProgramId = x.AcademicProgramId, CampusId = x.CampusId }).ToListAsync(ct);
         var heads = await _heads.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == tenant && x.IsActive && !x.IsDeleted).OrderBy(x => x.Name)
             .Take(300).Select(x => new FeeOptionDto { Id = x.Id, Name = x.Name }).ToListAsync(ct);
-        return ApiResponse<FeeBillingOptionsDto>.SuccessResponse(new FeeBillingOptionsDto
-        { AcademicYears = years, AcademicLevels = levels, AcademicBatches = batches, FeeHeads = heads });
+        var campuses = await _campuses.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.IsActive && !x.IsDeleted).OrderBy(x => x.Name)
+            .Take(200).Select(x => new FeeOptionDto { Id = x.Id, Name = x.Name }).ToListAsync(ct);
+        var structures = await _structures.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.IsActive && !x.IsDeleted).OrderByDescending(x => x.EffectiveFrom)
+            .ThenByDescending(x => x.Id).Take(500).Select(x => new FeeOptionDto {
+                Id = x.Id, Name = x.Name, CampusId = x.CampusId,
+                AcademicYearId = x.AcademicYearId, AcademicLevelId = x.AcademicLevelId,
+                AcademicProgramId = x.AcademicProgramId, AcademicBatchId = x.AcademicBatchId,
+                EffectiveFrom = x.EffectiveFrom, EffectiveTo = x.EffectiveTo }).ToListAsync(ct);
+        return ApiResponse<FeeBillingOptionsDto>.SuccessResponse(new FeeBillingOptionsDto {
+            AcademicYears = years, AcademicLevels = levels, AcademicBatches = batches,
+            FeeHeads = heads, Campuses = campuses, FeeStructures = structures });
     }
 
     public async Task<ApiResponse<IReadOnlyList<FeeStudentOptionDto>>> SearchStudentsAsync(

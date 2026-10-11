@@ -37,6 +37,7 @@ public sealed class FeeOptionDto
     public string Name { get; set; } = string.Empty;
     public long? AcademicYearId { get; set; }
     public long? AcademicLevelId { get; set; }
+    public long? AcademicProgramId { get; set; }
     public long? CampusId { get; set; }
     public long? AcademicBatchId { get; set; }
     public DateOnly? EffectiveFrom { get; set; }
