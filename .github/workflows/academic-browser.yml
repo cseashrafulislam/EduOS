@@ -34,3 +34,5 @@ jobs:
         run: node tests/browser/student-enrollment.cjs
       - name: Exercise student lifecycle and transfer certificate browser UI
         run: node tests/browser/student-lifecycle.cjs
+      - name: Exercise attendance, timetable and leave browser workflows
+        run: node tests/browser/academic-operations.cjs
