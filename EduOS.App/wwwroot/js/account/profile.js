@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', function () {
     initializePasswordToggle();
 
     loadProfile();
+    loadMfaStatus();
 });
 
 // ============================================================
@@ -41,6 +42,37 @@ async function loadProfile() {
             'danger',
             error.message || 'Unable to load profile.'
         );
+    }
+}
+
+// ============================================================
+// OPTIONAL MFA STATUS (no sign-in enforcement or setup prompt)
+// ============================================================
+
+async function loadMfaStatus() {
+    const status = document.getElementById('mfaStatus');
+    const help = document.getElementById('mfaStatusHelp');
+    const setupLink = document.getElementById('mfaSetupLink');
+    if (!status || !help || !setupLink) return;
+    setupLink.classList.add('d-none');
+    try {
+        const response = await apiRequest('/api/auth/mfa/status');
+        if (response?.success !== true || typeof response.data?.enabled !== 'boolean')
+            throw new Error('MFA status is unavailable.');
+        if (response.data.enabled) {
+            status.textContent = 'Enabled';
+            status.className = 'badge bg-success';
+            help.textContent = 'Your authenticator is enabled. MFA verification applies on subsequent sign-ins.';
+        } else {
+            status.textContent = 'Not enabled';
+            status.className = 'badge bg-secondary';
+            help.textContent = 'MFA is optional. Continue signing in with your password unless you enable it here.';
+            setupLink.classList.remove('d-none');
+        }
+    } catch {
+        status.textContent = 'Unavailable';
+        status.className = 'badge bg-warning text-dark';
+        help.textContent = 'Unable to load MFA status. Reload this page to retry.';
     }
 }
 
