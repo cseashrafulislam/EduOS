@@ -26,7 +26,7 @@ This document is the concise implementation status for the `codex/phase-0-securi
 - Authentication-required fallback authorization policy; public routes must opt out explicitly with `AllowAnonymous`.
 - Canonical tenant context resolution and fail-closed tenant query filtering.
 - Stale role/tenant claim rejection and inactive-account session rejection.
-- Privileged MFA flow for platform/tenant administrative roles.
+- Optional per-user TOTP setup through Profile; verification on subsequent logins only when enabled.
 - JWT validation pinned to the expected signing algorithm.
 - Payment callbacks mutate state only after provider-side verification; anonymous fail/cancel callbacks do not create terminal payment state.
 - Payment and subscription lifecycle side effects use optimistic-concurrency/idempotency gates.
