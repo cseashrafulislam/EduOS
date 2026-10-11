@@ -158,6 +158,12 @@
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#calendar" /></svg>
                     <span>Academic Calendar</span>
                 </a>
+                @if (User?.IsInRole("TenantAdmin") == true)
+                {
+                    <a class="nav-link @ActiveFor("/StudentLeaves")" href="/StudentLeaves/Index">
+                        <span>Student Leave Management</span>
+                    </a>
+                }
                 <a class="nav-link @ActiveFor("/Attendance")" href="/Attendance/Index">
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#attendance" /></svg>
                     <span>@T["Attendance"]</span>
