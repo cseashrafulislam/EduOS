@@ -15,6 +15,9 @@
 
     let payments = [];
     let selectedPayment = null;
+    let pageNumber = 1;
+    const pageSize = 25;
+    let totalCount = 0;
 
     document.addEventListener('DOMContentLoaded', initialize, { once: true });
 
@@ -23,6 +26,9 @@
         document.getElementById('btnApprove')?.addEventListener('click', () => verifyPayment(true));
         document.getElementById('btnReject')?.addEventListener('click', () => verifyPayment(false));
         document.getElementById('btnViewSlip')?.addEventListener('click', viewDepositSlip);
+        document.getElementById('btnScanReceipt')?.addEventListener('click', scanReceipt);
+        document.getElementById('btnPreviousPage')?.addEventListener('click', () => changePage(-1));
+        document.getElementById('btnNextPage')?.addEventListener('click', () => changePage(1));
         searchInput?.addEventListener('input', renderFilteredPayments);
         paymentList?.addEventListener('click', selectPayment);
 
@@ -34,7 +40,7 @@
         hideAlert();
 
         try {
-            const response = await fetch(`${apiBase}/pending-verifications`, {
+            const response = await fetch(`${apiBase}/pending-verifications?page=${pageNumber}&pageSize=${pageSize}`, {
                 method: 'GET',
                 cache: 'no-store',
                 credentials: 'same-origin',
@@ -70,7 +76,13 @@
                 return;
             }
 
-            payments = Array.isArray(payload.data) ? payload.data : [];
+            payments = Array.isArray(payload.data?.items) ? payload.data.items : [];
+            totalCount = Number(payload.data?.totalCount || 0);
+            if (!payments.length && pageNumber > 1 && totalCount > 0) {
+                pageNumber = Math.max(1, Math.ceil(totalCount / pageSize));
+                await loadPayments();
+                return;
+            }
 
             if (selectedPayment && !payments.some(x => Number(x.id) === Number(selectedPayment.id)))
                 clearSelection();
@@ -100,12 +112,31 @@
         pendingText.textContent = replaceTemplate(
             i18n.waitingTemplate || '{count} payment(s) waiting for verification',
             {
-                count: payments.length
+                count: totalCount
             }
         );
     }
 
+    function changePage(offset) {
+        const next = pageNumber + offset;
+        if (next < 1 || next > Math.max(1, Math.ceil(totalCount / pageSize))) return;
+        pageNumber = next;
+        clearSelection();
+        loadPayments();
+    }
+
+    function updatePager() {
+        const maxPage = Math.max(1, Math.ceil(totalCount / pageSize));
+        const previous = document.getElementById('btnPreviousPage');
+        const next = document.getElementById('btnNextPage');
+        const label = document.getElementById('paymentPageStatus');
+        if (previous) previous.disabled = pageNumber <= 1;
+        if (next) next.disabled = pageNumber >= maxPage;
+        if (label) label.textContent = `Page ${pageNumber} / ${maxPage} · ${totalCount} pending`;
+    }
+
     function renderFilteredPayments() {
+        updatePager();
         const search = String(searchInput?.value || '')
             .trim()
             .toLowerCase();
@@ -264,6 +295,7 @@
         setText('reviewSlip', payment.depositSlipNumber);
         setText('reviewDepositDate', formatDate(payment.depositDate));
         setText('reviewSubmittedAt', formatDateTime(payment.initiatedAt));
+        updateReceiptSafety(payment);
 
         const selectedPaymentId = document.getElementById('selectedPaymentId');
         const verificationNote = document.getElementById('verificationNote');
@@ -278,7 +310,55 @@
         reviewPanel?.classList.remove('d-none');
     }
 
+    function updateReceiptSafety(payment) {
+        const safe = payment?.receiptIsVerifiedSafe === true;
+        const status = document.getElementById('receiptSafetyStatus');
+        if (status) status.textContent = safe
+            ? 'Receipt passed malware verification. Check the bank transfer before approving.'
+            : 'Receipt is not malware-verified. Scan before opening or approving.';
+        const scan = document.getElementById('btnScanReceipt');
+        const view = document.getElementById('btnViewSlip');
+        const approve = document.getElementById('btnApprove');
+        if (scan) scan.disabled = safe;
+        if (view) view.disabled = !safe;
+        if (approve) approve.disabled = !safe;
+    }
+
+    async function scanReceipt() {
+        if (!selectedPayment?.id || selectedPayment.receiptIsVerifiedSafe) return;
+        const paymentId = parsePositiveInteger(selectedPayment.id);
+        if (!paymentId) return;
+        const button = document.getElementById('btnScanReceipt');
+        setButtonBusy(button, true);
+        hideAlert();
+        try {
+            const response = await fetch(`${apiBase}/payments/${encodeURIComponent(paymentId)}/scan-receipt`, {
+                method: 'POST', credentials: 'same-origin', cache: 'no-store',
+                headers: { 'Accept': 'application/json', 'RequestVerificationToken': getAntiForgeryToken() }
+            });
+            const payload = await response.json().catch(() => null);
+            if (!response.ok || !payload?.success) {
+                showAlert('danger', payload?.message || 'Receipt scan failed. Check antivirus availability.');
+                return;
+            }
+            selectedPayment.receiptIsVerifiedSafe = true;
+            selectedPayment.receiptSafetyStatus = 'Clean';
+            updateReceiptSafety(selectedPayment);
+            showAlert('success', 'Receipt cleared by malware scanner. Review the bank transfer details.');
+        } catch (e) {
+            console.error('Receipt scan failed.', e);
+            showAlert('danger', 'Unable to scan receipt. Check network/server antivirus.');
+        } finally {
+            setButtonBusy(button, false);
+            updateReceiptSafety(selectedPayment);
+        }
+    }
+
     async function verifyPayment(approve) {
+        if (approve && selectedPayment && !selectedPayment.receiptIsVerifiedSafe) {
+            showAlert('danger', 'Verify receipt safety before approving this payment.');
+            return;
+        }
         if (!selectedPayment?.id) {
             showAlert(
                 'danger',
@@ -343,6 +423,7 @@
                 body: JSON.stringify({
                     paymentId,
                     approve,
+                    rowVersion: selectedPayment.rowVersion,
                     verificationNote: note || null
                 })
             });
@@ -399,6 +480,10 @@
     }
 
     function viewDepositSlip() {
+        if (selectedPayment && !selectedPayment.receiptIsVerifiedSafe) {
+            showAlert('danger', 'Receipt must pass malware verification before downloading.');
+            return;
+        }
         if (!selectedPayment?.id) {
             showAlert(
                 'danger',
@@ -444,6 +529,7 @@
 
         reviewPanel?.classList.add('d-none');
         reviewEmpty?.classList.remove('d-none');
+        updateReceiptSafety(null);
 
         paymentList?.querySelectorAll('.verification-card').forEach(item => {
             item.classList.remove('selected');
@@ -487,11 +573,13 @@
     function setVerificationBusy(busy) {
         setButtonBusy(document.getElementById('btnApprove'), busy);
         setButtonBusy(document.getElementById('btnReject'), busy);
+        const scan = document.getElementById('btnScanReceipt');
+        if (scan) scan.disabled = busy || selectedPayment?.receiptIsVerifiedSafe === true;
 
         const viewSlipButton = document.getElementById('btnViewSlip');
 
-        if (viewSlipButton)
-            viewSlipButton.disabled = busy;
+        if (viewSlipButton) viewSlipButton.disabled = busy || selectedPayment?.receiptIsVerifiedSafe !== true;
+        if (!busy) updateReceiptSafety(selectedPayment);
     }
 
     function setButtonBusy(button, busy) {
