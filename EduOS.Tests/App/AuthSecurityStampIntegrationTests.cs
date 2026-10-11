@@ -1,4 +1,6 @@
 using EduOS.App.Extensions;
+using EduOS.App.Security;
+using System.Security.Claims;
 using EduOS.Core.Entities.Auth;
 using EduOS.Persistence.Context;
 using Microsoft.AspNetCore.Identity;
@@ -69,6 +71,39 @@ public sealed class AuthSecurityStampIntegrationTests
         Assert.NotEqual(before, await manager.GetSecurityStampAsync(user));
         Assert.True(await manager.CheckPasswordAsync(user, "Different123!"));
         Assert.False(await manager.CheckPasswordAsync(user, "Secure123!"));
+    }
+
+    [Fact]
+    public async Task Security_stamp_renewal_retains_signed_tenant_roles_and_session_identifier()
+    {
+        var services = CreateServices();
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<SecurityStampValidatorOptions>>().Value;
+        Assert.NotNull(options.OnRefreshingPrincipal);
+        var oldPrincipal = new ClaimsPrincipal(new ClaimsIdentity(new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, "42"),
+            new Claim(ClaimTypes.Role, "TenantAdmin"),
+            new Claim("TenantId", "101"),
+            new Claim(AuthSessionRegistry.ClaimType, new string('A', 48)),
+            new Claim("amr", "mfa")
+        }, "Identity.Application"));
+        var nextPrincipal = new ClaimsPrincipal(new ClaimsIdentity(new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, "42"),
+            new Claim(ClaimTypes.Role, "Principal")
+        }, "Identity.Application"));
+        var refresh = new SecurityStampRefreshingPrincipalContext
+        {
+            CurrentPrincipal = oldPrincipal,
+            NewPrincipal = nextPrincipal
+        };
+        await options.OnRefreshingPrincipal!(refresh);
+        Assert.Equal("101", refresh.NewPrincipal!.FindFirstValue("TenantId"));
+        Assert.Equal(new string('A', 48), refresh.NewPrincipal.FindFirstValue(AuthSessionRegistry.ClaimType));
+        Assert.True(refresh.NewPrincipal.IsInRole("TenantAdmin"));
+        Assert.False(refresh.NewPrincipal.IsInRole("Principal"));
+        Assert.Equal("mfa", refresh.NewPrincipal.FindFirstValue("amr"));
     }
 
     private static ServiceCollection CreateServices()
