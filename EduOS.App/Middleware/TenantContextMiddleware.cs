@@ -1,3 +1,4 @@
+using EduOS.App.Security;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Enums.Domain;
 using EduOS.Persistence.Context;
@@ -60,22 +61,15 @@ namespace EduOS.App.Middleware
                     return;
                 }
 
-                var canonicalRoles = await userManager.GetRolesAsync(user);
-                var principalRoles = context.User.FindAll(ClaimTypes.Role)
-                    .Select(x => x.Value)
-                    .Where(x => !string.IsNullOrWhiteSpace(x));
-                var canonicalRoleSet = new HashSet<string>(canonicalRoles, StringComparer.OrdinalIgnoreCase);
-                if (!canonicalRoleSet.SetEquals(principalRoles))
+                // SuperAdmin is a platform-only role, never a tenant-scoped role.
+                if (await TenantRoleResolver.IsPlatformAdminAsync(dbContext, userId))
                 {
-                    _logger.LogWarning("User {UserId} attempted to use a session with stale role claims.", userId);
-                    await RejectAsync(context, StatusCodes.Status401Unauthorized, "Your permissions changed. Please sign in again.");
-                    return;
-                }
-
-                // Platform administrators are intentionally tenantless, but only the canonical role
-                // membership resolved above may bypass tenant resolution.
-                if (canonicalRoleSet.Contains("SuperAdmin"))
-                {
+                    var actual = context.User.FindAll(ClaimTypes.Role).Select(x => x.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    if (!actual.SetEquals(new[] { "SuperAdmin" }))
+                    {
+                        await RejectAsync(context, StatusCodes.Status401Unauthorized, "Your roles changed. Sign in again.");
+                        return;
+                    }
                     await _next(context);
                     return;
                 }
@@ -133,6 +127,17 @@ namespace EduOS.App.Middleware
                 {
                     _logger.LogWarning("User {UserId} has inactive/deleted tenant {TenantId}.", userId, tenantId);
                     await RejectAsync(context, StatusCodes.Status403Forbidden, "Your institution account is currently inactive. Please contact support.");
+                    return;
+                }
+
+                var count = await memberships.Select(x => x.TenantId).Distinct().Take(2).CountAsync();
+                var owner = await memberships.AnyAsync(x => x.TenantId == tenantId && x.IsOwner);
+                var canonicalRoles = await TenantRoleResolver.GetTenantRolesAsync(dbContext, userId, tenantId, owner, count);
+                var claimedRoles = context.User.FindAll(ClaimTypes.Role).Select(x => x.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                if (!claimedRoles.SetEquals(canonicalRoles))
+                {
+                    _logger.LogWarning("User {UserId} has stale or cross-tenant role claims.", userId);
+                    await RejectAsync(context, StatusCodes.Status401Unauthorized, "Your permissions changed. Sign in again.");
                     return;
                 }
 
