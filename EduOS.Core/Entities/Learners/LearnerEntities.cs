@@ -70,7 +70,8 @@ public class LearnerDataGrant : BaseTenantEntity
 
 public class LearnerIdentityAccessLog : BaseTenantEntity
 {
-    public long PersonId { get; set; }
+    // A failure may be recorded before the learner is linked to a Person.
+    public long? PersonId { get; set; }
     public long StudentId { get; set; }
     public long UserId { get; set; }
     public long? LearnerConsentRequestId { get; set; }
