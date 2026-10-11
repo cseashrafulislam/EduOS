@@ -41,5 +41,6 @@ public interface ISubscriptionPaymentService
     /// <summary>
     /// SuperAdmin: list all manual payments awaiting verification
     /// </summary>
-    Task<ApiResponse<List<SubscriptionPaymentDto>>> GetPendingManualVerificationsAsync();
+    Task<ApiResponse<PagedManualPaymentsDto>> GetPendingManualVerificationsAsync(int page, int pageSize);
+    Task<ApiResponse<bool>> ScanDepositSlipAsync(long paymentId);
 }
