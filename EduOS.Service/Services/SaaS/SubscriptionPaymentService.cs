@@ -284,7 +284,8 @@ public sealed class SubscriptionPaymentService : ISubscriptionPaymentService
                     SubscriptionInvoiceId = invoice.Id, TransactionId = transactionId,
                     PaymentMethod = PaymentMethodType.BankTransfer, Amount = dto.Amount, CurrencyCode = invoice.CurrencyCode,
                     State = PaymentState.AwaitingVerification, InitiatedAt = now,
-                    PayerBankName = dto.PayerBankName.Trim(), DepositSlipNumber = dto.DepositSlipNumber.Trim(),
+                    PayerBankName = dto.PayerBankName.Trim(), PayerAccountNumber = dto.PayerAccountNumber.Trim(),
+                    DepositSlipNumber = dto.DepositSlipNumber.Trim(),
                     DepositDate = DateOnly.FromDateTime(dto.DepositDate),
                     DepositSlipFileId = file.Id, VerificationNote = dto.Note?.Trim(),
                     CreatedAt = now, CreatedBy = _user.UserId
@@ -591,7 +592,8 @@ public sealed class SubscriptionPaymentService : ISubscriptionPaymentService
         ProviderTransactionId = row.ProviderTransactionId, PaymentMethod = row.PaymentMethod,
         Amount = row.Amount, CurrencyCode = row.CurrencyCode, State = row.State,
         InitiatedAt = row.InitiatedAt, CompletedAt = row.CompletedAt,
-        PayerBankName = row.PayerBankName, DepositSlipNumber = row.DepositSlipNumber,
+        PayerBankName = row.PayerBankName, PayerAccountNumber = row.PayerAccountNumber,
+        DepositSlipNumber = row.DepositSlipNumber,
         DepositDate = row.DepositDate, DepositSlipFileId = row.DepositSlipFileId,
         VerifiedAt = row.VerifiedAt, VerificationNote = row.VerificationNote,
         FailureReason = row.FailureReason, RowVersion = Convert.ToBase64String(row.RowVersion)
