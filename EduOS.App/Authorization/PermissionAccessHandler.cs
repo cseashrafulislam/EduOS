@@ -21,6 +21,9 @@ public sealed class PermissionAccessHandler(EduOSDbContext db, ICurrentUserServi
         var tenant = current.TenantId;
         var user = current.UserId;
         var code = requirement.PermissionCode;
+        // Platform-exclusive audit deletion must never be granted through
+        // tenant-owned roles or tenant-scoped user overrides.
+        if (code.Equals("auditlog.delete", StringComparison.OrdinalIgnoreCase)) return;
         var now = DateTime.UtcNow;
         var permissionId = await db.Permissions.AsNoTracking()
             .Where(x => !x.IsDeleted && x.IsActive && x.Code == code)
