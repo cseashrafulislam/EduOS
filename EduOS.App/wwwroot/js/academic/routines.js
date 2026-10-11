@@ -10,7 +10,9 @@
     function status(type,message){const x=el('routineAlert');x.className='alert alert-'+type;x.textContent=message;x.focus();}
     function clearStatus(){const x=el('routineAlert');x.className='d-none';x.textContent='';}
     async function api(url,method='GET',body){
-        const r=await fetch(url,{method,credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json',...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})});
+        const csrf=document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+        if(method!=='GET'&&!csrf)throw new Error('Security token missing. Reload the page.');
+        const r=await fetch(url,{method,credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json',...(method==='GET'?{}:{RequestVerificationToken:csrf}),...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})});
         const x=await r.json().catch(()=>null);if(!r.ok||!x?.success)throw new Error(x?.message||'Request failed.');return x.data;
     }
     function select(id,items,empty){

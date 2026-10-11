@@ -2,6 +2,7 @@
     ViewData["Title"] = "Academic Routines";
     var canManage = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal");
 }
+@Html.AntiForgeryToken()
 <section id="routineApp" class="container-fluid py-3" data-can-manage="@canManage.ToString().ToLowerInvariant()">
     <header class="mb-3"><h2 class="h4 mb-1">Academic Routines</h2><p class="text-muted mb-0">Time slots, instructor assignments and class schedules.</p></header>
     <div id="routineAlert" role="alert" tabindex="-1" aria-live="polite" class="d-none"></div>

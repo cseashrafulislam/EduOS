@@ -14,6 +14,11 @@
     function clearStatus() { el('attendanceAlert').className = 'd-none'; el('attendanceAlert').textContent = ''; }
     async function api(url, method = 'GET', body) {
         const headers = { Accept: 'application/json' };
+        if (method !== 'GET') {
+            const csrf = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+            if (!csrf) throw new Error('Security token missing. Reload the page.');
+            headers.RequestVerificationToken = csrf;
+        }
         if (body !== undefined) headers['Content-Type'] = 'application/json';
         const response = await fetch(url, { method, cache: 'no-store', credentials: 'same-origin', headers,
             ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
@@ -168,7 +173,7 @@
     rows.addEventListener('change', updateSummary);
     saveButton.addEventListener('click', saveAttendance);
     markAllButton.addEventListener('click', () => {
-        rows.querySelectorAll('[data-status]').forEach(select => { select.value = '1'; }); updateSummary();
+        rows.querySelectorAll('[data-state]').forEach(select => { select.value = '1'; }); updateSummary();
     });
     loadBatches();
 })();
