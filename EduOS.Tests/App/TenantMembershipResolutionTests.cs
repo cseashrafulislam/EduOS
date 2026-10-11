@@ -127,6 +127,17 @@ public sealed class TenantMembershipResolutionTests
             db.TenantMemberships.Add(new TenantMembership { TenantId = tenantId, UserId = userId, Status = status });
             await db.SaveChangesAsync();
         }
+        // Legacy single-tenant users retain their seeded global role.
+        // Authorization now resolves roles from the database, never a mocked GetRolesAsync.
+        if (!await db.UserRoles.AnyAsync(x => x.UserId == userId))
+        {
+            var role = new ApplicationRole { Name = "Teacher", NormalizedName = "TEACHER",
+                TenantId = null, IsActive = true };
+            db.Roles.Add(role);
+            await db.SaveChangesAsync();
+            db.UserRoles.Add(new IdentityUserRole<long> { UserId = userId, RoleId = role.Id });
+            await db.SaveChangesAsync();
+        }
         db.ChangeTracker.Clear();
     }
 
