@@ -117,16 +117,6 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
                         await BuildEnrollmentDtoAsync(current, student, ct), "Student already enrolled.");
                 return Error<StudentEnrollmentDto>("Student already has a current enrollment.", 409);
             }
-            if (await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x =>
-                x.TenantId == tenant && x.AcademicBatchId == batch.Id && x.RollNo == roll &&
-                x.IsCurrent && x.State == EnrollmentState.Active, ct))
-                return Error<StudentEnrollmentDto>("Roll already assigned in this academic batch.", 409);
-            var occupied = await _enrollments.GetQueryable().AsNoTracking().CountAsync(x =>
-                x.TenantId == tenant && x.AcademicBatchId == batch.Id &&
-                x.IsCurrent && x.State == EnrollmentState.Active, ct);
-            if (batch.Capacity <= 0 || occupied >= batch.Capacity)
-                return Error<StudentEnrollmentDto>("Batch capacity has been reached.", 409);
-
             var curricula = await _curricula.GetQueryable().AsNoTracking().Where(x =>
                 x.TenantId == tenant && x.AcademicProgramId == batch.AcademicProgramId &&
                 x.AcademicTrackId == batch.AcademicTrackId && x.MediumId == batch.MediumId &&
@@ -148,6 +138,25 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
             if (offerings.GroupBy(x => x.CurriculumSubjectId).Any(x => x.Count() != 1) ||
                 requiredSubjects.Any(x => offerings.All(y => y.CurriculumSubjectId != x.Id)))
                 return Error<StudentEnrollmentDto>("Each required curriculum subject needs exactly one active batch offering.", 409);
+
+            // Hold the batch write lock until transaction commit. This serializes
+            // capacity/roll allocation across normal enrollment and admission conversion.
+            // Required offerings and curriculum are already validated at this point.
+            var lockedBatch = await _batches.GetQueryable().FirstAsync(x =>
+                x.TenantId == tenant && x.Id == batch.Id && x.IsActive && !x.IsDeleted, ct);
+            lockedBatch.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
+            lockedBatch.UpdatedBy = _user.UserId;
+            _batches.Update(lockedBatch);
+            await _uow.SaveChangesAsync(ct);
+            var occupied = await _enrollments.GetQueryable().AsNoTracking().CountAsync(x =>
+                x.TenantId == tenant && x.AcademicBatchId == batch.Id &&
+                x.IsCurrent && x.State == EnrollmentState.Active && !x.IsDeleted, ct);
+            if (batch.Capacity <= 0 || occupied >= batch.Capacity)
+                return Error<StudentEnrollmentDto>("Batch capacity has been reached.", 409);
+            if (await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenant && x.AcademicBatchId == batch.Id && x.RollNo == roll &&
+                x.IsCurrent && !x.IsDeleted, ct))
+                return Error<StudentEnrollmentDto>("Roll already assigned in this academic batch.", 409);
 
             var now = _clock.GetUtcNow().UtcDateTime;
             var entity = new StudentEnrollment

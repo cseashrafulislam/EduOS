@@ -156,14 +156,6 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
                         (!form.AcademicTrackId.HasValue || x.AcademicTrackId == form.AcademicTrackId),
                         cancellationToken);
                     if (batch == null) return ApiResponse<AdmittedStudentDto>.ErrorResponse("Batch is not eligible for this intake.", 409);
-                    // Batch rowversion is the concurrency gate for capacity and roll assignments.
-                    // The write is part of the same transaction as the student conversion.
-                    var lockedBatch = await _batches.GetQueryable().FirstAsync(x =>
-                        x.TenantId == tenant && x.Id == batch.Id && !x.IsDeleted, cancellationToken);
-                    lockedBatch.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
-                    lockedBatch.UpdatedBy = _user.UserId;
-                    _batches.Update(lockedBatch);
-                    await _uow.SaveChangesAsync(cancellationToken);
                     if (request.AcademicTrackId.HasValue && request.AcademicTrackId != batch.AcademicTrackId)
                         return ApiResponse<AdmittedStudentDto>.ErrorResponse("Selected academic track does not match the batch.", 409);
                     var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
@@ -179,6 +171,15 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
                         .Take(2).Select(x => x.Id).ToArrayAsync(cancellationToken);
                     if (curricula.Length != 1)
                         return ApiResponse<AdmittedStudentDto>.ErrorResponse("Exactly one active curriculum must match the batch.", 409);
+                    // Serialize allocations for this batch BEFORE capacity and roll checks.
+                    // All business validation above is read-only, so invalid requests leave
+                    // no batch version/audit mutation behind.
+                    var lockedBatch = await _batches.GetQueryable().FirstAsync(x =>
+                        x.TenantId == tenant && x.Id == batch.Id && !x.IsDeleted, cancellationToken);
+                    lockedBatch.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
+                    lockedBatch.UpdatedBy = _user.UserId;
+                    _batches.Update(lockedBatch);
+                    await _uow.SaveChangesAsync(cancellationToken);
                     if (batch.Capacity > 0 && await _enrollments.GetQueryable().AsNoTracking().CountAsync(x =>
                         x.TenantId == tenant && x.AcademicBatchId == batch.Id &&
                         x.IsCurrent && x.State == EnrollmentState.Active && !x.IsDeleted, cancellationToken) >= batch.Capacity)
