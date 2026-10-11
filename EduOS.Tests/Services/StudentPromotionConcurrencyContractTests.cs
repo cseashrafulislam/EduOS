@@ -18,9 +18,9 @@ public class StudentPromotionConcurrencyContractTests
 
         promoteMethod.Should().Contain("IsolationLevel = IsolationLevel.Serializable");
         promoteMethod.Should().Contain("TransactionScopeAsyncFlowOption.Enabled");
-        promoteMethod.Should().Contain("Target roll is already assigned in the section.");
-        promoteMethod.Should().Contain("if (occupied >= targetSection.Capacity)");
-        promoteMethod.Should().Contain("scope.Complete();");
+        promoteMethod.Should().Contain("Target roll already belongs to an active student.");
+        promoteMethod.Should().Contain("if (batch.Capacity > 0 && await _enrollments.GetQueryable().AsNoTracking().CountAsync");
+        promoteMethod.Should().Contain("tx.Complete();");
     }
 
     [Fact]
@@ -34,7 +34,17 @@ public class StudentPromotionConcurrencyContractTests
         promoteMethod.Should().Contain("catch (DbUpdateConcurrencyException ex)");
         promoteMethod.Should().Contain("catch (DbUpdateException ex)");
         promoteMethod.Should().Contain("catch (TransactionAbortedException ex)");
-        promoteMethod.Should().Contain("Reload and try again.\", 409");
+        promoteMethod.Should().Contain("Concurrent progression detected. Reload and retry.");
+    }
+
+    [Fact]
+    public void Promotion_replay_checks_source_enrollment_and_audit_note()
+    {
+        var source = File.ReadAllText(FindRepositoryFile("EduOS.Service", "Services", "Students", "StudentPromotionService.cs"));
+        source.Should().Contain("replayResult.Data.FromEnrollmentId != request.SourceEnrollmentId");
+        source.Should().Contain("replay.Note?.Trim()");
+        source.Should().Contain("request.Note?.Trim()");
+        source.Should().Contain("Client request ID is already used for different progression details.");
     }
 
     private static string FindRepositoryFile(params string[] segments)
