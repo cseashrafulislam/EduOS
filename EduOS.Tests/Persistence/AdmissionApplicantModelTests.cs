@@ -13,7 +13,7 @@ public class AdmissionApplicantModelTests
     public void Admission_applicant_model_has_tenant_keys_restrictive_relations_and_concurrency()
     {
         using var context = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
-            .UseInMemoryDatabase($"admission-model-{Guid.NewGuid():N}")
+            .UseSqlServer("Server=localhost;Database=EduOS_ModelTest;User Id=unused;Password=unused;TrustServerCertificate=True")
             .Options);
         var entity = context.Model.FindEntityType(typeof(AdmissionApplicant));
 
