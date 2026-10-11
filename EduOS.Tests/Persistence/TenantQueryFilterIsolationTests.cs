@@ -5,6 +5,7 @@ using EduOS.Persistence.Context;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
+using System.Security.Claims;
 
 namespace EduOS.Tests.Persistence;
 
@@ -69,6 +70,39 @@ public sealed class TenantQueryFilterIsolationTests
         }
         await using var again = Context(options, 101);
         Assert.Equal(1, await again.TenantSubscriptions.CountAsync());
+    }
+
+    [Fact]
+    public async Task Authenticated_scopes_and_anonymous_system_scope_do_not_share_tenant_values()
+    {
+        var options = new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("tenant-auth-" + Guid.NewGuid().ToString("N")).Options;
+        var firstHttp = new DefaultHttpContext();
+        firstHttp.Items["TenantId"] = 101L;
+        firstHttp.User = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, "7"), new Claim(ClaimTypes.Role, "InventoryManager")],
+            "Test"));
+        await using var first = new EduOSDbContext(options,
+            new HttpContextAccessor { HttpContext = firstHttp });
+        first.InventoryLocations.Add(new InventoryLocation
+        {
+            TenantId = 101, Code = "OWNED", Name = "Owned"
+        });
+        await first.SaveChangesAsync();
+        var foreign = new DefaultHttpContext();
+        foreign.Items["TenantId"] = 202L;
+        await using (var other = new EduOSDbContext(options,
+            new HttpContextAccessor { HttpContext = foreign }))
+        {
+            other.InventoryLocations.Add(new InventoryLocation
+            {
+                TenantId = 202, Code = "FOREIGN", Name = "Foreign"
+            });
+            await other.SaveChangesAsync();
+        }
+        Assert.Equal(101L, first.CurrentTenantId);
+        Assert.False(await first.InventoryLocations.AnyAsync(x => x.Code == "FOREIGN"));
+        Assert.Equal(2, await first.InventoryLocations.IgnoreQueryFilters().CountAsync());
     }
 
     private static EduOSDbContext Context(DbContextOptions<EduOSDbContext> options, long tenantId)
