@@ -11398,7 +11398,7 @@ namespace EduOS.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<long>("PersonId")
+                    b.Property<long?>("PersonId")
                         .HasColumnType("bigint");
 
                     b.Property<string>("Purpose")
@@ -20511,8 +20511,7 @@ namespace EduOS.Persistence.Migrations
                     b.HasOne("EduOS.Core.Entities.Learners.Person", null)
                         .WithMany()
                         .HasForeignKey("PersonId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
                         .WithMany()
