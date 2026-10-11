@@ -410,12 +410,20 @@ namespace EduOS.App.Controllers.Api
 
             if (user != null && user.IsActive && !user.IsDeleted && user.EmailConfirmed)
             {
-                var token = await _userManager.GeneratePasswordResetTokenAsync(user);
-                var baseUrl = $"{Request.Scheme}://{Request.Host}";
-                var resetUrl = $"{baseUrl}/Account/ResetPassword?email={Uri.EscapeDataString(user.Email!)}&token={Uri.EscapeDataString(token)}";
-
-                BackgroundJob.Enqueue<IEmailJob>(x => x.SendPasswordResetEmailAsync(user.Email!, user.FullName, resetUrl));
-                _logger.LogInformation("Password reset email queued for user {UserId}", user.Id);
+                try
+                {
+                    var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+                    var baseUrl = $"{Request.Scheme}://{Request.Host}";
+                    var resetUrl = $"{baseUrl}/Account/ResetPassword?email={Uri.EscapeDataString(user.Email!)}&token={Uri.EscapeDataString(token)}";
+                    BackgroundJob.Enqueue<IEmailJob>(x => x.SendPasswordResetEmailAsync(user.Email!, user.FullName, resetUrl));
+                    _logger.LogInformation("Password reset email queued for user {UserId}", user.Id);
+                }
+                catch (Exception ex)
+                {
+                    // A queue/provider outage must not expose whether the supplied
+                    // email belongs to an account. Keep the response generic.
+                    _logger.LogError(ex, "Password reset email dispatch failed for user {UserId}", user.Id);
+                }
             }
 
             return Ok(new { success = true, message });
