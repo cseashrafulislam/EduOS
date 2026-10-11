@@ -428,7 +428,9 @@
   <data name="ContinueToPayment" xml:space="preserve"><value>Continue to payment</value></data>
   <data name="SubscriptionCreateFailed" xml:space="preserve"><value>The subscription could not be created. Review the plan and try again.</value></data>
   <data name="ExistingSubscriptionRedirecting" xml:space="preserve"><value>Your existing subscription was found. Taking you to the correct setup step…</value></data>
-  <data name="PlanSelectionSafeNote" xml:space="preserve"><value>Plan limits are shown here; any one-time setup fee is listed separately and included in the invoice.</value></data>
+    <data name="CurrentPlanReadOnly" xml:space="preserve"><value>Your current plan ({name}) is active until {date}. Available plans are shown below for comparison. Changing or renewing a paid subscription requires the dedicated billing flow; no new subscription will be created here.</value></data>
+  <data name="CurrentPlanSelected" xml:space="preserve"><value>Current plan active</value></data>
+<data name="PlanSelectionSafeNote" xml:space="preserve"><value>Plan limits are shown here; any one-time setup fee is listed separately and included in the invoice.</value></data>
   <data name="PaymentTitle" xml:space="preserve"><value>Complete payment</value></data>
   <data name="PaymentHelp" xml:space="preserve"><value>Pay the verified invoice online or submit a bank receipt for review.</value></data>
   <data name="PaymentMethod" xml:space="preserve"><value>Payment method</value></data>
