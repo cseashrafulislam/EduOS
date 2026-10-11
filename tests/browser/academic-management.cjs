@@ -61,7 +61,7 @@ async function main() {
                 catalog.programs.push({ ...data, id: 401, rowVersion: 'AQIDBAUGBwg=' });
             if (url.pathname.endsWith('/levels'))
                 catalog.levels.push({ ...data, id: 501, rowVersion: 'AQIDBAUGBwg=' });
-            if (url.pathname.endsWith('/subjects'))
+            if (url.pathname === '/api/academic-setup/subjects')
                 catalog.subjects.push({ ...data, id: 601, rowVersion: 'AQIDBAUGBwg=' });
             if (url.pathname.endsWith('/curricula'))
                 catalog.curricula.push({ ...data, id: 701, rowVersion: 'AQIDBAUGBwg=' });
@@ -121,6 +121,27 @@ async function main() {
         await page.locator('#curriculumSubjectForm button[type="submit"]').click();
         await page.waitForFunction(() => document.querySelector('#curriculumRows')?.textContent.includes('1'));
         assert(mutations.some(x => x.path.endsWith('/curricula/701/subjects')));
+        assert.equal(catalog.curriculumSubjects.length, 1);
+        await page.locator('[data-panel="sections"]').click();
+        await page.locator('#sectionName').fill('Grade Nine A');
+        await page.locator('#sectionCode').fill('G9-A');
+        await page.locator('#sectionStart').fill('2026-01-10');
+        await page.locator('#sectionEnd').fill('2026-12-20');
+        await page.locator('#sectionForm button[type="submit"]').click();
+        await page.waitForFunction(() => document.querySelector('#sectionRows')?.textContent.includes('Grade Nine A'));
+        const section = mutations.find(x => x.path.endsWith('/batches'));
+        assert.equal(section.data.academicProgramId, 401);
+        assert.equal(section.data.academicLevelId, 501);
+        assert.match(section.data.clientRequestId, /^[0-9a-f-]{36}$/i);
+
+        await page.locator('[data-panel="terms"]').click();
+        await page.locator('#termName').fill('First Term');
+        await page.locator('#termCode').fill('T1');
+        await page.locator('#termStart').fill('2026-01-01');
+        await page.locator('#termEnd').fill('2026-05-30');
+        await page.locator('#termForm button[type="submit"]').click();
+        await page.waitForFunction(() => document.querySelector('#termRows')?.textContent.includes('First Term'));
+
         const scriptCount = await page.locator('#academicManagement script').count();
         assert.equal(scriptCount, 0);
         console.log('Academic browser smoke: PASS — DOM, tenant admin forms, CSRF, CRUD and curriculum mapping.');
