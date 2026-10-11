@@ -15,7 +15,9 @@ function markup(file, startTag) {
             .replace('@Html.AntiForgeryToken()',
                 '<input name="__RequestVerificationToken" value="academic-ops-csrf">')
             .replace('data-can-manage="@canManage.ToString().ToLowerInvariant()"',
-                'data-can-manage="true"') + '</body></html>';
+                'data-can-manage="true"')
+            .replace('data-can-correct="@((User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal")).ToString().ToLowerInvariant())"',
+                'data-can-correct="true"') + '</body></html>';
 }
 const attendanceHtml = markup('EduOS.App/Views/Attendance/Index.cshtml', '<section class="admission-page"');
 const routineHtml = markup('EduOS.App/Views/AcademicRoutines/Index.cshtml', '<section id="routineApp"');
@@ -32,7 +34,8 @@ const tokenOk = request => {
 async function attendance(browser) {
     const page = await browser.newPage();
     const requests = [];
-    const finalized = [];
+    const finalized = [], corrections = [];
+    let isFinalized = false, correctedState = null;
     page.on('dialog', dialog => dialog.accept());
     const roster = {
         attendanceSessionId: 0, sessionRowVersion: '', academicBatchId: 10, attendanceDate: '2026-10-10',
@@ -52,7 +55,16 @@ async function attendance(browser) {
                 id: 10, academicYearId: 20, academicLevelId: 30, academicYearName: '2026',
                 academicLevelName: 'Grade 9', name: 'Section A', code: '9-A', isActive: true
             }] });
-        if (url.pathname === '/api/student-attendance/roster') return response(route, 200, roster);
+        if (url.pathname === '/api/student-attendance/roster')
+            return response(route, 200, !isFinalized ? roster : {
+                ...roster, isFinalized: true, attendanceSessionId: 99,
+                sessionRowVersion: 'AgIDBAUGBwg=',
+                summary: { totalStudents: 2, marked: 2, unmarked: 0 },
+                students: roster.students.map((x, i) => ({
+                    ...x, id: 901 + i, rowVersion: 'AQIDBAUGBwg=',
+                    state: i === 0 ? correctedState || 1 : 4
+                }))
+            });
         if (url.pathname === '/api/student-attendance/sessions') {
             tokenOk(request);
             return response(route, 200, { ...roster, attendanceSessionId: 99,
@@ -64,18 +76,32 @@ async function attendance(browser) {
             return response(route, 200, { ...roster, attendanceSessionId: 99,
                 sessionRowVersion: 'AQIDBAUGBwg=',
                 summary: { totalStudents: 2, marked: 2, unmarked: 0 },
-                students: roster.students.map((x, i) => ({ ...x, state: i === 0 ? 1 : 4 }))
+                students: roster.students.map((x, i) => ({
+                    ...x, id: 901 + i, rowVersion: 'AQIDBAUGBwg=',
+                    state: i === 0 ? 1 : 4
+                }))
             }, 'Attendance saved.');
         }
         if (url.pathname === '/api/student-attendance/sessions/99/finalize') {
+            isFinalized = true;
             tokenOk(request);
             assert.equal(url.searchParams.get('rowVersion'), 'AQIDBAUGBwg=');
             finalized.push(true);
             return response(route, 200, { ...roster, attendanceSessionId: 99,
                 sessionRowVersion: 'AgIDBAUGBwg=', isFinalized: true,
                 summary: { totalStudents: 2, marked: 2, unmarked: 0 },
-                students: roster.students.map((x, i) => ({ ...x, state: i === 0 ? 1 : 4 }))
+                students: roster.students.map((x, i) => ({
+                    ...x, id: 901 + i, rowVersion: 'AQIDBAUGBwg=',
+                    state: i === 0 ? 1 : 4
+                }))
             }, 'Attendance finalized.');
+        }
+        if (url.pathname === '/api/student-attendance/901/correct') {
+            tokenOk(request);
+            const data = request.postDataJSON();
+            assert.equal(data.rowVersion, 'AQIDBAUGBwg=');
+            corrections.push(data); correctedState = data.newState;
+            return response(route, 200, { id: 901, state: correctedState });
         }
         return response(route, 404, null, 'Unexpected endpoint');
     });
@@ -102,6 +128,12 @@ async function attendance(browser) {
     assert.equal(finalized.length, 1);
     assert.equal(await page.locator('#saveAttendance').isDisabled(), true);
     assert.equal(await page.locator('#finalizeAttendance').isDisabled(), true);
+    await page.locator('#attendanceRows [data-state]').first().selectOption('2');
+    await page.locator('#attendanceRows button').first().click();
+    await page.waitForFunction(() => document.querySelector('#attendanceAlert')?.textContent.includes('Attendance corrected'));
+    assert.equal(corrections.length, 1);
+    assert.equal(corrections[0].newState, 2);
+    assert.match(corrections[0].reason, /reason|Reviewed|Approved|Correction/i);
     await page.close();
     console.log('Attendance browser: PASS — approved leave, mass marking, CSRF, save and finalization.');
 }
