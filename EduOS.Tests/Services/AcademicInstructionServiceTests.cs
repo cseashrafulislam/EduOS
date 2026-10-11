@@ -119,6 +119,14 @@ public sealed class AcademicInstructionServiceTests
             rows.Data.Should().ContainSingle();
             rows.Data![0].Id.Should().Be(id);
         }
+        await using (var db = Context(options, 101, 70, "Teacher"))
+        {
+            var originalTeacher = Service(db, 101, 70, "Teacher");
+            var ownSubstitutions = await originalTeacher.GetSubstitutionsAsync(LessonDate, LessonDate, seed.BatchId);
+            ownSubstitutions.Success.Should().BeTrue();
+            ownSubstitutions.Data.Should().ContainSingle();
+            ownSubstitutions.Data![0].Id.Should().Be(id);
+        }
         var version = await VersionAsync(options, id, [7, 6, 5, 4, 3, 2, 1, 8], true);
         await using (var db = Context(options, 101, 7, "TenantAdmin"))
         {
