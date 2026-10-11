@@ -114,6 +114,11 @@ public class PaymentCallbackContractTests
         script.Should().Contain("'RequestVerificationToken': antiforgeryToken()");
         script.Should().Contain("responseError(payload, i18n.submitFailed)");
         script.Should().Contain("response.status === 409 && payload?.message === 'A payment is already pending.'");
+        script.Should().Contain("advancePaidOnboarding(action)");
+        script.Should().Contain("'/api/onboarding/complete-step'");
+        script.Should().Contain("JSON.stringify({ stage: 4, skipped: false })");
+        script.Should().Contain("'RequestVerificationToken': antiforgeryToken()");
+
     }
 
     [Fact]
