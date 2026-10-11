@@ -4,6 +4,6 @@ namespace EduOS.Core.Interfaces.IServices;
 
 public interface IMfaChallengeService
 {
-    string Create(long userId, string securityStamp, bool rememberMe);
+    string Create(long userId, string securityStamp, bool rememberMe, long? tenantId = null);
     bool TryRead(string? token, out MfaChallengeData challenge);
 }
