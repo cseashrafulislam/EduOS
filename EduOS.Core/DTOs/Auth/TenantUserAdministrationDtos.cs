@@ -66,33 +66,3 @@ public sealed class TenantMemberStatusRequestDto
     [Required] public MembershipStatus Status { get; set; }
 }
 
-public sealed class TenantInviteRequestDto
-{
-    [Required, EmailAddress, StringLength(200)] public string Email { get; set; } = "";
-    public long? RoleId { get; set; }
-}
-
-public sealed class TenantInviteAcceptRequestDto
-{
-    [Required, StringLength(64, MinimumLength = 64)] public string Token { get; set; } = "";
-    [Required, MinLength(6)] public string Password { get; set; } = "";
-    [Required, Compare(nameof(Password))] public string ConfirmPassword { get; set; } = "";
-    [StringLength(200)] public string? FullName { get; set; }
-    [StringLength(30)] public string? MfaCode { get; set; }
-    public bool UseRecoveryCode { get; set; }
-}
-
-public sealed class TenantCampusAccessDto
-{
-    public long Id { get; set; }
-    public string Name { get; set; } = "";
-    public bool IsSelected { get; set; }
-    public bool IsDefault { get; set; }
-}
-
-public sealed class TenantMemberCampusRequestDto
-{
-    [Required] public string RowVersion { get; set; } = "";
-    [Required] public IReadOnlyList<long> CampusIds { get; set; } = Array.Empty<long>();
-    public long? DefaultCampusId { get; set; }
-}
