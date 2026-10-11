@@ -18,6 +18,7 @@
     let pageNumber = 1;
     const pageSize = 25;
     let totalCount = 0;
+    let searchTimer = null;
 
     document.addEventListener('DOMContentLoaded', initialize, { once: true });
 
@@ -29,7 +30,14 @@
         document.getElementById('btnScanReceipt')?.addEventListener('click', scanReceipt);
         document.getElementById('btnPreviousPage')?.addEventListener('click', () => changePage(-1));
         document.getElementById('btnNextPage')?.addEventListener('click', () => changePage(1));
-        searchInput?.addEventListener('input', renderFilteredPayments);
+        searchInput?.addEventListener('input', () => {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => {
+                pageNumber = 1;
+                clearSelection();
+                loadPayments();
+            }, 300);
+        });
         paymentList?.addEventListener('click', selectPayment);
 
         loadPayments();
@@ -40,7 +48,8 @@
         hideAlert();
 
         try {
-            const response = await fetch(`${apiBase}/pending-verifications?page=${pageNumber}&pageSize=${pageSize}`, {
+            const search = String(searchInput?.value || '').trim();
+            const response = await fetch(`${apiBase}/pending-verifications?page=${pageNumber}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`, {
                 method: 'GET',
                 cache: 'no-store',
                 credentials: 'same-origin',
@@ -137,34 +146,7 @@
 
     function renderFilteredPayments() {
         updatePager();
-        const search = String(searchInput?.value || '')
-            .trim()
-            .toLowerCase();
-
-        if (!search) {
-            renderPayments(payments);
-            return;
-        }
-
-        const filtered = payments.filter(item => {
-            const values = [
-                item.invoiceNumber,
-                item.transactionId,
-                item.payerBankName,
-                item.payerAccountNumber,
-                item.depositSlipNumber,
-                item.amount,
-                item.currency
-            ];
-
-            return values.some(value =>
-                String(value ?? '')
-                    .toLowerCase()
-                    .includes(search)
-            );
-        });
-
-        renderPayments(filtered);
+        renderPayments(payments);
     }
 
     function renderPayments(items) {
