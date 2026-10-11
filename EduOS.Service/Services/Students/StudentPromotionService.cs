@@ -41,6 +41,75 @@ public sealed class StudentPromotionService : IStudentPromotionService
         _uow = unitOfWork; _user = currentUser; _clock = clock; _logger = logger;
     }
 
+    public async Task<ApiResponse<StudentPromotionOptionsDto>> GetOptionsAsync(
+        Guid studentReference, CancellationToken ct = default)
+    {
+        // Campus-specific principal access is not exposed by ICurrentUserService.
+        // Until a canonical campus permission contract exists, only tenant administrators can use this manager UI.
+        if (!_user.IsAuthenticated || !_user.IsTenantAdmin || _user.TenantId <= 0)
+            return Denied<StudentPromotionOptionsDto>();
+        if (studentReference == Guid.Empty)
+            return ApiResponse<StudentPromotionOptionsDto>.ErrorResponse("Student reference is required.");
+        var tenant = _user.TenantId;
+        try
+        {
+            var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.PublicId == studentReference && !x.IsDeleted, ct);
+            if (student == null)
+                return ApiResponse<StudentPromotionOptionsDto>.ErrorResponse("Student not found.", 404);
+            if (student.StatusCode != "Active")
+                return ApiResponse<StudentPromotionOptionsDto>.ErrorResponse("Student is not active.", 409);
+            var source = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.StudentId == student.Id && x.IsCurrent &&
+                x.State == EnrollmentState.Active && !x.IsDeleted, ct);
+            if (source == null)
+                return ApiResponse<StudentPromotionOptionsDto>.ErrorResponse("Current enrollment not found.", 409);
+            var sourceYear = await _years.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.Id == source.AcademicYearId, ct);
+            var sourceLevel = await _levels.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.Id == source.AcademicLevelId, ct);
+            if (sourceYear == null || sourceLevel == null)
+                return ApiResponse<StudentPromotionOptionsDto>.ErrorResponse("Current academic placement is unavailable.", 409);
+            var years = await _years.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
+                x.IsActive && !x.IsDeleted && x.StartDate > sourceYear.StartDate)
+                .OrderBy(x => x.StartDate).Take(10).ToListAsync(ct);
+            var yearIds = years.Select(x => x.Id).ToArray();
+            var levels = await _levels.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
+                x.IsActive && !x.IsDeleted && x.AcademicProgramId == sourceLevel.AcademicProgramId &&
+                (x.Id == sourceLevel.Id || (sourceLevel.IsPromotable && x.LevelNo > sourceLevel.LevelNo)))
+                .ToListAsync(ct);
+            var levelIds = levels.Select(x => x.Id).ToArray();
+            var batches = await _batches.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
+                x.IsActive && !x.IsDeleted && x.CampusId == source.CampusId &&
+                x.AcademicProgramId == source.AcademicProgramId &&
+                yearIds.Contains(x.AcademicYearId) && levelIds.Contains(x.AcademicLevelId))
+                .OrderBy(x => x.AcademicYearId).ThenBy(x => x.Name).Take(200).ToListAsync(ct);
+            var yearNames = years.ToDictionary(x => x.Id, x => x.Name);
+            var levelNames = levels.ToDictionary(x => x.Id, x => x.Name);
+            var targets = batches.Select(x => new StudentPromotionTargetOptionDto
+            {
+                AcademicYearId = x.AcademicYearId, AcademicLevelId = x.AcademicLevelId,
+                AcademicBatchId = x.Id, AcademicTrackId = x.AcademicTrackId,
+                Decision = x.AcademicLevelId == sourceLevel.Id
+                    ? StudentProgressionDecisionType.Repeated : StudentProgressionDecisionType.Promoted,
+                Name = yearNames[x.AcademicYearId] + " / " + levelNames[x.AcademicLevelId] + " / " + x.Name
+            }).ToList();
+            return ApiResponse<StudentPromotionOptionsDto>.SuccessResponse(new StudentPromotionOptionsDto
+            {
+                StudentReference = student.PublicId, StudentCode = student.StudentCode,
+                SourceEnrollmentId = source.Id,
+                StudentRowVersion = Convert.ToBase64String(student.RowVersion),
+                SourceEnrollmentRowVersion = Convert.ToBase64String(source.RowVersion),
+                Targets = targets
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Student promotion options failed for tenant {TenantId}", tenant);
+            return ApiResponse<StudentPromotionOptionsDto>.ErrorResponse("Promotion options could not be loaded.", 500);
+        }
+    }
+
     public async Task<ApiResponse<StudentPromotionResultDto>> PromoteAsync(Guid studentReference,
         PromoteStudentWorkflowRequestDto request, CancellationToken ct = default)
     {

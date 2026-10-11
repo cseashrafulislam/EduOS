@@ -22,6 +22,14 @@ public sealed class StudentPromotionsController : ControllerBase
         _service = service;
     }
 
+    [HttpGet("options")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> GetOptions(Guid studentReference, CancellationToken cancellationToken)
+    {
+        var result = await _service.GetOptionsAsync(studentReference, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet]
     public async Task<IActionResult> GetHistory(
         Guid studentReference,

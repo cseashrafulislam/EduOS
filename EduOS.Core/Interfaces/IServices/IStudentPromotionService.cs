@@ -5,6 +5,8 @@ namespace EduOS.Core.Interfaces.IServices;
 
 public interface IStudentPromotionService
 {
+    Task<ApiResponse<StudentPromotionOptionsDto>> GetOptionsAsync(Guid studentReference, CancellationToken cancellationToken = default);
+
     Task<ApiResponse<StudentPromotionResultDto>> PromoteAsync(
         Guid studentReference,
         PromoteStudentWorkflowRequestDto request,

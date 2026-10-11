@@ -66,3 +66,23 @@ public sealed class StudentPromotionHistoryDto
     public DateTime ProcessedAt { get; set; }
     public string? Note { get; set; }
 }
+
+public sealed class StudentPromotionOptionsDto
+{
+    public Guid StudentReference { get; set; }
+    public string StudentCode { get; set; } = string.Empty;
+    public long SourceEnrollmentId { get; set; }
+    public string StudentRowVersion { get; set; } = string.Empty;
+    public string SourceEnrollmentRowVersion { get; set; } = string.Empty;
+    public IReadOnlyList<StudentPromotionTargetOptionDto> Targets { get; set; } = Array.Empty<StudentPromotionTargetOptionDto>();
+}
+
+public sealed class StudentPromotionTargetOptionDto
+{
+    public long AcademicYearId { get; set; }
+    public long AcademicLevelId { get; set; }
+    public long AcademicBatchId { get; set; }
+    public long? AcademicTrackId { get; set; }
+    public StudentProgressionDecisionType Decision { get; set; }
+    public string Name { get; set; } = string.Empty;
+}

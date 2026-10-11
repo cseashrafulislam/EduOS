@@ -1,0 +1,54 @@
+@{
+    ViewData["Title"] = "Student Promotion / Repeat";
+}
+<section class="admission-page" aria-labelledby="promotionTitle">
+    <header class="content-header-card">
+        <div>
+            <p class="dashboard-eyebrow">Students / শিক্ষার্থী</p>
+            <h2 id="promotionTitle">Promotion &amp; Repeat / পদোন্নতি ও পুনরাবৃত্তি</h2>
+            <p>Choose a student's current enrollment and a valid next-year batch. Existing history is preserved.</p>
+        </div>
+        <a class="btn btn-outline-secondary" asp-controller="Students" asp-action="Index">Student directory</a>
+    </header>
+    @Html.AntiForgeryToken()
+    <div id="promotionAlert" class="d-none" role="alert" tabindex="-1"></div>
+    <section class="content-card mb-3" aria-labelledby="promotionLookupTitle">
+        <div class="content-card-heading"><h3 id="promotionLookupTitle">Select student / শিক্ষার্থী নির্বাচন</h3></div>
+        <form id="promotionLookup" class="row g-3">
+            <div class="col-md-9">
+                <label class="form-label" for="promotionStudentReference">Student reference *</label>
+                <input class="form-control" id="promotionStudentReference" type="text" maxlength="36" required autocomplete="off" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <button class="btn btn-outline-primary w-100" type="submit">Load student</button>
+            </div>
+        </form>
+    </section>
+    <section id="promotionEditor" class="content-card d-none" aria-labelledby="promotionEditorTitle">
+        <div class="content-card-heading">
+            <h3 id="promotionEditorTitle">New progression / নতুন বর্ষে স্থানান্তর</h3>
+            <p id="promotionStudentSummary" aria-live="polite"></p>
+        </div>
+        <form id="promotionForm" class="row g-3">
+            <div class="col-md-8">
+                <label class="form-label" for="promotionTarget">Next academic year / batch *</label>
+                <select class="form-select" id="promotionTarget" required></select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label" for="promotionRoll">New roll *</label>
+                <input class="form-control" id="promotionRoll" maxlength="50" required autocomplete="off" />
+            </div>
+            <div class="col-12">
+                <label class="form-label" for="promotionNote">Decision note (optional)</label>
+                <textarea class="form-control" id="promotionNote" maxlength="500" rows="2"></textarea>
+            </div>
+            <div class="col-12">
+                <p class="text-muted">Promotion advances to a higher level; repeat retains the current level. The selected batch determines the decision.</p>
+                <button id="promotionSubmit" class="btn btn-primary" type="submit">Confirm progression</button>
+            </div>
+        </form>
+    </section>
+</section>
+@section Scripts {
+    <script src="~/js/students/progressions.js" asp-append-version="true"></script>
+}
