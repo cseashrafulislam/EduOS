@@ -32,3 +32,5 @@ jobs:
         run: node tests/browser/academic-management.cjs
       - name: Exercise student enrollment and retry browser UI
         run: node tests/browser/student-enrollment.cjs
+      - name: Exercise student lifecycle and transfer certificate browser UI
+        run: node tests/browser/student-lifecycle.cjs
