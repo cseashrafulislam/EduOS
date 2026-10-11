@@ -219,7 +219,10 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId", "AcademicYearId");
 
-                    b.HasIndex("TenantId", "CampusId");
+                    b.HasIndex("TenantId", "CampusId", "AcademicYearId", "AcademicTermId", "EventType", "Title", "StartDate", "EndDate")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AcademicCalendarEvents_Tenant_NaturalKey")
+                        .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("AcademicCalendarEvents", t =>
                         {
@@ -281,7 +284,10 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasAlternateKey("TenantId", "Id");
 
-                    b.HasIndex("TenantId", "CampusId");
+                    b.HasIndex("TenantId", "CampusId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AcademicCalendarPolicies_Tenant_Campus")
+                        .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("AcademicCalendarPolicies");
                 });
