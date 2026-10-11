@@ -64,7 +64,7 @@ namespace EduOS.App.Controllers.Api
                 return BadRequest(new { success = false, message = "Invalid username/email or password." });
             }
 
-            if (!user.IsActive)
+            if (!user.IsActive || user.IsDeleted)
             {
                 await SaveLoginHistoryAsync(user, ip, userAgent, false, "Account deactivated");
                 return BadRequest(new { success = false, message = "Your account has been deactivated. Please contact support." });
@@ -297,7 +297,7 @@ namespace EduOS.App.Controllers.Api
 
             var user = await _userManager.FindByIdAsync(challenge.UserId.ToString());
 
-            if (user == null || !user.IsActive || !user.EmailConfirmed || !user.TwoFactorEnabled)
+            if (user == null || !user.IsActive || user.IsDeleted || !user.EmailConfirmed || !user.TwoFactorEnabled)
                 return BadRequest(new { success = false, message = "The verification request is invalid or expired." });
 
             if (await _userManager.IsLockedOutAsync(user))
@@ -387,6 +387,7 @@ namespace EduOS.App.Controllers.Api
         // ==================== Reset Password ====================
 
         [AllowAnonymous]
+        [EnableRateLimiting("ForgotPasswordPolicy")]
         [HttpPost("reset-password")]
         public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequestDto dto)
         {
@@ -432,6 +433,7 @@ namespace EduOS.App.Controllers.Api
         [HttpGet("profile")]
         public async Task<IActionResult> GetProfile()
         {
+            Response.Headers.CacheControl = "no-store";
             var user = await _userManager.GetUserAsync(User);
 
             if (user == null)
@@ -516,6 +518,7 @@ namespace EduOS.App.Controllers.Api
         // ==================== Change Password ====================
 
         [Authorize]
+        [EnableRateLimiting("LoginPolicy")]
         [HttpPost("change-password")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequestDto dto)
@@ -569,7 +572,8 @@ namespace EduOS.App.Controllers.Api
                                    where member.UserId == user.Id && !member.IsDeleted &&
                                        member.Status == MembershipStatus.Active &&
                                        !tenant.IsDeleted &&
-                                       tenant.State != TenantState.Closed && tenant.State != TenantState.Suspended
+                                       (tenant.State == TenantState.Active ||
+                                        (tenant.State == TenantState.PendingVerification && tenant.OnboardingStage != OnboardingStage.Completed))
                                    select member.TenantId).Distinct().Take(2).ToArrayAsync();
             if (tenantIds.Length != 1) return (false, "", null);
             var role = roles.Contains("TenantAdmin", StringComparer.OrdinalIgnoreCase) ? "TenantAdmin"
