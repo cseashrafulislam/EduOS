@@ -8,4 +8,9 @@ public sealed class TenantUsersController : Controller
 {
     [HttpGet]
     public IActionResult Index() => View();
+
+    [AllowAnonymous]
+    [HttpGet]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult Accept() => View();
 }
