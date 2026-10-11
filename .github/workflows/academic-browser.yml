@@ -30,3 +30,5 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Exercise academic management browser UI
         run: node tests/browser/academic-management.cjs
+      - name: Exercise student enrollment and retry browser UI
+        run: node tests/browser/student-enrollment.cjs
