@@ -2,6 +2,7 @@ using EduOS.Core.Common;
 using EduOS.Core.DTOs.Auth;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.System;
+using EduOS.Core.Entities.SaaS;
 using System.Text.Json;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
@@ -443,7 +444,7 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
         // system tenant scope for institution B. Ask them to sign out first.
         if (_current.IsAuthenticated)
             return ApiResponse<bool>.ErrorResponse("Sign out before accepting an institution invitation.", 403);
-        if (request == null || !ValidInviteToken(request.Token) ||
+        if (request == null || !ValidInviteToken(request.Token) || !request.AgreeTerms ||
             string.IsNullOrWhiteSpace(request.Password) || request.Password != request.ConfirmPassword)
             return ApiResponse<bool>.ErrorResponse("Invalid invitation or password confirmation.", 400);
         var tokenHash = HashInvitationToken(request.Token);
@@ -452,6 +453,14 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
                 x.AcceptedAt == null && x.RevokedAt == null && x.ExpiresAt > DateTime.UtcNow, ct);
         if (invite == null)
             return ApiResponse<bool>.ErrorResponse("Invitation expired or already used.", 400);
+
+        var now = DateTime.UtcNow;
+        var termsId = await _db.LegalDocuments.AsNoTracking()
+            .Where(x => !x.IsDeleted && x.IsActive && x.Code.StartsWith("TERMS") && x.EffectiveAt <= now)
+            .OrderByDescending(x => x.EffectiveAt).ThenByDescending(x => x.Id)
+            .Select(x => x.Id).FirstOrDefaultAsync(ct);
+        if (termsId <= 0)
+            return ApiResponse<bool>.ErrorResponse("Current Terms of Service are unavailable. Contact support.", 503);
 
         var tenantActive = await _db.Tenants.IgnoreQueryFilters().AsNoTracking().AnyAsync(t =>
             t.Id == invite.TenantId && !t.IsDeleted && (t.State == TenantState.Active ||
@@ -538,6 +547,13 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
                     {
                         UserId = user.Id, RoleId = stored.RoleId.Value
                     });
+                _db.UserLegalAcceptances.Add(new UserLegalAcceptance
+                {
+                    UserId = user.Id, TenantId = stored.TenantId, LegalDocumentId = termsId,
+                    AcceptedAt = DateTime.UtcNow,
+                    IpAddress = _current.IpAddress,
+                    UserAgent = _current.UserAgent
+                });
                 stored.AcceptedAt = DateTime.UtcNow;
                 stored.UpdatedAt = DateTime.UtcNow;
                 await _db.SaveChangesAsync(tx);
