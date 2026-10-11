@@ -24,6 +24,10 @@ public sealed class SubscriptionServiceTests
         var plan = await AddPlanAsync(setup.Db, 1000m);
         var request = Request(plan.Id);
         var created = await setup.Service.StartAsync(request);
+        setup.Db.CurrentTenantId.Should().Be(setup.Tenant.Id, "the request-scoped tenant must remain stable during subscription posting");
+        (await setup.Db.TenantSubscriptions.AsNoTracking()
+            .CountAsync(x => x.PublicId == request.ClientRequestId)).Should().Be(1,
+                "a retry must see the existing subscription by its idempotency key");
         var replay = await setup.Service.StartAsync(request);
         created.Success.Should().BeTrue();
         replay.Success.Should().BeTrue();
@@ -75,6 +79,10 @@ public sealed class SubscriptionServiceTests
             CurrencyCode = "BDT", PriceSnapshot = 500m
         });
         await setup.Db.SaveChangesAsync();
+        setup.Db.CurrentTenantId.Should().Be(setup.Tenant.Id);
+        (await setup.Db.TenantSubscriptions.AsNoTracking()
+            .CountAsync(x => x.State == SubscriptionState.PendingPayment)).Should().Be(1,
+                "a pending payment must be visible before the new request is processed");
         var result = await setup.Service.StartAsync(Request(plan.Id));
         result.StatusCode.Should().Be(409);
         (await setup.Db.TenantSubscriptions.CountAsync()).Should().Be(1);
