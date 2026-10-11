@@ -308,6 +308,11 @@ namespace EduOS.App.Controllers.Api
             if (!FixedTimeEquals(challenge.SecurityStamp, currentStamp))
                 return BadRequest(new { success = false, message = "The verification request is invalid or expired." });
 
+            // Resolve current permissions before consuming a recovery code or login challenge.
+            var session = await GetSessionContextAsync(user);
+            if (!session.IsValid)
+                return StatusCode(StatusCodes.Status403Forbidden, new { success = false, message = "Select an active institution or contact your administrator." });
+
             var code = dto.UseRecoveryCode ? dto.Code.Trim() : NormalizeMfaCode(dto.Code);
             var valid = dto.UseRecoveryCode
                 ? (await _userManager.RedeemTwoFactorRecoveryCodeAsync(user, code)).Succeeded
@@ -323,11 +328,16 @@ namespace EduOS.App.Controllers.Api
                 return BadRequest(new { success = false, message = "The verification code is invalid." });
             }
 
+            // Rotate the security stamp with Identity's optimistic concurrency check.
+            // Only one request holding the old challenge stamp can complete; the rest fail.
+            // This also revokes existing sessions when the cookie validator runs.
+            var consumed = await _userManager.UpdateSecurityStampAsync(user);
+            if (!consumed.Succeeded)
+            {
+                _logger.LogWarning("MFA login challenge replay or concurrency conflict for user {UserId}", user.Id);
+                return Conflict(new { success = false, message = "Verification was already used or account state changed. Please sign in again." });
+            }
             await _userManager.ResetAccessFailedCountAsync(user);
-            var session = await GetSessionContextAsync(user);
-            if (!session.IsValid)
-                return StatusCode(StatusCodes.Status403Forbidden, new
-                { success = false, message = "Select an active institution or contact your administrator." });
             await _signInManager.SignInWithClaimsAsync(user, challenge.RememberMe,
                 BuildSessionClaims(user, "mfa", session.Role, session.TenantId));
 
@@ -371,14 +381,14 @@ namespace EduOS.App.Controllers.Api
             var email = dto.Email.Trim();
             var user = await _userManager.FindByEmailAsync(email);
 
-            if (user != null && user.IsActive && user.EmailConfirmed)
+            if (user != null && user.IsActive && !user.IsDeleted && user.EmailConfirmed)
             {
                 var token = await _userManager.GeneratePasswordResetTokenAsync(user);
                 var baseUrl = $"{Request.Scheme}://{Request.Host}";
                 var resetUrl = $"{baseUrl}/Account/ResetPassword?email={Uri.EscapeDataString(user.Email!)}&token={Uri.EscapeDataString(token)}";
 
                 BackgroundJob.Enqueue<IEmailJob>(x => x.SendPasswordResetEmailAsync(user.Email!, user.FullName, resetUrl));
-                _logger.LogInformation("Password reset email queued: {Email}", email);
+                _logger.LogInformation("Password reset email queued for user {UserId}", user.Id);
             }
 
             return Ok(new { success = true, message });
@@ -399,7 +409,7 @@ namespace EduOS.App.Controllers.Api
 
             var user = await _userManager.FindByEmailAsync(dto.Email.Trim());
 
-            if (user == null)
+            if (user == null || !user.IsActive || user.IsDeleted || !user.EmailConfirmed)
                 return BadRequest(new { success = false, message = "Invalid request." });
 
             var result = await _userManager.ResetPasswordAsync(user, dto.Token, dto.NewPassword);
@@ -469,6 +479,8 @@ namespace EduOS.App.Controllers.Api
             if (dto.Address != null && !string.IsNullOrWhiteSpace(dto.Address) && !user.PersonId.HasValue)
                 return Conflict(new { success = false, message = "Link a verified person profile before updating an address." });
 
+            // Identity UserManager and address updates share EduOSDbContext; commit both atomically.
+            await using var transaction = await _db.Database.BeginTransactionAsync();
             user.FullName = dto.FullName.Trim();
             if (dto.PhoneNumber != null) user.PhoneNumber = string.IsNullOrWhiteSpace(dto.PhoneNumber) ? null : dto.PhoneNumber.Trim();
             if (dto.PhotoUrl != null) user.PhotoUrl = string.IsNullOrWhiteSpace(dto.PhotoUrl) ? null : dto.PhotoUrl.Trim();
@@ -505,6 +517,7 @@ namespace EduOS.App.Controllers.Api
             if (!result.Succeeded)
                 return BadRequest(new { success = false, message = string.Join(" | ", result.Errors.Select(x => x.Description)) });
             if (user.PersonId.HasValue) await _db.SaveChangesAsync();
+            await transaction.CommitAsync();
 
             return Ok(new
             {
@@ -548,12 +561,11 @@ namespace EduOS.App.Controllers.Api
             if (!result.Succeeded)
                 return BadRequest(new { success = false, message = string.Join(" | ", result.Errors.Select(x => x.Description)) });
 
-            user.UpdatedAt = DateTime.UtcNow;
-            await _userManager.UpdateAsync(user);
-            await _signInManager.RefreshSignInAsync(user);
-
+            // ChangePasswordAsync already updates the security stamp, invalidating old cookies.
+            // Never refresh a password-only session into an MFA-enabled account implicitly.
+            await _signInManager.SignOutAsync();
             _logger.LogInformation("Password changed successfully for user {UserId}", user.Id);
-            return Ok(new { success = true, message = "Password changed successfully." });
+            return Ok(new { success = true, message = "Password changed. Please sign in again.", redirectUrl = "/Account/Login" });
         }
 
         // ==================== Helpers ====================
