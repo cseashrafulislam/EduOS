@@ -1,0 +1,40 @@
+@{
+    ViewData["Title"] = "Student Leave Management";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<div id="studentLeavesApp" class="container-fluid py-4">
+    @Html.AntiForgeryToken()
+    <header class="mb-3"><h1 class="h4">Student Leave Management</h1><p class="text-muted">Applications, approval and attendance integration.</p></header>
+    <div id="leaveNotice" class="alert d-none" role="alert" aria-live="polite"></div>
+    <div class="row g-3">
+        <section class="col-lg-5">
+            <div class="card"><div class="card-body">
+                <h2 class="h5">Select enrolled student</h2>
+                <form id="leaveStudentSearch" class="input-group mb-3">
+                    <input id="leaveStudentTerm" class="form-control" maxlength="100" placeholder="Student name or code" required />
+                    <button type="submit" class="btn btn-outline-primary">Search</button>
+                </form>
+                <div id="leaveStudentResults" class="list-group mb-2"></div>
+                <p id="leaveStudentLabel" class="small text-muted"></p>
+                <h2 class="h5 mt-4">Submit student leave</h2>
+                <form id="leaveApplyForm" class="row g-3">
+                    <div class="col-md-6"><label for="leaveStart" class="form-label">From *</label><input id="leaveStart" type="date" class="form-control" required /></div>
+                    <div class="col-md-6"><label for="leaveEnd" class="form-label">To *</label><input id="leaveEnd" type="date" class="form-control" required /></div>
+                    <div class="col-12"><label for="leaveReason" class="form-label">Reason *</label><textarea id="leaveReason" class="form-control" maxlength="2000" rows="3" required></textarea></div>
+                    <div class="col-12"><button id="leaveSubmit" type="submit" class="btn btn-primary" disabled>Submit Leave</button></div>
+                </form>
+            </div></div>
+        </section>
+        <section class="col-lg-7">
+            <div class="card"><div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2"><h2 class="h5">Applications &amp; review</h2><button id="leaveRefresh" type="button" class="btn btn-outline-secondary btn-sm">Refresh</button></div>
+                <div class="mb-2"><label for="leaveFilter" class="form-label">Status</label><select id="leaveFilter" class="form-select"><option value="">All</option><option value="2">Submitted</option><option value="3">Approved</option><option value="4">Rejected</option></select></div>
+                <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Dates</th><th>Reason</th><th>State</th><th>Decision</th></tr></thead><tbody id="leaveRows"><tr><td colspan="4">Loading...</td></tr></tbody></table></div>
+                <div class="d-flex justify-content-between"><span id="leavePageText" class="small text-muted"></span><div class="btn-group"><button id="leavePrevious" type="button" class="btn btn-outline-secondary btn-sm">Previous</button><button id="leaveNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button></div></div>
+            </div></div>
+        </section>
+    </div>
+</div>
+@section Scripts {
+    <script src="~/js/attendance/student-leaves.js" asp-append-version="true"></script>
+}
