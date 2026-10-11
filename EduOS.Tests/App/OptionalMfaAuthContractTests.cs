@@ -114,6 +114,20 @@ public sealed class OptionalMfaAuthContractTests
     }
 
     [Fact]
+    public void Campus_login_rate_limit_is_separate_from_per_user_mfa_enrollment()
+    {
+        var rateLimiter = File.ReadAllText(Asset("RateLimiterExtensions.cs"));
+        var auth = File.ReadAllText(Asset("AuthController.cs"));
+        Assert.Contains("options.AddPolicy(\"LoginPolicy\"", rateLimiter);
+        Assert.Contains("options.AddPolicy(\"MfaPolicy\"", rateLimiter);
+        Assert.Contains("options.AddPolicy(\"MfaLoginPolicy\"", rateLimiter);
+        Assert.Contains("GetClientPartition(context)", rateLimiter);
+        Assert.Contains("GetIpPartition(context)", rateLimiter);
+        Assert.Contains("[EnableRateLimiting(\"MfaLoginPolicy\")]", auth);
+        Assert.Contains("[EnableRateLimiting(\"MfaPolicy\")]", auth);
+    }
+
+    [Fact]
     public void Profile_patch_does_not_reset_unrelated_language_preference()
     {
         var dto = new UpdateUserProfileRequestDto { FullName = "Example User" };
