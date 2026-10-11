@@ -13866,6 +13866,10 @@ namespace EduOS.Persistence.Migrations
                     b.HasIndex("TenantId", "TransactionId")
                         .IsUnique();
 
+                    b.HasIndex("InitiatedAt", "Id")
+                        .HasDatabaseName("IX_SubscriptionPayments_PlatformPending")
+                        .HasFilter("[IsDeleted] = 0 AND [PaymentMethod] = 2 AND [State] = 2");
+
                     b.ToTable("SubscriptionPayments", t =>
                         {
                             t.HasCheckConstraint("CK_SubscriptionPayment_Amount", "[Amount] > 0");
