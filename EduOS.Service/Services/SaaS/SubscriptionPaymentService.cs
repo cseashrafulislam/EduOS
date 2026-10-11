@@ -230,6 +230,9 @@ public sealed class SubscriptionPaymentService : ISubscriptionPaymentService
         if (original == null) return ApiResponse<SubscriptionPaymentDto>.ErrorResponse("Invoice not found.", 404);
         if (original.DueAmount != dto.Amount || original.State is InvoiceState.Paid or InvoiceState.Cancelled or InvoiceState.Refunded)
             return ApiResponse<SubscriptionPaymentDto>.ErrorResponse("Submitted amount must match the payable invoice balance.", 409);
+        // Allocate once outside the provider's retryable transaction delegate.
+        var requestId = Guid.NewGuid();
+        var transactionId = TransactionId("MAN", tenant, dto.InvoiceId);
         string? storageKey = null;
         try
         {
@@ -241,6 +244,19 @@ public sealed class SubscriptionPaymentService : ISubscriptionPaymentService
             // The uploaded private file is deleted if validation, a write or the commit fails.
             var response = await _uow.ExecuteInTransactionAsync(async token =>
             {
+                var previous = await _payments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.ClientRequestId == requestId, token);
+                if (previous != null)
+                {
+                    if (previous.SubscriptionInvoiceId != dto.InvoiceId || previous.Amount != dto.Amount ||
+                        previous.PaymentMethod != PaymentMethodType.BankTransfer)
+                        return ApiResponse<SubscriptionPaymentDto>.ErrorResponse("Payment request key conflicts with existing data.", 409);
+                    var invoiceNumber = await _invoices.GetQueryable().AsNoTracking()
+                        .Where(x => x.TenantId == tenant && x.Id == previous.SubscriptionInvoiceId)
+                        .Select(x => x.InvoiceNumber).FirstOrDefaultAsync(token);
+                    return ApiResponse<SubscriptionPaymentDto>.SuccessResponse(
+                        Map(previous, invoiceNumber ?? string.Empty), "Payment was already submitted for verification.");
+                }
                 var invoice = await _invoices.GetQueryable().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == dto.InvoiceId, token);
                 if (invoice == null || invoice.DueAmount != dto.Amount ||
@@ -264,8 +280,8 @@ public sealed class SubscriptionPaymentService : ISubscriptionPaymentService
                 await _uow.SaveChangesAsync(token);
                 var payment = new SubscriptionPayment
                 {
-                    TenantId = tenant, PublicId = Guid.NewGuid(), ClientRequestId = Guid.NewGuid(),
-                    SubscriptionInvoiceId = invoice.Id, TransactionId = TransactionId("MAN", tenant, invoice.Id),
+                    TenantId = tenant, PublicId = Guid.NewGuid(), ClientRequestId = requestId,
+                    SubscriptionInvoiceId = invoice.Id, TransactionId = transactionId,
                     PaymentMethod = PaymentMethodType.BankTransfer, Amount = dto.Amount, CurrencyCode = invoice.CurrencyCode,
                     State = PaymentState.AwaitingVerification, InitiatedAt = now,
                     PayerBankName = dto.PayerBankName.Trim(), DepositSlipNumber = dto.DepositSlipNumber.Trim(),
