@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.RateLimiting;
 
 namespace EduOS.App.Controllers.Api;
 
-[Authorize(Roles = "TenantAdmin,Principal,Registrar")]
+[Authorize(Roles = "TenantAdmin")]
 [RequireModule("STUDENT")]
 [AutoValidateAntiforgeryToken]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
