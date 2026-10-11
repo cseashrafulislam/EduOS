@@ -10,6 +10,7 @@
     let selectedPlanId = null;
     let selectedCycle = 1;
     let pendingRequestId = null;
+    let existingSubscription = null;
 
     document.addEventListener('DOMContentLoaded', initialize, { once: true });
 
@@ -38,6 +39,27 @@
             }
 
             showAlert('info', i18n.recovering);
+            if ([1, 2, 3].includes(Number(payload.data.state))) {
+                const onboardingResponse = await fetch('/api/onboarding/status', {
+                    cache: 'no-store', credentials: 'same-origin',
+                    headers: { 'Accept': 'application/json' }
+                });
+                const onboardingPayload = await onboardingResponse.json().catch(() => null);
+                if (!onboardingResponse.ok || !onboardingPayload?.success || !onboardingPayload.data)
+                    throw new Error('Onboarding status unavailable');
+                if (onboardingPayload.data.isComplete) {
+                    existingSubscription = payload.data;
+                    selectedPlanId = positiveInteger(existingSubscription.subscriptionPlanId);
+                    const name = String(existingSubscription.planName || '');
+                    const expiry = formatExpiry(existingSubscription.endsAt);
+                    showAlert('info', template(i18n.currentPlanReadOnly, { name, date: expiry }));
+                    document.getElementById('planDashboardLink')?.classList.remove('d-none');
+                    continueButton.textContent = i18n.currentPlanSelected || i18n.selected || '';
+                    continueButton.disabled = true;
+                    await loadPlans();
+                    return true;
+                }
+            }
             if (Number(payload.data.state) === 7) {
                 const invoiceId = await findPendingInvoice();
                 if (invoiceId) {
@@ -130,6 +152,7 @@
             choose.dataset.planName = localizedName;
             choose.setAttribute('aria-pressed', String(Number(plan.id) === selectedPlanId));
             choose.setAttribute('aria-label', template(i18n.selectPlanTemplate, { name: localizedName }));
+            choose.disabled = Boolean(existingSubscription);
             choose.textContent = Number(plan.id) === selectedPlanId
                 ? i18n.selected || ''
                 : template(i18n.selectPlanTemplate, { name: localizedName });
@@ -191,7 +214,7 @@
     }
 
     function selectPlan(planId) {
-        if (!positiveInteger(planId)) return;
+        if (existingSubscription || !positiveInteger(planId)) return;
         selectedPlanId = planId;
         continueButton.disabled = false;
         plansGrid.querySelectorAll('.plan-selection-card').forEach(card => {
@@ -221,7 +244,7 @@
     }
 
     async function createSubscription() {
-        if (!selectedPlanId) return;
+        if (existingSubscription || !selectedPlanId) return;
         setLoading(continueButton, true);
         try {
             const response = await fetch('/api/subscription', {
@@ -326,6 +349,14 @@
         return Number(({ 1: monthly, 2: monthly * 3, 3: monthly * 6, 4: plan.yearlyPrice })[cycle] || 0);
     }
 
+    function formatExpiry(value) {
+        const raw = String(value || '');
+        const iso = /(?:Z|[+-]\\d{2}:\\d{2})$/i.test(raw) ? raw : raw + 'Z';
+        const date = new Date(iso);
+        return Number.isNaN(date.getTime()) ? raw :
+            date.toLocaleDateString(i18n.culture || 'en-BD');
+    }
+
     function formatMoney(value, currency) {
         const amount = Number(value || 0);
         if (String(currency || 'BDT').toUpperCase() === 'BDT') {
@@ -381,7 +412,7 @@
 
     function setLoading(button, loading) {
         if (!button) return;
-        button.disabled = loading || !selectedPlanId;
+        button.disabled = loading || !selectedPlanId || Boolean(existingSubscription);
         button.replaceChildren();
         if (loading) {
             const spinner = document.createElement('span');
@@ -389,7 +420,9 @@
             spinner.setAttribute('aria-hidden', 'true');
             button.append(spinner, button.dataset.loadingLabel || i18n.processing || '');
         } else {
-            button.textContent = button.dataset.idleLabel || i18n.continueLabel || '';
+            button.textContent = existingSubscription
+                ? i18n.currentPlanSelected || i18n.selected || ''
+                : button.dataset.idleLabel || i18n.continueLabel || '';
         }
     }
 })();
