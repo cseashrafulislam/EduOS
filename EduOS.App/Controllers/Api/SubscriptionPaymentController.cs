@@ -166,9 +166,10 @@ namespace EduOS.App.Controllers.Api
 
         [Authorize(Roles = "SuperAdmin")]
         [HttpGet("admin/pending-verifications")]
-        public async Task<IActionResult> GetPendingVerifications([FromQuery] int page = 1, [FromQuery] int pageSize = 25)
+        public async Task<IActionResult> GetPendingVerifications([FromQuery] int page = 1, [FromQuery] int pageSize = 25,
+            [FromQuery] string? search = null)
         {
-            var result = await _paymentService.GetPendingManualVerificationsAsync(page, pageSize);
+            var result = await _paymentService.GetPendingManualVerificationsAsync(page, pageSize, search);
             return StatusCode(result.StatusCode, result);
         }
 
