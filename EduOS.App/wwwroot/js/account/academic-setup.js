@@ -46,7 +46,7 @@
         try {
             const response = await sendJson('/api/institution-onboarding/academic-year', 'POST', data);
             if (!response.ok) {
-                showAlert('danger', i18n.saveFailed);
+                showAlert('danger', responseMessage(response, i18n.saveFailed));
                 return;
             }
             closeModal(yearModal);
@@ -73,10 +73,8 @@
         let valid = true;
         if (!data.academicYearId) valid = showError('termYearId', i18n.selectYearFirst);
         if (!data.name) valid = showError('termName', i18n.termNameRequired);
-        if (!data.startDate || !data.endDate) valid = showError('termStartDate', i18n.bothTermDates);
-        if (Boolean(data.startDate) !== Boolean(data.endDate)) {
-            valid = showError(data.startDate ? 'termEndDate' : 'termStartDate', i18n.bothTermDates);
-        }
+        if (!data.startDate) valid = showError('termStartDate', i18n.startDateRequired);
+        if (!data.endDate) valid = showError('termEndDate', i18n.endDateRequired);
         if (data.startDate && data.endDate && data.startDate >= data.endDate) {
             valid = showError('termEndDate', i18n.endAfterStart);
         }
@@ -87,7 +85,7 @@
         try {
             const response = await sendJson('/api/institution-onboarding/academic-term', 'POST', data);
             if (!response.ok) {
-                showAlert('danger', i18n.saveFailed);
+                showAlert('danger', responseMessage(response, i18n.saveFailed));
                 return;
             }
             closeModal(termModal);
@@ -302,7 +300,7 @@
         try {
             const response = await sendJson(url, 'DELETE');
             if (!response.ok) {
-                showAlert('danger', i18n.deleteFailed);
+                showAlert('danger', responseMessage(response, i18n.deleteFailed));
                 return;
             }
             await loadAcademicStructure();
@@ -317,7 +315,7 @@
         try {
             const response = await sendJson('/api/onboarding/complete-step', 'POST', { stage: 6, skipped: false });
             if (!response.ok) {
-                showAlert('danger', i18n.stepFailed);
+                showAlert('danger', responseMessage(response, i18n.stepFailed));
                 return;
             }
             window.location.assign('/Account/ModuleSetup');
@@ -335,7 +333,8 @@
             headers: { 'Accept': 'application/json' }
         });
         const payload = await response.json().catch(() => null);
-        return { ok: response.ok && Boolean(payload?.success), data: payload?.data };
+        return { ok: response.ok && Boolean(payload?.success), status: response.status,
+            data: payload?.data, message: payload?.message, errors: payload?.errors };
     }
 
     async function sendJson(url, method, data) {
@@ -352,7 +351,17 @@
         }
         const response = await fetch(url, options);
         const payload = await response.json().catch(() => null);
-        return { ok: response.ok && Boolean(payload?.success), data: payload?.data };
+        return { ok: response.ok && Boolean(payload?.success), status: response.status,
+            data: payload?.data, message: payload?.message, errors: payload?.errors };
+    }
+
+    function responseMessage(result, fallback) {
+        if (result?.errors && typeof result.errors === 'object') {
+            const messages = Object.values(result.errors).flat().filter(x => typeof x === 'string' && x.trim());
+            if (messages.length) return messages.slice(0, 3).join(' ');
+        }
+        return typeof result?.message === 'string' && result.message.trim()
+            ? result.message.trim() : fallback;
     }
 
     function openModal(element) {
