@@ -276,6 +276,10 @@ public sealed class HostelCanonicalEligibilityTests
         public Task<TResult> ExecuteInTransactionAsync<TResult>(
             Func<CancellationToken, Task<TResult>> operation, CancellationToken cancellationToken = default) =>
             operation(cancellationToken);
+        // Test-only EF InMemory provider has no relational isolation level.
+        public Task<TResult> ExecuteInTransactionAsync<TResult>(
+            Func<CancellationToken, Task<TResult>> operation, System.Data.IsolationLevel isolationLevel,
+            CancellationToken cancellationToken = default) => operation(cancellationToken);
 
         public void Dispose() { }
     }
