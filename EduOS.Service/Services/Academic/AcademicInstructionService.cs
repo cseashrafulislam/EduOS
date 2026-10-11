@@ -88,12 +88,21 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
         }
         var teacherId = !IsManager() ? await GetLinkedTeacherIdAsync(ct) : null;
         if (!IsManager() && !teacherId.HasValue) return Denied<IReadOnlyList<SubstitutionDto>>();
+        if (!IsManager())
+        {
+            var assignedRoutineIds = from routine in _routineEntries.GetQueryable().AsNoTracking()
+                join assignment in _instructorAssignments.GetQueryable().AsNoTracking()
+                    on routine.InstructorAssignmentId equals (long?)assignment.Id
+                where routine.TenantId == tenant && assignment.TenantId == tenant &&
+                    assignment.EmployeeId == teacherId!.Value
+                select routine.Id;
+            q = q.Where(x => x.SubstituteEmployeeId == teacherId!.Value ||
+                assignedRoutineIds.Contains(x.RoutineEntryId));
+        }
+        // Apply the tenant and teacher access filters BEFORE bounding the query.
         var rows = await q.OrderByDescending(x => x.Date).ThenByDescending(x => x.Id)
             .Take(500).ToListAsync(ct);
         var context = await LoadRoutineContextAsync(rows.Select(x => x.RoutineEntryId), ct);
-        if (!IsManager())
-            rows = rows.Where(x => x.SubstituteEmployeeId == teacherId ||
-                context.TryGetValue(x.RoutineEntryId, out var info) && info.OriginalEmployeeId == teacherId).ToList();
         var ids2 = rows.Select(x => x.SubstituteEmployeeId).Distinct().ToArray();
         var names = await _employees.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == tenant && ids2.Contains(x.Id))
