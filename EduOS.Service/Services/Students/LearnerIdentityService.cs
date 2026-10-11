@@ -137,7 +137,20 @@ public sealed class LearnerIdentityService : ILearnerIdentityService
         }
         catch (LearnerIdentityProtectionException ex)
         {
+            // No Person exists yet. Record only the tenant, student and reason;
+            // never persist or log the supplied government identifier.
             _logger.LogError(ex, "Learner identity protection is unavailable for tenant {TenantId}", _currentUser.TenantId);
+            try
+            {
+                await AddAccessLogAsync(null, student.Id, null, "RegisterOrLink",
+                    "Denied", purpose.Value, "PROTECTION_NOT_CONFIGURED");
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+            catch (Exception auditEx) when (auditEx is not OperationCanceledException)
+            {
+                _logger.LogError(auditEx,
+                    "Learner identity failure audit could not be stored for tenant {TenantId}", _currentUser.TenantId);
+            }
             return Error("Learner identity protection is temporarily unavailable.", 503);
         }
         catch (DbUpdateConcurrencyException ex)
@@ -379,7 +392,7 @@ public sealed class LearnerIdentityService : ILearnerIdentityService
     }
 
     private Task AddAccessLogAsync(
-        long personId,
+        long? personId,
         long studentId,
         long? consentRequestId,
         string action,
