@@ -209,7 +209,12 @@ public class LocalizationAndPwaContractTests
         planScript.Should().Contain("RequestVerificationToken");
         paymentScript.Should().Contain("manual-instructions");
         paymentScript.Should().Contain("trustedGatewayUrl");
-        paymentScript.Should().NotContain("/api/onboarding/complete-step");
+        // Paid bank transfers must advance through the canonical server-validated stage
+        // after verification; the payment screen must not bypass antiforgery or stage checks.
+        paymentScript.Should().Contain("/api/onboarding/status");
+        paymentScript.Should().Contain("/api/onboarding/complete-step");
+        paymentScript.Should().Contain("JSON.stringify({ stage: 4, skipped: false })");
+        paymentScript.Should().Contain("RequestVerificationToken");
     }
 
     [Fact]
