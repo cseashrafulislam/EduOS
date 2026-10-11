@@ -179,7 +179,8 @@ public class SelfServicePortalServiceTests
         var result = await CreateService(context, new TestCurrentUser(10, 99, "Student")).GetTimetableAsync(student.PublicId);
         result.Success.Should().BeTrue();
         result.Data.Should().HaveCount(2);
-        result.Data!.Select(x => x.DayOfWeek).Should().ContainInOrder(DayOfWeek.Saturday, DayOfWeek.Sunday);
+        // DayOfWeek's documented numeric order is Sunday=0 through Saturday=6.
+        result.Data!.Select(x => x.DayOfWeek).Should().ContainInOrder(DayOfWeek.Sunday, DayOfWeek.Saturday);
         result.Data[0].TeacherName.Should().Be("Teacher");
     }
 
