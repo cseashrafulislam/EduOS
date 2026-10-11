@@ -13,10 +13,12 @@ namespace EduOS.App.Extensions
             {
                 // Every policy is partitioned. A non-partitioned limiter would make
                 // one busy client consume the quota for the entire application.
+                // Shared school/campus NATs may have many independent users signing in
+                // together. The per-account Identity lockout still limits guessing.
                 options.AddPolicy("LoginPolicy", context =>
                     RateLimitPartition.GetFixedWindowLimiter(
-                        GetClientPartition(context),
-                        _ => CreateOptions(5, TimeSpan.FromMinutes(1))));
+                        GetIpPartition(context),
+                        _ => CreateOptions(120, TimeSpan.FromMinutes(1))));
 
                 // Signup - prevent spam (3 per 5 minutes per IP)
                 options.AddPolicy("SignupPolicy", context =>
@@ -48,10 +50,18 @@ namespace EduOS.App.Extensions
                         GetClientPartition(context),
                         _ => CreateOptions(30, TimeSpan.FromMinutes(1), 5)));
 
+                // Authenticated enrollment/configuration stays limited per account.
                 options.AddPolicy("MfaPolicy", context =>
                     RateLimitPartition.GetFixedWindowLimiter(
-                        GetIpPartition(context),
+                        GetClientPartition(context),
                         _ => CreateOptions(5, TimeSpan.FromMinutes(1))));
+
+                // Anonymous challenge completion has its own per-IP budget; invalid
+                // codes are additionally limited by each user's Identity lockout.
+                options.AddPolicy("MfaLoginPolicy", context =>
+                    RateLimitPartition.GetFixedWindowLimiter(
+                        GetIpPartition(context),
+                        _ => CreateOptions(120, TimeSpan.FromMinutes(1))));
 
                 // Payment callback - more lenient (gateway may retry)
                 options.AddPolicy("PaymentCallbackPolicy", context =>
