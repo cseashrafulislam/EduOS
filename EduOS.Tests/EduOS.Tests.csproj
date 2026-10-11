@@ -47,6 +47,7 @@
     <None Include="..\EduOS.App\Views\Account\GatewaySetup.cshtml" Link="TestAssets\GatewaySetup.cshtml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Views\Account\PlanSelection.cshtml" Link="TestAssets\PlanSelection.cshtml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Views\Account\Payment.cshtml" Link="TestAssets\Payment.cshtml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\wwwroot\js\account\payment.js" Link="TestAssets\payment.js" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Views\Pricing\Index.cshtml" Link="TestAssets\Pricing.cshtml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Views\Dashboard\Index.cshtml" Link="TestAssets\Dashboard.cshtml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Views\Dashboard\Admin.cshtml" Link="TestAssets\AdminDashboard.cshtml" CopyToOutputDirectory="PreserveNewest" />
