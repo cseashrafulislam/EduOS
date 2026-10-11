@@ -151,7 +151,7 @@ public sealed class SqlServerManualPaymentIntegrationTests
         Assert.Equal(409, (await admin.GetDepositSlipAsync(payment.Id)).StatusCode);
         Assert.Equal(409, (await admin.VerifyManualPaymentAsync(new VerifyManualPaymentDto
         {
-            PaymentId = payment.Id, Approve = true, RowVersion = payment.RowVersion
+            PaymentId = payment.Id, Approve = true, BankCreditConfirmed = true, RowVersion = payment.RowVersion
         })).StatusCode);
         Assert.Equal(503, (await admin.ScanDepositSlipAsync(payment.Id)).StatusCode);
         storage.Setup(x => x.ScanPrivateForMalwareAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -167,7 +167,7 @@ public sealed class SqlServerManualPaymentIntegrationTests
         Assert.True(verified.Success, verified.Message);
         Assert.Equal(409, (await admin.VerifyManualPaymentAsync(new VerifyManualPaymentDto
         {
-            PaymentId = payment.Id, Approve = true, RowVersion = payment.RowVersion
+            PaymentId = payment.Id, Approve = true, BankCreditConfirmed = true, RowVersion = payment.RowVersion
         })).StatusCode);
         adminDb.ChangeTracker.Clear();
         var posted = await adminDb.SubscriptionPayments.IgnoreQueryFilters().AsNoTracking()
