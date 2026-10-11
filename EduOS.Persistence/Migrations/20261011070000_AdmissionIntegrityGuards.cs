@@ -59,10 +59,21 @@ public partial class AdmissionIntegrityGuards : Migration
             name: "CK_AdmissionApplicantDocuments_Version",
             table: "AdmissionApplicantDocuments",
             sql: "[VersionNo] >= 1");
+
+        // The new unique index covers queries filtered by TenantId and applicant.
+        migrationBuilder.DropIndex(
+            name: "IX_AdmissionApplicantDocuments_TenantId_AdmissionApplicantId",
+            table: "AdmissionApplicantDocuments");
     }
 
     protected override void Down(MigrationBuilder migrationBuilder)
     {
+        migrationBuilder.CreateIndex(
+            name: "IX_AdmissionApplicantDocuments_TenantId_AdmissionApplicantId",
+            table: "AdmissionApplicantDocuments",
+            columns: new[] { "TenantId", "AdmissionApplicantId" });
+
+
         migrationBuilder.DropCheckConstraint(
             name: "CK_AdmissionApplicantDocuments_Version",
             table: "AdmissionApplicantDocuments");
