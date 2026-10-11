@@ -59,11 +59,11 @@ async function run() {
         await page.locator('#enrollmentStudentResults button').first().click();
         await page.waitForFunction(() =>
             document.querySelector('#enrollmentCurrent')?.textContent.includes('No current enrollment'));
-        await page.locator('#enrollmentBatch option[value="80"]').waitFor();
+        await page.locator('#enrollmentBatch option[value="80"]').waitFor({ state: 'attached' });
         await page.locator('#enrollmentBatch').selectOption('80');
         await page.locator('#enrollmentDate').fill('2026-09-21');
         await page.locator('#enrollmentRoll').fill('09');
-        await page.locator('#enrollmentCurriculum option[value="70"]').waitFor();
+        await page.locator('#enrollmentCurriculum option[value="70"]').waitFor({ state: 'attached' });
         await page.locator('#enrollmentCurriculum').selectOption('70');
         await page.locator('#enrollmentSubmit').click();
         await page.waitForFunction(() => document.querySelector('#enrollmentNotice')?.textContent.includes('Temporary failure'));
