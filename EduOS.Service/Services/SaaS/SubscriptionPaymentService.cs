@@ -481,6 +481,11 @@ public sealed class SubscriptionPaymentService : ISubscriptionPaymentService
                         payment.Amount <= 0 || payment.Amount > invoice.DueAmount)
                         return ApiResponse<bool>.ErrorResponse("Invoice balance cannot accept the payment.", 409);
                 }
+                // Platform lookups are AsNoTracking. Attach the original rows BEFORE setting
+                // Successful/Paid, otherwise the immutable-history guard sees the new state
+                // as the original state and incorrectly rejects the first legitimate posting.
+                _payments.Update(payment);
+                if (dto.Approve) _invoices.Update(invoice);
                 var now = DateTime.UtcNow;
                 payment.VerifiedAt = now; payment.VerifiedByUserId = _user.UserId;
                 payment.VerificationNote = dto.VerificationNote?.Trim(); payment.UpdatedAt = now;
@@ -498,8 +503,6 @@ public sealed class SubscriptionPaymentService : ISubscriptionPaymentService
                     payment.State = PaymentState.Failed;
                     payment.FailureReason = payment.VerificationNote;
                 }
-                _payments.Update(payment);
-                if (dto.Approve) _invoices.Update(invoice);
                 await _uow.SaveChangesAsync(token);
                 if (dto.Approve && invoice.State == InvoiceState.Paid)
                     await ActivatePaidSubscriptionAsync(invoice);
