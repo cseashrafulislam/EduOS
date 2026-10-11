@@ -240,7 +240,7 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
         if (id is <= 0 || request == null || !ValidName(request.Name, 100) ||
             !ValidCode(request.Code, 30) || request.CampusId is <= 0 ||
             request.StartDate == default || request.EndDate <= request.StartDate ||
-            !Enum.IsDefined(request.CycleType))
+            !Enum.IsDefined(request.CycleType) || (request.IsCurrent && !request.IsActive))
             return Task.FromResult(Error<AcademicYearDto>("Invalid academic year definition."));
         return WriteAsync("save academic year", async token =>
         {
@@ -255,7 +255,7 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
                 return Error<AcademicYearDto>("Academic year changed. Reload and retry.", 409);
             var code = request.Code.Trim().ToUpperInvariant();
             if (await _years.GetQueryable().AsNoTracking().AnyAsync(x =>
-                x.TenantId == tenant && x.Code == code && x.CampusId == request.CampusId &&
+                x.TenantId == tenant && x.Code == code &&
                 !x.IsDeleted && (!id.HasValue || x.Id != id.Value), token))
                 return Error<AcademicYearDto>("Academic year code already in use.", 409);
             if (row != null &&
@@ -278,6 +278,9 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
                     existing.IsCurrent = false; existing.UpdatedAt = now;
                     existing.UpdatedBy = _user.UserId; _years.Update(existing);
                 }
+                // Clear the filtered unique current-year key before assigning the new one.
+                // Both saves are enclosed by the same WriteAsync transaction.
+                if (others.Count > 0) await _uow.SaveChangesAsync(token);
             }
             if (row == null)
             {
@@ -357,7 +360,8 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
         if (!CanManage()) return Task.FromResult(Error<AcademicTermDto>("Tenant administrator required.", 403));
         if (id is <= 0 || request == null || request.AcademicYearId <= 0 ||
             !ValidName(request.Name, 100) || request.Code?.Length > 30 ||
-            request.StartDate == default || request.EndDate <= request.StartDate || request.DisplayOrder < 0)
+            request.StartDate == default || request.EndDate <= request.StartDate || request.DisplayOrder < 0 ||
+            (request.IsCurrent && !request.IsActive))
             return Task.FromResult(Error<AcademicTermDto>("Invalid academic term definition."));
         return WriteAsync("save academic term", async token =>
         {
@@ -399,6 +403,8 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
                     other.IsCurrent = false; other.UpdatedAt = now;
                     other.UpdatedBy = _user.UserId; _terms.Update(other);
                 }
+                // Release the filtered current-term key before assigning its replacement.
+                if (others.Count > 0) await _uow.SaveChangesAsync(token);
             }
             if (row == null)
             {
