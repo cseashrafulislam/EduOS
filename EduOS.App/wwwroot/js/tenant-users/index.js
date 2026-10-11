@@ -90,7 +90,9 @@
             const actions = document.createElement('td');
             const button = textNode('button', 'Manage', 'btn btn-outline-primary btn-sm');
             button.type = 'button';
-            button.addEventListener('click', () => { state.selected = member; renderMemberEditor(); });
+            button.addEventListener('click', () => {
+                state.selected = member; renderMemberEditor(); loadMemberCampuses(member);
+            });
             actions.append(button); tr.append(actions); tbody.append(tr);
         });
         $('memberCount').textContent = 'Page ' + state.page + ' • ' + state.total + ' members';
@@ -114,6 +116,29 @@
         $('memberStatusSelect').disabled = member.isOwner;
         $('saveMemberStatus').disabled = member.isOwner;
         $('memberEditor').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    async function loadMemberCampuses(member) {
+        const options = $('memberCampusOptions');
+        options.textContent = 'Loading campus access...';
+        try {
+            const campuses = await request('/' + member.membershipId + '/campuses');
+            if (state.selected?.membershipId !== member.membershipId) return;
+            options.replaceChildren();
+            campuses.forEach(campus => {
+                const cell = document.createElement('div');
+                cell.className = 'col-md-4';
+                cell.append(checkbox(campus.id, campus.name, campus.isSelected));
+                options.append(cell);
+            });
+            const select = $('memberDefaultCampus');
+            select.replaceChildren(new Option('No default campus', ''));
+            campuses.forEach(campus => select.append(new Option(campus.name, String(campus.id))));
+            select.value = String(campuses.find(x => x.isDefault)?.id || '');
+        } catch (error) {
+            options.textContent = 'Unable to load campus access.';
+            message(error.message, true);
+        }
     }
 
     function renderPermissions() {
@@ -198,6 +223,30 @@
             await loadMembers(); message('Roles saved. The user must sign in again.');
         });
     });
+    $('saveMemberCampuses').addEventListener('click', async e => {
+        if (!state.selected) return;
+        const campuses = [...$('memberCampusOptions').querySelectorAll('input:checked')]
+            .map(x => Number(x.value));
+        const selectedDefault = $('memberDefaultCampus').value;
+        const defaultCampusId = selectedDefault ? Number(selectedDefault) : null;
+        if (defaultCampusId !== null && !campuses.includes(defaultCampusId)) {
+            message('Default campus must be among the allowed campuses.', true);
+            return;
+        }
+        await submit(e.currentTarget, async () => {
+            await request('/' + state.selected.membershipId + '/campuses', {
+                method: 'PUT', body: JSON.stringify({
+                    campusIds: campuses,
+                    defaultCampusId,
+                    rowVersion: state.selected.rowVersion
+                })
+            });
+            state.selected = null; $('memberEditor').classList.add('d-none');
+            await loadMembers();
+            message('Campus access saved. The user must sign in again.');
+        });
+    });
+
     $('saveMemberStatus').addEventListener('click', async e => {
         if (!state.selected || state.selected.isOwner) return;
         const status = Number($('memberStatusSelect').value);
