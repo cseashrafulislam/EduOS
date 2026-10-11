@@ -287,6 +287,8 @@
 
         if (verificationNote)
             verificationNote.value = payment.verificationNote || '';
+        const confirmation = document.getElementById('bankCreditConfirmed');
+        if (confirmation) confirmation.checked = false;
 
         reviewEmpty?.classList.add('d-none');
         reviewPanel?.classList.remove('d-none');
@@ -337,6 +339,10 @@
     }
 
     async function verifyPayment(approve) {
+        if (approve && !document.getElementById('bankCreditConfirmed')?.checked) {
+            showAlert('danger', 'Confirm the actual bank credit before approving.');
+            return;
+        }
         if (approve && selectedPayment && !selectedPayment.receiptIsVerifiedSafe) {
             showAlert('danger', 'Verify receipt safety before approving this payment.');
             return;
@@ -405,6 +411,7 @@
                 body: JSON.stringify({
                     paymentId,
                     approve,
+                    bankCreditConfirmed: approve ? document.getElementById('bankCreditConfirmed')?.checked === true : false,
                     rowVersion: selectedPayment.rowVersion,
                     verificationNote: note || null
                 })
@@ -508,6 +515,8 @@
 
         if (verificationNote)
             verificationNote.value = '';
+        const confirmation = document.getElementById('bankCreditConfirmed');
+        if (confirmation) confirmation.checked = false;
 
         reviewPanel?.classList.add('d-none');
         reviewEmpty?.classList.remove('d-none');
