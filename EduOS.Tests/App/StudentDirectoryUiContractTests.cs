@@ -15,6 +15,8 @@ public sealed class StudentDirectoryUiContractTests
         source.Should().Contain("x.academicLevelName");
         source.Should().Contain("x.academicBatchName");
         source.Should().Contain("x.rollNo");
+        source.Should().Contain("data-student-promotion-link");
+        source.Should().Contain("studentReference=");
         source.Should().NotContain("line(i18n.roll, item.roll)");
         source.Should().NotContain("x.academicUnit, x.section, x.group, x.roll");
     }

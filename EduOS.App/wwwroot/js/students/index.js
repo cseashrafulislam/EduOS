@@ -63,6 +63,15 @@
             card.append(heading, line(i18n.studentCode, item.studentCode), line(i18n.roll, item.rollNo),
                 line(i18n.academicUnit, [item.academicLevelName, item.academicBatchName, item.academicYear].filter(Boolean).join(' · ')),
                 line(i18n.fullContact, item.maskedMobile), button);
+            const promotionLink = document.querySelector('[data-student-promotion-link]');
+            if (promotionLink && item.status === 'Active') {
+                const promote = document.createElement('a');
+                promote.className = 'btn btn-sm btn-outline-secondary';
+                promote.href = promotionLink.href + (promotionLink.href.includes('?') ? '&' : '?') +
+                    'studentReference=' + encodeURIComponent(item.reference);
+                promote.textContent = 'Promote / Repeat';
+                card.append(promote);
+            }
             return card;
         }));
     }

@@ -38,7 +38,7 @@
         </div>
         @if (User.IsInRole("TenantAdmin"))
         {
-            <a class="btn btn-outline-primary" asp-controller="StudentProgressions" asp-action="Index">Promotion / Repeat</a>
+            <a class="btn btn-outline-primary" data-student-promotion-link asp-controller="StudentProgressions" asp-action="Index">Promotion / Repeat</a>
         }
     </header>
 
