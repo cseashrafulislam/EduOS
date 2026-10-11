@@ -17,7 +17,10 @@ public sealed partial class CommunicationAdministrationService
         if (!CanManage()) return ApiResponse<CommunicationGatewayDto>.ErrorResponse("Tenant administrator required.", 403);
         if (request == null || string.IsNullOrWhiteSpace(request.ProviderCode) || request.ProviderCode.Trim().Length > 100
             || !ValidChannel(request.Channel) || request.Endpoint?.Length > 1000 || request.Credential?.Length > 4000
-            || (request.ClearCredential && !string.IsNullOrEmpty(request.Credential)))
+            || request.SmsSenderId?.Length > 20 || request.SmtpHost?.Length > 253 ||
+            request.SmtpUsername?.Length > 320 || request.FromEmail?.Length > 320 ||
+            request.FromName?.Length > 150 ||
+            (request.ClearCredential && !string.IsNullOrEmpty(request.Credential)))
             return ApiResponse<CommunicationGatewayDto>.ErrorResponse("Invalid gateway.");
         if (!string.IsNullOrWhiteSpace(request.Endpoint) && !IsPublicHttpsEndpoint(request.Endpoint))
             return ApiResponse<CommunicationGatewayDto>.ErrorResponse("A public HTTPS endpoint is required.");
