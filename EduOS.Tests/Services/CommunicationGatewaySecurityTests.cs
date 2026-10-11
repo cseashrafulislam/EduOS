@@ -50,6 +50,10 @@ public sealed class CommunicationGatewaySecurityTests
         public Task<int> SaveChangesAsync(CancellationToken ct = default) => db.SaveChangesAsync(ct);
         public Task<T> ExecuteInTransactionAsync<T>(Func<CancellationToken, Task<T>> operation,
             CancellationToken ct = default) => operation(ct);
+        // Test-only EF InMemory provider has no relational isolation level.
+        public Task<TResult> ExecuteInTransactionAsync<TResult>(
+            Func<CancellationToken, Task<TResult>> operation, System.Data.IsolationLevel isolationLevel,
+            CancellationToken cancellationToken = default) => operation(cancellationToken);
     }
     private sealed class User(long tenant) : ICurrentUserService
     {
