@@ -109,6 +109,60 @@ public sealed class AdmissionAssessmentServiceTests
         persisted.Single(x => x.AdmissionApplicantId == failed.Id).MeritPosition.Should().BeNull();
     }
 
+
+    [Theory]
+    [InlineData(AdmissionApplicantState.Draft)]
+    [InlineData(AdmissionApplicantState.Withdrawn)]
+    public async Task Draft_and_withdrawn_applicants_cannot_receive_marks(AdmissionApplicantState state)
+    {
+        var options = Options();
+        await using var db = Context(options, 101);
+        var scope = await SeedAsync(db, 101);
+        var applicant = await ApplicantAsync(db, scope.FormId, 101, "Ineligible");
+        applicant.State = state;
+        await db.SaveChangesAsync();
+        var service = Service(db, new TestUser(101));
+        var test = await service.CreateTestAsync(Request(scope));
+        var saved = await service.SaveResultsAsync(test.Data!.Id, new SaveAdmissionResultsDto
+        {
+            Results = [new SaveAdmissionResultItemDto { ApplicantId = applicant.Id, ObtainedMarks = 90m }]
+        });
+        saved.StatusCode.Should().Be(409);
+        (await db.Set<AdmissionResult>().AnyAsync()).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Publication_excludes_withdrawn_applicants_but_preserves_their_stored_marks()
+    {
+        var options = Options();
+        await using var db = Context(options, 101);
+        var scope = await SeedAsync(db, 101);
+        var eligible = await ApplicantAsync(db, scope.FormId, 101, "Eligible");
+        var withdrawn = await ApplicantAsync(db, scope.FormId, 101, "Withdrawn");
+        var service = Service(db, new TestUser(101));
+        var test = await service.CreateTestAsync(Request(scope));
+        var saved = await service.SaveResultsAsync(test.Data!.Id, new SaveAdmissionResultsDto
+        {
+            Results = [
+                new SaveAdmissionResultItemDto { ApplicantId = eligible.Id, ObtainedMarks = 75m },
+                new SaveAdmissionResultItemDto { ApplicantId = withdrawn.Id, ObtainedMarks = 95m }
+            ]
+        });
+        saved.Success.Should().BeTrue(saved.Message);
+        withdrawn.State = AdmissionApplicantState.Withdrawn;
+        await db.SaveChangesAsync();
+        var preview = await service.GetMeritListAsync(test.Data.Id);
+        preview.Data!.Results.Should().ContainSingle(x => x.AdmissionApplicantReference == eligible.PublicId);
+        var published = await service.PublishMeritListAsync(test.Data.Id);
+        published.Success.Should().BeTrue(published.Message);
+        published.Data!.Results.Should().ContainSingle(x => x.AdmissionApplicantReference == eligible.PublicId);
+        published.Data.Results.Single().MeritPosition.Should().Be(1);
+        var historical = await db.Set<AdmissionResult>().AsNoTracking()
+            .SingleAsync(x => x.AdmissionTestId == test.Data.Id && x.AdmissionApplicantId == withdrawn.Id);
+        historical.ObtainedMarks.Should().Be(95m);
+        historical.MeritPosition.Should().BeNull();
+    }
+
     [Fact]
     public async Task Other_tenant_cannot_access_merit_list()
     {

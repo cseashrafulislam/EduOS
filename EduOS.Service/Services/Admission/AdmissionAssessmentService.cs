@@ -214,7 +214,8 @@ public sealed class AdmissionAssessmentService : IAdmissionAssessmentService
                 return ApiResponse<IReadOnlyList<AdmissionResultDto>>.ErrorResponse("Marks are outside the valid range.");
             var ids = request.Results.Select(x => x.ApplicantId).ToArray();
             var validCount = await _applicants.GetQueryable().AsNoTracking().CountAsync(x => x.TenantId == tenant &&
-                x.AdmissionIntakeFormId == test.AdmissionIntakeFormId && ids.Contains(x.Id), cancellationToken);
+                x.AdmissionIntakeFormId == test.AdmissionIntakeFormId && ids.Contains(x.Id) &&
+                x.State != AdmissionApplicantState.Draft && x.State != AdmissionApplicantState.Withdrawn, cancellationToken);
             if (validCount != ids.Length)
                 return ApiResponse<IReadOnlyList<AdmissionResultDto>>.ErrorResponse("Every applicant must belong to the same admission form.", 409);
             var existing = await _results.GetQueryable().Where(x => x.TenantId == tenant &&
@@ -302,7 +303,8 @@ public sealed class AdmissionAssessmentService : IAdmissionAssessmentService
                 if (test == null) return ApiResponse<bool>.ErrorResponse("Admission test not found.", 404);
                 if (test.IsPublished) return ApiResponse<bool>.SuccessResponse(true);
                 var applicants = _applicants.GetQueryable().Where(x =>
-                    x.TenantId == tenant && x.AdmissionIntakeFormId == test.AdmissionIntakeFormId && !x.IsDeleted);
+                    x.TenantId == tenant && x.AdmissionIntakeFormId == test.AdmissionIntakeFormId && !x.IsDeleted &&
+                    x.State != AdmissionApplicantState.Draft && x.State != AdmissionApplicantState.Withdrawn);
                 var records = await (from entry in _results.GetQueryable()
                     join applicant in applicants on entry.AdmissionApplicantId equals applicant.Id
                     where entry.TenantId == tenant && entry.AdmissionTestId == testId && !entry.IsDeleted
@@ -376,9 +378,12 @@ public sealed class AdmissionAssessmentService : IAdmissionAssessmentService
     private async Task<IReadOnlyList<AdmissionResultDto>> LoadResultsAsync(long testId, long tenant, CancellationToken ct)
     {
         var query = from result in _results.GetQueryable().AsNoTracking()
+            join test in _tests.GetQueryable().AsNoTracking() on result.AdmissionTestId equals test.Id
             join applicant in _applicants.GetQueryable().AsNoTracking()
                 on result.AdmissionApplicantId equals applicant.Id
-            where result.TenantId == tenant && applicant.TenantId == tenant && result.AdmissionTestId == testId
+            where result.TenantId == tenant && test.TenantId == tenant && applicant.TenantId == tenant &&
+                result.AdmissionTestId == testId && applicant.AdmissionIntakeFormId == test.AdmissionIntakeFormId &&
+                applicant.State != AdmissionApplicantState.Draft && applicant.State != AdmissionApplicantState.Withdrawn
             orderby result.MeritPosition == null, result.MeritPosition, result.ObtainedMarks descending, result.AdmissionApplicantId
             select new { Result = result, applicant.PublicId, applicant.FullName };
         var rows = await query.ToListAsync(ct);
