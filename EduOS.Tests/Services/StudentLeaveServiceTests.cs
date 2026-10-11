@@ -1,0 +1,168 @@
+using EduOS.Core.DTOs.Attendance;
+using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Attendance;
+using EduOS.Core.Entities.Students;
+using EduOS.Core.Enums.Domain;
+using EduOS.Core.Interfaces;
+using EduOS.Persistence.Context;
+using EduOS.Persistence.Repositories;
+using EduOS.Service.Services.Attendance;
+using FluentAssertions;
+using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+using Xunit;
+
+namespace EduOS.Tests.Services;
+
+public sealed class StudentLeaveServiceTests
+{
+    private static readonly DateOnly From = new(2026, 9, 14);
+    private static readonly DateOnly To = new(2026, 9, 16);
+
+    [Fact]
+    public async Task Student_can_submit_own_leave_replay_safely_but_not_another_students_leave()
+    {
+        var options = Options();
+        var (mine, foreign) = await Seed(options);
+        await using var db = Context(options, 101);
+        var service = Service(db, new Actor(101, 11, "Student"));
+        var request = new CreateStudentLeaveApplicationRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), StudentEnrollmentReference = mine,
+            FromDate = From, ToDate = To, Reason = "Medical appointment"
+        };
+        var first = await service.ApplyAsync(request);
+        var replay = await service.ApplyAsync(request);
+        first.Success.Should().BeTrue(first.Message);
+        replay.Success.Should().BeTrue(replay.Message);
+        first.Data!.Id.Should().Be(replay.Data!.Id);
+        (await db.StudentLeaveApplications.CountAsync()).Should().Be(1);
+        request.Reason = "Changed request";
+        (await service.ApplyAsync(request)).StatusCode.Should().Be(409);
+        request.ClientRequestId = Guid.NewGuid();
+        request.StudentEnrollmentReference = foreign;
+        (await service.ApplyAsync(request)).StatusCode.Should().Be(404);
+        (await db.StudentLeaveApplications.CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Overlap_and_cross_tenant_reads_are_blocked_and_paging_is_bounded()
+    {
+        var options = Options();
+        var (mine, _) = await Seed(options);
+        await using (var own = Context(options, 101))
+        {
+            var manager = Service(own, new Actor(101, 7, "TenantAdmin"));
+            var first = await manager.ApplyAsync(new CreateStudentLeaveApplicationRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), StudentEnrollmentReference = mine,
+                FromDate = From, ToDate = To, Reason = "Family leave"
+            });
+            first.Success.Should().BeTrue(first.Message);
+            var duplicate = await manager.ApplyAsync(new CreateStudentLeaveApplicationRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), StudentEnrollmentReference = mine,
+                FromDate = new DateOnly(2026, 9, 15), ToDate = new DateOnly(2026, 9, 17),
+                Reason = "Overlapping leave"
+            });
+            duplicate.StatusCode.Should().Be(409);
+            var page = await manager.GetApplicationsAsync(mine, LeaveState.Submitted, 1, 20);
+            page.Success.Should().BeTrue();
+            page.Data!.TotalCount.Should().Be(1);
+            (await manager.GetApplicationsAsync(null, null, 0, 20)).StatusCode.Should().Be(400);
+            (await manager.GetApplicationsAsync(null, null, 1, 101)).StatusCode.Should().Be(400);
+        }
+        await using var other = Context(options, 202);
+        var tenant202 = Service(other, new Actor(202, 14, "TenantAdmin"));
+        (await tenant202.GetApplicationsAsync(mine, null, 1, 20)).StatusCode.Should().Be(404);
+        (await tenant202.GetApplicationsAsync(null, null, 1, 20)).Data!.TotalCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Only_manager_can_approve_submitted_leave_with_matching_version()
+    {
+        var options = Options();
+        var (mine, _) = await Seed(options);
+        await using var db = Context(options, 101);
+        var applicant = Service(db, new Actor(101, 11, "Student"));
+        var created = await applicant.ApplyAsync(new CreateStudentLeaveApplicationRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), StudentEnrollmentReference = mine,
+            FromDate = From, ToDate = To, Reason = "Family travel"
+        });
+        created.Success.Should().BeTrue();
+        var row = await db.StudentLeaveApplications.SingleAsync();
+        row.RowVersion = [1, 2, 3, 4, 5, 6, 7, 8];
+        await db.SaveChangesAsync();
+        var manager = Service(db, new Actor(101, 7, "TenantAdmin"));
+        var decision = new ReviewStudentLeaveRequestDto
+        {
+            State = LeaveState.Approved, ReviewNote = "Approved",
+            RowVersion = Convert.ToBase64String(row.RowVersion)
+        };
+        (await applicant.ReviewAsync(row.Id, decision)).StatusCode.Should().Be(403);
+        decision.RowVersion = Convert.ToBase64String([7, 7, 7, 7, 7, 7, 7, 7]);
+        (await manager.ReviewAsync(row.Id, decision)).StatusCode.Should().Be(409);
+        decision.RowVersion = Convert.ToBase64String(row.RowVersion);
+        var approved = await manager.ReviewAsync(row.Id, decision);
+        approved.Success.Should().BeTrue(approved.Message);
+        approved.Data!.State.Should().Be(LeaveState.Approved);
+        (await manager.ReviewAsync(row.Id, decision)).StatusCode.Should().Be(409);
+    }
+
+    private static StudentLeaveService Service(EduOSDbContext db, ICurrentUserService user) => new(
+        new GenericRepository<StudentLeaveApplication>(db),
+        new GenericRepository<StudentEnrollment>(db),
+        new GenericRepository<Student>(db),
+        new GenericRepository<StudentGuardian>(db),
+        new GenericRepository<Guardian>(db),
+        new GenericRepository<AcademicYear>(db),
+        db, user, TimeProvider.System, NullLogger<StudentLeaveService>.Instance);
+
+    private static async Task<(Guid Mine, Guid Other)> Seed(DbContextOptions<EduOSDbContext> options)
+    {
+        await using var db = Context(options, 101);
+        var year = new AcademicYear { TenantId = 101, Name = "2026", Code = "2026",
+            StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31) };
+        var mine = new Student { TenantId = 101, UserId = 11, FullName = "My Student",
+            StudentCode = "MY-001", StatusCode = "Active" };
+        var other = new Student { TenantId = 101, UserId = 12, FullName = "Other Student",
+            StudentCode = "OT-001", StatusCode = "Active" };
+        db.AddRange(year, mine, other); await db.SaveChangesAsync();
+        var ownEnrollment = new StudentEnrollment { TenantId = 101, StudentId = mine.Id,
+            AcademicYearId = year.Id, EnrollmentDate = new DateOnly(2026, 1, 1),
+            State = EnrollmentState.Active, IsCurrent = true };
+        var otherEnrollment = new StudentEnrollment { TenantId = 101, StudentId = other.Id,
+            AcademicYearId = year.Id, EnrollmentDate = new DateOnly(2026, 1, 1),
+            State = EnrollmentState.Active, IsCurrent = true };
+        db.AddRange(ownEnrollment, otherEnrollment);
+        await db.SaveChangesAsync();
+        return (ownEnrollment.PublicId, otherEnrollment.PublicId);
+    }
+
+    private static DbContextOptions<EduOSDbContext> Options() =>
+        new DbContextOptionsBuilder<EduOSDbContext>().UseInMemoryDatabase(
+            "leave-" + Guid.NewGuid().ToString("N")).Options;
+
+    private static EduOSDbContext Context(DbContextOptions<EduOSDbContext> options, long tenant)
+    {
+        var context = new DefaultHttpContext();
+        context.Items["TenantId"] = tenant;
+        return new EduOSDbContext(options, new HttpContextAccessor { HttpContext = context });
+    }
+    private sealed class Actor(long tenantId, long userId, string role) : ICurrentUserService
+    {
+        public bool IsAuthenticated => true;
+        public long TenantId => tenantId;
+        public long UserId => userId;
+        public bool IsTenantAdmin => role == "TenantAdmin";
+        public bool IsSuperAdmin => false;
+        public IReadOnlyList<string> Roles => [role];
+        public bool IsInRole(string name) => name == role;
+        public string? FullName => role;
+        public string? Email => "test@example.test";
+        public string? IpAddress => "127.0.0.1";
+        public string? UserAgent => "Student Leave Tests";
+    }
+}
