@@ -36,7 +36,8 @@ async function attendance(browser) {
     const requests = [];
     const finalized = [], corrections = [];
     let isFinalized = false, correctedState = null;
-    page.on('dialog', dialog => dialog.accept());
+    page.on('dialog', dialog => dialog.type() === 'prompt'
+        ? dialog.accept('Reviewed correction reason') : dialog.accept());
     const roster = {
         attendanceSessionId: 0, sessionRowVersion: '', academicBatchId: 10, attendanceDate: '2026-10-10',
         students: [
