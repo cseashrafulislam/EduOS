@@ -39,6 +39,12 @@ namespace EduOS.App.Extensions
             .AddEntityFrameworkStores<EduOSDbContext>()
             .AddDefaultTokenProviders();
 
+            // Check Identity's security stamp on each authenticated request so password reset,
+            // password change and successful MFA sign-in invalidate older cookies immediately.
+            // This is an intentional security/database trade-off for sensitive ERP accounts.
+            services.Configure<SecurityStampValidatorOptions>(options =>
+                options.ValidationInterval = TimeSpan.Zero);
+
             // Secure-by-default endpoint posture. Public routes must opt out explicitly.
             services.AddAuthorization(options =>
             {
