@@ -283,8 +283,10 @@
         if (!roleId) { message('Select an institution role.', true); return; }
         await submit(e.submitter, async () => {
             const permissionIds = [...$('permissionOptions').querySelectorAll('input:checked')].map(x => Number(x.value));
+            const role = state.roles.find(x => x.id === roleId);
+            if (!role?.concurrencyStamp) throw new Error('Reload the role before saving permissions.');
             await request('/roles/' + roleId + '/permissions', {
-                method: 'PUT', body: JSON.stringify({ permissionIds })
+                method: 'PUT', body: JSON.stringify({ permissionIds, concurrencyStamp: role.concurrencyStamp })
             });
             await loadCatalog(); message('Role permissions saved. Affected users must sign in again.');
         });
