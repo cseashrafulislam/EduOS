@@ -1,0 +1,90 @@
+name: SQL Server Migration Smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ Ashraful ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sqlserver-migration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  migrate-disposable-sqlserver:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore application
+        run: dotnet restore EduOS.App/EduOS.App.csproj
+
+      - name: Build application
+        run: dotnet build EduOS.App/EduOS.App.csproj --configuration Release --no-restore
+
+      - name: Install EF Core tools
+        run: dotnet tool install --global dotnet-ef --version 10.0.12
+
+      - name: Start isolated SQL Server 2022
+        shell: bash
+        run: |
+          set -euo pipefail
+          password="Ci_$(openssl rand -hex 20)_aA9!"
+          echo "::add-mask::$password"
+          printf 'CI_SQL_PASSWORD=%s\n' "$password" >> "$GITHUB_ENV"
+          docker run --rm -d --name eduos-ci-sqlserver \
+            -p 127.0.0.1:14333:1433 \
+            -e ACCEPT_EULA=Y -e MSSQL_PID=Developer \
+            -e MSSQL_SA_PASSWORD="$password" \
+            mcr.microsoft.com/mssql/server:2022-latest
+          ready=0
+          for attempt in $(seq 1 90); do
+            if docker logs eduos-ci-sqlserver 2>&1 | grep -q 'SQL Server is now ready for client connections'; then
+              ready=1
+              break
+            fi
+            if [ "$(docker inspect -f '{{.State.Running}}' eduos-ci-sqlserver)" != "true" ]; then
+              echo "SQL Server exited before becoming ready."
+              docker logs --tail 50 eduos-ci-sqlserver 2>&1
+              exit 1
+            fi
+            sleep 2
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo "SQL Server startup timed out."
+            docker logs --tail 50 eduos-ci-sqlserver 2>&1
+            exit 1
+          fi
+
+      - name: Apply complete EF migrations to fresh SQL Server database
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ConnectionStrings__DefaultConnection="Server=127.0.0.1,14333;Database=EduOS_MigrationSmoke;User Id=sa;Password=${CI_SQL_PASSWORD};Encrypt=True;TrustServerCertificate=True;Connect Timeout=30"
+          export DatabaseInitialization__Enabled=false
+          export DatabaseInitialization__ApplyMigrations=false
+          dotnet ef database update --project EduOS.Persistence --startup-project EduOS.App \
+            --context EduOSDbContext --configuration Release --no-build --verbose
+
+      - name: Verify repeat migration deployment is idempotent
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ConnectionStrings__DefaultConnection="Server=127.0.0.1,14333;Database=EduOS_MigrationSmoke;User Id=sa;Password=${CI_SQL_PASSWORD};Encrypt=True;TrustServerCertificate=True;Connect Timeout=30"
+          export DatabaseInitialization__Enabled=false
+          export DatabaseInitialization__ApplyMigrations=false
+          dotnet ef database update --project EduOS.Persistence --startup-project EduOS.App \
+            --context EduOSDbContext --configuration Release --no-build
+
+      - name: Stop isolated SQL Server
+        if: always()
+        run: docker rm -f eduos-ci-sqlserver >/dev/null 2>&1 || true
