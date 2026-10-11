@@ -145,6 +145,10 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
             saved.Data!.AttendanceSessionId, saved.Data.SessionRowVersion);
         Assert.True(finalized.Success, finalized.Message);
         Assert.True(finalized.Data!.IsFinalized);
+        var finalizedReplay = await attendance.FinalizeSessionAsync(
+            saved.Data.AttendanceSessionId, saved.Data.SessionRowVersion);
+        Assert.True(finalizedReplay.Success, finalizedReplay.Message);
+        Assert.True(finalizedReplay.Data!.IsFinalized);
         var locked = await attendance.SaveAsync(new SaveAttendanceRegisterRequestDto
         {
             AttendanceSessionId = finalized.Data.AttendanceSessionId,
