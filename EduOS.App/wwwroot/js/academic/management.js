@@ -164,7 +164,20 @@
             x => find('programs', x.academicProgramId)?.name || '',
             x => x.versionNo, x => x.effectiveFrom + (x.isCurrent ? ' • Current' : ''),
             x => catalog.curriculumSubjects.filter(y => y.academicCurriculumId === x.id).length
-        ]);
+        ], (x, td) => {
+            if (x.isCurrent) { td.append(node('span', 'Active', 'small text-success')); return; }
+            td.append(button('Activate', async control => {
+                if (!confirm('Set ' + x.name + ' as the current curriculum? Previous versions will remain available.'))
+                    return;
+                control.disabled = true;
+                try {
+                    await api('/api/academic-setup/curricula/' + encodeURIComponent(x.id) +
+                        '/activate?rowVersion=' + encodeURIComponent(x.rowVersion), { method: 'PUT' });
+                    await reload(); notice('Current curriculum activated.');
+                } catch (error) { notice(error.message, true); }
+                finally { control.disabled = false; }
+            }));
+        });
     }
     async function reload() {
         const [years, terms, campuses, catalog] = await Promise.all([
