@@ -130,7 +130,14 @@ namespace EduOS.App.Middleware
                     return;
                 }
 
-                var count = await memberships.Select(x => x.TenantId).Distinct().Take(2).CountAsync();
+                var count = await (from membership in memberships
+                                   join candidate in dbContext.Tenants.IgnoreQueryFilters().AsNoTracking()
+                                       on membership.TenantId equals candidate.Id
+                                   where !candidate.IsDeleted &&
+                                       (candidate.State == TenantState.Active ||
+                                        (candidate.State == TenantState.PendingVerification &&
+                                         candidate.OnboardingStage != OnboardingStage.Completed))
+                                   select membership.TenantId).Distinct().Take(2).CountAsync();
                 var owner = await memberships.AnyAsync(x => x.TenantId == tenantId && x.IsOwner);
                 var canonicalRoles = await TenantRoleResolver.GetTenantRolesAsync(dbContext, userId, tenantId, owner, count);
                 var claimedRoles = context.User.FindAll(ClaimTypes.Role).Select(x => x.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
