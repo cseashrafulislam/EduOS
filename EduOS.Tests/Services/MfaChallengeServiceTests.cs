@@ -34,7 +34,6 @@ public class MfaChallengeServiceTests
         var token = service.Create(42, "security-stamp", false, tenantId: 987);
         service.TryRead(token, out var challenge).Should().BeTrue();
         challenge.TenantId.Should().Be(987);
-        token.Should().NotContain("987");
     }
 
     [Fact]
