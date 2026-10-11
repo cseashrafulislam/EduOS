@@ -589,7 +589,13 @@ public class EduOSDbContext :
         Reference<UserLegalAcceptance, Tenant>(modelBuilder, nameof(UserLegalAcceptance.TenantId));
         Reference<UserLegalAcceptance, LegalDocument>(modelBuilder, nameof(UserLegalAcceptance.LegalDocumentId));
         // Auth / Identity
-        Reference<ApplicationUser, Person>(modelBuilder, nameof(ApplicationUser.PersonId));
+        // Bind the actual navigation to the existing PersonId FK. The generic
+        // HasOne<Person>() configuration created a second, unintended PersonId1
+        // shadow column for ApplicationUser.Person.
+        modelBuilder.Entity<ApplicationUser>()
+            .HasOne(x => x.Person).WithMany()
+            .HasForeignKey(x => x.PersonId)
+            .OnDelete(DeleteBehavior.Restrict);
         Reference<ApplicationRole, Tenant>(modelBuilder, nameof(ApplicationRole.TenantId));
         Reference<TenantMembership, ApplicationUser>(modelBuilder, nameof(TenantMembership.UserId));
         TenantReference<TenantMembership, Campus>(modelBuilder, nameof(TenantMembership.DefaultCampusId));
