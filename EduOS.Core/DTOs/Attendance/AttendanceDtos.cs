@@ -157,6 +157,7 @@ public sealed class StudentAttendanceSummaryDto
 
 public sealed class StudentAttendanceRosterDto
 {
+    public bool IsFinalized { get; set; }
     public long AttendanceSessionId { get; set; }
     public string SessionRowVersion { get; set; } = string.Empty;
     public long AcademicBatchId { get; set; }

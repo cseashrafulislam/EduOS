@@ -229,6 +229,55 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
         }
     }
 
+    public async Task<ApiResponse<StudentAttendanceRosterDto>> FinalizeSessionAsync(
+        long sessionId, string rowVersion, CancellationToken ct = default)
+    {
+        if (!CanCorrect()) return Error<StudentAttendanceRosterDto>("Attendance finalization permission denied.", 403);
+        if (sessionId <= 0 || !TryVersion(rowVersion, out var expected))
+            return Error<StudentAttendanceRosterDto>("Attendance session and row version are required.");
+        var tenant = _user.TenantId;
+        try
+        {
+            return await _uow.ExecuteInTransactionAsync(async token =>
+            {
+                var session = await _sessions.GetQueryable().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Id == sessionId && !x.IsDeleted, token);
+                if (session == null) return Error<StudentAttendanceRosterDto>("Attendance session not found.", 404);
+                if (!Matches(session.RowVersion, expected))
+                    return Error<StudentAttendanceRosterDto>("Attendance session changed. Reload and retry.", 409);
+                if (session.IsFinalized)
+                    return ApiResponse<StudentAttendanceRosterDto>.SuccessResponse(
+                        await ReadRosterAsync(session.AcademicBatchId, session.AttendanceDate,
+                            session.SubjectOfferingId, token), "Attendance already finalized.");
+                var scopeError = await ValidateScopeAsync(session.AcademicBatchId, session.AttendanceDate,
+                    session.SubjectOfferingId, token);
+                if (scopeError != null) return Error<StudentAttendanceRosterDto>(scopeError, 409);
+                var roster = await ReadRosterAsync(session.AcademicBatchId, session.AttendanceDate,
+                    session.SubjectOfferingId, token);
+                if (roster.Students.Count == 0 || roster.Students.Count >= 2000 ||
+                    roster.Summary.Unmarked != 0 || roster.Summary.Marked != roster.Students.Count)
+                    return Error<StudentAttendanceRosterDto>(
+                        "The complete attendance roster must be marked before finalization.", 409);
+                var now = _clock.GetUtcNow().UtcDateTime;
+                session.IsFinalized = true; session.FinalizedAt = now;
+                session.FinalizedByUserId = _user.UserId;
+                session.UpdatedAt = now; session.UpdatedBy = _user.UserId;
+                _sessions.Update(session);
+                await _uow.SaveChangesAsync(token);
+                return ApiResponse<StudentAttendanceRosterDto>.SuccessResponse(
+                    await ReadRosterAsync(session.AcademicBatchId, session.AttendanceDate,
+                        session.SubjectOfferingId, token), "Attendance finalized.");
+            }, System.Data.IsolationLevel.Serializable, ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        { return Error<StudentAttendanceRosterDto>("Attendance changed. Reload and retry.", 409); }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Attendance finalization conflict for tenant {TenantId}", tenant);
+            return Error<StudentAttendanceRosterDto>("Attendance finalization conflicts with another update.", 409);
+        }
+    }
+
     public async Task<ApiResponse<StudentAttendanceDto>> CorrectAttendanceAsync(long attendanceId,
         AttendanceCorrectionRequestDto request, CancellationToken ct = default)
     {
@@ -333,6 +382,7 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
         return new StudentAttendanceRosterDto
         {
             AttendanceSessionId = session?.Id ?? 0,
+            IsFinalized = session?.IsFinalized ?? false,
             SessionRowVersion = session == null ? string.Empty : Convert.ToBase64String(session.RowVersion),
             AcademicBatchId = batchId, AttendanceDate = date,
             Students = dtos, Summary = new StudentAttendanceSummaryDto

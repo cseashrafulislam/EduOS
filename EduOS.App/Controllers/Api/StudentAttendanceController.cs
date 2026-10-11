@@ -47,6 +47,15 @@ public sealed class StudentAttendanceController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
     
+    [HttpPost("sessions/{sessionId:long}/finalize")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
+    public async Task<IActionResult> FinalizeSession(long sessionId, [FromQuery] string rowVersion,
+        CancellationToken cancellationToken)
+    {
+        var result = await _service.FinalizeSessionAsync(sessionId, rowVersion, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("{attendanceId:long}/correct")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
     public async Task<IActionResult> Correct(long attendanceId, [FromBody] AttendanceCorrectionRequestDto request,
