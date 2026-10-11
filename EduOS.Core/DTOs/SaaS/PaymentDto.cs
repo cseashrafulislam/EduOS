@@ -82,6 +82,7 @@ namespace EduOS.Core.DTOs.SaaS
         [Range(1, long.MaxValue)]
         public long PaymentId { get; set; }
         public bool Approve { get; set; }
+        public bool BankCreditConfirmed { get; set; }
         [MaxLength(500)]
         public string? VerificationNote { get; set; }
         [Required]
