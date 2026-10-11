@@ -93,6 +93,11 @@
             </div>
 
             <form id="admissionForm" class="row g-3" novalidate>
+                <div class="col-12">
+                    <label class="form-label" for="admissionFormReference">Published intake / প্রকাশিত ভর্তি ফরম *</label>
+                    <select class="form-select" id="admissionFormReference" required></select>
+                    <small class="text-muted">Year, campus, level and term follow the selected intake.</small>
+                </div>
                 <div class="col-md-6">
                     <label class="form-label" for="academicYearId">@T["AcademicYear"] *</label>
                     <select class="form-select" id="academicYearId" required></select>
@@ -176,6 +181,7 @@
                         <option value="en-BD">@T["English"]</option>
                     </select>
                 </div>
+                <div class="col-12"><div id="admissionCustomFields" class="row g-3" aria-live="polite"></div></div>
                 <div class="col-12">
                     <button id="submitApplicationButton" class="btn btn-primary" type="submit"
                             data-idle-label="@T["SubmitApplication"]" data-loading-label="@T["Saving"]">

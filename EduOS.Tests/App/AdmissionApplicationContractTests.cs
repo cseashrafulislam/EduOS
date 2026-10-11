@@ -39,6 +39,15 @@ public class AdmissionApplicationContractTests
         script.Should().Contain("payload.data.academicBatches");
         script.Should().Contain("payload.data.academicTracks");
         script.Should().Contain("academicBatchId: positiveInteger(");
+        script.Should().Contain("admissionFormReference: selectedForm.reference");
+        script.Should().Contain("customResponses: collectAdmissionResponses()");
+        script.Should().Contain("state: status");
+        script.Should().Contain("params.set('state', String(status))");
+        script.Should().Contain("payload.data.academicLevels");
+        script.Should().Contain("Number(payload.data.state)");
+        script.Should().NotContain("Number(payload.data.status)");
+        view.Should().Contain("admissionFormReference");
+        view.Should().Contain("admissionCustomFields");
         script.Should().Contain("academicTrackId: positiveInteger(");
         script.Should().NotContain("payload.data.sections");
         script.Should().NotContain("payload.data.groups");

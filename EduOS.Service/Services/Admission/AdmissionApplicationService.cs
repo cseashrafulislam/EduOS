@@ -68,13 +68,25 @@ public sealed class AdmissionApplicationService : IAdmissionApplicationService
         var formRows = await _forms.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
             x.State == AdmissionFormState.Published && (!x.OpensAt.HasValue || x.OpensAt <= now) &&
             (!x.ClosesAt.HasValue || x.ClosesAt >= now)).OrderBy(x => x.Title).Take(100).ToListAsync(ct);
+        var formIds = formRows.Select(x => x.Id).ToArray();
+        var activeFields = await _fields.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && formIds.Contains(x.AdmissionIntakeFormId) && x.IsActive)
+            .OrderBy(x => x.DisplayOrder).ThenBy(x => x.Id).ToListAsync(ct);
+        var fieldsByForm = activeFields.GroupBy(x => x.AdmissionIntakeFormId).ToDictionary(x => x.Key,
+            x => x.Select(f => new AdmissionFormFieldDto
+            {
+                Id = f.Id, FieldKey = f.FieldKey, Label = f.Label, DataType = f.DataType,
+                IsRequired = f.IsRequired, DisplayOrder = f.DisplayOrder, OptionsJson = f.OptionsJson,
+                ValidationJson = f.ValidationJson, IsActive = f.IsActive
+            }).ToList());
         var openForms = formRows.Select(x => new PublicAdmissionIntakeFormDto
         {
             Reference = x.PublicId, Code = x.Code, Title = x.Title, CampusId = x.CampusId,
             AcademicYearId = x.AcademicYearId, AcademicTermId = x.AcademicTermId,
             AcademicLevelId = x.AcademicLevelId, OpensAtUtc = x.OpensAt ?? DateTime.MinValue,
             ClosesAtUtc = x.ClosesAt ?? DateTime.MaxValue, ApplicationFee = x.ApplicationFee,
-            Currency = x.CurrencyCode
+            Currency = x.CurrencyCode,
+            Fields = fieldsByForm.GetValueOrDefault(x.Id) ?? new List<AdmissionFormFieldDto>()
         }).ToList();
         return ApiResponse<AdmissionApplicationOptionsDto>.SuccessResponse(new AdmissionApplicationOptionsDto
         { AcademicYears = years, AcademicTerms = terms, Campuses = campuses, AcademicLevels = levels, OpenForms = openForms });

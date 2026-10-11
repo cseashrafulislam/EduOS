@@ -22,6 +22,7 @@
         form.addEventListener('submit', submitApplication);
         document.getElementById('admissionFilters')?.addEventListener('submit', applyFilters);
         document.getElementById('academicYearId')?.addEventListener('change', refreshTerms);
+        document.getElementById('admissionFormReference')?.addEventListener('change', selectAdmissionForm);
         document.getElementById('sameAddress')?.addEventListener('change', copyAddress);
         document.getElementById('applicationList')?.addEventListener('click', openReview);
         document.getElementById('intakeFormList')?.addEventListener('click', handleIntakeFormAction);
@@ -51,10 +52,14 @@
             state.options = payload.data;
             fillSelect('academicYearId', state.options.academicYears, true);
             fillSelect('campusId', state.options.campuses, true);
-            fillSelect('academicUnitId', state.options.academicUnits, true);
+            fillSelect('academicUnitId', state.options.academicLevels, true);
             fillSelect('intakeYearId', state.options.academicYears, true);
             fillSelect('intakeCampusId', state.options.campuses, true);
-            fillSelect('intakeUnitId', state.options.academicUnits, true);
+            fillSelect('intakeUnitId', state.options.academicLevels, true);
+            fillSelect('admissionFormReference', (state.options.openForms || []).map(x => ({
+                id: x.reference, name: x.title + ' (' + x.code + ')'
+            })), true);
+            selectAdmissionForm();
             refreshTerms();
             refreshIntakeTerms();
         } catch {
@@ -89,6 +94,87 @@
         const terms = state.options?.academicTerms?.filter(item => Number(item.parentId) === yearId) || [];
         fillSelect('intakeTermId', terms, false);
         if (selectedValue) setValue('intakeTermId', selectedValue);
+    }
+
+
+    function selectAdmissionForm() {
+        const form = state.options?.openForms?.find(x => x.reference === valueOf('admissionFormReference'));
+        ['academicYearId', 'academicTermId', 'campusId', 'academicUnitId'].forEach(id => {
+            const select = document.getElementById(id);
+            if (select) select.disabled = Boolean(form);
+        });
+        if (form) {
+            setValue('academicYearId', form.academicYearId);
+            setValue('campusId', form.campusId);
+            setValue('academicUnitId', form.academicLevelId);
+            refreshTerms();
+            setValue('academicTermId', form.academicTermId);
+        }
+        renderAdmissionFields(form?.fields || []);
+    }
+
+    function renderAdmissionFields(fields) {
+        const container = document.getElementById('admissionCustomFields');
+        if (!container) return;
+        container.replaceChildren();
+        for (const field of fields) {
+            const type = Number(field.dataType);
+            const wrapper = document.createElement('div');
+            wrapper.className = 'col-md-6';
+            const label = document.createElement('label');
+            label.className = 'form-label';
+            label.textContent = (field.label || field.fieldKey) + (field.isRequired ? ' *' : '');
+            let control;
+            if ([6, 7, 8].includes(type)) {
+                control = document.createElement('select');
+                if (type === 8) control.multiple = true;
+                if (type !== 8) {
+                    const empty = document.createElement('option');
+                    empty.value = ''; empty.textContent = i18n.select || 'Select';
+                    control.append(empty);
+                }
+                let choices = [];
+                if (type === 6) choices = ['true', 'false'];
+                else {
+                    try { choices = JSON.parse(field.optionsJson || '[]'); } catch { choices = []; }
+                    if (!Array.isArray(choices)) choices = [];
+                }
+                for (const choice of choices) {
+                    const option = document.createElement('option');
+                    option.value = String(choice);
+                    option.textContent = String(choice);
+                    control.append(option);
+                }
+            } else if (type === 9) {
+                control = document.createElement('textarea');
+                control.rows = 2;
+            } else {
+                control = document.createElement('input');
+                control.type = ({ 2: 'number', 3: 'number', 4: 'date', 5: 'datetime-local' })[type] || 'text';
+                if (type === 2) control.step = '1';
+                if (type === 3) control.step = 'any';
+            }
+            control.className = control.tagName === 'SELECT' ? 'form-select' : 'form-control';
+            control.required = Boolean(field.isRequired);
+            control.dataset.admissionField = field.fieldKey;
+            control.dataset.dataType = String(type);
+            if (control.tagName !== 'SELECT') control.maxLength = 4000;
+            label.append(control);
+            wrapper.append(label);
+            container.append(wrapper);
+        }
+    }
+
+    function collectAdmissionResponses() {
+        const values = {};
+        for (const input of document.querySelectorAll('[data-admission-field]')) {
+            let value = input.multiple
+                ? (input.selectedOptions.length ? JSON.stringify([...input.selectedOptions].map(x => x.value)) : '')
+                : input.value.trim();
+            if (value && input.dataset.dataType === '5') value = new Date(value).toISOString();
+            if (value || input.required) values[input.dataset.admissionField] = value || null;
+        }
+        return values;
     }
 
     async function loadIntakeForms() {
@@ -359,6 +445,15 @@
         event.preventDefault();
         const form = event.currentTarget;
         if (!form.reportValidity()) return;
+        const selectedForm = state.options?.openForms?.find(x => x.reference === valueOf('admissionFormReference'));
+        if (!selectedForm) { showAlert('danger', 'Select an open admission intake before submitting.'); return; }
+        if (valueOf('previousInstitution')) {
+            showAlert('danger', 'Previous institution is not supported by the current admission record.'); return;
+        }
+        if (valueOf('presentAddress') && valueOf('permanentAddress') &&
+            valueOf('presentAddress') !== valueOf('permanentAddress')) {
+            showAlert('danger', 'Different addresses require the separate address workflow.'); return;
+        }
         const dateOfBirth = valueOf('dateOfBirth');
         if (isMinor(dateOfBirth) && (!valueOf('guardianName') || !valueOf('guardianRelation') || !valueOf('guardianMobile'))) {
             showAlert('danger', i18n.minorGuardianRequired);
@@ -368,10 +463,12 @@
 
         const request = {
             clientRequestId: state.pendingRequestId,
+            admissionFormReference: selectedForm.reference,
+            customResponses: collectAdmissionResponses(),
             academicYearId: positiveInteger(valueOf('academicYearId')),
             academicTermId: positiveInteger(valueOf('academicTermId')),
             campusId: positiveInteger(valueOf('campusId')),
-            academicUnitId: positiveInteger(valueOf('academicUnitId')),
+            academicLevelId: positiveInteger(valueOf('academicUnitId')),
             applicantName: valueOf('applicantName'),
             applicantNameBangla: valueOf('applicantNameBangla') || null,
             dateOfBirth,
@@ -399,7 +496,11 @@
             state.pendingRequestId = createRequestId();
             fillSelect('academicYearId', state.options?.academicYears, true);
             fillSelect('campusId', state.options?.campuses, true);
-            fillSelect('academicUnitId', state.options?.academicUnits, true);
+            fillSelect('academicUnitId', state.options?.academicLevels, true);
+            fillSelect('admissionFormReference', (state.options?.openForms || []).map(x => ({
+                id: x.reference, name: x.title + ' (' + x.code + ')'
+            })), true);
+            selectAdmissionForm();
             refreshTerms();
             showAlert('success', `${i18n.created} ${payload.data?.applicationNumber || ''}`.trim());
             state.page = 1;
@@ -420,7 +521,7 @@
         const search = valueOf('applicationSearch');
         const status = positiveInteger(valueOf('statusFilter'));
         if (search) params.set('search', search);
-        if (status) params.set('status', String(status));
+        if (status) params.set('state', String(status));
         try {
             const response = await fetch(`/api/admission-applications?${params}`, apiOptions());
             const payload = await response.json().catch(() => null);
@@ -457,11 +558,11 @@
             const title = document.createElement('h4');
             title.textContent = item.applicantName || '';
             const badge = document.createElement('span');
-            badge.className = `admission-status status-${Number(item.status)}`;
-            badge.textContent = statusName(item.status);
+            badge.className = `admission-status status-${Number(item.state)}`;
+            badge.textContent = statusName(item.state);
             heading.append(title, badge);
             const number = detailLine(i18n.applicationNo, item.applicationNumber);
-            const unit = detailLine(i18n.academicUnit, [item.academicUnitName, item.campusName].filter(Boolean).join(' · '));
+            const unit = detailLine(i18n.academicUnit, [item.academicLevelName, item.campusName].filter(Boolean).join(' · '));
             const contact = detailLine(i18n.fullContact, item.maskedMobile);
             const submitted = detailLine(i18n.submittedAt, formatDate(item.submittedAtUtc));
             const button = document.createElement('button');
@@ -487,8 +588,8 @@
             setValue('reviewReference', payload.data.reference);
             setValue('reviewRowVersion', payload.data.rowVersion);
             setValue('decisionNote', payload.data.decisionNote);
-            fillReviewStatuses(Number(payload.data.status));
-            document.getElementById('admitApplicantButton')?.classList.toggle('d-none', Number(payload.data.status) !== 6);
+            fillReviewStatuses(Number(payload.data.state));
+            document.getElementById('admitApplicantButton')?.classList.toggle('d-none', Number(payload.data.state) !== 6);
             bootstrap.Modal.getOrCreateInstance(document.getElementById('reviewModal')).show();
         } catch {
             showAlert('danger', i18n.detailsFailed);
@@ -505,7 +606,7 @@
             [i18n.gender, genderName(item.gender)],
             [i18n.fullContact, [item.primaryMobile, item.email].filter(Boolean).join(' · ')],
             [i18n.guardian, [item.guardianName, item.guardianRelation, item.guardianMobile].filter(Boolean).join(' · ')],
-            [i18n.academicUnit, [item.academicUnitName, item.academicYearName, item.campusName].filter(Boolean).join(' · ')],
+            [i18n.academicUnit, [item.academicLevelName, item.academicYearName, item.campusName].filter(Boolean).join(' · ')],
             [i18n.academicTerm, item.academicTermName],
             [i18n.previousInstitution, item.previousInstitution],
             [i18n.presentAddress, item.presentAddress],
@@ -634,7 +735,7 @@
         setLoading(button, true);
         try {
             const response = await fetch(`/api/admission-applications/${encodeURIComponent(reference)}/status`, apiOptions('PUT', {
-                status,
+                state: status,
                 rowVersion: valueOf('reviewRowVersion'),
                 decisionNote: valueOf('decisionNote') || null
             }));
@@ -655,7 +756,7 @@
 
     async function prepareEnrollment() {
         const item = state.currentApplication;
-        if (!item?.reference || Number(item.status) !== 6) return;
+        if (!item?.reference || Number(item.state) !== 6) return;
         try {
             const response = await fetch(`/api/admission-applications/${encodeURIComponent(item.reference)}/enrollment-options`, apiOptions());
             const payload = await response.json().catch(() => null);
