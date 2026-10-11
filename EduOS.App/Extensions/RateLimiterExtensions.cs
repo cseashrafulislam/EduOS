@@ -32,6 +32,13 @@ namespace EduOS.App.Extensions
                         GetClientPartition(context),
                         _ => CreateOptions(3, TimeSpan.FromMinutes(10))));
 
+                // Credential-changing endpoints must not inherit the generous
+                // shared-IP login allowance. Partition by the signed-in user.
+                options.AddPolicy("AccountSecurityPolicy", context =>
+                    RateLimitPartition.GetFixedWindowLimiter(
+                        GetClientPartition(context),
+                        _ => CreateOptions(5, TimeSpan.FromMinutes(15))));
+
                 // API - general rate limit (60 requests per minute per IP)
                 options.AddPolicy("ApiPolicy", context =>
                     RateLimitPartition.GetFixedWindowLimiter(
