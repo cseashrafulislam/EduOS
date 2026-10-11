@@ -36,6 +36,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<ITenantModuleService, TenantModuleService>();
             s.AddSingleton<IAuthorizationPolicyProvider, ModuleAuthorizationPolicyProvider>();
             s.AddScoped<IAuthorizationHandler, ModuleAccessHandler>();
+            s.AddScoped<IAuthorizationHandler, PermissionAccessHandler>();
             s.AddScoped<ITenantProfileService, TenantProfileService>();
             s.AddScoped<ITenantSettingService, TenantSettingService>();
             s.AddScoped<ICommunicationAdministrationService, CommunicationAdministrationService>();
