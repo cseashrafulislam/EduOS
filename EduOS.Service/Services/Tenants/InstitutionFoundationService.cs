@@ -82,6 +82,9 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
         if (id is <= 0 || request == null || !ValidCode(request.Code, 50) ||
             !ValidName(request.Name, 150) || request.Email?.Length > 200 ||
             request.Phone?.Length > 30 || request.Address?.Length > 500 ||
+            request.HeadName?.Length > 150 ||
+            (!string.IsNullOrWhiteSpace(request.Email) &&
+             !new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(request.Email)) ||
             !request.IsActive)
             return Task.FromResult(Error<CampusDto>("Invalid or inactive campus; use Archive for removal."));
         return WriteAsync("save campus", async token =>

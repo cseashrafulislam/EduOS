@@ -18,7 +18,8 @@
             credentials: 'same-origin', cache: 'no-store', ...options,
             headers: {
                 Accept: 'application/json',
-                ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+                ...(options.body && !(options.body instanceof FormData)
+                    ? { 'Content-Type': 'application/json' } : {}),
                 ...(options.method && options.method !== 'GET' ? { RequestVerificationToken: token() } : {}),
                 ...(options.headers || {})
             }
@@ -56,6 +57,16 @@
             language.value = option.value;
         }
         set('institutionSubdomain', data.subdomain);
+        for (const [field, url, removeButton] of [
+            ['institutionLogoPreview', data.logoUrl, 'removeInstitutionLogo'],
+            ['institutionFaviconPreview', data.faviconUrl, 'removeInstitutionFavicon']
+        ]) {
+            const preview = el(field);
+            preview.classList.toggle('d-none', !url);
+            if (url) preview.src = url;
+            else preview.removeAttribute('src');
+            el(removeButton).disabled = !url;
+        }
     }
 
     async function loadProfile() {
@@ -210,6 +221,37 @@
         });
     }
 
+    async function uploadBranding(type, button) {
+        await submit(button, async () => {
+            const field = el(type === 'logo' ? 'institutionLogoFile' : 'institutionFaviconFile');
+            const file = field.files?.[0];
+            if (!file) throw new Error('Select an image file.');
+            if (file.size <= 0 || file.size > 5 * 1024 * 1024)
+                throw new Error('Image size must be at most 5 MB.');
+            const supported = type === 'logo'
+                ? ['image/png', 'image/jpeg', 'image/webp']
+                : ['image/png', 'image/jpeg'];
+            if (!supported.includes(file.type)) throw new Error('Unsupported image type.');
+            const data = new FormData();
+            data.append('file', file);
+            await api('/api/tenant-profile/' + type, { method: 'POST', body: data });
+            field.value = '';
+            await loadProfile();
+            notify('Institution ' + type + ' uploaded.');
+        });
+    }
+
+    async function removeBranding(type, button) {
+        if (!state.profile) return notify('Reload the profile first.', true);
+        if (!confirm('Remove this institution ' + type + '?')) return;
+        await submit(button, async () => {
+            await api('/api/tenant-profile/' + type + '?rowVersion=' +
+                encodeURIComponent(state.profile.rowVersion), { method: 'DELETE' });
+            await loadProfile();
+            notify('Institution ' + type + ' removed.');
+        });
+    }
+
     function showTab(campuses) {
         el('institutionProfileSection').classList.toggle('d-none', campuses);
         el('institutionCampusSection').classList.toggle('d-none', !campuses);
@@ -225,6 +267,10 @@
     el('institutionRegionForm').addEventListener('submit', saveRegion);
     el('institutionDomainForm').addEventListener('submit', saveSubdomain);
     el('institutionCampusForm').addEventListener('submit', saveCampus);
+    el('uploadInstitutionLogo').addEventListener('click', e => uploadBranding('logo', e.currentTarget));
+    el('removeInstitutionLogo').addEventListener('click', e => removeBranding('logo', e.currentTarget));
+    el('uploadInstitutionFavicon').addEventListener('click', e => uploadBranding('favicon', e.currentTarget));
+    el('removeInstitutionFavicon').addEventListener('click', e => removeBranding('favicon', e.currentTarget));
     el('reloadInstitution').addEventListener('click', async () => {
         try { await Promise.all([loadProfile(), loadCampuses()]); notify('Institution data refreshed.'); }
         catch (error) { notify(error.message, true); }

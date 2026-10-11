@@ -74,6 +74,36 @@
                 </form>
             </div>
         </div>
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-body">
+                <h2 class="h5">Institution branding</h2>
+                <p class="text-muted small">Only PNG, JPEG or WebP for logo; favicon supports PNG/JPEG. Maximum 5 MB per image.</p>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label for="institutionLogoFile" class="form-label">Logo</label>
+                        <div class="d-flex align-items-center gap-3 mb-2">
+                            <img id="institutionLogoPreview" alt="Current institution logo" width="70" height="70" class="rounded border object-fit-contain d-none" />
+                            <input id="institutionLogoFile" type="file" class="form-control" accept="image/png,image/jpeg,image/webp" />
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button id="uploadInstitutionLogo" type="button" class="btn btn-outline-primary btn-sm">Upload logo</button>
+                            <button id="removeInstitutionLogo" type="button" class="btn btn-outline-danger btn-sm">Remove logo</button>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="institutionFaviconFile" class="form-label">Favicon</label>
+                        <div class="d-flex align-items-center gap-3 mb-2">
+                            <img id="institutionFaviconPreview" alt="Current institution favicon" width="48" height="48" class="rounded border object-fit-contain d-none" />
+                            <input id="institutionFaviconFile" type="file" class="form-control" accept="image/png,image/jpeg" />
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button id="uploadInstitutionFavicon" type="button" class="btn btn-outline-primary btn-sm">Upload favicon</button>
+                            <button id="removeInstitutionFavicon" type="button" class="btn btn-outline-danger btn-sm">Remove favicon</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
         <div class="card border-0 shadow-sm">
             <div class="card-body">
                 <h2 class="h5">Institution subdomain</h2>
