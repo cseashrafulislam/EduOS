@@ -13,8 +13,8 @@ public interface ITenantUserAdministrationService
     Task<ApiResponse<bool>> SetMemberRolesAsync(long membershipId, TenantMemberRolesRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<bool>> SetMemberStatusAsync(long membershipId, TenantMemberStatusRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<bool>> SetRolePermissionsAsync(long roleId, TenantRolePermissionsRequestDto request, CancellationToken ct = default);
-    Task<ApiResponse<bool>> SendInvitationAsync(TenantInviteRequestDto request, CancellationToken ct = default);
-    Task<ApiResponse<bool>> AcceptInvitationAsync(TenantInviteAcceptRequestDto request, CancellationToken ct = default);
-    Task<ApiResponse<IReadOnlyList<TenantCampusAccessDto>>> GetMemberCampusesAsync(long membershipId, CancellationToken ct = default);
-    Task<ApiResponse<bool>> SetMemberCampusesAsync(long membershipId, TenantMemberCampusRequestDto request, CancellationToken ct = default);
+    Task<ApiResponse<bool>> SendInvitationAsync(CreateTenantInvitationRequestDto request, CancellationToken ct = default);
+    Task<ApiResponse<bool>> AcceptInvitationAsync(AcceptTenantInvitationRequestDto request, CancellationToken ct = default);
+    Task<ApiResponse<IReadOnlyList<UserCampusAccessDto>>> GetMemberCampusesAsync(long membershipId, CancellationToken ct = default);
+    Task<ApiResponse<bool>> SetMemberCampusesAsync(long membershipId, SetMembershipCampusAccessRequestDto request, CancellationToken ct = default);
 }
