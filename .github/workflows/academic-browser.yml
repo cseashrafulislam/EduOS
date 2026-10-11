@@ -8,6 +8,8 @@ on:
       - 'EduOS.App/Controllers/AcademicManagementController.cs'
       - 'EduOS.App/Views/Attendance/**'
       - 'EduOS.App/Views/StudentLeaves/**'
+      - 'EduOS.App/Views/MyStudentLeaves/**'
+      - 'EduOS.App/wwwroot/js/student-portal/leaves.js'
       - 'EduOS.App/Views/AcademicRoutines/**'
       - 'EduOS.App/wwwroot/js/attendance/**'
       - 'EduOS.App/wwwroot/js/academic/routines.js'
@@ -41,3 +43,5 @@ jobs:
         run: node tests/browser/student-lifecycle.cjs
       - name: Exercise attendance, timetable and leave browser workflows
         run: node tests/browser/academic-operations.cjs
+      - name: Exercise student and guardian leave self-service
+        run: node tests/browser/my-student-leaves.cjs
