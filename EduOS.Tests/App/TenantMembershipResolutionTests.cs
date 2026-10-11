@@ -73,6 +73,23 @@ public sealed class TenantMembershipResolutionTests
     }
 
     [Fact]
+    public async Task Legacy_global_role_is_not_reused_when_another_institution_is_suspended()
+    {
+        using var db = CreateContext();
+        var first = await SeedTenantAsync(db, "tenant-a");
+        var second = await SeedTenantAsync(db, "tenant-b");
+        await SeedMembershipAsync(db, first, 51, MembershipStatus.Active);
+        await SeedMembershipAsync(db, second, 51, MembershipStatus.Suspended);
+        var context = HttpContextFor(51, first);
+        var invoked = false;
+        var middleware = new TenantContextMiddleware(_ => { invoked = true; return Task.CompletedTask; },
+            NullLogger<TenantContextMiddleware>.Instance);
+        await middleware.InvokeAsync(context, CreateUserManager(51), db);
+        Assert.False(invoked);
+        Assert.Equal(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
+    }
+
+    [Fact]
     public async Task Suspended_membership_is_not_authorized()
     {
         using var db = CreateContext();
