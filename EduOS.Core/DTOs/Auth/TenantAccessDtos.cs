@@ -3,6 +3,7 @@ namespace EduOS.Core.DTOs.Auth;
 public sealed class UserCampusAccessDto
 {
     public long CampusId { get; set; }
+    public string Name { get; set; } = string.Empty;
     public bool IsDefault { get; set; }
     public bool IsActive { get; set; }
 }
@@ -35,5 +36,10 @@ public sealed class CreateTenantInvitationRequestDto
 
 public sealed class AcceptTenantInvitationRequestDto
 {
-    [Required] public string Token { get; set; } = string.Empty;
+    [Required, StringLength(64, MinimumLength = 64)] public string Token { get; set; } = string.Empty;
+    [Required, MinLength(6)] public string Password { get; set; } = string.Empty;
+    [Required, Compare(nameof(Password))] public string ConfirmPassword { get; set; } = string.Empty;
+    [StringLength(200)] public string? FullName { get; set; }
+    [StringLength(30)] public string? MfaCode { get; set; }
+    public bool UseRecoveryCode { get; set; }
 }
