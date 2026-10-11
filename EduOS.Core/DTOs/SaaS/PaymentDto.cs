@@ -69,6 +69,14 @@ namespace EduOS.Core.DTOs.SaaS
     /// <summary>
     /// Admin verifies/rejects a manual payment
     /// </summary>
+    public sealed class PagedManualPaymentsDto
+    {
+        public IReadOnlyList<SubscriptionPaymentDto> Items { get; set; } = Array.Empty<SubscriptionPaymentDto>();
+        public int TotalCount { get; set; }
+        public int Page { get; set; }
+        public int PageSize { get; set; }
+    }
+
     public class VerifyManualPaymentDto
     {
         [Range(1, long.MaxValue)]
@@ -76,6 +84,8 @@ namespace EduOS.Core.DTOs.SaaS
         public bool Approve { get; set; }
         [MaxLength(500)]
         public string? VerificationNote { get; set; }
+        [Required]
+        public string RowVersion { get; set; } = string.Empty;
     }
 
     /// <summary>
