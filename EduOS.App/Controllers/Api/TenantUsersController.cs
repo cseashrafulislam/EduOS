@@ -13,6 +13,22 @@ namespace EduOS.App.Controllers.Api;
 [Route("api/tenant-users")]
 public sealed class TenantUsersController(ITenantUserAdministrationService service) : ControllerBase
 {
+    [HttpPost("invitations")]
+    public async Task<IActionResult> SendInvitation([FromBody] TenantInviteRequestDto request, CancellationToken ct)
+    {
+        var r = await service.SendInvitationAsync(request, ct);
+        return StatusCode(r.StatusCode, r);
+    }
+
+    [AllowAnonymous]
+    [EnableRateLimiting("AccountSecurityPolicy")]
+    [HttpPost("invitations/accept")]
+    public async Task<IActionResult> AcceptInvitation([FromBody] TenantInviteAcceptRequestDto request, CancellationToken ct)
+    {
+        var r = await service.AcceptInvitationAsync(request, ct);
+        return StatusCode(r.StatusCode, r);
+    }
+
     [HttpGet]
     public async Task<IActionResult> Members([FromQuery] int page = 1, [FromQuery] int pageSize = 20,
         [FromQuery] string? search = null, CancellationToken ct = default)
