@@ -165,6 +165,46 @@ public sealed class CommunicationGatewaySecurityTests
         rows.Should().OnlyContain(x => x.HasCredential);
     }
 
+    [Fact]
+    public async Task Gateway_edit_preserves_saved_password_and_requires_matching_rowversion()
+    {
+        var http = new DefaultHttpContext();
+        http.Items["TenantId"] = 101L;
+        await using var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("gateway-update-" + Guid.NewGuid().ToString("N")).Options,
+            new HttpContextAccessor { HttpContext = http });
+        var service = Create(db, 101);
+        var created = await service.SaveGatewayAsync(null, new SaveCommunicationGatewayRequestDto
+        {
+            ProviderCode = "BULKSMSBD", Channel = NotificationChannelType.Sms,
+            Endpoint = "https://sms.example.com/send", SmsSenderId = "SCHOOL",
+            Credential = "original-private-key", IsActive = true, IsDefault = true
+        });
+        created.Success.Should().BeTrue(created.Message);
+        var row = await db.CommunicationGateways.SingleAsync();
+        row.RowVersion = new byte[] { 1, 2, 3, 4 };
+        await db.SaveChangesAsync();
+        var originalSecret = row.ProtectedCredential;
+        var edited = await service.SaveGatewayAsync(row.Id, new SaveCommunicationGatewayRequestDto
+        {
+            ProviderCode = "BULKSMSBD", Channel = NotificationChannelType.Sms,
+            Endpoint = "https://sms.example.com/new-endpoint", SmsSenderId = "NEW-SENDER",
+            Credential = null, IsActive = true, IsDefault = true,
+            RowVersion = Convert.ToBase64String(row.RowVersion)
+        });
+        edited.Success.Should().BeTrue(edited.Message);
+        row.SmsSenderId.Should().Be("NEW-SENDER");
+        row.ProtectedCredential.Should().Be(originalSecret);
+        var stale = await service.SaveGatewayAsync(row.Id, new SaveCommunicationGatewayRequestDto
+        {
+            ProviderCode = "BULKSMSBD", Channel = NotificationChannelType.Sms,
+            Endpoint = "https://sms.example.com/other", SmsSenderId = "BAD-SENDER",
+            IsActive = true, IsDefault = true, RowVersion = Convert.ToBase64String(new byte[] { 9, 9, 9, 9 })
+        });
+        stale.StatusCode.Should().Be(409);
+        row.SmsSenderId.Should().Be("NEW-SENDER");
+    }
+
     private static CommunicationAdministrationService Create(EduOSDbContext db, long tenant) => new(
         new GenericRepository<CommunicationGateway>(db), new GenericRepository<MessageTemplate>(db),
         new GenericRepository<NoticeCategory>(db), new InMemoryUnitOfWork(db), new User(tenant),
