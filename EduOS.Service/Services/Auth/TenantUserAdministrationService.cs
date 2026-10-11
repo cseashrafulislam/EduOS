@@ -241,7 +241,7 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
                 // institution; otherwise preserve unrelated institutions' access.
                 var activeMemberships = await _db.TenantMemberships.IgnoreQueryFilters().AsNoTracking()
                     .Where(x => x.UserId == member.UserId && !x.IsDeleted &&
-                        x.Status == MembershipStatus.Active)
+                        x.Status != MembershipStatus.Left)
                     .Select(x => x.TenantId).Distinct().Take(2).ToListAsync(token);
                 var soleInstitution = activeMemberships.Count == 1 &&
                     activeMemberships[0] == TenantId;
