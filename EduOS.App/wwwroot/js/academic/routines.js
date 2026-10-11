@@ -110,7 +110,9 @@
     }
     async function deactivate(id){
         if(!confirm('Deactivate this routine entry? Existing academic history will remain.'))return;
-        try{await api('/api/academic-routines/entries/'+id+'/deactivate','POST');await load();status('success','Routine entry deactivated.');}
+        const entry=state.entries.find(x=>Number(x.id)===Number(id));
+        if(!entry?.rowVersion)return status('danger','Routine version is unavailable. Reload before deactivating.');
+        try{await api('/api/academic-routines/entries/'+id+'/deactivate?rowVersion='+encodeURIComponent(entry.rowVersion),'POST');await load();status('success','Routine entry deactivated.');}
         catch(e){status('danger',e.message);}
     }
     async function teacherTimetable(){
