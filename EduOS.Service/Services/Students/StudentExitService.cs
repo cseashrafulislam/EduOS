@@ -58,9 +58,8 @@ public sealed class StudentExitService : IStudentExitService
         var tenantId = _currentUser.TenantId;
         try
         {
-            using var scope = new TransactionScope(TransactionScopeOption.Required,
-                new TransactionOptions { IsolationLevel = IsolationLevel.Serializable },
-                TransactionScopeAsyncFlowOption.Enabled);
+            return await _unitOfWork.ExecuteInTransactionAsync(async token =>
+            {
             var replay = await _exits.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenantId &&
                 x.ClientRequestId == request.ClientRequestId, cancellationToken);
             if (replay != null)
@@ -72,7 +71,6 @@ public sealed class StudentExitService : IStudentExitService
                     !string.Equals(replay.ConductRemark, Trim(request.ConductRemark), StringComparison.Ordinal))
                     return ApiResponse<StudentExitResultDto>.ErrorResponse("Request ID is already used for a different exit.", 409);
                 var oldCertificate = await CertificateNoAsync(replay, cancellationToken);
-                scope.Complete();
                 return ApiResponse<StudentExitResultDto>.SuccessResponse(Map(replay, oldStudent, oldCertificate), "Exit already processed.");
             }
             var student = await _students.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenantId &&
@@ -161,12 +159,12 @@ public sealed class StudentExitService : IStudentExitService
             student.UpdatedAt = now;
             student.UpdatedBy = _currentUser.UserId;
             await _unitOfWork.SaveChangesAsync(cancellationToken);
-            scope.Complete();
             return new ApiResponse<StudentExitResultDto>
             {
                 Success = true, StatusCode = 201, Message = "Student exit processed.",
                 Data = Map(record, student, certificateNo)
             };
+            }, System.Data.IsolationLevel.Serializable, cancellationToken);
         }
         catch (DbUpdateConcurrencyException ex)
         {

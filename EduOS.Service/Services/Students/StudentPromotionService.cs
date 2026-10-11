@@ -123,9 +123,8 @@ public sealed class StudentPromotionService : IStudentPromotionService
         var roll = request.TargetRoll.Trim();
         try
         {
-            using var tx = new TransactionScope(TransactionScopeOption.Required,
-                new TransactionOptions { IsolationLevel = IsolationLevel.Serializable },
-                TransactionScopeAsyncFlowOption.Enabled);
+            return await _uow.ExecuteInTransactionAsync(async token =>
+            {
             var student = await _students.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenant &&
                 x.PublicId == studentReference, ct);
             if (student == null) return Error("Student not found.", 404);
@@ -145,7 +144,6 @@ public sealed class StudentPromotionService : IStudentPromotionService
                     !string.Equals(replayResult.Data.Roll, roll, StringComparison.OrdinalIgnoreCase) ||
                     replayResult.Data.Decision != request.Decision)
                     return Error("Client request ID is already used for different progression details.", 409);
-                tx.Complete();
                 return replayResult;
             }
             if (student.StatusCode != "Active")
@@ -253,12 +251,12 @@ public sealed class StudentPromotionService : IStudentPromotionService
             await _records.AddAsync(record);
             await _uow.SaveChangesAsync(ct);
             var result = Map(record, student, source, target, false);
-            tx.Complete();
             return new ApiResponse<StudentPromotionResultDto>
             {
                 Success = true, StatusCode = 201, Message = decision == StudentProgressionDecisionType.Promoted
                     ? "Student promoted." : "Student repeat placement recorded.", Data = result
             };
+            }, System.Data.IsolationLevel.Serializable, ct);
         }
         catch (DbUpdateConcurrencyException ex)
         {

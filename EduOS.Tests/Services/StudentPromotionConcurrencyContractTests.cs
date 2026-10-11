@@ -16,11 +16,11 @@ public class StudentPromotionConcurrencyContractTests
         historyStart.Should().BeGreaterThan(promoteStart);
         var promoteMethod = source[promoteStart..historyStart];
 
-        promoteMethod.Should().Contain("IsolationLevel = IsolationLevel.Serializable");
-        promoteMethod.Should().Contain("TransactionScopeAsyncFlowOption.Enabled");
+        promoteMethod.Should().Contain("System.Data.IsolationLevel.Serializable");
+        promoteMethod.Should().Contain("_uow.ExecuteInTransactionAsync(async token =>");
         promoteMethod.Should().Contain("Target roll already belongs to an active student.");
         promoteMethod.Should().Contain("if (batch.Capacity <= 0 || await _enrollments.GetQueryable().AsNoTracking().CountAsync");
-        promoteMethod.Should().Contain("tx.Complete();");
+        promoteMethod.Should().Contain("System.Data.IsolationLevel.Serializable, ct);");
     }
 
     [Fact]

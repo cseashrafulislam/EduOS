@@ -12,8 +12,8 @@ public sealed class StudentExitIntegrityContractTests
     public void Exit_closes_canonical_current_enrollments_atomically()
     {
         Source.Should().Contain("IGenericRepository<StudentEnrollment>");
-        Source.Should().Contain("IsolationLevel = IsolationLevel.Serializable");
-        Source.Should().Contain("TransactionScopeAsyncFlowOption.Enabled");
+        Source.Should().Contain("System.Data.IsolationLevel.Serializable");
+        Source.Should().Contain("_unitOfWork.ExecuteInTransactionAsync(async token =>");
         Source.Should().Contain("x.State == EnrollmentState.Active || x.IsCurrent");
         Source.Should().Contain("x.IsCurrent && x.State == EnrollmentState.Active");
         Source.Should().Contain("enrollment.IsCurrent = false");
@@ -22,7 +22,7 @@ public sealed class StudentExitIntegrityContractTests
         Source.Should().Contain("EnrollmentState.Completed");
         Source.Should().Contain("EnrollmentState.Dropped");
         Source.Should().Contain("Outstanding fees must be settled.");
-        Source.Should().Contain("scope.Complete()");
+        Source.Should().Contain("System.Data.IsolationLevel.Serializable, cancellationToken);");
     }
 
     [Fact]
