@@ -99,7 +99,8 @@
                     </div>
                 </section>
 
-                <form id="manualForm" enctype="multipart/form-data" novalidate>
+                <form id="manualForm" method="post" enctype="multipart/form-data" novalidate>
+                    @Html.AntiForgeryToken()
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label for="payerBankName" class="form-label">@T["PayerBankName"] <span class="required-mark">*</span></label>
