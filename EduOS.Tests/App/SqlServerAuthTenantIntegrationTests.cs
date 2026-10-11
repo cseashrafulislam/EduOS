@@ -1,5 +1,12 @@
 using EduOS.App.Security;
 using EduOS.Core.Entities.Auth;
+using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Admission;
+using EduOS.Core.Interfaces;
+using EduOS.Persistence.Repositories;
+using EduOS.Service.Services.Tenants;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging.Abstractions;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Enums.Domain;
 using EduOS.Persistence.Context;
@@ -114,4 +121,95 @@ public sealed class SqlServerAuthTenantIntegrationTests
             await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => second.SaveChangesAsync());
         }
     }
+    [Fact]
+    public async Task Campus_archive_enforces_real_sql_assignments_and_last_campus_invariant()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
+        var suffix = Guid.NewGuid().ToString("N")[..12];
+        long tenantId, userId, campusId;
+        await using (var setup = new EduOSDbContext(options))
+        {
+            var tenant = new Tenant
+            {
+                Code = "CI-CAMP-" + suffix, Name = "Campus Integration",
+                Email = "campus-" + suffix + "@example.test", State = TenantState.Active
+            };
+            var username = "campus-admin-" + suffix + "@example.test";
+            var user = new ApplicationUser
+            {
+                UserName = username, NormalizedUserName = username.ToUpperInvariant(),
+                Email = username, NormalizedEmail = username.ToUpperInvariant(),
+                FullName = "Campus Administrator", EmailConfirmed = true, IsActive = true,
+                SecurityStamp = Guid.NewGuid().ToString(), ConcurrencyStamp = Guid.NewGuid().ToString()
+            };
+            setup.Tenants.Add(tenant);
+            setup.Users.Add(user);
+            await setup.SaveChangesAsync();
+            tenantId = tenant.Id; userId = user.Id;
+            setup.ChangeTracker.Clear();
+            using (setup.BeginSystemTenantScope(tenantId))
+            {
+                var main = new Campus { TenantId = tenantId, Name = "Main", Code = "MAIN", IsHeadOffice = true };
+                var secondary = new Campus { TenantId = tenantId, Name = "Secondary", Code = "SECOND" };
+                setup.Campuses.AddRange(main, secondary);
+                await setup.SaveChangesAsync();
+                campusId = secondary.Id;
+                setup.UserCampusAccesses.Add(new UserCampusAccess
+                {
+                    TenantId = tenantId, UserId = userId, CampusId = campusId, IsActive = true
+                });
+                await setup.SaveChangesAsync();
+            }
+        }
+
+        var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
+        accessor.HttpContext.Items["TenantId"] = tenantId;
+        await using var db = new EduOSDbContext(options, accessor);
+        var service = new InstitutionFoundationService(
+            new GenericRepository<Tenant>(db), new GenericRepository<Campus>(db),
+            new GenericRepository<TenantSetting>(db), new GenericRepository<TenantMembership>(db),
+            new GenericRepository<UserCampusAccess>(db),
+            new GenericRepository<AcademicYear>(db), new GenericRepository<AcademicTerm>(db),
+            new GenericRepository<AcademicBatch>(db), new GenericRepository<AdmissionIntakeForm>(db),
+            new GenericRepository<TenantSubscription>(db), new GenericRepository<SubscriptionPlan>(db),
+            db, new CampusAdminTestUser(tenantId), TimeProvider.System,
+            NullLogger<InstitutionFoundationService>.Instance);
+        var version = await db.Campuses.AsNoTracking().Where(x => x.Id == campusId)
+            .Select(x => x.RowVersion).SingleAsync();
+        Assert.NotEmpty(version);
+        var assigned = await service.ArchiveCampusAsync(campusId, Convert.ToBase64String(version));
+        Assert.Equal(409, assigned.StatusCode);
+        Assert.Contains("assigned", assigned.Message ?? "", StringComparison.OrdinalIgnoreCase);
+
+        var grant = await db.UserCampusAccesses.SingleAsync(x => x.CampusId == campusId && x.UserId == userId);
+        grant.IsActive = false;
+        await db.SaveChangesAsync();
+        var archived = await service.ArchiveCampusAsync(campusId, Convert.ToBase64String(version));
+        Assert.True(archived.Success, archived.Message);
+        Assert.True(await db.Campuses.IgnoreQueryFilters().AnyAsync(x => x.Id == campusId && x.IsDeleted));
+
+        var headOffice = await db.Campuses.AsNoTracking().SingleAsync(x =>
+            x.TenantId == tenantId && x.IsHeadOffice && !x.IsDeleted);
+        var last = await service.ArchiveCampusAsync(headOffice.Id, Convert.ToBase64String(headOffice.RowVersion));
+        Assert.Equal(409, last.StatusCode);
+        Assert.Contains("at least one", last.Message ?? "", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private sealed class CampusAdminTestUser(long tenantId) : ICurrentUserService
+    {
+        public bool IsAuthenticated => true;
+        public long TenantId => tenantId;
+        public long UserId => 999;
+        public string? FullName => "Campus administrator";
+        public string? Email => "campus-ci@example.test";
+        public bool IsTenantAdmin => true;
+        public bool IsSuperAdmin => false;
+        public IReadOnlyList<string> Roles => ["TenantAdmin"];
+        public bool IsInRole(string role) => role == "TenantAdmin";
+        public string? IpAddress => "127.0.0.1";
+        public string? UserAgent => "SQL Server Integration";
+    }
+
 }
