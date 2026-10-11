@@ -51,7 +51,7 @@ public sealed class TenantUserAdministrationTests
         await db.SaveChangesAsync();
         var service = Service(db, access.User, access.Email);
         var result = await service.SetRolePermissionsAsync(222,
-            new TenantRolePermissionsRequestDto { PermissionIds = Array.Empty<long>() });
+            new TenantRolePermissionsRequestDto { PermissionIds = Array.Empty<long>(), ConcurrencyStamp = "test-stamp" });
         Assert.False(result.Success);
         Assert.Equal(404, result.StatusCode);
         Assert.Empty(db.RolePermissions);
