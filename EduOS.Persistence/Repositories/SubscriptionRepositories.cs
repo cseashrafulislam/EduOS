@@ -193,9 +193,23 @@ public class SubscriptionPaymentRepository : GenericRepository<SubscriptionPayme
         PageAsync(_context.SubscriptionPayments.IgnoreQueryFilters().AsNoTracking()
             .Where(x => !x.IsDeleted && x.TenantId == tenantId && x.SubscriptionInvoiceId == invoiceId)
             .OrderByDescending(x => x.InitiatedAt).ThenByDescending(x => x.Id), page, pageSize, cancellationToken);
-    public Task<(List<SubscriptionPayment> Items, int TotalCount)> GetPendingManualVerificationForPlatformAsync(int page, int pageSize, CancellationToken cancellationToken) =>
-        PageAsync(_context.SubscriptionPayments.IgnoreQueryFilters().AsNoTracking()
-            .Where(x => !x.IsDeleted && x.PaymentMethod == PaymentMethodType.BankTransfer
-                && x.State == PaymentState.AwaitingVerification)
-            .OrderBy(x => x.InitiatedAt).ThenBy(x => x.Id), page, pageSize, cancellationToken);
+    public Task<(List<SubscriptionPayment> Items, int TotalCount)> GetPendingManualVerificationForPlatformAsync(int page, int pageSize, string? search, CancellationToken cancellationToken)
+    {
+        var query = _context.SubscriptionPayments.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => !x.IsDeleted && x.PaymentMethod == PaymentMethodType.BankTransfer &&
+                x.State == PaymentState.AwaitingVerification);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            var invoiceIds = _context.SubscriptionInvoices.IgnoreQueryFilters().AsNoTracking()
+                .Where(x => !x.IsDeleted && x.InvoiceNumber.StartsWith(term)).Select(x => x.Id);
+            query = query.Where(x => x.TransactionId.StartsWith(term) ||
+                (x.PayerBankName != null && x.PayerBankName.StartsWith(term)) ||
+                (x.PayerAccountNumber != null && x.PayerAccountNumber.StartsWith(term)) ||
+                (x.DepositSlipNumber != null && x.DepositSlipNumber.StartsWith(term)) ||
+                invoiceIds.Contains(x.SubscriptionInvoiceId));
+        }
+        return PageAsync(query.OrderBy(x => x.InitiatedAt).ThenBy(x => x.Id),
+            page, pageSize, cancellationToken);
+    }
 }
