@@ -50,7 +50,7 @@ jobs:
         run: dotnet build EduOS.slnx --configuration Release --no-restore
 
       - name: Test authentication security regressions
-        run: dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-build --filter "FullyQualifiedName~AuthSecurityStampIntegrationTests|FullyQualifiedName~OptionalMfaAuthContractTests|FullyQualifiedName~MfaChallengeServiceTests" --logger "trx;LogFileName=auth-tests.trx" --results-directory TestResults
+        run: dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-build --filter "FullyQualifiedName~AuthSecurityStampIntegrationTests|FullyQualifiedName~OptionalMfaAuthContractTests|FullyQualifiedName~MfaChallengeServiceTests|FullyQualifiedName~AuthTenantSessionIntegrationTests|FullyQualifiedName~TenantMembershipResolutionTests" --logger "trx;LogFileName=auth-tests.trx" --results-directory TestResults
 
       - name: Test public admission regression
         run: dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-build --filter "FullyQualifiedName~PublicAdmissionServiceTests" --logger "console;verbosity=normal"
