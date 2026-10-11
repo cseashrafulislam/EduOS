@@ -18,29 +18,38 @@ public class AcademicRoutineWorkflowContractTests
     }
 
     [Fact]
-    public void Routine_writes_serialize_collision_checks_and_map_conflicts_to_409()
+    public void Routine_writes_use_serializable_transactions_and_check_real_batch_teacher_room_collisions()
     {
         var source = File.ReadAllText(FindRepositoryFile("EduOS.Service", "Services", "Academic", "AcademicRoutineService.cs"));
-        source.Should().Contain("IsolationLevel = IsolationLevel.Serializable");
-        source.Should().Contain("TransactionScopeAsyncFlowOption.Enabled");
-        source.Should().Contain("x.RoutineTimeSlot.StartTime < slot.EndTime");
-        source.Should().Contain("x.RoutineTimeSlot.EndTime > slot.StartTime");
-        source.Should().Contain("x.AcademicBatchId == assignment.AcademicBatchId");
-        source.Should().Contain("x.EmployeeId == assignment.EmployeeId");
-        source.Should().Contain("x.RoomId == room.Id");
-        source.Should().Contain("catch (TransactionAbortedException ex)");
-        source.Should().Contain("Reload and try again.\", 409");
+        source.Should().Contain("IsolationLevel.Serializable");
+        source.Split("IsolationLevel.Serializable").Length.Should().Be(4,
+            "time-slot, instructor-assignment and routine-entry writes must serialize their checks");
+        source.Should().Contain("_unitOfWork.ExecuteInTransactionAsync(async token =>");
+        source.Should().Contain("x.DayOfWeek == request.DayOfWeek && x.IsActive");
+        source.Should().Contain("x.EffectiveFrom <= request.EffectiveTo.GetValueOrDefault(DateOnly.MaxValue)");
+        source.Should().Contain("TimeOverlaps(slot, otherSlot)");
+        source.Should().Contain("otherOffering.AcademicBatchId == batch.Id");
+        source.Should().Contain("assignment.EmployeeId == otherAssignment.EmployeeId");
+        source.Should().Contain("other.RoomId == room.Id");
+        source.Should().Contain("catch (DbUpdateException ex)");
+        source.Should().Contain("Routine entry conflicts with another update.");
+        var uow = File.ReadAllText(FindRepositoryFile("EduOS.Persistence", "Context", "EduOSDbContext.cs"));
+        uow.Should().Contain("Database.BeginTransactionAsync(isolationLevel.Value, cancellationToken)");
+        uow.Should().Contain("Database.CreateExecutionStrategy()");
     }
 
     [Fact]
-    public void Academic_baseline_contains_canonical_operations_schema_and_collision_indexes()
+    public void Academic_schema_and_index_support_concurrent_routine_overlap_checks()
     {
-        var source = File.ReadAllText(FindRepositoryFile("EduOS.Persistence", "Migrations", "20260924114506_InitialCreate.cs"));
-        foreach (var table in new[] { "AcademicPrograms", "AcademicLevels", "AcademicTracks", "AcademicBatches", "AcademicCurriculums", "CurriculumSubjects", "InstructorAssignments", "RoutineTimeSlots", "RoutineEntries", "AcademicCalendarEvents", "Rooms", "ProgramCampuses", "SubjectPrerequisites" }) source.Should().Contain($"name: \"{table}\"");
-        source.Should().Contain("IX_RoutineEntries_Tenant_Batch_Day");
-        source.Should().Contain("IX_RoutineEntries_Tenant_Employee_Day");
-        source.Should().Contain("IX_RoutineEntries_Tenant_Room_Day");
-        source.Should().Contain("partial class InitialCreate : Migration");
+        var initial = File.ReadAllText(FindRepositoryFile("EduOS.Persistence", "Migrations", "20261010084739_Initials.cs"));
+        foreach (var table in new[] { "AcademicPrograms", "AcademicLevels", "AcademicTracks", "AcademicBatches",
+                     "AcademicCurriculums", "CurriculumSubjects", "InstructorAssignments", "RoutineTimeSlots",
+                     "RoutineEntries", "AcademicCalendarEvents", "Rooms", "ProgramCampuses", "SubjectPrerequisites" })
+            initial.Should().Contain($"name: \"{table}\"");
+        var indexMigration = File.ReadAllText(FindRepositoryFile("EduOS.Persistence", "Migrations",
+            "20261011090000_RoutineCollisionIndex.cs"));
+        indexMigration.Should().Contain("IX_RoutineEntries_Tenant_Day_Active_From");
+        indexMigration.Should().Contain("new[] { \"TenantId\", \"DayOfWeek\", \"IsActive\", \"EffectiveFrom\" }");
     }
 
     private static string FindRepositoryFile(params string[] segments)
