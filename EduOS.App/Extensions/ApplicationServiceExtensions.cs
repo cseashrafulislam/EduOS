@@ -22,6 +22,7 @@ namespace EduOS.App.Extensions
             s.Configure<LearnerIdentitySettings>(c.GetSection(LearnerIdentitySettings.SectionName));
             s.Configure<MfaSettings>(c.GetSection(MfaSettings.SectionName)); s.AddAutoMapper(_ => { }, typeof(MappingProfile).Assembly);
             s.AddScoped<ICurrentUserService, CurrentUserService>();
+            s.AddScoped<ITenantUserAdministrationService, TenantUserAdministrationService>();
             s.AddScoped<IFileUploadService, FileUploadService>();
             s.AddScoped<ILearnerIdentifierProtector, LearnerIdentifierProtector>();
             s.AddSingleton(TimeProvider.System);
