@@ -131,7 +131,7 @@ public sealed class TenantUserAdministrationService : ITenantUserAdministrationS
         if (request == null || string.IsNullOrWhiteSpace(request.Name))
             return ApiResponse<TenantRoleDto>.ErrorResponse("Role name is required.", 400);
         var name = request.Name.Trim();
-        if (name.Length is < 2 or > 100 || name.Equals("TenantAdmin", StringComparison.OrdinalIgnoreCase) ||
+        if (name.Length is < 2 or > 100 ||
             name.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase))
             return ApiResponse<TenantRoleDto>.ErrorResponse("Reserved or invalid role name.", 400);
         var normalized = name.ToUpperInvariant();
