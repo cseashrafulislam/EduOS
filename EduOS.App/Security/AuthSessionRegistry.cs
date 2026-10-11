@@ -36,6 +36,15 @@ public static class AuthSessionRegistry
             ExpiresAtUtc = now.AddDays(rememberMe ? 30 : 1),
             IpAddress = Truncate(ip, 64), UserAgent = Truncate(userAgent, 300)
         };
+        // Bound per-user session storage: remove expired/malformed entries and
+        // evict the oldest sessions. This avoids unbounded tokens for active users.
+        var existing = await db.UserTokens.Where(x =>
+            x.UserId == userId && x.LoginProvider == Provider).ToListAsync();
+        var retained = existing.Select(x => new { Token = x, Parsed = Parse(x.Value) })
+            .Where(x => x.Parsed != null && x.Parsed.ExpiresAtUtc > now)
+            .OrderByDescending(x => x.Parsed!.CreatedAtUtc).Take(19)
+            .Select(x => x.Token).ToHashSet();
+        db.UserTokens.RemoveRange(existing.Where(x => !retained.Contains(x)));
         db.UserTokens.Add(new IdentityUserToken<long>
         {
             UserId = userId, LoginProvider = Provider, Name = sid,
