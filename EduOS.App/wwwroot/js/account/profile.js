@@ -255,10 +255,8 @@ async function changePassword() {
 
         document.getElementById('passwordForm')?.reset();
 
-        showAlert(
-            'success',
-            response?.message || 'Password changed successfully.'
-        );
+        showAlert('success', response?.message || 'Password changed. Sign in again.');
+        window.location.assign('/Account/Login?status=password-changed');
     } catch (error) {
         console.error('Password change error:', error);
 
