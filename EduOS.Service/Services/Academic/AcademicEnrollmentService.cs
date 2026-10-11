@@ -65,6 +65,40 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
             ApiResponse<StudentEnrollmentDto>.SuccessResponse(await BuildEnrollmentDtoAsync(enrollment, student, ct));
     }
 
+    public async Task<ApiResponse<IReadOnlyList<AcademicCurriculumDto>>> GetEligibleCurriculaAsync(
+        long academicBatchId, DateOnly enrollmentDate, CancellationToken ct = default)
+    {
+        if (!CanManage()) return Denied<IReadOnlyList<AcademicCurriculumDto>>();
+        if (academicBatchId <= 0 || enrollmentDate == default)
+            return Error<IReadOnlyList<AcademicCurriculumDto>>("Batch and enrollment date are required.");
+        var tenant = _user.TenantId;
+        var batch = await _batches.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.Id == academicBatchId && x.IsActive && !x.IsDeleted, ct);
+        if (batch == null) return Error<IReadOnlyList<AcademicCurriculumDto>>("Academic batch not found.", 404);
+        var year = await _years.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.Id == batch.AcademicYearId && x.IsActive && !x.IsDeleted, ct);
+        if (year == null || enrollmentDate < year.StartDate || enrollmentDate > year.EndDate ||
+            batch.StartDate.HasValue && enrollmentDate < batch.StartDate.Value ||
+            batch.EndDate.HasValue && enrollmentDate > batch.EndDate.Value)
+            return Error<IReadOnlyList<AcademicCurriculumDto>>("Enrollment date is outside the active academic period.", 409);
+        var curricula = await _curricula.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.AcademicProgramId == batch.AcademicProgramId &&
+            x.AcademicTrackId == batch.AcademicTrackId && x.MediumId == batch.MediumId &&
+            x.IsCurrent && x.IsActive && !x.IsDeleted && x.EffectiveFrom <= enrollmentDate &&
+            (!x.EffectiveTo.HasValue || x.EffectiveTo >= enrollmentDate))
+            .OrderByDescending(x => x.VersionNo).ThenBy(x => x.Id).Take(5)
+            .Select(x => new AcademicCurriculumDto
+            {
+                Id = x.Id, AcademicProgramId = x.AcademicProgramId,
+                AcademicTrackId = x.AcademicTrackId, MediumId = x.MediumId,
+                Name = x.Name, Code = x.Code, VersionNo = x.VersionNo,
+                EffectiveFrom = x.EffectiveFrom, EffectiveTo = x.EffectiveTo,
+                IsCurrent = x.IsCurrent, IsActive = x.IsActive,
+                RowVersion = Convert.ToBase64String(x.RowVersion)
+            }).ToListAsync(ct);
+        return ApiResponse<IReadOnlyList<AcademicCurriculumDto>>.SuccessResponse(curricula);
+    }
+
     public Task<ApiResponse<StudentEnrollmentDto>> EnrollAsync(CreateStudentEnrollmentRequestDto request,
         CancellationToken ct = default)
     {

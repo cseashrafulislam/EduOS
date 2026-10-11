@@ -7,6 +7,7 @@ namespace EduOS.Core.Interfaces.IServices;
 public interface IAcademicEnrollmentService
 {
     Task<ApiResponse<StudentEnrollmentDto>> GetCurrentAsync(Guid studentReference, CancellationToken cancellationToken = default);
+    Task<ApiResponse<IReadOnlyList<AcademicCurriculumDto>>> GetEligibleCurriculaAsync(long academicBatchId, DateOnly enrollmentDate, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentEnrollmentDto>> EnrollAsync(CreateStudentEnrollmentRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentSubjectRegistrationDto>> RequestOptionalSubjectAsync(RegisterStudentSubjectRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentSubjectRegistrationDto>> DecideSubjectAsync(long registrationId, ChangeSubjectRegistrationStateRequestDto request, CancellationToken cancellationToken = default);

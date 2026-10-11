@@ -29,6 +29,12 @@ public sealed class AcademicEnrollmentsController : ControllerBase
     public async Task<IActionResult> Timetable(Guid studentReference, CancellationToken cancellationToken) =>
         ToAction(await _service.GetTimetableAsync(studentReference, cancellationToken));
 
+    [HttpGet("batches/{academicBatchId:long}/curricula")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
+    public async Task<IActionResult> EligibleCurricula(long academicBatchId,
+        [FromQuery] DateOnly enrollmentDate, CancellationToken cancellationToken) =>
+        ToAction(await _service.GetEligibleCurriculaAsync(academicBatchId, enrollmentDate, cancellationToken));
+
     [HttpPost]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
     public async Task<IActionResult> Enroll([FromBody] CreateStudentEnrollmentRequestDto request, CancellationToken cancellationToken) =>
