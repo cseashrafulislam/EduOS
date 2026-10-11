@@ -60,8 +60,8 @@
             button.className = 'btn btn-sm btn-outline-primary';
             button.dataset.reference = item.reference;
             button.textContent = i18n.view || '';
-            card.append(heading, line(i18n.studentCode, item.studentCode), line(i18n.roll, item.roll),
-                line(i18n.academicUnit, [item.academicUnit, item.section, item.academicYear].filter(Boolean).join(' · ')),
+            card.append(heading, line(i18n.studentCode, item.studentCode), line(i18n.roll, item.rollNo),
+                line(i18n.academicUnit, [item.academicLevelName, item.academicBatchName, item.academicYear].filter(Boolean).join(' · ')),
                 line(i18n.fullContact, item.maskedMobile), button);
             return card;
         }));
@@ -81,16 +81,16 @@
 
     function renderDetails(item) {
         const rows = [
-            [i18n.studentCode, item.studentCode], [i18n.roll, item.roll], [i18n.dateOfBirth, formatDate(item.dateOfBirth)],
+            [i18n.studentCode, item.studentCode], [i18n.roll, item.rollNo], [i18n.dateOfBirth, formatDate(item.dateOfBirth)],
             [i18n.gender, item.gender], [i18n.fullContact, [item.phone, item.email].filter(Boolean).join(' · ')],
-            [i18n.address, item.address], [i18n.academicUnit, [item.academicUnit, item.section, item.academicYear].filter(Boolean).join(' · ')],
+            [i18n.address, item.address], [i18n.academicUnit, [item.academicLevelName, item.academicBatchName, item.academicYear].filter(Boolean).join(' · ')],
             [i18n.admissionDate, formatDate(item.admissionDate)], [i18n.status, item.status]
         ];
         const nodes = [];
         rows.filter(x => x[1]).forEach(x => { const dt = document.createElement('dt'); const dd = document.createElement('dd'); dt.textContent = x[0] || ''; dd.textContent = x[1] || ''; nodes.push(dt, dd); });
         document.getElementById('studentDetails').replaceChildren(...nodes);
         renderRelated('studentGuardians', item.guardians, x => [x.name, x.relation, x.phone].filter(Boolean).join(' · '));
-        renderRelated('studentEnrollments', item.enrollments, x => [x.academicYear, x.academicTerm, x.academicUnit, x.section, x.group, x.roll].filter(Boolean).join(' · '));
+        renderRelated('studentEnrollments', item.enrollments, x => [x.academicYear, x.academicTerm, x.academicLevelName, x.academicBatchName, x.academicTrackName, x.rollNo].filter(Boolean).join(' · '));
     }
 
     function renderRelated(id, items, format) {
