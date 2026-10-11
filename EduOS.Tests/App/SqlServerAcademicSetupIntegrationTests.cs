@@ -1,10 +1,14 @@
+using EduOS.Core.DTOs.Academic;
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Admission;
+using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
 using EduOS.Persistence.Repositories;
 using EduOS.Service.Services.Academic;
+using EduOS.Service.Services.Tenants;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -74,6 +78,84 @@ public sealed class SqlServerAcademicSetupIntegrationTests
         Assert.False(rows.Single(x => x.Id == curriculum1).IsCurrent);
         Assert.Equal(new DateOnly(2025, 1, 1), rows.Single(x => x.Id == curriculum1).EffectiveFrom);
     }
+    [Fact]
+    public async Task Academic_current_year_and_term_switches_are_atomic_on_real_sql_server()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var opts = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
+        var suffix = Guid.NewGuid().ToString("N")[..10];
+        long tenantId;
+        await using (var seed = new EduOSDbContext(opts))
+        {
+            var tenant = new Tenant { Code = "CI-FND-" + suffix, Name = "Foundation CI",
+                Email = "fnd-" + suffix + "@example.test", State = TenantState.Active };
+            seed.Tenants.Add(tenant);
+            await seed.SaveChangesAsync();
+            tenantId = tenant.Id;
+        }
+        var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
+        accessor.HttpContext.Items["TenantId"] = tenantId;
+        await using var db = new EduOSDbContext(opts, accessor);
+        var sut = new InstitutionFoundationService(
+            new GenericRepository<Tenant>(db), new GenericRepository<Campus>(db),
+            new GenericRepository<TenantSetting>(db), new GenericRepository<TenantMembership>(db),
+            new GenericRepository<UserCampusAccess>(db), new GenericRepository<AcademicYear>(db),
+            new GenericRepository<AcademicTerm>(db), new GenericRepository<AcademicBatch>(db),
+            new GenericRepository<AdmissionIntakeForm>(db),
+            new GenericRepository<TenantSubscription>(db), new GenericRepository<SubscriptionPlan>(db),
+            db, new AcademicAdmin(tenantId), TimeProvider.System,
+            NullLogger<InstitutionFoundationService>.Instance);
+        var start = new DateOnly(2026, 1, 1);
+        var end = new DateOnly(2026, 12, 31);
+        var a = await sut.SaveAcademicYearAsync(null, new SaveAcademicYearRequestDto
+        {
+            Name = "2026 Year A", Code = "YA-" + suffix, StartDate = start, EndDate = end,
+            IsActive = true, IsCurrent = true
+        });
+        Assert.True(a.Success, a.Message);
+        var b = await sut.SaveAcademicYearAsync(null, new SaveAcademicYearRequestDto
+        {
+            Name = "2026 Year B", Code = "YB-" + suffix, StartDate = start, EndDate = end,
+            IsActive = true, IsCurrent = true
+        });
+        Assert.True(b.Success, b.Message);
+        var invalid = await sut.SaveAcademicYearAsync(null, new SaveAcademicYearRequestDto
+        {
+            Name = "Invalid current", Code = "BAD-" + suffix, StartDate = start, EndDate = end,
+            IsActive = false, IsCurrent = true
+        });
+        Assert.Equal(400, invalid.StatusCode);
+        var duplicate = await sut.SaveAcademicYearAsync(null, new SaveAcademicYearRequestDto
+        {
+            Name = "Duplicate code", Code = "YA-" + suffix, StartDate = start, EndDate = end,
+            IsActive = true
+        });
+        Assert.Equal(409, duplicate.StatusCode);
+
+        var firstTerm = await sut.SaveAcademicTermAsync(null, new SaveAcademicTermRequestDto
+        {
+            AcademicYearId = b.Data!.Id, Name = "First", Code = "T1-" + suffix,
+            StartDate = start, EndDate = new DateOnly(2026, 6, 30), IsCurrent = true
+        });
+        Assert.True(firstTerm.Success, firstTerm.Message);
+        var secondTerm = await sut.SaveAcademicTermAsync(null, new SaveAcademicTermRequestDto
+        {
+            AcademicYearId = b.Data.Id, Name = "Second", Code = "T2-" + suffix,
+            StartDate = new DateOnly(2026, 7, 1), EndDate = end, IsCurrent = true
+        });
+        Assert.True(secondTerm.Success, secondTerm.Message);
+        db.ChangeTracker.Clear();
+        var years = await db.AcademicYears.AsNoTracking().Where(x => x.TenantId == tenantId).ToListAsync();
+        var terms = await db.AcademicTerms.AsNoTracking().Where(x => x.TenantId == tenantId).ToListAsync();
+        Assert.Equal(2, years.Count);
+        Assert.Single(years, x => x.Id == b.Data.Id && x.IsCurrent);
+        Assert.False(years.Single(x => x.Id == a.Data!.Id).IsCurrent);
+        Assert.Equal(2, terms.Count);
+        Assert.Single(terms, x => x.Id == secondTerm.Data!.Id && x.IsCurrent);
+        Assert.False(terms.Single(x => x.Id == firstTerm.Data!.Id).IsCurrent);
+    }
+
     private sealed class AcademicAdmin(long tenant) : ICurrentUserService
     {
         public bool IsAuthenticated => true;
