@@ -25,6 +25,10 @@
                 <button class="btn btn-primary" type="submit">Load roster</button>
                 <button id="markAllPresent" class="btn btn-outline-success" type="button" disabled>Mark all present</button>
                 <button id="saveAttendance" class="btn btn-success" type="button" disabled>Save attendance</button>
+                @if (User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal"))
+                {
+                    <button id="finalizeAttendance" class="btn btn-outline-danger" type="button" disabled>Finalize register</button>
+                }
             </div>
         </form>
     </section>

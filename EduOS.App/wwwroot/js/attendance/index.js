@@ -2,7 +2,8 @@
     'use strict';
     const el = id => document.getElementById(id);
     const form = el('attendanceFilters'), rows = el('attendanceRows'), date = el('attendanceDate');
-    const saveButton = el('saveAttendance'), markAllButton = el('markAllPresent'), summary = el('attendanceSummary');
+    const saveButton = el('saveAttendance'), markAllButton = el('markAllPresent');
+    const finalizeButton = el('finalizeAttendance'), summary = el('attendanceSummary');
     if (!form || !rows || !date) return;
     let loaded = false, batches = [], roster = null;
     const local = new Date();
@@ -67,6 +68,7 @@
     }
     function invalidate() {
         loaded = false; roster = null; saveButton.disabled = true; markAllButton.disabled = true;
+        if (finalizeButton) finalizeButton.disabled = true;
         render([]); clearStatus();
     }
     function requestScope() {
@@ -123,8 +125,10 @@
             roster = result.data;
             render(roster?.students || []);
             loaded = true;
-            saveButton.disabled = !(roster?.students?.length > 0);
+            saveButton.disabled = !(roster?.students?.length > 0) || roster.isFinalized;
             markAllButton.disabled = saveButton.disabled;
+            if (finalizeButton) finalizeButton.disabled = !roster.attendanceSessionId ||
+                roster.isFinalized || roster.summary?.unmarked !== 0 || !roster.students?.length;
         } catch (error) { status('danger', error.message); }
     }
     function readRow(tr) {
@@ -161,9 +165,31 @@
             });
             roster = result.data;
             render(roster?.students || []);
+            if (finalizeButton) finalizeButton.disabled = roster.isFinalized ||
+                roster.summary?.unmarked !== 0 || !roster.students?.length;
             status('success', result.message || 'Attendance saved.');
         } catch (error) { status('danger', error.message); }
         finally { saveButton.disabled = false; }
+    }
+    async function finalizeAttendance() {
+        if (!roster?.attendanceSessionId || roster.isFinalized || !roster.sessionRowVersion) return;
+        if (roster.summary?.unmarked !== 0)
+            return status('warning', 'All students must be marked before finalization.');
+        if (!confirm('Finalize this register? Future changes require a manager correction with audit.'))
+            return;
+        finalizeButton.disabled = true;
+        try {
+            const result = await api('/api/student-attendance/sessions/' +
+                roster.attendanceSessionId + '/finalize?rowVersion=' +
+                encodeURIComponent(roster.sessionRowVersion), 'POST');
+            roster = result.data;
+            render(roster?.students || []);
+            saveButton.disabled = true; markAllButton.disabled = true;
+            status('success', result.message || 'Attendance finalized.');
+        } catch (error) {
+            status('danger', error.message);
+            finalizeButton.disabled = false;
+        }
     }
     function updateSummary() {
         const values = [...rows.querySelectorAll('[data-state]')].map(x => x.value);
@@ -179,6 +205,7 @@
     form.addEventListener('submit', loadRoster);
     rows.addEventListener('change', updateSummary);
     saveButton.addEventListener('click', saveAttendance);
+    finalizeButton?.addEventListener('click', finalizeAttendance);
     markAllButton.addEventListener('click', () => {
         rows.querySelectorAll('tr[data-enrollment-reference]').forEach(tr => {
             // Preserve existing marks and approved-leave students; mass marking
