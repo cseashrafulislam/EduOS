@@ -77,6 +77,7 @@
         public long UserId { get; set; }
         public string SecurityStamp { get; set; } = string.Empty;
         public bool RememberMe { get; set; }
+        public long? TenantId { get; set; }
         public DateTime IssuedAtUtc { get; set; }
         public DateTime ExpiresAtUtc { get; set; }
     }
