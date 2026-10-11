@@ -25,8 +25,13 @@ public sealed class PermissionAccessHandler(EduOSDbContext db, ICurrentUserServi
         // tenant-owned roles or tenant-scoped user overrides.
         if (code.Equals("auditlog.delete", StringComparison.OrdinalIgnoreCase)) return;
         var now = DateTime.UtcNow;
+        // The dynamic policy name is uppercased, while legacy seeded permission
+        // codes may be lowercase. Compare both canonical forms without applying
+        // functions to the SQL column so an index on Code remains usable.
+        var lowercaseCode = code.ToLowerInvariant();
         var permissionId = await db.Permissions.AsNoTracking()
-            .Where(x => !x.IsDeleted && x.IsActive && x.Code == code)
+            .Where(x => !x.IsDeleted && x.IsActive &&
+                (x.Code == code || x.Code == lowercaseCode))
             .Select(x => x.Id).FirstOrDefaultAsync();
         if (permissionId <= 0) return;
         var overridePermission = await db.UserPermissions.AsNoTracking()
