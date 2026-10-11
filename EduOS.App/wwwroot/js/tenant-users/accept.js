@@ -2,7 +2,8 @@
     'use strict';
     const form = document.getElementById('acceptInvitationForm');
     if (!form) return;
-    const token = new URLSearchParams(window.location.search).get('token');
+    const token = new URLSearchParams(window.location.hash.slice(1)).get('token');
+    if (token) window.history.replaceState(null, '', window.location.pathname);
     const alert = document.getElementById('inviteAlert');
     const button = document.getElementById('acceptInviteBtn');
     function notify(message, good) {
