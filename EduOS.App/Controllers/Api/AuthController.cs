@@ -845,8 +845,11 @@ namespace EduOS.App.Controllers.Api
             var memberRow = members.FirstOrDefault(x => x.TenantId == selected);
             if (memberRow == null)
                 return new SessionResolution(false, false, "", null, Array.Empty<string>(), choices);
+            var membershipCount = await _db.TenantMemberships.IgnoreQueryFilters().AsNoTracking()
+                .Where(x => x.UserId == user.Id && !x.IsDeleted && x.Status != MembershipStatus.Left)
+                .Select(x => x.TenantId).Distinct().Take(2).CountAsync();
             var roles = await TenantRoleResolver.GetTenantRolesAsync(_db, user.Id, selected,
-                memberRow.IsOwner, choices.Length);
+                memberRow.IsOwner, membershipCount);
             var role = roles.Contains("TenantAdmin", StringComparer.OrdinalIgnoreCase)
                 ? "TenantAdmin" : roles.FirstOrDefault() ?? "User";
             return new SessionResolution(true, false, role, selected, roles, choices);
