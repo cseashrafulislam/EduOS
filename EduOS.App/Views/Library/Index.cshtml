@@ -52,6 +52,23 @@
             <p class="small text-muted mt-2 mb-0">This form edits book metadata only. Copies and circulation are separate records; creating a book does not automatically add stock.</p>
         </section>
     }
+    @if (canManage)
+    {
+        <section id="libraryCopiesPanel" class="content-card mt-3 d-none" aria-labelledby="copyPanelTitle">
+            <h3 id="copyPanelTitle" class="h5">Book copy administration</h3>
+            <p id="copyBookTitle" class="text-muted"></p>
+            <form id="libraryCopyForm" class="row g-2 align-items-end">
+                <input id="copyId" type="hidden" /><input id="copyRowVersion" type="hidden" />
+                <div class="col-md-4"><label for="copyAccession" class="form-label">Accession number *</label><input id="copyAccession" class="form-control" maxlength="100" required /></div>
+                <div class="col-md-3"><label for="copyBarcode" class="form-label">Barcode</label><input id="copyBarcode" class="form-control" maxlength="100" /></div>
+                <div class="col-md-3"><label for="copyShelf" class="form-label">Shelf</label><input id="copyShelf" class="form-control" maxlength="100" /></div>
+                <div class="col-md-2 d-flex gap-1"><button id="copySave" type="submit" class="btn btn-primary">Save copy</button><button id="copyReset" type="button" class="btn btn-outline-secondary">Clear</button></div>
+            </form>
+            <p class="small text-muted mt-2">Copies start Available. Issue/return alone controls circulation status. Branch assignments are retained when editing.</p>
+            <div class="table-responsive mt-2"><table class="table table-sm align-middle"><thead><tr><th>Accession</th><th>Barcode</th><th>Shelf</th><th>State</th><th>Action</th></tr></thead><tbody id="copyRows"></tbody></table></div>
+            <nav class="d-flex gap-2 justify-content-end align-items-center"><button id="copyPrevious" type="button" class="btn btn-outline-secondary btn-sm">Previous</button><span id="copyPage"></span><button id="copyNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button></nav>
+        </section>
+    }
     <section class="content-card mt-3" aria-labelledby="issuesTitle">
         <div class="content-card-heading d-flex justify-content-between align-items-center"><h3 id="issuesTitle">My borrowing history</h3><span id="issueCount" class="small text-muted"></span></div>
         <div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead><tr><th>Book</th><th>Accession</th><th>Issued</th><th>Due</th><th>Returned</th><th>Status</th><th class="text-end">Fine</th></tr></thead><tbody id="issueRows"><tr><td colspan="7" class="text-center text-muted py-4">Loading issues…</td></tr></tbody></table></div>

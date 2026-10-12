@@ -19,6 +19,7 @@ public sealed class LibraryService : ILibraryService
     private readonly IGenericRepository<BookCopy> _copies;
     private readonly IGenericRepository<BookIssue> _issues;
     private readonly IGenericRepository<BookCategory> _categories;
+    private readonly IGenericRepository<LibraryBranch>? _branches;
     private readonly IGenericRepository<Student> _students;
     private readonly IGenericRepository<StudentEnrollment> _enrollments;
     private readonly IUnitOfWork _uow;
@@ -29,10 +30,12 @@ public sealed class LibraryService : ILibraryService
     public LibraryService(IGenericRepository<Book> books, IGenericRepository<BookCopy> copies,
         IGenericRepository<BookIssue> issues, IGenericRepository<BookCategory> categories,
         IGenericRepository<Student> students, IGenericRepository<StudentEnrollment> enrollments, IUnitOfWork unitOfWork,
-        ICurrentUserService currentUser, TimeProvider clock, ILogger<LibraryService> logger)
+        ICurrentUserService currentUser, TimeProvider clock, ILogger<LibraryService> logger,
+        IGenericRepository<LibraryBranch>? branches = null)
     {
         _books = books; _copies = copies; _issues = issues; _categories = categories;
         _students = students; _enrollments = enrollments; _uow = unitOfWork; _user = currentUser; _clock = clock; _logger = logger;
+        _branches = branches;
     }
 
 
@@ -137,6 +140,109 @@ public sealed class LibraryService : ILibraryService
             Items = result, TotalCount = total, Page = page, PageSize = pageSize
         });
     }
+
+
+    public async Task<ApiResponse<PagedResult<BookCopyDto>>> GetBookCopiesAsync(Guid bookReference,
+        int page, int pageSize, CancellationToken ct = default)
+    {
+        if (!CanManage()) return Denied<PagedResult<BookCopyDto>>();
+        if (bookReference == Guid.Empty) return ApiResponse<PagedResult<BookCopyDto>>.ErrorResponse("Book reference is required.");
+        page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
+        var tenant = _user.TenantId;
+        var book = await _books.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.PublicId == bookReference && !x.IsDeleted, ct);
+        if (book == null) return ApiResponse<PagedResult<BookCopyDto>>.ErrorResponse("Book not found.", 404);
+        var query = _copies.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.BookId == book.Id && !x.IsDeleted);
+        var total = await query.CountAsync(ct);
+        var offset = ((long)page - 1) * pageSize;
+        var copies = offset > int.MaxValue ? new List<BookCopy>() : await query
+            .OrderBy(x => x.AccessionNumber).ThenBy(x => x.Id).Skip((int)offset).Take(pageSize).ToListAsync(ct);
+        return ApiResponse<PagedResult<BookCopyDto>>.SuccessResponse(new PagedResult<BookCopyDto>
+        {
+            Items = copies.Select(x => MapCopy(x, book)).ToList(), TotalCount = total, Page = page, PageSize = pageSize
+        });
+    }
+
+    public async Task<ApiResponse<BookCopyDto>> SaveBookCopyAsync(long? copyId,
+        SaveBookCopyRequestDto request, CancellationToken ct = default)
+    {
+        if (!CanManage()) return Denied<BookCopyDto>();
+        if (request == null || request.BookReference == Guid.Empty || copyId is <= 0 ||
+            string.IsNullOrWhiteSpace(request.AccessionNumber) || request.AccessionNumber.Trim().Length > 100 ||
+            request.Barcode?.Trim().Length > 100 || request.ShelfNumber?.Trim().Length > 100 ||
+            request.LibraryBranchId is <= 0)
+            return ApiResponse<BookCopyDto>.ErrorResponse("Copy metadata is invalid.");
+        var tenant = _user.TenantId;
+        var accession = request.AccessionNumber.Trim().ToUpperInvariant();
+        var barcode = Trim(request.Barcode); var shelf = Trim(request.ShelfNumber);
+        try
+        {
+            return await _uow.ExecuteInTransactionAsync(async token =>
+            {
+                var book = await _books.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.PublicId == request.BookReference && x.IsActive && !x.IsDeleted, token);
+                if (book == null) return ApiResponse<BookCopyDto>.ErrorResponse("Active book not found.", 404);
+                if (request.LibraryBranchId.HasValue)
+                {
+                    if (_branches == null || !await _branches.GetQueryable().AsNoTracking().AnyAsync(x =>
+                        x.TenantId == tenant && x.Id == request.LibraryBranchId.Value && x.IsActive && !x.IsDeleted, token))
+                        return ApiResponse<BookCopyDto>.ErrorResponse("Library branch is unavailable.", 409);
+                }
+                BookCopy? row = copyId.HasValue ? await _copies.GetQueryable().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Id == copyId.Value && !x.IsDeleted, token) : null;
+                if (copyId.HasValue && row == null) return ApiResponse<BookCopyDto>.ErrorResponse("Copy not found.", 404);
+                if (row != null)
+                {
+                    if (row.BookId != book.Id) return ApiResponse<BookCopyDto>.ErrorResponse("Moving copies between books is not allowed.", 409);
+                    if (!MatchesVersion(row.RowVersion, request.RowVersion))
+                        return ApiResponse<BookCopyDto>.ErrorResponse("Copy changed. Reload and retry.", 409);
+                    if (row.State != BookCopyState.Available || await _issues.GetQueryable().AsNoTracking().AnyAsync(x =>
+                        x.TenantId == tenant && x.BookCopyId == row.Id && x.State == BookIssueState.Issued && !x.IsDeleted, token))
+                        return ApiResponse<BookCopyDto>.ErrorResponse("Unavailable or issued copies cannot be edited.", 409);
+                }
+                var duplicate = await _copies.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && !x.IsDeleted && x.AccessionNumber == accession &&
+                    (row == null || x.Id != row.Id), token);
+                if (duplicate != null)
+                {
+                    if (row == null && duplicate.BookId == book.Id && duplicate.LibraryBranchId == request.LibraryBranchId &&
+                        duplicate.Barcode == barcode && duplicate.ShelfNumber == shelf)
+                        return ApiResponse<BookCopyDto>.SuccessResponse(MapCopy(duplicate, book), "Copy already registered.");
+                    return ApiResponse<BookCopyDto>.ErrorResponse("Accession number already exists.", 409);
+                }
+                if (barcode != null && await _copies.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && !x.IsDeleted && (row == null || x.Id != row.Id) && x.Barcode == barcode, token))
+                    return ApiResponse<BookCopyDto>.ErrorResponse("Barcode already exists.", 409);
+                var now = _clock.GetUtcNow().UtcDateTime;
+                if (row == null)
+                {
+                    row = new BookCopy { TenantId = tenant, BookId = book.Id, State = BookCopyState.Available,
+                        CreatedAt = now, CreatedBy = _user.UserId };
+                    await _copies.AddAsync(row);
+                }
+                else { row.UpdatedAt = now; row.UpdatedBy = _user.UserId; _copies.Update(row); }
+                row.AccessionNumber = accession; row.Barcode = barcode; row.ShelfNumber = shelf;
+                row.LibraryBranchId = request.LibraryBranchId;
+                await _uow.SaveChangesAsync(token);
+                return ApiResponse<BookCopyDto>.SuccessResponse(MapCopy(row, book), "Book copy saved.");
+            }, System.Data.IsolationLevel.Serializable, ct);
+        }
+        catch (DbUpdateConcurrencyException) { return ApiResponse<BookCopyDto>.ErrorResponse("Copy changed concurrently.", 409); }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Library copy conflict tenant {TenantId}", tenant);
+            return ApiResponse<BookCopyDto>.ErrorResponse("Copy conflicts with existing data.", 409);
+        }
+    }
+
+    private static BookCopyDto MapCopy(BookCopy row, Book book) => new()
+    {
+        Id = row.Id, BookReference = book.PublicId, BookTitle = book.Title,
+        LibraryBranchId = row.LibraryBranchId, AccessionNumber = row.AccessionNumber,
+        Barcode = row.Barcode, ShelfNumber = row.ShelfNumber, State = row.State,
+        RowVersion = Convert.ToBase64String(row.RowVersion)
+    };
 
     public async Task<ApiResponse<BookDto>> SaveBookAsync(SaveBookRequestDto request, CancellationToken ct = default)
     {

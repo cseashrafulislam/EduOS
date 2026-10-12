@@ -233,6 +233,42 @@ public sealed class LibraryServiceTests
         row.IsActive.Should().BeTrue();
     }
 
+
+    [Fact]
+    public async Task Copy_create_is_idempotent_and_student_cannot_write()
+    {
+        var options = Options();
+        await using var db = Context(options, 101);
+        var book = new Book { TenantId = 101, Title = "Physics" };
+        db.Books.Add(book); await db.SaveChangesAsync();
+        var request = new SaveBookCopyRequestDto { BookReference = book.PublicId, AccessionNumber = " phy-001 " };
+        (await Service(db, 101, "Student").SaveBookCopyAsync(null, request)).StatusCode.Should().Be(403);
+        var service = Service(db, 101);
+        var first = await service.SaveBookCopyAsync(null, request);
+        first.Success.Should().BeTrue();
+        (await service.SaveBookCopyAsync(null, request)).Data!.Id.Should().Be(first.Data!.Id);
+        (await service.GetBookCopiesAsync(book.PublicId, 1, 20)).Data!.Items.Should().ContainSingle();
+        (await db.BookCopies.CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Copy_edit_rejects_stale_version_and_issued_state()
+    {
+        var options = Options();
+        await using var db = Context(options, 101);
+        var book = new Book { TenantId = 101, Title = "Physics" };
+        db.Books.Add(book); await db.SaveChangesAsync();
+        var copy = new BookCopy { TenantId = 101, BookId = book.Id, AccessionNumber = "PHY-001", RowVersion = [1, 2, 3] };
+        db.BookCopies.Add(copy); await db.SaveChangesAsync();
+        var service = Service(db, 101);
+        var request = new SaveBookCopyRequestDto { BookReference = book.PublicId, AccessionNumber = "PHY-002",
+            RowVersion = Convert.ToBase64String([9, 9, 9]) };
+        (await service.SaveBookCopyAsync(copy.Id, request)).StatusCode.Should().Be(409);
+        request.RowVersion = Convert.ToBase64String(copy.RowVersion);
+        copy.State = BookCopyState.Issued; await db.SaveChangesAsync();
+        (await service.SaveBookCopyAsync(copy.Id, request)).StatusCode.Should().Be(409);
+    }
+
     private static IssueBookRequestDto Request(Student student, BookCopy copy, Guid key) => new()
     {
         ClientRequestId = key, BookCopyId = copy.Id, StudentReference = student.PublicId,

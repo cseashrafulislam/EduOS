@@ -4,7 +4,7 @@
     const catalogRows = el('catalogRows'), issueRows = el('issueRows'), query = el('libraryQuery');
     if (!catalogRows || !issueRows || !query) return;
     const canManage = !!el('libraryBookForm');
-    let books = [], categories = [];
+    let books = [], categories = [], selectedCopyBook = null, copyPage = 1, copyRequest = 0;
     const paging = { catalog: 1, issues: 1, pageSize: 20 };
     const catalogColumns = canManage ? 6 : 5;
     function message(text, success = false) {
@@ -46,7 +46,11 @@
                 const archive = document.createElement('button');
                 archive.type = 'button'; archive.className = 'btn btn-outline-danger btn-sm'; archive.textContent = 'Archive';
                 archive.addEventListener('click', () => archiveBook(book, archive));
-                actions.append(edit, archive); tr.append(actions);
+                actions.append(edit, archive);
+                const copies = document.createElement('button');
+                copies.type = 'button'; copies.className = 'btn btn-outline-secondary btn-sm ms-2';
+                copies.textContent = 'Copies'; copies.addEventListener('click', () => selectCopyBook(book));
+                actions.append(copies); tr.append(actions);
             }
             catalogRows.append(tr);
         });
@@ -129,6 +133,69 @@
             message('Book archived.', true); await loadCatalog();
         } catch (error) { message(error.message); button.disabled = false; }
     }
+
+    function resetCopyForm() {
+        el('libraryCopyForm').reset(); el('copyId').value = ''; el('copyRowVersion').value = '';
+        el('copySave').textContent = 'Save copy';
+    }
+    function editCopy(copy) {
+        el('copyId').value = copy.id; el('copyRowVersion').value = copy.rowVersion || '';
+        el('copyAccession').value = copy.accessionNumber; el('copyBarcode').value = copy.barcode || '';
+        el('copyShelf').value = copy.shelfNumber || '';
+        el('copySave').textContent = 'Update copy'; el('copyAccession').focus();
+    }
+    function selectCopyBook(book) {
+        if (!canManage) return;
+        selectedCopyBook = book; copyPage = 1; ++copyRequest; resetCopyForm();
+        el('copyBookTitle').textContent = book.title;
+        el('libraryCopiesPanel').classList.remove('d-none');
+        el('libraryCopiesPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        loadCopies();
+    }
+    async function loadCopies() {
+        if (!canManage || !selectedCopyBook) return;
+        const sequence = ++copyRequest;
+        try {
+            const data = await api('/api/library/books/' + encodeURIComponent(selectedCopyBook.reference) +
+                '/copies?' + new URLSearchParams({ page: copyPage, pageSize: paging.pageSize }));
+            if (sequence !== copyRequest) return;
+            const rows = el('copyRows'); rows.replaceChildren();
+            const copies = Array.isArray(data?.items) ? data.items : [];
+            copies.forEach(copy => {
+                const tr = document.createElement('tr');
+                [copy.accessionNumber, copy.barcode, copy.shelfNumber, copy.state].forEach(v => tr.append(cell(v)));
+                const td = document.createElement('td');
+                if (copy.state === 1 || copy.state === 'Available') {
+                    const edit = document.createElement('button');
+                    edit.type = 'button'; edit.className = 'btn btn-outline-primary btn-sm'; edit.textContent = 'Edit';
+                    edit.addEventListener('click', () => editCopy(copy)); td.append(edit);
+                }
+                tr.append(td); rows.append(tr);
+            });
+            if (!copies.length) renderEmpty(rows, 5, 'No registered copies.');
+            el('copyPrevious').disabled = !data?.hasPreviousPage;
+            el('copyNext').disabled = !data?.hasNextPage;
+            el('copyPage').textContent = 'Page ' + copyPage + ' of ' + Math.max(1, data?.totalPages ?? 1);
+        } catch (error) { if (sequence === copyRequest) message(error.message); }
+    }
+    async function saveCopy(event) {
+        event.preventDefault();
+        if (!selectedCopyBook || !el('libraryCopyForm').reportValidity()) return;
+        const button = el('copySave'); button.disabled = true;
+        try {
+            const id = el('copyId').value;
+            const payload = { bookReference: selectedCopyBook.reference,
+                accessionNumber: el('copyAccession').value.trim(),
+                barcode: el('copyBarcode').value.trim() || null,
+                shelfNumber: el('copyShelf').value.trim() || null,
+                rowVersion: el('copyRowVersion').value || null };
+            await api(id ? '/api/library/copies/' + encodeURIComponent(id) : '/api/library/copies',
+                id ? 'PUT' : 'POST', payload);
+            resetCopyForm(); message('Book copy saved.', true);
+            await Promise.all([loadCopies(), loadCatalog()]);
+        } catch (error) { message(error.message); }
+        finally { button.disabled = false; }
+    }
     el('librarySearch').addEventListener('submit', e => { e.preventDefault(); paging.catalog = 1; clearMessage(); loadCatalog(); });
     el('clearLibrarySearch').addEventListener('click', () => { query.value = ''; paging.catalog = 1; loadCatalog(); });
     el('catalogPrevious').addEventListener('click', () => { if (paging.catalog > 1) { paging.catalog--; loadCatalog(); } });
@@ -191,6 +258,12 @@
         el('libraryCategoryForm').addEventListener('submit', saveCategory);
         el('categoryReset').addEventListener('click', resetCategory);
         loadCategories();
+    }
+    if (canManage) {
+        el('libraryCopyForm').addEventListener('submit', saveCopy);
+        el('copyReset').addEventListener('click', resetCopyForm);
+        el('copyPrevious').addEventListener('click', () => { if (copyPage > 1) { copyPage--; loadCopies(); } });
+        el('copyNext').addEventListener('click', () => { copyPage++; loadCopies(); });
     }
     loadCatalog(); loadIssues();
 })();

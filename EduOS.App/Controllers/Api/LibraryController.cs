@@ -35,6 +35,28 @@ public sealed class LibraryController : ControllerBase
     [HttpGet("catalog")]
     public async Task<IActionResult> Catalog([FromQuery]string? search,[FromQuery]int page=1,[FromQuery]int pageSize=20,CancellationToken ct=default)=>ToAction(await _service.GetCatalogAsync(search,page,pageSize,ct));
 
+    [HttpGet("books/{reference:guid}/copies")]
+    [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
+    public async Task<IActionResult> Copies(Guid reference, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, CancellationToken ct = default) =>
+        ToAction(await _service.GetBookCopiesAsync(reference, page, pageSize, ct));
+
+    [HttpPost("copies")]
+    [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
+    public async Task<IActionResult> CreateCopy([FromBody] SaveBookCopyRequestDto request, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        return ToAction(await _service.SaveBookCopyAsync(null, request, ct));
+    }
+
+    [HttpPut("copies/{id:long}")]
+    [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
+    public async Task<IActionResult> UpdateCopy(long id, [FromBody] SaveBookCopyRequestDto request, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        return ToAction(await _service.SaveBookCopyAsync(id, request, ct));
+    }
+
     [HttpPost("books")]
     [Authorize(Roles="TenantAdmin,Principal,Librarian")]
     public async Task<IActionResult> SaveBook([FromBody]SaveBookRequestDto request,CancellationToken ct)=>ToAction(await _service.SaveBookAsync(request,ct));
