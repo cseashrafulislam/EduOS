@@ -103,6 +103,68 @@ public class AdmissionEnrollmentServiceTests
         (await context.Set<Student>().CountAsync()).Should().Be(0);
     }
 
+    [Fact]
+    public async Task Offer_issuance_is_idempotent_and_does_not_bypass_verified_acceptance()
+    {
+        await using var context = CreateContext(101);
+        var seed = await SeedAsync(context, 101, AdmissionApplicantState.Qualified);
+        context.RemoveRange(context.Set<AdmissionDecision>());
+        await context.SaveChangesAsync();
+        var service = CreateService(context, new TestCurrentUser(101));
+        var request = OfferRequest(seed);
+        var first = await service.IssueOfferAsync(seed.Application.PublicId, request);
+        var second = await service.IssueOfferAsync(seed.Application.PublicId, request);
+        first.Success.Should().BeTrue();
+        second.Success.Should().BeTrue();
+        first.Data!.Id.Should().Be(second.Data!.Id);
+        (await context.Set<AdmissionDecision>().CountAsync()).Should().Be(1);
+        var current = await service.GetOfferAsync(seed.Application.PublicId);
+        current.Success.Should().BeTrue();
+        current.Data!.State.Should().Be(AdmissionDecisionState.Offered);
+        var premature = await service.AdmitAsync(seed.Application.PublicId, Request(seed));
+        premature.StatusCode.Should().Be(409);
+        (await context.Set<Student>().CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Offer_issuance_rejects_stale_applicant_version_and_foreign_batch()
+    {
+        await using var context = CreateContext(101);
+        var seed = await SeedAsync(context, 101, AdmissionApplicantState.Qualified);
+        context.RemoveRange(context.Set<AdmissionDecision>());
+        await context.SaveChangesAsync();
+        var service = CreateService(context, new TestCurrentUser(101));
+        var stale = OfferRequest(seed);
+        stale.ApplicantRowVersion = Convert.ToBase64String(new byte[8]);
+        (await service.IssueOfferAsync(seed.Application.PublicId, stale)).StatusCode.Should().Be(409);
+        var foreignBatch = OfferRequest(seed);
+        foreignBatch.OfferedAcademicBatchId = seed.Batch.Id + 10000;
+        (await service.IssueOfferAsync(seed.Application.PublicId, foreignBatch)).StatusCode.Should().Be(409);
+        (await context.Set<AdmissionDecision>().CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Offer_issuance_enforces_tenant_and_role_boundaries()
+    {
+        await using var context = CreateContext(101);
+        var seed = await SeedAsync(context, 101, AdmissionApplicantState.Qualified);
+        context.RemoveRange(context.Set<AdmissionDecision>());
+        await context.SaveChangesAsync();
+        var unauthorized = CreateService(context, new TestCurrentUser(101, "Teacher"));
+        (await unauthorized.IssueOfferAsync(seed.Application.PublicId, OfferRequest(seed))).StatusCode.Should().Be(403);
+        var otherTenant = CreateService(context, new TestCurrentUser(202));
+        (await otherTenant.IssueOfferAsync(seed.Application.PublicId, OfferRequest(seed))).StatusCode.Should().Be(404);
+        (await context.Set<AdmissionDecision>().CountAsync()).Should().Be(0);
+    }
+
+    private static MakeAdmissionDecisionRequestDto OfferRequest(SeedData seed) => new()
+    {
+        ClientRequestId = Guid.NewGuid(), AdmissionApplicantReference = seed.Application.PublicId,
+        State = AdmissionDecisionState.Offered, OfferedAcademicBatchId = seed.Batch.Id,
+        ExpiresAt = Now.UtcDateTime.AddDays(7),
+        ApplicantRowVersion = Convert.ToBase64String(seed.Application.RowVersion)
+    };
+
     private static AdmissionEnrollmentService CreateService(EduOSDbContext context, ICurrentUserService user) => new(
         new GenericRepository<AdmissionApplicant>(context),
         new GenericRepository<AdmissionIntakeForm>(context),
