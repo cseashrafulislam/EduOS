@@ -225,8 +225,7 @@ public sealed class StudentExitService : IStudentExitService
         CertificateNo = certificateNo, DueAtExit = record.DueAtExit, FeesCleared = record.FeesCleared,
         ProcessedAtUtc = record.ProcessedAt
     };
-    private bool CanManage() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0 &&
-        (_currentUser.IsTenantAdmin || _currentUser.IsInRole("Principal") || _currentUser.IsInRole("Registrar"));
+    private bool CanManage() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0 && _currentUser.IsTenantAdmin;
     private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     private static bool TryVersion(string? value, out byte[] version)
     {

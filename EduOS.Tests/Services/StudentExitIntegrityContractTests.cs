@@ -43,6 +43,19 @@ public sealed class StudentExitIntegrityContractTests
         Source.Should().Contain(", 409");
     }
 
+    [Fact]
+    public void Exit_processing_and_private_history_require_tenant_admin_until_campus_authorization_exists()
+    {
+        var api = File.ReadAllText(FindRepositoryFile("EduOS.App", "Controllers", "Api", "StudentExitController.cs"));
+        var mvc = File.ReadAllText(FindRepositoryFile("EduOS.App", "Controllers", "StudentLifecycleController.cs"));
+        api.Should().Contain("[Authorize(Roles = \"TenantAdmin\")]");
+        api.Should().NotContain("Principal,Registrar");
+        mvc.Should().Contain("[Authorize(Roles = \"TenantAdmin\")]");
+        Source.Should().Contain("private bool CanManage() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0 && _currentUser.IsTenantAdmin;");
+        Source.Should().NotContain("_currentUser.IsInRole(\"Principal\")");
+        Source.Should().NotContain("_currentUser.IsInRole(\"Registrar\")");
+    }
+
     private static string FindRepositoryFile(params string[] segments)
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
