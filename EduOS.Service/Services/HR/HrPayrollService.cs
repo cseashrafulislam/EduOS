@@ -50,6 +50,36 @@ public sealed class HrPayrollService : IPayrollAdministrationService
         _uow = uow; _user = user; _clock = clock; _logger = logger;
     }
 
+    public async Task<ApiResponse<PagedResult<PayrollEmployeeOptionDto>>> GetEmployeeOptionsAsync(
+        string? search, int page, int pageSize, CancellationToken ct = default)
+    {
+        if (!Manager()) return Denied<PagedResult<PayrollEmployeeOptionDto>>();
+        if (search?.Length > 100 || page < 1 || pageSize is < 1 or > 100)
+            return Error<PagedResult<PayrollEmployeeOptionDto>>("Invalid employee search or pagination.");
+        var query = _employees.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == _user.TenantId && x.State == EmployeeState.Active && !x.IsDeleted);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            query = query.Where(x => x.EmployeeCode.Contains(term) || x.FullName.Contains(term));
+        }
+        var count = await query.CountAsync(ct);
+        var skip = (long)(page - 1) * pageSize;
+        if (skip > int.MaxValue)
+            return Error<PagedResult<PayrollEmployeeOptionDto>>("Employee page exceeds supported range.");
+        var items = await query.OrderBy(x => x.EmployeeCode).ThenBy(x => x.Id)
+            .Skip((int)skip).Take(pageSize)
+            .Select(x => new PayrollEmployeeOptionDto
+            {
+                Reference = x.PublicId, EmployeeCode = x.EmployeeCode, FullName = x.FullName
+            }).ToListAsync(ct);
+        return ApiResponse<PagedResult<PayrollEmployeeOptionDto>>.SuccessResponse(
+            new PagedResult<PayrollEmployeeOptionDto>
+            {
+                Page = page, PageSize = pageSize, TotalCount = count, Items = items
+            });
+    }
+
     public async Task<ApiResponse<IReadOnlyList<SalaryComponentDto>>> GetSalaryComponentsAsync(CancellationToken ct = default)
     {
         if (!Manager()) return Denied<IReadOnlyList<SalaryComponentDto>>();
@@ -124,14 +154,20 @@ public sealed class HrPayrollService : IPayrollAdministrationService
             x.IsActive && !x.IsDeleted).ToListAsync(ct);
         if (components.Count != request.Lines.Count)
             return Error<SalaryStructureDto>("One or more salary components are inactive.", 409);
-        if (!components.Any(x => x.Type == SalaryComponentType.Earning) ||
-            request.Lines.Where(x => components.Any(y => y.Id == x.SalaryComponentId &&
-                y.Type == SalaryComponentType.Earning)).Sum(x => x.Amount) <= 0m)
-            return Error<SalaryStructureDto>("Salary structure requires positive earnings.", 409);
+        if (request.Lines.Any(x => decimal.Round(x.Amount, 2) != x.Amount))
+            return Error<SalaryStructureDto>("Salary component amounts must have at most two decimal places.", 409);
+        var componentTypeById = components.ToDictionary(x => x.Id, x => x.Type);
+        var gross = request.Lines.Where(x => componentTypeById[x.SalaryComponentId] == SalaryComponentType.Earning).Sum(x => x.Amount);
+        var deductions = request.Lines.Where(x => componentTypeById[x.SalaryComponentId] == SalaryComponentType.Deduction).Sum(x => x.Amount);
+        if (gross <= 0m || deductions > gross)
+            return Error<SalaryStructureDto>("Salary structure requires positive earnings and nonnegative net salary.", 409);
         try
         {
             return await _uow.ExecuteInTransactionAsync(async token =>
             {
+                var duplicateEffectiveDate = await _structures.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == _user.TenantId && x.EmployeeId == employee.Id &&
+                    x.EffectiveFrom == request.EffectiveFrom && !x.IsDeleted, token);
                 var current = await _structures.GetQueryable().FirstOrDefaultAsync(x =>
                     x.TenantId == _user.TenantId && x.EmployeeId == employee.Id &&
                     x.IsCurrent && !x.IsDeleted, token);
@@ -151,15 +187,15 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                         return Error<SalaryStructureDto>("New structure must begin after current effective date.", 409);
                     if (request.EffectiveTo.HasValue)
                         return Error<SalaryStructureDto>("A replacement salary structure must remain open-ended.", 409);
+                    if (duplicateEffectiveDate)
+                        return Error<SalaryStructureDto>("Salary structure already exists for this effective date.", 409);
                     current.EffectiveTo = request.EffectiveFrom.AddDays(-1);
                     current.IsCurrent = false;
                     current.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
                     current.UpdatedBy = _user.UserId;
                     _structures.Update(current);
                 }
-                if (await _structures.GetQueryable().AsNoTracking().AnyAsync(x =>
-                    x.TenantId == _user.TenantId && x.EmployeeId == employee.Id &&
-                    x.EffectiveFrom == request.EffectiveFrom && !x.IsDeleted, token))
+                if (duplicateEffectiveDate)
                     return Error<SalaryStructureDto>("Salary structure already exists for this effective date.", 409);
                 var now = _clock.GetUtcNow().UtcDateTime;
                 var row = new SalaryStructure
@@ -265,6 +301,22 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                     x.Type == SalaryComponentType.Deduction && x.IsActive && !x.IsDeleted, token);
                 if (loans.Count > 0 && loanComponent == null)
                     return Error<PayrollRunDto>("Active LOAN_RECOVERY deduction component must be configured.", 409);
+                var structureByEmployee = structures.ToDictionary(x => x.EmployeeId);
+                var structureLineLookup = salaryLines.ToLookup(x => x.SalaryStructureId);
+                var amounts = new Dictionary<long, (decimal Gross, decimal Deductions)>();
+                foreach (var employee in employees)
+                {
+                    var sourceLines = structureLineLookup[structureByEmployee[employee.Id].Id].ToList();
+                    var earnings = sourceLines.Where(x => comps[x.SalaryComponentId].Type == SalaryComponentType.Earning).Sum(x => x.Amount);
+                    var withheld = sourceLines.Where(x => comps[x.SalaryComponentId].Type == SalaryComponentType.Deduction).Sum(x => x.Amount);
+                    var bonus = bonusByEmployee.GetValueOrDefault(employee.Id);
+                    var recover = loans.Where(x => x.EmployeeId == employee.Id).Sum(x => Math.Min(x.InstallmentAmount, x.OutstandingAmount));
+                    var gross = Round(earnings + bonus);
+                    var deductions = Round(withheld + recover);
+                    if (gross <= 0m || deductions > gross)
+                        return Error<PayrollRunDto>("Employee has invalid net salary or deductions.", 409);
+                    amounts.Add(employee.Id, (gross, deductions));
+                }
                 var now = _clock.GetUtcNow().UtcDateTime;
                 var run = new PayrollRun
                 {
@@ -277,22 +329,13 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                 };
                 await _runs.AddAsync(run);
                 await _uow.SaveChangesAsync(token);
-                var structureByEmployee = structures.ToDictionary(x => x.EmployeeId);
-                var structureLineLookup = salaryLines.ToLookup(x => x.SalaryStructureId);
                 foreach (var employee in employees)
                 {
                     var lines = structureLineLookup[structureByEmployee[employee.Id].Id].ToList();
-                    decimal earned = lines.Where(x => comps[x.SalaryComponentId].Type == SalaryComponentType.Earning)
-                        .Sum(x => x.Amount);
-                    decimal withheld = lines.Where(x => comps[x.SalaryComponentId].Type == SalaryComponentType.Deduction)
-                        .Sum(x => x.Amount);
                     var bonus = bonusByEmployee.GetValueOrDefault(employee.Id);
-                    var loansForEmployee = loans.Where(x => x.EmployeeId == employee.Id).ToList();
-                    var recover = loansForEmployee.Sum(x => Math.Min(x.InstallmentAmount, x.OutstandingAmount));
-                    var gross = Round(earned + bonus);
-                    var deductions = Round(withheld + recover);
-                    if (gross <= 0m || deductions > gross)
-                        return Error<PayrollRunDto>("Employee has invalid net salary or deductions.", 409);
+                    var recover = loans.Where(x => x.EmployeeId == employee.Id)
+                        .Sum(x => Math.Min(x.InstallmentAmount, x.OutstandingAmount));
+                    var (gross, deductions) = amounts[employee.Id];
                     var row = new PayrollEmployee
                     {
                         TenantId = tenant, PayrollRunId = run.Id, EmployeeId = employee.Id,

@@ -1,5 +1,12 @@
 namespace EduOS.Core.DTOs.Payroll;
 
+public sealed class PayrollEmployeeOptionDto
+{
+    public Guid Reference { get; set; }
+    public string EmployeeCode { get; set; } = string.Empty;
+    public string FullName { get; set; } = string.Empty;
+}
+
 public class SalaryComponentDto
 {
     public long Id { get; set; }

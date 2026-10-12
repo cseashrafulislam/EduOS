@@ -19,6 +19,13 @@ public sealed class HrPayrollController : ControllerBase
     private readonly IPayrollAdministrationService _service;
     public HrPayrollController(IPayrollAdministrationService service) => _service = service;
 
+    [HttpGet("employee-options")]
+    [Authorize(Roles = "TenantAdmin,Principal,HR,Accountant")]
+    public async Task<IActionResult> EmployeeOptions([FromQuery] string? search,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 25,
+        CancellationToken ct = default) =>
+        Result(await _service.GetEmployeeOptionsAsync(search, page, pageSize, ct));
+
     [HttpGet("salary-components")]
     [Authorize(Roles = "TenantAdmin,Principal,HR,Accountant")]
     public async Task<IActionResult> Components(CancellationToken ct) =>

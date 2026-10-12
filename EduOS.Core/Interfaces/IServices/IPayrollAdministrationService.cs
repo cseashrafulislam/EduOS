@@ -5,6 +5,7 @@ namespace EduOS.Core.Interfaces.IServices;
 
 public interface IPayrollAdministrationService
 {
+    Task<ApiResponse<PagedResult<PayrollEmployeeOptionDto>>> GetEmployeeOptionsAsync(string? search, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<SalaryComponentDto>>> GetSalaryComponentsAsync(CancellationToken cancellationToken = default);
     Task<ApiResponse<SalaryComponentDto>> SaveSalaryComponentAsync(long? componentId, SaveSalaryComponentRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<SalaryStructureDto>> SaveSalaryStructureAsync(SaveSalaryStructureRequestDto request, CancellationToken cancellationToken = default);
