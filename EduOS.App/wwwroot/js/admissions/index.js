@@ -37,6 +37,7 @@
         document.getElementById('reviewForm')?.addEventListener('submit', saveDecision);
         document.getElementById('admitApplicantButton')?.addEventListener('click', prepareEnrollment);
         document.getElementById('enrollmentForm')?.addEventListener('submit', completeEnrollment);
+        initializeAdmissionOfferUi();
         document.getElementById('previousPage')?.addEventListener('click', () => changePage(-1));
         document.getElementById('nextPage')?.addEventListener('click', () => changePage(1));
         await loadOptions();
@@ -784,6 +785,81 @@
         } catch (error) {
             showAlert('danger', error.message || i18n.enrollmentFailed);
         }
+    }
+
+
+    function initializeAdmissionOfferUi() {
+        const modal = document.getElementById('enrollmentModal');
+        const footer = modal?.querySelector('.modal-footer');
+        const body = modal?.querySelector('.modal-body');
+        if (!footer || !body) return;
+        const status = document.createElement('p');
+        status.id = 'offerStatusMessage';
+        status.className = 'col-12 alert alert-info';
+        status.setAttribute('role', 'status');
+        body.prepend(status);
+        const expiryLabel = document.createElement('label');
+        expiryLabel.className = 'form-label col-12';
+        expiryLabel.textContent = 'Offer expiry (local date/time) / অফারের মেয়াদ';
+        const expiry = document.createElement('input');
+        expiry.type = 'datetime-local'; expiry.id = 'offerExpiry'; expiry.className = 'form-control';
+        expiryLabel.append(expiry); body.append(expiryLabel);
+        const button = document.createElement('button');
+        button.type = 'button'; button.id = 'issueAdmissionOffer';
+        button.className = 'btn btn-outline-primary';
+        button.textContent = 'Issue Offer / অফার দিন';
+        footer.insertBefore(button, document.getElementById('completeEnrollmentButton'));
+        let requestId = null;
+        modal.addEventListener('shown.bs.modal', async () => {
+            requestId = createRequestId();
+            const future = new Date(Date.now() + 7 * 86400000);
+            expiry.value = toLocalDateTime(future);
+            const reference = valueOf('enrollmentReference');
+            const admit = document.getElementById('completeEnrollmentButton');
+            if (admit) admit.disabled = true;
+            button.disabled = true;
+            status.textContent = 'Checking admission offer…';
+            try {
+                const response = await fetch(`/api/admission-applications/${encodeURIComponent(reference)}/offer`, apiOptions());
+                const payload = await response.json().catch(() => null);
+                if (!response.ok || !payload?.success) throw Error(payload?.message || 'Offer could not be loaded.');
+                const decision = payload.data;
+                const state = Number(decision?.state || 0);
+                status.textContent = state === 3 ? 'Offer accepted. Enrollment may proceed.' :
+                    state === 2 ? 'Offer issued. Waiting for verified applicant/guardian acceptance.' :
+                    state ? 'An existing admission decision requires review.' : 'Issue an offer before enrollment.';
+                if (decision?.offeredAcademicBatchId) setValue('enrollmentSectionId', decision.offeredAcademicBatchId);
+                button.disabled = state !== 0;
+                if (admit) admit.disabled = state !== 3;
+            } catch (error) {
+                status.textContent = error.message || 'Offer status could not be loaded.';
+            }
+        });
+        button.addEventListener('click', async () => {
+            const reference = valueOf('enrollmentReference');
+            const batch = positiveInteger(valueOf('enrollmentSectionId'));
+            const date = new Date(expiry.value);
+            if (!reference || !batch || !Number.isFinite(date.getTime()) || date.getTime() <= Date.now()) {
+                showAlert('danger', 'Choose an eligible batch and future expiry.'); return;
+            }
+            button.disabled = true;
+            try {
+                const response = await fetch(`/api/admission-applications/${encodeURIComponent(reference)}/offer`,
+                    apiOptions('POST', {
+                        clientRequestId: requestId, admissionApplicantReference: reference,
+                        state: 2, offeredAcademicBatchId: batch, expiresAt: date.toISOString(),
+                        applicantRowVersion: valueOf('enrollmentRowVersion')
+                    }));
+                const payload = await response.json().catch(() => null);
+                if (!response.ok || !payload?.success) throw Error(payload?.message || 'Offer could not be issued.');
+                status.textContent = 'Offer issued. Verified applicant/guardian acceptance is required before enrollment.';
+                showAlert('success', payload.message || 'Offer issued.');
+                await loadApplications();
+            } catch (error) {
+                button.disabled = false;
+                showAlert('danger', error.message || 'Offer could not be issued.');
+            }
+        });
     }
 
     async function completeEnrollment(event) {

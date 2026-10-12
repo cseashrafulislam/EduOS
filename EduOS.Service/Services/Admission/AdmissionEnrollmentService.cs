@@ -74,8 +74,8 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
             x.AdmissionApplicantId == application.Id && x.State == AdmissionDecisionState.Accepted)
             .OrderByDescending(x => x.AcceptedAt).ThenByDescending(x => x.Id)
             .Select(x => x.OfferedAcademicBatchId).FirstOrDefaultAsync(cancellationToken);
-        if (!accepted.HasValue && application.State != AdmissionApplicantState.Admitted)
-            return ApiResponse<AdmissionEnrollmentOptionsDto>.ErrorResponse("An accepted admission offer is required.", 409);
+        // Qualified applicants may inspect eligible batches to receive an offer.
+        // Actual conversion still requires a verified Accepted decision.
         var sectionsQuery = _batches.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
             x.IsActive && x.CampusId == form.CampusId && x.AcademicYearId == form.AcademicYearId &&
             x.AcademicProgramId == form.AcademicProgramId && x.AcademicLevelId == form.AcademicLevelId);
@@ -96,6 +96,114 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
         {
             AcademicBatches = sections, AcademicTracks = tracks
         });
+    }
+
+
+    public async Task<ApiResponse<AdmissionDecisionDto?>> GetOfferAsync(Guid applicationReference,
+        CancellationToken cancellationToken = default)
+    {
+        if (!CanManage()) return Denied<AdmissionDecisionDto?>();
+        var tenant = _user.TenantId;
+        var applicant = await _applicants.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.PublicId == applicationReference && !x.IsDeleted, cancellationToken);
+        if (applicant == null) return ApiResponse<AdmissionDecisionDto?>.ErrorResponse("Applicant not found.", 404);
+        var decision = await _decisions.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.AdmissionApplicantId == applicant.Id)
+            .OrderByDescending(x => x.Id).FirstOrDefaultAsync(cancellationToken);
+        return ApiResponse<AdmissionDecisionDto?>.SuccessResponse(decision == null ? null : new AdmissionDecisionDto
+        {
+            Id = decision.Id, AdmissionApplicantReference = applicant.PublicId, State = decision.State,
+            OfferedAcademicBatchId = decision.OfferedAcademicBatchId, OfferedAt = decision.OfferedAt,
+            ExpiresAt = decision.ExpiresAt, AcceptedAt = decision.AcceptedAt,
+            DecidedByUserId = decision.DecidedByUserId, Note = decision.Note,
+            RowVersion = Convert.ToBase64String(decision.RowVersion)
+        });
+    }
+
+    public async Task<ApiResponse<AdmissionDecisionDto>> IssueOfferAsync(Guid applicationReference,
+        MakeAdmissionDecisionRequestDto request, CancellationToken cancellationToken = default)
+    {
+        if (!CanManage()) return Denied<AdmissionDecisionDto>();
+        if (applicationReference == Guid.Empty || request == null || request.ClientRequestId == Guid.Empty ||
+            request.AdmissionApplicantReference != applicationReference ||
+            request.State != AdmissionDecisionState.Offered || request.OfferedAcademicBatchId is null or <= 0 ||
+            !TryVersion(request.ApplicantRowVersion, out var expected))
+            return ApiResponse<AdmissionDecisionDto>.ErrorResponse("Valid offer, applicant, request ID and row version are required.");
+        var now = _clock.GetUtcNow().UtcDateTime;
+        if (!request.ExpiresAt.HasValue || request.ExpiresAt.Value.Kind != DateTimeKind.Utc ||
+            request.ExpiresAt.Value <= now || request.ExpiresAt.Value > now.AddDays(30))
+            return ApiResponse<AdmissionDecisionDto>.ErrorResponse("Offer expiry must be UTC and within 30 days.");
+        var tenant = _user.TenantId;
+        try
+        {
+            return await _uow.ExecuteInTransactionAsync(async token =>
+            {
+                var applicant = await _applicants.GetQueryable().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.PublicId == applicationReference && !x.IsDeleted, token);
+                if (applicant == null) return ApiResponse<AdmissionDecisionDto>.ErrorResponse("Applicant not found.", 404);
+                var prior = await _decisions.GetQueryable().AsNoTracking().Where(x =>
+                    x.TenantId == tenant && x.AdmissionApplicantId == applicant.Id)
+                    .OrderByDescending(x => x.Id).FirstOrDefaultAsync(token);
+                if (prior != null && prior.ClientRequestId == request.ClientRequestId &&
+                    prior.State == AdmissionDecisionState.Offered &&
+                    prior.OfferedAcademicBatchId == request.OfferedAcademicBatchId &&
+                    prior.ExpiresAt == request.ExpiresAt.Value)
+                    return ApiResponse<AdmissionDecisionDto>.SuccessResponse(new AdmissionDecisionDto
+                    {
+                        Id = prior.Id, AdmissionApplicantReference = applicationReference,
+                        State = prior.State, OfferedAcademicBatchId = prior.OfferedAcademicBatchId,
+                        OfferedAt = prior.OfferedAt, ExpiresAt = prior.ExpiresAt,
+                        RowVersion = Convert.ToBase64String(prior.RowVersion)
+                    }, "Offer already issued.");
+                if (prior != null) return ApiResponse<AdmissionDecisionDto>.ErrorResponse("An admission decision already exists.", 409);
+                if (applicant.State != AdmissionApplicantState.Qualified || applicant.ConvertedStudentId.HasValue)
+                    return ApiResponse<AdmissionDecisionDto>.ErrorResponse("Only qualified, unconverted applicants can receive offers.", 409);
+                if (!VersionsMatch(applicant.RowVersion, expected))
+                    return ApiResponse<AdmissionDecisionDto>.ErrorResponse("Applicant changed. Reload and retry.", 409);
+                var form = await _forms.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Id == applicant.AdmissionIntakeFormId && !x.IsDeleted, token);
+                if (form == null) return ApiResponse<AdmissionDecisionDto>.ErrorResponse("Intake form not found.", 409);
+                var batch = await _batches.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Id == request.OfferedAcademicBatchId.Value && x.IsActive && !x.IsDeleted &&
+                    x.CampusId == form.CampusId && x.AcademicYearId == form.AcademicYearId &&
+                    x.AcademicProgramId == form.AcademicProgramId && x.AcademicLevelId == form.AcademicLevelId &&
+                    (!form.AcademicTermId.HasValue || x.AcademicTermId == form.AcademicTermId) &&
+                    (!form.AcademicTrackId.HasValue || x.AcademicTrackId == form.AcademicTrackId), token);
+                if (batch == null || batch.Capacity <= 0)
+                    return ApiResponse<AdmissionDecisionDto>.ErrorResponse("Batch is not eligible for this intake.", 409);
+                var decision = new AdmissionDecision
+                {
+                    TenantId = tenant, ClientRequestId = request.ClientRequestId,
+                    AdmissionApplicantId = applicant.Id, State = AdmissionDecisionState.Offered,
+                    OfferedAcademicBatchId = batch.Id, OfferedAt = now, ExpiresAt = request.ExpiresAt.Value,
+                    DecidedByUserId = _user.UserId, Note = request.Note?.Trim(),
+                    CreatedAt = now, CreatedBy = _user.UserId
+                };
+                await _decisions.AddAsync(decision);
+                applicant.UpdatedAt = now; applicant.UpdatedBy = _user.UserId;
+                _applicants.Update(applicant);
+                await _uow.SaveChangesAsync(token);
+                return ApiResponse<AdmissionDecisionDto>.SuccessResponse(new AdmissionDecisionDto
+                {
+                    Id = decision.Id, AdmissionApplicantReference = applicationReference,
+                    State = decision.State, OfferedAcademicBatchId = batch.Id,
+                    OfferedAt = now, ExpiresAt = request.ExpiresAt.Value,
+                    RowVersion = Convert.ToBase64String(decision.RowVersion)
+                }, "Offer issued. Verified applicant or guardian acceptance is required.");
+            }, cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        { return ApiResponse<AdmissionDecisionDto>.ErrorResponse("Applicant changed. Reload and retry.", 409); }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Admission offer conflict for tenant {TenantId}", tenant);
+            return ApiResponse<AdmissionDecisionDto>.ErrorResponse("Concurrent admission offer conflict.", 409);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Admission offer issuance failed for tenant {TenantId}", tenant);
+            return ApiResponse<AdmissionDecisionDto>.ErrorResponse("Offer could not be issued.", 500);
+        }
     }
 
     public async Task<ApiResponse<AdmittedStudentDto>> AdmitAsync(Guid applicationReference,

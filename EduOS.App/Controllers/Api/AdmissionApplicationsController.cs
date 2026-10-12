@@ -69,6 +69,21 @@ public class AdmissionApplicationsController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("{reference:guid}/offer")]
+    public async Task<IActionResult> GetOffer(Guid reference, CancellationToken cancellationToken)
+    {
+        var result = await _enrollmentService.GetOfferAsync(reference, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("{reference:guid}/offer")]
+    public async Task<IActionResult> IssueOffer(Guid reference, [FromBody] MakeAdmissionDecisionRequestDto request, CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await _enrollmentService.IssueOfferAsync(reference, request, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("{reference:guid}/admit")]
     public async Task<IActionResult> Admit(Guid reference, [FromBody] AdmitAdmissionApplicationDto request, CancellationToken cancellationToken)
     {
