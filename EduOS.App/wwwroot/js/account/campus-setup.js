@@ -52,7 +52,7 @@
             });
             const payload = await response.json().catch(() => null);
             if (!response.ok || !payload?.success) {
-                showAlert('danger', i18n.saveFailed);
+                showAlert('danger', apiErrorMessage(response, payload, i18n.saveFailed));
                 return;
             }
 
@@ -64,6 +64,17 @@
         } finally {
             setLoading(saveButton, false);
         }
+    }
+
+    function apiErrorMessage(response, payload, fallback) {
+        if (response.status >= 500) return fallback;
+        const errors = payload?.errors;
+        const messages = Array.isArray(errors) ? errors : errors && typeof errors === 'object'
+            ? Object.values(errors).flat() : [];
+        const validationError = messages.find(value => typeof value === 'string' && value.trim());
+        if (validationError) return validationError.trim();
+        if (typeof payload?.message === 'string' && payload.message.trim()) return payload.message.trim();
+        return fallback;
     }
 
     async function loadCampuses() {
@@ -300,10 +311,13 @@
     function clearErrors() {
         document.querySelectorAll('.is-invalid').forEach(element => element.classList.remove('is-invalid'));
         document.querySelectorAll('.invalid-feedback').forEach(element => { element.textContent = ''; });
+        const formAlert = document.getElementById('campusFormAlert');
+        if (formAlert) { formAlert.textContent = ''; formAlert.className = 'd-none'; }
     }
 
     function showAlert(type, message) {
-        const container = document.getElementById('alertContainer');
+        const withinCampusModal = type !== 'success' && modalElement?.classList.contains('show');
+        const container = document.getElementById(withinCampusModal ? 'campusFormAlert' : 'alertContainer');
         if (!container) return;
         const safeType = type === 'success' ? 'success' : 'danger';
         container.className = `alert alert-${safeType}`;
