@@ -809,9 +809,32 @@
         button.className = 'btn btn-outline-primary';
         button.textContent = 'Issue Offer / অফার দিন';
         footer.insertBefore(button, document.getElementById('completeEnrollmentButton'));
+        const signer = document.createElement('select');
+        signer.id = 'acceptanceSigner'; signer.className = 'form-select';
+        [['Guardian', 'Verified guardian / অভিভাবক'], ['Applicant', 'Verified adult applicant']].forEach(([value, label]) => {
+            const option = document.createElement('option'); option.value = value; option.textContent = label; signer.append(option);
+        });
+        const signerLabel = document.createElement('label');
+        signerLabel.className = 'form-label col-12'; signerLabel.textContent = 'Signed by / স্বাক্ষরকারী';
+        signerLabel.append(signer); body.append(signerLabel);
+        const attestationLabel = document.createElement('label');
+        attestationLabel.className = 'form-check-label col-12';
+        const attestation = document.createElement('input');
+        attestation.type = 'checkbox'; attestation.id = 'acceptanceIdentityChecked'; attestation.className = 'form-check-input me-2';
+        attestationLabel.append(attestation, document.createTextNode('I verified signer identity and signed document against the applicant/guardian record.'));
+        body.append(attestationLabel);
+        const acceptButton = document.createElement('button');
+        acceptButton.type = 'button'; acceptButton.id = 'recordAdmissionAcceptance';
+        acceptButton.className = 'btn btn-success'; acceptButton.textContent = 'Record Verified Acceptance';
+        footer.insertBefore(acceptButton, document.getElementById('completeEnrollmentButton'));
+        let verifiedDocumentId = null, decisionVersion = null, currentOfferState = 0;
+        const refreshAcceptanceButton = () => { acceptButton.disabled = currentOfferState !== 2 || !verifiedDocumentId || !attestation.checked; };
+        attestation.addEventListener('change', refreshAcceptanceButton);
         let requestId = null;
         modal.addEventListener('shown.bs.modal', async () => {
             requestId = createRequestId();
+            verifiedDocumentId = null; decisionVersion = null; currentOfferState = 0;
+            attestation.checked = false; refreshAcceptanceButton();
             const future = new Date(Date.now() + 7 * 86400000);
             expiry.value = toLocalDateTime(future);
             const reference = valueOf('enrollmentReference');
@@ -825,15 +848,44 @@
                 if (!response.ok || !payload?.success) throw Error(payload?.message || 'Offer could not be loaded.');
                 const decision = payload.data;
                 const state = Number(decision?.state || 0);
+                currentOfferState = state; decisionVersion = decision?.rowVersion || null;
+                if (state === 2) {
+                    const docsResponse = await fetch(`/api/admission-intake/applications/${encodeURIComponent(reference)}/documents`, apiOptions());
+                    const docsPayload = await docsResponse.json().catch(() => null);
+                    if (docsResponse.ok && docsPayload?.success && Array.isArray(docsPayload.data)) {
+                        const evidence = docsPayload.data.filter(x => x.documentTypeCode === 'OFFER_ACCEPTANCE' && x.isVerified)
+                            .sort((a, b) => Number(b.versionNo) - Number(a.versionNo))[0];
+                        verifiedDocumentId = evidence?.id || null;
+                    }
+                }
+                refreshAcceptanceButton();
                 status.textContent = state === 3 ? 'Offer accepted. Enrollment may proceed.' :
                     state === 2 ? 'Offer issued. Waiting for verified applicant/guardian acceptance.' :
                     state ? 'An existing admission decision requires review.' : 'Issue an offer before enrollment.';
                 if (decision?.offeredAcademicBatchId) setValue('enrollmentSectionId', decision.offeredAcademicBatchId);
                 button.disabled = state !== 0;
+                if (state === 2 && !verifiedDocumentId) status.textContent += ' Upload and verify a signed OFFER_ACCEPTANCE document first.';
                 if (admit) admit.disabled = state !== 3;
             } catch (error) {
                 status.textContent = error.message || 'Offer status could not be loaded.';
             }
+        });
+        acceptButton.addEventListener('click', async () => {
+            const reference = valueOf('enrollmentReference');
+            if (!reference || !verifiedDocumentId || !decisionVersion || !attestation.checked) return;
+            acceptButton.disabled = true;
+            try {
+                const response = await fetch(`/api/admission-applications/${encodeURIComponent(reference)}/offer/verified-acceptance`,
+                    apiOptions('POST', { acceptanceDocumentId: verifiedDocumentId,
+                        decisionRowVersion: decisionVersion, signerRole: signer.value, identityChecked: true }));
+                const payload = await response.json().catch(() => null);
+                if (!response.ok || !payload?.success) throw Error(payload?.message || 'Acceptance could not be recorded.');
+                currentOfferState = 3; refreshAcceptanceButton();
+                status.textContent = 'Verified signed acceptance recorded. Enrollment may proceed.';
+                const admit = document.getElementById('completeEnrollmentButton');
+                if (admit) admit.disabled = false;
+                showAlert('success', payload.message || 'Acceptance recorded.');
+            } catch (error) { refreshAcceptanceButton(); showAlert('danger', error.message || 'Acceptance could not be recorded.'); }
         });
         button.addEventListener('click', async () => {
             const reference = valueOf('enrollmentReference');

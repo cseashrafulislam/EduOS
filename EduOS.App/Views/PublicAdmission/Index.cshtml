@@ -66,6 +66,13 @@
         </div>
         <div id="statusMessage" class="message"></div>
     </section>
+    <section class="card" id="offerAcceptancePanel" hidden>
+        <h2>Signed Offer Acceptance / অফার গ্রহণের স্বাক্ষরিত কপি</h2>
+        <p class="muted">Upload the signed acceptance after receiving an offer. A parent or legal guardian must sign for minors. Admission staff will verify identity and signature before enrollment.</p>
+        <div class="field"><label for="offerAcceptanceFile">Signed acceptance (PDF/image)</label><input id="offerAcceptanceFile" type="file" accept=".pdf,.png,.jpg,.jpeg" /></div>
+        <div class="actions"><button class="btn btn-primary" id="uploadOfferAcceptanceButton" type="button">Submit Signed Acceptance</button></div>
+        <div id="offerAcceptanceMessage" class="message"></div>
+    </section>
 </main>
 <script src="~/js/public-admission/index.js" asp-append-version="true"></script>
 </body>

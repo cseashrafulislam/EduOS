@@ -84,6 +84,14 @@ public class AdmissionApplicationsController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpPost("{reference:guid}/offer/verified-acceptance")]
+    public async Task<IActionResult> RecordVerifiedAcceptance(Guid reference, [FromBody] VerifyAdmissionOfferAcceptanceRequestDto request, CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await _enrollmentService.RecordVerifiedAcceptanceAsync(reference, request, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("{reference:guid}/admit")]
     public async Task<IActionResult> Admit(Guid reference, [FromBody] AdmitAdmissionApplicationDto request, CancellationToken cancellationToken)
     {

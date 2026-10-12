@@ -20,6 +20,7 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
     private readonly IGenericRepository<AdmissionApplicant> _applicants;
     private readonly IGenericRepository<AdmissionIntakeForm> _forms;
     private readonly IGenericRepository<AdmissionDecision> _decisions;
+    private readonly IGenericRepository<AdmissionApplicantDocument> _documents;
     private readonly IGenericRepository<AdmissionApplicantGuardian> _applicantGuardians;
     private readonly IGenericRepository<Student> _students;
     private readonly IGenericRepository<StudentEnrollment> _enrollments;
@@ -38,6 +39,7 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
 
     public AdmissionEnrollmentService(IGenericRepository<AdmissionApplicant> applicants,
         IGenericRepository<AdmissionIntakeForm> forms, IGenericRepository<AdmissionDecision> decisions,
+        IGenericRepository<AdmissionApplicantDocument> documents,
         IGenericRepository<AdmissionApplicantGuardian> applicantGuardians,
         IGenericRepository<Student> students, IGenericRepository<StudentEnrollment> enrollments,
         IGenericRepository<Guardian> guardians, IGenericRepository<StudentGuardian> studentGuardians,
@@ -47,7 +49,7 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
         IUnitOfWork unitOfWork, ICurrentUserService currentUser, TimeProvider clock,
         ILogger<AdmissionEnrollmentService> logger)
     {
-        _applicants = applicants; _forms = forms; _decisions = decisions;
+        _applicants = applicants; _forms = forms; _decisions = decisions; _documents = documents;
         _applicantGuardians = applicantGuardians; _students = students;
         _enrollments = enrollments; _guardians = guardians; _studentGuardians = studentGuardians;
         _persons = persons; _personLinks = personLinks; _batches = batches;
@@ -203,6 +205,95 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
         {
             _logger.LogError(ex, "Admission offer issuance failed for tenant {TenantId}", tenant);
             return ApiResponse<AdmissionDecisionDto>.ErrorResponse("Offer could not be issued.", 500);
+        }
+    }
+
+
+    // The public reference/mobile status check never authorizes acceptance.
+    // Only authorized staff can attest to an independently verified signed document.
+    public async Task<ApiResponse<AdmissionDecisionDto>> RecordVerifiedAcceptanceAsync(Guid applicationReference,
+        VerifyAdmissionOfferAcceptanceRequestDto request, CancellationToken cancellationToken = default)
+    {
+        if (!CanManage()) return Denied<AdmissionDecisionDto>();
+        if (applicationReference == Guid.Empty || request == null || request.AcceptanceDocumentId <= 0 ||
+            !request.IdentityChecked || request.SignerRole is not ("Applicant" or "Guardian") ||
+            !TryVersion(request.DecisionRowVersion, out var expected))
+            return ApiResponse<AdmissionDecisionDto>.ErrorResponse("Verified signer, signed document and offer version are required.");
+        var tenant = _user.TenantId;
+        try
+        {
+            return await _uow.ExecuteInTransactionAsync(async token =>
+            {
+                var applicant = await _applicants.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.PublicId == applicationReference && !x.IsDeleted, token);
+                if (applicant == null) return ApiResponse<AdmissionDecisionDto>.ErrorResponse("Applicant not found.", 404);
+                if (applicant.State != AdmissionApplicantState.Qualified || applicant.ConvertedStudentId.HasValue ||
+                    !applicant.DateOfBirth.HasValue)
+                    return ApiResponse<AdmissionDecisionDto>.ErrorResponse("Applicant is not eligible for acceptance.", 409);
+                var isMinor = applicant.DateOfBirth.Value > DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime).AddYears(-18);
+                if (isMinor && request.SignerRole != "Guardian")
+                    return ApiResponse<AdmissionDecisionDto>.ErrorResponse("A verified guardian must sign for a minor.", 409);
+                if (request.SignerRole == "Guardian" && !await _applicantGuardians.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.AdmissionApplicantId == applicant.Id && x.IsPrimary && !x.IsDeleted, token))
+                    return ApiResponse<AdmissionDecisionDto>.ErrorResponse("Primary guardian record is required.", 409);
+                var decision = await _decisions.GetQueryable().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.AdmissionApplicantId == applicant.Id && !x.IsDeleted, token);
+                if (decision == null) return ApiResponse<AdmissionDecisionDto>.ErrorResponse("Offer not found.", 404);
+                var doc = await _documents.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.AdmissionApplicantId == applicant.Id &&
+                    x.Id == request.AcceptanceDocumentId && x.DocumentTypeCode == "OFFER_ACCEPTANCE" &&
+                    x.IsVerified && x.VerifiedAt.HasValue && x.VerifiedByUserId.HasValue && !x.IsDeleted, token);
+                if (doc == null || !decision.OfferedAt.HasValue ||
+                    doc.CreatedAt < decision.OfferedAt.Value || doc.VerifiedAt < decision.OfferedAt.Value)
+                    return ApiResponse<AdmissionDecisionDto>.ErrorResponse("A post-offer signed document verified by staff is required.", 409);
+                var marker = $"[Signer={request.SignerRole};AcceptanceDocument={doc.Id}]";
+                if (decision.State == AdmissionDecisionState.Accepted)
+                {
+                    if (decision.Note?.Contains(marker, StringComparison.Ordinal) != true)
+                        return ApiResponse<AdmissionDecisionDto>.ErrorResponse("Offer was accepted using different evidence.", 409);
+                    return ApiResponse<AdmissionDecisionDto>.SuccessResponse(new AdmissionDecisionDto
+                    {
+                        Id = decision.Id, AdmissionApplicantReference = applicationReference, State = decision.State,
+                        OfferedAcademicBatchId = decision.OfferedAcademicBatchId, OfferedAt = decision.OfferedAt,
+                        ExpiresAt = decision.ExpiresAt, AcceptedAt = decision.AcceptedAt,
+                        DecidedByUserId = decision.DecidedByUserId, Note = decision.Note,
+                        RowVersion = Convert.ToBase64String(decision.RowVersion)
+                    }, "Acceptance already recorded.");
+                }
+                var now = _clock.GetUtcNow().UtcDateTime;
+                if (decision.State != AdmissionDecisionState.Offered ||
+                    !decision.ExpiresAt.HasValue || decision.ExpiresAt.Value <= now)
+                    return ApiResponse<AdmissionDecisionDto>.ErrorResponse("Offer has expired or is not active.", 409);
+                if (!VersionsMatch(decision.RowVersion, expected))
+                    return ApiResponse<AdmissionDecisionDto>.ErrorResponse("Offer changed. Reload and retry.", 409);
+                var note = string.IsNullOrWhiteSpace(decision.Note) ? marker : decision.Note + "\n" + marker;
+                if (note.Length > 1000)
+                    return ApiResponse<AdmissionDecisionDto>.ErrorResponse("Offer note cannot retain acceptance audit.", 409);
+                decision.State = AdmissionDecisionState.Accepted; decision.AcceptedAt = now;
+                decision.Note = note; decision.UpdatedAt = now; decision.UpdatedBy = _user.UserId;
+                _decisions.Update(decision);
+                await _uow.SaveChangesAsync(token);
+                return ApiResponse<AdmissionDecisionDto>.SuccessResponse(new AdmissionDecisionDto
+                {
+                    Id = decision.Id, AdmissionApplicantReference = applicationReference, State = decision.State,
+                    OfferedAcademicBatchId = decision.OfferedAcademicBatchId, OfferedAt = decision.OfferedAt,
+                    ExpiresAt = decision.ExpiresAt, AcceptedAt = decision.AcceptedAt,
+                    DecidedByUserId = decision.DecidedByUserId, Note = decision.Note,
+                    RowVersion = Convert.ToBase64String(decision.RowVersion)
+                }, "Verified signed acceptance recorded. Enrollment can proceed.");
+            }, cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        { return ApiResponse<AdmissionDecisionDto>.ErrorResponse("Offer changed. Reload and retry.", 409); }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Admission acceptance conflict for tenant {TenantId}", tenant);
+            return ApiResponse<AdmissionDecisionDto>.ErrorResponse("Concurrent admission acceptance conflict.", 409);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Admission acceptance failed for tenant {TenantId}", tenant);
+            return ApiResponse<AdmissionDecisionDto>.ErrorResponse("Acceptance could not be recorded.", 500);
         }
     }
 

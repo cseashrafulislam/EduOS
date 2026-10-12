@@ -26,7 +26,7 @@
     let openForms = [];
     let activeSubmission = null;
 
-    const statusNames = { 1: 'Submitted', 2: 'Under Review', 3: 'Waitlisted', 4: 'Approved', 5: 'Rejected', 6: 'Withdrawn', 7: 'Admitted' };
+    const statusNames = { 1: 'Draft', 2: 'Submitted', 3: 'Under Review', 4: 'Documents Pending', 5: 'Assessment Pending', 6: 'Qualified', 7: 'Rejected', 8: 'Admitted', 9: 'Withdrawn' };
     const value = id => document.getElementById(id).value.trim();
     const optional = id => value(id) || null;
     const setMessage = (element, text, success = false) => { element.className = `message ${success ? 'ok' : 'error'}`; element.textContent = text; };
@@ -253,6 +253,7 @@
 
     statusButton.addEventListener('click', async () => {
         clearMessage(statusMessage);
+        document.getElementById('offerAcceptancePanel').hidden = true;
         const reference = value('statusReference');
         const mobile = value('statusMobile');
         if (!reference || !mobile) { setMessage(statusMessage, 'Application reference এবং mobile number দিন।'); return; }
@@ -260,7 +261,7 @@
         try {
             const body = await readResponse(await fetch(`${apiBase}/applications/${encodeURIComponent(reference)}/status?mobile=${encodeURIComponent(mobile)}`, { headers: { Accept: 'application/json' } }));
             const data = body.data;
-            const status = statusNames[data.status] || `Status ${data.status}`;
+            const status = statusNames[data.state] || `Status ${data.state}`;
             const note = data.decisionNote ? ` — ${data.decisionNote}` : '';
             const assessment = data.assessment;
             const merit = assessment?.meritPosition ? `, Merit #${assessment.meritPosition}` : '';
@@ -268,14 +269,35 @@
                 ? ` — ${assessment.testName}: ${assessment.resultStatus} (${assessment.obtainedMarks}/${assessment.totalMarks}${merit})`
                 : '';
             const documentText = (data.documents || []).length
-                ? ` — Documents: ${(data.documents || []).map(x => `${x.documentType} (${x.verificationStatus === 2 ? 'Verified' : x.verificationStatus === 3 ? 'Rejected' : 'Pending'})`).join(', ')}`
+                ? ` — Documents: ${(data.documents || []).map(x => `${x.documentTypeCode} (${x.isVerified ? 'Verified' : 'Pending'})`).join(', ')}`
                 : '';
             setMessage(statusMessage, `${data.applicationNumber}: ${status}${note}${assessmentText}${documentText}`, true);
+            document.getElementById('offerAcceptancePanel').hidden = !data.canUploadOfferAcceptance;
         } catch (error) {
             setMessage(statusMessage, error.message);
         } finally {
             statusButton.disabled = false;
         }
+    });
+
+    document.getElementById('uploadOfferAcceptanceButton').addEventListener('click', async () => {
+        const button = document.getElementById('uploadOfferAcceptanceButton');
+        const message = document.getElementById('offerAcceptanceMessage');
+        const file = document.getElementById('offerAcceptanceFile').files?.[0];
+        const reference = value('statusReference'), mobile = value('statusMobile');
+        clearMessage(message);
+        if (!file || !reference || !mobile) { setMessage(message, 'Check status and select a signed acceptance document.'); return; }
+        const body = new FormData();
+        body.append('clientRequestId', createRequestId()); body.append('mobile', mobile);
+        body.append('documentType', 'OFFER_ACCEPTANCE'); body.append('file', file);
+        button.disabled = true;
+        try {
+            await readResponse(await fetch(`${apiBase}/applications/${encodeURIComponent(reference)}/documents`,
+                { method: 'POST', body, headers: { Accept: 'application/json' } }));
+            setMessage(message, 'Signed acceptance submitted. The admission office must verify identity and signature before enrollment.', true);
+            document.getElementById('offerAcceptancePanel').hidden = true;
+        } catch (error) { setMessage(message, error.message); }
+        finally { button.disabled = false; }
     });
 
     try {

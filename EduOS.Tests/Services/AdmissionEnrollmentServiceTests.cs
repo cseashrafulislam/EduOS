@@ -157,6 +157,44 @@ public class AdmissionEnrollmentServiceTests
         (await context.Set<AdmissionDecision>().CountAsync()).Should().Be(0);
     }
 
+
+    [Fact]
+    public async Task Signed_offer_acceptance_requires_verified_guardian_evidence_and_is_idempotent()
+    {
+        await using var context = CreateContext(101);
+        var seed = await SeedAsync(context, 101, AdmissionApplicantState.Qualified);
+        var offer = await context.Set<AdmissionDecision>().SingleAsync();
+        offer.State = AdmissionDecisionState.Offered;
+        offer.OfferedAt = Now.UtcDateTime.AddDays(-1);
+        offer.ExpiresAt = Now.UtcDateTime.AddDays(7);
+        offer.AcceptedAt = null;
+        offer.RowVersion = Enumerable.Range(1, 8).Select(x => (byte)x).ToArray();
+        await context.SaveChangesAsync();
+        var doc = new AdmissionApplicantDocument
+        {
+            TenantId = 101, AdmissionApplicantId = seed.Application.Id, FileAssetId = 99,
+            DocumentTypeCode = "OFFER_ACCEPTANCE", CreatedAt = Now.UtcDateTime,
+            IsVerified = false, VerifiedAt = null
+        };
+        context.Add(doc);
+        await context.SaveChangesAsync();
+        var service = CreateService(context, new TestCurrentUser(101));
+        var request = new VerifyAdmissionOfferAcceptanceRequestDto
+        {
+            AcceptanceDocumentId = doc.Id, DecisionRowVersion = Convert.ToBase64String(offer.RowVersion),
+            SignerRole = "Guardian", IdentityChecked = true
+        };
+        (await service.RecordVerifiedAcceptanceAsync(seed.Application.PublicId, request)).StatusCode.Should().Be(409);
+        doc.IsVerified = true; doc.VerifiedAt = Now.UtcDateTime; doc.VerifiedByUserId = 7;
+        await context.SaveChangesAsync();
+        request.SignerRole = "Applicant";
+        (await service.RecordVerifiedAcceptanceAsync(seed.Application.PublicId, request)).StatusCode.Should().Be(409);
+        request.SignerRole = "Guardian";
+        (await service.RecordVerifiedAcceptanceAsync(seed.Application.PublicId, request)).Success.Should().BeTrue();
+        (await service.RecordVerifiedAcceptanceAsync(seed.Application.PublicId, request)).Success.Should().BeTrue();
+        (await context.Set<AdmissionDecision>().SingleAsync()).State.Should().Be(AdmissionDecisionState.Accepted);
+    }
+
     private static MakeAdmissionDecisionRequestDto OfferRequest(SeedData seed) => new()
     {
         ClientRequestId = Guid.NewGuid(), AdmissionApplicantReference = seed.Application.PublicId,
@@ -169,6 +207,7 @@ public class AdmissionEnrollmentServiceTests
         new GenericRepository<AdmissionApplicant>(context),
         new GenericRepository<AdmissionIntakeForm>(context),
         new GenericRepository<AdmissionDecision>(context),
+        new GenericRepository<AdmissionApplicantDocument>(context),
         new GenericRepository<AdmissionApplicantGuardian>(context),
         new GenericRepository<Student>(context),
         new GenericRepository<StudentEnrollment>(context),

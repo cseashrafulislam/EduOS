@@ -265,3 +265,11 @@ public class MakeAdmissionDecisionRequestDto
     [MaxLength(1000)] public string? Note { get; set; }
     [Required] public string ApplicantRowVersion { get; set; } = string.Empty;
 }
+
+public class VerifyAdmissionOfferAcceptanceRequestDto
+{
+    [Range(1, long.MaxValue)] public long AcceptanceDocumentId { get; set; }
+    [Required] public string DecisionRowVersion { get; set; } = string.Empty;
+    [Required, RegularExpression("^(Applicant|Guardian)$")] public string SignerRole { get; set; } = string.Empty;
+    public bool IdentityChecked { get; set; }
+}

@@ -282,6 +282,7 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
             !TryNormalizeMobile(request.Mobile, out var mobile))
             return Error<AdmissionApplicantDocumentDto>("Document request is invalid.");
         var kind = request.DocumentType?.Trim().ToUpperInvariant();
+        var isAcceptanceProof = kind == "OFFER_ACCEPTANCE";
         var file = request.File;
         if (string.IsNullOrWhiteSpace(kind) || kind.Length > 100 ||
             file.Length is <= 0 or > 10_485_760 || file.Content == null || !file.Content.CanRead ||
@@ -312,7 +313,15 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
         var applicant = await _applicants.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == tenant.Id && x.PublicId == reference && x.Phone == mobile, ct);
         if (applicant == null) return Error<AdmissionApplicantDocumentDto>("Applicant could not be verified.", 404);
-        if (applicant.State is AdmissionApplicantState.Admitted or AdmissionApplicantState.Rejected or
+        if (isAcceptanceProof)
+        {
+            if (applicant.State != AdmissionApplicantState.Qualified ||
+                !await _decisions.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant.Id &&
+                    x.AdmissionApplicantId == applicant.Id && x.State == AdmissionDecisionState.Offered &&
+                    x.ExpiresAt > _clock.GetUtcNow().UtcDateTime, ct))
+                return Error<AdmissionApplicantDocumentDto>("An active offer is required for signed acceptance evidence.", 409);
+        }
+        else if (applicant.State is AdmissionApplicantState.Admitted or AdmissionApplicantState.Rejected or
             AdmissionApplicantState.Withdrawn or AdmissionApplicantState.Qualified)
             return Error<AdmissionApplicantDocumentDto>("Documents cannot be modified after the final decision.", 409);
         string hash;
@@ -345,8 +354,14 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
             var now = _clock.GetUtcNow().UtcDateTime;
             var currentState = await _applicants.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant.Id &&
                 x.Id == applicant.Id).Select(x => x.State).SingleAsync(ct);
-            if (currentState is AdmissionApplicantState.Admitted or AdmissionApplicantState.Qualified or
-                AdmissionApplicantState.Rejected or AdmissionApplicantState.Withdrawn)
+            var canUpload = isAcceptanceProof
+                ? currentState == AdmissionApplicantState.Qualified &&
+                  await _decisions.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant.Id &&
+                      x.AdmissionApplicantId == applicant.Id && x.State == AdmissionDecisionState.Offered &&
+                      x.ExpiresAt > _clock.GetUtcNow().UtcDateTime, ct)
+                : currentState is not (AdmissionApplicantState.Admitted or AdmissionApplicantState.Qualified or
+                    AdmissionApplicantState.Rejected or AdmissionApplicantState.Withdrawn);
+            if (!canUpload)
             {
                 await _storage.DeletePrivateAsync(uploaded.FileUrl);
                 return Error<AdmissionApplicantDocumentDto>("Document upload is no longer permitted.", 409);
@@ -412,10 +427,14 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
         var note = await _decisions.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant.Id &&
             x.AdmissionApplicantId == a.Id && x.State == AdmissionDecisionState.Rejected)
             .OrderByDescending(x => x.Id).Select(x => x.Note).FirstOrDefaultAsync(ct);
+        var offerOpen = a.State == AdmissionApplicantState.Qualified &&
+            await _decisions.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant.Id &&
+                x.AdmissionApplicantId == a.Id && x.State == AdmissionDecisionState.Offered &&
+                x.ExpiresAt > _clock.GetUtcNow().UtcDateTime, ct);
         return ApiResponse<PublicAdmissionStatusDto>.SuccessResponse(new PublicAdmissionStatusDto
         {
             Reference = a.PublicId, ApplicationNumber = a.ApplicationNumber, ApplicantName = a.FullName,
-            MaskedMobile = Mask(a.Phone), State = a.State,
+            MaskedMobile = Mask(a.Phone), State = a.State, CanUploadOfferAcceptance = offerOpen,
             SubmittedAtUtc = a.SubmittedAt ?? DateTime.MinValue,
             DecisionNote = a.State == AdmissionApplicantState.Rejected ? note : null,
             Assessment = assessment, Documents = docs.Select(MapDocument).ToList()

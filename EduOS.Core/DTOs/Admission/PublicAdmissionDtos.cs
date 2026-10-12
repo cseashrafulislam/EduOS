@@ -16,6 +16,7 @@ public sealed class PublicAdmissionStatusDto
     public string ApplicantName { get; set; } = string.Empty;
     public string MaskedMobile { get; set; } = string.Empty;
     public AdmissionApplicantState State { get; set; }
+    public bool CanUploadOfferAcceptance { get; set; }
     public DateTime SubmittedAtUtc { get; set; }
     public string? DecisionNote { get; set; }
     public PublicAdmissionAssessmentStatusDto? Assessment { get; set; }
