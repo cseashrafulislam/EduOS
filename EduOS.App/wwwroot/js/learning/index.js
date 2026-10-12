@@ -7,7 +7,13 @@
  const date=value=>value?String(value).slice(0,10):'';
  const msg=(kind,value)=>{const x=el('learningAlert');x.className='alert alert-'+kind;x.textContent=value;x.focus();};
  async function api(url,method='GET',body){
-   const response=await fetch(url,{method,cache:'no-store',credentials:'same-origin',headers:{Accept:'application/json',...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})});
+   const headers={Accept:'application/json',...(body===undefined?{}:{'Content-Type':'application/json'})};
+   if(!['GET','HEAD','OPTIONS'].includes(method.toUpperCase())){
+     const token=document.querySelector('meta[name="request-verification-token"]')?.content;
+     if(!token)throw new Error('Security token missing. Reload the page.');
+     headers.RequestVerificationToken=token;
+   }
+   const response=await fetch(url,{method,cache:'no-store',credentials:'same-origin',headers,...(body===undefined?{}:{body:JSON.stringify(body)})});
    const result=await response.json().catch(()=>null);if(!response.ok||!result?.success)throw new Error(result?.message||'Request failed.');
    return result.data;
  }
