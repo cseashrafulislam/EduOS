@@ -42,7 +42,8 @@
         }
         @if (User.IsInRole("TenantAdmin"))
         {
-            <a class="btn btn-outline-danger" asp-controller="StudentLifecycle" asp-action="Index">Transfer / Exit / TC</a>
+            <a class="btn btn-outline-danger" asp-controller="StudentLifecycle" asp-action="Index">Final Exit / TC</a>
+            <a class="btn btn-outline-primary" asp-controller="StudentTransferRequests" asp-action="Index">Transfer Requests</a>
         }
         @if (User.IsInRole("TenantAdmin"))
         {
