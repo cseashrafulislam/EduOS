@@ -214,7 +214,7 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
     public async Task<ApiResponse<AdmissionDecisionDto>> RecordVerifiedAcceptanceAsync(Guid applicationReference,
         VerifyAdmissionOfferAcceptanceRequestDto request, CancellationToken cancellationToken = default)
     {
-        if (!CanManage()) return Denied<AdmissionDecisionDto>();
+        if (!CanManage() || !_user.IsTenantAdmin) return Denied<AdmissionDecisionDto>();
         if (applicationReference == Guid.Empty || request == null || request.AcceptanceDocumentId <= 0 ||
             !request.IdentityChecked || request.SignerRole is not ("Applicant" or "Guardian") ||
             !TryVersion(request.DecisionRowVersion, out var expected))
