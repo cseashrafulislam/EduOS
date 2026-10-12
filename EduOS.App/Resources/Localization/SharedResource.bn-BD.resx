@@ -348,7 +348,7 @@
   <data name="Country" xml:space="preserve"><value>দেশ</value></data>
   <data name="PostalCode" xml:space="preserve"><value>পোস্ট কোড</value></data>
   <data name="CampusNameRequired" xml:space="preserve"><value>ক্যাম্পাসের নাম আবশ্যক।</value></data>
-  <data name="CampusSaveFailed" xml:space="preserve"><value>ক্যাম্পাস সংরক্ষণ করা যায়নি। তথ্য অথবা প্ল্যানের সীমা দেখে আবার চেষ্টা করুন।</value></data>
+  <data name="CampusSaveFailed" xml:space="preserve"><value>ক্যাম্পাস সংরক্ষণ করা যায়নি। তথ্য যাচাই করে আবার চেষ্টা করুন।</value></data>
   <data name="CampusListLoadFailed" xml:space="preserve"><value>ক্যাম্পাসগুলো লোড করা যায়নি।</value></data>
   <data name="CampusLoadFailed" xml:space="preserve"><value>এই ক্যাম্পাসটি লোড করা যায়নি।</value></data>
   <data name="CampusSaved" xml:space="preserve"><value>ক্যাম্পাস সফলভাবে সংরক্ষিত হয়েছে।</value></data>
