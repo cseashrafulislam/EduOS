@@ -1,0 +1,24 @@
+using EduOS.Core.Common;
+using EduOS.Core.DTOs.Inventory;
+using EduOS.Core.Entities.Inventory;
+using Microsoft.EntityFrameworkCore;
+namespace EduOS.Service.Services.Inventory;
+public sealed partial class InventoryMovementService
+{
+    private async Task<ApiResponse<InventoryMovementDto>?> ReversalConflictAsync(
+        InventoryMovement original, ReverseInventoryMovementRequestDto request, CancellationToken ct)
+    {
+        var existing = await db.InventoryMovements.FirstOrDefaultAsync(x => x.TenantId == user.TenantId &&
+            x.ClientRequestId == request.ClientRequestId, ct);
+        if (existing != null) return existing.ReversalOfMovementId == original.Id && existing.Remarks == request.Reason.Trim() ?
+            ApiResponse<InventoryMovementDto>.SuccessResponse(await MapAsync(existing, ct), "Existing reversal returned.") :
+            ApiResponse<InventoryMovementDto>.ErrorResponse("Request ID belongs to another operation.", 409);
+        if (original.StateCode != "Posted" || original.ReversalOfMovementId.HasValue ||
+            original.MovementTypeCode is not ("Receipt" or "Issue" or "Transfer") ||
+            !Version(original.RowVersion, request.RowVersion) ||
+            await db.InventoryMovements.AnyAsync(x => x.TenantId == user.TenantId &&
+                x.ReversalOfMovementId == original.Id && !x.IsDeleted, ct))
+            return ApiResponse<InventoryMovementDto>.ErrorResponse("Already reversed or movement changed.", 409);
+        return null;
+    }
+}

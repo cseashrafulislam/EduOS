@@ -1,0 +1,17 @@
+<div class="card mb-3"><div class="card-body">
+    <h3 class="h5">Create stock movement draft</h3>
+    <form id="movementForm" class="row g-2">
+        <div class="col-md-2"><label for="movementType" class="form-label">Movement</label><select id="movementType" class="form-select"><option value="Receipt">Receipt</option><option value="Issue">Issue</option><option value="Transfer">Transfer</option></select></div>
+        <div class="col-md-3"><label for="movementFrom" class="form-label">From location</label><select id="movementFrom" class="form-select"></select></div>
+        <div class="col-md-3"><label for="movementTo" class="form-label">To location</label><select id="movementTo" class="form-select"></select></div>
+        <div class="col-md-4"><label for="movementReason" class="form-label">Reason / provenance</label><input id="movementReason" class="form-control" minlength="10" maxlength="1000" required placeholder="Explain the authorized stock operation" /></div>
+        <div class="col-md-4"><label for="movementItemSearch" class="form-label">Find item</label><input id="movementItemSearch" class="form-control" maxlength="100" placeholder="Search item code/name" /></div>
+        <div class="col-md-4"><label for="movementItem" class="form-label">Stock item</label><select id="movementItem" class="form-select"></select></div>
+        <div class="col-md-2"><label for="movementQty" class="form-label">Quantity</label><input id="movementQty" class="form-control" type="number" min="0.000001" max="999999999999" step="0.000001" value="1" /></div>
+        <div class="col-md-2"><label for="movementCost" class="form-label">Receipt unit cost</label><input id="movementCost" class="form-control" type="number" min="0" max="999999999999" step="0.0001" value="0" /></div>
+        <div class="col-md-4"><label for="movementLot" class="form-label">Lot / batch</label><input id="movementLot" class="form-control" maxlength="100" /></div>
+        <div class="col-md-8 d-flex align-items-end"><button type="button" id="movementAddLine" class="btn btn-outline-primary">Add line</button></div>
+        <div class="col-12 table-responsive"><table class="table table-sm"><thead><tr><th>Item</th><th>Lot</th><th>Quantity</th><th>Cost</th><th></th></tr></thead><tbody id="movementDraftLines"></tbody></table></div>
+        <div class="col-12"><button id="movementSave" class="btn btn-success" type="submit">Create draft</button> <span class="small text-muted">Only manual movements are enabled; linked purchase receipts need verified procurement integration.</span></div>
+    </form>
+</div></div>
