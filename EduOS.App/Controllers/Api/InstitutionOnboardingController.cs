@@ -73,7 +73,13 @@ public sealed class InstitutionOnboardingController : ControllerBase
             if (existing != null && !existing.Success) return Result(existing);
             request.Code = existing?.Data?.Code ?? "C-" + Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
         }
-        return Result(await _foundation.SaveCampusAsync(request.Id, request, ct));
+        return Result(await _foundation.SaveCampusAsync(request.Id, new SaveCampusRequestDto
+        {
+            Name = request.Name, Code = request.Code ?? string.Empty,
+            Address = request.Address, Phone = request.Phone, Email = request.Email,
+            HeadName = request.HeadName, IsHeadOffice = request.IsHeadOffice,
+            IsActive = request.IsActive, RowVersion = request.RowVersion
+        }, ct));
     }
 
     [HttpDelete("campus/{id:long}")]
