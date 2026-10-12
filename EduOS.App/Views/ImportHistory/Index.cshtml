@@ -1,0 +1,69 @@
+@{
+    ViewData["Title"] = "Import History";
+}
+<section class="container-fluid py-3" aria-labelledby="importHistoryTitle">
+    <header class="mb-3">
+        <h2 id="importHistoryTitle">Import History</h2>
+        <p class="text-muted">Review tenant import operations, row counts and validation errors. Import processing remains in each owning module.</p>
+    </header>
+    <div id="importHistoryAlert" class="d-none" role="alert" tabindex="-1"></div>
+    <section class="card mb-3">
+        <div class="card-body">
+            <form id="importHistoryFilter" class="row g-2 align-items-end">
+                <div class="col-md-5">
+                    <label class="form-label" for="importHistoryType">Import type</label>
+                    <input id="importHistoryType" class="form-control" maxlength="100" autocomplete="off" placeholder="All import types" />
+                </div>
+                <div class="col-md-4 d-flex gap-2">
+                    <button class="btn btn-primary" type="submit">Search</button>
+                    <button class="btn btn-outline-secondary" type="button" id="importHistoryClear">Clear</button>
+                </div>
+            </form>
+        </div>
+    </section>
+    <section class="card mb-3" aria-labelledby="importHistoryListTitle">
+        <div class="card-body">
+            <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
+                <h3 id="importHistoryListTitle" class="h6 mb-0">Imports</h3>
+                <span class="small text-muted" id="importHistoryCount" aria-live="polite"></span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead><tr><th>Started (UTC)</th><th>Type</th><th>Total</th><th>Success</th><th>Failed</th><th>Status</th><th>Details</th></tr></thead>
+                    <tbody id="importHistoryRecords"><tr><td colspan="7" class="text-muted text-center">Loading…</td></tr></tbody>
+                </table>
+            </div>
+            <nav class="d-flex justify-content-between align-items-center gap-2" aria-label="Import history pages">
+                <button id="importHistoryPrevious" class="btn btn-outline-secondary btn-sm" type="button">Previous</button>
+                <span class="small text-muted" id="importHistoryPage" aria-live="polite"></span>
+                <button id="importHistoryNext" class="btn btn-outline-secondary btn-sm" type="button">Next</button>
+            </nav>
+        </div>
+    </section>
+    <section class="card d-none" id="importHistoryDetails" aria-labelledby="importHistoryDetailsTitle">
+        <div class="card-body">
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+                <div>
+                    <h3 class="h6 mb-1" id="importHistoryDetailsTitle">Import details</h3>
+                    <p id="importHistorySummary" class="text-muted small mb-0"></p>
+                </div>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="importHistoryClose">Close</button>
+            </div>
+            <p class="small text-danger" id="importHistoryErrors"></p>
+            <div class="table-responsive">
+                <table class="table table-sm table-striped align-middle">
+                    <thead><tr><th>Row</th><th>Business key</th><th>Outcome</th><th>Error</th></tr></thead>
+                    <tbody id="importHistoryRows"><tr><td colspan="4" class="text-center text-muted">Select an import.</td></tr></tbody>
+                </table>
+            </div>
+            <nav class="d-flex justify-content-between align-items-center gap-2" aria-label="Import row pages">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="importRowsPrevious">Previous</button>
+                <span class="small text-muted" id="importRowsPage" aria-live="polite"></span>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="importRowsNext">Next</button>
+            </nav>
+        </div>
+    </section>
+</section>
+@section Scripts {
+    <script src="~/js/import-history/index.js" asp-append-version="true"></script>
+}
