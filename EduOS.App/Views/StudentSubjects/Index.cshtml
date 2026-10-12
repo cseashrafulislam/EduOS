@@ -1,0 +1,52 @@
+@{
+    ViewData["Title"] = "Student Optional Subjects";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<div id="studentOptionalSubjects" class="container-fluid py-4">
+    @Html.AntiForgeryToken()
+    <header class="d-flex justify-content-between align-items-center mb-3">
+        <div><h1 class="h4 fw-bold">Student Optional Subjects</h1>
+            <p class="text-muted mb-0">Request electives and approve or reject pending registrations. The server verifies enrollment and permissions.</p></div>
+        <a class="btn btn-outline-secondary" href="/Students/Index">Student Directory</a>
+    </header>
+    <div id="subjectsNotice" class="alert d-none" role="alert" aria-live="polite"></div>
+    <div class="row g-3">
+        <section class="col-lg-5">
+            <div class="card shadow-sm border-0"><div class="card-body">
+                <h2 class="h5">1. Find student</h2>
+                <form id="subjectsSearchForm" class="input-group mb-3">
+                    <input id="subjectsSearch" class="form-control" maxlength="100" placeholder="Student code or name" aria-label="Search student" required />
+                    <button class="btn btn-outline-primary" type="submit">Search</button>
+                </form>
+                <div id="subjectsMatches" class="list-group mb-3">Search for an enrolled student.</div>
+                <div id="subjectsStudent" class="border rounded p-3 d-none">
+                    <strong id="subjectsStudentName"></strong>
+                    <div id="subjectsStudentDetails" class="small text-muted"></div>
+                </div>
+            </div></div>
+        </section>
+        <section class="col-lg-7">
+            <div class="card shadow-sm border-0 mb-3"><div class="card-body">
+                <h2 class="h5">2. Request optional subject</h2>
+                <form id="subjectsRequestForm" class="row g-3">
+                    <div class="col-12"><label class="form-label" for="subjectsOffering">Available elective *</label>
+                        <select id="subjectsOffering" class="form-select" required disabled><option value="">Select a student first</option></select></div>
+                    <div class="col-12"><label class="form-label" for="subjectsRemarks">Remarks</label>
+                        <textarea id="subjectsRemarks" class="form-control" maxlength="500" rows="2"></textarea></div>
+                    <div class="col-12"><button id="subjectsRequestButton" class="btn btn-primary" type="submit" disabled>Submit Elective Request</button></div>
+                </form>
+            </div></div>
+            <div class="card shadow-sm border-0"><div class="card-body">
+                <h2 class="h5">3. Registration decisions</h2>
+                <p class="small text-muted">Only pending electives can be approved or rejected. Decisions use the current row version.</p>
+                <div class="table-responsive"><table class="table table-sm align-middle">
+                    <thead><tr><th>Subject</th><th>Status</th><th>Registered (UTC)</th><th>Action</th></tr></thead>
+                    <tbody id="subjectsRegistrations"><tr><td colspan="4">Select a student.</td></tr></tbody>
+                </table></div>
+            </div></div>
+        </section>
+    </div>
+</div>
+@section Scripts {
+    <script src="~/js/students/optional-subjects.js" asp-append-version="true"></script>
+}
