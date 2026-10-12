@@ -4,6 +4,7 @@
     if (!el('hostelTitle')) return;
     const manager = !!el('hostelAllocationForm');
     let requestId = crypto.randomUUID(), studentPage = 1, bedPage = 1, activePage = 1, activePages = 1;
+    let studentLookup = 0, bedLookup = 0, activeLookup = 0;
     function today() { const d = new Date(); return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-'); }
     function notify(message, success = false) {
         const node = el('hostelAlert'); node.className = 'alert alert-' + (success ? 'success' : 'danger'); node.textContent = message; node.focus();
@@ -44,26 +45,30 @@
         } catch (error) { notify(error.message); }
     }
     async function loadStudents() {
+        const lookup = ++studentLookup;
         try {
             const params = new URLSearchParams({ page: String(studentPage), pageSize: '25' });
             const term = el('hostelStudentSearch').value.trim(); if (term) params.set('search', term);
             const info = await api('/api/hostel/eligible-students?' + params);
+            if (lookup !== studentLookup) return;
             const select = el('hostelStudent'); select.replaceChildren(); option(select, '', 'Choose eligible student');
             (info.items || []).forEach(x => option(select, x.enrollmentReference, x.studentName + ' (' + x.studentCode + ', Roll ' + x.roll + ')'));
             el('hostelNextStudent').disabled = studentPage >= info.totalPages;
-        } catch (error) { notify(error.message); }
+        } catch (error) { if (lookup === studentLookup) notify(error.message); }
     }
     async function loadBeds() {
+        const lookup = ++bedLookup;
         try {
             const params = new URLSearchParams({ page: String(bedPage), pageSize: '25' });
             const term = el('hostelBedSearch').value.trim(); if (term) params.set('search', term);
             const info = await api('/api/hostel/available-beds?' + params);
+            if (lookup !== bedLookup) return;
             const select = el('hostelBed'); select.replaceChildren(); option(select, '', 'Choose unoccupied bed');
             (info.items || []).forEach(x => option(select, String(x.bedId),
                 x.hostelName + ' · Room ' + x.roomNumber + ' / Bed ' + x.bedNumber +
                 ' · Rent ' + x.rentPerBed + (x.genderRestriction ? ' · ' + x.genderRestriction : '')));
             el('hostelNextBed').disabled = bedPage >= info.totalPages;
-        } catch (error) { notify(error.message); }
+        } catch (error) { if (lookup === bedLookup) notify(error.message); }
     }
     async function allocate(event) {
         event.preventDefault(); const form = el('hostelAllocationForm');
@@ -82,10 +87,12 @@
         } catch (error) { notify(error.message); } finally { button.disabled = false; }
     }
     async function loadActive() {
+        const lookup = ++activeLookup;
         try {
             const params = new URLSearchParams({ page: String(activePage), pageSize: '25' });
             const term = el('hostelAllocationTerm').value.trim(); if (term) params.set('search', term);
             const info = await api('/api/hostel/active-allocations?' + params);
+            if (lookup !== activeLookup) return;
             const body = el('hostelActiveRows'); body.replaceChildren();
             for (const item of info.items || []) {
                 const tr = document.createElement('tr');
@@ -98,7 +105,7 @@
             activePages = Math.max(1, Number(info.totalPages) || 1);
             el('hostelPageInfo').textContent = 'Page ' + activePage + ' of ' + activePages + ' · ' + info.totalCount + ' total';
             el('hostelPrev').disabled = activePage <= 1; el('hostelNext').disabled = activePage >= activePages;
-        } catch (error) { notify(error.message); }
+        } catch (error) { if (lookup === activeLookup) notify(error.message); }
     }
     async function closeAllocation(item, button) {
         if (!confirm('Close the hostel allocation for ' + item.studentName + '?')) return;
