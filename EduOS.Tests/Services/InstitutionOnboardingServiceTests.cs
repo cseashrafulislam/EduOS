@@ -1,5 +1,7 @@
 using EduOS.Core.DTOs.Academic;
 using EduOS.Core.DTOs.SaaS;
+using EduOS.Core.DTOs.Tenants;
+using System.ComponentModel.DataAnnotations;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Admission;
 using EduOS.Core.Entities.SaaS;
@@ -18,6 +20,17 @@ namespace EduOS.Tests.Services;
 
 public sealed class InstitutionOnboardingServiceTests
 {
+    [Fact]
+    public void Campus_wizard_accepts_blank_code_but_canonical_request_still_requires_it()
+    {
+        var wizard = new InstitutionCampusWizardRequestDto { Name = "Dhaka Campus" };
+        var errors = new List<ValidationResult>();
+        Validator.TryValidateObject(wizard, new ValidationContext(wizard), errors, true).Should().BeTrue();
+        var canonical = new SaveCampusRequestDto { Name = "Dhaka Campus", Code = string.Empty };
+        errors.Clear();
+        Validator.TryValidateObject(canonical, new ValidationContext(canonical), errors, true).Should().BeFalse();
+    }
+
     [Fact]
     public async Task First_campus_is_head_office_and_default_subscription_limit_is_enforced()
     {
