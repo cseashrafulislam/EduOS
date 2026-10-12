@@ -84,6 +84,7 @@ public class AdmissionApplicationsController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [Authorize(Roles = "TenantAdmin")]
     [HttpPost("{reference:guid}/offer/verified-acceptance")]
     public async Task<IActionResult> RecordVerifiedAcceptance(Guid reference, [FromBody] VerifyAdmissionOfferAcceptanceRequestDto request, CancellationToken cancellationToken)
     {
