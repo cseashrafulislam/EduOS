@@ -1,0 +1,16 @@
+@{ ViewData["Title"] = "Student Guardians"; }
+<div id="guardianWorkspace" class="container py-4">
+@Html.AntiForgeryToken()
+<h1>Student Guardians</h1>
+<div id="guardianNotice" role="status"></div>
+<form id="guardianSearchForm"><input id="guardianSearch" placeholder="Student search" required /><button>Search</button></form>
+<div id="guardianMatches"></div><h2 id="guardianSelected"></h2>
+<form id="guardianCreateForm">
+<input id="guardianName" placeholder="Guardian name" required maxlength="200" />
+<select id="guardianRelation"><option>Father</option><option>Mother</option><option>LegalGuardian</option><option>Other</option></select>
+<label><input id="guardianPrimary" type="checkbox" /> Primary</label>
+<button id="guardianCreate" disabled>Save</button>
+</form>
+<div id="guardianLinks"></div>
+</div>
+@section Scripts { <script type="module" src="~/js/students/guardians.js" asp-append-version="true"></script> }
