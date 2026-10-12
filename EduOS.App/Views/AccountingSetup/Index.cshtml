@@ -1,0 +1,69 @@
+@{
+    ViewData["Title"] = "Institution Accounting Setup";
+    var canWrite = User.IsInRole("TenantAdmin") || User.IsInRole("Principal");
+}
+<section class="container-fluid py-3" id="accountingSetup" data-write="@canWrite.ToString().ToLowerInvariant()">
+    <h2>Institution Accounting Setup</h2>
+    <p class="text-muted">Chart of accounts, accounting periods and bank ledgers. Separate from SaaS billing.</p>
+    @Html.AntiForgeryToken()
+    <div id="accountingNotice" class="alert d-none" role="alert"></div>
+    <ul class="nav nav-tabs mb-3">
+        <li><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#coaPanel">Accounts</button></li>
+        <li><button class="nav-link" data-bs-toggle="tab" data-bs-target="#periodPanel">Periods</button></li>
+        @if (canWrite) { <li><button class="nav-link" data-bs-toggle="tab" data-bs-target="#bankPanel">Banks</button></li> }
+    </ul>
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="coaPanel">
+            <div class="d-flex gap-2 mb-2"><input id="accountSearch" class="form-control" maxlength="100" placeholder="Code or name" /><button id="accountSearchBtn" class="btn btn-secondary" type="button">Search</button></div>
+            @if (canWrite) {
+                <form id="accountForm" class="card card-body mb-2">
+                    <input type="hidden" id="accountId" /><input type="hidden" id="accountVersion" />
+                    <div class="row g-2">
+                        <div class="col-md-2"><label for="accountCode">Code</label><input id="accountCode" class="form-control" maxlength="50" required /></div>
+                        <div class="col-md-3"><label for="accountName">Name</label><input id="accountName" class="form-control" maxlength="200" required /></div>
+                        <div class="col-md-2"><label for="accountType">Type</label><select id="accountType" class="form-select"><option value="1">Asset</option><option value="2">Liability</option><option value="3">Equity</option><option value="4">Income</option><option value="5">Expense</option></select></div>
+                        <div class="col-md-3"><label for="accountParent">Parent group</label><select id="accountParent" class="form-select"><option value="">Root</option></select></div>
+                        <div class="col-md-2"><label><input id="accountGroup" type="checkbox" /> Group</label><br /><label><input id="accountActive" type="checkbox" checked /> Active</label></div>
+                    </div>
+                    <div class="mt-2"><button class="btn btn-primary" type="submit">Save account</button><button id="accountReset" class="btn btn-outline-secondary" type="button">New</button></div>
+                </form>
+            }
+            <div class="table-responsive"><table class="table table-sm table-striped"><thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Parent</th><th>Group</th><th>Active</th>@if(canWrite){<th>Action</th>}</tr></thead><tbody id="accountRows"></tbody></table></div>
+            <div class="d-flex gap-2"><button id="accountPrev" type="button" class="btn btn-outline-secondary">Previous</button><span id="accountPage"></span><button id="accountNext" type="button" class="btn btn-outline-secondary">Next</button></div>
+        </div>
+        <div class="tab-pane fade" id="periodPanel">
+            @if (canWrite) {
+                <form id="periodForm" class="card card-body mb-2">
+                    <input type="hidden" id="periodId" /><input type="hidden" id="periodVersion" />
+                    <div class="row g-2">
+                        <div class="col-md-4"><label for="periodName">Name</label><input id="periodName" class="form-control" maxlength="100" required /></div>
+                        <div class="col-md-3"><label for="periodFrom">Start</label><input id="periodFrom" type="date" class="form-control" required /></div>
+                        <div class="col-md-3"><label for="periodTo">End</label><input id="periodTo" type="date" class="form-control" required /></div>
+                        <div class="col-md-2"><button class="btn btn-primary" type="submit">Save period</button></div>
+                    </div>
+                    <button id="periodReset" class="btn btn-link" type="button">New period</button>
+                </form>
+            }
+            <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Period</th><th>Start</th><th>End</th><th>Status</th>@if(canWrite){<th>Action</th>}</tr></thead><tbody id="periodRows"></tbody></table></div>
+        </div>
+        @if (canWrite) {
+            <div class="tab-pane fade" id="bankPanel">
+                <form id="bankForm" class="card card-body mb-2">
+                    <input type="hidden" id="bankId" /><input type="hidden" id="bankVersion" />
+                    <div class="row g-2">
+                        <div class="col-md-4"><label for="bankLedger">Asset ledger</label><select id="bankLedger" class="form-select" required></select></div>
+                        <div class="col-md-4"><label for="bankName">Bank</label><input id="bankName" class="form-control" maxlength="150" required /></div>
+                        <div class="col-md-4"><label for="bankAccountName">Account holder</label><input id="bankAccountName" class="form-control" maxlength="150" required /></div>
+                        <div class="col-md-4"><label for="bankNumber">Account number</label><input id="bankNumber" class="form-control" maxlength="100" required /></div>
+                        <div class="col-md-3"><label for="bankBranch">Branch</label><input id="bankBranch" class="form-control" maxlength="100" /></div>
+                        <div class="col-md-3"><label for="bankRouting">Routing</label><input id="bankRouting" class="form-control" maxlength="100" /></div>
+                        <div class="col-md-2"><label><input id="bankActive" type="checkbox" checked /> Active</label></div>
+                    </div>
+                    <div class="mt-2"><button class="btn btn-primary" type="submit">Save bank</button><button id="bankReset" class="btn btn-outline-secondary" type="button">New</button></div>
+                </form>
+                <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Bank</th><th>Account</th><th>Ledger</th><th>Status</th><th>Action</th></tr></thead><tbody id="bankRows"></tbody></table></div>
+            </div>
+        }
+    </div>
+</section>
+@section Scripts { <script type="module" src="~/js/finance/accounting-setup.js" asp-append-version="true"></script> }
