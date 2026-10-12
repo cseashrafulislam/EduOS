@@ -20,9 +20,26 @@ public sealed class InstitutionProfileWizardDto
     public string RowVersion { get; set; } = string.Empty;
 }
 
-public sealed class InstitutionCampusWizardRequestDto : EduOS.Core.DTOs.SaaS.SaveCampusRequestDto
+// Campus code is optional in the onboarding wizard only. The API generates it
+// before passing a fully validated SaveCampusRequestDto to the foundation service.
+public sealed class InstitutionCampusWizardRequestDto
 {
     public long? Id { get; set; }
+    [global::System.ComponentModel.DataAnnotations.Required, global::System.ComponentModel.DataAnnotations.MaxLength(150)]
+    public string Name { get; set; } = string.Empty;
+    [global::System.ComponentModel.DataAnnotations.MaxLength(50)]
+    public string? Code { get; set; }
+    [global::System.ComponentModel.DataAnnotations.MaxLength(500)]
+    public string? Address { get; set; }
+    [global::System.ComponentModel.DataAnnotations.MaxLength(30)]
+    public string? Phone { get; set; }
+    [global::System.ComponentModel.DataAnnotations.EmailAddress, global::System.ComponentModel.DataAnnotations.MaxLength(200)]
+    public string? Email { get; set; }
+    [global::System.ComponentModel.DataAnnotations.MaxLength(150)]
+    public string? HeadName { get; set; }
+    public bool IsHeadOffice { get; set; }
+    public bool IsActive { get; set; } = true;
+    public string? RowVersion { get; set; }
 }
 
 // These wizard contracts deliberately omit the required canonical Code field.
