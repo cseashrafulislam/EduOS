@@ -1,0 +1,40 @@
+@{
+    ViewData["Title"] = "Institutional Ledger & Trial Balance";
+}
+<section class="container-fluid py-3" id="institutionAccountingReports">
+    <h2>Institutional Accounting Reports</h2>
+    <p class="text-muted">Posted institutional journals only. SaaS subscription billing is excluded.</p>
+    <div id="reportNotice" class="alert d-none" role="alert" aria-live="polite"></div>
+    <ul class="nav nav-tabs mb-3">
+        <li class="nav-item"><button type="button" class="nav-link active" data-bs-toggle="tab" data-bs-target="#ledgerPanel">General Ledger</button></li>
+        <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#trialPanel">Trial Balance</button></li>
+    </ul>
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="ledgerPanel">
+            <form id="ledgerForm" class="row g-2 align-items-end mb-3">
+                <div class="col-md-4"><label for="ledgerAccount" class="form-label">Account</label>
+                    <select id="ledgerAccount" class="form-select" required><option value="">Loading accounts...</option></select></div>
+                <div class="col-md-3"><label for="ledgerFrom" class="form-label">From</label><input type="date" id="ledgerFrom" class="form-control" required /></div>
+                <div class="col-md-3"><label for="ledgerTo" class="form-label">To</label><input type="date" id="ledgerTo" class="form-control" required /></div>
+                <div class="col-md-2"><button id="ledgerRun" type="submit" class="btn btn-primary w-100">Run Ledger</button></div>
+            </form>
+            <div class="d-flex justify-content-between mb-2"><strong id="ledgerTitle">Select an account and date range.</strong>
+                <button id="ledgerCsv" type="button" class="btn btn-outline-secondary btn-sm" disabled>Export CSV</button></div>
+            <div class="table-responsive"><table class="table table-sm table-striped">
+                <thead><tr><th>Date</th><th>Journal</th><th>Description</th><th class="text-end">Debit</th><th class="text-end">Credit</th><th class="text-end">Running balance (Dr - Cr)</th></tr></thead>
+                <tbody id="ledgerRows"></tbody><tfoot><tr><th colspan="5">Opening balance</th><th id="ledgerOpening" class="text-end"></th></tr>
+                    <tr><th colspan="5">Closing balance</th><th id="ledgerClosing" class="text-end"></th></tr></tfoot></table></div>
+        </div>
+        <div class="tab-pane fade" id="trialPanel">
+            <form id="trialForm" class="row g-2 align-items-end mb-3">
+                <div class="col-md-3"><label for="trialAsOf" class="form-label">As of date</label><input type="date" id="trialAsOf" class="form-control" required /></div>
+                <div class="col-md-3"><button id="trialRun" type="submit" class="btn btn-primary">Run Trial Balance</button></div>
+                <div class="col-md-3"><button id="trialCsv" type="button" class="btn btn-outline-secondary" disabled>Export CSV</button></div>
+            </form>
+            <div class="table-responsive"><table class="table table-sm table-striped">
+                <thead><tr><th>Code</th><th>Account</th><th class="text-end">Debit balance</th><th class="text-end">Credit balance</th></tr></thead>
+                <tbody id="trialRows"></tbody><tfoot><tr><th colspan="2">Total</th><th id="trialDebit" class="text-end"></th><th id="trialCredit" class="text-end"></th></tr></tfoot></table></div>
+        </div>
+    </div>
+</section>
+@section Scripts { <script type="module" src="~/js/finance/accounting-reports.js" asp-append-version="true"></script> }

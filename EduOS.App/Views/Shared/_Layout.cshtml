@@ -213,6 +213,14 @@
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
                         <span>Fees &amp; Billing</span>
                     </a>
+                    <a class="nav-link @ActiveFor("/AccountingSetup")" href="/AccountingSetup/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                        <span>Institution COA &amp; Periods</span>
+                    </a>
+                    <a class="nav-link @ActiveFor("/AccountingReports")" href="/AccountingReports/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                        <span>General Ledger &amp; Trial Balance</span>
+                    </a>
                 }
                 @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
                      User?.IsInRole("InventoryManager") == true || User?.IsInRole("StoreKeeper") == true ||
