@@ -15,4 +15,9 @@ public class AdmissionsController : Controller
     [HttpGet]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult Assessments() => View();
+
+    [Authorize(Roles = "TenantAdmin")]
+    [HttpGet]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult Offers() => View();
 }

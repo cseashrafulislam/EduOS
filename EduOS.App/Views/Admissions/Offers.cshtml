@@ -1,0 +1,80 @@
+@{
+    ViewData["Title"] = "Admission offers & enrollment";
+}
+<section class="content-card" aria-labelledby="admissionOfferTitle">
+    <header class="content-header-card mb-3">
+        <div>
+            <p class="dashboard-eyebrow">Admissions / ভর্তি</p>
+            <h2 id="admissionOfferTitle">Offer, Verified Acceptance &amp; Enrollment</h2>
+            <p class="text-muted">Tenant administrators only. Signed evidence must be verified before accepting an offer.</p>
+        </div>
+        <a class="btn btn-outline-secondary" asp-controller="Admissions" asp-action="Index">Applications / আবেদন</a>
+    </header>
+    @Html.AntiForgeryToken()
+    <div id="offerNotice" class="alert alert-info" role="status" aria-live="polite">Enter an applicant reference to begin.</div>
+    <form id="offerLookupForm" class="row g-2 mb-3">
+        <div class="col-md-9">
+            <label class="form-label" for="offerApplicantReference">Applicant reference / আবেদন নম্বর (GUID)</label>
+            <input class="form-control" id="offerApplicantReference" type="text" maxlength="36" autocomplete="off" required />
+        </div>
+        <div class="col-md-3 d-flex align-items-end">
+            <button id="offerLookupButton" type="submit" class="btn btn-primary w-100">Load / খুঁজুন</button>
+        </div>
+    </form>
+    <div id="offerWorkspace" hidden>
+        <div class="mb-3">
+            <h3 class="h5" id="offerApplicantName"></h3>
+            <p id="offerCurrentState" class="text-muted" aria-live="polite"></p>
+        </div>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label" for="offerBatch">Academic batch / ব্যাচ *</label>
+                <select id="offerBatch" class="form-select" required></select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label" for="offerExpiry">Offer expiry / অফারের মেয়াদ *</label>
+                <input id="offerExpiry" type="datetime-local" class="form-control" required />
+            </div>
+            <div class="col-12">
+                <button id="offerIssueButton" type="button" class="btn btn-outline-primary">Issue offer / অফার দিন</button>
+            </div>
+            <div class="col-12"><hr /><h4 class="h6">Verified signed acceptance / যাচাইকৃত স্বাক্ষর</h4>
+                <p class="small text-muted">Upload a signed OFFER_ACCEPTANCE document from the public application and verify it in the private application document review first.</p>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label" for="offerEvidence">Verified OFFER_ACCEPTANCE document *</label>
+                <select id="offerEvidence" class="form-select"></select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label" for="offerSigner">Verified signer / স্বাক্ষরকারী *</label>
+                <select id="offerSigner" class="form-select">
+                    <option value="Guardian">Guardian / অভিভাবক</option>
+                    <option value="Applicant">Adult applicant / প্রাপ্তবয়স্ক আবেদনকারী</option>
+                </select>
+            </div>
+            <div class="col-12">
+                <label class="form-check-label"><input id="offerIdentityChecked" type="checkbox" class="form-check-input me-2" />
+                    I independently verified the signer identity against the applicant/guardian record and the signed document.</label>
+            </div>
+            <div class="col-12 d-flex gap-2 flex-wrap">
+                <button id="offerAcceptButton" type="button" class="btn btn-success" disabled>Record verified acceptance</button>
+                <button id="offerRefreshButton" type="button" class="btn btn-outline-secondary">Refresh status &amp; evidence</button>
+            </div>
+            <div class="col-12"><hr /><h4 class="h6">Canonical student conversion / শিক্ষার্থী ভর্তি</h4></div>
+            <div class="col-md-6">
+                <label class="form-label" for="offerRoll">Roll / রোল *</label>
+                <input id="offerRoll" class="form-control" maxlength="50" autocomplete="off" required />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label" for="offerTrack">Academic track / বিভাগ (optional)</label>
+                <select id="offerTrack" class="form-select"></select>
+            </div>
+            <div class="col-12">
+                <button id="offerEnrollButton" type="button" class="btn btn-primary" disabled>Convert to student &amp; enroll</button>
+            </div>
+        </div>
+    </div>
+</section>
+@section Scripts {
+    <script type="module" src="~/js/admissions/offers.js" asp-append-version="true"></script>
+}
