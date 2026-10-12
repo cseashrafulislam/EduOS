@@ -19,6 +19,19 @@ public sealed class LibraryController : ControllerBase
     private readonly ILibraryService _service;
     public LibraryController(ILibraryService service)=>_service=service;
 
+    [HttpGet("categories")]
+    public async Task<IActionResult> Categories(CancellationToken ct) =>
+        ToAction(await _service.GetCategoriesAsync(ct));
+
+    [HttpPost("categories")]
+    [HttpPut("categories/{id:long}")]
+    [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
+    public async Task<IActionResult> SaveCategory(long? id, [FromBody] SaveBookCategoryRequestDto request, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        return ToAction(await _service.SaveCategoryAsync(id, request, ct));
+    }
+
     [HttpGet("catalog")]
     public async Task<IActionResult> Catalog([FromQuery]string? search,[FromQuery]int page=1,[FromQuery]int pageSize=20,CancellationToken ct=default)=>ToAction(await _service.GetCatalogAsync(search,page,pageSize,ct));
 

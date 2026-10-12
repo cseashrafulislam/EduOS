@@ -177,6 +177,62 @@ public sealed class LibraryServiceTests
         (await local.BookIssues.CountAsync()).Should().Be(0);
     }
 
+
+    [Fact]
+    public async Task Category_list_is_tenant_scoped_and_student_cannot_write()
+    {
+        var options = Options();
+        await using (var db = Context(options, 101))
+        {
+            db.BookCategories.Add(new BookCategory { TenantId = 101, Name = "Science", Code = "SCI" });
+            await db.SaveChangesAsync();
+        }
+        await using (var db = Context(options, 202))
+        {
+            db.BookCategories.Add(new BookCategory { TenantId = 202, Name = "Private", Code = "PRI" });
+            await db.SaveChangesAsync();
+        }
+        await using var reader = Context(options, 101, "Student");
+        var service = Service(reader, 101, "Student");
+        (await service.GetCategoriesAsync()).Data.Should().ContainSingle().Which.Code.Should().Be("SCI");
+        (await service.SaveCategoryAsync(null, new SaveBookCategoryRequestDto { Name = "Blocked", Code = "BLK" }))
+            .StatusCode.Should().Be(403);
+    }
+
+    [Fact]
+    public async Task Category_create_is_retry_safe_and_duplicate_code_is_rejected()
+    {
+        var options = Options();
+        await using var db = Context(options, 101);
+        var service = Service(db, 101);
+        var request = new SaveBookCategoryRequestDto { Name = "Science", Code = " sci " };
+        var created = await service.SaveCategoryAsync(null, request);
+        created.Success.Should().BeTrue();
+        (await service.SaveCategoryAsync(null, request)).Data!.Id.Should().Be(created.Data!.Id);
+        (await service.SaveCategoryAsync(null, new SaveBookCategoryRequestDto { Name = "Other", Code = "SCI" }))
+            .StatusCode.Should().Be(409);
+        (await db.BookCategories.CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Category_update_checks_rowversion_and_active_book_references()
+    {
+        var options = Options();
+        await using var db = Context(options, 101);
+        var row = new BookCategory { TenantId = 101, Name = "Science", Code = "SCI", RowVersion = [1, 2, 3] };
+        db.BookCategories.Add(row); await db.SaveChangesAsync();
+        db.Books.Add(new Book { TenantId = 101, Title = "Chemistry", BookCategoryId = row.Id });
+        await db.SaveChangesAsync();
+        var service = Service(db, 101);
+        (await service.SaveCategoryAsync(row.Id, new SaveBookCategoryRequestDto {
+            Name = "Science", Code = "SCI", RowVersion = Convert.ToBase64String([9, 9, 9])
+        })).StatusCode.Should().Be(409);
+        (await service.SaveCategoryAsync(row.Id, new SaveBookCategoryRequestDto {
+            Name = "Science", Code = "SCI", IsActive = false, RowVersion = Convert.ToBase64String(row.RowVersion)
+        })).StatusCode.Should().Be(409);
+        row.IsActive.Should().BeTrue();
+    }
+
     private static IssueBookRequestDto Request(Student student, BookCopy copy, Guid key) => new()
     {
         ClientRequestId = key, BookCopyId = copy.Id, StudentReference = student.PublicId,

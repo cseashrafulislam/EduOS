@@ -35,6 +35,73 @@ public sealed class LibraryService : ILibraryService
         _students = students; _enrollments = enrollments; _uow = unitOfWork; _user = currentUser; _clock = clock; _logger = logger;
     }
 
+
+    public async Task<ApiResponse<IReadOnlyList<BookCategoryDto>>> GetCategoriesAsync(CancellationToken ct = default)
+    {
+        if (!CanRead()) return Denied<IReadOnlyList<BookCategoryDto>>();
+        var query = _categories.GetQueryable().AsNoTracking().Where(x => x.TenantId == _user.TenantId && !x.IsDeleted);
+        if (!CanManage()) query = query.Where(x => x.IsActive);
+        var rows = await query.OrderBy(x => x.Name).ThenBy(x => x.Id).Take(1000).ToListAsync(ct);
+        return ApiResponse<IReadOnlyList<BookCategoryDto>>.SuccessResponse(rows.Select(MapCategory).ToList());
+    }
+
+    public async Task<ApiResponse<BookCategoryDto>> SaveCategoryAsync(long? categoryId, SaveBookCategoryRequestDto request, CancellationToken ct = default)
+    {
+        if (!CanManage()) return Denied<BookCategoryDto>();
+        if (request == null || categoryId is <= 0 || string.IsNullOrWhiteSpace(request.Name) ||
+            request.Name.Trim().Length > 150 || string.IsNullOrWhiteSpace(request.Code) || request.Code.Trim().Length > 50)
+            return ApiResponse<BookCategoryDto>.ErrorResponse("Valid category name and code are required.");
+        var tenant = _user.TenantId;
+        var name = request.Name.Trim(); var code = request.Code.Trim().ToUpperInvariant();
+        try
+        {
+            return await _uow.ExecuteInTransactionAsync(async token =>
+            {
+                var row = categoryId.HasValue ? await _categories.GetQueryable().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Id == categoryId.Value && !x.IsDeleted, token) : null;
+                if (categoryId.HasValue && row == null)
+                    return ApiResponse<BookCategoryDto>.ErrorResponse("Category not found.", 404);
+                if (row != null && !MatchesVersion(row.RowVersion, request.RowVersion))
+                    return ApiResponse<BookCategoryDto>.ErrorResponse("Category changed. Reload and retry.", 409);
+                var duplicate = await _categories.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Code == code && !x.IsDeleted &&
+                    (row == null || x.Id != row.Id), token);
+                if (duplicate != null)
+                {
+                    if (row == null && duplicate.Name == name && duplicate.IsActive == request.IsActive)
+                        return ApiResponse<BookCategoryDto>.SuccessResponse(MapCategory(duplicate), "Category already exists.");
+                    return ApiResponse<BookCategoryDto>.ErrorResponse("Category code already exists.", 409);
+                }
+                if (row != null && !request.IsActive && row.IsActive &&
+                    await _books.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
+                        x.BookCategoryId == row.Id && x.IsActive && !x.IsDeleted, token))
+                    return ApiResponse<BookCategoryDto>.ErrorResponse("Reassign active books before deactivating this category.", 409);
+                var now = _clock.GetUtcNow().UtcDateTime;
+                if (row == null)
+                {
+                    row = new BookCategory { TenantId = tenant, CreatedAt = now, CreatedBy = _user.UserId };
+                    await _categories.AddAsync(row);
+                }
+                else { row.UpdatedAt = now; row.UpdatedBy = _user.UserId; _categories.Update(row); }
+                row.Name = name; row.Code = code; row.IsActive = request.IsActive;
+                await _uow.SaveChangesAsync(token);
+                return ApiResponse<BookCategoryDto>.SuccessResponse(MapCategory(row), "Category saved.");
+            }, ct);
+        }
+        catch (DbUpdateConcurrencyException) { return ApiResponse<BookCategoryDto>.ErrorResponse("Category changed concurrently.", 409); }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Library category conflict tenant {TenantId}", tenant);
+            return ApiResponse<BookCategoryDto>.ErrorResponse("Category conflicts with existing data.", 409);
+        }
+    }
+
+    private static BookCategoryDto MapCategory(BookCategory row) => new()
+    {
+        Id = row.Id, Name = row.Name, Code = row.Code, IsActive = row.IsActive,
+        RowVersion = Convert.ToBase64String(row.RowVersion)
+    };
+
     public async Task<ApiResponse<PagedResult<BookDto>>> GetCatalogAsync(string? search,
         int page, int pageSize, CancellationToken ct = default)
     {

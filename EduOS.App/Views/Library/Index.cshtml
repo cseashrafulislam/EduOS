@@ -21,12 +21,24 @@
     </section>
     @if (canManage)
     {
+        <section class="content-card mt-3" aria-labelledby="categoryEditorTitle">
+            <h3 id="categoryEditorTitle" class="h5">Book categories</h3>
+            <form id="libraryCategoryForm" class="row g-2 align-items-end">
+                <input id="categoryId" type="hidden" /><input id="categoryRowVersion" type="hidden" />
+                <div class="col-md-4"><label class="form-label" for="categoryName">Category name</label><input id="categoryName" class="form-control" maxlength="150" required /></div>
+                <div class="col-md-3"><label class="form-label" for="categoryCode">Code</label><input id="categoryCode" class="form-control" maxlength="50" required /></div>
+                <div class="col-md-2"><label class="form-label d-block"><input id="categoryActive" type="checkbox" checked /> Active</label></div>
+                <div class="col-md-3 d-flex gap-2"><button id="categorySave" type="submit" class="btn btn-primary">Save</button><button id="categoryReset" type="button" class="btn btn-outline-secondary">Clear</button></div>
+            </form>
+            <div class="table-responsive mt-3"><table class="table table-sm table-hover"><thead><tr><th>Name</th><th>Code</th><th>Status</th><th>Action</th></tr></thead><tbody id="categoryRows"><tr><td colspan="4">Loading categories…</td></tr></tbody></table></div>
+        </section>
         <section class="content-card mt-3" aria-labelledby="bookEditorTitle">
             <h3 id="bookEditorTitle" class="h5">Create / edit book metadata</h3>
             <form id="libraryBookForm" class="row g-3">
                 <input id="bookReference" type="hidden" /><input id="bookRowVersion" type="hidden" />
                 <div class="col-md-6"><label class="form-label" for="bookTitle">Title *</label><input id="bookTitle" maxlength="300" class="form-control" required /></div>
                 <div class="col-md-6"><label class="form-label" for="bookAuthor">Author</label><input id="bookAuthor" maxlength="200" class="form-control" /></div>
+                <div class="col-md-4"><label class="form-label" for="bookCategory">Category</label><select id="bookCategory" class="form-select"><option value="">Uncategorized</option></select></div>
                 <div class="col-md-4"><label class="form-label" for="bookIsbn">ISBN</label><input id="bookIsbn" maxlength="30" class="form-control" /></div>
                 <div class="col-md-4"><label class="form-label" for="bookPublisher">Publisher</label><input id="bookPublisher" maxlength="200" class="form-control" /></div>
                 <div class="col-md-4"><label class="form-label" for="bookEdition">Edition</label><input id="bookEdition" maxlength="100" class="form-control" /></div>

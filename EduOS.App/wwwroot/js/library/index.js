@@ -4,7 +4,7 @@
     const catalogRows = el('catalogRows'), issueRows = el('issueRows'), query = el('libraryQuery');
     if (!catalogRows || !issueRows || !query) return;
     const canManage = !!el('libraryBookForm');
-    let books = [];
+    let books = [], categories = [];
     const paging = { catalog: 1, issues: 1, pageSize: 20 };
     const catalogColumns = canManage ? 6 : 5;
     function message(text, success = false) {
@@ -17,6 +17,11 @@
     async function api(url, method = 'GET', data) {
         const headers = { Accept: 'application/json' };
         if (data !== undefined) headers['Content-Type'] = 'application/json';
+        if (!['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase())) {
+            const token = document.querySelector('meta[name="request-verification-token"]')?.content;
+            if (!token) throw new Error('Security token missing. Reload the page.');
+            headers.RequestVerificationToken = token;
+        }
         const response = await fetch(url, { method, cache: 'no-store', credentials: 'same-origin', headers,
             ...(data !== undefined ? { body: JSON.stringify(data) } : {}) });
         const payload = await response.json().catch(() => null);
@@ -84,12 +89,13 @@
         if (!canManage) return;
         el('libraryBookForm').reset(); el('bookReference').value = ''; el('bookRowVersion').value = '';
         el('bookSave').textContent = 'Save book';
+        el('bookCategory').value = '';
     }
     function populate(book) {
         if (!canManage) return;
         const pairs = { bookReference: book.reference, bookRowVersion: book.rowVersion, bookTitle: book.title,
             bookAuthor: book.author, bookIsbn: book.isbn, bookPublisher: book.publisher, bookEdition: book.edition,
-            bookCover: book.coverImageUrl, bookReplacement: book.replacementPrice };
+            bookCover: book.coverImageUrl, bookReplacement: book.replacementPrice, bookCategory: book.bookCategoryId };
         Object.entries(pairs).forEach(([key, value]) => { el(key).value = value ?? ''; });
         el('bookSave').textContent = 'Update book';
         el('libraryBookForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -103,6 +109,7 @@
         try {
             const price = el('bookReplacement').value.trim();
             const payload = { reference: el('bookReference').value || null, rowVersion: el('bookRowVersion').value || null,
+                bookCategoryId: el('bookCategory').value ? Number(el('bookCategory').value) : null,
                 title: el('bookTitle').value.trim(), author: el('bookAuthor').value.trim() || null,
                 isbn: el('bookIsbn').value.trim() || null, publisher: el('bookPublisher').value.trim() || null,
                 edition: el('bookEdition').value.trim() || null, coverImageUrl: el('bookCover').value.trim() || null,
@@ -130,5 +137,60 @@
     el('issueNext').addEventListener('click', () => { paging.issues++; loadIssues(); });
     el('printLibrary')?.addEventListener('click', () => window.print());
     if (canManage) { el('libraryBookForm').addEventListener('submit', saveBook); el('bookReset').addEventListener('click', resetForm); }
+
+    let categoryLoadVersion = 0;
+    async function loadCategories() {
+        if (!canManage) return;
+        const version = ++categoryLoadVersion;
+        try {
+            const rows = await api('/api/library/categories');
+            if (version !== categoryLoadVersion) return;
+            categories = Array.isArray(rows) ? rows : [];
+            const select = el('bookCategory'), previous = select.value;
+            select.replaceChildren(new Option('Uncategorized', ''));
+            for (const row of categories.filter(x => x.isActive))
+                select.append(new Option(row.name + ' (' + row.code + ')', String(row.id)));
+            if ([...select.options].some(x => x.value === previous)) select.value = previous;
+            const body = el('categoryRows'); body.replaceChildren();
+            for (const row of categories) {
+                const tr = document.createElement('tr');
+                [row.name, row.code, row.isActive ? 'Active' : 'Inactive'].forEach(x => tr.append(cell(x)));
+                const td = document.createElement('td'), button = document.createElement('button');
+                button.type = 'button'; button.className = 'btn btn-sm btn-outline-primary'; button.textContent = 'Edit';
+                button.addEventListener('click', () => {
+                    el('categoryId').value = row.id; el('categoryRowVersion').value = row.rowVersion;
+                    el('categoryName').value = row.name; el('categoryCode').value = row.code;
+                    el('categoryActive').checked = !!row.isActive; el('categoryName').focus();
+                });
+                td.append(button); tr.append(td); body.append(tr);
+            }
+            if (!categories.length) { const tr = document.createElement('tr'), td = cell('No categories.'); td.colSpan = 4; tr.append(td); body.append(tr); }
+        } catch (error) { message(error.message); }
+    }
+    function resetCategory() {
+        el('libraryCategoryForm').reset(); el('categoryId').value = ''; el('categoryRowVersion').value = '';
+        el('categoryActive').checked = true;
+    }
+    async function saveCategory(event) {
+        event.preventDefault();
+        if (!el('libraryCategoryForm').reportValidity()) return;
+        const id = el('categoryId').value, button = el('categorySave');
+        const body = { name: el('categoryName').value.trim(), code: el('categoryCode').value.trim(),
+            isActive: el('categoryActive').checked, rowVersion: el('categoryRowVersion').value || null };
+        if (!body.name || !body.code) return message('Category name and code are required.');
+        button.disabled = true;
+        try {
+            await api(id ? '/api/library/categories/' + encodeURIComponent(id) : '/api/library/categories',
+                id ? 'PUT' : 'POST', body);
+            resetCategory(); await loadCategories(); await loadCatalog();
+            message('Category saved.', true);
+        } catch (error) { message(error.message); }
+        finally { button.disabled = false; }
+    }
+    if (canManage) {
+        el('libraryCategoryForm').addEventListener('submit', saveCategory);
+        el('categoryReset').addEventListener('click', resetCategory);
+        loadCategories();
+    }
     loadCatalog(); loadIssues();
 })();
