@@ -89,7 +89,7 @@ public sealed class LmsLiveClassService : ILmsLiveClassService
 
     /// <summary>Only assigned, active offerings in valid academic/curriculum/term windows may host live lessons.</summary>
     private async Task<long[]> EligibleBatchesAsync(Course course, long instructorId,
-        DateOnly from, DateOnly to, CancellationToken ct)
+        DateOnly startDate, DateOnly endDate, CancellationToken ct)
     {
         if (!course.AcademicProgramId.HasValue || !course.SubjectId.HasValue) return [];
         var tenant = _user.TenantId;
@@ -113,18 +113,18 @@ public sealed class LmsLiveClassService : ILmsLiveClassService
                 batch.AcademicLevelId == item.AcademicLevelId &&
                 batch.AcademicYearId == offering.AcademicYearId &&
                 assignment.EmployeeId == instructorId && campus.CampusId == batch.CampusId &&
-                assignment.EffectiveFrom <= from && (!assignment.EffectiveTo.HasValue || assignment.EffectiveTo >= to) &&
-                campus.EffectiveFrom <= from && (!campus.EffectiveTo.HasValue || campus.EffectiveTo >= to) &&
-                year.StartDate <= from && year.EndDate >= to &&
+                assignment.EffectiveFrom <= startDate && (!assignment.EffectiveTo.HasValue || assignment.EffectiveTo >= endDate) &&
+                campus.EffectiveFrom <= startDate && (!campus.EffectiveTo.HasValue || campus.EffectiveTo >= endDate) &&
+                year.StartDate <= startDate && year.EndDate >= endDate &&
                 (!year.CampusId.HasValue || year.CampusId == batch.CampusId) &&
-                curriculum.EffectiveFrom <= from &&
-                (!curriculum.EffectiveTo.HasValue || curriculum.EffectiveTo >= to) &&
-                (!batch.StartDate.HasValue || batch.StartDate <= from) &&
-                (!batch.EndDate.HasValue || batch.EndDate >= to) &&
+                curriculum.EffectiveFrom <= startDate &&
+                (!curriculum.EffectiveTo.HasValue || curriculum.EffectiveTo >= endDate) &&
+                (!batch.StartDate.HasValue || batch.StartDate <= startDate) &&
+                (!batch.EndDate.HasValue || batch.EndDate >= endDate) &&
                 (!offering.AcademicTermId.HasValue || _terms.GetQueryable().Any(term =>
                     term.TenantId == tenant && term.Id == offering.AcademicTermId &&
                     term.AcademicYearId == year.Id && term.IsActive && !term.IsDeleted &&
-                    term.StartDate <= from && term.EndDate >= to))
+                    term.StartDate <= startDate && term.EndDate >= endDate))
             select batch.Id;
         return await query.Distinct().ToArrayAsync(ct);
     }
