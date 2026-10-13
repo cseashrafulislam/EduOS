@@ -5,25 +5,25 @@
     var isManager = User.IsInRole("TenantAdmin") || User.IsInRole("Principal");
 }
 <section class="container-fluid py-3" id="learningApp" data-author="@canAuthor.ToString().ToLowerInvariant()" data-student="@isStudent.ToString().ToLowerInvariant()" data-manager="@isManager.ToString().ToLowerInvariant()">
-    <header class="mb-3"><h2 class="h4 mb-1">Learning Management</h2><p class="text-muted mb-0">My courses, lessons, assignments and progress.</p></header>
+    <header class="mb-3"><h2 class="h4 mb-1">Learning Management</h2><p class="text-muted mb-0">My courses, lessons, assignments and progress. Student assignment submission requires an enrolled course.</p></header>
     <div id="learningAlert" role="alert" tabindex="-1" class="d-none" aria-live="polite"></div>
     <div class="card mb-3"><div class="card-body row g-2 align-items-end"><div class="col-md-9"><label for="learningCourse" class="form-label">Course</label><select id="learningCourse" class="form-select"><option value="">Loading courses…</option></select></div>@if(canAuthor) { <div class="col-md-3"><button id="learningEditCourse" type="button" class="btn btn-outline-secondary w-100">Edit selected course</button></div> }
-    <div class="col-md-3"><button id="learningRefresh" type="button" class="btn btn-outline-primary w-100">Refresh courses</button></div></div></div>
+    <div class="col-md-3"><button id="learningRefresh" type="button" class="btn btn-outline-primary w-100">Refresh courses</button></div><div class="col-12 d-flex align-items-center justify-content-end gap-2"><button id="learningCoursePrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button><span id="learningCoursePage">Page 1</span><button id="learningCourseNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button></div></div></div>
     @if(canAuthor)
     {
         <section class="card mb-3">
             <div class="card-header"><h3 class="h6 m-0">Create or update a course</h3></div>
             <form id="learningCourseForm" class="card-body row g-2 align-items-end">
-                <div class="col-md-4"><label for="learningBatch" class="form-label">Active academic batch</label><select id="learningBatch" class="form-select" required><option value="">Loading…</option></select></div>
-                <div class="col-md-4"><label for="learningSubject" class="form-label">Subject</label><select id="learningSubject" class="form-select" required><option value="">Select batch</option></select></div>
+                <div class="col-md-4"><label for="learningProgram" class="form-label">Academic program</label><select id="learningProgram" class="form-select"><option value="">Loading…</option></select></div>
+                <div class="col-md-4"><label for="learningSubject" class="form-label">Subject</label><select id="learningSubject" class="form-select"><option value="">Loading…</option></select></div>
                 @if(isManager)
                 {
-                    <div class="col-md-4"><label for="learningInstructor" class="form-label">Instructor</label><select id="learningInstructor" class="form-select" required><option value="">Loading instructors…</option></select></div>
+                    <div class="col-md-4"><label for="learningInstructor" class="form-label">Instructor</label><select id="learningInstructor" class="form-select"><option value="">Loading instructors…</option></select></div>
                 }
-                <div class="col-md-4"><label for="learningTitle" class="form-label">Course title</label><input id="learningTitle" class="form-control" maxlength="200" required /></div>
+                <div class="col-md-4"><label for="learningCode" class="form-label">Course code</label><input id="learningCode" class="form-control" maxlength="50" required /></div><div class="col-md-4"><label for="learningTitle" class="form-label">Course title</label><input id="learningTitle" class="form-control" maxlength="200" required /></div>
                 <div class="col-md-10"><label for="learningDescription" class="form-label">Description</label><textarea id="learningDescription" class="form-control" rows="2" maxlength="4000"></textarea></div>
-                <div class="col-md-2"><button id="learningSaveCourse" class="btn btn-primary w-100" type="submit">Save course</button></div>
-                <p class="small text-muted mb-0">Course creation requires at least one active student enrollment in the selected batch.</p>
+                <div class="col-md-2"><button id="learningSaveCourse" class="btn btn-primary w-100" type="submit">Save course</button></div><div class="col-md-2"><button id="learningResetCourse" type="button" class="btn btn-outline-secondary w-100">Clear</button></div><div class="col-12 d-flex gap-3"><label><input id="learningSelfPaced" type="checkbox" /> Self-paced</label><label><input id="learningCourseActive" type="checkbox" checked /> Active</label></div>
+                <p class="small text-muted mb-0">Academic program and subject must follow the active curriculum; enrollment eligibility is validated on the server.</p>
             </form>
         </section>
     }
@@ -37,7 +37,7 @@
                 <div class="col-md-5"><label for="learningLessonTitle" class="form-label">Lesson title</label><input id="learningLessonTitle" maxlength="200" class="form-control" required /></div>
                 <div class="col-md-5"><label for="learningVideo" class="form-label">Video link</label><input id="learningVideo" maxlength="500" class="form-control" /></div>
                 <div class="col-12"><label for="learningContent" class="form-label">Content</label><textarea id="learningContent" maxlength="4000" rows="3" class="form-control"></textarea></div>
-                <div class="col-12 d-flex gap-2"><button id="learningSaveLesson" type="submit" class="btn btn-outline-primary">Save lesson</button><button id="learningResetLesson" type="button" class="btn btn-outline-secondary">Clear</button></div>
+                <div class="col-12"><label><input id="learningLessonPublished" type="checkbox" /> Published</label></div><div class="col-12 d-flex gap-2"><button id="learningSaveLesson" type="submit" class="btn btn-outline-primary">Save lesson</button><button id="learningResetLesson" type="button" class="btn btn-outline-secondary">Clear</button></div>
             </form>
         }
     </section>
@@ -48,12 +48,11 @@
         {
             <form id="learningAssignmentForm" class="card-body border-top row g-2 align-items-end">
                 <div class="col-md-5"><label for="learningAssignmentTitle" class="form-label">Assignment title</label><input id="learningAssignmentTitle" maxlength="200" class="form-control" required /></div>
-                <div class="col-md-3"><label for="learningDue" class="form-label">Due date and time</label><input id="learningDue" type="datetime-local" class="form-control" required /></div>
+                <div class="col-md-3"><label for="learningDue" class="form-label">Due date and time</label><input id="learningDue" type="datetime-local" class="form-control" /></div>
                 <div class="col-md-2"><label for="learningTotal" class="form-label">Full marks</label><input id="learningTotal" type="number" min="0" max="100000" value="100" class="form-control" required /></div>
                 <div class="col-md-2"><button id="learningSaveAssignment" class="btn btn-outline-primary w-100" type="submit">Save</button></div>
-                <div class="col-12"><label for="learningInstructions" class="form-label">Instructions</label><textarea id="learningInstructions" maxlength="4000" rows="2" class="form-control"></textarea></div>
+                <div class="col-12"><label for="learningInstructions" class="form-label">Instructions</label><textarea id="learningInstructions" maxlength="4000" rows="2" class="form-control"></textarea></div><div class="col-12 d-flex gap-3"><label><input id="learningAssignmentPublished" type="checkbox" /> Published</label><button id="learningResetAssignment" type="button" class="btn btn-outline-secondary btn-sm">Clear assignment</button></div>
             </form>
-            <div class="card-footer"><button id="learningSync" type="button" class="btn btn-outline-secondary" disabled>Synchronize active class enrollments</button></div>
         }
     </section>
 </section>
