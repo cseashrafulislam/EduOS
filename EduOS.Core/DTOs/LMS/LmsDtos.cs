@@ -243,6 +243,7 @@ public class QuizAttemptDto
     public DateTime StartedAt { get; set; }
     public DateTime? SubmittedAt { get; set; }
     public decimal? ObtainedMarks { get; set; }
+    public string RowVersion { get; set; } = string.Empty;
 }
 
 public class StartQuizAttemptRequestDto

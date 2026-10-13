@@ -1,0 +1,36 @@
+@{
+ ViewData["Title"]="LMS Quizzes";
+ var author=User.IsInRole("TenantAdmin")||User.IsInRole("Principal")||User.IsInRole("Teacher");
+ var learner=User.IsInRole("Student");
+}
+<section class="container-fluid py-3" id="quizApp" data-author="@author.ToString().ToLowerInvariant()" data-learner="@learner.ToString().ToLowerInvariant()">
+ <header class="d-flex justify-content-between mb-3"><h2 class="h4">LMS Quiz Assessment</h2><a asp-controller="Learning" asp-action="Index" class="btn btn-outline-secondary">Learning</a></header>
+ <div id="quizAlert" class="d-none" role="alert" aria-live="polite" tabindex="-1"></div>
+ <div class="card mb-3"><div class="card-body row g-2">
+  <div class="col-md-6"><label for="quizCourse">Course</label><select id="quizCourse" class="form-select"><option value="">Select course</option></select></div>
+  <div class="col-md-4"><label for="quizList">Quiz</label><select id="quizList" class="form-select"><option value="">Select quiz</option></select></div>
+  <div class="col-md-2 d-flex align-items-end"><button id="quizRefresh" type="button" class="btn btn-outline-primary w-100">Refresh</button></div>
+ </div></div>
+ @if(author){
+ <form id="quizAuthorForm" class="card mb-3"><div class="card-header">Author quiz</div><div class="card-body row g-2">
+  <div class="col-md-6"><label for="quizTitle">Title</label><input id="quizTitle" class="form-control" required maxlength="200" /></div>
+  <div class="col-md-2"><label for="quizDuration">Minutes</label><input id="quizDuration" type="number" class="form-control" min="1" max="1440" value="30" required /></div>
+  <div class="col-md-2"><label for="quizAttempts">Attempts</label><input id="quizAttempts" type="number" class="form-control" min="1" max="100" value="1" required /></div>
+  <div class="col-md-2"><label for="quizPass">Pass marks</label><input id="quizPass" type="number" class="form-control" min="0" step=".01" value="1" required /></div>
+  <div class="col-md-5"><label for="quizOpens">Opens</label><input id="quizOpens" type="datetime-local" class="form-control" /></div>
+  <div class="col-md-5"><label for="quizCloses">Closes</label><input id="quizCloses" type="datetime-local" class="form-control" /></div>
+  <div class="col-md-2"><label><input id="quizPublished" type="checkbox" /> Publish</label></div>
+  <div class="col-12"><button id="quizAddQuestion" type="button" class="btn btn-sm btn-outline-primary mb-2">Add question</button><div id="quizQuestions" class="d-grid gap-2"></div></div>
+  <div class="col-12"><button id="quizSave" class="btn btn-primary" type="submit">Save quiz</button> <button id="quizReset" type="button" class="btn btn-outline-secondary">New draft</button></div>
+  <p class="small text-muted">Published quizzes and their answer keys are immutable.</p>
+ </div></form>
+ }
+ @if(learner){
+ <div class="card"><div class="card-header">Take quiz</div><div class="card-body">
+  <button id="quizStart" type="button" class="btn btn-primary">Start attempt</button> <span id="quizTimer" aria-live="polite"></span>
+  <form id="quizAnswerForm" class="d-none mt-3"><div id="quizCandidateQuestions" class="d-grid gap-3 mb-3"></div><button id="quizSubmit" class="btn btn-success" type="submit">Submit</button></form>
+  <div id="quizResult" class="mt-2" aria-live="polite"></div>
+ </div></div>
+ }
+</section>
+@section Scripts { <script src="~/js/learning/quizzes.js" asp-append-version="true"></script> }

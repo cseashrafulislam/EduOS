@@ -10,5 +10,8 @@ public interface ILmsAssessmentService
     Task<ApiResponse<QuizCandidateDto>> GetQuizForLearnerAsync(Guid quizReference, CancellationToken cancellationToken = default);
     Task<ApiResponse<QuizAttemptDto>> StartQuizAttemptAsync(StartQuizAttemptRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<QuizAttemptDto>> SubmitQuizAttemptAsync(long attemptId, SubmitQuizAttemptRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<IReadOnlyList<QuizDto>>> GetCourseQuizzesAsync(Guid courseReference, CancellationToken cancellationToken = default);
+    Task<ApiResponse<IReadOnlyList<QuizCandidateDto>>> GetAvailableQuizzesAsync(Guid courseReference, CancellationToken cancellationToken = default);
+    Task<ApiResponse<long>> GetMyCourseEnrollmentIdAsync(Guid courseReference, CancellationToken cancellationToken = default);
     Task<ApiResponse<QuizAttemptDto>> GetMyAttemptAsync(long attemptId, CancellationToken cancellationToken = default);
 }
