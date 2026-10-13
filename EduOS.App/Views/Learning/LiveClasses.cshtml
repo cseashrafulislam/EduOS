@@ -1,0 +1,48 @@
+@{
+    ViewData["Title"] = "LMS Live Classes";
+    var author = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("Teacher");
+    var manager = User.IsInRole("TenantAdmin") || User.IsInRole("Principal");
+}
+<section id="liveClassApp" class="container-fluid py-3" data-author="@author.ToString().ToLowerInvariant()" data-manager="@manager.ToString().ToLowerInvariant()">
+    <header class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-3">
+        <div><h2 class="h4 mb-1">Live Classes</h2><p class="text-muted mb-0">Course sessions, meeting access and instructor schedules.</p></div>
+        <div class="d-flex gap-2"><a asp-controller="Learning" asp-action="Index" class="btn btn-outline-secondary">Learning</a><button id="livePrint" type="button" class="btn btn-outline-primary">Print schedule</button></div>
+    </header>
+    <div id="liveAlert" class="d-none" role="alert" aria-live="polite" tabindex="-1"></div>
+    <section class="card mb-3">
+        <div class="card-body row g-2 align-items-end">
+            <div class="col-md-9"><label class="form-label" for="liveCourse">Course</label><select id="liveCourse" class="form-select"><option value="">Loading courses…</option></select></div>
+            <div class="col-md-3"><button id="liveRefresh" type="button" class="btn btn-outline-primary w-100">Refresh</button></div>
+            <div class="col-12 d-flex align-items-center gap-2"><button id="liveCoursePrev" type="button" class="btn btn-outline-secondary btn-sm">Previous courses</button><span id="liveCoursePage" class="small">Page 1</span><button id="liveCourseNext" type="button" class="btn btn-outline-secondary btn-sm">Next courses</button></div>
+        </div>
+    </section>
+    @if (author)
+    {
+        <form id="liveForm" class="card mb-3">
+            <div class="card-header"><h3 class="h6 m-0" id="liveFormTitle">Schedule a class</h3></div>
+            <div class="card-body row g-2 align-items-end">
+                <div class="col-md-5"><label for="liveTitle" class="form-label">Class title</label><input id="liveTitle" class="form-control" maxlength="200" required /></div>
+                @if (manager)
+                {
+                    <div class="col-md-7"><label for="liveInstructor" class="form-label">Instructor</label><select id="liveInstructor" class="form-select" required><option value="">Choose instructor</option></select></div>
+                }
+                <div class="col-md-3"><label for="liveStart" class="form-label">Starts (local time)</label><input id="liveStart" type="datetime-local" class="form-control" required /></div>
+                <div class="col-md-3"><label for="liveEnd" class="form-label">Ends (local time)</label><input id="liveEnd" type="datetime-local" class="form-control" required /></div>
+                <div class="col-md-3"><label for="liveJoin" class="form-label">HTTPS meeting link</label><input id="liveJoin" type="url" pattern="https://.*" maxlength="1000" class="form-control" placeholder="https://…" /></div>
+                <div class="col-md-3"><label for="liveRecording" class="form-label">HTTPS recording link</label><input id="liveRecording" type="url" pattern="https://.*" maxlength="1000" class="form-control" /></div>
+                <div class="col-12 d-flex gap-2"><button id="liveSave" type="submit" class="btn btn-primary">Save class</button><button id="liveClear" type="button" class="btn btn-outline-secondary">New class</button></div>
+                <p class="small text-muted mb-0">Only active instructors with a valid campus assignment and curriculum offering can be scheduled. Sessions may not overlap or exceed four hours. Changes require the latest row version.</p>
+            </div>
+        </form>
+    }
+    <section class="card">
+        <div class="card-header"><h3 class="h6 m-0">Course schedule</h3></div>
+        <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
+            <thead><tr><th>Class</th><th>Instructor</th><th>Starts</th><th>Ends</th><th>Resources</th><th class="live-actions">Action</th></tr></thead>
+            <tbody id="liveRows"><tr><td colspan="6" class="text-muted text-center p-3">Select a course.</td></tr></tbody>
+        </table></div>
+        <div class="card-footer text-muted small">Sessions shown: past 30 days through the next 365 days. Visibility is restricted by enrollment, campus and instructor assignment.</div>
+    </section>
+</section>
+<style media="print">.live-actions,#liveForm,#liveRefresh,#livePrint,#liveCoursePrev,#liveCourseNext,.btn,nav,.sidebar{display:none!important}#liveClassApp{width:100%!important}</style>
+@section Scripts { <script src="~/js/learning/live-classes.js" asp-append-version="true"></script> }
