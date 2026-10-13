@@ -43,7 +43,7 @@ public sealed partial class AccountingPostingService
     public async Task<ApiResponse<PagedResult<JournalDto>>> GetJournalsAsync(
         DateOnly fromDate, DateOnly toDate, int page, int pageSize, CancellationToken ct = default)
     {
-        if (!CanRead) return Denied<PagedResult<JournalDto>>();
+        if (!await CanReadInstitutionWideAsync(ct)) return Denied<PagedResult<JournalDto>>();
         if (fromDate == default || toDate < fromDate || toDate.DayNumber - fromDate.DayNumber > 3660)
             return ApiResponse<PagedResult<JournalDto>>.ErrorResponse("Valid date range up to ten years required.");
         page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
@@ -72,7 +72,7 @@ public sealed partial class AccountingPostingService
     }
     public async Task<ApiResponse<JournalDto>> GetJournalAsync(Guid journalReference, CancellationToken ct = default)
     {
-        if (!CanRead) return Denied<JournalDto>();
+        if (!await CanReadInstitutionWideAsync(ct)) return Denied<JournalDto>();
         var j = await Journals.AsNoTracking().FirstOrDefaultAsync(x => x.PublicId == journalReference, ct);
         if (j == null) return ApiResponse<JournalDto>.ErrorResponse("Journal not found.", 404);
         var dto = await DetailAsync(j, ct);

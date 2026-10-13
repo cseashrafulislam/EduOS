@@ -23,6 +23,14 @@ public sealed partial class AccountingPostingService : IAccountingPostingService
     // Manual journals have no campus. Only institution-wide administrators can mutate them.
     private bool CanWrite => user.IsAuthenticated && user.TenantId > 0 &&
         (user.IsTenantAdmin || user.IsInRole("Principal"));
+    private async Task<bool> CanReadInstitutionWideAsync(CancellationToken ct)
+    {
+        if (!CanRead) return false;
+        if (user.IsTenantAdmin || user.IsInRole("Principal")) return true;
+        // A campus-assigned accountant must not see institution-wide, campus-null journals.
+        return !await db.UserCampusAccesses.AsNoTracking().AnyAsync(x => x.TenantId == user.TenantId &&
+            x.UserId == user.UserId && x.IsActive && !x.IsDeleted, ct);
+    }
     private IQueryable<Journal> Journals => db.Journals.Where(x => x.TenantId == user.TenantId && !x.IsDeleted);
     private IQueryable<JournalLine> Lines => db.JournalLines.Where(x => x.TenantId == user.TenantId && !x.IsDeleted);
     private IQueryable<AccountingPeriod> Periods => db.AccountingPeriods.Where(x => x.TenantId == user.TenantId && !x.IsDeleted);
