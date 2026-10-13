@@ -1,0 +1,26 @@
+@{ var canManage = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("InventoryManager"); }
+<div class="card mb-3"><div class="card-body">
+    <h3 class="h5">Asset custody &amp; maintenance</h3>
+    <p id="assetSelected" class="text-muted">Select an asset from the register to see its assignments.</p>
+    <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Assigned</th><th>Assignee</th><th>Returned</th><th>State</th>@if(canManage){<th>Action</th>}</tr></thead><tbody id="assetHistoryRows"></tbody></table></div>
+    @if(canManage)
+    {
+        <form id="assetAssignForm" class="row g-2 mb-3">
+            <h4 class="h6">Assign selected asset</h4>
+            <div class="col-md-3"><label for="assetAssigneeType" class="form-label">Assignee type</label><select id="assetAssigneeType" class="form-select"><option value="employee">Employee</option><option value="student">Student</option><option value="unit">Organization unit</option></select></div>
+            <div class="col-md-5"><label for="assetAssignee" class="form-label">Employee / student reference GUID or unit ID</label><input id="assetAssignee" class="form-control" required /></div>
+            <div class="col-md-2"><label for="assetAssignedOn" class="form-label">Date</label><input id="assetAssignedOn" type="date" class="form-control" required /></div>
+            <div class="col-md-2 d-flex align-items-end"><button type="submit" class="btn btn-primary">Assign</button></div>
+        </form>
+        <form id="assetMaintenanceForm" class="row g-2">
+            <h4 class="h6">Record maintenance for selected asset</h4>
+            <div class="col-md-3"><label for="assetMaintenanceDate" class="form-label">Date</label><input id="assetMaintenanceDate" type="date" class="form-control" required /></div>
+            <div class="col-md-5"><label for="assetWork" class="form-label">Work performed</label><input id="assetWork" maxlength="200" class="form-control" required /></div>
+            <div class="col-md-2"><label for="assetMaintenanceCost" class="form-label">Cost (BDT)</label><input id="assetMaintenanceCost" type="number" min="0" step="0.01" value="0" class="form-control" required /></div>
+            <div class="col-md-2"><label for="assetNextMaintenance" class="form-label">Next date</label><input id="assetNextMaintenance" type="date" class="form-control" /></div>
+            <div class="col-md-4"><label for="assetProvider" class="form-label">Service provider</label><input id="assetProvider" maxlength="200" class="form-control" /></div>
+            <div class="col-md-6"><label for="assetRemarks" class="form-label">Remarks</label><input id="assetRemarks" maxlength="950" class="form-control" /></div>
+            <div class="col-md-2 d-flex align-items-end"><button type="submit" class="btn btn-success">Record</button></div>
+        </form>
+    }
+</div></div>

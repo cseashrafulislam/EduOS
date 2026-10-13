@@ -1,0 +1,15 @@
+@{ var canCategory = User.IsInRole("TenantAdmin") || User.IsInRole("Principal"); }
+<div class="card mb-3"><div class="card-body">
+    <h3 class="h5">Asset categories</h3>
+    <div class="table-responsive"><table class="table table-sm table-striped"><thead><tr><th>Code</th><th>Name</th><th>Status</th>@if(canCategory){<th>Action</th>}</tr></thead><tbody id="assetCategoryRows"></tbody></table></div>
+    @if(canCategory)
+    {
+        <form id="assetCategoryForm" class="row g-2 align-items-end">
+            <input type="hidden" id="assetCategoryId" /><input type="hidden" id="assetCategoryVersion" />
+            <div class="col-md-3"><label for="assetCategoryCode" class="form-label">Code</label><input id="assetCategoryCode" maxlength="50" required class="form-control" /></div>
+            <div class="col-md-5"><label for="assetCategoryName" class="form-label">Name</label><input id="assetCategoryName" maxlength="150" required class="form-control" /></div>
+            <div class="col-md-2"><label><input id="assetCategoryActive" type="checkbox" checked /> Active</label></div>
+            <div class="col-md-2"><button type="submit" class="btn btn-success">Save category</button></div>
+        </form>
+    }
+</div></div>
