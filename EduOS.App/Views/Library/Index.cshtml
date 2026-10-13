@@ -6,6 +6,7 @@
     <header class="content-header-card d-flex justify-content-between align-items-center gap-3 flex-wrap">
         <div><p class="dashboard-eyebrow">Library Operations</p><h2 id="libraryTitle">Library</h2><p>Search books, check availability and review your borrowing history.</p></div>
         @if (User.IsInRole("TenantAdmin")) { <a asp-controller="Library" asp-action="Branches" class="btn btn-outline-primary">Manage library branches</a> }
+        <a asp-controller="Library" asp-action="Reservations" class="btn btn-primary">Book reservations</a>
         <button id="printLibrary" type="button" class="btn btn-outline-secondary">Print current page</button>
     </header>
     <div id="libraryAlert" class="d-none" role="alert" tabindex="-1"></div>
