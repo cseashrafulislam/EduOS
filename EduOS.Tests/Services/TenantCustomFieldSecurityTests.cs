@@ -1,7 +1,7 @@
 using EduOS.App.Controllers.Api;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IServices;
-using EduOS.Service.Services.System;
+using EduOS.Service.Services.Platform;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;

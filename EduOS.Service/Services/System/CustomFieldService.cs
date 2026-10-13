@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 using System.Globalization;
 using System.Text.RegularExpressions;
 
-namespace EduOS.Service.Services.System;
+namespace EduOS.Service.Services.Platform;
 
 // Shared Platform owns tenant-profile fields only. Module records must be managed by their owners.
 public sealed class CustomFieldService : ICustomFieldService
