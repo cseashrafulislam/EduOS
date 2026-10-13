@@ -11,7 +11,7 @@ public sealed partial class AssetLifecycleService
     };
     private static AssetDto Map(Asset x) => new()
     {
-        Reference = x.PublicId, AssetCategoryId = x.AssetCategoryId, InventoryItemId = x.InventoryItemId,
+        Reference = x.PublicId, CampusId = x.CampusId, AssetCategoryId = x.AssetCategoryId, InventoryItemId = x.InventoryItemId,
         InventoryLocationId = x.InventoryLocationId, AssetTag = x.AssetTag, Name = x.Name,
         SerialNumber = x.SerialNumber, PurchaseDate = x.PurchaseDate, PurchaseCost = x.PurchaseCost,
         StateCode = x.StateCode, IsActive = x.IsActive, RowVersion = Convert.ToBase64String(x.RowVersion)

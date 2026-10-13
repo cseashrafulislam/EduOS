@@ -29,7 +29,7 @@ public sealed partial class AssetLifecycleService
                 .Select(s => (long?)s.Id).FirstOrDefaultAsync(ct);
             if (!studentId.HasValue || !await _db.StudentEnrollments.AsNoTracking().AnyAsync(e =>
                 e.TenantId == Tenant && e.StudentId == studentId && e.CampusId == campusId &&
-                e.IsCurrent && !e.IsDeleted && e.EnrollmentDate <= r.AssignedOn &&
+                e.IsCurrent && !e.IsDeleted && e.State == EduOS.Core.Enums.Domain.EnrollmentState.Active && e.EnrollmentDate <= r.AssignedOn &&
                 (e.EndDate == null || e.EndDate >= r.AssignedOn), ct))
                 return (null, null, null, "Student has no current enrollment at the asset campus.");
             return (null, studentId, null, null);

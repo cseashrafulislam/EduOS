@@ -20,6 +20,6 @@ export function editAsset(row) {
         assetCost: row.purchaseCost };
     Object.entries(fields).forEach(([id, value]) => { el(id).value = value ?? ''; });
     el('assetActive').checked = row.isActive;
-    el('assetCampus').value = locations.find(x => x.id === row.inventoryLocationId)?.campusId ?? '';
+    el('assetCampus').value = row.campusId ?? locations.find(x => x.id === row.inventoryLocationId)?.campusId ?? '';
     el('assetForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }

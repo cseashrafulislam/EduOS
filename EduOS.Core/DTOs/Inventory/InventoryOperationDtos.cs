@@ -119,6 +119,7 @@ public sealed class SaveAssetCategoryRequestDto
 public sealed class AssetDto
 {
     public Guid Reference { get; set; }
+    public long? CampusId { get; set; }
     public long AssetCategoryId { get; set; }
     public long? InventoryItemId { get; set; }
     public long? InventoryLocationId { get; set; }
