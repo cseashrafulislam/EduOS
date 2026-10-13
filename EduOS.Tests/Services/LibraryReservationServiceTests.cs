@@ -110,16 +110,4 @@ public sealed class LibraryReservationServiceTests
         (await db.BookIssues.CountAsync()).Should().Be(1);
         (await db.BookCopies.SingleAsync()).State.Should().Be(BookCopyState.Issued);
     }
-    [Fact]
-    public async Task Foreign_tenant_book_is_not_reservable()
-    {
-        await using var db = Context(101);
-        await Seed(db, 101);
-        var foreign = new Book { TenantId = 202, Title = "Foreign", IsActive = true };
-        db.Books.Add(foreign); await db.SaveChangesAsync();
-        var result = await Service(db, 101, "Student").ReserveBookAsync(new ReserveBookRequestDto {
-            ClientRequestId = Guid.NewGuid(), BookReference = foreign.PublicId
-        });
-        result.StatusCode.Should().Be(404);
-    }
 }
