@@ -197,6 +197,7 @@
                         <span>HR Administration</span>
                     </a>
                     <a class="nav-link @ActiveFor("/EmployeeAttendance")" href="/EmployeeAttendance/Index">Employee Attendance</a>
+                    <a class="nav-link @ActiveFor("/LeaveEntitlements")" href="/LeaveEntitlements/Index">Leave Entitlements</a>
                 }
                 @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
                      User?.IsInRole("HR") == true || User?.IsInRole("Accountant") == true ||

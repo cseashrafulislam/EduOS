@@ -1,0 +1,56 @@
+@{
+    ViewData["Title"] = "Employee Leave Entitlements";
+}
+<section class="container-fluid py-3" id="leaveEntitlementRoot">
+    <header class="d-flex justify-content-between flex-wrap align-items-center mb-3">
+        <div><h2>Employee Leave Entitlements</h2><p class="text-muted">Institution-wide policy, annual allowances and audited adjustments. Tenant administrators only.</p></div>
+        <a class="btn btn-outline-secondary" href="/HR/Index">HR Administration</a>
+    </header>
+    <div id="leaveEntitlementAlert" class="d-none" role="alert" tabindex="-1"></div>
+    <div class="card mb-3"><div class="card-body">
+        <h3 class="h5">Leave types</h3>
+        <form id="leaveEntitlementTypeForm" class="row g-2 align-items-end mb-3">
+            <input id="leaveEntitlementTypeId" type="hidden" /><input id="leaveEntitlementTypeVersion" type="hidden" />
+            <div class="col-md-3"><label for="leaveEntitlementTypeName" class="form-label">Name</label><input id="leaveEntitlementTypeName" class="form-control" maxlength="100" required /></div>
+            <div class="col-md-2"><label for="leaveEntitlementTypeCode" class="form-label">Code</label><input id="leaveEntitlementTypeCode" class="form-control" maxlength="30" required /></div>
+            <div class="col-md-2"><label for="leaveEntitlementTypeMax" class="form-label">Annual days</label><input id="leaveEntitlementTypeMax" class="form-control" type="number" min="0" max="366" required /></div>
+            <div class="col-md-1"><label class="form-label" for="leaveEntitlementTypePaid">Paid</label><input id="leaveEntitlementTypePaid" class="form-check-input d-block" type="checkbox" checked /></div>
+            <div class="col-md-1"><label class="form-label" for="leaveEntitlementTypeActive">Active</label><input id="leaveEntitlementTypeActive" class="form-check-input d-block" type="checkbox" checked /></div>
+            <div class="col-md-3"><button class="btn btn-primary" type="submit">Save type</button><button class="btn btn-outline-secondary" type="button" id="leaveEntitlementTypeReset">New</button></div>
+        </form>
+        <div class="table-responsive"><table class="table table-sm table-hover"><thead><tr><th>Code</th><th>Name</th><th>Days</th><th>Paid</th><th>Active</th><th></th></tr></thead><tbody id="leaveEntitlementTypeRows"></tbody></table></div>
+    </div></div>
+    <div class="card mb-3"><div class="card-body">
+        <h3 class="h5">Employee annual entitlement</h3>
+        <form id="leaveEntitlementEmployeeForm" class="row g-2 align-items-end mb-3">
+            <div class="col-md-7"><label for="leaveEntitlementEmployee" class="form-label">Employee</label><select id="leaveEntitlementEmployee" class="form-select" required><option value="">Choose employee</option></select></div>
+            <div class="col-md-3"><label for="leaveEntitlementYear" class="form-label">Year</label><input id="leaveEntitlementYear" class="form-control" type="number" min="2000" max="9999" required /></div>
+            <div class="col-md-2"><button type="submit" class="btn btn-outline-primary w-100">Load</button></div>
+        </form>
+        <form id="leaveEntitlementAllowanceForm" class="row g-2 align-items-end mb-3">
+            <input id="leaveEntitlementAllowanceVersion" type="hidden" />
+            <div class="col-md-4"><label for="leaveEntitlementAllowanceType" class="form-label">Leave type</label><select id="leaveEntitlementAllowanceType" class="form-select" required></select></div>
+            <div class="col-md-3"><label for="leaveEntitlementAllowed" class="form-label">Entitled days</label><input id="leaveEntitlementAllowed" type="number" min="0" max="366" step="0.01" class="form-control" required /></div>
+            <div class="col-md-3"><label for="leaveEntitlementCarried" class="form-label">Carried forward</label><input id="leaveEntitlementCarried" type="number" min="0" max="366" step="0.01" class="form-control" required /></div>
+            <div class="col-md-2"><button type="submit" class="btn btn-primary w-100">Save</button></div>
+        </form>
+        <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Type</th><th>Entitled</th><th>Carried</th><th></th></tr></thead><tbody id="leaveEntitlementAllowanceRows"></tbody></table></div>
+    </div></div>
+    <div class="card mb-3"><div class="card-body">
+        <h3 class="h5">Audited adjustment</h3>
+        <form id="leaveEntitlementAdjustmentForm" class="row g-2 align-items-end">
+            <div class="col-md-4"><label for="leaveEntitlementAdjustmentType" class="form-label">Leave type</label><select id="leaveEntitlementAdjustmentType" class="form-select" required></select></div>
+            <div class="col-md-2"><label for="leaveEntitlementAdjustmentDays" class="form-label">Days (+/-)</label><input id="leaveEntitlementAdjustmentDays" type="number" step="0.01" min="-366" max="366" class="form-control" required /></div>
+            <div class="col-md-4"><label for="leaveEntitlementAdjustmentReason" class="form-label">Reason</label><input id="leaveEntitlementAdjustmentReason" class="form-control" maxlength="1000" required /></div>
+            <div class="col-md-2"><button type="submit" class="btn btn-warning w-100">Adjust</button></div>
+        </form>
+    </div></div>
+    <div class="card"><div class="card-body">
+        <h3 class="h5">Available leave balances</h3>
+        <p class="small text-muted">Remaining days reserve both approved and submitted applications; used days include approved applications only.</p>
+        <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Leave type</th><th>Allowed</th><th>Approved used</th><th>Remaining</th></tr></thead><tbody id="leaveEntitlementBalanceRows"></tbody></table></div>
+    </div></div>
+</section>
+@section Scripts {
+    <script src="~/js/hr/leave-entitlements.js" asp-append-version="true"></script>
+}
