@@ -1,6 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Library;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 namespace EduOS.Service.Services.Library;
 public sealed partial class LibraryBranchService
 {
