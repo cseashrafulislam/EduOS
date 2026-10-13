@@ -1,0 +1,47 @@
+@{
+    ViewData["Title"] = "Employee Attendance";
+}
+<section class="container-fluid py-3" id="employeeAttendanceRoot">
+    <header class="d-flex flex-wrap align-items-center justify-content-between mb-3 gap-2">
+        <div><h2>Employee Attendance</h2><p class="text-muted mb-0">Institution-wide manual register with immutable correction history. Tenant administrators only.</p></div>
+        <a href="/HR/Index" class="btn btn-outline-secondary">HR Administration</a>
+    </header>
+    <div id="employeeAttendanceAlert" class="d-none" role="alert" tabindex="-1"></div>
+    <section class="card mb-3"><div class="card-body">
+        <h3 class="h5">Record attendance</h3>
+        <form id="employeeAttendanceForm" class="row g-2 align-items-end">
+            <div class="col-lg-4"><label class="form-label" for="employeeAttendanceEmployee">Employee</label><select id="employeeAttendanceEmployee" class="form-select" required><option value="">Choose employee</option></select></div>
+            <div class="col-lg-2"><label class="form-label" for="employeeAttendanceDate">Date</label><input type="date" id="employeeAttendanceDate" class="form-control" required /></div>
+            <div class="col-lg-2"><label class="form-label" for="employeeAttendanceState">Status</label><select id="employeeAttendanceState" class="form-select"><option value="1">Present</option><option value="2">Absent</option><option value="3">Late</option><option value="4">Leave</option><option value="5">Excused</option></select></div>
+            <div class="col-lg-2"><label class="form-label" for="employeeAttendanceIn">In</label><input type="time" id="employeeAttendanceIn" class="form-control" /></div>
+            <div class="col-lg-2"><label class="form-label" for="employeeAttendanceOut">Out</label><input type="time" id="employeeAttendanceOut" class="form-control" /></div>
+            <div class="col-lg-2"><label class="form-label" for="employeeAttendanceOt">Overtime hours</label><input type="number" min="0" max="24" step="0.01" value="0" id="employeeAttendanceOt" class="form-control" /></div>
+            <div class="col-lg-8"><label class="form-label" for="employeeAttendanceRemarks">Remarks</label><input id="employeeAttendanceRemarks" class="form-control" maxlength="500" /></div>
+            <div class="col-lg-2"><button class="btn btn-primary w-100" type="submit" id="employeeAttendanceSave">Record</button></div>
+        </form>
+    </div></section>
+    <section class="card mb-3"><div class="card-body">
+        <h3 class="h5">Attendance register</h3>
+        <form id="employeeAttendanceFilter" class="row g-2 align-items-end mb-3">
+            <div class="col-lg-4"><label class="form-label" for="employeeAttendanceFilterEmployee">Employee</label><select id="employeeAttendanceFilterEmployee" class="form-select"><option value="">All employees</option></select></div>
+            <div class="col-lg-3"><label class="form-label" for="employeeAttendanceFrom">From</label><input id="employeeAttendanceFrom" class="form-control" type="date" required /></div>
+            <div class="col-lg-3"><label class="form-label" for="employeeAttendanceTo">To</label><input id="employeeAttendanceTo" class="form-control" type="date" required /></div>
+            <div class="col-lg-2"><button class="btn btn-outline-primary w-100" type="submit">Load</button></div>
+        </form>
+        <div class="table-responsive"><table class="table table-sm table-hover"><thead><tr><th>Date</th><th>Employee</th><th>Status</th><th>In</th><th>Out</th><th>OT</th><th>Remarks</th><th>Actions</th></tr></thead><tbody id="employeeAttendanceRows"></tbody></table></div>
+        <div class="d-flex justify-content-between align-items-center"><button id="employeeAttendancePrev" class="btn btn-outline-secondary btn-sm" type="button">Previous</button><span id="employeeAttendancePage" class="small"></span><button id="employeeAttendanceNext" class="btn btn-outline-secondary btn-sm" type="button">Next</button></div>
+    </div></section>
+    <section class="card mb-3 d-none" id="employeeAttendanceCorrectionCard"><div class="card-body">
+        <h3 class="h5">Audited status correction</h3>
+        <form id="employeeAttendanceCorrectionForm" class="row g-2 align-items-end">
+            <input id="employeeAttendanceCorrectionId" type="hidden" /><input id="employeeAttendanceCorrectionVersion" type="hidden" />
+            <div class="col-lg-3"><label for="employeeAttendanceCorrectionState" class="form-label">New status</label><select id="employeeAttendanceCorrectionState" class="form-select"><option value="1">Present</option><option value="2">Absent</option><option value="3">Late</option><option value="4">Leave</option><option value="5">Excused</option></select></div>
+            <div class="col-lg-7"><label for="employeeAttendanceCorrectionReason" class="form-label">Reason</label><input id="employeeAttendanceCorrectionReason" class="form-control" maxlength="1000" required /></div>
+            <div class="col-lg-2"><button class="btn btn-warning w-100" type="submit">Correct</button></div>
+        </form>
+    </div></section>
+    <section class="card d-none" id="employeeAttendanceHistoryCard"><div class="card-body"><h3 class="h5">Correction history</h3><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Changed at (UTC)</th><th>Previous</th><th>New</th><th>Reason</th><th>User ID</th></tr></thead><tbody id="employeeAttendanceHistoryRows"></tbody></table></div></div></section>
+</section>
+@section Scripts {
+    <script src="~/js/hr/employee-attendance.js" asp-append-version="true"></script>
+}
