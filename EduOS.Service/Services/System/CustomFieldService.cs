@@ -76,7 +76,7 @@ public sealed class CustomFieldService : ICustomFieldService
             string.IsNullOrWhiteSpace(request.Label) || request.Label.Trim().Length > 150 ||
             !Supported(request.DataType) || request.Options == null || request.Options.Count > 50)
             return ApiResponse<CustomFieldDefinitionDto>.ErrorResponse("Invalid tenant field definition.");
-        var key = request.FieldKey.Trim();
+        var key = request.FieldKey?.Trim() ?? string.Empty;
         var choices = request.Options.Select(x => new { Value = x.Value?.Trim(), Label = x.Label?.Trim(),
             x.DisplayOrder, x.IsActive }).ToArray();
         if ((request.DataType != CustomFieldDataType.Select && choices.Length != 0) ||
