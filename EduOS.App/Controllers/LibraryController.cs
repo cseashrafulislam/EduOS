@@ -9,6 +9,11 @@ namespace EduOS.App.Controllers;
 public sealed class LibraryController : Controller
 {
     [HttpGet]
+    [Authorize(Roles = "TenantAdmin")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult Branches() => View();
+
+    [HttpGet]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult Index() => View();
 }
