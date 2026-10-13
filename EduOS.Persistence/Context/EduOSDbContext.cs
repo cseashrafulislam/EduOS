@@ -1365,6 +1365,8 @@ public class EduOSDbContext :
         UniqueTenant<DocumentTemplate>(modelBuilder, nameof(DocumentTemplate.Code));
         UniqueTenant<CustomFieldDefinition>(modelBuilder, nameof(CustomFieldDefinition.EntityType), nameof(CustomFieldDefinition.FieldKey));
         UniqueTenant<CustomFieldOption>(modelBuilder, nameof(CustomFieldOption.CustomFieldDefinitionId), nameof(CustomFieldOption.Value));
+        modelBuilder.Entity<CustomFieldValue>().HasIndex(x => new { x.TenantId, x.CustomFieldDefinitionId, x.EntityId })
+            .IsUnique().HasFilter("[IsDeleted] = 0");
         UniqueTenant<IdempotencyRecord>(modelBuilder, nameof(IdempotencyRecord.Scope), nameof(IdempotencyRecord.RequestId));
         modelBuilder.Entity<OutboxMessage>().HasIndex(x => x.EventId).IsUnique().HasFilter("[IsDeleted] = 0");
         UniqueTenant<ApiCredential>(modelBuilder, nameof(ApiCredential.KeyPrefix));
@@ -2250,7 +2252,8 @@ public class EduOSDbContext :
             or ApiCredential
             or TwoFactorAuth
             or TwoFactorRecoveryCode
-            or RefreshToken;
+            or RefreshToken
+            or CustomFieldValue;
     }
 
     private static bool IsSensitiveField(string name)

@@ -15854,6 +15854,10 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId", "CustomFieldDefinitionId");
 
+                    b.HasIndex("TenantId", "CustomFieldDefinitionId", "EntityId")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
                     b.ToTable("CustomFieldValues");
                 });
 

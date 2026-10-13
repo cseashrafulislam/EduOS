@@ -1,0 +1,38 @@
+@{ ViewData["Title"] = "Institution Custom Fields"; }
+<div class="container-fluid py-3">
+    <h2>Institution custom fields</h2>
+    <p class="text-muted">Tenant profile only. Student, HR and finance fields belong to their modules.</p>
+    <div id="cfNotice" role="alert" class="alert d-none"></div>
+    <div class="card mb-3"><div class="card-body">
+        <h4>Definitions</h4>
+        <div class="table-responsive"><table class="table table-striped table-sm"><thead><tr>
+            <th>Key</th><th>Label</th><th>Type</th><th>Required</th><th>Status</th><th></th>
+        </tr></thead><tbody id="cfRows"></tbody></table></div>
+        <div class="d-flex gap-2"><button id="cfPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+        <span id="cfPage"></span><button id="cfNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button></div>
+    </div></div>
+    <div class="card mb-3"><div class="card-body"><h4>Add / edit field</h4>
+        <form id="cfForm">@Html.AntiForgeryToken()<input id="cfId" type="hidden"><input id="cfVersion" type="hidden">
+            <div class="row g-2">
+                <div class="col-md-3"><label for="cfKey">Field key</label><input id="cfKey" class="form-control" maxlength="100" required pattern="[A-Za-z][A-Za-z0-9_]*"></div>
+                <div class="col-md-3"><label for="cfLabel">Label</label><input id="cfLabel" class="form-control" maxlength="150" required></div>
+                <div class="col-md-2"><label for="cfType">Type</label><select id="cfType" class="form-select">
+                    <option value="1">Text</option><option value="2">Integer</option><option value="3">Decimal</option>
+                    <option value="4">Date</option><option value="6">Boolean</option><option value="7">Select</option>
+                </select></div>
+                <div class="col-md-2"><label for="cfRequired">Required</label><select id="cfRequired" class="form-select"><option value="false">No</option><option value="true">Yes</option></select></div>
+                <div class="col-md-2"><label for="cfActive">Active</label><select id="cfActive" class="form-select"><option value="true">Yes</option><option value="false">No</option></select></div>
+                <div class="col-md-2"><label for="cfOrder">Order</label><input id="cfOrder" type="number" min="0" max="99999" value="0" class="form-control"></div>
+                <div class="col-12 d-none" id="cfChoicesWrap"><label for="cfChoices">Select options (CODE | Label, one per line)</label>
+                    <textarea id="cfChoices" class="form-control" rows="3"></textarea></div>
+            </div>
+            <div class="mt-3 d-flex gap-2"><button class="btn btn-primary" type="submit">Save definition</button>
+                <button class="btn btn-outline-secondary" id="cfReset" type="button">Reset</button></div>
+        </form>
+    </div></div>
+    <div class="card"><div class="card-body"><h4>Institution profile values</h4>
+        <form id="cfValuesForm"><div id="cfValueInputs" class="row g-3"></div>
+            <button class="btn btn-primary mt-3" type="submit">Save profile values</button></form>
+    </div></div>
+</div>
+@section Scripts { <script src="~/js/custom-fields/admin.js" asp-append-version="true"></script> }

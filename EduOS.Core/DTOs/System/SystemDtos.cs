@@ -77,12 +77,14 @@ public class CustomFieldValueDto
     public string FieldKey { get; set; } = string.Empty;
     public string Label { get; set; } = string.Empty;
     public string? Value { get; set; }
+    public string? RowVersion { get; set; }
 }
 
 public class SaveCustomFieldValueRequestDto
 {
     public long CustomFieldDefinitionId { get; set; }
     [MaxLength(4000)] public string? Value { get; set; }
+    public string? RowVersion { get; set; }
 }
 
 public class AuditLogDto
