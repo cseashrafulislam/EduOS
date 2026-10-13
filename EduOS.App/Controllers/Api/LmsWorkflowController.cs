@@ -94,6 +94,15 @@ public sealed class LmsWorkflowController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("assignments/{reference:guid}/submissions")]
+    [Authorize(Roles = "TenantAdmin,Principal,Teacher")]
+    public async Task<IActionResult> GetAssignmentSubmissions(Guid reference, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25, CancellationToken ct = default)
+    {
+        var result = await _service.GetAssignmentSubmissionsAsync(reference, page, pageSize, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("assignments/submissions/{submissionId:long}/grade")]
     [Authorize(Roles = "TenantAdmin,Principal,Teacher")]
     public async Task<IActionResult> Grade(long submissionId,

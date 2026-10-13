@@ -471,6 +471,50 @@ public sealed class LmsWorkflowService : ILmsWorkflowService
         }
     }
 
+    // Teacher/manager review of the canonical assignment submission aggregate.
+    // The joins enforce tenant, course and student ownership before returning private answers.
+    public async Task<ApiResponse<PagedResult<AssignmentSubmissionDto>>> GetAssignmentSubmissionsAsync(
+        Guid assignmentReference, int page = 1, int pageSize = 25, CancellationToken ct = default)
+    {
+        if (!CanTeach()) return Error<PagedResult<AssignmentSubmissionDto>>("LMS grading permission required.", 403);
+        if (assignmentReference == Guid.Empty || page < 1 || pageSize is < 1 or > 100 ||
+            (long)(page - 1) * pageSize > int.MaxValue)
+            return Error<PagedResult<AssignmentSubmissionDto>>("Invalid assignment or pagination.");
+        var tenant = _user.TenantId;
+        var assignment = await _assignments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.PublicId == assignmentReference && !x.IsDeleted, ct);
+        if (assignment == null) return Error<PagedResult<AssignmentSubmissionDto>>("Assignment not found.", 404);
+        var course = await _courses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.Id == assignment.CourseId && !x.IsDeleted, ct);
+        if (course == null || !await CanEditAsync(course, ct))
+            return Error<PagedResult<AssignmentSubmissionDto>>("Instructor may not review this course.", 403);
+        var query = from submission in _submissions.GetQueryable().AsNoTracking()
+                    join enrollment in _enrollments.GetQueryable().AsNoTracking()
+                        on submission.CourseEnrollmentId equals enrollment.Id
+                    join learner in _students.GetQueryable().AsNoTracking()
+                        on enrollment.StudentId equals learner.Id
+                    where submission.TenantId == tenant && submission.AssignmentId == assignment.Id &&
+                        !submission.IsDeleted && submission.State != LearningSubmissionState.Draft &&
+                        enrollment.TenantId == tenant && !enrollment.IsDeleted &&
+                        enrollment.CourseId == course.Id &&
+                        learner.TenantId == tenant && !learner.IsDeleted
+                    select new { Submission = submission, StudentName = learner.FullName };
+        var count = await query.CountAsync(ct);
+        var rows = await query.OrderByDescending(x => x.Submission.SubmittedAt)
+            .ThenByDescending(x => x.Submission.Id).Skip((page - 1) * pageSize)
+            .Take(pageSize).ToListAsync(ct);
+        return ApiResponse<PagedResult<AssignmentSubmissionDto>>.SuccessResponse(new PagedResult<AssignmentSubmissionDto>
+        {
+            Page = page, PageSize = pageSize, TotalCount = count,
+            Items = rows.Select(x =>
+            {
+                var result = MapSubmission(x.Submission, assignment.PublicId);
+                result.StudentName = x.StudentName;
+                return result;
+            }).ToList()
+        });
+    }
+
     public async Task<ApiResponse<AssignmentSubmissionDto>> GradeSubmissionAsync(long submissionId,
         GradeAssignmentSubmissionRequestDto request, CancellationToken ct = default)
     {

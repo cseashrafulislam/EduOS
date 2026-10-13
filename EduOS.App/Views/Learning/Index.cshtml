@@ -55,5 +55,17 @@
             </form>
         }
     </section>
+    @if(canAuthor)
+    {
+        <section class="card mb-3" id="learningReviewPanel">
+            <div class="card-header"><h3 class="h6 m-0">Submission review and grading</h3></div>
+            <div class="card-body row g-2 align-items-end">
+                <div class="col-md-8"><label for="learningReviewAssignment" class="form-label">Assignment</label><select id="learningReviewAssignment" class="form-select"><option value="">Choose an assignment</option></select></div>
+                <div class="col-md-4"><button id="learningReviewRefresh" type="button" class="btn btn-outline-primary w-100">Refresh submissions</button></div>
+            </div>
+            <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0"><thead><tr><th>Student</th><th>Submitted</th><th>Answer</th><th>Status</th><th>Marks / feedback</th><th>Action</th></tr></thead><tbody id="learningReviewRows"><tr><td colspan="6" class="text-muted">Choose an assignment.</td></tr></tbody></table></div>
+            <div class="card-footer d-flex align-items-center gap-2"><button id="learningReviewPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button><span id="learningReviewPage" class="small text-muted">Page 1</span><button id="learningReviewNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button></div>
+        </section>
+    }
 </section>
 @section Scripts { <script src="~/js/learning/index.js" asp-append-version="true"></script> }

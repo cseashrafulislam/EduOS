@@ -135,6 +135,7 @@ public class SaveAssignmentRequestDto
 public class AssignmentSubmissionDto
 {
     public long Id { get; set; }
+    public string? StudentName { get; set; }
     public Guid AssignmentReference { get; set; }
     public long CourseEnrollmentId { get; set; }
     public string? SubmissionText { get; set; }

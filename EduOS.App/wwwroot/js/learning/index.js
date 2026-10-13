@@ -2,7 +2,7 @@
 'use strict';
 const root=document.getElementById('learningApp');if(!root)return;
 const $=id=>document.getElementById(id),author=root.dataset.author==='true',student=root.dataset.student==='true',manager=root.dataset.manager==='true';
-const state={courses:[],detail:null,programs:[],subjects:[],page:1,pages:1,editingCourse:null,editingLesson:null,editingAssignment:null,loadId:0};
+const state={courses:[],detail:null,programs:[],subjects:[],page:1,pages:1,editingCourse:null,editingLesson:null,editingAssignment:null,loadId:0,reviewPage:1,reviewPages:1,reviewLoadId:0};
 const opt=(value,label)=>{const x=document.createElement('option');x.value=String(value);x.textContent=label;return x;};
 const cell=value=>{const x=document.createElement('td');x.textContent=value==null?'':String(value);return x;};
 const notice=(type,message)=>{const x=$('learningAlert');x.className='alert alert-'+type;x.textContent=message;x.focus();};
@@ -99,6 +99,7 @@ function render(){
  }
  if(!lessons.childNodes.length){const row=document.createElement('tr'),td=cell('No lessons.');td.colSpan=4;row.append(td);lessons.append(row);}
  if(!assignments.childNodes.length){const row=document.createElement('tr'),td=cell('No assignments.');td.colSpan=5;row.append(td);assignments.append(row);}
+ if(author)reviewChoices();
 }
 function resetLesson(){state.editingLesson=null;$('learningLessonForm')?.reset();}
 function editLesson(x){
@@ -135,6 +136,61 @@ async function saveAssignment(e){
   resetAssignment();await load();notice('success','Assignment saved.');
  }catch(err){notice('danger',err.message);}finally{$('learningSaveAssignment').disabled=false;}
 }
+function reviewChoices(){
+ const node=$('learningReviewAssignment'),previous=node.value;
+ const assignments=state.detail?.assignments||[];
+ node.replaceChildren(opt('','Choose an assignment'));
+ assignments.forEach(x=>node.append(opt(x.reference,x.title)));
+ node.value=assignments.some(x=>x.reference===previous)?previous:(assignments[0]?.reference||'');
+ state.reviewPage=1;loadReviews();
+}
+function reviewEmpty(message){
+ const body=$('learningReviewRows'),tr=document.createElement('tr'),td=cell(message);
+ td.colSpan=6;tr.append(td);body.replaceChildren(tr);
+}
+async function loadReviews(){
+ if(!author)return;
+ const reference=$('learningReviewAssignment').value,seq=++state.reviewLoadId;
+ if(!reference){reviewEmpty('Choose an assignment.');return;}
+ try{
+  const data=await api('/api/lms/assignments/'+encodeURIComponent(reference)+'/submissions?page='+state.reviewPage+'&pageSize=25');
+  if(seq!==state.reviewLoadId||reference!==$('learningReviewAssignment').value)return;
+  state.reviewPages=Math.max(1,data?.totalPages||1);
+  $('learningReviewPage').textContent='Page '+state.reviewPage+' / '+state.reviewPages+' ('+(data?.totalCount||0)+' submissions)';
+  $('learningReviewPrev').disabled=state.reviewPage<=1;
+  $('learningReviewNext').disabled=state.reviewPage>=state.reviewPages;
+  const body=$('learningReviewRows');body.replaceChildren();
+  const assignment=(state.detail?.assignments||[]).find(x=>x.reference===reference);
+  for(const row of data?.items||[]){
+   const tr=document.createElement('tr'),marks=document.createElement('td'),action=document.createElement('td');
+   const editable=Number(row.state)===2||Number(row.state)===4;
+   if(editable){
+    const input=document.createElement('input');input.type='number';input.min='0';input.step='0.01';
+    input.max=String(assignment?.maxMarks??100000);input.className='form-control form-control-sm mb-1';
+    input.value=row.marks==null?'':String(row.marks);input.placeholder='Marks';input.setAttribute('aria-label','Awarded marks');
+    const feedback=document.createElement('textarea');feedback.className='form-control form-control-sm';
+    feedback.maxLength=2000;feedback.rows=2;feedback.value=row.feedback||'';feedback.setAttribute('aria-label','Feedback');
+    marks.append(input,feedback);
+    const grade=button('Grade',async()=>{
+     const value=Number(input.value),limit=Number(assignment?.maxMarks??0);
+     if(!input.value.trim()||!Number.isFinite(value)||value<0||value>limit||!row.rowVersion)
+      return notice('warning','Enter valid marks within the assignment maximum.');
+     grade.disabled=true;
+     try{await api('/api/lms/assignments/submissions/'+encodeURIComponent(row.id)+'/grade','POST',
+       {marks:value,feedback:feedback.value.trim()||null,rowVersion:row.rowVersion});
+      notice('success','Submission graded.');await loadReviews();
+     }catch(e){notice('danger',e.message);}finally{grade.disabled=false;}
+    });
+    action.append(grade);
+   }else marks.textContent=(row.marks==null?'—':String(row.marks))+(row.feedback?' / '+row.feedback:'');
+   tr.append(cell(row.studentName||'Enrollment #'+row.courseEnrollmentId),
+    cell(row.submittedAt?String(row.submittedAt).slice(0,16):'—'),
+    cell((row.submissionText||'').slice(0,400)),cell(({2:'Submitted',3:'Graded',4:'Returned'})[row.state]||String(row.state)),marks,action);
+   body.append(tr);
+  }
+  if(!body.childNodes.length)reviewEmpty('No submitted work on this page.');
+ }catch(e){if(seq!==state.reviewLoadId)return;reviewEmpty('Unable to load submissions.');notice('danger',e.message);}
+}
 async function complete(lesson){
  try{await api('/api/lms/lessons/progress','POST',{lessonReference:lesson.reference,progressPercent:100,isCompleted:true});
   notice('success','Lesson progress saved.');
@@ -149,6 +205,10 @@ if(author){
  $('learningResetCourse').addEventListener('click',resetCourse);
  $('learningLessonForm').addEventListener('submit',saveLesson);$('learningResetLesson').addEventListener('click',resetLesson);
  $('learningAssignmentForm').addEventListener('submit',saveAssignment);$('learningResetAssignment').addEventListener('click',resetAssignment);
+ $('learningReviewAssignment').addEventListener('change',()=>{state.reviewPage=1;loadReviews();});
+ $('learningReviewRefresh').addEventListener('click',()=>loadReviews());
+ $('learningReviewPrev').addEventListener('click',()=>{if(state.reviewPage>1){state.reviewPage--;loadReviews();}});
+ $('learningReviewNext').addEventListener('click',()=>{if(state.reviewPage<state.reviewPages){state.reviewPage++;loadReviews();}});
 }
 catalog();instructors();courses();
 })();
