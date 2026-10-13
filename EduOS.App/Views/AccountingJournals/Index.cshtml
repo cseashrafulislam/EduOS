@@ -1,0 +1,42 @@
+@{
+    ViewData["Title"] = "Institutional Journals";
+    var canWrite = User.IsInRole("TenantAdmin") || User.IsInRole("Principal");
+}
+<section class="container-fluid py-3" id="accountingJournals" data-write="@canWrite.ToString().ToLowerInvariant()">
+<h2>Institutional Journal Posting</h2>
+<p class="text-muted">Balanced manual entries, approval and compensating reversal. SaaS billing is excluded.</p>
+@Html.AntiForgeryToken()
+<div id="journalNotice" class="alert d-none" role="alert"></div>
+@if (canWrite) {
+<form id="journalForm" class="card card-body mb-3">
+<h5>New journal</h5>
+<div class="row g-2">
+<div class="col-md-3"><label for="journalDate">Date</label><input id="journalDate" type="date" class="form-control" required /></div>
+<div class="col-md-4"><label for="journalPeriod">Open period</label><select id="journalPeriod" class="form-select" required></select></div>
+<div class="col-md-5"><label for="journalDescription">Description</label><input id="journalDescription" class="form-control" maxlength="1000" /></div>
+</div>
+<div class="table-responsive"><table class="table table-sm mt-2"><thead><tr><th>Account</th><th>Debit BDT</th><th>Credit BDT</th><th>Description</th><th></th></tr></thead><tbody id="journalLineRows"></tbody></table></div>
+<div class="d-flex gap-2"><button id="journalAddLine" type="button" class="btn btn-outline-secondary">Add line</button><strong id="journalBalance"></strong><button id="journalSave" type="submit" class="btn btn-primary ms-auto">Create draft</button></div>
+</form>
+}
+<div class="card card-body mb-3">
+<h5>Journal register</h5>
+<form id="journalFilter" class="row g-2 mb-2">
+<div class="col-md-3"><label for="journalFrom">From</label><input id="journalFrom" type="date" class="form-control" required /></div>
+<div class="col-md-3"><label for="journalTo">To</label><input id="journalTo" type="date" class="form-control" required /></div>
+<div class="col-md-2 align-self-end"><button type="submit" class="btn btn-outline-primary">Search</button></div>
+</form>
+<div class="table-responsive"><table class="table table-sm table-striped"><thead><tr><th>Number</th><th>Date</th><th>Period</th><th>State</th><th>Source</th><th>Debit</th><th>Credit</th><th></th></tr></thead><tbody id="journalRegisterRows"></tbody></table></div>
+<div class="d-flex gap-2"><button id="journalPrev" type="button" class="btn btn-sm btn-outline-secondary">Previous</button><span id="journalPage"></span><button id="journalNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button></div>
+</div>
+<section class="card card-body d-none" id="journalDetailPanel">
+<div class="d-flex justify-content-between"><h5 id="journalDetailTitle"></h5><button id="journalCloseDetail" type="button" class="btn btn-sm btn-outline-secondary">Close</button></div>
+<p id="journalDetailInfo"></p>
+<div class="table-responsive"><table class="table table-sm"><thead><tr><th>#</th><th>Account</th><th>Description</th><th>Debit</th><th>Credit</th></tr></thead><tbody id="journalDetailRows"></tbody><tfoot><tr><th colspan="3">Total</th><th id="journalDetailDebit"></th><th id="journalDetailCredit"></th></tr></tfoot></table></div>
+@if (canWrite) {
+<div class="d-flex gap-2 mb-2"><button id="journalSubmit" type="button" class="btn btn-outline-primary">Submit</button><button id="journalApprove" type="button" class="btn btn-success">Approve</button><button id="journalReject" type="button" class="btn btn-outline-danger">Reject</button><button id="journalPost" type="button" class="btn btn-primary">Post</button></div>
+<form id="journalReverseForm" class="row g-2"><div class="col-md-3"><input id="journalReverseDate" type="date" class="form-control" required /></div><div class="col-md-6"><input id="journalReverseReason" class="form-control" maxlength="1000" placeholder="Reversal reason" required /></div><div class="col-md-3"><button type="submit" class="btn btn-warning">Reverse</button></div></form>
+}
+</section>
+</section>
+@section Scripts { <script type="module" src="~/js/finance/accounting-journals.js" asp-append-version="true"></script> }
