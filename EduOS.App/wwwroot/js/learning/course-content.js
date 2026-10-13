@@ -1,0 +1,185 @@
+(() => {
+'use strict';
+const root=document.getElementById('contentApp');if(!root)return;
+const el=id=>document.getElementById('content'+id),author=root.dataset.author==='true';
+const state={courses:[],page:1,pages:1,course:null,lessons:[],seq:0};
+const node=(tag,text)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;return e;};
+const alert=(message,kind='danger')=>{const e=el('Alert');e.className='alert alert-'+kind;e.textContent=message;e.focus();};
+async function api(url,method='GET',body){
+ const headers={Accept:'application/json'};
+ if(method!=='GET'){
+  const token=document.querySelector('meta[name="request-verification-token"]')?.content;
+  if(!token)throw Error('Security token missing; reload the page.');
+  headers.RequestVerificationToken=token;headers['Content-Type']='application/json';
+ }
+ const response=await fetch(url,{method,headers,credentials:'same-origin',cache:'no-store',...(body===undefined?{}:{body:JSON.stringify(body)})});
+ const data=await response.json().catch(()=>null);
+ if(!response.ok||!data?.success)throw Error(data?.message||'Request failed.');
+ return data.data;
+}
+function fill(id,items,label,formatter){
+ const e=el(id),old=e.value;e.replaceChildren(new Option(label,''));
+ for(const item of items)e.add(new Option(formatter(item),String(item.reference??item.id)));
+ if(items.some(x=>String(x.reference??x.id)===old))e.value=old;
+}
+function allLessons(){
+ const d=state.course;if(!d)return [];
+ return [...(d.unsectionedLessons||[]),...(d.sections||[]).flatMap(s=>s.lessons||[])];
+}
+function resetSection(){
+ el('SectionForm').reset();el('SectionId').value='';el('SectionVersion').value='';
+ el('SectionOrder').value=1;
+}
+function resetResource(){
+ el('ResourceForm').reset();el('ResourceId').value='';el('ResourceVersion').value='';
+ el('ResourceOrder').value=1;
+}
+function btn(label,action,style='btn-outline-primary'){
+ const e=node('button',label);e.type='button';e.className='btn btn-sm '+style;e.addEventListener('click',action);return e;
+}
+function td(text){return node('td',text==null?'':String(text));}
+function link(url,title){
+ try{const parsed=new URL(url);if(parsed.protocol!=='https:')return node('span','Invalid link');
+  const a=node('a',title);a.href=parsed.href;a.target='_blank';a.rel='noopener noreferrer';return a;
+ }catch{return node('span','Invalid link');}
+}
+function editSection(row){
+ el('SectionId').value=row.id;el('SectionVersion').value=row.rowVersion;
+ el('SectionTitle').value=row.title;el('SectionOrder').value=row.displayOrder;
+ el('SectionPublished').checked=row.isPublished;el('SectionTitle').focus();
+}
+function editResource(row){
+ el('ResourceId').value=row.id;el('ResourceVersion').value=row.rowVersion;
+ el('ResourceLesson').value=row.lessonReference;el('ResourceTitle').value=row.title||'';
+ el('ResourceOrder').value=row.displayOrder;el('ResourceUrl').value=row.externalUrl||'';
+ el('ResourceFile').value=row.fileAssetReference||'';el('ResourceTitle').focus();
+}
+async function removeResource(row){
+ if(!confirm('Remove this lesson resource?'))return;
+ await run(null,async()=>{
+  await api('/api/lms/course-content/resources/'+row.id+'/remove','POST',{rowVersion:row.rowVersion});
+  await loadCourse();alert('Resource removed.','success');
+ });
+}
+function render(){
+ const data=state.course,body=el('Rows');body.replaceChildren();
+ el('Heading').textContent=data?.courseTitle||'Course content';
+ if(!data){state.lessons=[];const tr=node('tr'),cell=td('Select a course.');cell.colSpan=5;tr.append(cell);body.append(tr);return;}
+ const sections=data.sections||[],unsectioned=data.unsectionedLessons||[];
+ state.lessons=allLessons();
+ if(author){el('Author').classList.toggle('d-none',!data.canEdit);
+  fill('LessonSelect',state.lessons,'Select existing lesson',x=>x.title);
+  fill('ResourceLesson',state.lessons,'Select existing lesson',x=>x.title);
+  fill('SectionSelect',sections,'Unsectioned',x=>x.displayOrder+' · '+x.title);
+ }
+ function appendLesson(section,lesson){
+  const tr=node('tr');tr.append(td(section||'Unsectioned'),td(lesson.title));
+  const resourceCell=td('');
+  for(const resource of lesson.resources||[]){
+   const line=node('div');line.className='mb-1';
+   const label=resource.title||resource.fileName||resource.externalUrl||'Resource';
+   if(resource.externalUrl)line.append(link(resource.externalUrl,label));
+   else line.append(node('span',label+' (verified file)'));
+   if(data.canEdit){line.append(document.createTextNode(' '),
+    btn('Edit',()=>editResource(resource)),document.createTextNode(' '),
+    btn('Remove',()=>removeResource(resource),'btn-outline-danger'));}
+   resourceCell.append(line);
+  }
+  if(!resourceCell.childNodes.length)resourceCell.append(node('span','—'));
+  tr.append(resourceCell,td(lesson.isPublished?'Published':'Draft'));
+  const action=td('');action.className='content-actions';
+  if(data.canEdit)action.append(btn('Move lesson',()=>{
+   el('LessonSelect').value=lesson.reference;
+   el('SectionSelect').value=lesson.courseSectionId||'';
+   el('LessonSelect').focus();
+  }));
+  tr.append(action);body.append(tr);
+ }
+ for(const section of sections){
+  const tr=node('tr');const title=td(section.displayOrder+' · '+section.title);
+  title.className='fw-semibold';tr.append(title,td((section.lessons||[]).length+' lessons'),td('—'),td(section.isPublished?'Published':'Draft'));
+  const action=td('');action.className='content-actions';
+  if(data.canEdit)action.append(btn('Edit section',()=>editSection(section)));
+  tr.append(action);body.append(tr);
+  for(const lesson of section.lessons||[])appendLesson(section.title,lesson);
+ }
+ for(const lesson of unsectioned)appendLesson('',lesson);
+ if(!sections.length&&!unsectioned.length){const tr=node('tr'),cell=td('No sections or lessons. Create lessons in Learning.');cell.colSpan=5;tr.append(cell);body.append(tr);}
+}
+async function loadCourse(){
+ const ref=el('Course').value,seq=++state.seq;
+ if(!ref){state.course=null;render();return;}
+ try{const data=await api('/api/lms/course-content/'+encodeURIComponent(ref));
+  if(seq!==state.seq)return;state.course=data;render();
+ }catch(error){if(seq!==state.seq)return;state.course=null;render();alert(error.message);}
+}
+async function loadCourses(){
+ const old=el('Course').value,seq=++state.seq;
+ try{
+  const data=await api('/api/lms/courses?page='+state.page+'&pageSize=20');
+  if(seq!==state.seq)return;
+  state.courses=data?.items||[];
+  state.pages=Math.max(1,data?.totalPages||Math.ceil((data?.totalCount||0)/20));
+  fill('Course',state.courses,'Select course',x=>x.title+' — '+x.code);
+  if(state.courses.some(x=>x.reference===old))el('Course').value=old;
+  else if(state.courses.length)el('Course').value=state.courses[0].reference;
+  el('Page').textContent='Page '+state.page+' / '+state.pages;
+  el('Prev').disabled=state.page<=1;el('Next').disabled=state.page>=state.pages;
+  if(author){resetSection();resetResource();}await loadCourse();
+ }catch(error){alert(error.message);}
+}
+async function run(form,action){
+ const button=form?.querySelector('[type="submit"]');if(button)button.disabled=true;
+ try{await action();}catch(error){alert(error.message);}finally{if(button)button.disabled=false;}
+}
+if(author){
+ el('SectionClear').onclick=resetSection;el('ResourceClear').onclick=resetResource;
+ el('SectionForm').onsubmit=e=>{e.preventDefault();run(e.currentTarget,async()=>{
+  const id=el('SectionId').value,courseReference=el('Course').value;
+  if(!courseReference)throw Error('Select a course.');
+  const request={courseReference,title:el('SectionTitle').value.trim(),displayOrder:Number(el('SectionOrder').value),
+   isPublished:el('SectionPublished').checked,rowVersion:id?el('SectionVersion').value:null};
+  await api('/api/lms/course-content/sections'+(id?'/'+id:''),id?'PUT':'POST',request);
+  resetSection();await loadCourse();alert('Section saved.','success');
+ });};
+ el('AssignForm').onsubmit=e=>{e.preventDefault();run(e.currentTarget,async()=>{
+  const lesson=state.lessons.find(x=>x.reference===el('LessonSelect').value);
+  if(!lesson)throw Error('Select an existing lesson.');
+  const request={courseReference:el('Course').value,lessonReference:lesson.reference,
+   courseSectionId:el('SectionSelect').value?Number(el('SectionSelect').value):null,rowVersion:lesson.rowVersion};
+  await api('/api/lms/course-content/lessons/section','POST',request);
+  await loadCourse();alert('Lesson assignment saved.','success');
+ });};
+ el('ResourceForm').onsubmit=e=>{e.preventDefault();run(e.currentTarget,async()=>{
+  const id=el('ResourceId').value,url=el('ResourceUrl').value.trim(),file=el('ResourceFile').value.trim();
+  if(Boolean(url)===Boolean(file))throw Error('Enter either one HTTPS URL or one verified file UUID.');
+  if(file&&!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(file))
+   throw Error('Enter a valid file UUID.');
+  const request={lessonReference:el('ResourceLesson').value,title:el('ResourceTitle').value.trim()||null,
+   externalUrl:url||null,fileAssetReference:file||null,displayOrder:Number(el('ResourceOrder').value),
+   rowVersion:id?el('ResourceVersion').value:null};
+  if(!request.lessonReference)throw Error('Select an existing lesson.');
+  await api('/api/lms/course-content/resources'+(id?'/'+id:''),id?'PUT':'POST',request);
+  resetResource();await loadCourse();alert('Resource saved.','success');
+ });};
+}
+el('Course').onchange=()=>{if(author){resetSection();resetResource();}loadCourse();};
+el('Refresh').onclick=loadCourses;
+el('Prev').onclick=()=>{if(state.page>1){state.page--;loadCourses();}};
+el('Next').onclick=()=>{if(state.page<state.pages){state.page++;loadCourses();}};
+el('Print').onclick=()=>window.print();
+el('Csv').onclick=()=>{
+ const data=state.course;if(!data)return alert('Select a course before exporting.');
+ const rows=[['Course','Section','Lesson','Resource','Resource URL','Status']];
+ const add=(section,lesson)=>{if(!(lesson.resources||[]).length)rows.push([data.courseTitle,section,lesson.title,'','',lesson.isPublished?'Published':'Draft']);
+  else for(const r of lesson.resources)rows.push([data.courseTitle,section,lesson.title,r.title||r.fileName||'',r.externalUrl||'',lesson.isPublished?'Published':'Draft']);};
+ for(const s of data.sections||[])for(const l of s.lessons||[])add(s.title,l);
+ for(const l of data.unsectionedLessons||[])add('Unsectioned',l);
+ const quote=v=>{let x=String(v??'');if(/^[=+\-@]/.test(x))x="'"+x;return '"'+x.replace(/"/g,'""')+'"';};
+ const csv='\uFEFF'+rows.map(r=>r.map(quote).join(',')).join('\r\n');
+ const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+ const a=node('a');a.href=url;a.download='course-content.csv';document.body.append(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),1000);
+};
+loadCourses();
+})();

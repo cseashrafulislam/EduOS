@@ -1,0 +1,61 @@
+@{
+    ViewData["Title"] = "LMS Course Content";
+    var author = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("Teacher");
+}
+<section id="contentApp" class="container-fluid py-3" data-author="@author.ToString().ToLowerInvariant()">
+    <header class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+        <div><h2 class="h4 mb-1">Course Sections &amp; Lesson Resources</h2><p class="text-muted mb-0">Organize existing lessons into sections and attach verified resources.</p></div>
+        <div><a class="btn btn-outline-secondary" asp-controller="Learning" asp-action="Index">Learning</a> <button id="contentPrint" type="button" class="btn btn-outline-primary">Print</button> <button id="contentCsv" type="button" class="btn btn-outline-success">Export CSV</button></div>
+    </header>
+    <div id="contentAlert" class="d-none" role="alert" aria-live="polite" tabindex="-1"></div>
+    <section class="card mb-3"><div class="card-body row g-2 align-items-end">
+        <div class="col-md-8"><label for="contentCourse" class="form-label">Course</label><select id="contentCourse" class="form-select"><option value="">Loading courses…</option></select></div>
+        <div class="col-md-4"><button id="contentRefresh" type="button" class="btn btn-outline-primary w-100">Refresh</button></div>
+        <div class="col-12 d-flex gap-2 align-items-center"><button id="contentPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button><span id="contentPage" class="small">Page 1</span><button id="contentNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button></div>
+    </div></section>
+    @if (author)
+    {
+        <div id="contentAuthor" class="row g-3 mb-3 d-none">
+            <div class="col-xl-4"><form id="contentSectionForm" class="card h-100">
+                <div class="card-header"><h3 class="h6 mb-0">Section setup</h3></div>
+                <div class="card-body row g-2">
+                    <input type="hidden" id="contentSectionId" /><input type="hidden" id="contentSectionVersion" />
+                    <div class="col-12"><label for="contentSectionTitle" class="form-label">Section title</label><input id="contentSectionTitle" class="form-control" maxlength="200" required /></div>
+                    <div class="col-5"><label for="contentSectionOrder" class="form-label">Order</label><input id="contentSectionOrder" type="number" min="0" max="10000" value="1" class="form-control" required /></div>
+                    <div class="col-7 align-self-end"><label><input id="contentSectionPublished" type="checkbox" /> Published</label></div>
+                    <div class="col-12"><button class="btn btn-primary" type="submit">Save section</button> <button id="contentSectionClear" class="btn btn-outline-secondary" type="button">New</button></div>
+                </div>
+            </form></div>
+            <div class="col-xl-4"><form id="contentAssignForm" class="card h-100">
+                <div class="card-header"><h3 class="h6 mb-0">Assign existing lesson</h3></div>
+                <div class="card-body row g-2">
+                    <div class="col-12"><label for="contentLessonSelect" class="form-label">Lesson</label><select id="contentLessonSelect" class="form-select" required></select></div>
+                    <div class="col-12"><label for="contentSectionSelect" class="form-label">Section</label><select id="contentSectionSelect" class="form-select"><option value="">Unsectioned</option></select></div>
+                    <div class="col-12"><button type="submit" class="btn btn-primary">Assign lesson</button></div>
+                    <p class="small text-muted mb-0">Create or edit lesson content in Learning. Published lessons cannot move into draft sections.</p>
+                </div>
+            </form></div>
+            <div class="col-xl-4"><form id="contentResourceForm" class="card h-100">
+                <div class="card-header"><h3 class="h6 mb-0">Lesson resource</h3></div>
+                <div class="card-body row g-2">
+                    <input type="hidden" id="contentResourceId" /><input type="hidden" id="contentResourceVersion" />
+                    <div class="col-12"><label for="contentResourceLesson" class="form-label">Lesson</label><select id="contentResourceLesson" class="form-select" required></select></div>
+                    <div class="col-8"><label for="contentResourceTitle" class="form-label">Resource title</label><input id="contentResourceTitle" class="form-control" maxlength="200" /></div>
+                    <div class="col-4"><label for="contentResourceOrder" class="form-label">Order</label><input id="contentResourceOrder" type="number" min="0" max="10000" value="1" class="form-control" required /></div>
+                    <div class="col-12"><label for="contentResourceUrl" class="form-label">HTTPS URL (or file reference)</label><input id="contentResourceUrl" type="url" pattern="https://.*" maxlength="1000" class="form-control" placeholder="https://…" /></div>
+                    <div class="col-12"><label for="contentResourceFile" class="form-label">Verified file UUID (or HTTPS URL)</label><input id="contentResourceFile" class="form-control" placeholder="00000000-0000-0000-0000-000000000000" /></div>
+                    <div class="col-12"><button class="btn btn-primary" type="submit">Save resource</button> <button id="contentResourceClear" class="btn btn-outline-secondary" type="button">New</button></div>
+                </div>
+            </form></div>
+        </div>
+    }
+    <section class="card">
+        <div class="card-header d-flex justify-content-between align-items-center"><h3 id="contentHeading" class="h6 mb-0">Course content</h3><span class="small text-muted">Published material is visible to eligible enrolled students.</span></div>
+        <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
+            <thead><tr><th>Section</th><th>Lesson</th><th>Resources</th><th>State</th><th class="content-actions">Action</th></tr></thead>
+            <tbody id="contentRows"><tr><td colspan="5" class="text-center text-muted p-3">Select a course.</td></tr></tbody>
+        </table></div>
+    </section>
+</section>
+<style media="print">#contentAuthor,#contentRefresh,#contentPrev,#contentNext,#contentPrint,#contentCsv,.content-actions,nav,.sidebar{display:none!important}#contentApp{width:100%!important}</style>
+@section Scripts { <script src="~/js/learning/course-content.js" asp-append-version="true"></script> }
