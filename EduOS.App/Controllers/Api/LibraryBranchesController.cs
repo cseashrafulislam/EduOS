@@ -23,7 +23,7 @@ public sealed class LibraryBranchesController : ControllerBase
 
     [HttpGet]
     public async Task<IActionResult> List([FromQuery] long? campusId, CancellationToken ct) =>
-        Reply(await _service.ListAsync(campusId, ct));
+        Reply(await _service.GetBranchesAsync(campusId, ct));
 
     [HttpGet("campuses")]
     public async Task<IActionResult> Campuses(CancellationToken ct) =>
@@ -33,14 +33,14 @@ public sealed class LibraryBranchesController : ControllerBase
     public async Task<IActionResult> Create([FromBody] SaveLibraryBranchRequestDto request, CancellationToken ct)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
-        return Reply(await _service.SaveAsync(null, request, ct));
+        return Reply(await _service.SaveBranchAsync(null, request, ct));
     }
 
     [HttpPut("{id:long}")]
     public async Task<IActionResult> Update(long id, [FromBody] SaveLibraryBranchRequestDto request, CancellationToken ct)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
-        return Reply(await _service.SaveAsync(id, request, ct));
+        return Reply(await _service.SaveBranchAsync(id, request, ct));
     }
 
     private IActionResult Reply<T>(EduOS.Core.Common.ApiResponse<T> result) => StatusCode(result.StatusCode, result);

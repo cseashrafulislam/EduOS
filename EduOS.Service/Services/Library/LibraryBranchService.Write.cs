@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 namespace EduOS.Service.Services.Library;
 public sealed partial class LibraryBranchService
 {
-    public async Task<ApiResponse<LibraryBranchDto>> SaveAsync(long? id, SaveLibraryBranchRequestDto request, CancellationToken ct = default)
+    public async Task<ApiResponse<LibraryBranchDto>> SaveBranchAsync(long? id, SaveLibraryBranchRequestDto request, CancellationToken ct = default)
     {
         if (!CanManage()) return Denied<LibraryBranchDto>();
         if (request == null || id is <= 0 || request.CampusId <= 0 ||

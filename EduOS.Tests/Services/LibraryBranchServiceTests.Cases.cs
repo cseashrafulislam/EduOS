@@ -13,8 +13,8 @@ public sealed partial class LibraryBranchServiceTests
         var campus = new Campus { TenantId = 202, Name = "Other", Code = "OTH" };
         db.Campuses.Add(campus); await db.SaveChangesAsync();
         var request = new SaveLibraryBranchRequestDto { CampusId = campus.Id, Name = "Central", Code = "LIB" };
-        (await Service(db, 101, "Student").SaveAsync(null, request)).StatusCode.Should().Be(403);
-        (await Service(db, 101).SaveAsync(null, request)).StatusCode.Should().Be(404);
+        (await Service(db, 101, "Student").SaveBranchAsync(null, request)).StatusCode.Should().Be(403);
+        (await Service(db, 101).SaveBranchAsync(null, request)).StatusCode.Should().Be(404);
         (await db.LibraryBranches.CountAsync()).Should().Be(0);
     }
     [Fact]
@@ -25,12 +25,12 @@ public sealed partial class LibraryBranchServiceTests
         db.Campuses.Add(campus); await db.SaveChangesAsync();
         var service = Service(db, 101);
         var request = new SaveLibraryBranchRequestDto { CampusId = campus.Id, Name = "Central", Code = " LIB " };
-        var first = await service.SaveAsync(null, request);
+        var first = await service.SaveBranchAsync(null, request);
         first.Success.Should().BeTrue();
-        (await service.SaveAsync(null, request)).Data!.Id.Should().Be(first.Data!.Id);
-        (await service.SaveAsync(null, new SaveLibraryBranchRequestDto {
+        (await service.SaveBranchAsync(null, request)).Data!.Id.Should().Be(first.Data!.Id);
+        (await service.SaveBranchAsync(null, new SaveLibraryBranchRequestDto {
             CampusId = campus.Id, Name = "Different", Code = "LIB"
         })).StatusCode.Should().Be(409);
-        (await service.ListAsync(campus.Id)).Data.Should().ContainSingle();
+        (await service.GetBranchesAsync(campus.Id)).Data.Should().ContainSingle();
     }
 }

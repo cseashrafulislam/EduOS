@@ -39,7 +39,7 @@ public sealed partial class LibraryBranchService : ILibraryBranchService
             .Select(x => new LibraryCampusOptionDto { Id = x.Id, Name = x.Name, Code = x.Code }).ToListAsync(ct);
         return ApiResponse<IReadOnlyList<LibraryCampusOptionDto>>.SuccessResponse(rows);
     }
-    public async Task<ApiResponse<IReadOnlyList<LibraryBranchDto>>> ListAsync(long? campusId, CancellationToken ct = default)
+    public async Task<ApiResponse<IReadOnlyList<LibraryBranchDto>>> GetBranchesAsync(long? campusId, CancellationToken ct = default)
     {
         if (!CanManage()) return Denied<IReadOnlyList<LibraryBranchDto>>();
         if (campusId is <= 0) return ApiResponse<IReadOnlyList<LibraryBranchDto>>.ErrorResponse("Invalid campus.");

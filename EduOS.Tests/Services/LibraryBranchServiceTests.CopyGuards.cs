@@ -23,6 +23,6 @@ public sealed partial class LibraryBranchServiceTests
         await db.SaveChangesAsync();
         var request = new SaveLibraryBranchRequestDto { CampusId = campus.Id, Name = branch.Name,
             Code = branch.Code, IsActive = false, RowVersion = Convert.ToBase64String(branch.RowVersion) };
-        (await Service(db, 101).SaveAsync(branch.Id, request)).StatusCode.Should().Be(409);
+        (await Service(db, 101).SaveBranchAsync(branch.Id, request)).StatusCode.Should().Be(409);
     }
 }
