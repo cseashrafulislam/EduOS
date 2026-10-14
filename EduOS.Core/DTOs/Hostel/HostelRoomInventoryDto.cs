@@ -18,3 +18,10 @@ public sealed class SetHostelRoomStateRequestDto
     public bool IsActive { get; set; }
     [Required] public string RowVersion { get; set; } = string.Empty;
 }
+
+public sealed class CreateHostelRoomRequestDto
+{
+    [Required] public Guid HostelReference { get; set; }
+    [Required, StringLength(50, MinimumLength = 1)] public string RoomNumber { get; set; } = string.Empty;
+    [Range(1, 1000)] public int Capacity { get; set; }
+}

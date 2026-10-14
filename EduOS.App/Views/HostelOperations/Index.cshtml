@@ -64,6 +64,28 @@
     }
     @if (canManage)
     {
+        <section id="hostelRoomCreatePanel" class="card mb-3"><div class="card-body">
+            <h3 class="h5">Create hostel room</h3>
+            <p class="small text-muted">Select an active, campus-authorized facility. Pricing is managed separately by Finance.</p>
+            <form id="hostelRoomFacilitySearchForm" class="row g-2 mb-2">
+                <div class="col-md-8"><label class="form-label" for="hostelRoomFacilitySearch">Find facility</label>
+                    <input id="hostelRoomFacilitySearch" class="form-control" maxlength="100" placeholder="Facility, campus or code" /></div>
+                <div class="col-md-4 d-flex align-items-end gap-2">
+                    <button type="submit" class="btn btn-outline-secondary">Find</button>
+                    <button id="hostelRoomFacilityNext" type="button" class="btn btn-outline-secondary">More</button>
+                </div>
+            </form>
+            <form id="hostelRoomCreateForm" class="row g-2 mb-2">
+                <div class="col-md-6"><label class="form-label" for="hostelRoomFacilitySelect">Facility</label>
+                    <select id="hostelRoomFacilitySelect" class="form-select" required><option value="">Find an active facility</option></select></div>
+                <div class="col-md-3"><label class="form-label" for="hostelRoomNewNumber">Room number</label>
+                    <input id="hostelRoomNewNumber" class="form-control" maxlength="50" required /></div>
+                <div class="col-md-2"><label class="form-label" for="hostelRoomNewCapacity">Capacity</label>
+                    <input id="hostelRoomNewCapacity" type="number" class="form-control" min="1" max="1000" step="1" required /></div>
+                <div class="col-md-1 d-flex align-items-end"><button id="hostelRoomCreateButton" class="btn btn-primary" type="submit">Create</button></div>
+            </form>
+            <div id="hostelRoomCreateStatus" class="small text-muted" role="status" aria-live="polite"></div>
+        </div></section>
         <section id="hostelRoomInventoryPanel" class="card mb-3"><div class="card-body">
             <h3 class="h5">Room inventory and controlled closure</h3>
             <p class="small text-muted">Rooms with active allocations cannot be closed. Room status does not modify rent.</p>
@@ -140,6 +162,7 @@
         <script src="~/js/hostel-operations/capacity.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/bed-inventory.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/room-inventory.js" asp-append-version="true"></script>
+        <script src="~/js/hostel-operations/room-create.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/facilities.js" asp-append-version="true"></script>
     }
 }
