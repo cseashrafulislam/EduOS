@@ -3,6 +3,7 @@ using EduOS.Core.DTOs.LMS;
 using EduOS.Core.Entities.Files;
 using EduOS.Core.Entities.LMS;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using System.Data;
 
 namespace EduOS.Service.Services.LMS;
