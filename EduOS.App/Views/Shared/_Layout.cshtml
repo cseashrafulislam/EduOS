@@ -272,6 +272,10 @@
                         <span>Import History</span>
                     </a>
                 }
+                <a class="nav-link @ActiveFor("/CommunicationWorkspace")" href="/CommunicationWorkspace/Index">
+                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                    <span>Notices &amp; Notifications</span>
+                </a>
                 @if (User?.IsInRole("TenantAdmin") == true)
                 {
                     <a class="nav-link @ActiveFor("/CommunicationAdministration")" href="/CommunicationAdministration/Index">
