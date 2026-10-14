@@ -86,6 +86,20 @@
             </form>
             <div id="hostelRoomCreateStatus" class="small text-muted" role="status" aria-live="polite"></div>
         </div></section>
+        <section id="hostelCapacityPanel" class="card mb-3"><div class="card-body">
+            <h3 class="h5">Edit room capacity</h3>
+            <p class="small text-muted">Capacity cannot be reduced below physical beds or occupied beds. Room rent is not changed.</p>
+            <div class="d-flex gap-2 mb-2">
+                <input id="hostelCapacitySearch" type="search" maxlength="100" class="form-control" placeholder="Search hostel or room" aria-label="Find room to edit capacity" />
+                <button id="hostelCapacityFind" type="button" class="btn btn-outline-secondary">Find rooms</button>
+            </div>
+            <form id="hostelCapacityForm" class="row g-2">
+                <div class="col-md-7"><label for="hostelCapacityRoom" class="form-label">Room</label><select id="hostelCapacityRoom" class="form-select" required><option value="">Loading rooms…</option></select></div>
+                <div class="col-md-3"><label for="hostelCapacityValue" class="form-label">New capacity</label><input id="hostelCapacityValue" class="form-control" type="number" min="1" max="1000" step="1" required /></div>
+                <div class="col-md-2 d-flex align-items-end"><button id="hostelCapacitySave" type="submit" class="btn btn-primary w-100">Save capacity</button></div>
+            </form>
+            <div id="hostelCapacityStatus" class="small text-muted mt-2" role="status" aria-live="polite"></div>
+        </div></section>
         <section id="hostelRoomInventoryPanel" class="card mb-3"><div class="card-body">
             <h3 class="h5">Room inventory and controlled closure</h3>
             <p class="small text-muted">Rooms with active allocations cannot be closed. Room status does not modify rent.</p>
@@ -184,6 +198,7 @@
         <script src="~/js/hostel-operations/bed-create.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/bed-inventory.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/room-inventory.js" asp-append-version="true"></script>
+        <script src="~/js/hostel-operations/room-capacity.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/room-create.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/facilities.js" asp-append-version="true"></script>
     }

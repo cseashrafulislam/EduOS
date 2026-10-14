@@ -53,6 +53,11 @@ public sealed class HostelController : ControllerBase
         [FromQuery] int pageSize = 25, [FromQuery] string? search = null, CancellationToken cancellationToken = default) =>
         ToAction(await _service.GetRoomInventoryAsync(campusId, page, pageSize, search, cancellationToken));
 
+    [HttpPut("rooms/{id:long}/capacity")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    public async Task<IActionResult> SetRoomCapacity(long id, [FromBody] SetHostelRoomCapacityRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.SetRoomCapacityAsync(id, request, ct));
+
     [HttpPut("rooms/{id:long}/state")]
     [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
     public async Task<IActionResult> SetRoomState(long id, [FromBody] SetHostelRoomStateRequestDto request, CancellationToken ct) =>
