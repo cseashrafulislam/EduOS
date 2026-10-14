@@ -1,0 +1,40 @@
+@{
+    ViewData["Title"] = "Curriculum Prerequisites";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<div class="container-fluid py-4" id="prerequisiteWorkspace">
+    @Html.AntiForgeryToken()
+    <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
+        <div><h1 class="h4 mb-1">Curriculum prerequisites</h1><p class="text-muted mb-0">Define required prior subjects for a curriculum version. Used curricula are immutable.</p></div>
+        <a class="btn btn-outline-secondary" asp-controller="AcademicManagement" asp-action="Index">Back to Academic Setup</a>
+    </div>
+    <div id="prerequisiteNotice" class="alert d-none" role="alert" aria-live="polite"></div>
+    <div class="card border-0 shadow-sm mb-3"><div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-lg-5"><label for="prerequisiteCurriculum" class="form-label">Curriculum version</label><select id="prerequisiteCurriculum" class="form-select"></select></div>
+            <div class="col-lg-4"><label for="prerequisiteCatalogSearch" class="form-label">Find curriculum (prefix)</label><input id="prerequisiteCatalogSearch" class="form-control" maxlength="100" placeholder="Name or code" /></div>
+            <div class="col-lg-3"><button id="prerequisiteLoadCatalog" type="button" class="btn btn-outline-primary w-100">Load curriculum catalog</button></div>
+        </div>
+    </div></div>
+    <div class="card border-0 shadow-sm mb-3"><div class="card-body">
+        <h2 class="h6">Add prerequisite</h2>
+        <form id="prerequisiteForm" class="row g-2 align-items-end">
+            <div class="col-lg-4"><label for="prerequisiteSubject" class="form-label">Subject</label><select id="prerequisiteSubject" class="form-select" required></select></div>
+            <div class="col-lg-4"><label for="prerequisiteRequired" class="form-label">Required prior subject</label><select id="prerequisiteRequired" class="form-select" required></select></div>
+            <div class="col-lg-2"><label class="form-check"><input id="prerequisiteMandatory" type="checkbox" class="form-check-input" checked /> <span class="form-check-label">Mandatory</span></label></div>
+            <div class="col-lg-2"><button type="submit" class="btn btn-primary w-100">Add link</button></div>
+        </form>
+        <p class="small text-muted mt-2 mb-0">Both subjects must be mapped to this curriculum. Circular dependencies are rejected.</p>
+    </div></div>
+    <div class="card border-0 shadow-sm"><div class="card-body">
+        <div class="d-flex flex-wrap gap-2 justify-content-between align-items-end mb-3">
+            <div><label for="prerequisiteSearch" class="form-label">Search subject</label><input id="prerequisiteSearch" class="form-control" maxlength="100" placeholder="Subject name/code" /></div>
+            <div class="d-flex gap-2"><button id="prerequisiteRefresh" type="button" class="btn btn-outline-primary">Search</button><button id="prerequisiteCsv" type="button" class="btn btn-outline-secondary">CSV (page)</button><button id="prerequisitePrint" type="button" class="btn btn-outline-secondary">Print</button></div>
+        </div>
+        <div class="table-responsive"><table class="table table-hover"><thead><tr><th>Subject</th><th>Prerequisite</th><th>Mandatory</th><th>Actions</th></tr></thead><tbody id="prerequisiteRows"></tbody></table></div>
+        <div class="d-flex justify-content-between align-items-center"><span id="prerequisiteCount" class="text-muted small"></span><div class="d-flex gap-2"><button id="prerequisitePrev" type="button" class="btn btn-sm btn-outline-secondary">Previous</button><button id="prerequisiteNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button></div></div>
+    </div></div>
+</div>
+@section Scripts {
+    <script src="~/js/academic/prerequisites.js" asp-append-version="true"></script>
+}

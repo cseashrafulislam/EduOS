@@ -121,6 +121,7 @@
                 <div class="col-md-3 d-flex align-items-end"><label class="form-check"><input id="curriculumCurrent" type="checkbox" class="form-check-input" /><span class="form-check-label">Current curriculum</span></label></div>
                 <div class="col-md-3"><button type="submit" class="btn btn-primary w-100">Create Curriculum</button></div>
             </form>
+            <div class="mb-3"><a asp-controller="AcademicManagement" asp-action="Prerequisites" class="btn btn-outline-primary">Manage Subject Prerequisites</a></div>
             <h3 class="h6">Add subject to an existing curriculum</h3>
             <form id="curriculumSubjectForm" class="row g-2 align-items-end mb-4">
                 <div class="col-md-3"><label for="curriculumSelection" class="form-label">Curriculum *</label><select id="curriculumSelection" class="form-select" required></select></div>
