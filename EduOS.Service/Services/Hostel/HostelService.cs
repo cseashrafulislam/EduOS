@@ -15,7 +15,7 @@ using System.Transactions;
 
 namespace EduOS.Service.Services.Hostel;
 
-public sealed class HostelService : IHostelService
+public sealed partial class HostelService : IHostelService
 {
     private readonly IGenericRepository<EduOS.Core.Entities.Hostel.Hostel> _hostels;
     private readonly IGenericRepository<HostelRoom> _rooms;
