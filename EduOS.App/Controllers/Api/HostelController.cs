@@ -18,6 +18,29 @@ public sealed class HostelController : ControllerBase
     private readonly IHostelService _service;
     public HostelController(IHostelService service) => _service = service;
 
+    [HttpGet("facility-campuses")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> FacilityCampuses(CancellationToken ct) =>
+        ToAction(await _service.GetFacilityCampusesAsync(ct));
+
+    [HttpGet("facilities")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> Facilities([FromQuery] long? campusId, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25, [FromQuery] string? search = null, CancellationToken ct = default) =>
+        ToAction(await _service.GetFacilitiesAsync(campusId, page, pageSize, search, ct));
+
+    [HttpPost("facilities")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    public async Task<IActionResult> CreateFacility([FromBody] CreateHostelFacilityRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.CreateFacilityAsync(request, ct));
+
+    [HttpPut("facilities/{reference:guid}/state")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    public async Task<IActionResult> SetFacilityState(Guid reference, [FromBody] SetHostelFacilityStateRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.SetFacilityStateAsync(reference, request, ct));
+
     [HttpGet("room-inventory")]
     [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]

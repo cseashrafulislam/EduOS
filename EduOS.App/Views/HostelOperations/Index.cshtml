@@ -104,6 +104,35 @@
             </div>
         </div></section>
     }
+    @if (canManage)
+    {
+        <section id="hostelFacilityPanel" class="card mb-3"><div class="card-body">
+            <h3 class="h5">Hostel facilities and controlled closure</h3>
+            <p class="small text-muted">Create campus-authorized facilities. Deactivation requires every room and allocation to be closed. No financial settings are changed.</p>
+            <form id="hostelFacilityCreate" class="row g-2 mb-3">
+                <div class="col-md-3"><label class="form-label" for="hostelFacilityCampus">Campus</label><select id="hostelFacilityCampus" class="form-select" required><option value="">Loading campuses…</option></select></div>
+                <div class="col-md-3"><label class="form-label" for="hostelFacilityName">Facility name</label><input id="hostelFacilityName" class="form-control" maxlength="150" minlength="2" required /></div>
+                <div class="col-md-2"><label class="form-label" for="hostelFacilityCode">Code</label><input id="hostelFacilityCode" class="form-control" maxlength="50" minlength="2" required /></div>
+                <div class="col-md-2"><label class="form-label" for="hostelFacilityGender">Restriction</label><select id="hostelFacilityGender" class="form-select"><option value="">None</option><option value="Male">Male</option><option value="Female">Female</option><option value="Other">Other</option></select></div>
+                <div class="col-md-2"><label class="form-label" for="hostelFacilityAddress">Address</label><input id="hostelFacilityAddress" class="form-control" maxlength="500" /></div>
+                <div class="col-12"><button id="hostelFacilityCreateButton" type="submit" class="btn btn-primary">Create facility</button></div>
+            </form>
+            <form id="hostelFacilityFilter" class="d-flex gap-2 mb-2">
+                <input id="hostelFacilitySearch" class="form-control" maxlength="100" aria-label="Search facilities" placeholder="Campus, facility or code" />
+                <button type="submit" class="btn btn-outline-primary">Search</button>
+            </form>
+            <div id="hostelFacilityStatus" class="small text-muted" role="status" aria-live="polite"></div>
+            <div class="table-responsive"><table class="table table-sm table-hover">
+                <thead><tr><th>Campus</th><th>Facility</th><th>Code</th><th>Active rooms</th><th>Occupied beds</th><th>Status</th><th>Action</th></tr></thead>
+                <tbody id="hostelFacilityRows"></tbody>
+            </table></div>
+            <div class="d-flex justify-content-between align-items-center">
+                <button id="hostelFacilityPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+                <span id="hostelFacilityPage" class="small text-muted"></span>
+                <button id="hostelFacilityNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+            </div>
+        </div></section>
+    }
 </section>
 @section Scripts {
     <script src="~/js/hostel-operations/index.js" asp-append-version="true"></script>
@@ -111,5 +140,6 @@
         <script src="~/js/hostel-operations/capacity.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/bed-inventory.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/room-inventory.js" asp-append-version="true"></script>
+        <script src="~/js/hostel-operations/facilities.js" asp-append-version="true"></script>
     }
 }
