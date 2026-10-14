@@ -62,8 +62,32 @@
             </div>
         </div></section>
     }
+    @if (canManage)
+    {
+        <section id="hostelBedInventoryPanel" class="card mb-3"><div class="card-body">
+            <h3 class="h5">Bed inventory and controlled closure</h3>
+            <p class="small text-muted">Only unoccupied beds can be deactivated. Campus access and room capacity are enforced server-side.</p>
+            <form id="hostelBedInventoryFilter" class="d-flex gap-2 mb-2">
+                <input id="hostelBedInventorySearch" class="form-control" maxlength="100" aria-label="Search beds" placeholder="Hostel, room or bed" />
+                <button class="btn btn-outline-primary" type="submit">Search</button>
+            </form>
+            <div id="hostelBedInventoryStatus" role="status" aria-live="polite" class="small text-muted"></div>
+            <div class="table-responsive"><table class="table table-sm table-hover">
+                <thead><tr><th>Hostel</th><th>Room</th><th>Bed</th><th>State</th><th>Occupancy</th><th>Action</th></tr></thead>
+                <tbody id="hostelBedInventoryRows"></tbody>
+            </table></div>
+            <div class="d-flex justify-content-between align-items-center">
+                <button id="hostelBedInventoryPrev" class="btn btn-outline-secondary btn-sm" type="button">Previous</button>
+                <span id="hostelBedInventoryPage" class="small text-muted"></span>
+                <button id="hostelBedInventoryNext" class="btn btn-outline-secondary btn-sm" type="button">Next</button>
+            </div>
+        </div></section>
+    }
 </section>
 @section Scripts {
     <script src="~/js/hostel-operations/index.js" asp-append-version="true"></script>
-    @if (canManage) { <script src="~/js/hostel-operations/capacity.js" asp-append-version="true"></script> }
+    @if (canManage) {
+        <script src="~/js/hostel-operations/capacity.js" asp-append-version="true"></script>
+        <script src="~/js/hostel-operations/bed-inventory.js" asp-append-version="true"></script>
+    }
 }

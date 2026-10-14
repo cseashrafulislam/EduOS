@@ -48,6 +48,22 @@ public class SaveHostelRoomRequestDto
     public string? RowVersion { get; set; }
 }
 
+public sealed class HostelBedInventoryDto
+{
+    public long Id { get; set; }
+    public long HostelRoomId { get; set; }
+    public string HostelName { get; set; } = string.Empty;
+    public string RoomNumber { get; set; } = string.Empty;
+    public string BedNumber { get; set; } = string.Empty;
+    public bool IsActive { get; set; }
+    public bool IsOccupied { get; set; }
+    public string RowVersion { get; set; } = string.Empty;
+}
+public sealed class SetHostelBedStateRequestDto
+{
+    public bool IsActive { get; set; }
+    [Required] public string RowVersion { get; set; } = string.Empty;
+}
 public class HostelBedDto
 {
     public long Id { get; set; }

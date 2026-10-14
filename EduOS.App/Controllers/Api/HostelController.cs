@@ -18,6 +18,18 @@ public sealed class HostelController : ControllerBase
     private readonly IHostelService _service;
     public HostelController(IHostelService service) => _service = service;
 
+    [HttpGet("bed-inventory")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> BedInventory([FromQuery] long? campusId, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25, [FromQuery] string? search = null, CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetBedInventoryAsync(campusId, page, pageSize, search, cancellationToken));
+
+    [HttpPut("beds/{id:long}/state")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    public async Task<IActionResult> SetBedState(long id, [FromBody] SetHostelBedStateRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.SetBedStateAsync(id, request, ct));
+
     [HttpGet("rooms")]
     [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
     public async Task<IActionResult> Rooms(CancellationToken ct) => ToAction(await _service.GetRoomsAsync(ct));

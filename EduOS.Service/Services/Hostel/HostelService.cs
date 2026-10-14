@@ -42,6 +42,131 @@ public sealed class HostelService : IHostelService
         _currentUser = currentUser; _clock = clock; _logger = logger;
     }
 
+
+    /// <summary>Administrative bed inventory: bounded, tenant/campus-filtered, no student or finance data.</summary>
+    public async Task<ApiResponse<PagedResult<HostelBedInventoryDto>>> GetBedInventoryAsync(
+        long? campusId, int page, int pageSize, string? search, CancellationToken cancellationToken = default)
+    {
+        if (!CanManage()) return Denied<PagedResult<HostelBedInventoryDto>>();
+        if (page < 1 || pageSize is < 1 or > 100 || (long)(page - 1) * pageSize > int.MaxValue ||
+            campusId is <= 0 || search?.Trim().Length > 100)
+            return ApiResponse<PagedResult<HostelBedInventoryDto>>.ErrorResponse("Invalid bed inventory filter.");
+        var tenant = _currentUser.TenantId;
+        var query = from bed in _beds.GetQueryable().AsNoTracking()
+            join room in _rooms.GetQueryable().AsNoTracking() on bed.HostelRoomId equals room.Id
+            join hostel in _hostels.GetQueryable().AsNoTracking() on room.HostelId equals hostel.Id
+            join campus in _campuses.GetQueryable().AsNoTracking() on hostel.CampusId equals campus.Id
+            where bed.TenantId == tenant && room.TenantId == tenant && hostel.TenantId == tenant &&
+                campus.TenantId == tenant && campus.IsActive &&
+                (!campusId.HasValue || hostel.CampusId == campusId.Value)
+            select new
+            {
+                bed.Id, bed.HostelRoomId, bed.BedNumber, bed.IsActive, bed.RowVersion,
+                room.RoomNumber, HostelName = hostel.Name, hostel.CampusId,
+                IsOccupied = _allocations.GetQueryable().Any(a => a.TenantId == tenant &&
+                    a.HostelBedId == bed.Id && a.State == HostelAllocationState.Active)
+            };
+        if (!_currentUser.IsTenantAdmin)
+        {
+            var allowed = AllowedCampusIds(tenant);
+            query = query.Where(x => allowed.Contains(x.CampusId));
+        }
+        var term = search?.Trim();
+        if (!string.IsNullOrWhiteSpace(term))
+            query = query.Where(x => x.HostelName.Contains(term) ||
+                x.RoomNumber.Contains(term) || x.BedNumber.Contains(term));
+        var total = await query.CountAsync(cancellationToken);
+        var rows = await query.OrderBy(x => x.HostelName).ThenBy(x => x.RoomNumber)
+            .ThenBy(x => x.BedNumber).ThenBy(x => x.Id).Skip((page - 1) * pageSize)
+            .Take(pageSize).ToListAsync(cancellationToken);
+        return ApiResponse<PagedResult<HostelBedInventoryDto>>.SuccessResponse(new PagedResult<HostelBedInventoryDto>
+        {
+            Page = page, PageSize = pageSize, TotalCount = total,
+            Items = rows.Select(x => new HostelBedInventoryDto
+            {
+                Id = x.Id, HostelRoomId = x.HostelRoomId, HostelName = x.HostelName,
+                RoomNumber = x.RoomNumber, BedNumber = x.BedNumber,
+                IsActive = x.IsActive, IsOccupied = x.IsOccupied,
+                RowVersion = Convert.ToBase64String(x.RowVersion)
+            }).ToList()
+        });
+    }
+
+    /// <summary>Controlled bed activation/closure. Occupied beds cannot be closed.</summary>
+    public async Task<ApiResponse<HostelBedInventoryDto>> SetBedStateAsync(long bedId,
+        SetHostelBedStateRequestDto request, CancellationToken cancellationToken = default)
+    {
+        if (!CanManage()) return Denied<HostelBedInventoryDto>();
+        if (bedId <= 0 || request == null || !TryDecodeVersion(request.RowVersion, out var version))
+            return ApiResponse<HostelBedInventoryDto>.ErrorResponse("Bed and row version are required.");
+        var tenant = _currentUser.TenantId;
+        try
+        {
+            return await _unitOfWork.ExecuteInTransactionAsync(async ct =>
+            {
+                var bed = await _beds.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenant && x.Id == bedId, ct);
+                if (bed == null) return ApiResponse<HostelBedInventoryDto>.ErrorResponse("Bed not found.", 404);
+                var room = await _rooms.GetQueryable().AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.TenantId == tenant && x.Id == bed.HostelRoomId, ct);
+                if (room == null) return ApiResponse<HostelBedInventoryDto>.ErrorResponse("Room not found.", 404);
+                var hostel = await _hostels.GetQueryable().AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.TenantId == tenant && x.Id == room.HostelId, ct);
+                if (hostel == null || !await _campuses.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.Id == hostel.CampusId && x.IsActive, ct))
+                    return ApiResponse<HostelBedInventoryDto>.ErrorResponse("Active campus not found.", 404);
+                if (!await CanManageCampusAsync(hostel.CampusId, tenant, ct))
+                    return Denied<HostelBedInventoryDto>();
+                var occupied = await _allocations.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.HostelBedId == bed.Id &&
+                    x.State == HostelAllocationState.Active, ct);
+                HostelBedInventoryDto Result() => new()
+                {
+                    Id = bed.Id, HostelRoomId = bed.HostelRoomId, HostelName = hostel.Name,
+                    RoomNumber = room.RoomNumber, BedNumber = bed.BedNumber,
+                    IsActive = bed.IsActive, IsOccupied = occupied,
+                    RowVersion = Convert.ToBase64String(bed.RowVersion)
+                };
+                // Same desired state is an idempotent replay; never overwrite unrelated fields.
+                if (bed.IsActive == request.IsActive)
+                    return ApiResponse<HostelBedInventoryDto>.SuccessResponse(Result(), "Bed already has the requested state.");
+                if (!bed.RowVersion.AsSpan().SequenceEqual(version))
+                    return ApiResponse<HostelBedInventoryDto>.ErrorResponse("Bed changed. Reload and retry.", 409);
+                if (!request.IsActive && occupied)
+                    return ApiResponse<HostelBedInventoryDto>.ErrorResponse("Close active allocation before deactivating bed.", 409);
+                if (request.IsActive)
+                {
+                    if (!room.IsActive || !hostel.IsActive || room.Capacity < 1)
+                        return ApiResponse<HostelBedInventoryDto>.ErrorResponse("Hostel room is inactive or has no capacity.", 409);
+                    var reserved = await _beds.GetQueryable().AsNoTracking().CountAsync(x =>
+                        x.TenantId == tenant && x.HostelRoomId == room.Id &&
+                        (x.IsActive || _allocations.GetQueryable().Any(a => a.TenantId == tenant &&
+                            a.HostelBedId == x.Id && a.State == HostelAllocationState.Active)), ct);
+                    if (reserved >= room.Capacity)
+                        return ApiResponse<HostelBedInventoryDto>.ErrorResponse("Room bed capacity reached.", 409);
+                }
+                bed.IsActive = request.IsActive;
+                bed.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
+                bed.UpdatedBy = _currentUser.UserId;
+                await _unitOfWork.SaveChangesAsync(ct);
+                return ApiResponse<HostelBedInventoryDto>.SuccessResponse(Result(), "Bed state updated.");
+            }, System.Data.IsolationLevel.Serializable, cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return ApiResponse<HostelBedInventoryDto>.ErrorResponse("Bed changed. Reload and retry.", 409);
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Hostel bed state conflict for tenant {TenantId}", tenant);
+            return ApiResponse<HostelBedInventoryDto>.ErrorResponse("Bed state conflicts with another change.", 409);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Hostel bed state update failed for tenant {TenantId}", tenant);
+            return ApiResponse<HostelBedInventoryDto>.ErrorResponse("Bed state update failed.", 500);
+        }
+    }
+
     public async Task<ApiResponse<IReadOnlyList<HostelRoomDto>>> GetRoomsAsync(CancellationToken cancellationToken = default)
     {
         if (!CanManage()) return Denied<IReadOnlyList<HostelRoomDto>>();
