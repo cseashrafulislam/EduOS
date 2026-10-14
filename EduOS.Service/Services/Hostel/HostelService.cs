@@ -76,6 +76,85 @@ public sealed class HostelService : IHostelService
         return ApiResponse<IReadOnlyList<HostelRoomDto>>.SuccessResponse(rows);
     }
 
+
+    /// <summary>Privacy-minimized, tenant/campus-scoped physical room capacity report.</summary>
+    public async Task<ApiResponse<PagedResult<HostelCapacityRowDto>>> GetCapacityAsync(
+        long? campusId, int page, int pageSize, string? search, CancellationToken cancellationToken = default)
+    {
+        if (!CanManage()) return Denied<PagedResult<HostelCapacityRowDto>>();
+        if (page < 1 || pageSize is < 1 or > 100 || (long)(page - 1) * pageSize > int.MaxValue ||
+            campusId is <= 0 || search?.Trim().Length > 100)
+            return ApiResponse<PagedResult<HostelCapacityRowDto>>.ErrorResponse("Invalid report filter.");
+        var tenant = _currentUser.TenantId;
+        var term = search?.Trim();
+        var query = from room in _rooms.GetQueryable().AsNoTracking()
+                    join hostel in _hostels.GetQueryable().AsNoTracking() on room.HostelId equals hostel.Id
+                    join campus in _campuses.GetQueryable().AsNoTracking() on hostel.CampusId equals campus.Id
+                    where room.TenantId == tenant && hostel.TenantId == tenant && campus.TenantId == tenant &&
+                          campus.IsActive && (!campusId.HasValue || hostel.CampusId == campusId.Value)
+                    select new { RoomId = room.Id, room.RoomNumber, room.Capacity,
+                        RoomActive = room.IsActive, HostelName = hostel.Name,
+                        HostelActive = hostel.IsActive, hostel.CampusId };
+        if (!_currentUser.IsTenantAdmin)
+        {
+            var allowed = AllowedCampusIds(tenant);
+            query = query.Where(x => allowed.Contains(x.CampusId));
+        }
+        if (!string.IsNullOrWhiteSpace(term))
+            query = query.Where(x => x.HostelName.Contains(term) || x.RoomNumber.Contains(term));
+        var total = await query.CountAsync(cancellationToken);
+        var rooms = await query.OrderBy(x => x.HostelName).ThenBy(x => x.RoomNumber).ThenBy(x => x.RoomId)
+            .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
+        var ids = rooms.Select(x => x.RoomId).ToArray();
+        var beds = await _beds.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && ids.Contains(x.HostelRoomId))
+            .GroupBy(x => x.HostelRoomId)
+            .Select(g => new { RoomId = g.Key, Total = g.Count(), Active = g.Count(b => b.IsActive) })
+            .ToDictionaryAsync(x => x.RoomId, cancellationToken);
+        var occupied = await (from allocation in _allocations.GetQueryable().AsNoTracking()
+            join bed in _beds.GetQueryable().AsNoTracking() on allocation.HostelBedId equals bed.Id
+            where allocation.TenantId == tenant && bed.TenantId == tenant &&
+                ids.Contains(bed.HostelRoomId) && allocation.State == HostelAllocationState.Active
+            group allocation.HostelBedId by bed.HostelRoomId into g
+            select new { RoomId = g.Key, Occupied = g.Distinct().Count(), Records = g.Count() })
+            .ToDictionaryAsync(x => x.RoomId, cancellationToken);
+        var inactiveOccupied = await (from allocation in _allocations.GetQueryable().AsNoTracking()
+            join bed in _beds.GetQueryable().AsNoTracking() on allocation.HostelBedId equals bed.Id
+            where allocation.TenantId == tenant && bed.TenantId == tenant && !bed.IsActive &&
+                ids.Contains(bed.HostelRoomId) && allocation.State == HostelAllocationState.Active
+            group allocation.HostelBedId by bed.HostelRoomId into g
+            select new { RoomId = g.Key, Count = g.Distinct().Count() })
+            .ToDictionaryAsync(x => x.RoomId, x => x.Count, cancellationToken);
+        var items = new List<HostelCapacityRowDto>(rooms.Count);
+        foreach (var room in rooms)
+        {
+            beds.TryGetValue(room.RoomId, out var bedInfo);
+            occupied.TryGetValue(room.RoomId, out var occupancy);
+            var activeBeds = bedInfo?.Active ?? 0;
+            var inactiveBeds = (bedInfo?.Total ?? 0) - activeBeds;
+            var occupiedBeds = occupancy?.Occupied ?? 0;
+            var inactiveReserved = inactiveOccupied.GetValueOrDefault(room.RoomId);
+            var activeOccupied = occupiedBeds - inactiveReserved;
+            var usable = room.RoomActive && room.HostelActive
+                ? Math.Min(activeBeds, Math.Max(0, room.Capacity - inactiveReserved)) : 0;
+            items.Add(new HostelCapacityRowDto
+            {
+                RoomId = room.RoomId, HostelName = room.HostelName, RoomNumber = room.RoomNumber,
+                Capacity = room.Capacity, ActiveBeds = activeBeds, InactiveBeds = inactiveBeds,
+                OccupiedBeds = occupiedBeds, AvailableBeds = Math.Max(0, usable - activeOccupied),
+                HostelActive = room.HostelActive, RoomActive = room.RoomActive,
+                HasRisk = occupiedBeds > room.Capacity || inactiveReserved > 0 ||
+                    (occupancy != null && occupancy.Records > occupiedBeds) ||
+                    (occupiedBeds > 0 && (!room.HostelActive || !room.RoomActive)) ||
+                    (room.HostelActive && room.RoomActive && activeBeds > room.Capacity)
+            });
+        }
+        return ApiResponse<PagedResult<HostelCapacityRowDto>>.SuccessResponse(new PagedResult<HostelCapacityRowDto>
+        {
+            Items = items, TotalCount = total, Page = page, PageSize = pageSize
+        });
+    }
+
     public async Task<ApiResponse<PagedResult<HostelStudentOptionDto>>> GetEligibleStudentsAsync(
         int page, int pageSize, string? search, CancellationToken cancellationToken = default)
     {
