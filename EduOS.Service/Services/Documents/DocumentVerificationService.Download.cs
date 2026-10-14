@@ -22,16 +22,16 @@ public sealed partial class DocumentVerificationService
     {
         if (!CanReview) return ApiResponse<DocumentFileDownloadDto>.ErrorResponse("Tenant administrator required.", 403);
         if (reference == Guid.Empty) return ApiResponse<DocumentFileDownloadDto>.ErrorResponse("Invalid reference.", 400);
-        var record = await (from d in db.Documents.AsNoTracking()
+        var record = await (from documentRow in db.Documents.AsNoTracking()
                             join t in db.DocumentTypeDefinitions.AsNoTracking()
-                                on new { d.TenantId, Code = d.DocumentTypeCode } equals new { t.TenantId, t.Code }
-                            join f in db.FileAssets.AsNoTracking()
-                                on new { d.TenantId, Id = d.FileAssetId } equals new { f.TenantId, f.Id }
-                            where d.TenantId == user.TenantId && d.PublicId == reference &&
-                                !d.IsDeleted && !t.IsDeleted && t.IsActive && (t.RequiresVerification || t.IsSensitive) &&
-                                (d.EntityType == null || d.EntityType == "" ||
-                                    (d.EntityType == "Tenant" && d.EntityId == user.TenantId))
-                            select new { Document = d, File = f }).FirstOrDefaultAsync(ct);
+                                on new { documentRow.TenantId, Code = documentRow.DocumentTypeCode } equals new { t.TenantId, t.Code }
+                            join assetRow in db.FileAssets.AsNoTracking()
+                                on new { documentRow.TenantId, Id = documentRow.FileAssetId } equals new { assetRow.TenantId, assetRow.Id }
+                            where documentRow.TenantId == user.TenantId && documentRow.PublicId == reference &&
+                                !documentRow.IsDeleted && !t.IsDeleted && t.IsActive && (t.RequiresVerification || t.IsSensitive) &&
+                                (documentRow.EntityType == null || documentRow.EntityType == "" ||
+                                    (documentRow.EntityType == "Tenant" && documentRow.EntityId == user.TenantId))
+                            select new { Document = documentRow, File = assetRow }).FirstOrDefaultAsync(ct);
         if (record == null) return ApiResponse<DocumentFileDownloadDto>.ErrorResponse("Document not found.", 404);
         var d = record.Document;
         var f = record.File;
