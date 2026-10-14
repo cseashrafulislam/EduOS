@@ -156,6 +156,7 @@ public class SubmitAssignmentRequestDto
     public long CourseEnrollmentId { get; set; }
     [MaxLength(4000)] public string? SubmissionText { get; set; }
     public long? FileAssetId { get; set; }
+    public IReadOnlyList<Guid> FileAssetReferences { get; set; } = Array.Empty<Guid>();
 }
 
 public class GradeAssignmentSubmissionRequestDto

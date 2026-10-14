@@ -22,4 +22,8 @@ public sealed class LearningController : Controller
     [HttpGet]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult AssignmentFiles() => View();
+    [HttpGet]
+    [Authorize(Roles = "Student")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult MySubmissions() => View();
 }

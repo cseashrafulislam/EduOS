@@ -16,7 +16,7 @@ using System.Security.Cryptography;
 
 namespace EduOS.Service.Services.LMS;
 
-public sealed class LmsWorkflowService : ILmsWorkflowService
+public sealed partial class LmsWorkflowService : ILmsWorkflowService
 {
     private readonly IGenericRepository<Course> _courses;
     private readonly IGenericRepository<CourseEnrollment> _enrollments;
@@ -32,6 +32,11 @@ public sealed class LmsWorkflowService : ILmsWorkflowService
     private readonly IGenericRepository<SubjectOffering> _offerings;
     private readonly IGenericRepository<CurriculumSubject> _curriculumSubjects;
     private readonly IGenericRepository<FileAsset> _files;
+    private readonly IGenericRepository<AssignmentSubmissionFile>? _submissionFiles;
+    private readonly IGenericRepository<AcademicYear>? _submissionYears;
+    private readonly IGenericRepository<AcademicTerm>? _submissionTerms;
+    private readonly IGenericRepository<AcademicBatch>? _submissionBatches;
+    private readonly IGenericRepository<AcademicCurriculum>? _submissionCurricula;
     private readonly IUnitOfWork _uow;
     private readonly ICurrentUserService _user;
     private readonly TimeProvider _clock;
@@ -45,13 +50,21 @@ public sealed class LmsWorkflowService : ILmsWorkflowService
         IGenericRepository<AcademicProgram> programs, IGenericRepository<Subject> subjects,
         IGenericRepository<SubjectOffering> offerings, IGenericRepository<CurriculumSubject> curriculumSubjects,
         IGenericRepository<FileAsset> files, IUnitOfWork uow, ICurrentUserService user,
-        TimeProvider clock, ILogger<LmsWorkflowService> logger)
+        TimeProvider clock, ILogger<LmsWorkflowService> logger,
+        IGenericRepository<AssignmentSubmissionFile>? submissionFiles = null,
+        IGenericRepository<AcademicYear>? submissionYears = null,
+        IGenericRepository<AcademicTerm>? submissionTerms = null,
+        IGenericRepository<AcademicBatch>? submissionBatches = null,
+        IGenericRepository<AcademicCurriculum>? submissionCurricula = null)
     {
         _courses = courses; _enrollments = enrollments; _lessons = lessons; _progress = progress;
         _assignments = assignments; _submissions = submissions; _students = students;
         _academicEnrollments = academicEnrollments; _employees = employees; _programs = programs;
         _subjects = subjects; _offerings = offerings; _curriculumSubjects = curriculumSubjects;
         _files = files; _uow = uow; _user = user; _clock = clock; _logger = logger;
+        _submissionFiles = submissionFiles; _submissionYears = submissionYears;
+        _submissionTerms = submissionTerms; _submissionBatches = submissionBatches;
+        _submissionCurricula = submissionCurricula;
     }
 
     public async Task<ApiResponse<CourseDto>> SaveCourseAsync(Guid? courseReference, SaveCourseRequestDto request,
@@ -408,45 +421,62 @@ public sealed class LmsWorkflowService : ILmsWorkflowService
     {
         if (!Authenticated() || !_user.IsInRole("Student"))
             return Error<AssignmentSubmissionDto>("Student permission required.", 403);
+        var references = request?.FileAssetReferences?.ToArray() ?? [];
         if (request == null || request.ClientRequestId == Guid.Empty || request.AssignmentReference == Guid.Empty ||
             request.CourseEnrollmentId <= 0 || request.SubmissionText?.Length > 4000 ||
-            (string.IsNullOrWhiteSpace(request.SubmissionText) && !request.FileAssetId.HasValue))
-            return Error<AssignmentSubmissionDto>("Invalid submission.");
+            references.Length > 10 || references.Any(x => x == Guid.Empty) ||
+            references.Distinct().Count() != references.Length ||
+            (string.IsNullOrWhiteSpace(request.SubmissionText) && !request.FileAssetId.HasValue && references.Length == 0))
+            return Error<AssignmentSubmissionDto>("Invalid submission or file references.");
+        if (references.Length > 0 && _submissionFiles == null)
+            return Error<AssignmentSubmissionDto>("Submission file repository is not configured.", 503);
         var tenant = _user.TenantId;
-        var assignment = await _assignments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-            x.TenantId == tenant && x.PublicId == request.AssignmentReference && x.IsPublished && !x.IsDeleted, ct);
-        if (assignment == null) return Error<AssignmentSubmissionDto>("Assignment not found.", 404);
-        if (!await _courses.GetQueryable().AsNoTracking().AnyAsync(x =>
-            x.TenantId == tenant && x.Id == assignment.CourseId && x.IsActive && !x.IsDeleted, ct))
-            return Error<AssignmentSubmissionDto>("Course is not available.", 409);
-        var enrollment = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-            x.TenantId == tenant && x.Id == request.CourseEnrollmentId && x.CourseId == assignment.CourseId &&
-            x.State == CourseEnrollmentState.Active && !x.IsDeleted, ct);
-        if (enrollment == null) return Error<AssignmentSubmissionDto>("Active course enrollment not found.", 404);
-        var owns = await _students.GetQueryable().AsNoTracking().AnyAsync(x =>
-            x.TenantId == tenant && x.Id == enrollment.StudentId && x.UserId == _user.UserId &&
-            x.StatusCode == "Active" && !x.IsDeleted, ct);
-        if (!owns) return Error<AssignmentSubmissionDto>("Submission belongs to another student.", 403);
-        var now = _clock.GetUtcNow().UtcDateTime;
-        if (assignment.OpensAt.HasValue && assignment.OpensAt > now ||
-            assignment.DueAt.HasValue && assignment.DueAt < now)
-            return Error<AssignmentSubmissionDto>("Assignment submission window is closed.", 409);
-        if (request.FileAssetId.HasValue && !await _files.GetQueryable().AsNoTracking().AnyAsync(x =>
-            x.TenantId == tenant && x.Id == request.FileAssetId.Value &&
-            x.UploadedByUserId == _user.UserId && x.IsVerifiedSafe && !x.IsDeleted, ct))
-            return Error<AssignmentSubmissionDto>("Submission file is unavailable.", 409);
         try
         {
             return await _uow.ExecuteInTransactionAsync(async token =>
             {
+                var assignment = await _assignments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.PublicId == request.AssignmentReference && x.IsPublished && !x.IsDeleted, token);
+                if (assignment == null) return Error<AssignmentSubmissionDto>("Assignment not found.", 404);
+                var course = await _courses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Id == assignment.CourseId && x.IsActive && !x.IsDeleted, token);
+                if (course == null) return Error<AssignmentSubmissionDto>("Course is not available.", 409);
+                var enrollment = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Id == request.CourseEnrollmentId && x.CourseId == course.Id &&
+                    x.State == CourseEnrollmentState.Active && !x.IsDeleted, token);
+                if (enrollment == null) return Error<AssignmentSubmissionDto>("Active course enrollment not found.", 404);
+                var owns = await _students.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.Id == enrollment.StudentId && x.UserId == _user.UserId &&
+                    x.StatusCode == "Active" && !x.IsDeleted, token);
+                if (!owns) return Error<AssignmentSubmissionDto>("Submission belongs to another student.", 403);
+                var now = _clock.GetUtcNow().UtcDateTime;
+                if (assignment.OpensAt > now || assignment.DueAt < now)
+                    return Error<AssignmentSubmissionDto>("Assignment submission window is closed.", 409);
+                if (!await SubmissionAcademicEligibleAsync(course, enrollment, now, token))
+                    return Error<AssignmentSubmissionDto>("Academic enrollment, campus, term or curriculum is ineligible.", 409);
+                if (request.FileAssetId.HasValue && !await _files.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.Id == request.FileAssetId.Value &&
+                    x.UploadedByUserId == _user.UserId && x.IsVerifiedSafe && !x.IsDeleted, token))
+                    return Error<AssignmentSubmissionDto>("Primary submission file is unavailable.", 409);
+                var fileRows = references.Length == 0 ? new List<FileAsset>() :
+                    await _files.GetQueryable().AsNoTracking().Where(x =>
+                        x.TenantId == tenant && references.Contains(x.PublicId) &&
+                        x.UploadedByUserId == _user.UserId && x.IsVerifiedSafe && !x.IsDeleted).ToListAsync(token);
+                if (fileRows.Count != references.Length || fileRows.Any(x => x.Id == request.FileAssetId))
+                    return Error<AssignmentSubmissionDto>("One or more submission files are unavailable or duplicated.", 409);
+                var requestedIds = fileRows.Select(x => x.Id).OrderBy(x => x).ToArray();
                 var existing = await _submissions.GetQueryable().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.AssignmentId == assignment.Id &&
                     x.CourseEnrollmentId == enrollment.Id && !x.IsDeleted, token);
                 if (existing != null)
                 {
+                    var existingIds = _submissionFiles == null ? Array.Empty<long>() :
+                        await _submissionFiles.GetQueryable().AsNoTracking().Where(x =>
+                            x.TenantId == tenant && x.AssignmentSubmissionId == existing.Id && !x.IsDeleted)
+                            .OrderBy(x => x.FileAssetId).Select(x => x.FileAssetId).ToArrayAsync(token);
                     if (existing.State == LearningSubmissionState.Submitted &&
                         existing.SubmissionText == Trim(request.SubmissionText) &&
-                        existing.FileAssetId == request.FileAssetId)
+                        existing.FileAssetId == request.FileAssetId && existingIds.SequenceEqual(requestedIds))
                         return ApiResponse<AssignmentSubmissionDto>.SuccessResponse(
                             MapSubmission(existing, assignment.PublicId), "Submission already received.");
                     return Error<AssignmentSubmissionDto>("Assignment was already submitted.", 409);
@@ -460,10 +490,18 @@ public sealed class LmsWorkflowService : ILmsWorkflowService
                 };
                 await _submissions.AddAsync(row);
                 await _uow.SaveChangesAsync(token);
+                foreach (var file in fileRows)
+                    await _submissionFiles!.AddAsync(new AssignmentSubmissionFile
+                    {
+                        TenantId = tenant, AssignmentSubmissionId = row.Id, FileAssetId = file.Id,
+                        CreatedAt = now, CreatedBy = _user.UserId
+                    });
+                if (fileRows.Count > 0) await _uow.SaveChangesAsync(token);
                 return ApiResponse<AssignmentSubmissionDto>.SuccessResponse(MapSubmission(row, assignment.PublicId),
                     "Assignment submitted.");
-            }, ct);
+            }, System.Data.IsolationLevel.Serializable, ct);
         }
+        catch (DbUpdateConcurrencyException) { return Error<AssignmentSubmissionDto>("Submission changed concurrently.", 409); }
         catch (DbUpdateException ex)
         {
             _logger.LogWarning(ex, "LMS submission conflict tenant {TenantId}", tenant);
