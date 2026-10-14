@@ -12,7 +12,7 @@ namespace EduOS.App.Controllers.Api;
 [AutoValidateAntiforgeryToken]
 [EnableRateLimiting("ApiPolicy")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-public sealed class CommunicationWorkspaceApiController(ICommunicationService service) : ControllerBase
+public sealed class CommunicationWorkspaceApiController(ICommunicationService service, IMessageWorkspaceService messages) : ControllerBase
 {
     [HttpGet("notices")]
     public async Task<IActionResult> Notices([FromQuery] int page = 1, [FromQuery] int pageSize = 20,
@@ -44,6 +44,22 @@ public sealed class CommunicationWorkspaceApiController(ICommunicationService se
     [HttpPost("messages/{clientRequestId:guid}")]
     public async Task<IActionResult> SendMessage(Guid clientRequestId, [FromBody] SendMessageRequestDto request, CancellationToken ct)
     { var r = await service.SendMessageAsync(clientRequestId, request, ct); return StatusCode(r.StatusCode, r); }
+
+    [HttpGet("threads")]
+    public async Task<IActionResult> MyThreads([FromQuery] int page = 1, [FromQuery] int pageSize = 15, CancellationToken ct = default)
+    { var r = await messages.GetMyThreadsAsync(page, pageSize, ct); return StatusCode(r.StatusCode, r); }
+
+    [HttpGet("message-recipients")]
+    public async Task<IActionResult> MessageRecipients([FromQuery] string query = "", CancellationToken ct = default)
+    { var r = await messages.SearchRecipientsAsync(query, ct); return StatusCode(r.StatusCode, r); }
+
+    [HttpGet("message-thread-for/{id:long}")]
+    public async Task<IActionResult> MessageThreadFor(long id, CancellationToken ct)
+    { var r = await messages.GetThreadForMessageAsync(id, ct); return StatusCode(r.StatusCode, r); }
+
+    [HttpPost("threads/{reference:guid}/read")]
+    public async Task<IActionResult> MarkThreadRead(Guid reference, CancellationToken ct)
+    { var r = await messages.MarkThreadReadAsync(reference, ct); return StatusCode(r.StatusCode, r); }
 
     [HttpGet("threads/{reference:guid}")]
     public async Task<IActionResult> Thread(Guid reference, CancellationToken ct)

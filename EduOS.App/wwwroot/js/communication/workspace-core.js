@@ -25,7 +25,7 @@ export async function api(path, method = 'GET', body) {
     const response = await fetch(path, { method, credentials: 'same-origin', cache: 'no-store', headers,
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
     const result = await response.json().catch(() => null);
-    if (!response.ok || !result?.success) throw new Error(result?.message || 'Communication request failed.');
+    if (!response.ok || !result?.success) { const error = new Error(result?.message || 'Communication request failed.'); error.status = response.status; throw error; }
     return result.data;
 }
 export function action(text, click, disabled = false) {

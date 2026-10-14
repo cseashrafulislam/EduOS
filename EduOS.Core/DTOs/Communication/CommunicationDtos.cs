@@ -73,6 +73,20 @@ public class SaveNotificationPreferenceRequestDto
     public string? RowVersion { get; set; }
 }
 
+public sealed class MessageThreadSummaryDto
+{
+    public Guid Reference { get; set; }
+    public string? Subject { get; set; }
+    public DateTime LastMessageAt { get; set; }
+    public long PeerUserId { get; set; }
+    public string PeerName { get; set; } = string.Empty;
+    public int UnreadCount { get; set; }
+}
+public sealed class MessageRecipientDto
+{
+    public long UserId { get; set; }
+    public string Name { get; set; } = string.Empty;
+}
 public class MessageThreadDto
 {
     public long Id { get; set; }
