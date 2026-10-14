@@ -33,6 +33,7 @@ public sealed class LmsCourseContentService : ILmsCourseContentService
     private readonly IGenericRepository<AcademicCurriculum> _curricula;
     private readonly IGenericRepository<AcademicBatch> _batches;
     private readonly IGenericRepository<AcademicYear> _years;
+    private readonly IGenericRepository<AcademicTerm> _terms;
     private readonly IGenericRepository<InstructorAssignment> _instructors;
     private readonly IGenericRepository<EmployeeCampusAssignment> _campuses;
     private readonly IUnitOfWork _uow;
@@ -47,7 +48,7 @@ public sealed class LmsCourseContentService : ILmsCourseContentService
         IGenericRepository<CourseEnrollment> enrollments, IGenericRepository<StudentEnrollment> academicEnrollments,
         IGenericRepository<SubjectOffering> offerings, IGenericRepository<CurriculumSubject> subjects,
         IGenericRepository<AcademicCurriculum> curricula, IGenericRepository<AcademicBatch> batches,
-        IGenericRepository<AcademicYear> years, IGenericRepository<InstructorAssignment> instructors,
+        IGenericRepository<AcademicYear> years, IGenericRepository<AcademicTerm> terms, IGenericRepository<InstructorAssignment> instructors,
         IGenericRepository<EmployeeCampusAssignment> campuses, IUnitOfWork uow,
         ICurrentUserService user, TimeProvider clock, ILogger<LmsCourseContentService> logger)
     {
@@ -55,7 +56,7 @@ public sealed class LmsCourseContentService : ILmsCourseContentService
         _employees = employees; _students = students; _enrollments = enrollments;
         _academicEnrollments = academicEnrollments; _offerings = offerings; _subjects = subjects;
         _curricula = curricula; _batches = batches; _years = years; _instructors = instructors;
-        _campuses = campuses; _uow = uow; _user = user; _clock = clock; _logger = logger;
+        _campuses = campuses; _terms = terms; _uow = uow; _user = user; _clock = clock; _logger = logger;
     }
 
     private long Tenant => _user.TenantId;
@@ -104,7 +105,12 @@ public sealed class LmsCourseContentService : ILmsCourseContentService
                 curriculum.AcademicProgramId == course.AcademicProgramId &&
                 batch.AcademicProgramId == course.AcademicProgramId && subject.SubjectId == course.SubjectId &&
                 subject.AcademicLevelId == batch.AcademicLevelId &&
-                batch.AcademicYearId == year.Id &&
+                batch.AcademicYearId == year.Id && offering.AcademicYearId == year.Id &&
+                (!batch.AcademicTermId.HasValue || batch.AcademicTermId == offering.AcademicTermId) &&
+                (!offering.AcademicTermId.HasValue || _terms.GetQueryable().Any(term =>
+                    term.TenantId == Tenant && term.Id == offering.AcademicTermId &&
+                    term.AcademicYearId == year.Id && term.IsActive && !term.IsDeleted &&
+                    term.StartDate <= today && term.EndDate >= today)) &&
                 (!batchId.HasValue || batch.Id == batchId.Value) &&
                 year.StartDate <= today && year.EndDate >= today &&
                 (!year.CampusId.HasValue || year.CampusId == batch.CampusId) &&
@@ -240,6 +246,8 @@ public sealed class LmsCourseContentService : ILmsCourseContentService
         {
             return await _uow.ExecuteInTransactionAsync(async token =>
             {
+                if (request.IsPublished && (!course.IsActive || !await HasOfferingAsync(course, null, null, token)))
+                    return Fail<CourseSectionDto>("Active academic offering required before publication.", 409);
                 var row = sectionId.HasValue ? await _sections.GetQueryable().FirstOrDefaultAsync(x =>
                     x.TenantId == Tenant && x.Id == sectionId && x.CourseId == course.Id && !x.IsDeleted, token) : null;
                 if (sectionId.HasValue && row == null) return Fail<CourseSectionDto>("Section not found.", 404);
@@ -337,6 +345,13 @@ public sealed class LmsCourseContentService : ILmsCourseContentService
         {
             return await _uow.ExecuteInTransactionAsync(async token =>
             {
+                if (request.FileAssetReference.HasValue)
+                {
+                    file = await _files.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                        x.TenantId == Tenant && x.PublicId == request.FileAssetReference.Value &&
+                        x.IsVerifiedSafe && !x.IsDeleted, token);
+                    if (file == null) return Fail<LessonResourceDto>("Verified safe file not found.", 409);
+                }
                 var row = resourceId.HasValue ? await _resources.GetQueryable().FirstOrDefaultAsync(x =>
                     x.TenantId == Tenant && x.Id == resourceId && x.LessonId == lesson.Id && !x.IsDeleted, token) : null;
                 if (resourceId.HasValue && row == null) return Fail<LessonResourceDto>("Resource not found.", 404);

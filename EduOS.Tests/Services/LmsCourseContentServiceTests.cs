@@ -117,6 +117,39 @@ public sealed class LmsCourseContentServiceTests
         Assert.Equal(409, response.StatusCode);
     }
 
+    [Fact]
+    public async Task Published_academic_section_rejects_inactive_term()
+    {
+        await using var db = Db();
+        var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow,
+            TimeZoneInfo.FindSystemTimeZoneById("Asia/Dhaka")));
+        var course = new Course { TenantId = 101, Code = "TERM", Title = "Term course",
+            AcademicProgramId = 10, SubjectId = 20 };
+        var year = new AcademicYear { TenantId = 101, Name = "Year", Code = "YR",
+            StartDate = today.AddDays(-30), EndDate = today.AddDays(30) };
+        var curriculum = new AcademicCurriculum { TenantId = 101, AcademicProgramId = 10,
+            Code = "CUR", Name = "Curriculum", EffectiveFrom = today.AddDays(-30) };
+        db.AddRange(course, year, curriculum); await db.SaveChangesAsync();
+        var term = new AcademicTerm { TenantId = 101, AcademicYearId = year.Id, Name = "Term",
+            StartDate = today.AddDays(-10), EndDate = today.AddDays(10), IsActive = false };
+        var subject = new CurriculumSubject { TenantId = 101, AcademicCurriculumId = curriculum.Id,
+            AcademicLevelId = 30, SubjectId = 20 };
+        db.AddRange(term, subject); await db.SaveChangesAsync();
+        var batch = new AcademicBatch { TenantId = 101, CampusId = 40, AcademicYearId = year.Id,
+            AcademicTermId = term.Id, AcademicProgramId = 10, AcademicLevelId = 30,
+            Code = "B1", Name = "Batch" };
+        db.Add(batch); await db.SaveChangesAsync();
+        db.Add(new SubjectOffering { TenantId = 101, AcademicBatchId = batch.Id,
+            CurriculumSubjectId = subject.Id, AcademicYearId = year.Id,
+            AcademicTermId = term.Id, Code = "O1" }); await db.SaveChangesAsync();
+        var service = Service(db, "TenantAdmin");
+        var request = new SaveCourseSectionRequestDto { CourseReference = course.PublicId,
+            Title = "Published", DisplayOrder = 1, IsPublished = true };
+        Assert.Equal(409, (await service.SaveSectionAsync(null, request)).StatusCode);
+        term.IsActive = true; await db.SaveChangesAsync();
+        Assert.True((await service.SaveSectionAsync(null, request)).Success);
+    }
+
     private static EduOSDbContext Db()
     {
         var options = new DbContextOptionsBuilder<EduOSDbContext>()
@@ -133,7 +166,7 @@ public sealed class LmsCourseContentServiceTests
         new GenericRepository<StudentEnrollment>(db), new GenericRepository<SubjectOffering>(db),
         new GenericRepository<CurriculumSubject>(db), new GenericRepository<AcademicCurriculum>(db),
         new GenericRepository<AcademicBatch>(db), new GenericRepository<AcademicYear>(db),
-        new GenericRepository<InstructorAssignment>(db), new GenericRepository<EmployeeCampusAssignment>(db),
+        new GenericRepository<AcademicTerm>(db), new GenericRepository<InstructorAssignment>(db), new GenericRepository<EmployeeCampusAssignment>(db),
         db, new TestUser(role), TimeProvider.System, NullLogger<LmsCourseContentService>.Instance);
 
     private sealed class TestUser(string role) : ICurrentUserService
