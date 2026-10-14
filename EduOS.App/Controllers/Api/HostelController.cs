@@ -58,6 +58,11 @@ public sealed class HostelController : ControllerBase
     public async Task<IActionResult> SetRoomState(long id, [FromBody] SetHostelRoomStateRequestDto request, CancellationToken ct) =>
         ToAction(await _service.SetRoomStateAsync(id, request, ct));
 
+    [HttpPost("beds")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    public async Task<IActionResult> CreateBed([FromBody] CreateHostelBedRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.CreateBedAsync(request, ct));
+
     [HttpGet("bed-inventory")]
     [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]

@@ -107,6 +107,27 @@
     }
     @if (canManage)
     {
+        <section id="hostelBedCreatePanel" class="card mb-3"><div class="card-body">
+            <h3 class="h5">Create hostel bed</h3>
+            <p class="small text-muted">Choose an active campus-authorized room. Physical bed count cannot exceed room capacity; existing beds are never duplicated.</p>
+            <form id="hostelBedCreateSearchForm" class="row g-2 mb-2">
+                <div class="col-md-8"><label for="hostelBedCreateSearch" class="form-label">Find room</label>
+                    <input id="hostelBedCreateSearch" class="form-control" maxlength="100" placeholder="Hostel or room" /></div>
+                <div class="col-md-4 d-flex align-items-end gap-2"><button class="btn btn-outline-secondary" type="submit">Search</button>
+                    <button id="hostelBedCreateMore" class="btn btn-outline-secondary" type="button">More</button></div>
+            </form>
+            <form id="hostelBedCreateForm" class="row g-2 mb-2">
+                <div class="col-md-7"><label for="hostelBedCreateRoom" class="form-label">Room</label>
+                    <select id="hostelBedCreateRoom" class="form-select" required><option value="">Find an active room</option></select></div>
+                <div class="col-md-3"><label for="hostelBedNewNumber" class="form-label">Bed number</label>
+                    <input id="hostelBedNewNumber" class="form-control" maxlength="50" required /></div>
+                <div class="col-md-2 d-flex align-items-end"><button id="hostelBedCreateButton" class="btn btn-primary" type="submit">Create bed</button></div>
+            </form>
+            <div id="hostelBedCreateStatus" class="small text-muted" role="status" aria-live="polite"></div>
+        </div></section>
+    }
+    @if (canManage)
+    {
         <section id="hostelBedInventoryPanel" class="card mb-3"><div class="card-body">
             <h3 class="h5">Bed inventory and controlled closure</h3>
             <p class="small text-muted">Only unoccupied beds can be deactivated. Campus access and room capacity are enforced server-side.</p>
@@ -160,6 +181,7 @@
     <script src="~/js/hostel-operations/index.js" asp-append-version="true"></script>
     @if (canManage) {
         <script src="~/js/hostel-operations/capacity.js" asp-append-version="true"></script>
+        <script src="~/js/hostel-operations/bed-create.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/bed-inventory.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/room-inventory.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/room-create.js" asp-append-version="true"></script>
