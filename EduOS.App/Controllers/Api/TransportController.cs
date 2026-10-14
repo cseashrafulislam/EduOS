@@ -83,5 +83,24 @@ public sealed class TransportController : ControllerBase
     public async Task<IActionResult> UpdateVehicleSetup(Guid reference, [FromBody] UpdateTransportVehicleRequestDto request, CancellationToken ct) =>
         ToAction(await _service.UpdateVehicleSetupAsync(reference, request, ct));
 
+    [HttpGet("route-vehicle-links")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    public async Task<IActionResult> RouteVehicleLinks([FromQuery] long? campusId = null,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 15, [FromQuery] string? search = null,
+        CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetRouteVehicleLinksAsync(campusId, page, pageSize, search, cancellationToken));
+
+    [HttpPost("route-vehicle-links")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    public async Task<IActionResult> AssignRouteVehicle(
+        [FromBody] CreateTransportRouteVehicleLinkRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.AssignRouteVehicleAsync(request, ct));
+
+    [HttpPost("route-vehicle-links/{id:long}/close")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    public async Task<IActionResult> CloseRouteVehicle(long id,
+        [FromBody] CloseTransportAssignmentRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.CloseRouteVehicleAssignmentAsync(id, request, ct));
+
     private IActionResult ToAction<T>(EduOS.Core.Common.ApiResponse<T> response) => StatusCode(response.StatusCode, response);
 }

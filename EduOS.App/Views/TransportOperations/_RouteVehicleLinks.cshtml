@@ -1,0 +1,31 @@
+<section class="card mb-3" id="transportRouteVehiclePanel"><div class="card-body">
+    <h3 class="h5">Route–vehicle assignments</h3>
+    <p class="text-muted small">Link an available vehicle to a route for a date range. One vehicle cannot serve overlapping routes; riders must be closed before shortening a link.</p>
+    <div id="transportRouteVehicleAlert" class="d-none" role="alert" tabindex="-1"></div>
+    <form id="transportRouteVehicleForm" class="row g-2 mb-3">
+        @Html.AntiForgeryToken()
+        <div class="col-md-3"><label for="transportLinkCampus" class="form-label">Campus</label><select id="transportLinkCampus" class="form-select" required></select></div>
+        <div class="col-md-3"><label for="transportLinkRouteSearch" class="form-label">Find route</label><div class="input-group"><input id="transportLinkRouteSearch" class="form-control" maxlength="100" placeholder="Name or code" /><button id="transportLinkFindRoutes" class="btn btn-outline-secondary" type="button">Find</button></div></div>
+        <div class="col-md-3"><label for="transportLinkVehicleSearch" class="form-label">Find vehicle</label><div class="input-group"><input id="transportLinkVehicleSearch" class="form-control" maxlength="100" placeholder="Number or type" /><button id="transportLinkFindVehicles" class="btn btn-outline-secondary" type="button">Find</button></div></div>
+        <div class="col-md-3"><label for="transportLinkRoute" class="form-label">Route</label><select id="transportLinkRoute" class="form-select" required></select></div>
+        <div class="col-md-4"><label for="transportLinkVehicle" class="form-label">Vehicle</label><select id="transportLinkVehicle" class="form-select" required></select></div>
+        <div class="col-md-3"><label for="transportLinkFrom" class="form-label">Effective from</label><input id="transportLinkFrom" type="date" class="form-control" required /></div>
+        <div class="col-md-3"><label for="transportLinkTo" class="form-label">Effective to (optional)</label><input id="transportLinkTo" type="date" class="form-control" /></div>
+        <div class="col-md-2 d-flex align-items-end"><button id="transportLinkCreate" class="btn btn-primary w-100" type="submit">Assign</button></div>
+    </form>
+    <h4 class="h6">Assignment history</h4>
+    <form id="transportLinkSearchForm" class="row g-2 mb-2">
+        <div class="col-md-4"><label for="transportLinkFilterCampus" class="visually-hidden">Campus filter</label><select id="transportLinkFilterCampus" class="form-select"></select></div>
+        <div class="col-md-6"><label for="transportLinkSearch" class="visually-hidden">Search assignments</label><input id="transportLinkSearch" class="form-control" maxlength="100" placeholder="Route, vehicle or campus" /></div>
+        <div class="col-md-2"><button type="submit" class="btn btn-outline-primary w-100">Search</button></div>
+    </form>
+    <div class="table-responsive"><table class="table table-sm table-hover align-middle">
+        <thead><tr><th>Campus</th><th>Route</th><th>Vehicle</th><th>Capacity</th><th>Riders</th><th>From</th><th>To</th><th>Status</th><th>Action</th></tr></thead>
+        <tbody id="transportLinkRows"><tr><td colspan="9">Loading…</td></tr></tbody>
+    </table></div>
+    <div class="d-flex justify-content-between align-items-center">
+        <button id="transportLinkPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+        <span id="transportLinkPageInfo" class="small text-muted"></span>
+        <button id="transportLinkNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+    </div>
+</div></section>
