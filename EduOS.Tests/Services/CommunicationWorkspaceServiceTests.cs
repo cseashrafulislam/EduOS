@@ -1,4 +1,5 @@
 using EduOS.App.Controllers.Api;
+using EduOS.Core.DTOs.Communication;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Communication;
 using EduOS.Core.Enums.Domain;
@@ -62,6 +63,38 @@ public sealed class CommunicationWorkspaceServiceTests
         var save = type.GetMethod(nameof(CommunicationWorkspaceApiController.CreateNotice))!;
         save.GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), false)
             .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>().Single().Roles.Should().Be("TenantAdmin");
+    }
+
+
+    [Fact]
+    public async Task Preferences_are_scoped_to_current_tenant_and_user()
+    {
+        await using var db = Database();
+        db.NotificationPreferences.AddRange(
+            new NotificationPreference { TenantId = 101, UserId = 10, Channel = NotificationChannelType.Email, EventCode = "EXAM.RESULT", IsEnabled = false },
+            new NotificationPreference { TenantId = 101, UserId = 11, Channel = NotificationChannelType.Email, EventCode = "OTHER.USER", IsEnabled = true },
+            new NotificationPreference { TenantId = 202, UserId = 10, Channel = NotificationChannelType.Push, EventCode = "OTHER.TENANT", IsEnabled = true });
+        await db.SaveChangesAsync();
+        var result = await Service(db, false).GetMyPreferencesAsync();
+        result.Success.Should().BeTrue(result.Message);
+        result.Data!.Select(x => x.EventCode).Should().Equal("EXAM.RESULT");
+    }
+
+    [Fact]
+    public async Task Preference_write_rejects_invalid_event_and_stale_version()
+    {
+        await using var db = Database();
+        var service = Service(db, false);
+        var invalid = await service.SaveMyPreferenceAsync(new SaveNotificationPreferenceRequestDto
+            { Channel = NotificationChannelType.Email, EventCode = "bad code", IsEnabled = true });
+        invalid.Success.Should().BeFalse();
+        var created = await service.SaveMyPreferenceAsync(new SaveNotificationPreferenceRequestDto
+            { Channel = NotificationChannelType.Email, EventCode = "exam.result", IsEnabled = true });
+        created.Success.Should().BeTrue(created.Message);
+        created.Data!.EventCode.Should().Be("EXAM.RESULT");
+        var stale = await service.SaveMyPreferenceAsync(new SaveNotificationPreferenceRequestDto
+            { Channel = NotificationChannelType.Email, EventCode = "EXAM.RESULT", IsEnabled = false, RowVersion = "invalid" });
+        stale.StatusCode.Should().Be(409);
     }
 
     private static EduOSDbContext Database()

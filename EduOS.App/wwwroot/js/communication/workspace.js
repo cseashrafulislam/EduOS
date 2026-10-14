@@ -3,6 +3,7 @@ import { loadNotices } from './workspace-notice-list.js?v=1';
 import { edit, initNoticeEditor } from './workspace-notice-editor.js?v=1';
 import { loadNotifications } from './workspace-inbox.js?v=1';
 import { initMessaging } from './workspace-messages.js?v=1';
+import { initPreferences } from './workspace-preferences.js?v=1';
 if (root) {
     if (admin) initNoticeEditor();
     for (const [kind, loader] of [['Notice', () => loadNotices(edit)], ['Notification', loadNotifications]]) {
@@ -17,4 +18,5 @@ if (root) {
     loadNotices(edit).catch(error => alert(error.message));
     loadNotifications().catch(error => alert(error.message));
     initMessaging();
+    initPreferences();
 }
