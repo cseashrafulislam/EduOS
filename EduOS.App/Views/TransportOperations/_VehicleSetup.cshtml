@@ -1,0 +1,27 @@
+<section class="card mb-3" id="transportVehicleSetupPanel"><div class="card-body">
+    <h3 class="h5">Vehicle inventory and capacity control</h3>
+    <p class="text-muted small">Create campus vehicles and update capacity or activation. Close rider and route assignments before deactivation.</p>
+    <div id="transportVehicleSetupAlert" class="d-none" role="alert" tabindex="-1"></div>
+    <form id="transportVehicleSetupForm" class="row g-2 mb-3">
+        @Html.AntiForgeryToken()
+        <div class="col-md-3"><label for="transportVehicleSetupCampus" class="form-label">Campus</label><select id="transportVehicleSetupCampus" class="form-select" required></select></div>
+        <div class="col-md-3"><label for="transportVehicleSetupNumber" class="form-label">Vehicle number</label><input id="transportVehicleSetupNumber" class="form-control" maxlength="50" required /></div>
+        <div class="col-md-3"><label for="transportVehicleSetupType" class="form-label">Type</label><input id="transportVehicleSetupType" class="form-control" maxlength="100" /></div>
+        <div class="col-md-2"><label for="transportVehicleSetupCapacity" class="form-label">Capacity</label><input id="transportVehicleSetupCapacity" type="number" min="1" max="1000" class="form-control" required /></div>
+        <div class="col-md-1 d-flex align-items-end"><button id="transportVehicleSetupCreate" class="btn btn-primary" type="submit">Add</button></div>
+    </form>
+    <form id="transportVehicleSetupSearchForm" class="row g-2 mb-2">
+        <div class="col-md-4"><label for="transportVehicleSetupFilterCampus" class="visually-hidden">Campus filter</label><select id="transportVehicleSetupFilterCampus" class="form-select"></select></div>
+        <div class="col-md-6"><label for="transportVehicleSetupSearch" class="visually-hidden">Search vehicles</label><input id="transportVehicleSetupSearch" class="form-control" maxlength="100" placeholder="Search number, type or campus" /></div>
+        <div class="col-md-2"><button type="submit" class="btn btn-outline-primary">Search</button></div>
+    </form>
+    <div class="table-responsive"><table class="table table-sm table-hover align-middle">
+        <thead><tr><th>Campus</th><th>Number</th><th>Type</th><th>Capacity</th><th>Riders</th><th>Route links</th><th>Status</th><th>Action</th></tr></thead>
+        <tbody id="transportVehicleSetupRows"><tr><td colspan="8">Loading…</td></tr></tbody>
+    </table></div>
+    <div class="d-flex justify-content-between align-items-center">
+        <button id="transportVehicleSetupPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+        <span id="transportVehicleSetupPageInfo" class="small text-muted"></span>
+        <button id="transportVehicleSetupNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+    </div>
+</div></section>

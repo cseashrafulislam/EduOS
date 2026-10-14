@@ -5,6 +5,9 @@ namespace EduOS.Core.Interfaces.IServices;
 
 public interface ITransportService
 {
+    Task<ApiResponse<PagedResult<TransportVehicleSetupRowDto>>> GetVehicleSetupPageAsync(long? campusId, int page, int pageSize, string? search, CancellationToken cancellationToken = default);
+    Task<ApiResponse<TransportVehicleSetupRowDto>> CreateVehicleSetupAsync(CreateTransportVehicleRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<TransportVehicleSetupRowDto>> UpdateVehicleSetupAsync(Guid reference, UpdateTransportVehicleRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<TransportCampusOptionDto>>> GetRouteSetupCampusesAsync(CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<TransportRouteSetupRowDto>>> GetRouteSetupPageAsync(long? campusId, int page, int pageSize, string? search, CancellationToken cancellationToken = default);
     Task<ApiResponse<TransportRouteSetupRowDto>> CreateRouteWithStopsAsync(CreateTransportRouteRequestDto request, CancellationToken cancellationToken = default);

@@ -131,6 +131,7 @@
         el('transportPrev').addEventListener('click', () => { activePage = Math.max(1, activePage - 1); loadActive(); });
         el('transportNext').addEventListener('click', () => { activePage = Math.min(activePages, activePage + 1); loadActive(); });
         window.addEventListener('transport:routes-changed', loadStatic);
+        window.addEventListener('transport:vehicles-changed', loadStatic);
         loadStudents(); loadActive();
     }
 })();
