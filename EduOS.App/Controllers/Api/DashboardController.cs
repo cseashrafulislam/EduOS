@@ -22,6 +22,15 @@ namespace EduOS.App.Controllers.Api
         /// Returns institution stats, subscription info, onboarding status,
         /// and smart alerts for the dashboard page.
         /// </summary>
+        [HttpGet("platform")]
+        [Authorize(Roles = "SuperAdmin")]
+        public async Task<IActionResult> GetPlatform(CancellationToken cancellationToken)
+        {
+            var result = await _dashboardService.GetPlatformDashboardAsync(cancellationToken);
+            Response.Headers.CacheControl = "no-store, private";
+            return StatusCode(result.StatusCode, result);
+        }
+
         [HttpGet]
         public async Task<IActionResult> Get()
         {

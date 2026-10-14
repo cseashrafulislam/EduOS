@@ -64,3 +64,37 @@ namespace EduOS.Core.DTOs.Dashboard
         public int? LimitValue { get; set; }
     }
 }
+
+namespace EduOS.Core.DTOs.Dashboard
+{
+    /// <summary>Read-only, platform-wide operational summary; never includes tenant-private records.</summary>
+    public sealed class PlatformDashboardVm
+    {
+        public DateTime GeneratedAtUtc { get; set; }
+        public int TotalTenants { get; set; }
+        public int ActiveTenants { get; set; }
+        public int PendingVerificationTenants { get; set; }
+        public int IncompleteOnboardingTenants { get; set; }
+        public int NewTenantsLast30Days { get; set; }
+        public int SubscriptionsExpiringNext7Days { get; set; }
+        public int OverdueActiveSubscriptions { get; set; }
+        public int? PendingManualPayments { get; set; }
+        public List<PlatformTenantSummaryVm> RecentTenants { get; set; } = new();
+        public List<PlatformSubscriptionExpiryVm> UpcomingExpirations { get; set; } = new();
+    }
+    public sealed class PlatformTenantSummaryVm
+    {
+        public long Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string State { get; set; } = string.Empty;
+        public string OnboardingStage { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
+    }
+    public sealed class PlatformSubscriptionExpiryVm
+    {
+        public long SubscriptionId { get; set; }
+        public string TenantName { get; set; } = string.Empty;
+        public string SubscriptionState { get; set; } = string.Empty;
+        public DateTime EndsAtUtc { get; set; }
+    }
+}

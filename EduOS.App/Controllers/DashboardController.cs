@@ -28,8 +28,12 @@ public class DashboardController : Controller
     }
     [HttpGet]
     [Authorize(Roles = "SuperAdmin")]
-    public IActionResult Admin()
+    public async Task<IActionResult> Admin(CancellationToken cancellationToken)
     {
-        return View();
+        var result = await _dashboardService.GetPlatformDashboardAsync(cancellationToken);
+        if (!result.Success || result.Data == null)
+            return StatusCode(result.StatusCode is >= 400 and <= 599 ? result.StatusCode : 503);
+        Response.Headers.CacheControl = "no-store, private";
+        return View(result.Data);
     }
 }

@@ -1,72 +1,85 @@
+@model EduOS.Core.DTOs.Dashboard.PlatformDashboardVm
 @{
-    ViewData["Title"] = "AdminDashboard";
+    ViewData["Title"] = "Platform Operations";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
-
-<div class="dashboard-page platform-dashboard">
+<div class="dashboard-page platform-dashboard" id="platformDashboard">
     <section class="dashboard-hero platform-dashboard-hero" aria-labelledby="platformTitle">
         <div class="dashboard-hero-copy">
-            <p class="dashboard-eyebrow">@T["SuperAdminWorkspace"]</p>
-            <h2 id="platformTitle">@T["PlatformControlCenter"]</h2>
-            <p>@T["PlatformControlCenterHelp"]</p>
+            <p class="dashboard-eyebrow">SuperAdmin workspace</p>
+            <h2 id="platformTitle">Platform Operations</h2>
+            <p>Live tenant onboarding, subscription risk and payment review overview. Platform-wide data is restricted to SuperAdmin.</p>
             <div class="dashboard-badges">
-                <span class="status-chip status-chip-neutral">@T["RestrictedAccess"]</span>
-                <span class="status-chip status-chip-success">@T["AuthenticatedSession"]</span>
+                <span class="status-chip status-chip-neutral">Restricted access</span>
+                <span class="status-chip status-chip-success">Read-only metrics</span>
             </div>
         </div>
         <div class="dashboard-progress-card platform-safety-card">
-            <span class="dashboard-stat-icon dashboard-stat-icon-green" aria-hidden="true">
-                <svg class="edu-icon"><use href="/images/eduos-icons.svg#shield" /></svg>
-            </span>
             <div>
-                <strong>@T["PlatformSafetyTitle"]</strong>
-                <p>@T["PlatformSafetyHelp"]</p>
+                <strong>Last refreshed (UTC)</strong>
+                <p id="platformRefreshedAt">@Model.GeneratedAtUtc.ToString("yyyy-MM-dd HH:mm:ss")</p>
+                <button type="button" id="platformRefresh" class="btn btn-outline-primary btn-sm mt-2">Refresh metrics</button>
             </div>
         </div>
     </section>
-
-    <section aria-labelledby="adminToolsTitle">
+    <p id="platformStatus" class="small text-muted" role="status" aria-live="polite"></p>
+    <section aria-labelledby="platformMetricsTitle">
         <div class="dashboard-section-heading">
-            <div>
-                <p class="dashboard-eyebrow">@T["AvailableNow"]</p>
-                <h2 id="adminToolsTitle">@T["PlatformTools"]</h2>
-            </div>
+            <div><p class="dashboard-eyebrow">Operational metrics</p><h2 id="platformMetricsTitle">SaaS Overview</h2></div>
         </div>
+        <div class="dashboard-stats-grid">
+            <article class="dashboard-stat-card"><div><p>Total institutions</p><strong data-platform-count="totalTenants">@Model.TotalTenants</strong><span>Non-deleted tenants</span></div></article>
+            <article class="dashboard-stat-card"><div><p>Active institutions</p><strong data-platform-count="activeTenants">@Model.ActiveTenants</strong><span>Active tenant state</span></div></article>
+            <article class="dashboard-stat-card"><div><p>Email verification pending</p><strong data-platform-count="pendingVerificationTenants">@Model.PendingVerificationTenants</strong><span>Pending tenant state</span></div></article>
+            <article class="dashboard-stat-card"><div><p>Incomplete onboarding</p><strong data-platform-count="incompleteOnboardingTenants">@Model.IncompleteOnboardingTenants</strong><span>Requires setup</span></div></article>
+            <article class="dashboard-stat-card"><div><p>New institutions (30 days)</p><strong data-platform-count="newTenantsLast30Days">@Model.NewTenantsLast30Days</strong><span>Created in last 30 days</span></div></article>
+            <article class="dashboard-stat-card"><div><p>Expiring subscriptions (7 days)</p><strong data-platform-count="subscriptionsExpiringNext7Days">@Model.SubscriptionsExpiringNext7Days</strong><span>Active / Trial / Grace</span></div></article>
+            <article class="dashboard-stat-card"><div><p>Overdue active subscriptions</p><strong data-platform-count="overdueActiveSubscriptions">@Model.OverdueActiveSubscriptions</strong><span>Past end date, not yet transitioned</span></div></article>
+            <article class="dashboard-stat-card"><div><p>Manual payments awaiting review</p><strong data-platform-count="pendingManualPayments">@(Model.PendingManualPayments?.ToString() ?? "—")</strong><span>Review queue</span></div></article>
+        </div>
+    </section>
+    <div class="dashboard-main-grid mt-4">
+        <section class="dashboard-panel" aria-labelledby="recentTenantsTitle">
+            <div class="dashboard-section-heading"><h2 id="recentTenantsTitle">Recently registered institutions</h2></div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                    <thead><tr><th>Institution</th><th>State</th><th>Onboarding</th><th>Created (UTC)</th></tr></thead>
+                    <tbody id="platformRecentTenants">
+                    @foreach (var tenant in Model.RecentTenants)
+                    {
+                        <tr><td>@tenant.Name</td><td>@tenant.State</td><td>@tenant.OnboardingStage</td><td>@tenant.CreatedAt.ToString("yyyy-MM-dd")</td></tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        <aside class="dashboard-side-stack">
+            <section class="dashboard-panel" aria-labelledby="expiringTitle">
+                <div class="dashboard-section-heading"><h2 id="expiringTitle">Subscriptions expiring soon</h2></div>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead><tr><th>Institution</th><th>State</th><th>Ends (UTC)</th></tr></thead>
+                        <tbody id="platformExpiringSubscriptions">
+                        @foreach (var subscription in Model.UpcomingExpirations)
+                        {
+                            <tr><td>@subscription.TenantName</td><td>@subscription.SubscriptionState</td><td>@subscription.EndsAtUtc.ToString("yyyy-MM-dd")</td></tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </aside>
+    </div>
+    <section class="dashboard-panel mt-4" aria-labelledby="platformActionsTitle">
+        <div class="dashboard-section-heading"><h2 id="platformActionsTitle">Operations</h2></div>
         <div class="platform-tools-grid">
-            <article class="dashboard-panel platform-tool-card">
-                <span class="dashboard-stat-icon" aria-hidden="true">
-                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#finance" /></svg>
-                </span>
-                <h3>@T["PricingCatalog"]</h3>
-                <p>@T["PricingCatalogHelp"]</p>
-                <a asp-controller="Pricing" asp-action="Index">@T["ReviewPublicPricing"]</a>
-            </article>
-            <article class="dashboard-panel platform-tool-card">
-                <span class="dashboard-stat-icon dashboard-stat-icon-violet" aria-hidden="true">
-                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#dashboard" /></svg>
-                </span>
-                <h3>@T["BackgroundJobs"]</h3>
-                <p>@T["BackgroundJobsHelp"]</p>
-                <a href="/hangfire">@T["OpenJobDashboard"]</a>
-            </article>
-            <article class="dashboard-panel platform-tool-card">
-                <span class="dashboard-stat-icon dashboard-stat-icon-green" aria-hidden="true">
-                    <svg class="edu-icon"><use href="/images/eduos-icons.svg#attendance" /></svg>
-                </span>
-                <h3>@T["ServiceHealth"]</h3>
-                <p>@T["ServiceHealthHelp"]</p>
-                <a href="/health">@T["CheckServiceHealth"]</a>
-            </article>
+            <article class="dashboard-panel platform-tool-card"><h3>Payment verification</h3><p>Review bank transfers and verify receipts before activation.</p><a asp-controller="Account" asp-action="PaymentVerification">Open review queue</a></article>
+            <article class="dashboard-panel platform-tool-card"><h3>Pricing catalog</h3><p>Review publicly available subscription plans.</p><a asp-controller="Pricing" asp-action="Index">Review pricing</a></article>
+            <article class="dashboard-panel platform-tool-card"><h3>Background jobs</h3><p>Restricted operations dashboard.</p><a href="/hangfire">Open jobs</a></article>
+            <article class="dashboard-panel platform-tool-card"><h3>Service health</h3><p>Inspect application health endpoint.</p><a href="/health">Check health</a></article>
         </div>
-    </section>
-
-    <section class="dashboard-panel platform-guidance" aria-labelledby="platformGuidanceTitle">
-        <div class="dashboard-section-heading">
-            <div>
-                <p class="dashboard-eyebrow">@T["OperatingRule"]</p>
-                <h2 id="platformGuidanceTitle">@T["TenantPrivacyBoundary"]</h2>
-            </div>
-        </div>
-        <p>@T["TenantPrivacyBoundaryHelp"]</p>
     </section>
 </div>
+@section Scripts {
+    <script src="~/js/dashboard/platform-admin.js" asp-append-version="true"></script>
+}

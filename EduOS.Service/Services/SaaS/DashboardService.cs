@@ -30,6 +30,7 @@ public sealed class DashboardService : IDashboardService
     private readonly IGenericRepository<StudentInvoice> _invoices;
     private readonly ICurrentUserService _currentUser;
     private readonly ILogger<DashboardService> _logger;
+    private readonly ISubscriptionPaymentService? _platformPayments;
 
     public DashboardService(IGenericRepository<Tenant> tenants,
         IGenericRepository<InstitutionTypeDefinition> institutionTypes,
@@ -38,13 +39,14 @@ public sealed class DashboardService : IDashboardService
         IGenericRepository<Student> students, IGenericRepository<Employee> employees,
         IGenericRepository<Campus> campuses, IGenericRepository<AcademicLevel> levels,
         IGenericRepository<StudentPayment> payments, IGenericRepository<StudentInvoice> invoices,
-        ICurrentUserService currentUser, ILogger<DashboardService> logger)
+        ICurrentUserService currentUser, ILogger<DashboardService> logger,
+        ISubscriptionPaymentService? platformPayments = null)
     {
         _tenants = tenants; _institutionTypes = institutionTypes;
         _plans = plans; _planFeatures = planFeatures; _subscriptions = subscriptions;
         _students = students; _employees = employees; _campuses = campuses;
         _levels = levels; _payments = payments; _invoices = invoices;
-        _currentUser = currentUser; _logger = logger;
+        _currentUser = currentUser; _logger = logger; _platformPayments = platformPayments;
     }
 
     public async Task<ApiResponse<DashboardVm>> GetDashboardAsync()
@@ -137,6 +139,72 @@ public sealed class DashboardService : IDashboardService
         {
             _logger.LogError(ex, "Tenant dashboard query failed for tenant {TenantId}", tenantId);
             return ApiResponse<DashboardVm>.ErrorResponse("Dashboard could not be loaded.", 500);
+        }
+    }
+
+
+    public async Task<ApiResponse<PlatformDashboardVm>> GetPlatformDashboardAsync(CancellationToken cancellationToken = default)
+    {
+        if (!_currentUser.IsAuthenticated || !_currentUser.IsSuperAdmin)
+            return ApiResponse<PlatformDashboardVm>.ErrorResponse("Platform administrator access required.", 403);
+        try
+        {
+            var now = DateTime.UtcNow;
+            var tenants = _tenants.GetQueryable().AsNoTracking().Where(x => !x.IsDeleted);
+            var recent = await tenants.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
+                .Take(8).Select(x => new PlatformTenantSummaryVm
+                {
+                    Id = x.Id, Name = x.Name, State = x.State.ToString(),
+                    OnboardingStage = x.OnboardingStage.ToString(), CreatedAt = x.CreatedAt
+                }).ToListAsync(cancellationToken);
+            var expiring = await _subscriptions.GetExpiringSoonForPlatformAsync(
+                now.AddDays(7), 1, 8, cancellationToken);
+            var overdue = await _subscriptions.GetExpiredForPlatformAsync(
+                now, 1, 1, cancellationToken);
+            var tenantIds = expiring.Items.Select(x => x.TenantId).Distinct().ToArray();
+            var names = await tenants.Where(x => tenantIds.Contains(x.Id))
+                .Select(x => new { x.Id, x.Name }).ToDictionaryAsync(x => x.Id, x => x.Name, cancellationToken);
+            int? pendingPayments = null;
+            if (_platformPayments != null)
+            {
+                try
+                {
+                    var payments = await _platformPayments.GetPendingManualVerificationsAsync(1, 1, null);
+                    if (payments.Success && payments.Data != null)
+                        pendingPayments = payments.Data.TotalCount;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Pending manual payment metric is unavailable.");
+                }
+            }
+            var vm = new PlatformDashboardVm
+            {
+                GeneratedAtUtc = now,
+                TotalTenants = await tenants.CountAsync(cancellationToken),
+                ActiveTenants = await tenants.CountAsync(x => x.State == TenantState.Active, cancellationToken),
+                PendingVerificationTenants = await tenants.CountAsync(x => x.State == TenantState.PendingVerification, cancellationToken),
+                IncompleteOnboardingTenants = await tenants.CountAsync(x =>
+                    x.OnboardingStage != OnboardingStage.Completed || !x.OnboardingCompletedAt.HasValue, cancellationToken),
+                NewTenantsLast30Days = await tenants.CountAsync(x => x.CreatedAt >= now.AddDays(-30), cancellationToken),
+                SubscriptionsExpiringNext7Days = expiring.TotalCount,
+                OverdueActiveSubscriptions = overdue.TotalCount,
+                PendingManualPayments = pendingPayments,
+                RecentTenants = recent,
+                UpcomingExpirations = expiring.Items.Select(x => new PlatformSubscriptionExpiryVm
+                {
+                    SubscriptionId = x.Id,
+                    TenantName = names.GetValueOrDefault(x.TenantId) ?? "Tenant unavailable",
+                    SubscriptionState = x.State.ToString(),
+                    EndsAtUtc = x.EndsAt
+                }).ToList()
+            };
+            return ApiResponse<PlatformDashboardVm>.SuccessResponse(vm);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Platform dashboard summary query failed.");
+            return ApiResponse<PlatformDashboardVm>.ErrorResponse("Platform dashboard could not be loaded.", 500);
         }
     }
 

@@ -6,5 +6,6 @@ namespace EduOS.Core.Interfaces.IServices
     public interface IDashboardService
     {
         Task<ApiResponse<DashboardVm>> GetDashboardAsync();
+        Task<ApiResponse<PlatformDashboardVm>> GetPlatformDashboardAsync(CancellationToken cancellationToken = default);
     }
 }
