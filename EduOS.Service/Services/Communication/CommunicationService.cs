@@ -89,7 +89,7 @@ public sealed class CommunicationService(
                  (a.AudienceTypeCode == "Program" && a.AcademicProgramId.HasValue &&
                      enrollments.Any(e => e.AcademicProgramId == a.AcademicProgramId.Value)) ||
                  (a.AudienceTypeCode == "Batch" && a.AcademicBatchId.HasValue &&
-                     enrollments.Any(e => e.AcademicBatchId == a.AcademicBatchId.Value))))));
+                     enrollments.Any(e => e.AcademicBatchId == a.AcademicBatchId.Value)))));
     }
 
     public async Task<ApiResponse<PagedResult<NoticeDto>>> GetNoticesAsync(int page, int pageSize, bool? published, CancellationToken ct = default)
