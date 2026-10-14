@@ -1022,6 +1022,9 @@ public class EduOSDbContext :
         modelBuilder.Entity<DocumentTypeDefinition>()
             .HasAlternateKey(x => new { x.TenantId, x.Code });
 
+        modelBuilder.Entity<Document>().Property(x => x.VerificationStatusCode)
+            .HasDefaultValue("NotRequired");
+
         modelBuilder.Entity<Document>()
             .HasOne<DocumentTypeDefinition>()
             .WithMany()
@@ -1403,6 +1406,9 @@ public class EduOSDbContext :
 
     private static void ConfigureCheckConstraints(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<Document>().ToTable(t =>
+            t.HasCheckConstraint("CK_Documents_VerificationStatus",
+                "[VerificationStatusCode] IN (N'NotRequired', N'Pending', N'Approved', N'Rejected')"));
         modelBuilder.Entity<AcademicYear>().ToTable(t =>
             t.HasCheckConstraint("CK_AcademicYear_DateRange", "[EndDate] >= [StartDate]"));
         modelBuilder.Entity<AcademicTerm>().ToTable(t =>

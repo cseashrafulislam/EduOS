@@ -26,6 +26,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<IFileUploadService, FileUploadService>();
             s.AddScoped<IDocumentService, DocumentService>();
             s.AddScoped<IDocumentFileService, DocumentFileService>();
+            s.AddScoped<IDocumentVerificationService, DocumentVerificationService>();
             s.AddScoped<ILearnerIdentifierProtector, LearnerIdentifierProtector>();
             s.AddSingleton(TimeProvider.System);
             s.AddSingleton<IMfaChallengeService, MfaChallengeService>();

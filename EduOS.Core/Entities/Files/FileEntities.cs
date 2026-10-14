@@ -31,6 +31,10 @@ public class Document : BaseTenantEntity
     [MaxLength(250)] public string? Title { get; set; }
     public DateTime? ExpiresAt { get; set; }
     public bool IsActive { get; set; } = true;
+    [MaxLength(24)] public string VerificationStatusCode { get; set; } = "NotRequired";
+    public long? VerifiedByUserId { get; set; }
+    public DateTime? VerifiedAt { get; set; }
+    [MaxLength(500)] public string? VerificationNote { get; set; }
 }
 
 public class DocumentTemplate : BaseTenantEntity

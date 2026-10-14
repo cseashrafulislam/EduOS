@@ -20,6 +20,7 @@ public sealed class DocumentPlatformWiringTests
         services.AddApplicationServices(new ConfigurationBuilder().Build());
         AssertRegistration<IDocumentService, DocumentService>(services);
         AssertRegistration<IDocumentFileService, DocumentFileService>(services);
+        AssertRegistration<IDocumentVerificationService, DocumentVerificationService>(services);
     }
 
     [Theory]

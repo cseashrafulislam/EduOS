@@ -1,0 +1,34 @@
+@{ ViewData["Title"] = "Protected Document Verification"; }
+<section class="container-fluid py-3" aria-labelledby="verificationTitle">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div><h2 id="verificationTitle">Protected document verification</h2>
+            <p class="text-muted mb-0">Independent tenant-admin review. Only malware-cleared private files may be approved. Creators cannot review their own uploads.</p></div>
+        <a class="btn btn-outline-secondary" asp-controller="DocumentAdministration" asp-action="Index">Document administration</a>
+    </div>
+    <div id="verificationAlert" class="alert d-none" role="alert" aria-live="polite"></div>
+    <form id="verificationFilter" class="row g-2 align-items-end mb-3">
+        <div class="col-md-3"><label class="form-label" for="verificationStatus">Review status</label>
+            <select id="verificationStatus" class="form-select"><option value="Pending">Pending review</option>
+                <option value="Approved">Approved</option><option value="Rejected">Rejected</option><option value="">All protected documents</option></select></div>
+        <div class="col-md-2"><button class="btn btn-outline-primary" type="submit">Refresh</button></div>
+    </form>
+    <div class="card"><div class="card-body">
+        <div class="table-responsive"><table class="table table-striped table-sm align-middle">
+            <thead><tr><th>Document</th><th>Type</th><th>Status</th><th>Expiry</th><th>Created by</th><th>Reviewed</th><th>Actions</th></tr></thead>
+            <tbody id="verificationRows"></tbody></table></div>
+        <div class="d-flex justify-content-between align-items-center">
+            <span id="verificationPageInfo" class="small text-muted"></span>
+            <div class="btn-group"><button id="verificationPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+                <button id="verificationNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button></div>
+        </div>
+    </div></div>
+    <div class="card mt-3"><div class="card-body">
+        <h3 class="h6">Review requirements</h3>
+        <p class="small text-muted mb-0">Open the scanned private file using Preview before approving or rejecting it. A separate tenant administrator must make the decision. A rejected review requires a reason; decisions are final and audited. Upload a new document version to replace a rejected document.</p>
+    </div></div>
+</section>
+<form id="verificationPreviewForm" method="post" target="_blank" class="d-none">@Html.AntiForgeryToken()</form>
+@section Scripts {
+    <script src="~/js/document/verification-core.js" asp-append-version="true"></script>
+    <script src="~/js/document/verification.js" asp-append-version="true"></script>
+}

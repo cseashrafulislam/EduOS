@@ -7054,6 +7054,24 @@ namespace EduOS.Persistence.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
+                    b.Property<DateTime?>("VerifiedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("VerifiedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("VerificationNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("VerificationStatusCode")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)")
+                        .HasDefaultValue("NotRequired");
+
+
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
@@ -7098,7 +7116,11 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId", "SupersedesDocumentId");
 
-                    b.ToTable("Documents");
+                    b.ToTable("Documents", t =>
+                        {
+                            t.HasCheckConstraint("CK_Documents_VerificationStatus",
+                                "[VerificationStatusCode] IN (N'NotRequired', N'Pending', N'Approved', N'Rejected')");
+                        });
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.Files.DocumentTemplate", b =>
