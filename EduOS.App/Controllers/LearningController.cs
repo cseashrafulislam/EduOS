@@ -19,4 +19,7 @@ public sealed class LearningController : Controller
     [HttpGet]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult CourseContent() => View();
+    [HttpGet]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult AssignmentFiles() => View();
 }

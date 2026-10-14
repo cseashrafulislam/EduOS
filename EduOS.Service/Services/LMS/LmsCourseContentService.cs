@@ -17,12 +17,14 @@ using System.Security.Cryptography;
 namespace EduOS.Service.Services.LMS;
 
 /// <summary>Section and resource operations on the existing Course/Lesson aggregate, never a second lesson CRUD.</summary>
-public sealed class LmsCourseContentService : ILmsCourseContentService
+public sealed partial class LmsCourseContentService : ILmsCourseContentService
 {
     private readonly IGenericRepository<Course> _courses;
     private readonly IGenericRepository<CourseSection> _sections;
     private readonly IGenericRepository<Lesson> _lessons;
     private readonly IGenericRepository<LessonResource> _resources;
+    private readonly IGenericRepository<Assignment> _assignments;
+    private readonly IGenericRepository<AssignmentAttachment> _attachments;
     private readonly IGenericRepository<FileAsset> _files;
     private readonly IGenericRepository<Employee> _employees;
     private readonly IGenericRepository<Student> _students;
@@ -50,9 +52,12 @@ public sealed class LmsCourseContentService : ILmsCourseContentService
         IGenericRepository<AcademicCurriculum> curricula, IGenericRepository<AcademicBatch> batches,
         IGenericRepository<AcademicYear> years, IGenericRepository<AcademicTerm> terms, IGenericRepository<InstructorAssignment> instructors,
         IGenericRepository<EmployeeCampusAssignment> campuses, IUnitOfWork uow,
-        ICurrentUserService user, TimeProvider clock, ILogger<LmsCourseContentService> logger)
+        ICurrentUserService user, TimeProvider clock, ILogger<LmsCourseContentService> logger,
+        IGenericRepository<Assignment>? assignments = null,
+        IGenericRepository<AssignmentAttachment>? attachments = null)
     {
-        _courses = courses; _sections = sections; _lessons = lessons; _resources = resources; _files = files;
+        _courses = courses; _sections = sections; _lessons = lessons; _resources = resources;
+        _assignments = assignments!; _attachments = attachments!; _files = files;
         _employees = employees; _students = students; _enrollments = enrollments;
         _academicEnrollments = academicEnrollments; _offerings = offerings; _subjects = subjects;
         _curricula = curricula; _batches = batches; _years = years; _instructors = instructors;
