@@ -215,6 +215,10 @@
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
                         <span>Fees &amp; Billing</span>
                     </a>
+                    <a class="nav-link @ActiveFor("/FeeReceivablesAging")" href="/FeeReceivablesAging/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                        <span>Fee Receivables Aging</span>
+                    </a>
                     @if (User?.IsInRole("TenantAdmin") == true)
                     {
                         <a class="nav-link @ActiveFor("/FinanceAdjustments")" href="/FinanceAdjustments/Index">Finance Adjustments</a>

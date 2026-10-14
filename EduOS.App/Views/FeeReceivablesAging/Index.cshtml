@@ -1,0 +1,53 @@
+@{
+    ViewData["Title"] = "Student Fee Receivables Aging";
+}
+<section class="container-fluid py-3" id="feeAgingApp">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+        <div><h2 class="h4 mb-1">Student Fee Receivables Aging</h2>
+            <p class="text-muted small mb-0">Institutional student invoices only. Platform SaaS invoices are excluded.</p></div>
+        <a href="/FeeOperations/Index" class="btn btn-outline-secondary btn-sm">Fees &amp; Billing</a>
+    </div>
+    <div id="agingAlert" class="alert d-none" role="alert" tabindex="-1" aria-live="polite"></div>
+    <div class="alert alert-info py-2 small">This is a live aging of <strong>current unpaid balances</strong> against the reference date.
+        It is not a historical as-of balance, a posted general ledger, or a cash-flow statement.</div>
+    <form id="agingFilters" class="card card-body mb-3 row g-2 align-items-end">
+        <div class="col-lg-2"><label for="agingDate" class="form-label">Reference date</label>
+            <input id="agingDate" type="date" class="form-control" required /></div>
+        <div class="col-lg-3"><label for="agingCampus" class="form-label">Campus</label>
+            <select id="agingCampus" class="form-select"><option value="">All accessible campuses</option></select></div>
+        <div class="col-lg-4"><label for="agingSearch" class="form-label">Invoice / student code / name prefix</label>
+            <input id="agingSearch" maxlength="100" class="form-control" autocomplete="off" /></div>
+        <div class="col-lg-1"><label for="agingPageSize" class="form-label">Rows</label>
+            <select id="agingPageSize" class="form-select"><option>25</option><option>50</option><option>100</option></select></div>
+        <div class="col-lg-2 d-grid"><button id="agingRun" type="submit" class="btn btn-primary">Run report</button></div>
+    </form>
+    <section class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <strong>Currency-wise aging summary</strong>
+            <button type="button" id="agingExport" class="btn btn-outline-primary btn-sm" disabled>Export current page CSV</button>
+        </div>
+        <div class="table-responsive"><table class="table table-sm table-striped mb-0">
+            <thead><tr><th>Currency</th><th class="text-end">Invoices</th><th class="text-end">Current</th>
+                <th class="text-end">1–30 days</th><th class="text-end">31–60</th><th class="text-end">61–90</th>
+                <th class="text-end">Over 90</th><th class="text-end">Outstanding</th></tr></thead>
+            <tbody id="agingTotals"><tr><td colspan="8" class="text-muted text-center p-3">Run the report.</td></tr></tbody>
+        </table></div>
+    </section>
+    <section class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <strong>Outstanding invoices</strong><span id="agingCount" class="text-muted small">—</span>
+        </div>
+        <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
+            <thead><tr><th>Invoice</th><th>Student</th><th>Campus</th><th>Issued</th><th>Due date</th>
+                <th>Currency</th><th class="text-end">Invoice total</th><th class="text-end">Paid</th>
+                <th class="text-end">Outstanding</th><th class="text-end">Days overdue</th><th>Bucket</th></tr></thead>
+            <tbody id="agingRows"><tr><td colspan="11" class="text-center text-muted p-3">No report loaded.</td></tr></tbody>
+        </table></div>
+        <div class="card-footer d-flex align-items-center gap-2">
+            <button type="button" id="agingPrev" class="btn btn-outline-secondary btn-sm" disabled>Previous</button>
+            <span id="agingPage" class="small text-muted">—</span>
+            <button type="button" id="agingNext" class="btn btn-outline-secondary btn-sm" disabled>Next</button>
+        </div>
+    </section>
+</section>
+@section Scripts { <script src="~/js/finance/fee-receivables-aging.js" asp-append-version="true"></script> }
