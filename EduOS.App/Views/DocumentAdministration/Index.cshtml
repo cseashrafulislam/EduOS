@@ -1,0 +1,81 @@
+@{ ViewData["Title"] = "Document Administration"; }
+<section class="container-fluid py-3" aria-labelledby="docAdminTitle">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+        <div><h2 id="docAdminTitle">Document administration</h2><p class="text-muted mb-0">Tenant-scoped document metadata, document types and reusable templates. Entity-specific attachments must use their owning module until entity authorization is available.</p></div>
+        <button id="docRefresh" class="btn btn-outline-secondary" type="button">Refresh</button>
+    </div>
+    <div id="docAlert" class="alert d-none" role="alert" tabindex="-1"></div>
+    <ul class="nav nav-tabs mb-3" id="docTabs" role="tablist">
+        <li class="nav-item"><button class="nav-link active" type="button" data-doc-tab="documents">Documents</button></li>
+        <li class="nav-item"><button class="nav-link" type="button" data-doc-tab="types">Document types</button></li>
+        <li class="nav-item"><button class="nav-link" type="button" data-doc-tab="templates">Templates</button></li>
+    </ul>
+    <div data-doc-panel="documents">
+        <div class="card mb-3"><div class="card-body">
+            <h3 class="h5">Attach verified file metadata</h3>
+            <p class="text-muted small">Upload a private file (maximum 5 MB). The server must verify a clean malware scan before allowing attachment or download. Scanning requires Windows Defender; unavailable scanning fails closed.</p>
+            <form id="docUploadForm" class="row g-2 mb-3">
+                <div class="col-md-7"><label class="form-label" for="docUploadFile">Private document</label><input id="docUploadFile" class="form-control" type="file" required accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx" /></div>
+                <div class="col-md-3 d-flex align-items-end"><button type="submit" class="btn btn-outline-primary">Upload &amp; security scan</button></div>
+            </form>
+            <div class="border rounded p-2 mb-3" aria-labelledby="docPendingTitle">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <strong id="docPendingTitle">Verified files awaiting attachment</strong>
+                    <button id="docPendingRefresh" type="button" class="btn btn-outline-secondary btn-sm">Refresh uploads</button>
+                </div>
+                <p class="small text-muted">Select a previously uploaded file to complete its document record. Files cannot be downloaded until attached to an active permitted document.</p>
+                <div class="table-responsive"><table class="table table-sm"><thead><tr><th>File</th><th>Size</th><th>Uploaded</th><th>Action</th></tr></thead><tbody id="docPendingRows"></tbody></table></div>
+                <div class="d-flex align-items-center justify-content-between"><span id="docPendingInfo" class="small text-muted"></span><div class="btn-group"><button id="docPendingPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button><button id="docPendingNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button></div></div>
+            </div>
+            <form id="docForm" class="row g-2">
+                <input type="hidden" id="docReference" /><input type="hidden" id="docVersion" />
+                <div class="col-lg-4"><label class="form-label" for="docFile">Scanned file reference (GUID)</label><input id="docFile" class="form-control" required autocomplete="off" /></div>
+                <div class="col-lg-3"><label class="form-label" for="docType">Document type</label><select id="docType" class="form-select" required></select></div>
+                <div class="col-lg-5"><label class="form-label" for="docTitle">Title</label><input id="docTitle" class="form-control" maxlength="250" /></div>
+                <div class="col-lg-3"><label class="form-label" for="docEntityType">Attach to</label><select id="docEntityType" class="form-select"><option value="">Institution-wide</option><option value="Tenant">Institution profile</option></select></div>
+                <div class="col-lg-3"><label class="form-label" for="docEntityId">Linked ID (server-assigned)</label><input id="docEntityId" class="form-control" type="number" readonly placeholder="Current institution" /></div>
+                <div class="col-lg-3"><label class="form-label" for="docExpiry">Expires (UTC)</label><input id="docExpiry" class="form-control" type="datetime-local" /></div>
+                <div class="col-lg-3 d-flex align-items-end gap-2"><label class="form-check-label"><input id="docActive" class="form-check-input" type="checkbox" checked /> Active</label><button class="btn btn-primary" type="submit">Save document</button><button id="docCancel" class="btn btn-outline-secondary" type="button">Cancel</button></div>
+            </form>
+        </div></div>
+        <div class="card"><div class="card-body">
+            <form id="docFilter" class="row g-2 align-items-end mb-3">
+                <div class="col-md-3"><label class="form-label" for="docFilterType">Entity type</label><input id="docFilterType" class="form-control" maxlength="100" /></div>
+                <div class="col-md-2"><label class="form-label" for="docFilterId">Entity ID</label><input id="docFilterId" class="form-control" type="number" min="1" /></div>
+                <div class="col-md-3"><label class="form-label" for="docFilterDocumentType">Document type</label><select id="docFilterDocumentType" class="form-select"><option value="">All types</option></select></div>
+                <div class="col-md-2"><label class="form-label" for="docFilterStatus">Status</label><select id="docFilterStatus" class="form-select"><option value="">All statuses</option><option value="Active">Active</option><option value="Inactive">Inactive</option><option value="Expired">Expired</option><option value="ExpiringSoon">Expiring in 30 days</option></select></div>
+                <div class="col-md-3"><label class="form-label" for="docFilterSearch">Title contains</label><input id="docFilterSearch" class="form-control" maxlength="100" autocomplete="off" /></div>
+                <div class="col-md-2 d-flex gap-2"><button class="btn btn-outline-primary" type="submit">Filter</button><button id="docFilterClear" class="btn btn-outline-secondary" type="button">Clear</button></div>
+            </form>
+            <div class="table-responsive"><table class="table table-striped table-sm align-middle"><thead><tr><th>Title</th><th>Type</th><th>Entity</th><th>Expires</th><th>Status</th><th>Actions</th></tr></thead><tbody id="docRows"></tbody></table></div>
+            <div class="d-flex justify-content-between align-items-center"><span id="docPageInfo" class="small text-muted"></span><div class="btn-group"><button id="docPrev" class="btn btn-outline-secondary btn-sm" type="button">Previous</button><button id="docNext" class="btn btn-outline-secondary btn-sm" type="button">Next</button></div></div>
+        </div></div>
+    </div>
+    <div data-doc-panel="types" hidden>
+        <div class="card mb-3"><div class="card-body"><h3 class="h5">Document type</h3>
+            <form id="typeForm" class="row g-2">
+                <input id="typeId" type="hidden" /><input id="typeVersion" type="hidden" />
+                <div class="col-md-3"><label class="form-label" for="typeCode">Code</label><input id="typeCode" class="form-control" maxlength="100" required /></div>
+                <div class="col-md-4"><label class="form-label" for="typeName">Name</label><input id="typeName" class="form-control" maxlength="200" required /></div>
+                <div class="col-md-5"><label class="form-label" for="typeDescription">Description</label><input id="typeDescription" class="form-control" maxlength="1000" /></div>
+                <div class="col-12 d-flex flex-wrap align-items-center gap-3"><label><input id="typeVerify" type="checkbox" /> Requires verification</label><label><input id="typeSensitive" type="checkbox" /> Sensitive</label><label><input id="typeActive" type="checkbox" checked /> Active</label><button class="btn btn-primary" type="submit">Save type</button><button id="typeCancel" class="btn btn-outline-secondary" type="button">Cancel</button></div>
+            </form>
+        </div></div>
+        <div class="card"><div class="card-body table-responsive"><table class="table table-striped table-sm"><thead><tr><th>Code</th><th>Name</th><th>Verification</th><th>Sensitive</th><th>Active</th><th></th></tr></thead><tbody id="typeRows"></tbody></table></div></div>
+    </div>
+    <div data-doc-panel="templates" hidden>
+        <div class="card mb-3"><div class="card-body"><h3 class="h5">Reusable document template</h3>
+            <form id="templateForm" class="row g-2">
+                <input id="templateId" type="hidden" /><input id="templateVersion" type="hidden" />
+                <div class="col-md-3"><label class="form-label" for="templateCode">Code</label><input id="templateCode" class="form-control" maxlength="100" required /></div>
+                <div class="col-md-5"><label class="form-label" for="templateName">Name</label><input id="templateName" class="form-control" maxlength="200" required /></div>
+                <div class="col-md-2"><label class="form-label" for="templateFormat">Format</label><select id="templateFormat" class="form-select"><option value="TEXT">Plain text</option><option value="HTML">HTML source</option></select></div>
+                <div class="col-md-2 d-flex align-items-end"><label><input id="templateActive" type="checkbox" checked /> Active</label></div>
+                <div class="col-12"><label class="form-label" for="templateContent">Template source (never executed on this page)</label><textarea id="templateContent" class="form-control font-monospace" rows="7" required maxlength="200000"></textarea></div>
+                <div class="col-12 d-flex gap-2"><button class="btn btn-primary" type="submit">Save template</button><button id="templateCancel" class="btn btn-outline-secondary" type="button">Cancel</button></div>
+            </form>
+        </div></div>
+        <div class="card"><div class="card-body table-responsive"><table class="table table-striped table-sm"><thead><tr><th>Code</th><th>Name</th><th>Format</th><th>Active</th><th></th></tr></thead><tbody id="templateRows"></tbody></table></div></div>
+    </div>
+</section>
+@section Scripts { <script src="~/js/document/admin.js" asp-append-version="true"></script> }

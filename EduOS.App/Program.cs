@@ -196,6 +196,9 @@ builder.Services.AddIdentityConfiguration(
 
 builder.Services.AddApplicationServices(
     builder.Configuration);
+// Tenant-scoped document administration services.
+builder.Services.AddScoped<EduOS.Core.Interfaces.IServices.IDocumentService, EduOS.Service.Services.Documents.DocumentService>();
+builder.Services.AddScoped<EduOS.Core.Interfaces.IServices.IDocumentFileService, EduOS.Service.Services.Documents.DocumentFileService>();
 
 // =============================================================================
 // 6. CORS

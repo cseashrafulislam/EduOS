@@ -7092,7 +7092,9 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId", "DocumentTypeCode");
 
-                    b.HasIndex("TenantId", "FileAssetId");
+                    b.HasIndex("TenantId", "FileAssetId")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
 
                     b.HasIndex("TenantId", "SupersedesDocumentId");
 

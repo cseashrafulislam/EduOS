@@ -5,7 +5,7 @@ namespace EduOS.Core.Interfaces.IServices;
 
 public interface IDocumentService
 {
-    Task<ApiResponse<PagedResult<DocumentDto>>> GetDocumentsAsync(string? entityType, long? entityId, int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<DocumentDto>>> GetDocumentsAsync(string? entityType, long? entityId, int page, int pageSize, CancellationToken cancellationToken = default, string? documentTypeCode = null, string? status = null, string? search = null);
     Task<ApiResponse<DocumentDto>> GetDocumentAsync(Guid documentReference, CancellationToken cancellationToken = default);
     Task<ApiResponse<DocumentDto>> SaveDocumentAsync(Guid? documentReference, SaveDocumentRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<DocumentDto>> DeactivateDocumentAsync(Guid documentReference, string rowVersion, CancellationToken cancellationToken = default);

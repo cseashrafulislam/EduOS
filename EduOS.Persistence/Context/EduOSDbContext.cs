@@ -1362,6 +1362,8 @@ public class EduOSDbContext :
         UniqueTenant<CommunicationDelivery>(modelBuilder, nameof(CommunicationDelivery.IdempotencyKey));
         modelBuilder.Entity<FileAsset>().HasIndex(x => x.PublicId).IsUnique();
         UniqueTenant<FileAsset>(modelBuilder, nameof(FileAsset.StorageProvider), nameof(FileAsset.StorageKey));
+        modelBuilder.Entity<Document>().HasIndex(x => new { x.TenantId, x.FileAssetId })
+            .IsUnique().HasFilter("[IsDeleted] = 0");
         UniqueTenant<DocumentTemplate>(modelBuilder, nameof(DocumentTemplate.Code));
         UniqueTenant<CustomFieldDefinition>(modelBuilder, nameof(CustomFieldDefinition.EntityType), nameof(CustomFieldDefinition.FieldKey));
         UniqueTenant<CustomFieldOption>(modelBuilder, nameof(CustomFieldOption.CustomFieldDefinitionId), nameof(CustomFieldOption.Value));
