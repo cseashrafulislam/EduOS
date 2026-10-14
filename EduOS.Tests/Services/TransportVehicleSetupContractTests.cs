@@ -27,12 +27,14 @@ public class TransportVehicleSetupContractTests
     {
         var api = Read("EduOS.App", "Controllers", "Api", "TransportController.cs");
         var view = Read("EduOS.App", "Views", "TransportOperations", "Index.cshtml");
+        var partial = Read("EduOS.App", "Views", "TransportOperations", "_VehicleSetup.cshtml");
         var script = Read("EduOS.App", "wwwroot", "js", "transport-operations", "vehicle-setup.js");
         Assert.Contains("HttpGet(\"vehicle-setup\")", api);
         Assert.Contains("HttpPost(\"vehicle-setup\")", api);
         Assert.Contains("HttpPut(\"vehicle-setup/{reference:guid}\")", api);
         Assert.Contains("TenantAdmin,Principal,TransportManager", api);
-        Assert.Contains("transportVehicleSetupForm", view);
+        Assert.Contains("transportVehicleSetupForm", partial);
+        Assert.Contains("<partial name=\"_VehicleSetup\" />", view);
         Assert.Contains("vehicle-setup.js", view);
         Assert.Contains("RequestVerificationToken", script);
         Assert.Contains("textContent", script);
