@@ -1,0 +1,38 @@
+@{
+    ViewData["Title"] = "Fee Heads & Institutional GL Mapping";
+    var writable = User.IsInRole("TenantAdmin") || User.IsInRole("Principal");
+}
+<section class="container-fluid py-3" id="feeHeadAccounting" data-write="@writable.ToString().ToLowerInvariant()">
+    <h2>Fee Heads &amp; Institutional GL Mapping</h2>
+    <p class="text-muted">Configure institutional fee heads, receivables and income accounts. This does not enable invoice/payment journal posting or affect Platform SaaS billing.</p>
+    @Html.AntiForgeryToken()
+    <div id="feeHeadNotice" class="alert d-none" role="alert"></div>
+    @if (writable)
+    {
+        <form id="feeHeadForm" class="card card-body mb-3">
+            <h3 class="h5">Create / edit fee head</h3>
+            <input id="feeHeadId" type="hidden" /><input id="feeHeadVersion" type="hidden" />
+            <div class="row g-2">
+                <div class="col-md-2"><label for="feeHeadCode">Code</label><input id="feeHeadCode" class="form-control" maxlength="50" required /></div>
+                <div class="col-md-3"><label for="feeHeadName">Name</label><input id="feeHeadName" class="form-control" maxlength="100" required /></div>
+                <div class="col-md-3"><label for="feeHeadFrequency">Default frequency</label>
+                    <select id="feeHeadFrequency" class="form-select"><option value="1">One-time</option><option value="2">Monthly</option><option value="3">Quarterly</option><option value="4">Half-yearly</option><option value="5">Yearly</option><option value="6">Per term</option></select>
+                </div>
+                <div class="col-md-2"><label><input id="feeHeadRefundable" type="checkbox" /> Refundable</label></div>
+                <div class="col-md-2"><label><input id="feeHeadActive" type="checkbox" checked /> Active</label></div>
+            </div>
+            <div class="mt-2"><button class="btn btn-primary" type="submit">Save fee head</button><button id="feeHeadReset" class="btn btn-outline-secondary" type="button">New</button></div>
+        </form>
+    }
+    <div class="card card-body">
+        <h3 class="h5">Account mapping register</h3>
+        <div class="table-responsive">
+            <table class="table table-sm table-striped">
+                <thead><tr><th>Code</th><th>Fee head</th><th>Frequency</th><th>Income ledger</th><th>Receivable ledger</th><th>Mapping</th><th>Invoice history</th>@if(writable){<th>Action</th>}</tr></thead>
+                <tbody id="feeHeadRows"></tbody>
+            </table>
+        </div>
+        <p class="small text-muted">Mapped means valid active BDT posting accounts. Posted journal integration is a separate release gate; mapping alone does not post entries.</p>
+    </div>
+</section>
+@section Scripts { <script src="~/js/finance/fee-head-accounting.js" asp-append-version="true"></script> }
