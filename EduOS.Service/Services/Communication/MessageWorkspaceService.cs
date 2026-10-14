@@ -2,6 +2,7 @@ using EduOS.Core.Common;
 using EduOS.Core.DTOs.Communication;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
+using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
 using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
