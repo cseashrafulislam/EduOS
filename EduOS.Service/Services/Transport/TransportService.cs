@@ -16,7 +16,7 @@ using TransportRoute = EduOS.Core.Entities.Transport.Route;
 
 namespace EduOS.Service.Services.Transport;
 
-public sealed class TransportService : ITransportService
+public sealed partial class TransportService : ITransportService
 {
     private readonly IGenericRepository<TransportRoute> _routes;
     private readonly IGenericRepository<RouteStop> _stops;

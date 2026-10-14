@@ -49,5 +49,22 @@ public sealed class TransportController : ControllerBase
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
     public async Task<IActionResult> Close(Guid reference, [FromBody] CloseStudentTransportRequestDto request, CancellationToken ct) => ToAction(await _service.CloseAsync(reference, request, ct));
 
+    [HttpGet("route-setup/campuses")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    public async Task<IActionResult> RouteSetupCampuses(CancellationToken ct) =>
+        ToAction(await _service.GetRouteSetupCampusesAsync(ct));
+
+    [HttpGet("route-setup")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    public async Task<IActionResult> RouteSetupPage([FromQuery] long? campusId = null,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 15, [FromQuery] string? search = null,
+        CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetRouteSetupPageAsync(campusId, page, pageSize, search, cancellationToken));
+
+    [HttpPost("route-setup")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    public async Task<IActionResult> CreateRouteWithStops([FromBody] CreateTransportRouteRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.CreateRouteWithStopsAsync(request, ct));
+
     private IActionResult ToAction<T>(EduOS.Core.Common.ApiResponse<T> response) => StatusCode(response.StatusCode, response);
 }

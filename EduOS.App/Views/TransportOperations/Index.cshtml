@@ -20,6 +20,35 @@
     }
     @if (canManage)
     {
+    <section class="card mb-3" id="transportRouteSetupPanel"><div class="card-body">
+        <h3 class="h5">Route and ordered stop setup</h3>
+        <p class="text-muted small">Create a campus-scoped route and its ordered stops. Finance manages fares separately.</p>
+        <div id="transportRouteSetupAlert" class="d-none" role="alert" tabindex="-1"></div>
+        <form id="transportRouteSetupForm" class="row g-3">
+            @Html.AntiForgeryToken()
+            <div class="col-md-4"><label for="transportRouteSetupCampus" class="form-label">Campus</label><select id="transportRouteSetupCampus" class="form-select" required><option value="">Loading…</option></select></div>
+            <div class="col-md-4"><label for="transportRouteSetupName" class="form-label">Route name</label><input id="transportRouteSetupName" class="form-control" maxlength="150" required /></div>
+            <div class="col-md-4"><label for="transportRouteSetupCode" class="form-label">Route code</label><input id="transportRouteSetupCode" class="form-control" maxlength="50" required /></div>
+            <div class="col-12"><label for="transportRouteSetupStops" class="form-label">Stops in travel order (one per line)</label><textarea id="transportRouteSetupStops" class="form-control" rows="4" maxlength="7550" required placeholder="Main gate&#10;City centre&#10;North stop"></textarea></div>
+            <div class="col-12"><button id="transportRouteSetupSave" type="submit" class="btn btn-primary">Create route with stops</button></div>
+        </form>
+        <hr />
+        <h4 class="h6">Campus route inventory</h4>
+        <form id="transportRouteSetupSearchForm" class="row g-2 mb-2">
+            <div class="col-md-4"><label for="transportRouteSetupFilterCampus" class="visually-hidden">Filter campus</label><select id="transportRouteSetupFilterCampus" class="form-select"><option value="">All authorized campuses</option></select></div>
+            <div class="col-md-6"><label for="transportRouteSetupSearch" class="visually-hidden">Search routes</label><input id="transportRouteSetupSearch" class="form-control" maxlength="100" placeholder="Search route name or code" /></div>
+            <div class="col-md-2"><button type="submit" class="btn btn-outline-primary w-100">Search</button></div>
+        </form>
+        <div class="table-responsive"><table class="table table-sm table-hover"><thead><tr><th>Campus</th><th>Code</th><th>Route</th><th>Stops</th><th>Status</th></tr></thead><tbody id="transportRouteSetupRows"><tr><td colspan="5">Loading…</td></tr></tbody></table></div>
+        <div class="d-flex align-items-center justify-content-between gap-2">
+            <button id="transportRouteSetupPrev" class="btn btn-outline-secondary btn-sm" type="button">Previous</button>
+            <span id="transportRouteSetupPageInfo" class="small text-muted"></span>
+            <button id="transportRouteSetupNext" class="btn btn-outline-secondary btn-sm" type="button">Next</button>
+        </div>
+    </div></section>
+    }
+    @if (canManage)
+    {
         <section class="card mb-3"><div class="card-body">
             <h3 class="h5">Assign transport</h3>
             <form id="transportAssignmentForm" class="row g-3">
@@ -56,4 +85,5 @@
 </section>
 @section Scripts {
     <script src="~/js/transport-operations/index.js" asp-append-version="true"></script>
+    <script src="~/js/transport-operations/route-setup.js" asp-append-version="true"></script>
 }
