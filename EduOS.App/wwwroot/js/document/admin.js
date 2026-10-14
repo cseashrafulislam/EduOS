@@ -46,8 +46,13 @@
       button("Edit",async()=>{set("templateId",t.id);set("templateVersion",t.rowVersion);set("templateCode",t.code);el("templateCode").readOnly=true;set("templateName",t.name);set("templateFormat",t.format);set("templateContent",t.templateContent);el("templateActive").checked=t.isActive;el("templateCode").focus();})
     ]);
   }
-  async function download(ref) {
-    const r=await fetch(root+"/files/"+encodeURIComponent(ref)+"/download",{credentials:"same-origin",cache:"no-store"});
+  async function download(item) {
+    const type=state.types.find(t=>t.code===item.documentTypeCode);
+    const protectedDoc=!!(type?.requiresVerification||type?.isSensitive);
+    const path=protectedDoc
+      ? "/api/document-verification/"+encodeURIComponent(item.reference)+"/download"
+      : root+"/files/"+encodeURIComponent(item.fileReference)+"/download";
+    const r=await fetch(path,{credentials:"same-origin",cache:"no-store"});
     if(!r.ok)throw Error("Download unavailable ("+r.status+")");
     const blob=await r.blob(),url=URL.createObjectURL(blob),a=document.createElement("a");
     a.href=url;a.download="document";document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -61,7 +66,7 @@
       const expired=item.expiresAt && new Date(item.expiresAt)<=new Date();
       row(tbody,[item.title||item.reference,item.documentTypeCode,item.entityType||"Institution-wide",date(item.expiresAt),item.isActive?"Active":"Inactive"],[
         button("Edit",async()=>{set("docReference",item.reference);set("docVersion",item.rowVersion);set("docFile",item.fileReference);set("docType",item.documentTypeCode);set("docTitle",item.title);set("docEntityType",item.entityType||"");set("docEntityId",item.entityId);set("docExpiry",localDate(item.expiresAt));el("docActive").checked=item.isActive;}),
-        button("Download",()=>download(item.fileReference),!item.isActive||expired),
+        button("Download",()=>download(item),!item.isActive||expired),
         button("Deactivate",async()=>{if(!confirm("Deactivate document?"))return;await api("/documents/"+item.reference+"/deactivate","POST",{rowVersion:item.rowVersion});await loadDocuments();msg("Document deactivated.");},!item.isActive)
       ]);
     }

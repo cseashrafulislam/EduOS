@@ -15,7 +15,8 @@ namespace EduOS.Service.Services.Documents;
 
 /// <summary>Tenant-only private document uploads. Unscanned files are never registered or served.</summary>
 public sealed class DocumentFileService(EduOSDbContext db, ICurrentUserService user,
-    IFileUploadService storage, ILogger<DocumentFileService> logger) : IDocumentFileService
+    IFileUploadService storage, ILogger<DocumentFileService> logger,
+    IDocumentVerificationService verification) : IDocumentFileService
 {
     private bool CanManage => user.IsAuthenticated && user.IsTenantAdmin && user.TenantId > 0;
     // Storage-provider results are untrusted until verified against the caller's tenant.
@@ -266,12 +267,12 @@ public sealed class DocumentFileService(EduOSDbContext db, ICurrentUserService u
             d.TenantId == user.TenantId && d.FileAssetId == asset.Id && !d.IsDeleted, ct);
         if (attachmentCount != 1)
             return ApiResponse<DocumentFileDownloadDto>.ErrorResponse("Active document not found.", 404);
-        // An uploaded file is not downloadable until attached to an active, unexpired
-        // document in the same tenant. Deactivation/expiry must revoke this endpoint.
+        // Resolve the one permitted document before opening private storage.
+        // Protected types must use the canonical verification service, which checks
+        // the approval decision, reviewer separation, expiry, integrity and audit.
+        // Never fall back to the ordinary path after a protected download is denied.
         var now = DateTime.UtcNow;
-        // A type may be switched to RequiresVerification after a document was published.
-        // Without a persisted verification decision, fail closed even for previously active files.
-        var hasActiveDocument = await (from document in db.Documents.AsNoTracking()
+        var attached = await (from document in db.Documents.AsNoTracking()
             join type in db.DocumentTypeDefinitions.AsNoTracking()
                 on new { document.TenantId, Code = document.DocumentTypeCode }
                 equals new { type.TenantId, type.Code }
@@ -280,9 +281,11 @@ public sealed class DocumentFileService(EduOSDbContext db, ICurrentUserService u
                 (document.EntityType == null || document.EntityType == "" ||
                     (document.EntityType == "Tenant" && document.EntityId == user.TenantId)) &&
                 (!document.ExpiresAt.HasValue || document.ExpiresAt.Value > now) &&
-                !type.IsDeleted && type.IsActive && !type.RequiresVerification && !type.IsSensitive
-            select document.Id).AnyAsync(ct);
-        if (!hasActiveDocument) return ApiResponse<DocumentFileDownloadDto>.ErrorResponse("Active document not found.", 404);
+                !type.IsDeleted && type.IsActive
+            select new { Document = document, Type = type }).FirstOrDefaultAsync(ct);
+        if (attached == null) return ApiResponse<DocumentFileDownloadDto>.ErrorResponse("Active document not found.", 404);
+        if (attached.Type.RequiresVerification || attached.Type.IsSensitive)
+            return await verification.DownloadApprovedAsync(attached.Document.PublicId, ct);
         EduOS.Service.Helpers.Storage.FileDownloadResult? file;
         try { file = await storage.GetPrivateFileAsync(asset.StorageKey); }
         catch (IOException ex)
