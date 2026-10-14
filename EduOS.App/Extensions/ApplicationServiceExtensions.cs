@@ -40,6 +40,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<ITenantProfileService, TenantProfileService>();
             s.AddScoped<ITenantSettingService, TenantSettingService>();
             s.AddScoped<ICommunicationAdministrationService, CommunicationAdministrationService>();
+            s.AddScoped<IIntegrationAdministrationService, IntegrationAdministrationService>();
             s.AddScoped<ICustomFieldService, CustomFieldService>();
             s.AddScoped<IOnboardingService, OnboardingService>();
             s.AddScoped<IInstitutionRegistrationService, InstitutionOnboardingService>();
