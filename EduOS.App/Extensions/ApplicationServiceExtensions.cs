@@ -7,7 +7,7 @@ using EduOS.Core.Settings;
 using EduOS.Service.Helpers;
 using EduOS.Service.Services;
 using EduOS.Service.Helpers.Payment;
-using EduOS.Service.Helpers.Storage;using EduOS.Service.Mappings;using EduOS.Service.Services.Academic;using EduOS.Service.Services.Auth;using EduOS.Service.Services.Admission;using EduOS.Service.Services.Attendance;using EduOS.Service.Services.Exams;using EduOS.Service.Services.Finance;using EduOS.Service.Services.HR;using EduOS.Service.Services.Hostel;using EduOS.Service.Services.Library;using EduOS.Service.Services.LMS;using EduOS.Service.Services.Portals;using EduOS.Service.Services.SaaS;using EduOS.Service.Services.Students;using EduOS.Service.Services.Tenants;using EduOS.Service.Services.Communication;using EduOS.Service.Services.Platform;using EduOS.Service.Services.Transport;using Microsoft.Extensions.Configuration;using Microsoft.Extensions.DependencyInjection;using Microsoft.AspNetCore.Authorization;
+using EduOS.Service.Helpers.Storage;using EduOS.Service.Mappings;using EduOS.Service.Services.Academic;using EduOS.Service.Services.Auth;using EduOS.Service.Services.Admission;using EduOS.Service.Services.Attendance;using EduOS.Service.Services.Exams;using EduOS.Service.Services.Finance;using EduOS.Service.Services.HR;using EduOS.Service.Services.Hostel;using EduOS.Service.Services.Library;using EduOS.Service.Services.LMS;using EduOS.Service.Services.Portals;using EduOS.Service.Services.SaaS;using EduOS.Service.Services.Students;using EduOS.Service.Services.Tenants;using EduOS.Service.Services.Communication;using EduOS.Service.Services.Platform;using EduOS.Service.Services.Transport;using EduOS.Service.Services.Documents;using Microsoft.Extensions.Configuration;using Microsoft.Extensions.DependencyInjection;using Microsoft.AspNetCore.Authorization;
 namespace EduOS.App.Extensions
 {
     public static class ApplicationServiceExtensions
@@ -24,6 +24,8 @@ namespace EduOS.App.Extensions
             s.AddScoped<ICurrentUserService, CurrentUserService>();
             s.AddScoped<ITenantUserAdministrationService, TenantUserAdministrationService>();
             s.AddScoped<IFileUploadService, FileUploadService>();
+            s.AddScoped<IDocumentService, DocumentService>();
+            s.AddScoped<IDocumentFileService, DocumentFileService>();
             s.AddScoped<ILearnerIdentifierProtector, LearnerIdentifierProtector>();
             s.AddSingleton(TimeProvider.System);
             s.AddSingleton<IMfaChallengeService, MfaChallengeService>();
