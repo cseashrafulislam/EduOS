@@ -22,15 +22,21 @@
   <div class="col-md-2"><label><input id="quizPublished" type="checkbox" /> Publish</label></div>
   <div class="col-12"><button id="quizAddQuestion" type="button" class="btn btn-sm btn-outline-primary mb-2">Add question</button><div id="quizQuestions" class="d-grid gap-2"></div></div>
   <div class="col-12"><button id="quizSave" class="btn btn-primary" type="submit">Save quiz</button> <button id="quizReset" type="button" class="btn btn-outline-secondary">New draft</button></div>
-  <p class="small text-muted">Published quizzes and their answer keys are immutable.</p>
+  <p class="small text-muted">Single choice: one correct option. Multiple choice: select all correct options (exact-set grading). Published quizzes and answer keys are immutable.</p>
  </div></form>
  }
  @if(learner){
  <div class="card"><div class="card-header">Take quiz</div><div class="card-body">
   <button id="quizStart" type="button" class="btn btn-primary">Start attempt</button> <span id="quizTimer" aria-live="polite"></span>
   <form id="quizAnswerForm" class="d-none mt-3"><div id="quizCandidateQuestions" class="d-grid gap-3 mb-3"></div><button id="quizSubmit" class="btn btn-success" type="submit">Submit</button></form>
-  <div id="quizResult" class="mt-2" aria-live="polite"></div>
+  <div id="quizResult" class="mt-2" aria-live="polite"></div><p class="small text-muted">Submitted answers and awarded marks can be reviewed after grading. Answer keys are never shown.</p>
  </div></div>
  }
 </section>
-@section Scripts { <script src="~/js/learning/quizzes.js" asp-append-version="true"></script> }
+@section Scripts {
+ <script src="~/js/learning/quizzes-api.js" asp-append-version="true"></script>
+ <script src="~/js/learning/quizzes-core.js" asp-append-version="true"></script>
+ <script src="~/js/learning/quizzes-editor.js" asp-append-version="true"></script>
+ <script src="~/js/learning/quizzes-author.js" asp-append-version="true"></script>
+ <script src="~/js/learning/quizzes-learner.js" asp-append-version="true"></script>
+}

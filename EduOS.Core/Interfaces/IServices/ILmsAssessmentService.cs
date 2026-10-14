@@ -14,4 +14,5 @@ public interface ILmsAssessmentService
     Task<ApiResponse<IReadOnlyList<QuizCandidateDto>>> GetAvailableQuizzesAsync(Guid courseReference, CancellationToken cancellationToken = default);
     Task<ApiResponse<long>> GetMyCourseEnrollmentIdAsync(Guid courseReference, CancellationToken cancellationToken = default);
     Task<ApiResponse<QuizAttemptDto>> GetMyAttemptAsync(long attemptId, CancellationToken cancellationToken = default);
+    Task<ApiResponse<QuizAttemptReviewDto>> GetMyAttemptReviewAsync(long attemptId, CancellationToken cancellationToken = default);
 }

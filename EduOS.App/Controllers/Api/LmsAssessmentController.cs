@@ -84,4 +84,9 @@ public sealed class LmsAssessmentController : ControllerBase
     [Authorize(Roles = "Student")]
     public async Task<IActionResult> Attempt(long id, CancellationToken ct) =>
         Reply(await _service.GetMyAttemptAsync(id, ct));
+
+    [HttpGet("attempts/{id:long}/review")]
+    [Authorize(Roles = "Student")]
+    public async Task<IActionResult> Review(long id, CancellationToken ct) =>
+        Reply(await _service.GetMyAttemptReviewAsync(id, ct));
 }

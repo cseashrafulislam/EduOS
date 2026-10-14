@@ -11,8 +11,9 @@ public sealed partial class LmsAssessmentService
     public async Task<ApiResponse<QuizAttemptDto>> SubmitQuizAttemptAsync(long id, SubmitQuizAttemptRequestDto request, CancellationToken ct = default)
     {
         if (!Learner) return Fail<QuizAttemptDto>("Student permission required.", 403);
-        if (id <= 0 || request == null || request.Answers == null || request.Answers.Count > 100 ||
-            string.IsNullOrWhiteSpace(request.RowVersion)) return Fail<QuizAttemptDto>("Invalid submission.");
+        if (id <= 0 || request?.Answers == null || request.Answers.Count > 100 ||
+            string.IsNullOrWhiteSpace(request.RowVersion) || request.Answers.Any(x => x == null))
+            return Fail<QuizAttemptDto>("Invalid submission.");
         try
         {
             return await _uow.ExecuteInTransactionAsync(async token =>
@@ -25,37 +26,25 @@ public sealed partial class LmsAssessmentService
                 if (quiz == null) return Fail<QuizAttemptDto>("Quiz not found.", 404);
                 if (await EnrollmentAsync(quiz.CourseId, attempt.CourseEnrollmentId, token) == null)
                     return Fail<QuizAttemptDto>("Attempt access denied.", 403);
+                var questions = await _questions.GetQueryable().AsNoTracking().Where(x =>
+                    x.TenantId == _user.TenantId && x.QuizId == quiz.Id && !x.IsDeleted).ToListAsync(token);
+                var questionIds = questions.Select(x => x.Id).ToArray();
+                var options = await _options.GetQueryable().AsNoTracking().Where(x =>
+                    x.TenantId == _user.TenantId && questionIds.Contains(x.QuizQuestionId) && !x.IsDeleted)
+                    .ToListAsync(token);
+                var selections = ValidateSelections(request.Answers, questions, options);
+                if (selections == null) return Fail<QuizAttemptDto>("Invalid or duplicate selected options.");
                 if (attempt.State is QuizAttemptState.Graded or QuizAttemptState.Submitted)
-                    return ApiResponse<QuizAttemptDto>.SuccessResponse(MapAttempt(attempt, quiz.PublicId), "Already submitted.");
+                    return await SameSubmittedAnswersAsync(attempt.Id, selections, token)
+                        ? ApiResponse<QuizAttemptDto>.SuccessResponse(MapAttempt(attempt, quiz.PublicId), "Existing graded attempt.")
+                        : Fail<QuizAttemptDto>("Submitted answers are immutable.", 409);
                 if (attempt.State != QuizAttemptState.Started ||
                     !VersionMatches(attempt.RowVersion, request.RowVersion))
                     return Fail<QuizAttemptDto>("Attempt changed or expired.", 409);
                 if (Now > attempt.StartedAt.AddMinutes(quiz.DurationMinutes) ||
                     (quiz.ClosesAt.HasValue && Now > quiz.ClosesAt))
                     return Fail<QuizAttemptDto>("Attempt time limit exceeded.", 409);
-                var questions = await _questions.GetQueryable().AsNoTracking().Where(x =>
-                    x.TenantId == _user.TenantId && x.QuizId == quiz.Id && !x.IsDeleted).ToListAsync(token);
-                var ids = questions.Select(x => x.Id).ToArray();
-                var options = await _options.GetQueryable().AsNoTracking().Where(x =>
-                    x.TenantId == _user.TenantId && ids.Contains(x.QuizQuestionId) && !x.IsDeleted).ToListAsync(token);
-                if (request.Answers.GroupBy(x => x.QuizQuestionId).Any(g => g.Count() > 1) ||
-                    request.Answers.Any(x => !ids.Contains(x.QuizQuestionId) || x.AnswerText != null ||
-                        (x.SelectedOptionId.HasValue && !options.Any(o =>
-                            o.Id == x.SelectedOptionId && o.QuizQuestionId == x.QuizQuestionId))))
-                    return Fail<QuizAttemptDto>("Answer does not belong to this quiz.");
-                decimal total = 0;
-                foreach (var answer in request.Answers)
-                {
-                    var q = questions.First(x => x.Id == answer.QuizQuestionId);
-                    var correct = answer.SelectedOptionId.HasValue &&
-                        options.Any(o => o.Id == answer.SelectedOptionId && o.IsCorrect);
-                    var marks = correct ? q.Marks : 0m;
-                    total += marks;
-                    await _answers.AddAsync(new QuizAnswer { TenantId = _user.TenantId,
-                        QuizAttemptId = attempt.Id, QuizQuestionId = q.Id,
-                        SelectedOptionId = answer.SelectedOptionId, AwardedMarks = marks,
-                        CreatedAt = Now, CreatedBy = _user.UserId });
-                }
+                var total = await PersistSelectedAnswersAsync(attempt.Id, questions, options, selections, token);
                 attempt.State = QuizAttemptState.Graded; attempt.SubmittedAt = Now;
                 attempt.ObtainedMarks = total; attempt.UpdatedAt = Now; attempt.UpdatedBy = _user.UserId;
                 _attempts.Update(attempt);

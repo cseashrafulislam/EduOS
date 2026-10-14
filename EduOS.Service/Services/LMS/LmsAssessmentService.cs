@@ -21,6 +21,7 @@ public sealed partial class LmsAssessmentService : ILmsAssessmentService
     private readonly IGenericRepository<QuizOption> _options;
     private readonly IGenericRepository<QuizAttempt> _attempts;
     private readonly IGenericRepository<QuizAnswer> _answers;
+    private readonly IGenericRepository<QuizAnswerOption> _answerOptions;
     private readonly IGenericRepository<CourseEnrollment> _enrollments;
     private readonly IGenericRepository<Student> _students;
     private readonly IGenericRepository<Employee> _employees;
@@ -34,10 +35,11 @@ public sealed partial class LmsAssessmentService : ILmsAssessmentService
         IGenericRepository<QuizAttempt> attempts, IGenericRepository<QuizAnswer> answers,
         IGenericRepository<CourseEnrollment> enrollments, IGenericRepository<Student> students,
         IGenericRepository<Employee> employees, IUnitOfWork uow, ICurrentUserService user,
-        TimeProvider clock, ILogger<LmsAssessmentService> logger)
+        TimeProvider clock, ILogger<LmsAssessmentService> logger,
+        IGenericRepository<QuizAnswerOption> answerOptions)
     {
         _courses = courses; _quizzes = quizzes; _questions = questions; _options = options;
-        _attempts = attempts; _answers = answers; _enrollments = enrollments;
+        _attempts = attempts; _answers = answers; _answerOptions = answerOptions; _enrollments = enrollments;
         _students = students; _employees = employees; _uow = uow;
         _user = user; _clock = clock; _logger = logger;
     }

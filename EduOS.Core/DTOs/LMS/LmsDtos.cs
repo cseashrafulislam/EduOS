@@ -263,8 +263,29 @@ public class SubmitQuizAttemptRequestDto
 public class SubmitQuizAnswerRequestDto
 {
     public long QuizQuestionId { get; set; }
-    public long? SelectedOptionId { get; set; }
+    public long? SelectedOptionId { get; set; } // Legacy SingleChoice clients.
+    public IReadOnlyList<long> SelectedOptionIds { get; set; } = Array.Empty<long>();
     [MaxLength(4000)] public string? AnswerText { get; set; }
+}
+
+public sealed class QuizAttemptReviewDto
+{
+    public long AttemptId { get; set; }
+    public Guid QuizReference { get; set; }
+    public decimal? ObtainedMarks { get; set; }
+    public IReadOnlyList<QuizAttemptAnswerReviewDto> Answers { get; set; } = Array.Empty<QuizAttemptAnswerReviewDto>();
+}
+public sealed class QuizAttemptAnswerReviewDto
+{
+    public long QuizQuestionId { get; set; }
+    public string QuestionText { get; set; } = string.Empty;
+    public decimal? AwardedMarks { get; set; }
+    public IReadOnlyList<QuizAttemptSelectedOptionDto> SelectedOptions { get; set; } = Array.Empty<QuizAttemptSelectedOptionDto>();
+}
+public sealed class QuizAttemptSelectedOptionDto
+{
+    public long Id { get; set; }
+    public string OptionText { get; set; } = string.Empty;
 }
 
 public class LiveClassDto

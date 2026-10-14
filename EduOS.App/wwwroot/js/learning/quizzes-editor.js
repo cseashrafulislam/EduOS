@@ -1,0 +1,28 @@
+(()=>{'use strict';const app=window.EduQuiz;if(!app?.state.author)return;
+const {$,el}=app;
+window.EduQuizQuestionEditor=function(q){const box=el('fieldset');box.className='border rounded p-2';
+const title=el('input');title.className='form-control mb-2 question-text';title.required=true;
+title.maxLength=4000;title.placeholder='Question';title.value=q?.questionText||'';
+const marks=el('input');marks.type='number';marks.min='.01';marks.step='.01';marks.required=true;
+marks.className='form-control mb-2 question-marks';marks.value=q?.marks||1;
+const type=el('select');type.className='form-select mb-2 question-type';type.setAttribute('aria-label','Question type');
+type.add(new Option('Single choice','SingleChoice'));type.add(new Option('Multiple choice','MultipleChoice'));
+type.value=q?.questionType==='MultipleChoice'?'MultipleChoice':'SingleChoice';
+const wrap=el('div'),correct=el('select');correct.className='form-select mb-2 question-correct';
+correct.setAttribute('aria-label','Correct single-choice option');
+function addOption(o){const i=wrap.children.length,row=el('div');row.className='d-flex align-items-center gap-2 mb-1';
+const input=el('input');input.className='form-control question-option';input.required=true;input.maxLength=2000;
+input.placeholder='Option '+(i+1);input.value=o?.optionText||'';
+const label=el('label');label.className='text-nowrap question-multi-key';
+const check=el('input');check.type='checkbox';check.className='question-option-correct me-1';check.checked=!!o?.isCorrect;
+label.append(check,document.createTextNode('Correct'));row.append(input,label);wrap.append(row);
+correct.add(new Option('Correct: '+(i+1),String(i)));label.classList.toggle('d-none',type.value!=='MultipleChoice');}
+const opts=q?.options||[{optionText:'',isCorrect:true},{optionText:'',isCorrect:false}];
+opts.forEach(addOption);correct.value=String(Math.max(0,opts.findIndex(o=>o.isCorrect)));
+type.onchange=()=>{correct.classList.toggle('d-none',type.value==='MultipleChoice');
+wrap.querySelectorAll('.question-multi-key').forEach(x=>x.classList.toggle('d-none',type.value!=='MultipleChoice'));};type.onchange();
+const add=el('button','Add option');add.type='button';add.className='btn btn-sm btn-outline-primary';
+add.onclick=()=>{if(wrap.children.length<10)addOption({optionText:'',isCorrect:false});};
+const remove=el('button','Remove question');remove.type='button';remove.className='btn btn-sm btn-outline-danger ms-2';remove.onclick=()=>box.remove();
+box.append(title,marks,type,wrap,correct,add,remove);$('quizQuestions').append(box);};
+})();
