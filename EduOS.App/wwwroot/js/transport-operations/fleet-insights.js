@@ -18,6 +18,11 @@
         if (search) q.set('search', search);
         return q.toString();
     }
+    function invalidate() {
+        ++sequence;
+        el('transportFleetInsightsMetrics').replaceChildren();
+        el('transportFleetInsightsStatus').textContent = 'Filters changed; apply to refresh fleet metrics.';
+    }
     async function load() {
         const token = ++sequence, filterSnapshot = filters();
         const status = el('transportFleetInsightsStatus'), button = el('transportFleetInsightsRefresh');
@@ -26,8 +31,8 @@
             const response = await fetch('/api/transport/fleet-insights?' + filterSnapshot,
                 { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
             const result = await response.json().catch(() => null);
-            if (!response.ok || !result?.success) throw Error(result?.message || 'Fleet metrics unavailable.');
             if (token !== sequence || filterSnapshot !== filters()) return;
+            if (!response.ok || !result?.success || !result.data) throw Error(result?.message || 'Fleet metrics unavailable.');
             const grid = el('transportFleetInsightsMetrics'); grid.replaceChildren();
             for (const [key, title, suffix = ''] of labels) {
                 const col = document.createElement('div'), card = document.createElement('div'),
@@ -44,6 +49,8 @@
         } finally { if (token === sequence) button.disabled = false; }
     }
     el('transportFleetInsightsRefresh').addEventListener('click', () => load());
+    el('transportCapacitySearch')?.addEventListener('input', invalidate);
+    el('transportCapacityCampus')?.addEventListener('change', invalidate);
     el('transportCapacityFilter')?.addEventListener('submit', () => { setTimeout(load, 0); });
     window.addEventListener('transport:vehicles-changed', () => load());
     load();
