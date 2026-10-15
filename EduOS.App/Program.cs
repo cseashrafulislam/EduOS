@@ -196,6 +196,8 @@ builder.Services.AddIdentityConfiguration(
 
 builder.Services.AddApplicationServices(
     builder.Configuration);
+// Platform legal acceptance owner; registered once until consolidated in application service extensions.
+builder.Services.AddScoped<EduOS.Core.Interfaces.IServices.ILegalAcceptanceService, EduOS.Service.Services.Platform.LegalAcceptanceService>();
 // Tenant-scoped document administration services.
 builder.Services.AddScoped<EduOS.Core.Interfaces.IServices.IDocumentService, EduOS.Service.Services.Documents.DocumentService>();
 builder.Services.AddScoped<EduOS.Core.Interfaces.IServices.IDocumentFileService, EduOS.Service.Services.Documents.DocumentFileService>();

@@ -64,6 +64,7 @@
                         <span>@T["Dashboard"]</span>
                     </a>
                     <a class="nav-link @ActiveFor("/PlatformTenants")" href="/PlatformTenants/Index"><span>Institution Lifecycle</span></a>
+                    <a class="nav-link @ActiveFor("/LegalDocuments/Index")" href="/LegalDocuments/Index"><span>Legal Publications</span></a>
                     <a class="nav-link @ActiveFor("/Account/PaymentVerification")" href="/Account/PaymentVerification">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
                         <span>@T["ManualPaymentVerification"]</span>
@@ -362,6 +363,7 @@
 
                             <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-4 p-2">
                                 <li><a class="dropdown-item rounded-3" href="/Account/Profile">@T["Profile"]</a></li>
+                                <li><a class="dropdown-item rounded-3" href="/LegalDocuments/My">My Legal Agreements</a></li>
                                 <li><a class="dropdown-item rounded-3" href="/Account/Profile#passwordForm">@T["ChangePassword"]</a></li>
                                 <li><hr class="dropdown-divider" /></li>
                                 <li>

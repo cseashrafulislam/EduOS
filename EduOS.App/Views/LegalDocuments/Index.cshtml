@@ -1,0 +1,22 @@
+@{ ViewData["Title"] = "Legal Publications"; }
+<section class="container-fluid py-4" data-legal-mode="admin">
+    <h2>Legal publications</h2>
+    <p class="text-muted">Publish immutable versions of institution terms and policies. Content must be reviewed and approved by your legal team before publication. Future-effective versions do not replace current terms early.</p>
+    <div id="legalAlert" class="alert d-none" role="alert" aria-live="polite"></div>
+    <div class="card mb-3"><div class="card-body">
+        <h3 class="h5">Publish a new version</h3>
+        <form id="legalPublishForm" class="row g-3">
+            <div class="col-md-3"><label for="legalCode" class="form-label">Document code</label><input id="legalCode" class="form-control" maxlength="50" pattern="[A-Za-z][A-Za-z0-9_.-]+" required placeholder="TERMS_OF_SERVICE"></div>
+            <div class="col-md-3"><label for="legalVersion" class="form-label">Version</label><input id="legalVersion" class="form-control" maxlength="30" required placeholder="2026-10"></div>
+            <div class="col-md-6"><label for="legalTitle" class="form-label">Title</label><input id="legalTitle" class="form-control" maxlength="200" required></div>
+            <div class="col-md-4"><label for="legalEffective" class="form-label">Effective from (local time)</label><input id="legalEffective" type="datetime-local" class="form-control" required></div>
+            <div class="col-12"><label for="legalContent" class="form-label">Approved legal text</label><textarea id="legalContent" class="form-control" rows="10" maxlength="50000" minlength="20" required></textarea></div>
+            <div class="col-12"><button class="btn btn-primary" type="submit" id="legalPublishButton">Publish immutable version</button></div>
+        </form>
+    </div></div>
+    <div class="card"><div class="card-body">
+        <h3 class="h5">Published versions</h3>
+        <div id="legalAdminRows" class="d-grid gap-2"></div>
+    </div></div>
+</section>
+@section Scripts { <script src="~/js/platform/legal-documents.js" asp-append-version="true"></script> }

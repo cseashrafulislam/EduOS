@@ -44,3 +44,13 @@ public sealed class AcceptLegalDocumentRequestDto
     /// <summary>Explicit consent; false must be rejected by the server.</summary>
     public bool Accepted { get; set; }
 }
+
+public sealed class PublishLegalDocumentRequestDto
+{
+    public Guid ClientRequestId { get; set; }
+    [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
+    [Required, MaxLength(200)] public string Title { get; set; } = string.Empty;
+    [Required, MaxLength(30)] public string Version { get; set; } = string.Empty;
+    [Required] public string Content { get; set; } = string.Empty;
+    public DateTime EffectiveAt { get; set; }
+}

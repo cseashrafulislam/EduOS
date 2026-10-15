@@ -9,4 +9,6 @@ public interface ILegalAcceptanceService
     Task<ApiResponse<IReadOnlyList<LegalDocumentDto>>> GetRequiredDocumentsAsync(CancellationToken cancellationToken = default);
     Task<ApiResponse<UserLegalAcceptanceDto>> AcceptAsync(AcceptLegalDocumentRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<UserLegalAcceptanceDto>>> GetMyAcceptancesAsync(CancellationToken cancellationToken = default);
+    Task<ApiResponse<IReadOnlyList<LegalDocumentDto>>> GetPublishedDocumentsAsync(CancellationToken cancellationToken = default);
+    Task<ApiResponse<LegalDocumentDto>> PublishAsync(PublishLegalDocumentRequestDto request, CancellationToken cancellationToken = default);
 }
