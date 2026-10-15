@@ -33,6 +33,7 @@
         return body.data;
     }
     function number(value, suffix) {
+        if (value === null || value === undefined || value === '') return '—';
         const n = Number(value);
         if (!Number.isFinite(n) || n < 0 || n > 1000000000000) return '—';
         return (suffix ? n.toLocaleString(undefined, { maximumFractionDigits: 1 }) :

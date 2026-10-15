@@ -23,6 +23,7 @@ test('no identifiers or financial values are rendered as metrics', () => {
     assert.doesNotMatch(js, /\[['"](?:studentName|driverName|vehicleReference|roomId|monthlyRent|monthlyFare)['"]/);
     assert.doesNotMatch(js, /innerHTML|localStorage|sessionStorage|eval\(/);
     assert.match(js, /value\.textContent = number\(data\[key\], suffix\)/);
+    assert.ok(js.includes("value === null || value === undefined || value === ''"));
 });
 test('stale requests are cancelled and filter changes clear old metrics', () => {
     assert.match(js, /controller\?\.abort\(\)/);
@@ -39,5 +40,7 @@ test('Razor provides independent accessible filter controls', () => {
 test('both existing operational dashboards link to the overview', () => {
     assert.ok(transportNav.includes('href="/OperationsInsights/Index"'));
     assert.ok(hostelNav.includes('href="/OperationsInsights/Index"'));
+    for (const partial of [transportNav, hostelNav])
+        assert.match(partial, /User\.IsInRole\("TenantAdmin"\) \|\| User\.IsInRole\("Principal"\)/);
 });
 test('JavaScript syntax is valid', () => assert.doesNotThrow(() => new Function(js)));
