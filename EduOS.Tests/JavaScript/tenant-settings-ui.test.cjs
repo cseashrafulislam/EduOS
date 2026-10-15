@@ -1,0 +1,25 @@
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const root=path.resolve(__dirname,'../..');
+const read=p=>fs.readFileSync(path.join(root,p),'utf8');
+test('tenant settings UI uses existing service, antiforgery, concurrency and redaction',()=>{
+ const controller=read('EduOS.App/Controllers/TenantSettingsController.cs');
+ const view=read('EduOS.App/Views/TenantSettings/Index.cshtml');
+ const js=read('EduOS.App/wwwroot/js/platform/tenant-settings.js');
+ const service=read('EduOS.Service/Services/Tenants/TenantSettingService.cs');
+ assert.match(controller,/Authorize\(Roles = "TenantAdmin"\)/);
+ assert.match(controller,/ValidateAntiForgeryToken/);
+ assert.match(controller,/GetSettingsAsync/);
+ assert.match(controller,/GetSettingAsync/);
+ assert.match(controller,/SaveSettingAsync/);
+ assert.match(controller,/request.Value = null/);
+ assert.match(view,/@Html.AntiForgeryToken\(\)/);
+ assert.match(view,/name="RowVersion"/);
+ assert.match(view,/selected\?\.IsSensitive == true \? "" : selected\?\.Value/);
+ assert.match(view,/asp-action="Save"/);
+ assert.match(js,/setCustomValidity/);
+ assert.match(service,/string.IsNullOrEmpty\(request.Value\)/);
+ assert.doesNotMatch(js,/innerHTML|localStorage|sessionStorage/);
+});

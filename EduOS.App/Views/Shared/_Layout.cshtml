@@ -104,6 +104,10 @@
                         <span>Institution Terminology</span>
                     </a>
                 }
+                @if (User?.IsInRole("TenantAdmin") == true)
+                {
+                    <a class="nav-link @ActiveFor("/TenantSettings")" href="/TenantSettings/Index"><span>Institution Settings</span></a>
+                }
                 <a class="nav-link @ActiveFor("/Account/InstitutionProfile")" href="/Account/InstitutionProfile">
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#institution" /></svg>
                     <span>@T["InstitutionSetup"]</span>

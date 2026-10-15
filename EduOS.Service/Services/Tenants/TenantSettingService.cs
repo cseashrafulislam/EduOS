@@ -94,7 +94,7 @@ public sealed class TenantSettingService : ITenantSettingService
                 return ApiResponse<TenantSettingDto>.ErrorResponse("Sensitive value is required.");
             var row = existing ?? new TenantSetting { TenantId = _user.TenantId, Key = key, CreatedAt = DateTime.UtcNow, CreatedBy = _user.UserId };
             var preserveSecret = existing != null && request.IsSensitive &&
-                (request.Value == null || request.Value == "********");
+                (string.IsNullOrEmpty(request.Value) || request.Value == "********");
             if (!preserveSecret)
             {
                 var raw = request.Value ?? string.Empty;
