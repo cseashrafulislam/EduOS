@@ -109,6 +109,13 @@ public sealed class TransportController : ControllerBase
         CancellationToken cancellationToken = default) =>
         ToAction(await _service.GetCapacityReportAsync(campusId, page, pageSize, search, cancellationToken));
 
+    [HttpGet("fleet-insights")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> FleetInsights([FromQuery] long? campusId = null,
+        [FromQuery] string? search = null, CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetFleetInsightsAsync(campusId, search, cancellationToken));
+
     [HttpGet("capacity-report/export")]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
     public async Task<IActionResult> CapacityExport([FromQuery] long? campusId = null,
