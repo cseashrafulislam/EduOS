@@ -138,5 +138,23 @@ public sealed class TransportController : ControllerBase
         [FromBody] SaveTransportDriverRequestDto request, CancellationToken ct) =>
         ToAction(await _service.SaveDriverAsync(driverId, request, ct));
 
+    [HttpGet("vehicle-driver-links")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> VehicleDriverLinks([FromQuery] long? campusId = null,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 15, [FromQuery] string? search = null,
+        CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetVehicleDriverLinksAsync(campusId, page, pageSize, search, cancellationToken));
+
+    [HttpPost("vehicle-driver-links")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> AssignVehicleDriver([FromBody] AssignVehicleDriverRequestDto request,
+        CancellationToken ct) => ToAction(await _service.AssignDriverAsync(request, ct));
+
+    [HttpPost("vehicle-driver-links/{id:long}/close")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> CloseVehicleDriver(long id,
+        [FromBody] CloseTransportAssignmentRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.CloseDriverAssignmentAsync(id, request, ct));
+
     private IActionResult ToAction<T>(EduOS.Core.Common.ApiResponse<T> response) => StatusCode(response.StatusCode, response);
 }

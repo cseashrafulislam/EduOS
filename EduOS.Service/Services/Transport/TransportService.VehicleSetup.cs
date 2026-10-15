@@ -152,8 +152,12 @@ public sealed partial class TransportService
                     x.IsCurrent && (!x.EffectiveTo.HasValue || x.EffectiveTo.Value >= today), token);
                 if (request.Capacity < occupied)
                     return ApiResponse<TransportVehicleSetupRowDto>.ErrorResponse("Capacity cannot be below active riders.", 409);
-                if (!request.IsActive && (occupied > 0 || currentRoutes > 0))
-                    return ApiResponse<TransportVehicleSetupRowDto>.ErrorResponse("Close rider and route assignments before deactivating.", 409);
+                var currentDriver = _driverLinks != null && await _driverLinks.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && !x.IsDeleted && x.VehicleId == vehicle.Id &&
+                    x.IsCurrent && (!x.EffectiveTo.HasValue || x.EffectiveTo.Value >= today), token);
+                if (!request.IsActive && (occupied > 0 || currentRoutes > 0 || currentDriver))
+                    return ApiResponse<TransportVehicleSetupRowDto>.ErrorResponse(
+                        "Close rider, route and driver assignments before deactivating.", 409);
                 if (vehicle.Capacity == request.Capacity && vehicle.IsActive == request.IsActive)
                     return ApiResponse<TransportVehicleSetupRowDto>.SuccessResponse(
                         MapVehicleSetup(vehicle, campus.Name, occupied, currentRoutes), "Vehicle already has the requested settings.");

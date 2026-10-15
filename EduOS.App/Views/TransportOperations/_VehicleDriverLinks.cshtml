@@ -1,0 +1,30 @@
+<section class="card mb-3" id="transportVehicleDriverPanel"><div class="card-body">
+    <h3 class="h5">Vehicle–driver assignments</h3>
+    <p class="small text-muted">TenantAdmin only. One current assignment per driver and vehicle; assignment ends at license expiry at the latest. Close riders before ending an active vehicle's driver assignment.</p>
+    <div id="transportVehicleDriverAlert" class="d-none" role="alert" tabindex="-1"></div>
+    <form id="transportVehicleDriverForm" class="row g-2 mb-3">
+        @Html.AntiForgeryToken()
+        <div class="col-md-4"><label for="transportVehicleDriverVehicleSearch" class="form-label">Find vehicle</label><div class="input-group"><input id="transportVehicleDriverVehicleSearch" class="form-control" maxlength="100" placeholder="Vehicle number" /><button type="button" id="transportVehicleDriverFindVehicles" class="btn btn-outline-secondary">Find</button></div></div>
+        <div class="col-md-4"><label for="transportVehicleDriverDriverSearch" class="form-label">Find driver</label><div class="input-group"><input id="transportVehicleDriverDriverSearch" class="form-control" maxlength="100" placeholder="Driver name" /><button type="button" id="transportVehicleDriverFindDrivers" class="btn btn-outline-secondary">Find</button></div></div>
+        <div class="col-md-4"><label for="transportVehicleDriverVehicle" class="form-label">Vehicle</label><select id="transportVehicleDriverVehicle" class="form-select" required><option value="">Find a vehicle</option></select></div>
+        <div class="col-md-4"><label for="transportVehicleDriverDriver" class="form-label">Licensed driver</label><select id="transportVehicleDriverDriver" class="form-select" required><option value="">Find a driver</option></select></div>
+        <div class="col-md-3"><label for="transportVehicleDriverFrom" class="form-label">Effective from</label><input id="transportVehicleDriverFrom" class="form-control" type="date" required /></div>
+        <div class="col-md-3"><label for="transportVehicleDriverTo" class="form-label">Effective to (optional)</label><input id="transportVehicleDriverTo" class="form-control" type="date" /><div class="form-text">Defaults to license expiry.</div></div>
+        <div class="col-md-2 d-flex align-items-end"><button id="transportVehicleDriverAssign" type="submit" class="btn btn-primary w-100">Assign driver</button></div>
+    </form>
+    <h4 class="h6">Vehicle–driver assignment history</h4>
+    <form id="transportVehicleDriverSearchForm" class="row g-2 mb-2">
+        <div class="col-md-4"><label for="transportVehicleDriverCampus" class="visually-hidden">Campus</label><select id="transportVehicleDriverCampus" class="form-select"><option value="">All campuses</option></select></div>
+        <div class="col-md-6"><label for="transportVehicleDriverSearch" class="visually-hidden">Search</label><input id="transportVehicleDriverSearch" class="form-control" maxlength="100" placeholder="Vehicle, driver or campus" /></div>
+        <div class="col-md-2"><button type="submit" class="btn btn-outline-primary w-100">Search</button></div>
+    </form>
+    <div class="table-responsive"><table class="table table-sm table-hover align-middle">
+        <thead><tr><th>Campus</th><th>Vehicle</th><th>Driver</th><th>License expires</th><th>From</th><th>To</th><th>Current</th><th>Closure</th></tr></thead>
+        <tbody id="transportVehicleDriverRows"><tr><td colspan="8">Loading…</td></tr></tbody>
+    </table></div>
+    <div class="d-flex justify-content-between align-items-center gap-2">
+        <button id="transportVehicleDriverPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+        <span id="transportVehicleDriverPageInfo" class="small text-muted"></span>
+        <button id="transportVehicleDriverNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+    </div>
+</div></section>

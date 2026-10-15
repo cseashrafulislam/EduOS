@@ -37,6 +37,8 @@ public sealed class VehicleDriverAssignmentDto
 public sealed class AssignVehicleDriverRequestDto
 {
     public Guid ClientRequestId { get; set; }
+    [Required] public string VehicleRowVersion { get; set; } = string.Empty;
+    [Required] public string DriverRowVersion { get; set; } = string.Empty;
     [Range(1, long.MaxValue)] public long VehicleId { get; set; }
     [Range(1, long.MaxValue)] public long TransportDriverId { get; set; }
     public DateOnly EffectiveFrom { get; set; }
