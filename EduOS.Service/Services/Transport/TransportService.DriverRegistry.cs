@@ -100,6 +100,17 @@ public sealed partial class TransportService
                         x.IsCurrent && (!x.EffectiveTo.HasValue || x.EffectiveTo.Value >= today), token))
                     return ApiResponse<TransportDriverDto>.ErrorResponse(
                         "Close all current vehicle assignments before deactivating the driver.", 409);
+                if (existing.LicenseExpiresOn != request.LicenseExpiresOn)
+                {
+                    var requestedExpiry = request.LicenseExpiresOn;
+                    if (await _driverLinks.GetQueryable().AsNoTracking().AnyAsync(x =>
+                        x.TenantId == tenant && !x.IsDeleted && x.TransportDriverId == existing.Id &&
+                        x.IsCurrent && (!x.EffectiveTo.HasValue || x.EffectiveTo.Value >= today) &&
+                        (!requestedExpiry.HasValue || !x.EffectiveTo.HasValue ||
+                         x.EffectiveTo.Value > requestedExpiry.Value), token))
+                        return ApiResponse<TransportDriverDto>.ErrorResponse(
+                            "License expiry cannot precede a current vehicle assignment end date.", 409);
+                }
                 if (existing.FullName == name && existing.Phone == phone &&
                     existing.LicenseNumber == license && existing.LicenseExpiresOn == request.LicenseExpiresOn &&
                     existing.IsActive == request.IsActive)

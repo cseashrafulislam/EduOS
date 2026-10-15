@@ -27,3 +27,12 @@ test('driver registry preserves row-version and safe DOM rendering', () => {
     assert.ok(view.includes('driver-registry.js'));
     new Function(js);
 });
+
+test('driver license expiry cannot invalidate active or future assignments', () => {
+    for (const token of [
+        'existing.LicenseExpiresOn != request.LicenseExpiresOn',
+        'x.IsCurrent && (!x.EffectiveTo.HasValue || x.EffectiveTo.Value >= today)',
+        'x.EffectiveTo.Value > requestedExpiry.Value',
+        'License expiry cannot precede a current vehicle assignment end date'
+    ]) assert.ok(service.includes(token), token);
+});

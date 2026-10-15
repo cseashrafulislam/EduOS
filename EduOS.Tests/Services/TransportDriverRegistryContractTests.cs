@@ -44,6 +44,18 @@ public sealed class TransportDriverRegistryContractTests
         Assert.Contains("rowVersion: editing?.rowVersion", script);
     }
 
+    [Fact]
+    public void Driver_license_changes_preserve_current_and_future_assignments()
+    {
+        var service = Read("EduOS.Service", "Services", "Transport", "TransportService.DriverRegistry.cs");
+        Assert.Contains("existing.LicenseExpiresOn != request.LicenseExpiresOn", service);
+        Assert.Contains("x.TenantId == tenant && !x.IsDeleted && x.TransportDriverId == existing.Id", service);
+        Assert.Contains("x.IsCurrent && (!x.EffectiveTo.HasValue || x.EffectiveTo.Value >= today)", service);
+        Assert.Contains("!requestedExpiry.HasValue || !x.EffectiveTo.HasValue", service);
+        Assert.Contains("x.EffectiveTo.Value > requestedExpiry.Value", service);
+        Assert.Contains("License expiry cannot precede a current vehicle assignment end date", service);
+    }
+
     private static string Read(params string[] segments)
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
