@@ -1,0 +1,22 @@
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const root=path.resolve(__dirname,'../..');
+const read=file=>fs.readFileSync(path.join(root,file),'utf8');
+test('terminology workflow is server-backed and protected',()=>{
+ const controller=read('EduOS.App/Controllers/TenantTerminologyController.cs');
+ const view=read('EduOS.App/Views/TenantTerminology/Index.cshtml');
+ const js=read('EduOS.App/wwwroot/js/platform/tenant-terminology.js');
+ const api=read('EduOS.App/Controllers/Api/TenantSettingController.cs');
+ assert.match(controller,/Authorize\(Roles = "TenantAdmin"\)/);
+ assert.match(controller,/ValidateAntiForgeryToken/);
+ assert.match(controller,/SaveTerminologyAsync/);
+ assert.match(view,/@Html.AntiForgeryToken\(\)/);
+ assert.match(view,/name="RowVersion"/);
+ assert.match(view,/asp-action="Save"/);
+ assert.match(view,/asp-route-editId/);
+ assert.match(api,/HttpPut\("terminology\/\{terminologyId:long\}"\)/);
+ assert.match(js,/textContent/);
+ assert.doesNotMatch(js,/innerHTML/);
+});

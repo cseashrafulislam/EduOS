@@ -97,6 +97,13 @@
                 {
                     <a class="nav-link @ActiveFor("/TenantDomains")" href="/TenantDomains/Index"><span>Custom Domains</span></a>
                 }
+                @if (User?.IsInRole("TenantAdmin") == true)
+                {
+                    <a class="nav-link @ActiveFor("/TenantTerminology")" href="/TenantTerminology/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                        <span>Institution Terminology</span>
+                    </a>
+                }
                 <a class="nav-link @ActiveFor("/Account/InstitutionProfile")" href="/Account/InstitutionProfile">
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#institution" /></svg>
                     <span>@T["InstitutionSetup"]</span>
