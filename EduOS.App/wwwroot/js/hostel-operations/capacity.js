@@ -3,80 +3,95 @@
     const root = document.getElementById('hostelCapacityPanel');
     if (!root) return;
     const el = id => document.getElementById(id);
-    let page = 1, pages = 1, serial = 0, currentRows = [], currentPage = 0;
+    let page = 1, pages = 1, serial = 0, currentPage = 0, hasRows = false, exporting = false;
     const cols = ['Hostel','Room','Capacity','Active beds','Occupied','Available','Inactive beds','Risk'];
-    const csv = value => {
-        const valueText = String(value ?? '');
-        const safe = /^\s*[=+\-@\t\r]/.test(valueText) ? "'" + valueText : valueText;
-        return '"' + safe.replace(/"/g, '""') + '"';
-    };
     const values = row => [row.hostelName,row.roomNumber,row.capacity,row.activeBeds,
         row.occupiedBeds,row.availableBeds,row.inactiveBeds,row.hasRisk ? 'Review' : 'OK'];
     const status = (message,error=false) => {
-        el('hostelCapacityStatus').textContent=message;
-        el('hostelCapacityStatus').className=error ? 'small text-danger' : 'small text-muted';
+        el('hostelCapacityStatus').textContent = message;
+        el('hostelCapacityStatus').className = error ? 'small text-danger' : 'small text-muted';
     };
+    function query(includePage=true) {
+        const params = new URLSearchParams();
+        if (includePage) { params.set('page',String(page)); params.set('pageSize','25'); }
+        const search = el('hostelCapacitySearch').value.trim();
+        if (search) params.set('search',search);
+        return params;
+    }
     function invalidate() {
-        ++serial; currentRows=[]; currentPage=0;
-        el('hostelCapacityCsv').disabled=true;
-        el('hostelCapacityPrev').disabled=true;
-        el('hostelCapacityNext').disabled=true;
+        ++serial; currentPage = 0; hasRows = false;
+        el('hostelCapacityCsv').disabled = true;
+        el('hostelCapacityPrev').disabled = true;
+        el('hostelCapacityNext').disabled = true;
         el('hostelCapacityRows').replaceChildren();
     }
     async function load() {
         invalidate();
-        const requestSerial=serial, requestedPage=page;
-        const params=new URLSearchParams({page:String(page),pageSize:'25'});
-        const search=el('hostelCapacitySearch').value.trim();
-        if (search) params.set('search',search);
+        const requestSerial = serial, requestedPage = page;
         status('Loading room capacity…');
         try {
-            const response=await fetch('/api/hostel/capacity?'+params,{
+            const response = await fetch('/api/hostel/capacity?' + query(),{
                 credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}});
-            const result=await response.json().catch(()=>null);
-            if (requestSerial!==serial) return;
-            if (!response.ok || !result?.success) throw new Error(result?.message||'Unable to load capacity.');
-            const data=result.data||{}, rows=Array.isArray(data.items)?data.items:[];
-            currentRows=rows; currentPage=requestedPage;
-            pages=Math.max(1,Math.ceil((Number(data.totalCount)||0)/25));
-            const tbody=el('hostelCapacityRows');
+            const result = await response.json().catch(()=>null);
+            if (requestSerial !== serial) return;
+            if (!response.ok || !result?.success) throw Error(result?.message || 'Unable to load capacity.');
+            const data = result.data || {}, rows = Array.isArray(data.items) ? data.items : [];
+            currentPage = requestedPage; hasRows = rows.length > 0;
+            pages = Math.max(1,Math.ceil((Number(data.totalCount)||0)/25));
+            const tbody = el('hostelCapacityRows');
             for (const row of rows) {
-                const tr=document.createElement('tr');
+                const tr = document.createElement('tr');
                 for (const value of values(row)) {
-                    const td=document.createElement('td');td.textContent=String(value??'');tr.append(td);
+                    const td = document.createElement('td'); td.textContent = String(value??''); tr.append(td);
                 }
                 if (row.hasRisk) tr.classList.add('table-warning');
                 tbody.append(tr);
             }
             if (!rows.length) {
-                const tr=document.createElement('tr'),td=document.createElement('td');
-                td.colSpan=cols.length;td.textContent='No rooms match the filter.';tr.append(td);tbody.append(tr);
+                const tr = document.createElement('tr'), td = document.createElement('td');
+                td.colSpan = cols.length; td.textContent = 'No rooms match the filter.'; tr.append(td); tbody.append(tr);
             }
-            el('hostelCapacityPage').textContent='Page '+requestedPage+' of '+pages+' · '+(Number(data.totalCount)||0)+' rooms';
-            el('hostelCapacityPrev').disabled=requestedPage<=1;
-            el('hostelCapacityNext').disabled=requestedPage>=pages;
-            el('hostelCapacityCsv').disabled=!rows.length;
-            status('Capacity is calculated from tenant-scoped beds and active allocations.');
+            el('hostelCapacityPage').textContent = 'Page ' + requestedPage + ' of ' + pages + ' · ' + (Number(data.totalCount)||0) + ' rooms';
+            el('hostelCapacityPrev').disabled = requestedPage <= 1;
+            el('hostelCapacityNext').disabled = requestedPage >= pages;
+            el('hostelCapacityCsv').disabled = !hasRows || exporting;
+            status('Capacity uses authorized, non-deleted beds and active allocations.');
         } catch (error) {
-            if (requestSerial===serial) { invalidate(); status(error.message,true); }
+            if (requestSerial === serial) { invalidate(); status(error.message,true); }
         }
     }
-    el('hostelCapacitySearch').addEventListener('input',()=>{
-        page=1;invalidate();el('hostelCapacityPage').textContent='Apply filter to load capacity.';
+    const filterChanged = () => {
+        page = 1; invalidate(); el('hostelCapacityPage').textContent = 'Apply filter to load capacity.';
         status('Filter changed; apply to refresh the report.');
-    });
+    };
+    el('hostelCapacitySearch').addEventListener('input',filterChanged);
     el('hostelCapacityFilter').addEventListener('submit',e=>{e.preventDefault();page=1;load();});
     el('hostelCapacityPrev').addEventListener('click',()=>{page=Math.max(1,page-1);load();});
     el('hostelCapacityNext').addEventListener('click',()=>{page=Math.min(pages,page+1);load();});
-    el('hostelCapacityCsv').addEventListener('click',()=>{
-        if (!currentRows.length||currentPage!==page) return;
-        const lines=[cols.map(csv).join(',')];
-        for (const row of currentRows) lines.push(values(row).map(csv).join(','));
-        const blob=new Blob(['\uFEFF'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
-        const url=URL.createObjectURL(blob),a=document.createElement('a');
-        a.href=url;a.download='hostel-capacity-page-'+page+'.csv';
-        document.body.append(a);a.click();a.remove();
-        setTimeout(()=>URL.revokeObjectURL(url),1000);
+    el('hostelCapacityCsv').addEventListener('click',async()=>{
+        if (!hasRows || currentPage !== page || exporting) return;
+        const requestSerial = serial, button = el('hostelCapacityCsv');
+        exporting = true; button.disabled = true;
+        try {
+            const response = await fetch('/api/hostel/capacity/export?' + query(false),{
+                credentials:'same-origin',cache:'no-store',headers:{Accept:'text/csv'}});
+            if (!response.ok) {
+                const error = await response.json().catch(()=>null);
+                throw Error(error?.message || 'Capacity CSV export failed.');
+            }
+            const blob = await response.blob();
+            if (requestSerial !== serial) return;
+            const url = URL.createObjectURL(blob), link = document.createElement('a');
+            link.href = url; link.download = 'hostel-capacity.csv';
+            document.body.append(link); link.click(); link.remove();
+            setTimeout(()=>URL.revokeObjectURL(url),1000);
+            status('Filtered capacity CSV downloaded.');
+        } catch (error) { if (requestSerial === serial) status(error.message,true); }
+        finally {
+            exporting = false;
+            button.disabled = !hasRows || currentPage !== page;
+        }
     });
+    el('hostelCapacityCsv').textContent = 'Export all filtered rooms (CSV, max 1,000)';
     load();
 })();
