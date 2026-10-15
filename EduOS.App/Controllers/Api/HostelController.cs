@@ -91,6 +91,13 @@ public sealed class HostelController : ControllerBase
         [FromQuery] int pageSize = 25, [FromQuery] string? search = null, CancellationToken cancellationToken = default) =>
         ToAction(await _service.GetCapacityAsync(campusId, page, pageSize, search, cancellationToken));
 
+    [HttpGet("occupancy-insights")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> OccupancyInsights([FromQuery] long? campusId = null,
+        [FromQuery] string? search = null, CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetOccupancyInsightsAsync(campusId, search, cancellationToken));
+
     [HttpGet("capacity/export")]
     [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]

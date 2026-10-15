@@ -42,6 +42,7 @@
 
     @if (canManage)
     {
+        @await Html.PartialAsync("_OccupancyInsights")
         <section id="hostelCapacityPanel" class="card mb-3"><div class="card-body">
             <h3 class="h5">Capacity and occupancy report</h3>
             <p class="small text-muted">Campus-authorized room inventory only. CSV excludes student identifiers and payments.</p>
@@ -195,6 +196,7 @@
     <script src="~/js/hostel-operations/index.js" asp-append-version="true"></script>
     @if (canManage) {
         <script src="~/js/hostel-operations/capacity.js" asp-append-version="true"></script>
+        <script src="~/js/hostel-operations/occupancy-insights.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/bed-create.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/bed-inventory.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/room-inventory.js" asp-append-version="true"></script>
