@@ -50,6 +50,8 @@
             controller?.abort();
             controller = null;
             grid.replaceChildren();
+            // A filter change aborts an in-flight load; its stale finally block cannot re-enable Refresh.
+            if (available) button.disabled = false;
             status.textContent = 'Filters changed; refresh to load current metrics.';
         }
         function query() {

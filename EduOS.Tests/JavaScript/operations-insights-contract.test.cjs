@@ -44,3 +44,9 @@ test('both existing operational dashboards link to the overview', () => {
         assert.match(partial, /User\.IsInRole\("TenantAdmin"\) \|\| User\.IsInRole\("Principal"\)/);
 });
 test('JavaScript syntax is valid', () => assert.doesNotThrow(() => new Function(js)));
+test('filter invalidation restores refresh after cancelling a pending request', () => {
+    const invalidate = js.match(/function invalidate\(\) \{([\s\S]*?)\n        \}/)?.[1] ?? '';
+    assert.match(invalidate, /controller\?\.abort\(\)/);
+    assert.match(invalidate, /if \(available\) button\.disabled = false;/);
+    assert.match(js, /if \(token === serial\) \{ controller = null; button\.disabled = false; \}/);
+});
