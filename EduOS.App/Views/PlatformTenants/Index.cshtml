@@ -1,0 +1,24 @@
+@{
+    ViewData["Title"] = "Institution Lifecycle";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<section id="platformTenantWorkspace" class="container-fluid">
+    @Html.AntiForgeryToken()
+    <h2>Institution Lifecycle</h2>
+    <form id="platformTenantFilter">
+        <label for="platformTenantSearch">Search institutions</label><input id="platformTenantSearch" class="form-control" maxlength="100" />
+        <label for="platformTenantState">Status</label><select id="platformTenantState" class="form-select"><option value="">All</option><option value="1">Pending</option><option value="2">Active</option><option value="3">Suspended</option><option value="4">Closed</option></select>
+        <button type="submit" class="btn btn-primary">Search</button>
+    </form>
+    <button id="platformTenantRefresh" type="button" class="btn btn-secondary">Refresh</button>
+    <p id="platformTenantStatus" role="status" aria-live="polite"></p>
+    <div class="table-responsive"><table class="table"><thead><tr><th>Institution</th><th>Code</th><th>State</th><th>Onboarding</th><th>Created</th><th>Action</th></tr></thead><tbody id="platformTenantRows"></tbody></table></div>
+    <button id="platformTenantPrevious" type="button">Previous</button><span id="platformTenantPage"></span><button id="platformTenantNext" type="button">Next</button>
+    <form id="platformTenantDecision" hidden>
+        <h3 id="platformTenantDecisionTitle">Confirm state change</h3>
+        <label for="platformTenantReason">Reason (10–500 characters)</label>
+        <textarea id="platformTenantReason" minlength="10" maxlength="500" required></textarea>
+        <button id="platformTenantSubmit" type="submit">Confirm</button><button id="platformTenantCancel" type="button">Cancel</button>
+    </form>
+</section>
+@section Scripts { <script src="~/js/platform/tenant-lifecycle.js" asp-append-version="true"></script> }
