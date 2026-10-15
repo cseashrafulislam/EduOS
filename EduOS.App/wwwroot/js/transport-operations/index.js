@@ -10,7 +10,13 @@
         const alert = el('transportAlert'); alert.className = 'alert alert-' + (success ? 'success' : 'danger'); alert.textContent = message; alert.focus();
     }
     async function api(url, method = 'GET', body) {
-        const headers = { Accept: 'application/json' }; if (body !== undefined) headers['Content-Type'] = 'application/json';
+        const headers = { Accept: 'application/json' };
+        if (body !== undefined) {
+            const token = document.querySelector('meta[name="request-verification-token"]')?.content;
+            if (!token) throw new Error('Security token missing. Reload the page.');
+            headers['Content-Type'] = 'application/json';
+            headers.RequestVerificationToken = token;
+        }
         const response = await fetch(url, { method, headers, credentials: 'same-origin', cache: 'no-store', ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
         const result = await response.json().catch(() => null);
         if (!response.ok || !result?.success) throw new Error(result?.message || 'Transport request failed.');

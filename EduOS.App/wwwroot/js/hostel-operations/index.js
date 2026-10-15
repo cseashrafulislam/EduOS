@@ -10,7 +10,13 @@
         const node = el('hostelAlert'); node.className = 'alert alert-' + (success ? 'success' : 'danger'); node.textContent = message; node.focus();
     }
     async function api(url, method = 'GET', body) {
-        const headers = { Accept: 'application/json' }; if (body !== undefined) headers['Content-Type'] = 'application/json';
+        const headers = { Accept: 'application/json' };
+        if (body !== undefined) {
+            const token = document.querySelector('meta[name="request-verification-token"]')?.content;
+            if (!token) throw new Error('Security token missing. Reload the page.');
+            headers['Content-Type'] = 'application/json';
+            headers.RequestVerificationToken = token;
+        }
         const response = await fetch(url, { method, credentials: 'same-origin', cache: 'no-store', headers,
             ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
         const result = await response.json().catch(() => null);

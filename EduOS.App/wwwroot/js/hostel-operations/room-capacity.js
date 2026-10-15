@@ -3,7 +3,7 @@
     const el = id => document.getElementById(id);
     const form = el('hostelCapacityForm');
     if (!form) return;
-    const status = el('hostelCapacityStatus'), roomSelect = el('hostelCapacityRoom');
+    const status = el('hostelRoomCapacityStatus'), roomSelect = el('hostelCapacityRoom');
     let rooms = [], generation = 0, busy = false;
     function message(text, error = false) {
         status.textContent = text;
@@ -34,7 +34,7 @@
         message('Searching rooms…');
         try {
             const params = new URLSearchParams({ page: '1', pageSize: '100' });
-            const term = el('hostelCapacitySearch').value.trim();
+            const term = el('hostelRoomCapacitySearch').value.trim();
             if (term) params.set('search', term);
             const data = await request('/api/hostel/room-inventory?' + params);
             if (current !== generation) return;
@@ -50,7 +50,7 @@
         if (room) el('hostelCapacityValue').value = String(room.capacity);
     });
     el('hostelCapacityFind').addEventListener('click', load);
-    el('hostelCapacitySearch').addEventListener('input', () => {
+    el('hostelRoomCapacitySearch').addEventListener('input', () => {
         generation++; rooms = []; roomSelect.replaceChildren(option('', 'Search again to select a room'));
     });
     form.addEventListener('submit', async event => {
