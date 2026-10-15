@@ -1,0 +1,44 @@
+@{
+    ViewData["Title"] = "Operations Insights";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<section id="operationsInsightsPage" class="container-fluid py-3" aria-labelledby="operationsInsightsTitle">
+    <header class="mb-4">
+        <h2 id="operationsInsightsTitle">Transport &amp; Hostel Operations Insights</h2>
+        <p class="text-muted mb-0">Live, campus-authorized aggregate capacity and risk indicators. No student, driver, room or financial details are shown.</p>
+    </header>
+    <div class="alert alert-info small" role="note">Each module is checked independently. Metrics are not a transactional snapshot; refresh before making operational decisions.</div>
+    <section class="card mb-3" aria-labelledby="opsTransportTitle">
+        <div class="card-body">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                <h3 id="opsTransportTitle" class="h5 mb-0">Transport fleet health</h3>
+                <a href="/TransportOperations/Index" class="btn btn-outline-secondary btn-sm">Open Transport Operations</a>
+            </div>
+            <form id="opsTransportFilters" class="row g-2 mb-3">
+                <div class="col-md-4"><label class="form-label" for="opsTransportCampus">Campus</label><select id="opsTransportCampus" class="form-select" disabled><option value="">Loading authorized campuses…</option></select></div>
+                <div class="col-md-5"><label class="form-label" for="opsTransportSearch">Filter vehicles</label><input id="opsTransportSearch" class="form-control" type="search" maxlength="100" placeholder="Vehicle number or type" /></div>
+                <div class="col-md-3 d-flex align-items-end"><button id="opsTransportRefresh" type="submit" class="btn btn-primary w-100" disabled>Refresh transport</button></div>
+            </form>
+            <div id="opsTransportStatus" class="small text-muted mb-2" role="status" aria-live="polite">Loading…</div>
+            <div id="opsTransportMetrics" class="row row-cols-2 row-cols-lg-4 g-2" aria-label="Transport aggregate metrics"></div>
+        </div>
+    </section>
+    <section class="card mb-3" aria-labelledby="opsHostelTitle">
+        <div class="card-body">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                <h3 id="opsHostelTitle" class="h5 mb-0">Hostel occupancy health</h3>
+                <a href="/HostelOperations/Index" class="btn btn-outline-secondary btn-sm">Open Hostel Operations</a>
+            </div>
+            <form id="opsHostelFilters" class="row g-2 mb-3">
+                <div class="col-md-4"><label class="form-label" for="opsHostelCampus">Campus</label><select id="opsHostelCampus" class="form-select" disabled><option value="">Loading authorized campuses…</option></select></div>
+                <div class="col-md-5"><label class="form-label" for="opsHostelSearch">Filter rooms</label><input id="opsHostelSearch" class="form-control" type="search" maxlength="100" placeholder="Hostel or room" /></div>
+                <div class="col-md-3 d-flex align-items-end"><button id="opsHostelRefresh" type="submit" class="btn btn-primary w-100" disabled>Refresh hostel</button></div>
+            </form>
+            <div id="opsHostelStatus" class="small text-muted mb-2" role="status" aria-live="polite">Loading…</div>
+            <div id="opsHostelMetrics" class="row row-cols-2 row-cols-lg-4 g-2" aria-label="Hostel aggregate metrics"></div>
+        </div>
+    </section>
+</section>
+@section Scripts {
+    <script src="~/js/operations-insights/index.js" asp-append-version="true"></script>
+}
