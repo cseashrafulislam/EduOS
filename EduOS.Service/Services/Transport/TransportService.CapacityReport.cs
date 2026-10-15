@@ -95,11 +95,12 @@ public sealed partial class TransportService
         for (var page = 2; page <= (first.Data.TotalCount + 99) / 100; page++)
         {
             var next = await GetCapacityReportAsync(campusId, page, 100, search, ct);
-            if (!next.Success || next.Data == null)
+            if (!next.Success || next.Data == null || next.Data.TotalCount != first.Data.TotalCount)
                 return ApiResponse<string>.ErrorResponse("Export changed during retrieval. Retry.", 409);
             rows.AddRange(next.Data.Items);
         }
-        if (rows.Count != first.Data.TotalCount)
+        var uniqueVehicles = new HashSet<Guid>();
+        if (rows.Count != first.Data.TotalCount || rows.Any(x => !uniqueVehicles.Add(x.VehicleReference)))
             return ApiResponse<string>.ErrorResponse("Export changed during retrieval. Retry.", 409);
         var csv = new StringBuilder("Campus,Vehicle,Type,Active,Capacity,Active Riders,Available Seats,Current Route Links,Utilization %,Over Capacity\r\n");
         foreach (var row in rows)
@@ -118,8 +119,9 @@ public sealed partial class TransportService
 
     private static string CsvCell(string? input)
     {
-        var value = (input ?? string.Empty).Replace("\r", " ").Replace("\n", " ");
-        if (value.Length > 0 && "=+-@\t".Contains(value[0])) value = "'" + value;
+        var value = (input ?? string.Empty).Replace("\r", " ").Replace("\n", " ").Replace("\t", " ");
+        var trimmed = value.TrimStart();
+        if (trimmed.Length > 0 && "=+-@".Contains(trimmed[0])) value = "'" + value;
         return "\"" + value.Replace("\"", "\"\"") + "\"";
     }
 }

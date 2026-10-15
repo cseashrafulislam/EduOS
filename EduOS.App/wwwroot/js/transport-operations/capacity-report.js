@@ -48,9 +48,12 @@
     el('transportCapacityExport').addEventListener('click', async () => {
         const button = el('transportCapacityExport'); button.disabled = true;
         try {
-            const response = await fetch('/api/transport/capacity-report/export?' + query(false), { credentials: 'same-origin', cache: 'no-store' });
+            const filters = query(false).toString();
+            const response = await fetch('/api/transport/capacity-report/export?' + filters, { credentials: 'same-origin', cache: 'no-store' });
             if (!response.ok) { const error = await response.json().catch(() => null); throw Error(error?.message || 'CSV export failed.'); }
-            const blob = await response.blob(), url = URL.createObjectURL(blob), link = document.createElement('a');
+            const blob = await response.blob();
+            if (filters !== query(false).toString()) throw Error('Filters changed during export. Run export again.');
+            const url = URL.createObjectURL(blob), link = document.createElement('a');
             link.href = url; link.download = 'transport-capacity.csv'; document.body.append(link); link.click(); link.remove();
             setTimeout(() => URL.revokeObjectURL(url), 1000);
         } catch (e) { alertUser(e.message); } finally { button.disabled = false; }
