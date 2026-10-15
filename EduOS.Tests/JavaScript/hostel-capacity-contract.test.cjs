@@ -45,5 +45,6 @@ test('hostel capacity export uses the existing authorized report and current sea
   assert.match(script,/\/api\/hostel\/capacity\/export\?/);
   assert.match(script,/query\(false\)/);
   assert.match(script,/Export all filtered rooms/);
-  assert.doesNotMatch(script,/hostelCapacityCampus/);
+  assert.match(script,/hostelCapacityCampus/);
+  assert.match(script,/params\.set\('campusId',campus\)/);
 });

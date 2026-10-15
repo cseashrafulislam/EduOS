@@ -14,6 +14,8 @@
     function query(includePage=true) {
         const params = new URLSearchParams();
         if (includePage) { params.set('page',String(page)); params.set('pageSize','25'); }
+        const campus = el('hostelCapacityCampus').value;
+        if (campus) params.set('campusId',campus);
         const search = el('hostelCapacitySearch').value.trim();
         if (search) params.set('search',search);
         return params;
@@ -65,6 +67,7 @@
         status('Filter changed; apply to refresh the report.');
     };
     el('hostelCapacitySearch').addEventListener('input',filterChanged);
+    el('hostelCapacityCampus').addEventListener('change',filterChanged);
     el('hostelCapacityFilter').addEventListener('submit',e=>{e.preventDefault();page=1;load();});
     el('hostelCapacityPrev').addEventListener('click',()=>{page=Math.max(1,page-1);load();});
     el('hostelCapacityNext').addEventListener('click',()=>{page=Math.min(pages,page+1);load();});
@@ -93,5 +96,25 @@
         }
     });
     el('hostelCapacityCsv').textContent = 'Export all filtered rooms (CSV, max 1,000)';
+    async function loadCampuses() {
+        const campus = el('hostelCapacityCampus');
+        campus.disabled = true;
+        try {
+            const response = await fetch('/api/hostel/facility-campuses', {
+                credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}});
+            const result = await response.json().catch(()=>null);
+            if (!response.ok || !result?.success || !Array.isArray(result.data))
+                throw Error(result?.message || 'Campus options unavailable.');
+            campus.replaceChildren(new Option('All permitted campuses',''));
+            for (const item of result.data) {
+                const id = Number(item.id);
+                if (Number.isSafeInteger(id) && id > 0)
+                    campus.add(new Option(String(item.name ?? 'Campus'),String(id)));
+            }
+        } catch (error) {
+            status(error.message + ' All permitted campuses remain available.',true);
+        } finally { campus.disabled = false; }
+    }
     load();
+    loadCampuses();
 })();

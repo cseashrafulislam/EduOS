@@ -14,7 +14,8 @@
         ['highUtilizationRooms', 'At least 90% occupied'], ['riskRooms', 'Rooms needing review']
     ];
     function filters() {
-        const q = new URLSearchParams(), search = el('hostelCapacitySearch')?.value.trim();
+        const q = new URLSearchParams(), campus = el('hostelCapacityCampus')?.value, search = el('hostelCapacitySearch')?.value.trim();
+        if (campus) q.set('campusId', campus);
         if (search) q.set('search', search);
         return q.toString();
     }
@@ -54,6 +55,7 @@
     }
     el('hostelOccupancyInsightsRefresh').addEventListener('click', load);
     el('hostelCapacitySearch')?.addEventListener('input', stale);
+    el('hostelCapacityCampus')?.addEventListener('change', stale);
     el('hostelCapacityFilter')?.addEventListener('submit', () => setTimeout(load, 0));
     window.addEventListener('hostel:allocations-changed', load);
     load();
