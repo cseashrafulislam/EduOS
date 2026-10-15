@@ -42,6 +42,8 @@ namespace EduOS.App.Extensions
             s.AddScoped<IAuthorizationHandler, PermissionAccessHandler>();
             s.AddScoped<ITenantProfileService, TenantProfileService>();
             s.AddScoped<ITenantSettingService, TenantSettingService>();
+            s.AddHttpClient<ITenantDomainTxtLookup, TenantDomainTxtLookup>(client => client.Timeout = TimeSpan.FromSeconds(6));
+            s.AddScoped<ITenantDomainService, TenantDomainService>();
             s.AddScoped<ICommunicationAdministrationService, CommunicationAdministrationService>();
             s.AddScoped<ICommunicationService, CommunicationService>();
             s.AddScoped<IMessageWorkspaceService, MessageWorkspaceService>();
