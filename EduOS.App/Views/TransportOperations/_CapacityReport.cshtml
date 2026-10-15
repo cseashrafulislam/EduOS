@@ -1,0 +1,19 @@
+<section class="card mb-3" id="transportCapacityPanel"><div class="card-body">
+    <h3 class="h5">Transport capacity report</h3>
+    <p class="small text-muted">Current rider counts and seat availability. No student, driver or fare details are exported.</p>
+    <div id="transportCapacityAlert" class="d-none" role="alert" tabindex="-1"></div>
+    <form id="transportCapacityFilter" class="row g-2 mb-3">
+        <div class="col-md-4"><label for="transportCapacityCampus" class="form-label">Campus</label><select id="transportCapacityCampus" class="form-select"><option value="">All authorized campuses</option></select></div>
+        <div class="col-md-5"><label for="transportCapacitySearch" class="form-label">Vehicle search</label><input id="transportCapacitySearch" class="form-control" maxlength="100" placeholder="Vehicle number or type" /></div>
+        <div class="col-md-3 d-flex align-items-end gap-2"><button type="submit" class="btn btn-primary">Apply</button><button id="transportCapacityExport" type="button" class="btn btn-outline-success">CSV</button></div>
+    </form>
+    <div class="table-responsive"><table class="table table-sm table-hover align-middle">
+        <thead><tr><th>Campus</th><th>Vehicle</th><th>Status</th><th>Capacity</th><th>Riders</th><th>Free seats</th><th>Route links</th><th>Utilization</th></tr></thead>
+        <tbody id="transportCapacityRows"><tr><td colspan="8">Loading…</td></tr></tbody>
+    </table></div>
+    <div class="d-flex justify-content-between align-items-center">
+        <button id="transportCapacityPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+        <span id="transportCapacityPageInfo" class="small text-muted"></span>
+        <button id="transportCapacityNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+    </div>
+</div></section>

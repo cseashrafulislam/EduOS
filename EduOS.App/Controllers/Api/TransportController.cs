@@ -102,5 +102,22 @@ public sealed class TransportController : ControllerBase
         [FromBody] CloseTransportAssignmentRequestDto request, CancellationToken ct) =>
         ToAction(await _service.CloseRouteVehicleAssignmentAsync(id, request, ct));
 
+    [HttpGet("capacity-report")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    public async Task<IActionResult> CapacityReport([FromQuery] long? campusId = null,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 15, [FromQuery] string? search = null,
+        CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetCapacityReportAsync(campusId, page, pageSize, search, cancellationToken));
+
+    [HttpGet("capacity-report/export")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    public async Task<IActionResult> CapacityExport([FromQuery] long? campusId = null,
+        [FromQuery] string? search = null, CancellationToken cancellationToken = default)
+    {
+        var result = await _service.ExportCapacityCsvAsync(campusId, search, cancellationToken);
+        if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
+        return File(System.Text.Encoding.UTF8.GetBytes(result.Data), "text/csv; charset=utf-8", "transport-capacity.csv");
+    }
+
     private IActionResult ToAction<T>(EduOS.Core.Common.ApiResponse<T> response) => StatusCode(response.StatusCode, response);
 }
