@@ -50,6 +50,7 @@
     @if (canManage) { <partial name="_VehicleSetup" /> }
     @if (canManage) { <partial name="_RouteVehicleLinks" /> }
     @if (canManage) { <partial name="_CapacityReport" /> }
+    @if (User.IsInRole("TenantAdmin")) { <partial name="_DriverRegistry" /> }
     @if (canManage)
     {
         <section class="card mb-3"><div class="card-body">
@@ -99,4 +100,5 @@
     <script src="~/js/transport-operations/route-vehicle-close.js" asp-append-version="true"></script>
     <script src="~/js/transport-operations/route-vehicle-list.js" asp-append-version="true"></script>
     <script src="~/js/transport-operations/capacity-report.js" asp-append-version="true"></script>
+    @if (User.IsInRole("TenantAdmin")) { <script src="~/js/transport-operations/driver-registry.js" asp-append-version="true"></script> }
 }

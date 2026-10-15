@@ -119,5 +119,24 @@ public sealed class TransportController : ControllerBase
         return File(System.Text.Encoding.UTF8.GetBytes(result.Data), "text/csv; charset=utf-8", "transport-capacity.csv");
     }
 
+
+    [HttpGet("driver-registry")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> DriverRegistry([FromQuery] int page = 1,
+        [FromQuery] int pageSize = 15, [FromQuery] string? search = null,
+        CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetDriversAsync(page, pageSize, search, cancellationToken));
+
+    [HttpPost("driver-registry")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> RegisterDriver([FromBody] SaveTransportDriverRequestDto request,
+        CancellationToken ct) => ToAction(await _service.SaveDriverAsync(null, request, ct));
+
+    [HttpPut("driver-registry/{driverId:long}")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> UpdateDriver(long driverId,
+        [FromBody] SaveTransportDriverRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.SaveDriverAsync(driverId, request, ct));
+
     private IActionResult ToAction<T>(EduOS.Core.Common.ApiResponse<T> response) => StatusCode(response.StatusCode, response);
 }

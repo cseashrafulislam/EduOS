@@ -1,0 +1,18 @@
+<section class="card mb-3" id="transportDriverRegistryPanel"><div class="card-body">
+    <h3 class="h5">Driver registry</h3>
+    <p class="text-muted small">Tenant administrators only. Drivers are tenant-wide until Platform defines a canonical campus access policy.</p>
+    <div id="transportDriverRegistryAlert" class="d-none" role="alert" tabindex="-1"></div>
+    <form id="transportDriverRegistryForm" class="row g-3">
+        @Html.AntiForgeryToken()
+        <div class="col-md-4"><label class="form-label" for="transportDriverName">Driver name</label><input id="transportDriverName" class="form-control" maxlength="200" required /></div>
+        <div class="col-md-4"><label class="form-label" for="transportDriverPhone">Phone</label><input id="transportDriverPhone" class="form-control" maxlength="30" /></div>
+        <div class="col-md-4"><label class="form-label" for="transportDriverLicense">License number</label><input id="transportDriverLicense" class="form-control" maxlength="100" required /></div>
+        <div class="col-md-4"><label class="form-label" for="transportDriverExpiry">License expiry</label><input id="transportDriverExpiry" type="date" class="form-control" required /></div>
+        <div class="col-md-4"><label class="form-label" for="transportDriverActive">Status</label><select id="transportDriverActive" class="form-select"><option value="true">Active</option><option value="false">Inactive</option></select></div>
+        <div class="col-md-4 d-flex align-items-end gap-2"><button id="transportDriverSave" class="btn btn-primary" type="submit">Register driver</button><button id="transportDriverCancel" class="btn btn-outline-secondary" type="button">Clear</button></div>
+    </form>
+    <hr />
+    <form id="transportDriverRegistrySearchForm" class="d-flex gap-2 mb-2"><label class="visually-hidden" for="transportDriverSearch">Search drivers</label><input id="transportDriverSearch" class="form-control" maxlength="100" placeholder="Search name or license" /><button class="btn btn-outline-primary" type="submit">Search</button></form>
+    <div class="table-responsive"><table class="table table-sm table-hover align-middle"><thead><tr><th>Driver</th><th>Phone</th><th>License</th><th>Expires</th><th>Status</th><th>Action</th></tr></thead><tbody id="transportDriverRegistryRows"><tr><td colspan="6">Loading…</td></tr></tbody></table></div>
+    <div class="d-flex align-items-center justify-content-between gap-2"><button id="transportDriverPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button><span id="transportDriverPageInfo" class="small text-muted"></span><button id="transportDriverNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button></div>
+</div></section>
