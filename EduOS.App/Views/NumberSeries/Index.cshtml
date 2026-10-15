@@ -1,0 +1,35 @@
+@{ ViewData["Title"] = "Number Series"; }
+<div class="container-fluid py-3">
+    <h2>Number Series</h2>
+    <p class="text-muted">Tenant numbering configuration. Counters are issued exclusively by server-side business workflows.</p>
+    <div id="nsNotice" class="alert d-none" role="alert"></div>
+    <div class="card mb-3"><div class="card-body">
+        <form id="nsForm">
+            @Html.AntiForgeryToken()
+            <input type="hidden" id="nsId" /><input type="hidden" id="nsVersion" />
+            <div class="row g-2">
+                <div class="col-md-3"><label for="nsKey" class="form-label">Series key</label><input id="nsKey" class="form-control" maxlength="100" required /></div>
+                <div class="col-md-3"><label for="nsPrefix" class="form-label">Prefix</label><input id="nsPrefix" class="form-control" maxlength="50" /></div>
+                <div class="col-md-2"><label for="nsPadding" class="form-label">Padding</label><input id="nsPadding" class="form-control" type="number" min="1" max="30" value="6" required /></div>
+                <div class="col-md-2"><label for="nsSuffix" class="form-label">Suffix</label><input id="nsSuffix" class="form-control" maxlength="50" /></div>
+                <div class="col-md-2"><label for="nsActive" class="form-label">Status</label><select id="nsActive" class="form-select"><option value="true">Active</option><option value="false">Inactive</option></select></div>
+            </div>
+            <div class="mt-3"><button class="btn btn-primary" type="submit">Save series</button> <button id="nsReset" class="btn btn-outline-secondary" type="button">Reset</button></div>
+        </form>
+    </div></div>
+    <div class="card"><div class="card-body">
+        <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
+            <h3 class="h5 mb-0">Configured series</h3>
+            <input id="nsSearch" class="form-control" style="max-width:280px" placeholder="Search key" aria-label="Search series" />
+        </div>
+        <div class="table-responsive"><table class="table table-striped table-sm">
+            <thead><tr><th>Key</th><th>Format</th><th>Next value</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody id="nsRows"></tbody></table></div>
+        <div class="d-flex gap-2 align-items-center">
+            <button id="nsPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+            <span id="nsPage"></span>
+            <button id="nsNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+        </div>
+    </div></div>
+</div>
+@section Scripts { <script src="~/js/number-series/index.js" asp-append-version="true"></script> }
