@@ -41,8 +41,16 @@
         const body = el('transportRouteSetupRows'); body.replaceChildren();
         (data.items || []).forEach(item => {
             const tr = document.createElement('tr');
-            [item.campusName, item.code, item.name, item.stopCount, item.isActive ? 'Active' : 'Inactive']
-                .forEach(value => tr.append(cell(value)));
+            tr.append(cell(item.campusName), cell(item.code));
+            const routeCell = cell(item.name);
+            if (item.isActive) {
+                const link = document.createElement('a');
+                link.className = 'btn btn-outline-primary btn-sm ms-2';
+                link.href = '/TransportOperations/EditStops?reference=' + encodeURIComponent(item.reference);
+                link.textContent = 'Edit stops';
+                routeCell.append(link);
+            }
+            tr.append(routeCell, cell(item.stopCount), cell(item.isActive ? 'Active' : 'Inactive'));
             body.append(tr);
         });
         if (!data.items?.length) { const tr = document.createElement('tr'); const td = cell('No routes found'); td.colSpan = 5; tr.append(td); body.append(tr); }

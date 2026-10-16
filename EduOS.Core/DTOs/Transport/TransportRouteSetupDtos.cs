@@ -30,3 +30,30 @@ public sealed class TransportRouteSetupRowDto
     public bool IsActive { get; set; }
     public string RowVersion { get; set; } = string.Empty;
 }
+
+/// <summary>Edits only existing canonical stop IDs; fare and membership changes are excluded.</summary>
+public sealed class UpdateTransportRouteStopsRequestDto
+{
+    [Required] public string RowVersion { get; set; } = string.Empty;
+    [Required] public List<UpdateTransportRouteStopDto> Stops { get; set; } = new();
+}
+public sealed class UpdateTransportRouteStopDto
+{
+    [Range(1, long.MaxValue)] public long Id { get; set; }
+    [Required, MaxLength(150)] public string Name { get; set; } = string.Empty;
+    [Required] public string RowVersion { get; set; } = string.Empty;
+}
+public sealed class TransportRouteStopsEditorDto
+{
+    public Guid Reference { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string RowVersion { get; set; } = string.Empty;
+    public List<TransportRouteStopEditorRowDto> Stops { get; set; } = new();
+}
+public sealed class TransportRouteStopEditorRowDto
+{
+    public long Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public int SequenceNo { get; set; }
+    public string RowVersion { get; set; } = string.Empty;
+}
