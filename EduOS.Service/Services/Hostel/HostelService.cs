@@ -52,6 +52,7 @@ public sealed partial class HostelService : IHostelService
             campusId is <= 0 || search?.Trim().Length > 100)
             return ApiResponse<PagedResult<HostelBedInventoryDto>>.ErrorResponse("Invalid bed inventory filter.");
         var tenant = _currentUser.TenantId;
+        var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
         var query = from bed in _beds.GetQueryable().AsNoTracking()
             join room in _rooms.GetQueryable().AsNoTracking() on bed.HostelRoomId equals room.Id
             join hostel in _hostels.GetQueryable().AsNoTracking() on room.HostelId equals hostel.Id
@@ -64,6 +65,9 @@ public sealed partial class HostelService : IHostelService
                 bed.Id, bed.HostelRoomId, bed.BedNumber, bed.IsActive, bed.RowVersion,
                 room.RoomNumber, HostelName = hostel.Name, hostel.CampusId,
                 IsOccupied = _allocations.GetQueryable().Any(a => a.TenantId == tenant &&
+                    a.HostelBedId == bed.Id && a.State == HostelAllocationState.Active &&
+                    a.StartDate <= today && (!a.EndDate.HasValue || a.EndDate.Value >= today)),
+                HasActiveReservations = _allocations.GetQueryable().Any(a => a.TenantId == tenant &&
                     a.HostelBedId == bed.Id && a.State == HostelAllocationState.Active)
             };
         if (!_currentUser.IsTenantAdmin)
@@ -87,6 +91,7 @@ public sealed partial class HostelService : IHostelService
                 Id = x.Id, HostelRoomId = x.HostelRoomId, HostelName = x.HostelName,
                 RoomNumber = x.RoomNumber, BedNumber = x.BedNumber,
                 IsActive = x.IsActive, IsOccupied = x.IsOccupied,
+                HasActiveReservations = x.HasActiveReservations,
                 RowVersion = Convert.ToBase64String(x.RowVersion)
             }).ToList()
         });
@@ -116,14 +121,20 @@ public sealed partial class HostelService : IHostelService
                     return ApiResponse<HostelBedInventoryDto>.ErrorResponse("Active campus not found.", 404);
                 if (!await CanManageCampusAsync(hostel.CampusId, tenant, ct))
                     return Denied<HostelBedInventoryDto>();
-                var occupied = await _allocations.GetQueryable().AsNoTracking().AnyAsync(x =>
+                var reserved = await _allocations.GetQueryable().AsNoTracking().AnyAsync(x =>
                     x.TenantId == tenant && x.HostelBedId == bed.Id &&
                     x.State == HostelAllocationState.Active, ct);
+                var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+                var occupiedToday = await _allocations.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.HostelBedId == bed.Id &&
+                    x.State == HostelAllocationState.Active &&
+                    x.StartDate <= today && (!x.EndDate.HasValue || x.EndDate.Value >= today), ct);
                 HostelBedInventoryDto Result() => new()
                 {
                     Id = bed.Id, HostelRoomId = bed.HostelRoomId, HostelName = hostel.Name,
                     RoomNumber = room.RoomNumber, BedNumber = bed.BedNumber,
-                    IsActive = bed.IsActive, IsOccupied = occupied,
+                    IsActive = bed.IsActive, IsOccupied = occupiedToday,
+                    HasActiveReservations = reserved,
                     RowVersion = Convert.ToBase64String(bed.RowVersion)
                 };
                 // Same desired state is an idempotent replay; never overwrite unrelated fields.
@@ -131,7 +142,7 @@ public sealed partial class HostelService : IHostelService
                     return ApiResponse<HostelBedInventoryDto>.SuccessResponse(Result(), "Bed already has the requested state.");
                 if (!bed.RowVersion.AsSpan().SequenceEqual(version))
                     return ApiResponse<HostelBedInventoryDto>.ErrorResponse("Bed changed. Reload and retry.", 409);
-                if (!request.IsActive && occupied)
+                if (!request.IsActive && reserved)
                     return ApiResponse<HostelBedInventoryDto>.ErrorResponse("Close active allocation before deactivating bed.", 409);
                 if (request.IsActive)
                 {

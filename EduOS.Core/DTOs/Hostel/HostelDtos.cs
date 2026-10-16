@@ -57,6 +57,7 @@ public sealed class HostelBedInventoryDto
     public string BedNumber { get; set; } = string.Empty;
     public bool IsActive { get; set; }
     public bool IsOccupied { get; set; }
+    public bool HasActiveReservations { get; set; }
     public string RowVersion { get; set; } = string.Empty;
 }
 public sealed class SetHostelBedStateRequestDto

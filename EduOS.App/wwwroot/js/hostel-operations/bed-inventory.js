@@ -40,12 +40,13 @@
             for (const item of data.items || []) {
                 const tr = document.createElement('tr');
                 [item.hostelName, item.roomNumber, item.bedNumber,
-                    item.isActive ? 'Active' : 'Inactive', item.isOccupied ? 'Occupied' : 'Free']
+                    item.isActive ? 'Active' : 'Inactive', item.isOccupied ? 'Occupied' : 'Free',
+                    item.hasActiveReservations ? 'Yes' : 'No']
                     .forEach(value => tr.append(td(value)));
                 const action = document.createElement('td'), button = document.createElement('button');
                 button.type = 'button'; button.className = 'btn btn-outline-secondary btn-sm';
                 button.textContent = item.isActive ? 'Deactivate' : 'Activate';
-                button.disabled = item.isActive && item.isOccupied;
+                button.disabled = item.isActive && item.hasActiveReservations;
                 button.addEventListener('click', async () => {
                     if (!confirm((item.isActive ? 'Deactivate' : 'Activate') + ' bed ' + item.bedNumber + '?')) return;
                     button.disabled = true;
@@ -59,7 +60,7 @@
             }
             if (!data.items?.length) {
                 const tr = document.createElement('tr'), cell = td('No beds match the filter.');
-                cell.colSpan = 6; tr.append(cell); tbody.append(tr);
+                cell.colSpan = 7; tr.append(cell); tbody.append(tr);
             }
             notify(String(data.totalCount || 0) + ' matching beds.');
         } catch (error) { if (current === generation) notify(error.message, true); }
