@@ -38,12 +38,19 @@ public sealed partial class TransportService
         var rows = await query.OrderBy(x => x.CampusName).ThenBy(x => x.VehicleNumber).ThenBy(x => x.Id)
             .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
         var ids = rows.Select(x => x.Id).ToArray();
-        var occupied = await _assignments.GetQueryable().AsNoTracking()
+        var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+        // Keep all active reservations for capacity/closure protection, but show only effective riders as occupied today.
+        var reservations = await _assignments.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == tenant && !x.IsDeleted && ids.Contains(x.VehicleId) &&
                 x.State == TransportAssignmentState.Active)
-            .GroupBy(x => x.VehicleId).Select(g => new { VehicleId = g.Key, Count = g.Count() })
-            .ToDictionaryAsync(x => x.VehicleId, x => x.Count, ct);
-        var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+            .GroupBy(x => x.VehicleId)
+            .Select(g => new
+            {
+                VehicleId = g.Key, Reservations = g.Count(),
+                OccupiedToday = g.Count(a => a.StartDate <= today &&
+                    (!a.EndDate.HasValue || a.EndDate.Value >= today))
+            })
+            .ToDictionaryAsync(x => x.VehicleId, ct);
         var currentRoutes = await _vehicleRoutes.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == tenant && !x.IsDeleted && ids.Contains(x.VehicleId) &&
                 x.IsCurrent && (!x.EffectiveTo.HasValue || x.EffectiveTo.Value >= today))
@@ -56,7 +63,8 @@ public sealed partial class TransportService
                 {
                     Reference = x.PublicId, CampusId = x.CampusId, CampusName = x.CampusName,
                     VehicleNumber = x.VehicleNumber, VehicleType = x.VehicleType, Capacity = x.Capacity,
-                    AssignedStudents = occupied.GetValueOrDefault(x.Id),
+                    AssignedStudents = reservations.GetValueOrDefault(x.Id)?.Reservations ?? 0,
+                    OccupiedToday = reservations.GetValueOrDefault(x.Id)?.OccupiedToday ?? 0,
                     CurrentRouteAssignments = currentRoutes.GetValueOrDefault(x.Id),
                     IsActive = x.IsActive, RowVersion = Convert.ToBase64String(x.RowVersion)
                 }).ToList(),
@@ -90,8 +98,20 @@ public sealed partial class TransportService
                     if (existing.CampusId != campus.Id || existing.Capacity != request.Capacity ||
                         existing.VehicleType != type || !existing.IsActive)
                         return ApiResponse<TransportVehicleSetupRowDto>.ErrorResponse("Vehicle number already exists with different details.", 409);
+                    var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+                    var reserved = await _assignments.GetQueryable().AsNoTracking().CountAsync(x =>
+                        x.TenantId == tenant && !x.IsDeleted && x.VehicleId == existing.Id &&
+                        x.State == TransportAssignmentState.Active, token);
+                    var occupiedToday = await _assignments.GetQueryable().AsNoTracking().CountAsync(x =>
+                        x.TenantId == tenant && !x.IsDeleted && x.VehicleId == existing.Id &&
+                        x.State == TransportAssignmentState.Active && x.StartDate <= today &&
+                        (!x.EndDate.HasValue || x.EndDate.Value >= today), token);
+                    var openRoutes = await _vehicleRoutes.GetQueryable().AsNoTracking().CountAsync(x =>
+                        x.TenantId == tenant && !x.IsDeleted && x.VehicleId == existing.Id &&
+                        x.IsCurrent && (!x.EffectiveTo.HasValue || x.EffectiveTo.Value >= today), token);
                     return ApiResponse<TransportVehicleSetupRowDto>.SuccessResponse(
-                        MapVehicleSetup(existing, campus.Name, 0, 0), "Vehicle already exists; no duplicate created.");
+                        MapVehicleSetup(existing, campus.Name, reserved, openRoutes, occupiedToday),
+                        "Vehicle already exists; no duplicate created.");
                 }
                 var now = _clock.GetUtcNow().UtcDateTime;
                 var vehicle = new Vehicle
@@ -147,6 +167,10 @@ public sealed partial class TransportService
                     x.TenantId == tenant && !x.IsDeleted && x.VehicleId == vehicle.Id &&
                     x.State == TransportAssignmentState.Active, token);
                 var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+                var occupiedToday = await _assignments.GetQueryable().AsNoTracking().CountAsync(x =>
+                    x.TenantId == tenant && !x.IsDeleted && x.VehicleId == vehicle.Id &&
+                    x.State == TransportAssignmentState.Active && x.StartDate <= today &&
+                    (!x.EndDate.HasValue || x.EndDate.Value >= today), token);
                 var currentRoutes = await _vehicleRoutes.GetQueryable().AsNoTracking().CountAsync(x =>
                     x.TenantId == tenant && !x.IsDeleted && x.VehicleId == vehicle.Id &&
                     x.IsCurrent && (!x.EffectiveTo.HasValue || x.EffectiveTo.Value >= today), token);
@@ -160,14 +184,14 @@ public sealed partial class TransportService
                         "Close rider, route and driver assignments before deactivating.", 409);
                 if (vehicle.Capacity == request.Capacity && vehicle.IsActive == request.IsActive)
                     return ApiResponse<TransportVehicleSetupRowDto>.SuccessResponse(
-                        MapVehicleSetup(vehicle, campus.Name, occupied, currentRoutes), "Vehicle already has the requested settings.");
+                        MapVehicleSetup(vehicle, campus.Name, occupied, currentRoutes, occupiedToday), "Vehicle already has the requested settings.");
                 vehicle.Capacity = request.Capacity;
                 vehicle.IsActive = request.IsActive;
                 vehicle.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
                 vehicle.UpdatedBy = _currentUser.UserId;
                 await _unitOfWork.SaveChangesAsync(token);
                 return ApiResponse<TransportVehicleSetupRowDto>.SuccessResponse(
-                    MapVehicleSetup(vehicle, campus.Name, occupied, currentRoutes), "Vehicle settings updated.");
+                    MapVehicleSetup(vehicle, campus.Name, occupied, currentRoutes, occupiedToday), "Vehicle settings updated.");
             }, System.Data.IsolationLevel.Serializable, ct);
         }
         catch (DbUpdateConcurrencyException)
@@ -187,11 +211,12 @@ public sealed partial class TransportService
     }
 
     private static TransportVehicleSetupRowDto MapVehicleSetup(
-        Vehicle vehicle, string campusName, int occupied, int currentRoutes) => new()
+        Vehicle vehicle, string campusName, int occupied, int currentRoutes, int occupiedToday = 0) => new()
     {
         Reference = vehicle.PublicId, CampusId = vehicle.CampusId ?? 0, CampusName = campusName,
         VehicleNumber = vehicle.VehicleNumber, VehicleType = vehicle.VehicleType,
-        Capacity = vehicle.Capacity, AssignedStudents = occupied, CurrentRouteAssignments = currentRoutes,
+        Capacity = vehicle.Capacity, AssignedStudents = occupied, OccupiedToday = occupiedToday,
+        CurrentRouteAssignments = currentRoutes,
         IsActive = vehicle.IsActive, RowVersion = Convert.ToBase64String(vehicle.RowVersion)
     };
 }

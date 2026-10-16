@@ -21,6 +21,8 @@ public sealed class TransportVehicleSetupRowDto
     public string VehicleNumber { get; set; } = string.Empty;
     public string? VehicleType { get; set; }
     public int Capacity { get; set; }
+    // Currently effective riders; AssignedStudents retains all active reservations for capacity safeguards.
+    public int OccupiedToday { get; set; }
     public int AssignedStudents { get; set; }
     public int CurrentRouteAssignments { get; set; }
     public bool IsActive { get; set; }
