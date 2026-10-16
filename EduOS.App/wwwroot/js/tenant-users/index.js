@@ -16,7 +16,7 @@
     async function request(path, init = {}) {
         const response = await fetch(endpoint + path, {
             credentials: 'same-origin', cache: 'no-store',
-            headers: { 'Accept': 'application/json', ...(init.body ? { 'Content-Type': 'application/json' } : {}) },
+            headers: { 'Accept': 'application/json', ...(init.body ? { 'Content-Type': 'application/json', 'RequestVerificationToken': root.querySelector('input[name="__RequestVerificationToken"]')?.value || '' } : {}) },
             ...init
         });
         const result = await response.json().catch(() => null);

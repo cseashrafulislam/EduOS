@@ -24,7 +24,7 @@ namespace EduOS.Service.Services.Auth;
 /// Identity role assignments are global rows, so only roles owned by the current
 /// institution may be assigned. Ownership is the source of TenantAdmin access.
 /// </summary>
-public sealed class TenantUserAdministrationService : ITenantUserAdministrationService
+public sealed partial class TenantUserAdministrationService : ITenantUserAdministrationService
 {
     private readonly EduOSDbContext _db;
     private readonly ICurrentUserService _current;

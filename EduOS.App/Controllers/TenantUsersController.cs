@@ -11,6 +11,10 @@ public sealed class TenantUsersController : Controller
     [HttpGet]
     public IActionResult Index() => View();
 
+    [HttpGet]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult Invitations() => View();
+
     [AllowAnonymous]
     [HttpGet]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]

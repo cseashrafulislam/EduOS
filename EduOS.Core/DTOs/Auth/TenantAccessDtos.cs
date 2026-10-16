@@ -17,6 +17,7 @@ public sealed class SetMembershipCampusAccessRequestDto
 
 public sealed class TenantInvitationDto
 {
+    public string RowVersion { get; set; } = string.Empty;
     public Guid Reference { get; set; }
     public string Email { get; set; } = string.Empty;
     public long? RoleId { get; set; }
@@ -43,4 +44,9 @@ public sealed class AcceptTenantInvitationRequestDto
     [StringLength(30)] public string? MfaCode { get; set; }
     public bool UseRecoveryCode { get; set; }
     public bool AgreeTerms { get; set; }
+}
+
+public sealed class RevokeTenantInvitationRequestDto
+{
+    [Required] public string RowVersion { get; set; } = string.Empty;
 }
