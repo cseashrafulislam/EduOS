@@ -60,7 +60,21 @@
     data.stops.forEach(add);
     renumber();
     el('transportRouteStopSave').disabled = !rows.children.length;
+    el('transportRouteStopAdd').disabled = rows.children.length >= 50;
   }
+  el('transportRouteStopAddForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    const input = el('transportRouteStopNewName');
+    const name = input.value.trim();
+    if (!name || name.length > 150) { alert('Enter a stop name (maximum 150 characters).'); return; }
+    const button = el('transportRouteStopAdd'); button.disabled = true;
+    try {
+      await request('POST', { rowVersion: version, name });
+      input.value = ''; await reload();
+      alert('Stop added.', true);
+    } catch (error) { alert(error.message); }
+    finally { button.disabled = rows.children.length >= 50; }
+  });
   form.addEventListener('submit', async event => {
     event.preventDefault();
     if (!form.reportValidity()) return;

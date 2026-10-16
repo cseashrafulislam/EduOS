@@ -77,6 +77,12 @@ public sealed class TransportController : ControllerBase
         [FromBody] UpdateTransportRouteStopsRequestDto request, CancellationToken ct) =>
         ToAction(await _service.UpdateRouteStopsAsync(reference, request, ct));
 
+    [HttpPost("route-setup/{reference:guid}/stops")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    public async Task<IActionResult> AppendRouteStop(Guid reference,
+        [FromBody] AppendTransportRouteStopRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.AppendRouteStopAsync(reference, request, ct));
+
     [HttpGet("vehicle-setup")]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
     public async Task<IActionResult> VehicleSetupPage([FromQuery] long? campusId = null,
