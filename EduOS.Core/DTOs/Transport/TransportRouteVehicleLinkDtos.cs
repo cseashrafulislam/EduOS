@@ -21,6 +21,7 @@ public sealed class TransportRouteVehicleLinkRowDto
     public string VehicleNumber { get; set; } = string.Empty;
     public int Capacity { get; set; }
     public int ActiveRiders { get; set; }
+    public int OccupiedToday { get; set; }
     public DateOnly EffectiveFrom { get; set; }
     public DateOnly? EffectiveTo { get; set; }
     public bool IsCurrent { get; set; }

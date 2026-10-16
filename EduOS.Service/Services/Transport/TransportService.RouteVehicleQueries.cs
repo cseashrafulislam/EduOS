@@ -39,13 +39,19 @@ public sealed partial class TransportService
         var rows = await query.OrderByDescending(x => x.EffectiveFrom).ThenByDescending(x => x.Id)
             .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
         var ids = rows.Select(x => x.Id).ToArray();
+        var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+        // Reservation counts protect future capacity; occupied riders are effective on the reporting date.
         var riderCounts = await _assignments.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == tenant && !x.IsDeleted && x.State == TransportAssignmentState.Active &&
                 x.RouteVehicleAssignmentId.HasValue && ids.Contains(x.RouteVehicleAssignmentId.Value))
             .GroupBy(x => x.RouteVehicleAssignmentId!.Value)
-            .Select(g => new { Id = g.Key, Count = g.Count() })
-            .ToDictionaryAsync(x => x.Id, x => x.Count, ct);
-        var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+            .Select(g => new
+            {
+                Id = g.Key, Reservations = g.Count(),
+                OccupiedToday = g.Count(a => a.StartDate <= today &&
+                    (!a.EndDate.HasValue || a.EndDate.Value >= today))
+            })
+            .ToDictionaryAsync(x => x.Id, ct);
         return ApiResponse<PagedResult<TransportRouteVehicleLinkRowDto>>.SuccessResponse(
             new PagedResult<TransportRouteVehicleLinkRowDto>
             {
@@ -54,7 +60,9 @@ public sealed partial class TransportService
                     Id = x.Id, CampusId = x.CampusId, CampusName = x.CampusName,
                     RouteId = x.RouteId, RouteName = x.RouteName,
                     VehicleId = x.VehicleId, VehicleNumber = x.VehicleNumber,
-                    Capacity = x.Capacity, ActiveRiders = riderCounts.GetValueOrDefault(x.Id),
+                    Capacity = x.Capacity,
+                    ActiveRiders = riderCounts.GetValueOrDefault(x.Id)?.Reservations ?? 0,
+                    OccupiedToday = riderCounts.GetValueOrDefault(x.Id)?.OccupiedToday ?? 0,
                     EffectiveFrom = x.EffectiveFrom, EffectiveTo = x.EffectiveTo,
                     IsCurrent = x.IsCurrent && x.EffectiveFrom <= today &&
                         (!x.EffectiveTo.HasValue || x.EffectiveTo.Value >= today),
