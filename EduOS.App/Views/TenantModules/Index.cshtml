@@ -1,0 +1,43 @@
+@{
+    ViewData["Title"] = "Institution Modules";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var strings = new {
+        culture = CultureInfo.CurrentUICulture.Name,
+        core = T["CoreModule"].Value,
+        required = T["RequiredModule"].Value,
+        included = T["IncludedInPlan"].Value,
+        notIncluded = T["NotIncludedInPlan"].Value,
+        selected = T["Selected"].Value,
+        notSelected = T["NotSelected"].Value,
+        changeFailed = T["ModuleChangeFailed"].Value,
+        moduleUpgradeRequired = T["ModuleUpgradeRequired"].Value,
+        moduleAvailable = T["ModuleAvailable"].Value,
+        moduleNotSelected = T["ModuleNotSelectedHelp"].Value,
+        noModules = T["NoModulesConfigured"].Value,
+        loadFailed = T["ModuleLoadFailed"].Value,
+        retry = T["Retry"].Value,
+        selectedSummary = T["ModulesSelectedTemplate"].Value,
+        requiredUnavailable = T["RequiredModuleUnavailable"].Value,
+        categories = new Dictionary<string,string> {
+            ["Core"] = T["ModuleCategoryCore"].Value,
+            ["Academic"] = T["ModuleCategoryAcademic"].Value,
+            ["Operations"] = T["ModuleCategoryOperations"].Value,
+            ["Learning"] = T["ModuleCategoryLearning"].Value,
+            ["Engagement"] = T["ModuleCategoryEngagement"].Value,
+            ["Platform"] = T["ModuleCategoryPlatform"].Value
+        }
+    };
+    var json = System.Text.Json.JsonSerializer.Serialize(strings);
+}
+<div class="container-fluid py-3">
+    <header class="mb-3">
+        <h1 class="h4">Institution Modules</h1>
+        <p class="text-muted">Manage modules included in your current subscription. Required modules cannot be disabled.</p>
+        <a href="/SubscriptionBilling/Index">Subscription &amp; Billing</a>
+    </header>
+    <div id="alertContainer" class="d-none" role="alert" tabindex="-1"></div>
+    <div id="moduleSummary" role="status" class="mb-3">Loading modules…</div>
+    <div id="moduleList" class="module-group-list" aria-live="polite" aria-busy="true"></div>
+</div>
+<script id="moduleSetupStrings" type="application/json">@Html.Raw(json)</script>
+<script src="~/js/account/module-setup.js" asp-append-version="true"></script>
