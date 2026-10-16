@@ -1,0 +1,34 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.resolve(__dirname, '../..');
+const read = p => fs.readFileSync(path.join(root, p), 'utf8');
+
+test('sign-in activity uses canonical login history with account and tenant isolation', () => {
+    const model = read('EduOS.Core/Entities/Auth/AuthEntities.cs');
+    const dto = read('EduOS.Core/DTOs/Auth/AuthDtos.cs');
+    const service = read('EduOS.Service/Services/Auth/LoginActivityService.cs');
+    const api = read('EduOS.App/Controllers/Api/LoginActivityApiController.cs');
+    const mvc = read('EduOS.App/Controllers/LoginActivityController.cs');
+    const view = read('EduOS.App/Views/LoginActivity/Index.cshtml');
+    const js = read('EduOS.App/wwwroot/js/account/login-activity.js');
+    const di = read('EduOS.App/Extensions/ApplicationServiceExtensions.cs');
+    const nav = read('EduOS.App/Views/Shared/_Layout.cshtml');
+    assert.match(model, /class LoginHistory : BaseEntity/);
+    assert.match(dto, /class LoginHistoryDto/);
+    assert.match(service, /x\.UserId == user\.UserId/);
+    assert.match(service, /x\.TenantId == user\.TenantId \|\| x\.TenantId == null/);
+    assert.match(service, /pageSize is < 1 or > 50/);
+    assert.doesNotMatch(service, /IgnoreQueryFilters\(/);
+    assert.doesNotMatch(service, /IpAddress =|UserAgent =|FailureReason =/);
+    assert.match(api, /\[Authorize\]/);
+    assert.match(api, /AutoValidateAntiforgeryToken/);
+    assert.match(mvc, /\[Authorize\]/);
+    assert.match(di, /AddScoped<ILoginActivityService, LoginActivityService>/);
+    assert.match(nav, /href="\/LoginActivity\/Index"/);
+    assert.match(view, /login-activity\.js/);
+    assert.match(js, /credentials: 'same-origin'/);
+    assert.match(js, /cell\.textContent/);
+    assert.doesNotMatch(js, /innerHTML/);
+});
