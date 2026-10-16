@@ -1,0 +1,35 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.resolve(__dirname, '../..');
+const read = p => fs.readFileSync(path.join(root, p), 'utf8');
+
+test('delivery history reuses canonical model and existing tenant administration owner', () => {
+    const entity = read('EduOS.Core/Entities/Communication/CommunicationEntities.cs');
+    const dto = read('EduOS.Core/DTOs/Communication/CommunicationDtos.cs');
+    const service = read('EduOS.Service/Services/Communication/CommunicationAdministrationService.Deliveries.cs');
+    const base = read('EduOS.Service/Services/Communication/CommunicationAdministrationService.cs');
+    const api = read('EduOS.App/Controllers/Api/CommunicationDeliveryHistoryApiController.cs');
+    const contract = read('EduOS.Core/Interfaces/IServices/ICommunicationAdministrationService.cs');
+    const view = read('EduOS.App/Views/CommunicationAdministration/Index.cshtml');
+    const partial = read('EduOS.App/Views/CommunicationAdministration/_Deliveries.cshtml');
+    const js = read('EduOS.App/wwwroot/js/communication/deliveries.js');
+    const layout = read('EduOS.App/Views/Shared/_Layout.cshtml');
+    assert.match(entity, /class CommunicationDelivery : BaseTenantEntity/);
+    assert.match(dto, /class CommunicationDeliveryDto/);
+    assert.match(base, /IGenericRepository<CommunicationDelivery> deliveries/);
+    assert.match(service, /!CanManage\(\)/);
+    assert.match(service, /x\.TenantId == _user\.TenantId && !x\.IsDeleted/);
+    assert.doesNotMatch(service, /Body = x\.Body|ProtectedCredential/);
+    assert.match(contract, /GetDeliveriesAsync/);
+    assert.ok(api.includes('api/communication-admin/deliveries'));
+    assert.match(api, /Authorize\(Roles = "TenantAdmin"\)/);
+    assert.match(api, /AutoValidateAntiforgeryToken/);
+    assert.match(view, /partial name="_Deliveries"/);
+    assert.match(view, /js\/communication\/deliveries\.js/);
+    assert.match(partial, /id="deliveryRows"/);
+    assert.match(js, /credentials: 'same-origin'/);
+    assert.match(js, /textContent =/);
+    assert.match(layout, /href="\/CommunicationAdministration\/Index"/);
+});

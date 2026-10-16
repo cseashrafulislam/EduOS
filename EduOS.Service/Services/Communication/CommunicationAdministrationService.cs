@@ -16,6 +16,7 @@ public sealed partial class CommunicationAdministrationService : ICommunicationA
     private readonly IGenericRepository<CommunicationGateway> _gateways;
     private readonly IGenericRepository<MessageTemplate> _templates;
     private readonly IGenericRepository<NoticeCategory> _categories;
+    private readonly IGenericRepository<CommunicationDelivery> _deliveries;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _user;
     private readonly IDataProtector _protector;
@@ -23,10 +24,11 @@ public sealed partial class CommunicationAdministrationService : ICommunicationA
 
     public CommunicationAdministrationService(IGenericRepository<CommunicationGateway> gateways,
         IGenericRepository<MessageTemplate> templates, IGenericRepository<NoticeCategory> categories,
+        IGenericRepository<CommunicationDelivery> deliveries,
         IUnitOfWork unitOfWork, ICurrentUserService user, IDataProtectionProvider provider,
         ILogger<CommunicationAdministrationService> logger)
     {
-        _gateways = gateways; _templates = templates; _categories = categories;
+        _gateways = gateways; _templates = templates; _categories = categories; _deliveries = deliveries;
         _unitOfWork = unitOfWork; _user = user;
         _protector = provider.CreateProtector("EduOS.Communication.GatewayCredentials.v1");
         _logger = logger;

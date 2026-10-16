@@ -1,0 +1,21 @@
+<section class="content-card mt-3" aria-labelledby="deliveryHistoryTitle">
+    <h3 id="deliveryHistoryTitle" class="h5">Communication delivery history</h3>
+    <p class="small text-muted">Tenant-scoped delivery status and failure diagnostics. Message bodies and gateway secrets are never shown.</p>
+    <div class="row g-2 align-items-end mb-3">
+        <div class="col-md-3"><label class="form-label" for="deliveryChannel">Channel</label>
+            <select class="form-select" id="deliveryChannel"><option value="">All channels</option><option value="1">In-app</option><option value="2">Email</option><option value="3">SMS</option><option value="4">Push</option></select></div>
+        <div class="col-md-3"><label class="form-label" for="deliveryState">State</label>
+            <select class="form-select" id="deliveryState"><option value="">All states</option><option value="1">Pending</option><option value="2">Processing</option><option value="3">Sent</option><option value="4">Delivered</option><option value="5">Failed</option></select></div>
+        <div class="col-md-3"><button type="button" class="btn btn-outline-primary" id="deliveryRefresh">Refresh history</button></div>
+    </div>
+    <div id="deliveryAlert" class="alert alert-danger d-none" role="alert"></div>
+    <div class="table-responsive"><table class="table table-sm table-hover">
+        <thead><tr><th>ID</th><th>Channel</th><th>Destination</th><th>Subject</th><th>State</th><th>Attempts</th><th>Sent</th><th>Delivered</th><th>Failure</th></tr></thead>
+        <tbody id="deliveryRows"><tr><td colspan="9">Loading delivery history…</td></tr></tbody>
+    </table></div>
+    <div class="d-flex align-items-center gap-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="deliveryPrev">Previous</button>
+        <span id="deliveryPage" role="status" aria-live="polite">Page 1</span>
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="deliveryNext">Next</button>
+    </div>
+</section>
