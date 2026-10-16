@@ -32,6 +32,14 @@ public sealed class CreateHostelFacilityRequestDto
     [MaxLength(500)] public string? Address { get; set; }
 }
 
+public sealed class UpdateHostelFacilityRequestDto
+{
+    [Required, StringLength(150, MinimumLength = 2)] public string Name { get; set; } = string.Empty;
+    [MaxLength(50)] public string? GenderRestriction { get; set; }
+    [MaxLength(500)] public string? Address { get; set; }
+    [Required] public string RowVersion { get; set; } = string.Empty;
+}
+
 public sealed class SetHostelFacilityStateRequestDto
 {
     public bool IsActive { get; set; }

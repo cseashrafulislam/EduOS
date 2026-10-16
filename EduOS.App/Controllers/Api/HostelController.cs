@@ -36,6 +36,11 @@ public sealed class HostelController : ControllerBase
     public async Task<IActionResult> CreateFacility([FromBody] CreateHostelFacilityRequestDto request, CancellationToken ct) =>
         ToAction(await _service.CreateFacilityAsync(request, ct));
 
+    [HttpPut("facilities/{reference:guid}")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    public async Task<IActionResult> UpdateFacility(Guid reference, [FromBody] UpdateHostelFacilityRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.UpdateFacilityAsync(reference, request, ct));
+
     [HttpPut("facilities/{reference:guid}/state")]
     [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
     public async Task<IActionResult> SetFacilityState(Guid reference, [FromBody] SetHostelFacilityStateRequestDto request, CancellationToken ct) =>

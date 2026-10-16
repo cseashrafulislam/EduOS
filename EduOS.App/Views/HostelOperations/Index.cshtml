@@ -180,6 +180,19 @@
                 <div class="col-md-2"><label class="form-label" for="hostelFacilityAddress">Address</label><input id="hostelFacilityAddress" class="form-control" maxlength="500" /></div>
                 <div class="col-12"><button id="hostelFacilityCreateButton" type="submit" class="btn btn-primary">Create facility</button></div>
             </form>
+            <form id="hostelFacilityEdit" class="row g-2 mb-3 border rounded p-3 d-none">
+                <div class="col-12"><h4 class="h6">Edit facility details</h4>
+                    <p class="small text-muted mb-0">Campus and code are fixed. Changing gender restriction requires all active allocations to be closed.</p></div>
+                <div class="col-md-4"><label class="form-label" for="hostelFacilityEditName">Facility name</label>
+                    <input id="hostelFacilityEditName" class="form-control" maxlength="150" minlength="2" required /></div>
+                <div class="col-md-3"><label class="form-label" for="hostelFacilityEditGender">Gender restriction</label>
+                    <select id="hostelFacilityEditGender" class="form-select"><option value="">None</option><option value="Male">Male</option><option value="Female">Female</option><option value="Other">Other</option></select></div>
+                <div class="col-md-5"><label class="form-label" for="hostelFacilityEditAddress">Address</label>
+                    <input id="hostelFacilityEditAddress" class="form-control" maxlength="500" /></div>
+                <div class="col-12 small text-muted" id="hostelFacilityEditIdentity"></div>
+                <div class="col-12 d-flex gap-2"><button id="hostelFacilityEditSave" type="submit" class="btn btn-primary">Save changes</button>
+                    <button id="hostelFacilityEditCancel" type="button" class="btn btn-outline-secondary">Cancel</button></div>
+            </form>
             <form id="hostelFacilityFilter" class="d-flex gap-2 mb-2">
                 <input id="hostelFacilitySearch" class="form-control" maxlength="100" aria-label="Search facilities" placeholder="Campus, facility or code" />
                 <button type="submit" class="btn btn-outline-primary">Search</button>

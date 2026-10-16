@@ -8,6 +8,7 @@ public interface IHostelService
     Task<ApiResponse<IReadOnlyList<HostelFacilityCampusDto>>> GetFacilityCampusesAsync(CancellationToken ct = default);
     Task<ApiResponse<PagedResult<HostelFacilityDto>>> GetFacilitiesAsync(long? campusId, int page, int pageSize, string? search, CancellationToken ct = default);
     Task<ApiResponse<HostelFacilityDto>> CreateFacilityAsync(CreateHostelFacilityRequestDto request, CancellationToken ct = default);
+    Task<ApiResponse<HostelFacilityDto>> UpdateFacilityAsync(Guid reference, UpdateHostelFacilityRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<HostelFacilityDto>> SetFacilityStateAsync(Guid reference, SetHostelFacilityStateRequestDto request, CancellationToken ct = default);
 
     Task<ApiResponse<HostelRoomInventoryDto>> CreateRoomAsync(CreateHostelRoomRequestDto request, CancellationToken ct = default);

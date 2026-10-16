@@ -5,7 +5,19 @@
     const rows = el('hostelFacilityRows'), status = el('hostelFacilityStatus');
     const prev = el('hostelFacilityPrev'), next = el('hostelFacilityNext');
     const search = el('hostelFacilitySearch'), campus = el('hostelFacilityCampus');
-    let page = 1, totalPages = 1, generation = 0, busy = false, creating = false;
+    let page = 1, totalPages = 1, generation = 0, busy = false, creating = false, saving = false;
+    let editing = null;
+    const editForm = el('hostelFacilityEdit'), editSave = el('hostelFacilityEditSave');
+    function clearEditor() { editing = null; editForm.classList.add('d-none'); editForm.reset(); }
+    function showEditor(item) {
+        editing = { reference: item.reference, rowVersion: item.rowVersion };
+        el('hostelFacilityEditName').value = item.name || '';
+        el('hostelFacilityEditGender').value = item.genderRestriction || '';
+        el('hostelFacilityEditAddress').value = item.address || '';
+        el('hostelFacilityEditIdentity').textContent = 'Campus: ' + item.campusName + ' | Code: ' + item.code;
+        editForm.classList.remove('d-none');
+        el('hostelFacilityEditName').focus();
+    }
     const td = value => { const cell = document.createElement('td'); cell.textContent = String(value ?? ''); return cell; };
     const notify = (message, error = false) => {
         status.textContent = message;
@@ -51,6 +63,10 @@
                 [item.campusName, item.name, item.code, item.activeRooms, item.occupiedBeds,
                     item.isActive ? 'Active' : 'Inactive'].forEach(value => tr.append(td(value)));
                 const action = document.createElement('td'), button = document.createElement('button');
+                const editButton = document.createElement('button');
+                editButton.type = 'button'; editButton.className = 'btn btn-outline-primary btn-sm me-2';
+                editButton.textContent = 'Edit details';
+                editButton.addEventListener('click', () => showEditor(item));
                 button.type = 'button'; button.className = 'btn btn-outline-secondary btn-sm';
                 button.textContent = item.isActive ? 'Deactivate' : 'Activate';
                 button.disabled = item.isActive && (item.activeRooms > 0 || item.occupiedBeds > 0);
@@ -63,7 +79,7 @@
                         await load();
                     } catch (error) { notify(error.message, true); button.disabled = false; }
                 });
-                action.append(button); tr.append(action); rows.append(tr);
+                action.append(editButton, button); tr.append(action); rows.append(tr);
             }
             if (!data.items?.length) {
                 const tr = document.createElement('tr'), cell = td('No facilities match the filter.');
@@ -96,6 +112,25 @@
         } catch (error) { notify(error.message, true); }
         finally { creating = false; el('hostelFacilityCreateButton').disabled = false; }
     });
+    editForm.addEventListener('submit', async event => {
+        event.preventDefault();
+        if (saving || !editing) return;
+        const name = el('hostelFacilityEditName').value.trim();
+        const address = el('hostelFacilityEditAddress').value.trim();
+        if (name.length < 2 || name.length > 150 || address.length > 500) {
+            notify('Enter a valid facility name and address.', true); return;
+        }
+        saving = true; editSave.disabled = true;
+        try {
+            await request('/api/hostel/facilities/' + encodeURIComponent(editing.reference), 'PUT', {
+                name, genderRestriction: el('hostelFacilityEditGender').value || null,
+                address: address || null, rowVersion: editing.rowVersion
+            });
+            clearEditor(); await load();
+        } catch (error) { notify(error.message, true); }
+        finally { saving = false; editSave.disabled = false; }
+    });
+    el('hostelFacilityEditCancel').addEventListener('click', clearEditor);
     el('hostelFacilityFilter').addEventListener('submit', event => { event.preventDefault(); page = 1; load(); });
     search.addEventListener('input', () => {
         generation++; rows.replaceChildren(); page = 1; totalPages = 1;
