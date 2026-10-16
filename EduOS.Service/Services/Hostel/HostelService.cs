@@ -211,6 +211,7 @@ public sealed partial class HostelService : IHostelService
             campusId is <= 0 || search?.Trim().Length > 100)
             return ApiResponse<PagedResult<HostelCapacityRowDto>>.ErrorResponse("Invalid report filter.");
         var tenant = _currentUser.TenantId;
+        var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
         var term = search?.Trim();
         var query = from room in _rooms.GetQueryable().AsNoTracking()
                     join hostel in _hostels.GetQueryable().AsNoTracking() on room.HostelId equals hostel.Id
@@ -239,14 +240,18 @@ public sealed partial class HostelService : IHostelService
         var occupied = await (from allocation in _allocations.GetQueryable().AsNoTracking()
             join bed in _beds.GetQueryable().AsNoTracking() on allocation.HostelBedId equals bed.Id
             where allocation.TenantId == tenant && bed.TenantId == tenant &&
-                ids.Contains(bed.HostelRoomId) && allocation.State == HostelAllocationState.Active
+                ids.Contains(bed.HostelRoomId) && allocation.State == HostelAllocationState.Active &&
+                allocation.StartDate <= today &&
+                (!allocation.EndDate.HasValue || allocation.EndDate.Value >= today)
             group allocation.HostelBedId by bed.HostelRoomId into g
             select new { RoomId = g.Key, Occupied = g.Distinct().Count(), Records = g.Count() })
             .ToDictionaryAsync(x => x.RoomId, cancellationToken);
         var inactiveOccupied = await (from allocation in _allocations.GetQueryable().AsNoTracking()
             join bed in _beds.GetQueryable().AsNoTracking() on allocation.HostelBedId equals bed.Id
             where allocation.TenantId == tenant && bed.TenantId == tenant && !bed.IsActive &&
-                ids.Contains(bed.HostelRoomId) && allocation.State == HostelAllocationState.Active
+                ids.Contains(bed.HostelRoomId) && allocation.State == HostelAllocationState.Active &&
+                allocation.StartDate <= today &&
+                (!allocation.EndDate.HasValue || allocation.EndDate.Value >= today)
             group allocation.HostelBedId by bed.HostelRoomId into g
             select new { RoomId = g.Key, Count = g.Distinct().Count() })
             .ToDictionaryAsync(x => x.RoomId, x => x.Count, cancellationToken);

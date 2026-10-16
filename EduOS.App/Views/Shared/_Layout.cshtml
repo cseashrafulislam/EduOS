@@ -298,6 +298,10 @@
                 </a>
                 @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true)
                 {
+                    <a class="nav-link @ActiveFor("/OperationsInsights")" href="/OperationsInsights/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                        <span>Operations Insights</span>
+                    </a>
                     <a class="nav-link @ActiveFor("/AuditLogs")" href="/AuditLogs/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#shield" /></svg>
                         <span>Audit Logs</span>
