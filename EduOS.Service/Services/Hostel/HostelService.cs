@@ -148,11 +148,11 @@ public sealed partial class HostelService : IHostelService
                 {
                     if (!room.IsActive || !hostel.IsActive || room.Capacity < 1)
                         return ApiResponse<HostelBedInventoryDto>.ErrorResponse("Hostel room is inactive or has no capacity.", 409);
-                    var reserved = await _beds.GetQueryable().AsNoTracking().CountAsync(x =>
+                    var reservedBedSlots = await _beds.GetQueryable().AsNoTracking().CountAsync(x =>
                         x.TenantId == tenant && x.HostelRoomId == room.Id &&
                         (x.IsActive || _allocations.GetQueryable().Any(a => a.TenantId == tenant &&
                             a.HostelBedId == x.Id && a.State == HostelAllocationState.Active)), ct);
-                    if (reserved >= room.Capacity)
+                    if (reservedBedSlots >= room.Capacity)
                         return ApiResponse<HostelBedInventoryDto>.ErrorResponse("Room bed capacity reached.", 409);
                 }
                 bed.IsActive = request.IsActive;
