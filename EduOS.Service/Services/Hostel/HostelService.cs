@@ -184,12 +184,15 @@ public sealed partial class HostelService : IHostelService
         }
         var data = await roomsQuery.ToListAsync(cancellationToken);
         var roomIds = data.Select(x => x.Room.Id).ToArray();
+        var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
         var occupied = await (from allocation in _allocations.GetQueryable().AsNoTracking()
             join bed in _beds.GetQueryable().AsNoTracking() on allocation.HostelBedId equals bed.Id
             where allocation.TenantId == tenant && bed.TenantId == tenant &&
-                allocation.State == HostelAllocationState.Active && roomIds.Contains(bed.HostelRoomId)
-            group allocation by bed.HostelRoomId into g
-            select new { RoomId = g.Key, Count = g.Count() })
+                allocation.State == HostelAllocationState.Active &&
+                allocation.StartDate <= today && (!allocation.EndDate.HasValue || allocation.EndDate.Value >= today) &&
+                roomIds.Contains(bed.HostelRoomId)
+            group bed.Id by bed.HostelRoomId into g
+            select new { RoomId = g.Key, Count = g.Distinct().Count() })
             .ToDictionaryAsync(x => x.RoomId, x => x.Count, cancellationToken);
         IReadOnlyList<HostelRoomDto> rows = data.Select(x => new HostelRoomDto
         {

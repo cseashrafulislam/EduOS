@@ -38,11 +38,11 @@
             for (const item of data.items || []) {
                 const tr = document.createElement('tr');
                 [item.hostelName, item.roomNumber, item.capacity, item.activeBeds, item.occupiedBeds,
-                    item.isActive ? 'Active' : 'Inactive'].forEach(value => tr.append(td(value)));
+                    item.hasActiveReservations ? 'Yes' : 'No', item.isActive ? 'Active' : 'Inactive'].forEach(value => tr.append(td(value)));
                 const action = document.createElement('td'), button = document.createElement('button');
                 button.type = 'button'; button.className = 'btn btn-outline-secondary btn-sm';
                 button.textContent = item.isActive ? 'Deactivate' : 'Activate';
-                button.disabled = (item.isActive && item.occupiedBeds > 0) || (!item.isActive && !item.hostelActive);
+                button.disabled = (item.isActive && item.hasActiveReservations) || (!item.isActive && !item.hostelActive);
                 button.addEventListener('click', async () => {
                     if (!confirm((item.isActive ? 'Deactivate' : 'Activate') + ' room ' + item.roomNumber + '?')) return;
                     button.disabled = true;
@@ -56,7 +56,7 @@
             }
             if (!data.items?.length) {
                 const tr = document.createElement('tr'), cell = td('No rooms match the filter.');
-                cell.colSpan = 7; tr.append(cell); rows.append(tr);
+                cell.colSpan = 8; tr.append(cell); rows.append(tr);
             }
             notify(String(data.totalCount || 0) + ' matching rooms.');
         } catch (error) { if (current === generation) notify(error.message, true); }
