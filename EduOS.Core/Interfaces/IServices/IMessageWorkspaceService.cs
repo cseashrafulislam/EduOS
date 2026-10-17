@@ -5,6 +5,7 @@ namespace EduOS.Core.Interfaces.IServices;
 
 public interface IMessageWorkspaceService
 {
+    Task<ApiResponse<PagedResult<DeviceTokenDto>>> GetMyDevicesAsync(int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<MessageThreadSummaryDto>>> GetMyThreadsAsync(int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<MessageRecipientDto>>> SearchRecipientsAsync(string query, CancellationToken cancellationToken = default);
     Task<ApiResponse<MessageThreadDto>> GetThreadForMessageAsync(long messageId, CancellationToken cancellationToken = default);

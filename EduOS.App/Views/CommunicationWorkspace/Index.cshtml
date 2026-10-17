@@ -76,5 +76,21 @@
         <div class="table-responsive mt-2"><table class="table table-striped table-sm"><thead><tr><th>Channel</th><th>Event code</th><th>Delivery</th><th>Actions</th></tr></thead><tbody id="cwPrefRows"></tbody></table></div>
     </div></section>
 
+    <section class="card mt-3" id="cwDevices"><div class="card-body">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div><h4>Registered push devices</h4><p class="text-muted mb-2">Review and disable your stored push registrations. Push delivery depends on gateway configuration; secret tokens are never displayed.</p></div>
+            <button id="cwDeviceRefresh" type="button" class="btn btn-outline-secondary btn-sm">Refresh</button>
+        </div>
+        <div class="table-responsive"><table class="table table-striped table-sm">
+            <thead><tr><th>Platform</th><th>Device ID</th><th>Last registered / seen</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody id="cwDeviceRows"></tbody>
+        </table></div>
+        <div class="d-flex gap-2 align-items-center">
+            <button id="cwDevicePrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+            <span id="cwDevicePage" aria-live="polite"></span>
+            <button id="cwDeviceNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+        </div>
+    </div></section>
+
 </div>
 @section Scripts { <script type="module" src="~/js/communication/workspace.js" asp-append-version="true"></script> }

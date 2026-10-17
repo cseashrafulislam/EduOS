@@ -78,6 +78,11 @@ public sealed class CommunicationWorkspaceApiController(ICommunicationService se
     public async Task<IActionResult> SavePreference([FromBody] SaveNotificationPreferenceRequestDto request, CancellationToken ct)
     { var r = await service.SaveMyPreferenceAsync(request, ct); return StatusCode(r.StatusCode, r); }
 
+    [HttpGet("devices")]
+    public async Task<IActionResult> Devices([FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, CancellationToken ct = default)
+    { var r = await messages.GetMyDevicesAsync(page, pageSize, ct); return StatusCode(r.StatusCode, r); }
+
     [HttpPost("devices")]
     public async Task<IActionResult> RegisterDevice([FromBody] RegisterDeviceTokenRequestDto request, CancellationToken ct)
     { var r = await service.RegisterDeviceTokenAsync(request, ct); return StatusCode(r.StatusCode, r); }
