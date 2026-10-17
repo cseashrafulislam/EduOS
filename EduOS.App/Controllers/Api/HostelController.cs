@@ -135,6 +135,16 @@ public sealed class HostelController : ControllerBase
         [FromQuery] string? search = null, CancellationToken cancellationToken = default) =>
         ToAction(await _service.GetActiveAllocationsAsync(page, pageSize, search, cancellationToken));
 
+    [HttpGet("allocation-history")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> AllocationHistory([FromQuery] long? campusId = null,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 25, [FromQuery] string? search = null,
+        [FromQuery] EduOS.Core.Enums.Domain.HostelAllocationState? state = null,
+        [FromQuery] DateOnly? fromDate = null, [FromQuery] DateOnly? toDate = null,
+        CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetAllocationHistoryAsync(campusId, page, pageSize, search, state, fromDate, toDate, cancellationToken));
+
     [HttpGet("my-allocation")]
     public async Task<IActionResult> MyAllocation(CancellationToken ct) => ToAction(await _service.GetMyAllocationAsync(ct));
 

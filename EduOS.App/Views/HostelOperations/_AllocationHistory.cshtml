@@ -1,0 +1,27 @@
+<section id="hostelHistoryPanel" class="card mb-3" aria-labelledby="hostelHistoryTitle"><div class="card-body">
+    <h3 id="hostelHistoryTitle" class="h5">Hostel allocation history</h3>
+    <p class="small text-muted">Active, closed and cancelled records; start-date filters. Campus-authorized operational data only. No payments, rent, deposits or contact information.</p>
+    <form id="hostelHistoryFilter" class="row g-2 mb-3">
+        <div class="col-lg-2 col-md-4"><label for="hostelHistoryCampus" class="form-label">Campus</label>
+            <select id="hostelHistoryCampus" class="form-select"><option value="">All permitted campuses</option></select></div>
+        <div class="col-lg-2 col-md-4"><label for="hostelHistoryState" class="form-label">Status</label>
+            <select id="hostelHistoryState" class="form-select"><option value="">All statuses</option><option value="1">Active</option><option value="2">Closed</option><option value="3">Cancelled</option></select></div>
+        <div class="col-lg-2 col-md-4"><label for="hostelHistoryFrom" class="form-label">Start from</label>
+            <input id="hostelHistoryFrom" type="date" class="form-control" /></div>
+        <div class="col-lg-2 col-md-4"><label for="hostelHistoryTo" class="form-label">Start to</label>
+            <input id="hostelHistoryTo" type="date" class="form-control" /></div>
+        <div class="col-lg-3 col-md-6"><label for="hostelHistorySearch" class="form-label">Search</label>
+            <input id="hostelHistorySearch" class="form-control" maxlength="100" placeholder="Student, code, hostel or bed" /></div>
+        <div class="col-lg-1 col-md-2 d-flex align-items-end"><button type="submit" class="btn btn-outline-primary w-100">Filter</button></div>
+    </form>
+    <div id="hostelHistoryStatus" class="small text-muted mb-2" role="status" aria-live="polite"></div>
+    <div class="table-responsive"><table class="table table-sm table-hover">
+        <thead><tr><th>Campus</th><th>Student</th><th>Code</th><th>Hostel</th><th>Room / bed</th><th>Start</th><th>End</th><th>Status</th></tr></thead>
+        <tbody id="hostelHistoryRows"></tbody>
+    </table></div>
+    <div class="d-flex justify-content-between align-items-center">
+        <button id="hostelHistoryPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+        <span id="hostelHistoryPage" class="small text-muted"></span>
+        <button id="hostelHistoryNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+    </div>
+</div></section>
