@@ -1,5 +1,6 @@
 using EduOS.App.Authorization;
 using EduOS.Core.DTOs.Transport;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -37,6 +38,18 @@ public sealed class TransportController : ControllerBase
     public async Task<IActionResult> ActiveAssignments([FromQuery] int page = 1, [FromQuery] int pageSize = 25,
         [FromQuery] string? search = null, CancellationToken cancellationToken = default) =>
         ToAction(await _service.GetActiveAssignmentsAsync(page, pageSize, search, cancellationToken));
+
+    [HttpGet("assignment-history")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> AssignmentHistory([FromQuery] long? campusId = null,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 25,
+        [FromQuery] string? search = null, [FromQuery] TransportAssignmentState? state = null,
+        [FromQuery] DateOnly? fromDate = null, [FromQuery] DateOnly? toDate = null,
+        [FromQuery] Guid? routeReference = null, [FromQuery] Guid? vehicleReference = null,
+        CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetAssignmentHistoryAsync(campusId, page, pageSize, search, state,
+            fromDate, toDate, routeReference, vehicleReference, cancellationToken));
 
     [HttpGet("my-assignment")]
     public async Task<IActionResult> MyAssignment(CancellationToken ct) => ToAction(await _service.GetMyAssignmentAsync(ct));

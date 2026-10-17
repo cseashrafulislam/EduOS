@@ -1,0 +1,24 @@
+<section id="transportHistoryPanel" class="card mb-3" aria-labelledby="transportHistoryTitle"><div class="card-body">
+    <h3 id="transportHistoryTitle" class="h5">Transport assignment history</h3>
+    <p class="small text-muted">Campus-authorized active, closed and cancelled rider records. Filters use assignment start dates; fares and contact details are excluded.</p>
+    <form id="transportHistoryFilter" class="row g-2 mb-3">
+        <div class="col-lg-2 col-md-4"><label for="transportHistoryCampus" class="form-label">Campus</label><select id="transportHistoryCampus" class="form-select"><option value="">All permitted campuses</option></select></div>
+        <div class="col-lg-2 col-md-4"><label for="transportHistoryState" class="form-label">Status</label><select id="transportHistoryState" class="form-select"><option value="">All statuses</option><option value="1">Active</option><option value="2">Closed</option><option value="3">Cancelled</option></select></div>
+        <div class="col-lg-2 col-md-4"><label for="transportHistoryRoute" class="form-label">Route</label><select id="transportHistoryRoute" class="form-select"><option value="">All permitted routes</option></select></div>
+        <div class="col-lg-2 col-md-4"><label for="transportHistoryVehicle" class="form-label">Vehicle</label><select id="transportHistoryVehicle" class="form-select"><option value="">All permitted vehicles</option></select></div>
+        <div class="col-lg-2 col-md-4"><label for="transportHistoryFrom" class="form-label">Start from</label><input id="transportHistoryFrom" type="date" class="form-control" /></div>
+        <div class="col-lg-2 col-md-4"><label for="transportHistoryTo" class="form-label">Start to</label><input id="transportHistoryTo" type="date" class="form-control" /></div>
+        <div class="col-lg-10 col-md-8"><label for="transportHistorySearch" class="form-label">Search</label><input id="transportHistorySearch" class="form-control" maxlength="100" placeholder="Student, code, route or vehicle" /></div>
+        <div class="col-lg-2 col-md-4 d-flex align-items-end"><button type="submit" class="btn btn-outline-primary w-100">Filter</button></div>
+    </form>
+    <div id="transportHistoryStatus" class="small text-muted mb-2" role="status" aria-live="polite"></div>
+    <div class="table-responsive"><table class="table table-sm table-hover">
+        <thead><tr><th>Campus</th><th>Student</th><th>Code</th><th>Route</th><th>Vehicle</th><th>Start</th><th>End</th><th>Status</th></tr></thead>
+        <tbody id="transportHistoryRows"></tbody>
+    </table></div>
+    <div class="d-flex justify-content-between align-items-center">
+        <button id="transportHistoryPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+        <span id="transportHistoryPage" class="small text-muted"></span>
+        <button id="transportHistoryNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+    </div>
+</div></section>
