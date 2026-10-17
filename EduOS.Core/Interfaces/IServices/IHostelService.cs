@@ -14,6 +14,7 @@ public interface IHostelService
 
     Task<ApiResponse<HostelRoomInventoryDto>> CreateRoomAsync(CreateHostelRoomRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<PagedResult<HostelRoomInventoryDto>>> GetRoomInventoryAsync(long? campusId, int page, int pageSize, string? search, CancellationToken cancellationToken = default);
+    Task<ApiResponse<string>> ExportRoomInventoryCsvAsync(long? campusId, string? search, CancellationToken cancellationToken = default);
     Task<ApiResponse<HostelRoomInventoryDto>> SetRoomCapacityAsync(long roomId, SetHostelRoomCapacityRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<HostelRoomInventoryDto>> SetRoomStateAsync(long roomId, SetHostelRoomStateRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<HostelCapacityRowDto>>> GetCapacityAsync(long? campusId, int page, int pageSize, string? search, CancellationToken cancellationToken = default);

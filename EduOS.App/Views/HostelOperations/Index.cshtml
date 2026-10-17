@@ -110,9 +110,13 @@
         <section id="hostelRoomInventoryPanel" class="card mb-3"><div class="card-body">
             <h3 class="h5">Room inventory and controlled closure</h3>
             <p class="small text-muted">Rooms with active allocations cannot be closed. Room status does not modify rent.</p>
-            <form id="hostelRoomInventoryFilter" class="d-flex gap-2 mb-2">
+            <form id="hostelRoomInventoryFilter" class="d-flex gap-2 mb-2 flex-wrap">
+                <select id="hostelRoomInventoryCampus" class="form-select" aria-label="Filter room inventory by campus">
+                    <option value="">All permitted campuses</option>
+                </select>
                 <input id="hostelRoomInventorySearch" class="form-control" maxlength="100" aria-label="Search hostel rooms" placeholder="Hostel or room" />
                 <button type="submit" class="btn btn-outline-primary">Search</button>
+                <button id="hostelRoomInventoryCsv" type="button" class="btn btn-outline-secondary" disabled>Export filtered rooms (CSV)</button>
             </form>
             <div id="hostelRoomInventoryStatus" role="status" aria-live="polite" class="small text-muted"></div>
             <div class="table-responsive"><table class="table table-sm table-hover">
