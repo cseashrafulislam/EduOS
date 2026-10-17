@@ -1,0 +1,23 @@
+@{ ViewData["Title"] = "Institution Feature Audit"; }
+<div class="container-fluid py-3">
+    <h1 class="h4">Institution Feature Audit</h1>
+    <p><a href="/TenantModules/Index">Back to Institution Modules</a></p>
+    <div class="alert alert-info" role="note">
+        This read-only audit compares the current subscription's feature entitlements with stored tenant overrides.
+        Recorded restrictions are <strong>not guaranteed to be enforced</strong> by every module authorization path.
+        This page does not grant, revoke, or change access.
+    </div>
+    <div id="featureAuditNotice" class="alert d-none" role="alert"></div>
+    <div class="table-responsive">
+        <table class="table table-sm table-striped">
+            <thead><tr><th>Feature</th><th>Code</th><th>Included in active plan</th><th>Override recorded</th><th>Current restriction record</th><th>Reason</th></tr></thead>
+            <tbody id="featureAuditRows"></tbody>
+        </table>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+        <button id="featureAuditPrev" class="btn btn-outline-secondary btn-sm" type="button">Previous</button>
+        <span id="featureAuditPage" role="status"></span>
+        <button id="featureAuditNext" class="btn btn-outline-secondary btn-sm" type="button">Next</button>
+    </div>
+</div>
+@section Scripts { <script src="~/js/platform/tenant-feature-audit.js" asp-append-version="true"></script> }
