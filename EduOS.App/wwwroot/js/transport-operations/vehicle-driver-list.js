@@ -1,7 +1,18 @@
 (() => {
+'use strict';
 const u=window.vehicleDriverUI;if(!u)return;
-let page=1,pages=1,sequence=0;
+let page=1,pages=1,sequence=0,loadedFilter=null;
+const exportButton=u.el('transportVehicleDriverExport');
 const cell=value=>{const td=document.createElement('td');td.textContent=value==null?'—':String(value);return td;};
+const filters=()=>{
+ const q=new URLSearchParams();
+ const campus=u.el('transportVehicleDriverCampus').value;
+ const search=u.el('transportVehicleDriverSearch').value.trim();
+ if(campus)q.set('campusId',campus);
+ if(search)q.set('search',search);
+ return q.toString();
+};
+function invalidate(){loadedFilter=null;exportButton.disabled=true;}
 function renderRow(item){
  const tr=document.createElement('tr');
  [item.campusName,item.vehicleNumber,item.driverName,item.licenseExpiresOn,
@@ -27,12 +38,11 @@ function renderRow(item){
  tr.append(action);return tr;
 }
 u.loadLinks=async()=>{
- const current=++sequence,q=new URLSearchParams({page:String(page),pageSize:'15'});
- const campus=u.el('transportVehicleDriverCampus').value;
- const search=u.el('transportVehicleDriverSearch').value.trim();
- if(campus)q.set('campusId',campus);if(search)q.set('search',search);
+ invalidate();
+ const current=++sequence, snapshot=filters();
+ const q=new URLSearchParams(snapshot);q.set('page',String(page));q.set('pageSize','15');
  const data=await u.api(u.endpoint+'?'+q);
- if(current!==sequence)return;
+ if(current!==sequence||snapshot!==filters())return;
  const body=u.el('transportVehicleDriverRows');body.replaceChildren();
  (data.items||[]).forEach(item=>body.append(renderRow(item)));
  if(!data.items?.length){const tr=document.createElement('tr'),td=cell('No assignments');td.colSpan=8;tr.append(td);body.append(tr);}
@@ -40,8 +50,30 @@ u.loadLinks=async()=>{
  u.el('transportVehicleDriverPageInfo').textContent='Page '+page+' of '+pages+' · '+data.totalCount+' records';
  u.el('transportVehicleDriverPrev').disabled=page<=1;
  u.el('transportVehicleDriverNext').disabled=page>=pages;
+ loadedFilter=snapshot;exportButton.disabled=!data.items?.length;
 };
 u.el('transportVehicleDriverSearchForm').onsubmit=e=>{e.preventDefault();page=1;u.loadLinks().catch(x=>u.notify(x.message));};
 u.el('transportVehicleDriverPrev').onclick=()=>{page=Math.max(1,page-1);u.loadLinks().catch(x=>u.notify(x.message));};
 u.el('transportVehicleDriverNext').onclick=()=>{page=Math.min(pages,page+1);u.loadLinks().catch(x=>u.notify(x.message));};
+u.el('transportVehicleDriverSearch').addEventListener('input',invalidate);
+u.el('transportVehicleDriverCampus').addEventListener('change',invalidate);
+exportButton.addEventListener('click',async()=>{
+ const snapshot=filters(),request=sequence;
+ if(loadedFilter===null||loadedFilter!==snapshot)return;
+ exportButton.disabled=true;
+ try{
+  const response=await fetch(u.endpoint+'/export?'+snapshot,{credentials:'same-origin',cache:'no-store',headers:{Accept:'text/csv'}});
+  if(!response.ok){
+   const error=await response.json().catch(()=>null);
+   throw Error(error?.message||'Vehicle/driver history export failed.');
+  }
+  const blob=await response.blob();
+  if(request!==sequence||loadedFilter!==snapshot||filters()!==snapshot)
+   throw Error('Filters changed during export. Apply filters and retry.');
+  const url=URL.createObjectURL(blob),link=document.createElement('a');
+  link.href=url;link.download='vehicle-driver-history.csv';document.body.append(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+ }catch(error){u.notify(error.message);}
+ finally{exportButton.disabled=loadedFilter===null||loadedFilter!==filters();}
+});
 })();

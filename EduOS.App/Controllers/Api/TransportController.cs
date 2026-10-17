@@ -198,6 +198,18 @@ public sealed class TransportController : ControllerBase
         CancellationToken cancellationToken = default) =>
         ToAction(await _service.GetVehicleDriverLinksAsync(campusId, page, pageSize, search, cancellationToken));
 
+    [HttpGet("vehicle-driver-links/export")]
+    [Authorize(Roles = "TenantAdmin")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> VehicleDriverLinksExport([FromQuery] long? campusId = null,
+        [FromQuery] string? search = null, CancellationToken cancellationToken = default)
+    {
+        var result = await _service.ExportVehicleDriverLinksCsvAsync(campusId, search, cancellationToken);
+        if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(System.Text.Encoding.UTF8.GetBytes(result.Data), "text/csv; charset=utf-8", "vehicle-driver-history.csv");
+    }
+
     [HttpPost("vehicle-driver-links")]
     [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> AssignVehicleDriver([FromBody] AssignVehicleDriverRequestDto request,
