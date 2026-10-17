@@ -2,8 +2,9 @@
 <div class="container-fluid py-3">
     <h2>Integration Administration</h2>
     <p><a class="btn btn-outline-primary btn-sm" href="/UsageHistory/Index">Institution Usage History</a></p>
-    <p class="text-muted">Tenant-scoped webhook configuration, delivery history and API credential lifecycle.</p>
-    <div class="alert alert-warning" role="note">Outbound webhook dispatch and API-key authentication are not enabled by this administration page. Transport and authentication require a separate reviewed integration.</div>
+    <p class="text-muted">Tenant-scoped webhook configuration, signed test delivery, delivery history and API credential lifecycle.</p>
+    <div class="alert alert-warning" role="note">Automatic event dispatch and API-key authentication remain disabled. Signed test delivery is available to tenant administrators.</div>
+    <p><a class="btn btn-outline-primary btn-sm" href="/WebhookTests/Index">Signed webhook test delivery &amp; retries</a></p>
     <div id="iaNotice" class="alert d-none" role="alert"></div>
     <div class="card mb-3"><div class="card-body">
         <h4>Webhook endpoints</h4>

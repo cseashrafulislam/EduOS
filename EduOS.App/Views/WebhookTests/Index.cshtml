@@ -1,0 +1,62 @@
+@model EduOS.App.Controllers.WebhookTestWorkspaceVm
+@using EduOS.Core.Enums.Domain
+@{ ViewData["Title"] = "Webhook Test Delivery"; }
+<div class="container py-3">
+<h2>Webhook Test Delivery</h2>
+<a href="/IntegrationAdministration/Index">Integration Administration</a>
+<p>Administrator-initiated signed HTTPS test delivery. Automatic dispatch remains disabled.</p>
+@if (TempData["WebhookNotice"] is string message) { <div class="alert alert-info">@message</div> }
+@if (Model.Error != null) { <div class="alert alert-warning">@Model.Error</div> }
+<form asp-action="Index" method="get">
+<label for="endpointId">Endpoint</label>
+<select id="endpointId" name="endpointId" class="form-select">
+@foreach (var endpoint in Model.Endpoints.Items)
+{
+<option value="@endpoint.Id" selected="@(endpoint.Id == Model.EndpointId)">@endpoint.Name</option>
+}
+</select>
+<button type="submit" class="btn btn-outline-primary">Load</button>
+</form>
+@if (Model.EndpointId.HasValue && Model.Endpoints.Items.Any(x => x.Id == Model.EndpointId && x.IsActive && x.HasSecret))
+{
+<form asp-action="Test" method="post" data-confirm-webhook>
+@Html.AntiForgeryToken()
+<input type="hidden" name="endpointId" value="@Model.EndpointId" />
+<input type="hidden" name="clientRequestId" value="@Guid.NewGuid()" />
+<button type="submit" class="btn btn-primary mt-2">Send signed test</button>
+</form>
+}
+<div class="my-2">
+@if (Model.EndpointPage > 1) { <a asp-action="Index" asp-route-endpointPage="@(Model.EndpointPage - 1)">Previous endpoints</a> }
+<span>Page @Model.EndpointPage / @Math.Max(1, Model.Endpoints.TotalPages)</span>
+@if (Model.EndpointPage < Model.Endpoints.TotalPages) { <a asp-action="Index" asp-route-endpointPage="@(Model.EndpointPage + 1)">Next endpoints</a> }
+</div>
+<table class="table table-striped">
+<thead><tr><th>Event</th><th>State</th><th>Attempts</th><th>Failure</th><th>Retry</th></tr></thead>
+<tbody>
+@foreach (var delivery in Model.Deliveries.Items)
+{
+<tr>
+<td>@delivery.EventCode</td><td>@delivery.State</td><td>@delivery.AttemptCount</td><td>@delivery.FailureReason</td>
+<td>
+@if (delivery.EventCode == "WEBHOOK.TEST" && delivery.AttemptCount < 3 && (delivery.State == WebhookDeliveryState.Failed ||
+ (delivery.State == WebhookDeliveryState.Pending && delivery.NextAttemptAt <= DateTime.UtcNow)))
+{
+<form asp-action="Retry" method="post" data-confirm-webhook>
+@Html.AntiForgeryToken()
+<input type="hidden" name="endpointId" value="@Model.EndpointId" />
+<input type="hidden" name="deliveryId" value="@delivery.Id" />
+<input type="hidden" name="expectedAttemptCount" value="@delivery.AttemptCount" />
+<input type="hidden" name="clientRequestId" value="@Guid.NewGuid()" />
+<button type="submit" class="btn btn-outline-warning btn-sm">Retry</button>
+</form>
+}
+</td>
+</tr>
+}
+</tbody>
+</table>
+@if (Model.DeliveryPage > 1) { <a asp-action="Index" asp-route-endpointId="@Model.EndpointId" asp-route-deliveryPage="@(Model.DeliveryPage - 1)">Previous deliveries</a> }
+@if (Model.DeliveryPage < Model.Deliveries.TotalPages) { <a asp-action="Index" asp-route-endpointId="@Model.EndpointId" asp-route-deliveryPage="@(Model.DeliveryPage + 1)">Next deliveries</a> }
+</div>
+@section Scripts { <script src="~/js/integration-admin/webhook-tests.js" asp-append-version="true"></script> }

@@ -30,6 +30,14 @@ public sealed class IntegrationAdministrationApiController(IIntegrationAdministr
     public async Task<IActionResult> Deliveries(long id, [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken ct = default)
     { var r = await service.GetWebhookDeliveriesAsync(id, page, pageSize, ct); return StatusCode(r.StatusCode, r); }
 
+    [HttpPost("webhooks/{id:long}/test")]
+    public async Task<IActionResult> TestWebhook(long id, [FromBody] CreateWebhookTestRequestDto request, CancellationToken ct)
+    { var r = await service.TestWebhookAsync(id, request, ct); return StatusCode(r.StatusCode, r); }
+
+    [HttpPost("deliveries/{id:long}/retry")]
+    public async Task<IActionResult> RetryWebhook(long id, [FromBody] RetryWebhookDeliveryRequestDto request, CancellationToken ct)
+    { var r = await service.RetryWebhookAsync(id, request, ct); return StatusCode(r.StatusCode, r); }
+
     [HttpGet("credentials")]
     public async Task<IActionResult> Credentials([FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken ct = default)
     { var r = await service.GetApiCredentialsAsync(page, pageSize, ct); return StatusCode(r.StatusCode, r); }

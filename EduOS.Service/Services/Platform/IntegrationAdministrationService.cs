@@ -16,10 +16,10 @@ using Microsoft.Extensions.Logging;
 namespace EduOS.Service.Services.Platform;
 
 /// <summary>
-/// Tenant administrator configuration only. This service does not authenticate API keys or dispatch webhooks.
+/// Tenant administrator configuration only. API credentials are configuration-only; webhook test dispatch is explicitly administrator initiated.
 /// Any future dispatcher must revalidate DNS/IP destinations at connection time to prevent DNS rebinding.
 /// </summary>
-public sealed class IntegrationAdministrationService(
+public sealed partial class IntegrationAdministrationService(
     EduOSDbContext db, ICurrentUserService user, IDataProtectionProvider protection,
     IUnitOfWork unit, ILogger<IntegrationAdministrationService> logger) : IIntegrationAdministrationService
 {
