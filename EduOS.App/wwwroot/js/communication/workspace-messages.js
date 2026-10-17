@@ -1,4 +1,5 @@
 import { el, api, alert, action, dateText } from './workspace-core.js?v=1';
+import { showMessageAttachments } from './workspace-message-attachments.js?v=1';
 
 let threadPage = 1, threadPages = 1, threadVersion = 0, searchVersion = 0, messageVersion = 0;
 let active = null, recipient = null, messagePage = 1, sending = false, pendingId = null, pendingPayload = null;
@@ -57,7 +58,12 @@ async function loadMessages(older = false) {
         const item = document.createElement('div'); item.className = 'border-bottom py-2';
         const heading = document.createElement('strong'); heading.textContent = (row.senderName || 'Member') + ' · ' + dateText(row.sentAt);
         const body = document.createElement('div'); body.className = 'text-break'; body.textContent = row.body || '';
-        item.append(heading, body);
+        const filesButton = document.createElement('button');
+        filesButton.type = 'button'; filesButton.className = 'btn btn-link btn-sm px-0';
+        filesButton.textContent = 'Files';
+        const filesPanel = document.createElement('div');
+        filesButton.addEventListener('click', () => showMessageAttachments(row.id, filesPanel).catch(e => alert(e.message)));
+        item.append(heading, body, filesButton, filesPanel);
         if (older) box.prepend(item); else box.append(item);
     }
     el('cwOlderMessages').classList.toggle('d-none', messagePage >= (Number(data?.totalPages) || 1));

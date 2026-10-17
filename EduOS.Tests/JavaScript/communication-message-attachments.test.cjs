@@ -1,0 +1,31 @@
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.resolve(__dirname, '../..');
+const read = p => fs.readFileSync(path.join(root, p), 'utf8');
+const view = read('EduOS.App/Views/CommunicationWorkspace/Index.cshtml');
+const messages = read('EduOS.App/wwwroot/js/communication/workspace-messages.js');
+const attachments = read('EduOS.App/wwwroot/js/communication/workspace-message-attachments.js');
+const controller = read('EduOS.App/Controllers/Api/MessageAttachmentsApiController.cs');
+const service = read('EduOS.Service/Services/Communication/MessageAttachmentService.cs');
+test('message file workflow is reachable from the existing conversation view', () => {
+    assert.match(view, /Files.*message|message.*Files/i);
+    assert.match(messages, /showMessageAttachments\(row\.id/);
+    assert.match(messages, /workspace-message-attachments\.js/);
+    assert.match(attachments, /Attach file/);
+    assert.match(attachments, /download/);
+    assert.doesNotMatch(attachments, /innerHTML|localStorage|sessionStorage/);
+});
+test('uploads enforce antiforgery, idempotency, bounded size, private scanning and tenant access', () => {
+    assert.match(attachments, /RequestVerificationToken: csrf/);
+    assert.match(attachments, /crypto\.randomUUID\(\)/);
+    assert.match(attachments, /5 \* 1024 \* 1024/);
+    assert.match(controller, /AutoValidateAntiforgeryToken/);
+    assert.match(controller, /RequestSizeLimit\(6291456\)/);
+    assert.match(service, /AccessibleMessages\(\)/);
+    assert.match(service, /TenantMessageKey/);
+    assert.match(service, /ScanPrivateForMalwareAsync/);
+    assert.match(service, /IsolationLevel\.Serializable/);
+    assert.match(service, /SHA256\.HashData\(file\.Content\)/);
+});
