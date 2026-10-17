@@ -31,6 +31,16 @@ public sealed class UsageHistoryApiController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("export")]
+    public async Task<IActionResult> Export([FromQuery] DateOnly? fromDate, [FromQuery] DateOnly? toDate, CancellationToken ct = default)
+    {
+        var result = await _service.ExportHistoryCsvAsync(fromDate, toDate, ct);
+        if (!result.Success) return StatusCode(result.StatusCode, result);
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(System.Text.Encoding.UTF8.GetBytes(result.Data ?? string.Empty),
+            "text/csv", "institution-usage-history.csv");
+    }
+
     [HttpPost("capture")]
     public async Task<IActionResult> Capture(CancellationToken ct)
     {

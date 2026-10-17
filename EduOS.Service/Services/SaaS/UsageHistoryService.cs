@@ -93,4 +93,29 @@ public sealed class UsageHistoryService(
                 : ApiResponse<UsageStatisticsDto>.ErrorResponse("Snapshot could not be saved.", 409);
         }
     }
+
+    /// <summary>Bounded tenant-only export. Unmetered storage/SMS/email fields are intentionally excluded.</summary>
+    public async Task<ApiResponse<string>> ExportHistoryCsvAsync(
+        DateOnly? fromDate, DateOnly? toDate, CancellationToken ct = default)
+    {
+        if (!CanManage) return ApiResponse<string>.ErrorResponse("Tenant administrator required.", 403);
+        var end = toDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        if (end.Year < 2000) return ApiResponse<string>.ErrorResponse("Invalid export dates.", 400);
+        var start = fromDate ?? end.AddDays(-89);
+        if (start > end || end.DayNumber - start.DayNumber > 365)
+            return ApiResponse<string>.ErrorResponse("Select a date range of at most 366 days.", 400);
+        var rows = await db.UsageStatistics.AsNoTracking()
+            .Where(x => x.TenantId == user.TenantId && !x.IsDeleted &&
+                x.PeriodStart >= start && x.PeriodStart <= end)
+            .OrderBy(x => x.PeriodStart).ThenBy(x => x.Id)
+            .Take(1001).Select(x => new { x.PeriodStart, x.ActiveStudents, x.ActiveEmployees, x.ActiveCampuses })
+            .ToListAsync(ct);
+        if (rows.Count > 1000)
+            return ApiResponse<string>.ErrorResponse("Too many snapshots; narrow the date range.", 413);
+        var csv = new System.Text.StringBuilder("LocalDay,ActiveStudents,ActiveEmployees,ActiveCampuses\r\n");
+        foreach (var row in rows)
+            csv.Append(FormattableString.Invariant(
+                $"{row.PeriodStart:yyyy-MM-dd},{row.ActiveStudents},{row.ActiveEmployees},{row.ActiveCampuses}\r\n"));
+        return ApiResponse<string>.SuccessResponse(csv.ToString());
+    }
 }

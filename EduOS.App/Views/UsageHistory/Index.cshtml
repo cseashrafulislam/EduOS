@@ -9,6 +9,12 @@
     @Html.AntiForgeryToken()
     <button id="uhCapture" type="button" class="btn btn-primary mb-3">Capture today's usage</button>
     <button id="uhRefresh" type="button" class="btn btn-outline-secondary mb-3">Refresh</button>
+    <form method="get" action="/api/usage-history/export" class="row g-2 align-items-end mb-3">
+        <div class="col-sm-3"><label class="form-label" for="uhFrom">Export from (local day)</label><input id="uhFrom" name="fromDate" type="date" class="form-control" /></div>
+        <div class="col-sm-3"><label class="form-label" for="uhTo">Export through (local day)</label><input id="uhTo" name="toDate" type="date" class="form-control" /></div>
+        <div class="col-sm-3"><button type="submit" class="btn btn-outline-primary">Export CSV</button></div>
+        <div class="col-12 small text-muted">Exports up to 366 days of saved snapshots; unmetered SMS, email and storage are excluded.</div>
+    </form>
     <div id="uhStatus" role="status" aria-live="polite" class="small mb-3 text-muted"></div>
     <div class="card"><div class="card-body">
         <div class="table-responsive">
