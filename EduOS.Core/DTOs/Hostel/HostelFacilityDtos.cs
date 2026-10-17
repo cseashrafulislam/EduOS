@@ -14,6 +14,7 @@ public sealed class HostelFacilityDto
     public bool IsActive { get; set; }
     public int ActiveRooms { get; set; }
     public int OccupiedBeds { get; set; }
+    public int ActiveReservations { get; set; }
     public string RowVersion { get; set; } = string.Empty;
 }
 

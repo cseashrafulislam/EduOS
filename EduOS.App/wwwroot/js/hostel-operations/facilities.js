@@ -61,7 +61,7 @@
             for (const item of data.items || []) {
                 const tr = document.createElement('tr');
                 [item.campusName, item.name, item.code, item.activeRooms, item.occupiedBeds,
-                    item.isActive ? 'Active' : 'Inactive'].forEach(value => tr.append(td(value)));
+                    item.activeReservations, item.isActive ? 'Active' : 'Inactive'].forEach(value => tr.append(td(value)));
                 const action = document.createElement('td'), button = document.createElement('button');
                 const editButton = document.createElement('button');
                 editButton.type = 'button'; editButton.className = 'btn btn-outline-primary btn-sm me-2';
@@ -69,7 +69,7 @@
                 editButton.addEventListener('click', () => showEditor(item));
                 button.type = 'button'; button.className = 'btn btn-outline-secondary btn-sm';
                 button.textContent = item.isActive ? 'Deactivate' : 'Activate';
-                button.disabled = item.isActive && (item.activeRooms > 0 || item.occupiedBeds > 0);
+                button.disabled = item.isActive && (item.activeRooms > 0 || item.activeReservations > 0);
                 button.addEventListener('click', async () => {
                     if (!confirm((item.isActive ? 'Deactivate' : 'Activate') + ' facility ' + item.name + '?')) return;
                     button.disabled = true;
@@ -83,7 +83,7 @@
             }
             if (!data.items?.length) {
                 const tr = document.createElement('tr'), cell = td('No facilities match the filter.');
-                cell.colSpan = 7; tr.append(cell); rows.append(tr);
+                cell.colSpan = 8; tr.append(cell); rows.append(tr);
             }
             notify(String(data.totalCount || 0) + ' matching facilities.');
         } catch (error) { if (current === generation) notify(error.message, true); }

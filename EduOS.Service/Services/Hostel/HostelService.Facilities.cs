@@ -51,16 +51,27 @@ public sealed partial class HostelService
         var rows = await query.OrderBy(x => x.CampusName).ThenBy(x => x.Name).ThenBy(x => x.Id)
             .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
         var ids = rows.Select(x => x.Id).ToArray();
+        var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
         var activeRooms = await _rooms.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == tenant && !x.IsDeleted && ids.Contains(x.HostelId) && x.IsActive)
             .GroupBy(x => x.HostelId).Select(g => new { HostelId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.HostelId, x => x.Count, ct);
+        var activeReservations = await (from allocation in _allocations.GetQueryable().AsNoTracking()
+            join bed in _beds.GetQueryable().AsNoTracking() on allocation.HostelBedId equals bed.Id
+            join room in _rooms.GetQueryable().AsNoTracking() on bed.HostelRoomId equals room.Id
+            where allocation.TenantId == tenant && bed.TenantId == tenant && room.TenantId == tenant &&
+                !allocation.IsDeleted && !bed.IsDeleted && !room.IsDeleted &&
+                ids.Contains(room.HostelId) && allocation.State == HostelAllocationState.Active
+            group bed.Id by room.HostelId into g
+            select new { HostelId = g.Key, Count = g.Distinct().Count() })
             .ToDictionaryAsync(x => x.HostelId, x => x.Count, ct);
         var occupiedBeds = await (from allocation in _allocations.GetQueryable().AsNoTracking()
             join bed in _beds.GetQueryable().AsNoTracking() on allocation.HostelBedId equals bed.Id
             join room in _rooms.GetQueryable().AsNoTracking() on bed.HostelRoomId equals room.Id
             where allocation.TenantId == tenant && bed.TenantId == tenant && room.TenantId == tenant &&
                 !allocation.IsDeleted && !bed.IsDeleted && !room.IsDeleted &&
-                ids.Contains(room.HostelId) && allocation.State == HostelAllocationState.Active
+                ids.Contains(room.HostelId) && allocation.State == HostelAllocationState.Active &&
+                allocation.StartDate <= today && (!allocation.EndDate.HasValue || allocation.EndDate.Value >= today)
             group bed.Id by room.HostelId into g
             select new { HostelId = g.Key, Count = g.Distinct().Count() })
             .ToDictionaryAsync(x => x.HostelId, x => x.Count, ct);
@@ -71,7 +82,9 @@ public sealed partial class HostelService
                 Reference = x.PublicId, CampusId = x.CampusId, CampusName = x.CampusName,
                 Name = x.Name, Code = x.Code, GenderRestriction = x.GenderRestriction, Address = x.Address,
                 IsActive = x.IsActive, ActiveRooms = activeRooms.GetValueOrDefault(x.Id),
-                OccupiedBeds = occupiedBeds.GetValueOrDefault(x.Id), RowVersion = Convert.ToBase64String(x.RowVersion)
+                OccupiedBeds = occupiedBeds.GetValueOrDefault(x.Id),
+                ActiveReservations = activeReservations.GetValueOrDefault(x.Id),
+                RowVersion = Convert.ToBase64String(x.RowVersion)
             }).ToList(), TotalCount = count, Page = page, PageSize = pageSize
         });
     }
@@ -162,25 +175,35 @@ public sealed partial class HostelService
                 if (!await CanManageCampusAsync(campus.Id, tenant, token)) return Denied<HostelFacilityDto>();
                 var activeRooms = await _rooms.GetQueryable().AsNoTracking().CountAsync(x =>
                     x.TenantId == tenant && x.HostelId == hostel.Id && !x.IsDeleted && x.IsActive, token);
-                var occupied = await (from allocation in _allocations.GetQueryable().AsNoTracking()
+                var activeReservations = await (from allocation in _allocations.GetQueryable().AsNoTracking()
                     join bed in _beds.GetQueryable().AsNoTracking() on allocation.HostelBedId equals bed.Id
                     join room in _rooms.GetQueryable().AsNoTracking() on bed.HostelRoomId equals room.Id
                     where allocation.TenantId == tenant && bed.TenantId == tenant && room.TenantId == tenant &&
                         !allocation.IsDeleted && !bed.IsDeleted && !room.IsDeleted &&
                         room.HostelId == hostel.Id && allocation.State == HostelAllocationState.Active
                     select bed.Id).Distinct().CountAsync(token);
+                var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+                var occupiedToday = await (from allocation in _allocations.GetQueryable().AsNoTracking()
+                    join bed in _beds.GetQueryable().AsNoTracking() on allocation.HostelBedId equals bed.Id
+                    join room in _rooms.GetQueryable().AsNoTracking() on bed.HostelRoomId equals room.Id
+                    where allocation.TenantId == tenant && bed.TenantId == tenant && room.TenantId == tenant &&
+                        !allocation.IsDeleted && !bed.IsDeleted && !room.IsDeleted &&
+                        room.HostelId == hostel.Id && allocation.State == HostelAllocationState.Active &&
+                        allocation.StartDate <= today && (!allocation.EndDate.HasValue || allocation.EndDate.Value >= today)
+                    select bed.Id).Distinct().CountAsync(token);
                 HostelFacilityDto Result() => new()
                 {
                     Reference = hostel.PublicId, CampusId = campus.Id, CampusName = campus.Name,
                     Name = hostel.Name, Code = hostel.Code, GenderRestriction = hostel.GenderRestriction,
                     Address = hostel.Address, IsActive = hostel.IsActive, ActiveRooms = activeRooms,
-                    OccupiedBeds = occupied, RowVersion = Convert.ToBase64String(hostel.RowVersion)
+                    OccupiedBeds = occupiedToday, ActiveReservations = activeReservations,
+                    RowVersion = Convert.ToBase64String(hostel.RowVersion)
                 };
                 if (hostel.IsActive == request.IsActive)
                     return ApiResponse<HostelFacilityDto>.SuccessResponse(Result(), "Facility already has the requested state.");
                 if (!hostel.RowVersion.AsSpan().SequenceEqual(version))
                     return ApiResponse<HostelFacilityDto>.ErrorResponse("Facility changed. Reload and retry.", 409);
-                if (!request.IsActive && (activeRooms > 0 || occupied > 0))
+                if (!request.IsActive && (activeRooms > 0 || activeReservations > 0))
                     return ApiResponse<HostelFacilityDto>.ErrorResponse("Close active rooms and allocations before deactivating facility.", 409);
                 hostel.IsActive = request.IsActive;
                 hostel.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
