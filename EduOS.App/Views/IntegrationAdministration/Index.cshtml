@@ -3,7 +3,7 @@
     <h2>Integration Administration</h2>
     <p><a class="btn btn-outline-primary btn-sm" href="/UsageHistory/Index">Institution Usage History</a></p>
     <p class="text-muted">Tenant-scoped webhook configuration, signed test delivery, delivery history and API credential lifecycle.</p>
-    <div class="alert alert-warning" role="note">Automatic event dispatch and API-key authentication remain disabled. Signed test delivery is available to tenant administrators.</div>
+    <div class="alert alert-warning" role="note">Automatic event dispatch remains disabled. API keys are accepted only for read-only usage history with integration:read scope; they do not grant browser access or tenant administrator roles.</div>
     <p><a class="btn btn-outline-primary btn-sm" href="/WebhookTests/Index">Signed webhook test delivery &amp; retries</a></p>
     <div id="iaNotice" class="alert d-none" role="alert"></div>
     <div class="card mb-3"><div class="card-body">
@@ -63,6 +63,14 @@
             <button id="iaCredentialNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
         </div>
         <hr />
+        <div class="alert alert-info mt-3" role="note">
+            <strong>Read-only integration API</strong>
+            <p class="mb-2">Create a credential with <code>integration:read</code> scope to retrieve your institution's saved usage snapshots. Send requests without login cookies.</p>
+            <p class="mb-2">GET <code>/api/integration/v1/usage?page=1&amp;pageSize=20</code></p>
+            <pre id="iaApiExample" class="mb-2" style="white-space:pre-wrap">curl -H 'Authorization: ApiKey YOUR_API_KEY' 'https://YOUR_EDUOS_HOST/api/integration/v1/usage?page=1&amp;pageSize=20'</pre>
+            <button type="button" id="iaCopyApiExample" class="btn btn-outline-primary btn-sm">Copy placeholder example</button>
+            <p class="small mb-0 mt-2">The credential is shown only once. Never place it in URLs, browser JavaScript, or source control. Expiry and revocation are enforced.</p>
+        </div>
         <h5>Create API credential</h5>
         <form id="iaCredentialForm">
             <div class="row g-2">
@@ -82,4 +90,4 @@
         </div>
     </div></div>
 </div>
-@section Scripts { <script src="~/js/integration-admin/admin.js" asp-append-version="true"></script> }
+@section Scripts { <script src="~/js/integration-admin/admin.js" asp-append-version="true"></script><script src="~/js/integration-admin/credential-usage-example.js" asp-append-version="true"></script> }

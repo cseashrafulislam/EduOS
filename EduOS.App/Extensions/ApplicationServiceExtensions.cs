@@ -48,6 +48,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<ICommunicationService, CommunicationService>();
             s.AddScoped<IMessageWorkspaceService, MessageWorkspaceService>();
             s.AddScoped<IIntegrationAdministrationService, IntegrationAdministrationService>();
+            s.AddScoped<IApiCredentialUsageService, ApiCredentialUsageService>();
             s.AddScoped<INumberSeriesService, NumberSeriesService>();
             s.AddScoped<ICustomFieldService, CustomFieldService>();
             s.AddScoped<IOnboardingService, OnboardingService>();
