@@ -1,0 +1,27 @@
+@{ ViewData["Title"] = "Institution Usage History"; }
+<div class="container-fluid py-3">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <h2>Institution Usage History</h2>
+        <a href="/IntegrationAdministration/Index" class="btn btn-outline-secondary btn-sm">Back to Integration Administration</a>
+    </div>
+    <p class="text-muted">Daily tenant-scoped snapshots of active students, employees and campuses. A day is determined by the institution timezone, falling back to UTC. Capturing twice on the same day returns the original snapshot.</p>
+    <div class="alert alert-info" role="note">Storage, SMS and email metering are not connected to this capture. Their existing database fields are not displayed as measured values.</div>
+    @Html.AntiForgeryToken()
+    <button id="uhCapture" type="button" class="btn btn-primary mb-3">Capture today's usage</button>
+    <button id="uhRefresh" type="button" class="btn btn-outline-secondary mb-3">Refresh</button>
+    <div id="uhStatus" role="status" aria-live="polite" class="small mb-3 text-muted"></div>
+    <div class="card"><div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm table-striped">
+                <thead><tr><th>Local day</th><th>Active students</th><th>Active employees</th><th>Active campuses</th></tr></thead>
+                <tbody id="uhRows"></tbody>
+            </table>
+        </div>
+        <div class="d-flex gap-2 align-items-center">
+            <button id="uhPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+            <span id="uhPage"></span>
+            <button id="uhNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+        </div>
+    </div></div>
+</div>
+@section Scripts { <script src="~/js/usage-history/index.js" asp-append-version="true"></script> }
