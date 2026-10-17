@@ -1,0 +1,23 @@
+<section id="hostelAllocationReadinessPanel" class="card mb-3" aria-labelledby="hostelAllocationReadinessTitle">
+    <div class="card-body">
+        <h3 id="hostelAllocationReadinessTitle" class="h5">Hostel arrivals and allocation exceptions</h3>
+        <p class="small text-muted">Upcoming reservations and active allocations needing operational review. No student identity, contact or financial data is displayed. Resolve exceptions through the existing authorized allocation workflow.</p>
+        <form id="hostelReadinessFilter" class="row g-2 mb-2">
+            <div class="col-md-3"><label for="hostelReadinessCampus" class="form-label">Campus</label><select id="hostelReadinessCampus" class="form-select"><option value="">All permitted campuses</option></select></div>
+            <div class="col-md-5"><label for="hostelReadinessSearch" class="form-label">Search location</label><input id="hostelReadinessSearch" class="form-control" maxlength="100" placeholder="Campus, hostel, room or bed" /></div>
+            <div class="col-md-2 d-flex align-items-end"><div class="form-check mb-2"><input id="hostelReadinessAttention" type="checkbox" class="form-check-input" /><label for="hostelReadinessAttention" class="form-check-label">Attention only</label></div></div>
+            <div class="col-md-2 d-flex align-items-end"><button type="submit" class="btn btn-outline-primary w-100">Filter</button></div>
+        </form>
+        <div class="d-flex justify-content-end mb-2"><button id="hostelReadinessExport" type="button" class="btn btn-outline-secondary btn-sm" disabled>Export filtered CSV</button></div>
+        <div id="hostelReadinessStatus" class="small text-muted mb-2" role="status" aria-live="polite"></div>
+        <div class="table-responsive"><table class="table table-sm table-hover">
+            <thead><tr><th>Campus</th><th>Hostel</th><th>Room / bed</th><th>Start date</th><th>Readiness</th></tr></thead>
+            <tbody id="hostelReadinessRows"></tbody>
+        </table></div>
+        <div class="d-flex justify-content-between align-items-center">
+            <button id="hostelReadinessPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+            <span id="hostelReadinessPage" class="small text-muted"></span>
+            <button id="hostelReadinessNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+        </div>
+    </div>
+</section>

@@ -43,6 +43,7 @@
     @if (canManage)
     {
         @await Html.PartialAsync("_AllocationHistory")
+        @await Html.PartialAsync("_AllocationReadiness")
         @await Html.PartialAsync("_OccupancyInsights")
         <section id="hostelCapacityPanel" class="card mb-3"><div class="card-body">
             <h3 class="h5">Capacity and occupancy report</h3>
@@ -227,5 +228,6 @@
         <script src="~/js/hostel-operations/room-create.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/facilities.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/allocation-history.js" asp-append-version="true"></script>
+        <script src="~/js/hostel-operations/allocation-readiness.js" asp-append-version="true"></script>
     }
 }
