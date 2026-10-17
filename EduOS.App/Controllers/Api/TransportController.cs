@@ -136,6 +136,18 @@ public sealed class TransportController : ControllerBase
         CancellationToken cancellationToken = default) =>
         ToAction(await _service.GetRouteVehicleLinksAsync(campusId, page, pageSize, search, cancellationToken));
 
+    [HttpGet("route-vehicle-links/export")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> RouteVehicleLinksExport([FromQuery] long? campusId = null,
+        [FromQuery] string? search = null, CancellationToken cancellationToken = default)
+    {
+        var result = await _service.ExportRouteVehicleLinksCsvAsync(campusId, search, cancellationToken);
+        if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(System.Text.Encoding.UTF8.GetBytes(result.Data), "text/csv; charset=utf-8", "route-vehicle-history.csv");
+    }
+
     [HttpPost("route-vehicle-links")]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
     public async Task<IActionResult> AssignRouteVehicle(

@@ -19,6 +19,10 @@
         <div class="col-md-6"><label for="transportLinkSearch" class="visually-hidden">Search assignments</label><input id="transportLinkSearch" class="form-control" maxlength="100" placeholder="Route, vehicle or campus" /></div>
         <div class="col-md-2"><button type="submit" class="btn btn-outline-primary w-100">Search</button></div>
     </form>
+    <div class="d-flex align-items-center gap-2 mb-2">
+        <button id="transportLinkExport" type="button" class="btn btn-outline-success btn-sm" disabled>Export filtered history (CSV)</button>
+        <span class="small text-muted">Up to 1,000 authorized records; no student details or fares.</span>
+    </div>
     <div class="table-responsive"><table class="table table-sm table-hover align-middle">
         <thead><tr><th>Campus</th><th>Route</th><th>Vehicle</th><th>Capacity</th><th>Occupied today</th><th>Active reservations</th><th>From</th><th>To</th><th>Status</th><th>Action</th></tr></thead>
         <tbody id="transportLinkRows"><tr><td colspan="10">Loading…</td></tr></tbody>
