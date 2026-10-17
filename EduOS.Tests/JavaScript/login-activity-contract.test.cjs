@@ -18,7 +18,8 @@ test('sign-in activity uses canonical login history with account and tenant isol
     assert.match(model, /class LoginHistory : BaseEntity/);
     assert.match(dto, /class LoginHistoryDto/);
     assert.match(service, /x\.UserId == user\.UserId/);
-    assert.match(service, /x\.TenantId == user\.TenantId \|\| x\.TenantId == null/);
+    assert.match(service, /x\.TenantId == user\.TenantId/);
+    assert.match(service, /DateTime\.SpecifyKind\(item\.OccurredAt, DateTimeKind\.Utc\)/);
     assert.match(service, /pageSize is < 1 or > 50/);
     assert.doesNotMatch(service, /IgnoreQueryFilters\(/);
     assert.doesNotMatch(service, /IpAddress =|UserAgent =|FailureReason =/);
@@ -28,6 +29,7 @@ test('sign-in activity uses canonical login history with account and tenant isol
     assert.match(di, /AddScoped<ILoginActivityService, LoginActivityService>/);
     assert.match(nav, /href="\/LoginActivity\/Index"/);
     assert.match(view, /login-activity\.js/);
+    assert.match(view, /Unattributed attempts are excluded/);
     assert.match(js, /credentials: 'same-origin'/);
     assert.match(js, /cell\.textContent/);
     assert.doesNotMatch(js, /innerHTML/);
