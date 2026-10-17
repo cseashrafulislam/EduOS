@@ -5,6 +5,8 @@ namespace EduOS.Core.Interfaces.IServices;
 
 public interface ITransportService
 {
+    Task<ApiResponse<PagedResult<TransportDriverReadinessRowDto>>> GetDriverReadinessAsync(long? campusId, int page, int pageSize, string? search, string? state, int withinDays, CancellationToken cancellationToken = default);
+    Task<ApiResponse<string>> ExportDriverReadinessCsvAsync(long? campusId, string? search, string? state, int withinDays, CancellationToken cancellationToken = default);
     Task<ApiResponse<TransportFleetInsightsDto>> GetFleetInsightsAsync(long? campusId, string? search, CancellationToken cancellationToken = default);
     Task<ApiResponse<string>> ExportVehicleDriverLinksCsvAsync(long? campusId, string? search, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<TransportVehicleDriverLinkRowDto>>> GetVehicleDriverLinksAsync(long? campusId, int page, int pageSize, string? search, CancellationToken cancellationToken = default);

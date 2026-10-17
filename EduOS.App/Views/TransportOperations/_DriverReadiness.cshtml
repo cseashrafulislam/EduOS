@@ -1,0 +1,19 @@
+<section class="card mb-3" id="transportDriverReadinessPanel"><div class="card-body">
+    <h3 class="h5">Vehicle driver safety readiness</h3>
+    <p class="small text-muted">Tenant administrators only. Live vehicle-level driver coverage, expiry and rider exposure. No driver names, license numbers, student identities or financial information are included. This report does not replace a physical safety inspection.</p>
+    <form id="transportDriverReadinessFilters" class="row g-2 mb-2">
+        <div class="col-md-3"><label class="form-label" for="transportDriverReadinessCampus">Campus</label><select id="transportDriverReadinessCampus" class="form-select"><option value="">All authorized campuses</option></select></div>
+        <div class="col-md-3"><label class="form-label" for="transportDriverReadinessSearch">Vehicle / campus</label><input id="transportDriverReadinessSearch" class="form-control" type="search" maxlength="100" /></div>
+        <div class="col-md-3"><label class="form-label" for="transportDriverReadinessState">Readiness</label><select id="transportDriverReadinessState" class="form-select"><option value="Attention">Needs attention</option><option value="All">All vehicles</option><option value="Ready">Ready</option><option value="No_Driver">No driver</option><option value="Conflict">Conflicting drivers</option><option value="Inactive_Driver">Inactive driver</option><option value="Inactive_Vehicle">Inactive vehicle</option><option value="Missing_Expiry">Missing expiry</option><option value="Expired">Expired</option><option value="Expiring">Expiring soon</option></select></div>
+        <div class="col-md-2"><label class="form-label" for="transportDriverReadinessDays">Warning window</label><select id="transportDriverReadinessDays" class="form-select"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="60">60 days</option><option value="90">90 days</option></select></div>
+        <div class="col-md-1 d-flex align-items-end"><button type="submit" class="btn btn-outline-primary w-100">Go</button></div>
+    </form>
+    <button id="transportDriverReadinessExport" class="btn btn-outline-success btn-sm mb-2" type="button" disabled>Export filtered CSV</button>
+    <div id="transportDriverReadinessStatus" class="small text-muted mb-2" role="status" aria-live="polite">Loading…</div>
+    <div class="table-responsive"><table class="table table-sm table-hover align-middle"><thead><tr><th>Campus</th><th>Vehicle</th><th>Riders / seats</th><th>Routes</th><th>Drivers</th><th>License expires</th><th>Readiness</th></tr></thead><tbody id="transportDriverReadinessRows"><tr><td colspan="7">Loading…</td></tr></tbody></table></div>
+    <div class="d-flex align-items-center justify-content-between gap-2">
+        <button id="transportDriverReadinessPrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous</button>
+        <span id="transportDriverReadinessPage" class="small text-muted"></span>
+        <button id="transportDriverReadinessNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next</button>
+    </div>
+</div></section>
