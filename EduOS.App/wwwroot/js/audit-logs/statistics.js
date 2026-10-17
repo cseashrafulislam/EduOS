@@ -36,7 +36,7 @@
         const from = el('auditFrom').value, to = el('auditTo').value;
         if (from && to && from > to) throw Error('From date cannot be later than To date.');
         const userId = el('auditUserId').value.trim();
-        if (userId && (!/^[1-9]\\d*$/.test(userId) || !Number.isSafeInteger(Number(userId))))
+        if (userId && (!/^[1-9]\d*$/.test(userId) || !Number.isSafeInteger(Number(userId))))
             throw Error('Enter a valid positive User ID.');
         const q = new URLSearchParams();
         if (from) q.set('fromUtc', from + 'T00:00:00Z');

@@ -26,6 +26,28 @@
             </form>
         </div>
     </section>
+    <section id="auditInsights" class="card mb-3" aria-labelledby="auditStatsTitle">
+        <div class="card-body">
+            <h3 id="auditStatsTitle" class="h6 mb-1">Activity overview</h3>
+            <p class="text-muted small">Uses the same tenant-scoped filters as the activity table. Today, last 7 days and last month are UTC periods.</p>
+            <p id="auditStatsStatus" class="small text-muted" role="status" aria-live="polite">Loading overview…</p>
+            <div class="row g-2">
+                <div class="col-6 col-md-4 col-xl-2"><div class="border rounded p-3 h-100"><div class="small text-muted">Total</div><strong id="auditStatTotal" class="fs-5">—</strong></div></div>
+                <div class="col-6 col-md-4 col-xl-2"><div class="border rounded p-3 h-100"><div class="small text-muted">Today</div><strong id="auditStatToday" class="fs-5">—</strong></div></div>
+                <div class="col-6 col-md-4 col-xl-2"><div class="border rounded p-3 h-100"><div class="small text-muted">Last 7 days</div><strong id="auditStatWeek" class="fs-5">—</strong></div></div>
+                <div class="col-6 col-md-4 col-xl-2"><div class="border rounded p-3 h-100"><div class="small text-muted">Last month</div><strong id="auditStatMonth" class="fs-5">—</strong></div></div>
+                <div class="col-6 col-md-4 col-xl-2"><div class="border rounded p-3 h-100"><div class="small text-muted">Successful</div><strong id="auditStatSuccess" class="fs-5">—</strong></div></div>
+                <div class="col-6 col-md-4 col-xl-2"><div class="border rounded p-3 h-100"><div class="small text-muted">Failed</div><strong id="auditStatFailed" class="fs-5">—</strong></div></div>
+                <div class="col-6 col-md-4 col-xl-2"><div class="border rounded p-3 h-100"><div class="small text-muted">Created</div><strong id="auditStatCreated" class="fs-5">—</strong></div></div>
+                <div class="col-6 col-md-4 col-xl-2"><div class="border rounded p-3 h-100"><div class="small text-muted">Updated</div><strong id="auditStatUpdated" class="fs-5">—</strong></div></div>
+                <div class="col-6 col-md-4 col-xl-2"><div class="border rounded p-3 h-100"><div class="small text-muted">Deleted</div><strong id="auditStatDeleted" class="fs-5">—</strong></div></div>
+            </div>
+            <div class="row g-3 mt-1">
+                <div class="col-lg-6"><h4 class="h6">Most active entities</h4><div class="table-responsive"><table class="table table-sm"><thead><tr><th scope="col">Entity</th><th scope="col" class="text-end">Operations</th></tr></thead><tbody id="auditTopEntities"></tbody></table></div></div>
+                <div class="col-lg-6"><h4 class="h6">Most active users</h4><div class="table-responsive"><table class="table table-sm"><thead><tr><th scope="col">User</th><th scope="col" class="text-end">Operations</th></tr></thead><tbody id="auditTopUsers"></tbody></table></div></div>
+            </div>
+        </div>
+    </section>
     <section class="card" aria-labelledby="auditResultsTitle">
         <div class="card-body">
             <div class="d-flex justify-content-between flex-wrap gap-2 mb-2 align-items-center">
@@ -48,4 +70,5 @@
 </section>
 @section Scripts {
     <script src="~/js/audit-logs/index.js" asp-append-version="true"></script>
+    <script src="~/js/audit-logs/statistics.js" asp-append-version="true"></script>
 }
