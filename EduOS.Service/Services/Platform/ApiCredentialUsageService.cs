@@ -33,10 +33,13 @@ public sealed class ApiCredentialUsageService(
     public static bool MatchesHash(string plaintext, string? hash)
     {
         if (hash is null || hash.Length != 64) return false;
-        Span<byte> expected = stackalloc byte[32];
-        if (!Convert.TryFromHexString(hash, expected, out var written) || written != 32) return false;
-        return CryptographicOperations.FixedTimeEquals(
-            SHA256.HashData(Encoding.UTF8.GetBytes(plaintext)), expected);
+        try
+        {
+            var expected = Convert.FromHexString(hash);
+            return expected.Length == 32 && CryptographicOperations.FixedTimeEquals(
+                SHA256.HashData(Encoding.UTF8.GetBytes(plaintext)), expected);
+        }
+        catch (FormatException) { return false; }
     }
     public static bool HasScope(string? allowedScopes) =>
         (allowedScopes ?? "").Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
@@ -76,6 +79,15 @@ public sealed class ApiCredentialUsageService(
                      x.OnboardingStage == OnboardingStage.Completed && x.OnboardingCompletedAt != null, ct);
             if (!activeTenant)
                 return ApiResponse<PagedResult<UsageStatisticsDto>>.ErrorResponse("Institution access is inactive.", 403);
+            // Match the canonical module entitlement window: expired/unpaid subscriptions
+            // must not keep an integration credential operational.
+            var subscribed = await db.TenantSubscriptions.IgnoreQueryFilters().AsNoTracking().AnyAsync(
+                x => x.TenantId == match.TenantId && !x.IsDeleted &&
+                     x.StartsAt <= now && x.EndsAt > now &&
+                     (x.State == SubscriptionState.Active || x.State == SubscriptionState.Trial ||
+                      x.State == SubscriptionState.Grace), ct);
+            if (!subscribed)
+                return ApiResponse<PagedResult<UsageStatisticsDto>>.ErrorResponse("An active subscription is required.", 403);
             // This scope can only be established by a cookie-free request.
             using var tenantScope = db.BeginSystemTenantScope(match.TenantId);
             var current = await db.ApiCredentials.FirstOrDefaultAsync(x =>
