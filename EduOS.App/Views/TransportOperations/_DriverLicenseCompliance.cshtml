@@ -1,0 +1,24 @@
+<section class="card mb-3" id="transportDriverCompliancePanel"><div class="card-body">
+    <h3 class="h5">Driver license compliance</h3>
+    <p class="small text-muted">Tenant administrators only. Active drivers are checked against today's license expiry and current vehicle assignments. Driver phone and license numbers are excluded; CSV exports use IDs rather than names.</p>
+    <form id="transportDriverComplianceFilters" class="row g-2 mb-2">
+        <div class="col-md-4"><label class="form-label" for="transportDriverComplianceSearch">Driver name</label><input id="transportDriverComplianceSearch" class="form-control" maxlength="100" type="search" placeholder="Search active drivers" /></div>
+        <div class="col-md-3"><label class="form-label" for="transportDriverComplianceState">License status</label><select id="transportDriverComplianceState" class="form-select"><option value="Attention">Needs attention</option><option value="All">All active drivers</option><option value="Missing">Missing expiry</option><option value="Expired">Expired</option><option value="Expiring">Expiring soon</option><option value="Valid">Valid beyond window</option></select></div>
+        <div class="col-md-2"><label class="form-label" for="transportDriverComplianceDays">Warning window</label><select id="transportDriverComplianceDays" class="form-select"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="60">60 days</option><option value="90">90 days</option></select></div>
+        <div class="col-md-3 d-flex align-items-end"><button id="transportDriverComplianceApply" type="submit" class="btn btn-outline-primary w-100">Apply filters</button></div>
+    </form>
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+        <button id="transportDriverComplianceExport" type="button" class="btn btn-outline-success btn-sm" disabled>Export filtered compliance (CSV)</button>
+        <span class="small text-muted">Up to 1,000 drivers; counts may change between pages.</span>
+    </div>
+    <div id="transportDriverComplianceStatus" class="small text-muted mb-2" role="status" aria-live="polite">Loading…</div>
+    <div class="table-responsive"><table class="table table-sm table-hover align-middle">
+        <thead><tr><th>Driver</th><th>License expires</th><th>Days remaining</th><th>State</th><th>Current vehicle</th></tr></thead>
+        <tbody id="transportDriverComplianceRows"><tr><td colspan="5">Loading…</td></tr></tbody>
+    </table></div>
+    <div class="d-flex align-items-center justify-content-between gap-2">
+        <button id="transportDriverCompliancePrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous</button>
+        <span id="transportDriverCompliancePage" class="small text-muted"></span>
+        <button id="transportDriverComplianceNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next</button>
+    </div>
+</div></section>

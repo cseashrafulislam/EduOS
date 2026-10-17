@@ -203,6 +203,28 @@ public sealed class TransportController : ControllerBase
         [FromBody] SaveTransportDriverRequestDto request, CancellationToken ct) =>
         ToAction(await _service.SaveDriverAsync(driverId, request, ct));
 
+    [HttpGet("driver-license-compliance")]
+    [Authorize(Roles = "TenantAdmin")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> DriverLicenseCompliance([FromQuery] int page = 1,
+        [FromQuery] int pageSize = 15, [FromQuery] string? search = null,
+        [FromQuery] string? state = "Attention", [FromQuery] int withinDays = 30,
+        CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetDriverLicenseComplianceAsync(page, pageSize, search, state, withinDays, cancellationToken));
+
+    [HttpGet("driver-license-compliance/export")]
+    [Authorize(Roles = "TenantAdmin")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> DriverLicenseComplianceExport([FromQuery] string? search = null,
+        [FromQuery] string? state = "Attention", [FromQuery] int withinDays = 30,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _service.ExportDriverLicenseComplianceCsvAsync(search, state, withinDays, cancellationToken);
+        if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(System.Text.Encoding.UTF8.GetBytes(result.Data), "text/csv; charset=utf-8", "driver-license-compliance.csv");
+    }
+
     [HttpGet("vehicle-driver-links")]
     [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> VehicleDriverLinks([FromQuery] long? campusId = null,

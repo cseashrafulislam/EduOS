@@ -11,6 +11,8 @@ public interface ITransportService
     Task<ApiResponse<VehicleDriverAssignmentDto>> AssignDriverAsync(AssignVehicleDriverRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<VehicleDriverAssignmentDto>> CloseDriverAssignmentAsync(long assignmentId, CloseTransportAssignmentRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<TransportDriverDto>>> GetDriversAsync(int page, int pageSize, string? search, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<TransportDriverLicenseComplianceRowDto>>> GetDriverLicenseComplianceAsync(int page, int pageSize, string? search, string? state, int withinDays, CancellationToken cancellationToken = default);
+    Task<ApiResponse<string>> ExportDriverLicenseComplianceCsvAsync(string? search, string? state, int withinDays, CancellationToken cancellationToken = default);
     Task<ApiResponse<TransportDriverDto>> SaveDriverAsync(long? driverId, SaveTransportDriverRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<TransportCapacityReportRowDto>>> GetCapacityReportAsync(long? campusId, int page, int pageSize, string? search, CancellationToken cancellationToken = default);
     Task<ApiResponse<string>> ExportCapacityCsvAsync(long? campusId, string? search, CancellationToken cancellationToken = default);
