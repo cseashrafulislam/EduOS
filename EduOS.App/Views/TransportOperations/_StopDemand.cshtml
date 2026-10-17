@@ -1,0 +1,23 @@
+<section class="card mb-3" id="transportStopDemandPanel"><div class="card-body">
+    <h3 class="h5">Route stop demand and inactive-stop risk</h3>
+    <p class="small text-muted">Counts reflect current transport assignments with a matching route and pickup/drop stop, not measured boardings. Student identities and fares are excluded.</p>
+    <div id="transportStopDemandAlert" class="small text-muted mb-2" role="status" aria-live="polite"></div>
+    <form id="transportStopDemandFilter" class="row g-2 mb-3">
+        <div class="col-md-3"><label class="form-label" for="transportStopDemandCampus">Campus</label>
+            <select id="transportStopDemandCampus" class="form-select"><option value="">All permitted campuses</option></select></div>
+        <div class="col-md-4"><label class="form-label" for="transportStopDemandSearch">Route or stop</label>
+            <input id="transportStopDemandSearch" class="form-control" maxlength="100" placeholder="Route code, name or stop" /></div>
+        <div class="col-md-2 d-flex align-items-end"><label class="form-check mb-2"><input id="transportStopDemandAttention" type="checkbox" class="form-check-input" /> Inactive only</label></div>
+        <div class="col-md-3 d-flex align-items-end gap-2"><button type="submit" class="btn btn-primary">Apply</button>
+            <button id="transportStopDemandCsv" type="button" class="btn btn-outline-secondary" disabled>CSV</button></div>
+    </form>
+    <div class="table-responsive"><table class="table table-sm table-hover align-middle">
+        <thead><tr><th>Campus</th><th>Route</th><th>Stop</th><th>Order</th><th>Route</th><th>Stop</th><th>Pickups</th><th>Dropoffs</th><th>Risk</th></tr></thead>
+        <tbody id="transportStopDemandRows"><tr><td colspan="9">Loading…</td></tr></tbody>
+    </table></div>
+    <div class="d-flex justify-content-between align-items-center">
+        <button id="transportStopDemandPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+        <span id="transportStopDemandPage" class="small text-muted"></span>
+        <button id="transportStopDemandNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+    </div>
+</div></section>
