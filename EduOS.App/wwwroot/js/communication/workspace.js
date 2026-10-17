@@ -1,12 +1,13 @@
 import { el, root, admin, state, alert } from './workspace-core.js?v=1';
 import { loadNotices } from './workspace-notice-list.js?v=1';
+import { initNoticeReaders } from './workspace-notice-readers.js?v=1';
 import { edit, initNoticeEditor } from './workspace-notice-editor.js?v=1';
 import { loadNotifications } from './workspace-inbox.js?v=1';
 import { initMessaging } from './workspace-messages.js?v=1';
 import { initPreferences } from './workspace-preferences.js?v=1';
 import { initDevices } from './workspace-devices.js?v=1';
 if (root) {
-    if (admin) initNoticeEditor();
+    if (admin) { initNoticeEditor(); initNoticeReaders(); }
     for (const [kind, loader] of [['Notice', () => loadNotices(edit)], ['Notification', loadNotifications]]) {
         const key = kind.toLowerCase();
         el('cw' + kind + 'Prev').addEventListener('click', () => {

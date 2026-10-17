@@ -1,4 +1,5 @@
 import { el, admin, state, api, cell, dateText, alert, action, pager } from './workspace-core.js?v=1';
+import { showNoticeReaders } from './workspace-notice-readers.js?v=1';
 export function renderNotices(edit) {
     const tbody = el('cwNoticeRows'); tbody.replaceChildren();
     for (const row of state.noticeItems) {
@@ -12,7 +13,7 @@ export function renderNotices(edit) {
             if (tr.nextSibling?.dataset?.detail === row.reference) tr.nextSibling.remove();
             else { details.dataset.detail = row.reference; tr.after(details); }
         }));
-        if (admin) actions.append(action('Edit', () => edit(row)));
+        if (admin) { actions.append(action('Edit', () => edit(row))); actions.append(action('Readers', () => showNoticeReaders(row))); }
         else actions.append(action('Mark read', async () => {
             try { await api('/api/communication/notices/' + encodeURIComponent(row.reference) + '/read', 'POST');
                 alert('Notice marked as read.', true); } catch (error) { alert(error.message); }

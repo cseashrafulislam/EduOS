@@ -29,6 +29,12 @@ public sealed class CommunicationWorkspaceApiController(ICommunicationService se
     public async Task<IActionResult> UpdateNotice(Guid reference, [FromBody] SaveNoticeRequestDto request, CancellationToken ct)
     { var r = await service.SaveNoticeAsync(reference, request, ct); return StatusCode(r.StatusCode, r); }
 
+    [HttpGet("notices/{reference:guid}/read-receipts")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> NoticeReadReceipts(Guid reference, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, CancellationToken ct = default)
+    { var r = await messages.GetNoticeReadReceiptsAsync(reference, page, pageSize, ct); return StatusCode(r.StatusCode, r); }
+
     [HttpPost("notices/{reference:guid}/read")]
     public async Task<IActionResult> MarkNoticeRead(Guid reference, CancellationToken ct)
     { var r = await service.MarkNoticeReadAsync(reference, ct); return StatusCode(r.StatusCode, r); }
