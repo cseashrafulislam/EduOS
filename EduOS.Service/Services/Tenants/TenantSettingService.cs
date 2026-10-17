@@ -84,6 +84,17 @@ public sealed class TenantSettingService : ITenantSettingService
                 ? await query.FirstOrDefaultAsync(x => x.Id == settingId.Value && x.TenantId == _user.TenantId, cancellationToken)
                 : await query.FirstOrDefaultAsync(x => x.Key == key && x.TenantId == _user.TenantId, cancellationToken);
             if (settingId.HasValue && existing == null) return ApiResponse<TenantSettingDto>.ErrorResponse("Setting not found.", 404);
+            if (existing != null && !settingId.HasValue)
+            {
+                var category = string.IsNullOrWhiteSpace(request.Category) ? null : request.Category.Trim();
+                var unchanged = existing.Category == category &&
+                    existing.IsSensitive == request.IsSensitive &&
+                    (existing.IsSensitive
+                        ? string.IsNullOrEmpty(request.Value) || request.Value == "********"
+                        : existing.Value == (request.Value ?? string.Empty));
+                return unchanged ? ApiResponse<TenantSettingDto>.SuccessResponse(Map(existing))
+                    : ApiResponse<TenantSettingDto>.ErrorResponse("Setting exists. Use a versioned update.", 409);
+            }
             if (existing != null && settingId.HasValue && !MatchesVersion(existing.RowVersion, request.RowVersion))
                 return ApiResponse<TenantSettingDto>.ErrorResponse("Setting changed. Reload and retry.", 409);
             if (existing != null && existing.Key != key)
@@ -140,6 +151,15 @@ public sealed class TenantSettingService : ITenantSettingService
                 : await query.FirstOrDefaultAsync(x => x.TenantId == _user.TenantId && x.Key == key, cancellationToken);
             if (terminologyId.HasValue && existing == null)
                 return ApiResponse<TenantTerminologyDto>.ErrorResponse("Terminology not found.", 404);
+            if (existing != null && !terminologyId.HasValue)
+            {
+                var unchanged = existing.SingularLabel == request.SingularLabel.Trim() &&
+                    existing.PluralLabel == request.PluralLabel.Trim() &&
+                    existing.SingularLabelBangla == request.SingularLabelBangla?.Trim() &&
+                    existing.PluralLabelBangla == request.PluralLabelBangla?.Trim();
+                return unchanged ? ApiResponse<TenantTerminologyDto>.SuccessResponse(Map(existing))
+                    : ApiResponse<TenantTerminologyDto>.ErrorResponse("Terminology exists. Use a versioned update.", 409);
+            }
             if (existing != null && terminologyId.HasValue && !MatchesVersion(existing.RowVersion, request.RowVersion))
                 return ApiResponse<TenantTerminologyDto>.ErrorResponse("Terminology changed. Reload and retry.", 409);
             if (existing != null && existing.Key != key)
