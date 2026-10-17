@@ -4,14 +4,14 @@
     if (!root) return;
     const el = id => document.getElementById(id);
     const pageSize = 25;
-    let page = 1, pages = 1, serial = 0;
+    let page = 1, pages = 1, serial = 0, loadedFilter = null;
     const stateName = value => ({1:'Active',2:'Closed',3:'Cancelled'})[String(value)] || String(value ?? 'Unknown');
     const status = (message, error = false) => {
         const node = el('hostelHistoryStatus');
         node.textContent = message; node.className = error ? 'small text-danger mb-2' : 'small text-muted mb-2';
     };
-    function filters() {
-        const params = new URLSearchParams({page:String(page),pageSize:String(pageSize)});
+    function filters(includePage = true) {
+        const params = new URLSearchParams(includePage ? {page:String(page),pageSize:String(pageSize)} : {});
         for (const [field, key] of [['hostelHistoryCampus','campusId'],['hostelHistoryState','state'],
             ['hostelHistoryFrom','fromDate'],['hostelHistoryTo','toDate'],['hostelHistorySearch','search']]) {
             const value = el(field).value.trim();
@@ -20,7 +20,8 @@
         return params;
     }
     function invalidate() {
-        ++serial;
+        ++serial; loadedFilter = null;
+        el('hostelHistoryExport').disabled = true;
         el('hostelHistoryPrev').disabled = true; el('hostelHistoryNext').disabled = true;
         el('hostelHistoryRows').replaceChildren();
         el('hostelHistoryPage').textContent = '';
@@ -59,6 +60,8 @@
                 ' · ' + (Number(data.totalCount)||0) + ' records';
             el('hostelHistoryPrev').disabled = requestedPage <= 1;
             el('hostelHistoryNext').disabled = requestedPage >= pages;
+            loadedFilter = filters(false).toString();
+            el('hostelHistoryExport').disabled = !records.length;
             status('Showing authorized allocation history without financial or contact details.');
         } catch (error) {
             if (token === serial) { invalidate(); status(error.message,true); }
@@ -70,6 +73,29 @@
     for (const field of ['hostelHistoryCampus','hostelHistoryState','hostelHistoryFrom','hostelHistoryTo','hostelHistorySearch']) {
         el(field).addEventListener('change', () => { page = 1; invalidate(); status('Filters changed; select Filter to refresh.'); });
     }
+    for (const id of ['hostelHistorySearch','hostelHistoryFrom','hostelHistoryTo'])
+        el(id).addEventListener('input', () => { page = 1; invalidate(); status('Filters changed; select Filter to refresh.'); });
+    el('hostelHistoryExport').addEventListener('click', async () => {
+        const snapshot = filters(false).toString(), request = serial;
+        if (loadedFilter === null || snapshot !== loadedFilter) return;
+        const button = el('hostelHistoryExport'); button.disabled = true;
+        try {
+            const response = await fetch('/api/hostel/allocation-history/export?' + snapshot,
+                {credentials:'same-origin',cache:'no-store',headers:{Accept:'text/csv'}});
+            if (!response.ok) {
+                const error = await response.json().catch(() => null);
+                throw Error(error?.message || 'Hostel allocation history export failed.');
+            }
+            const blob = await response.blob();
+            if (request !== serial || loadedFilter !== snapshot || filters(false).toString() !== snapshot)
+                throw Error('Filters changed during export. Apply filters and retry.');
+            const url = URL.createObjectURL(blob), link = document.createElement('a');
+            link.href = url; link.download = 'hostel-allocation-history.csv';
+            document.body.append(link); link.click(); link.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } catch (error) { status(error.message,true); }
+        finally { button.disabled = loadedFilter === null || loadedFilter !== filters(false).toString(); }
+    });
     el('hostelHistoryPrev').addEventListener('click', () => { page = Math.max(1,page-1); load(); });
     el('hostelHistoryNext').addEventListener('click', () => { page = Math.min(pages,page+1); load(); });
     async function campuses() {

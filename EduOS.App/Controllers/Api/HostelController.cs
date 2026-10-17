@@ -145,6 +145,25 @@ public sealed class HostelController : ControllerBase
         CancellationToken cancellationToken = default) =>
         ToAction(await _service.GetAllocationHistoryAsync(campusId, page, pageSize, search, state, fromDate, toDate, cancellationToken));
 
+    [HttpGet("allocation-history/export")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> AllocationHistoryExport([FromQuery] long? campusId = null,
+        [FromQuery] string? search = null,
+        [FromQuery] EduOS.Core.Enums.Domain.HostelAllocationState? state = null,
+        [FromQuery] DateOnly? fromDate = null, [FromQuery] DateOnly? toDate = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _service.ExportAllocationHistoryCsvAsync(campusId, search, state,
+            fromDate, toDate, cancellationToken);
+        if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
+        Response.Headers["Cache-Control"] = "no-store";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(System.Text.Encoding.UTF8.GetPreamble().Concat(
+            System.Text.Encoding.UTF8.GetBytes(result.Data)).ToArray(),
+            "text/csv; charset=utf-8", "hostel-allocation-history.csv");
+    }
+
     [HttpGet("my-allocation")]
     public async Task<IActionResult> MyAllocation(CancellationToken ct) => ToAction(await _service.GetMyAllocationAsync(ct));
 
