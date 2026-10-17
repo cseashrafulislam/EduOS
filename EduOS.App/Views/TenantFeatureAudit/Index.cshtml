@@ -7,6 +7,10 @@
         Active restrictions remove the corresponding features from module entitlement evaluation, including module authorization.
         This page is read-only; individual feature-level enforcement outside module authorization may differ.
     </div>
+    <form method="get" action="/api/tenant-feature-audit/export" class="mb-3">
+        <button type="submit" class="btn btn-outline-primary btn-sm">Export feature audit CSV</button>
+        <span class="small text-muted ms-2">Read-only; up to 1,000 features. Includes stored restriction reasons.</span>
+    </form>
     <div id="featureAuditNotice" class="alert d-none" role="alert"></div>
     <div class="table-responsive">
         <table class="table table-sm table-striped">

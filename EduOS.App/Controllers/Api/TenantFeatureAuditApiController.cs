@@ -18,6 +18,16 @@ public sealed class TenantFeatureAuditApiController(IServiceProvider services) :
     private readonly ITenantFeatureAuditService service =
         ActivatorUtilities.CreateInstance<TenantFeatureAuditService>(services);
 
+    [HttpGet("export")]
+    public async Task<IActionResult> Export(CancellationToken cancellationToken)
+    {
+        var result = await service.ExportCsvAsync(cancellationToken);
+        if (!result.Success) return StatusCode(result.StatusCode, result);
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(System.Text.Encoding.UTF8.GetBytes(result.Data ?? string.Empty),
+            "text/csv", "institution-feature-audit.csv");
+    }
+
     [HttpGet]
     public async Task<IActionResult> Index([FromQuery] int page = 1,
         [FromQuery] int pageSize = 20, CancellationToken cancellationToken = default)

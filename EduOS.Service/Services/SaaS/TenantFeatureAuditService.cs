@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 namespace EduOS.Service.Services.SaaS;
 
 /// <summary>Read-only feature entitlement and stored-override audit. Does not change access policies.</summary>
-public sealed class TenantFeatureAuditService(
+public sealed partial class TenantFeatureAuditService(
     EduOSDbContext db, ICurrentUserService user, ILogger<TenantFeatureAuditService> logger) : ITenantFeatureAuditService
 {
     public async Task<ApiResponse<PagedResult<TenantFeatureAuditRowDto>>> GetAsync(
