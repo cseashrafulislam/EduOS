@@ -8,6 +8,8 @@ using EduOS.Core.DTOs.System;
 using EduOS.Core.Entities.System;
 using EduOS.Core.Enums.Domain;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.DataProtection;
 
 namespace EduOS.Service.Services.Platform;
 
