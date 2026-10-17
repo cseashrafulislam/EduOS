@@ -9,7 +9,7 @@
         <div class="col-lg-2 col-md-4"><label for="transportHistoryFrom" class="form-label">Start from</label><input id="transportHistoryFrom" type="date" class="form-control" /></div>
         <div class="col-lg-2 col-md-4"><label for="transportHistoryTo" class="form-label">Start to</label><input id="transportHistoryTo" type="date" class="form-control" /></div>
         <div class="col-lg-10 col-md-8"><label for="transportHistorySearch" class="form-label">Search</label><input id="transportHistorySearch" class="form-control" maxlength="100" placeholder="Student, code, route or vehicle" /></div>
-        <div class="col-lg-2 col-md-4 d-flex align-items-end"><button type="submit" class="btn btn-outline-primary w-100">Filter</button></div>
+        <div class="col-lg-2 col-md-4 d-flex align-items-end gap-2"><button type="submit" class="btn btn-outline-primary flex-fill">Filter</button><button id="transportHistoryExport" type="button" class="btn btn-outline-secondary flex-fill" disabled title="Download up to 1,000 authorized records">Export CSV</button></div>
     </form>
     <div id="transportHistoryStatus" class="small text-muted mb-2" role="status" aria-live="polite"></div>
     <div class="table-responsive"><table class="table table-sm table-hover">

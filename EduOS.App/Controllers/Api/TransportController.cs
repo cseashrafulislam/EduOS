@@ -51,6 +51,22 @@ public sealed class TransportController : ControllerBase
         ToAction(await _service.GetAssignmentHistoryAsync(campusId, page, pageSize, search, state,
             fromDate, toDate, routeReference, vehicleReference, cancellationToken));
 
+    [HttpGet("assignment-history/export")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> AssignmentHistoryExport([FromQuery] long? campusId = null,
+        [FromQuery] string? search = null, [FromQuery] TransportAssignmentState? state = null,
+        [FromQuery] DateOnly? fromDate = null, [FromQuery] DateOnly? toDate = null,
+        [FromQuery] Guid? routeReference = null, [FromQuery] Guid? vehicleReference = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _service.ExportAssignmentHistoryCsvAsync(campusId, search, state,
+            fromDate, toDate, routeReference, vehicleReference, cancellationToken);
+        if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(System.Text.Encoding.UTF8.GetBytes(result.Data), "text/csv; charset=utf-8", "transport-assignment-history.csv");
+    }
+
     [HttpGet("my-assignment")]
     public async Task<IActionResult> MyAssignment(CancellationToken ct) => ToAction(await _service.GetMyAssignmentAsync(ct));
 

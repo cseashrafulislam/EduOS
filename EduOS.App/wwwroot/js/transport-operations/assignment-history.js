@@ -3,7 +3,7 @@
     const el = id => document.getElementById(id);
     if (!el('transportHistoryPanel')) return;
     const pageSize = 25;
-    let page = 1, pages = 1, serial = 0;
+    let page = 1, pages = 1, serial = 0, loadedFilter = null;
     const stateName = value => ({1:'Active',2:'Closed',3:'Cancelled'})[String(value)] || 'Unknown';
     const status = (message, error = false) => {
         const node = el('transportHistoryStatus');
@@ -15,8 +15,8 @@
         ['transportHistoryFrom','fromDate'],['transportHistoryTo','toDate'],
         ['transportHistorySearch','search']
     ];
-    function filters() {
-        const params = new URLSearchParams({page:String(page),pageSize:String(pageSize)});
+    function filters(includePage = true) {
+        const params = new URLSearchParams(includePage ? {page:String(page),pageSize:String(pageSize)} : {});
         for (const [field,key] of fields) {
             const value = el(field).value.trim();
             if (value) params.set(key,value);
@@ -24,7 +24,8 @@
         return params;
     }
     function invalidate() {
-        ++serial;
+        ++serial; loadedFilter = null;
+        el("transportHistoryExport").disabled = true;
         el('transportHistoryPrev').disabled = true; el('transportHistoryNext').disabled = true;
         el('transportHistoryRows').replaceChildren();
         el('transportHistoryPage').textContent = '';
@@ -66,6 +67,8 @@
                 ' · ' + (Number(data?.totalCount)||0) + ' records';
             el('transportHistoryPrev').disabled = requestedPage <= 1;
             el('transportHistoryNext').disabled = requestedPage >= pages;
+            loadedFilter = filters(false).toString();
+            el('transportHistoryExport').disabled = !records.length;
             status('Showing authorized transport assignment history without fares or contact details.');
         } catch (error) {
             if (request === serial) { invalidate(); status(error.message,true); }
@@ -96,5 +99,28 @@
     });
     el('transportHistoryPrev').addEventListener('click', () => { page = Math.max(1,page-1); load(); });
     el('transportHistoryNext').addEventListener('click', () => { page = Math.min(pages,page+1); load(); });
+    for (const id of ['transportHistorySearch','transportHistoryFrom','transportHistoryTo'])
+        el(id).addEventListener('input', () => { page = 1; invalidate(); status('Filters changed; select Filter to refresh.'); });
+    el('transportHistoryExport').addEventListener('click', async () => {
+        const snapshot = filters(false).toString(), request = serial;
+        if (loadedFilter === null || snapshot !== loadedFilter) return;
+        const button = el('transportHistoryExport'); button.disabled = true;
+        try {
+            const response = await fetch('/api/transport/assignment-history/export?' + snapshot,
+                {credentials:'same-origin',cache:'no-store',headers:{Accept:'text/csv'}});
+            if (!response.ok) {
+                const error = await response.json().catch(() => null);
+                throw Error(error?.message || 'Transport assignment history export failed.');
+            }
+            const blob = await response.blob();
+            if (request !== serial || loadedFilter !== snapshot || filters(false).toString() !== snapshot)
+                throw Error('Filters changed during export. Apply filters and retry.');
+            const url = URL.createObjectURL(blob), link = document.createElement('a');
+            link.href = url; link.download = 'transport-assignment-history.csv';
+            document.body.append(link); link.click(); link.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } catch (error) { status(error.message,true); }
+        finally { button.disabled = loadedFilter === null || loadedFilter !== filters(false).toString(); }
+    });
     load(); loadOptions();
 })();
