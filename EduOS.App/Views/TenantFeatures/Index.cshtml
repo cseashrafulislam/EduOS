@@ -1,0 +1,23 @@
+@{ ViewData["Title"] = "Institution Feature Restrictions"; }
+<div class="container-fluid py-3">
+    <h1 class="h4">Institution Feature Restrictions</h1>
+    <p><a href="/TenantModules/Index">Institution Modules</a> · <a href="/TenantFeatureAudit/Index">Entitlement Audit</a></p>
+    <div class="alert alert-info" role="note">Restrictions can only remove access already included in your subscription.
+        Core and required institution features cannot be restricted. Saving never grants features outside your plan.
+        Scheduled restrictions take effect in UTC; existing limits are not changed here.</div>
+    <div id="tfNotice" class="alert d-none" role="alert"></div>
+    <form id="tfForm">
+        @Html.AntiForgeryToken()
+        <div class="table-responsive"><table class="table table-striped table-sm">
+            <thead><tr><th>Feature</th><th>Plan</th><th>Restriction</th><th>Effective from (UTC)</th>
+                <th>Effective until (UTC)</th><th>Reason</th><th>Action</th></tr></thead>
+            <tbody id="tfRows"></tbody>
+        </table></div>
+    </form>
+    <div class="d-flex gap-2 align-items-center">
+        <button id="tfPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+        <span id="tfPage" role="status"></span>
+        <button id="tfNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+    </div>
+</div>
+@section Scripts { <script src="~/js/platform/tenant-features.js" asp-append-version="true"></script> }

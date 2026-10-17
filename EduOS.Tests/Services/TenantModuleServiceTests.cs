@@ -114,6 +114,61 @@ public sealed class TenantModuleServiceTests
         check.Success.Should().BeTrue();
     }
 
+    [Fact]
+    public async Task Active_tenant_feature_restrictions_remove_module_entitlement()
+    {
+        await using var setup = await CreateAsync("PRO", SubscriptionState.Active);
+        var libraryId = await setup.Context.ProductModules.Where(x => x.Code == "LIBRARY")
+            .Select(x => x.Id).SingleAsync();
+        var ids = await setup.Context.ProductModuleFeatures.Where(x => x.ProductModuleId == libraryId)
+            .Select(x => x.FeatureId).ToArrayAsync();
+        Assert.NotEmpty(ids);
+        foreach (var id in ids)
+            setup.Context.TenantFeatures.Add(new TenantFeature
+            {
+                TenantId = setup.Tenant.Id, FeatureId = id, IsEnabled = false,
+                EffectiveFrom = DateTime.UtcNow.AddMinutes(-1), Reason = "Tenant administrator restriction"
+            });
+        await setup.Context.SaveChangesAsync();
+        var service = Service(setup.Context, setup.User);
+        var result = await service.GetCurrentTenantModulesAsync();
+        Assert.True(result.Success);
+        Assert.False(result.Data!.Single(x => x.ModuleCode == "LIBRARY").IsEntitledByPlan);
+        Assert.False(await service.IsCurrentTenantModuleAvailableAsync("LIBRARY"));
+    }
+
+    [Fact]
+    public async Task Future_feature_restriction_does_not_remove_current_entitlement()
+    {
+        await using var setup = await CreateAsync("PRO", SubscriptionState.Active);
+        var libraryId = await setup.Context.ProductModules.Where(x => x.Code == "LIBRARY")
+            .Select(x => x.Id).SingleAsync();
+        var id = await setup.Context.ProductModuleFeatures.Where(x => x.ProductModuleId == libraryId)
+            .Select(x => x.FeatureId).FirstAsync();
+        setup.Context.TenantFeatures.Add(new TenantFeature
+        {
+            TenantId = setup.Tenant.Id, FeatureId = id, IsEnabled = false,
+            EffectiveFrom = DateTime.UtcNow.AddDays(1), Reason = "Scheduled restriction"
+        });
+        await setup.Context.SaveChangesAsync();
+        var state = await Service(setup.Context, setup.User).GetCurrentTenantModulesAsync();
+        Assert.True(state.Data!.Single(x => x.ModuleCode == "LIBRARY").IsEntitledByPlan);
+    }
+
+    [Fact]
+    public async Task Required_module_feature_cannot_be_restricted()
+    {
+        await using var setup = await CreateAsync("BASIC", SubscriptionState.Active);
+        var studentId = await setup.Context.ProductModules.Where(x => x.Code == "STUDENT")
+            .Select(x => x.Id).SingleAsync();
+        var featureId = await setup.Context.ProductModuleFeatures.Where(x => x.ProductModuleId == studentId)
+            .Select(x => x.FeatureId).FirstAsync();
+        var restrictions = new TenantFeatureRestrictionService(setup.Context, setup.User,
+            NullLogger<TenantFeatureRestrictionService>.Instance);
+        var response = await restrictions.SaveAsync(featureId, new() { Restricted = true, Reason = "Test" });
+        Assert.Equal(409, response.StatusCode);
+    }
+
     private static TenantModuleService Service(EduOSDbContext db, ICurrentUserService user) => new(
         new GenericRepository<Tenant>(db),
         new GenericRepository<ProductModule>(db),
@@ -121,6 +176,7 @@ public sealed class TenantModuleServiceTests
         new GenericRepository<TenantModule>(db),
         new GenericRepository<ProductModuleFeature>(db),
         new GenericRepository<PlanFeature>(db),
+        new GenericRepository<TenantFeature>(db),
         new GenericRepository<TenantSubscription>(db),
         db, user, NullLogger<TenantModuleService>.Instance);
 

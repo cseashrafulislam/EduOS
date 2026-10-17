@@ -1,11 +1,11 @@
 @{ ViewData["Title"] = "Institution Feature Audit"; }
 <div class="container-fluid py-3">
     <h1 class="h4">Institution Feature Audit</h1>
-    <p><a href="/TenantModules/Index">Back to Institution Modules</a></p>
+    <p><a href="/TenantModules/Index">Back to Institution Modules</a> · <a href="/TenantFeatures/Index">Manage Feature Restrictions</a></p>
     <div class="alert alert-info" role="note">
         This read-only audit compares the current subscription's feature entitlements with stored tenant overrides.
-        Recorded restrictions are <strong>not guaranteed to be enforced</strong> by every module authorization path.
-        This page does not grant, revoke, or change access.
+        Active restrictions remove the corresponding features from module entitlement evaluation, including module authorization.
+        This page is read-only; individual feature-level enforcement outside module authorization may differ.
     </div>
     <div id="featureAuditNotice" class="alert d-none" role="alert"></div>
     <div class="table-responsive">

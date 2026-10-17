@@ -18,6 +18,7 @@ public sealed class TenantModuleService : ITenantModuleService
     private readonly IGenericRepository<TenantModule> _selections;
     private readonly IGenericRepository<ProductModuleFeature> _moduleFeatures;
     private readonly IGenericRepository<PlanFeature> _planFeatures;
+    private readonly IGenericRepository<TenantFeature> _tenantFeatures;
     private readonly IGenericRepository<TenantSubscription> _subscriptions;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUser;
@@ -26,11 +27,11 @@ public sealed class TenantModuleService : ITenantModuleService
     public TenantModuleService(IGenericRepository<Tenant> tenants, IGenericRepository<ProductModule> modules,
         IGenericRepository<InstitutionTypeModule> presets, IGenericRepository<TenantModule> selections,
         IGenericRepository<ProductModuleFeature> moduleFeatures, IGenericRepository<PlanFeature> planFeatures,
-        IGenericRepository<TenantSubscription> subscriptions, IUnitOfWork unitOfWork,
+        IGenericRepository<TenantFeature> tenantFeatures, IGenericRepository<TenantSubscription> subscriptions, IUnitOfWork unitOfWork,
         ICurrentUserService currentUser, ILogger<TenantModuleService> logger)
     {
         _tenants = tenants; _modules = modules; _presets = presets; _selections = selections;
-        _moduleFeatures = moduleFeatures; _planFeatures = planFeatures;
+        _moduleFeatures = moduleFeatures; _planFeatures = planFeatures; _tenantFeatures = tenantFeatures;
         _subscriptions = subscriptions; _unitOfWork = unitOfWork;
         _currentUser = currentUser; _logger = logger;
     }
@@ -250,8 +251,16 @@ public sealed class TenantModuleService : ITenantModuleService
         if (!planId.HasValue) return new HashSet<long>();
         var features = await _planFeatures.GetQueryable().AsNoTracking().Where(x =>
             x.SubscriptionPlanId == planId.Value && x.IsEnabled).Select(x => x.FeatureId).ToArrayAsync();
+        // A tenant restriction can only remove features from the paid plan, never add them.
+        // The same evaluation powers module setup, onboarding validation and authorization.
+        var blocked = await _tenantFeatures.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenantId && !x.IsEnabled &&
+            (!x.EffectiveFrom.HasValue || x.EffectiveFrom <= now) &&
+            (!x.EffectiveTo.HasValue || x.EffectiveTo > now) &&
+            features.Contains(x.FeatureId)).Select(x => x.FeatureId).ToArrayAsync();
+        var allowed = features.Except(blocked).ToArray();
         var result = await _moduleFeatures.GetQueryable().AsNoTracking().Where(x =>
-            features.Contains(x.FeatureId)).Select(x => x.ProductModuleId).Distinct().ToArrayAsync();
+            allowed.Contains(x.FeatureId)).Select(x => x.ProductModuleId).Distinct().ToArrayAsync();
         return result.ToHashSet();
     }
 
