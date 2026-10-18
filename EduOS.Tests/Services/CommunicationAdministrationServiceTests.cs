@@ -57,7 +57,8 @@ public sealed class CommunicationAdministrationServiceTests
 
     private static CommunicationAdministrationService Service(EduOSDbContext db, long tenant, bool admin) => new(
         new GenericRepository<CommunicationGateway>(db), new GenericRepository<MessageTemplate>(db),
-        new GenericRepository<NoticeCategory>(db), db, new User(tenant, admin),
+        new GenericRepository<NoticeCategory>(db), new GenericRepository<CommunicationDelivery>(db),
+        db, new User(tenant, admin),
         new EphemeralDataProtectionProvider(), NullLogger<CommunicationAdministrationService>.Instance);
 
     private sealed class User(long tenant, bool admin) : ICurrentUserService
