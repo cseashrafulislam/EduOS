@@ -45,3 +45,13 @@ test('API, MVC, Razor and JS form one authorized workflow',()=>{
     assert.match(listing,/TransportOperations\/EditStops\?reference=/);
     assert.doesNotMatch(js,/innerHTML/);
 });
+
+test('reordering stages unique temporary sequences before final order in one transaction',()=>{
+    assert.match(service,/var reordered = requested\.Select/);
+    assert.match(service,/\.Select\(x => \(int\?\)x\.SequenceNo\)\.MaxAsync\(token\)/);
+    assert.match(service,/maximum > int\.MaxValue - reordered\.Count/);
+    assert.match(service,/occupiedByDeleted/);
+    assert.match(service,/entry\.Stop\.SequenceNo = \+\+next/);
+    assert.match(service,/await _unitOfWork\.SaveChangesAsync\(token\);\s*}\s*for \(var i = 0;/);
+    assert.match(service,/System\.Data\.IsolationLevel\.Serializable/);
+});

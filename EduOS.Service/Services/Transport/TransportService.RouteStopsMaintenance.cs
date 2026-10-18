@@ -83,6 +83,33 @@ public sealed partial class TransportService
                         return ApiResponse<TransportRouteStopsEditorDto>.ErrorResponse("Stop changed. Reload and retry.", 409);
                 }
                 var now = _clock.GetUtcNow().UtcDateTime;
+                var reordered = requested.Select((item, index) => new { Stop = byId[item.Id], FinalSequence = index + 1 })
+                    .Where(x => x.Stop.SequenceNo != x.FinalSequence).ToList();
+                if (reordered.Count > 0)
+                {
+                    // A single EF SaveChanges can violate the existing unique (Tenant, Route, Sequence)
+                    // index while swapping two stops. Stage moved rows above ALL existing sequence
+                    // numbers (including soft-deleted rows), then apply final order in the same transaction.
+                    var maximum = await _stops.GetQueryable().AsNoTracking()
+                        .Where(x => x.TenantId == tenant && x.RouteId == route.Id)
+                        .Select(x => (int?)x.SequenceNo).MaxAsync(token) ?? 0;
+                    if (maximum > int.MaxValue - reordered.Count)
+                        return ApiResponse<TransportRouteStopsEditorDto>.ErrorResponse("Stop sequence range exhausted.", 409);
+                    var occupiedByDeleted = await _stops.GetQueryable().AsNoTracking()
+                        .AnyAsync(x => x.TenantId == tenant && x.RouteId == route.Id && x.IsDeleted &&
+                            x.SequenceNo >= 1 && x.SequenceNo <= requested.Count, token);
+                    if (occupiedByDeleted)
+                        return ApiResponse<TransportRouteStopsEditorDto>.ErrorResponse(
+                            "Soft-deleted stop sequence conflicts with active order; Platform index migration required.", 409);
+                    var next = Math.Max(0, maximum);
+                    foreach (var entry in reordered)
+                    {
+                        entry.Stop.SequenceNo = ++next;
+                        entry.Stop.UpdatedAt = now;
+                        entry.Stop.UpdatedBy = _currentUser.UserId;
+                    }
+                    await _unitOfWork.SaveChangesAsync(token);
+                }
                 for (var i = 0; i < requested.Count; i++)
                 {
                     var stop = byId[requested[i].Id];
