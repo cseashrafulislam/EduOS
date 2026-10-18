@@ -116,6 +116,11 @@
                     move.textContent = 'Change bed';
                     move.addEventListener('click', () => beginBedMove(item));
                     actions.append(move);
+                    const roomMove = document.createElement('button'); roomMove.type = 'button';
+                    roomMove.className = 'btn btn-outline-primary btn-sm ms-2';
+                    roomMove.textContent = 'Change room';
+                    roomMove.addEventListener('click', () => window.hostelUpcomingRoomChange?.begin(item));
+                    actions.append(roomMove);
                 }
                 tr.append(actions); body.append(tr);
             }
@@ -217,6 +222,9 @@
         el('hostelAllocationSearch').addEventListener('submit', e => { e.preventDefault(); activePage = 1; loadActive(); });
         el('hostelPrev').addEventListener('click', () => { activePage = Math.max(1, activePage - 1); loadActive(); });
         el('hostelNext').addEventListener('click', () => { activePage = Math.min(activePages, activePage + 1); loadActive(); });
+        window.addEventListener('hostel-room-change-completed', () => {
+            dismissBedMove(); loadActive(); loadBeds(); loadRooms();
+        });
         loadStudents(); loadBeds(); loadActive();
     }
 })();

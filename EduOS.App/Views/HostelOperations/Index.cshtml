@@ -50,6 +50,19 @@
                     <button id="hostelBedMoveCancel" type="button" class="btn btn-outline-secondary btn-sm">Cancel</button>
                 </div>
             </section>
+            <section id="hostelRoomMovePanel" class="border rounded p-3 mt-3 d-none" aria-labelledby="hostelRoomMoveTitle">
+                <h4 id="hostelRoomMoveTitle" class="h6">Change room before arrival (same hostel and tariff)</h4>
+                <p id="hostelRoomMoveContext" class="small text-muted"></p>
+                <label for="hostelRoomMoveTarget" class="form-label">Available room and bed</label>
+                <select id="hostelRoomMoveTarget" class="form-select mb-2"><option value="">Select a room and bed</option></select>
+                <p id="hostelRoomMovePageInfo" class="small text-muted" role="status" aria-live="polite"></p>
+                <div class="d-flex gap-2 flex-wrap">
+                    <button id="hostelRoomMovePrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+                    <button id="hostelRoomMoveNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+                    <button id="hostelRoomMoveSave" type="button" class="btn btn-primary btn-sm">Confirm room change</button>
+                    <button id="hostelRoomMoveCancel" type="button" class="btn btn-outline-secondary btn-sm">Cancel</button>
+                </div>
+            </section>
             <div class="d-flex gap-3 justify-content-between align-items-center"><button id="hostelPrev" class="btn btn-outline-secondary btn-sm" type="button">Previous</button><span id="hostelPageInfo" class="small text-muted"></span><button id="hostelNext" class="btn btn-outline-secondary btn-sm" type="button">Next</button></div>
         </div></section>
     }
@@ -233,6 +246,7 @@
 @section Scripts {
     <script src="~/js/hostel-operations/index.js" asp-append-version="true"></script>
     @if (canManage) {
+        <script src="~/js/hostel-operations/upcoming-room-change.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/capacity.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/occupancy-insights.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/bed-create.js" asp-append-version="true"></script>

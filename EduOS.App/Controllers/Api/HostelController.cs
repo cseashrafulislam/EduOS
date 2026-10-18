@@ -224,5 +224,18 @@ public sealed class HostelController : ControllerBase
         [FromBody] ReassignUpcomingHostelBedRequestDto request, CancellationToken ct) =>
         ToAction(await _service.ReassignUpcomingBedAsync(id, request, ct));
 
+    [HttpGet("allocations/{id:long}/room-options")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> UpcomingRoomOptions(long id, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25, CancellationToken ct = default) =>
+        ToAction(await _service.GetUpcomingRoomTransferOptionsAsync(id, page, pageSize, ct));
+
+    [HttpPost("allocations/{id:long}/reassign-room")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    public async Task<IActionResult> ReassignUpcomingRoom(long id,
+        [FromBody] ReassignUpcomingHostelRoomRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.ReassignUpcomingRoomAsync(id, request, ct));
+
     private IActionResult ToAction<T>(EduOS.Core.Common.ApiResponse<T> response) => StatusCode(response.StatusCode, response);
 }
