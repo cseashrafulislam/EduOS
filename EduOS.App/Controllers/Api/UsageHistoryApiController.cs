@@ -1,9 +1,7 @@
 using EduOS.Core.Interfaces.IServices;
-using EduOS.Service.Services.SaaS;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace EduOS.App.Controllers.Api;
 
@@ -17,10 +15,9 @@ public sealed class UsageHistoryApiController : ControllerBase
 {
     private readonly IUsageHistoryService _service;
 
-    // DI factory resolves the existing scoped DbContext, current-user service and logger.
-    public UsageHistoryApiController(IServiceProvider provider)
+    public UsageHistoryApiController(IUsageHistoryService service)
     {
-        _service = ActivatorUtilities.CreateInstance<UsageHistoryService>(provider);
+        _service = service;
     }
 
     [HttpGet]
