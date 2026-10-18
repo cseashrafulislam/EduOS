@@ -33,6 +33,7 @@ public interface ITransportService
     Task<ApiResponse<TransportRouteSetupRowDto>> SetRouteStateAsync(Guid reference, SetTransportRouteStateRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<TransportRouteStopsEditorDto>> GetRouteStopsForEditAsync(Guid reference, CancellationToken cancellationToken = default);
     Task<ApiResponse<TransportRouteStopsEditorDto>> AppendRouteStopAsync(Guid reference, AppendTransportRouteStopRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<TransportRouteStopsEditorDto>> SetRouteStopStateAsync(Guid reference, long stopId, SetTransportRouteStopStateRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<TransportRouteStopsEditorDto>> UpdateRouteStopsAsync(Guid reference, UpdateTransportRouteStopsRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<RouteDto>>> GetRoutesAsync(CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<VehicleDto>>> GetVehiclesAsync(CancellationToken cancellationToken = default);

@@ -118,7 +118,7 @@ public sealed partial class TransportService
         Reference = route.PublicId, Name = route.Name, RowVersion = Convert.ToBase64String(route.RowVersion),
         Stops = stops.OrderBy(x => x.SequenceNo).ThenBy(x => x.Id).Select(x => new TransportRouteStopEditorRowDto
         {
-            Id = x.Id, Name = x.Name, SequenceNo = x.SequenceNo,
+            Id = x.Id, Name = x.Name, SequenceNo = x.SequenceNo, IsActive = x.IsActive,
             RowVersion = Convert.ToBase64String(x.RowVersion)
         }).ToList()
     };

@@ -55,5 +55,6 @@ public sealed class TransportRouteStopEditorRowDto
     public long Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public int SequenceNo { get; set; }
+    public bool IsActive { get; set; }
     public string RowVersion { get; set; } = string.Empty;
 }

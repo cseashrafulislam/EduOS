@@ -12,10 +12,10 @@
     box.className = 'alert alert-' + (success ? 'success' : 'danger');
     box.textContent = message;
   };
-  async function request(method, payload) {
+  async function request(method, payload, suffix = '') {
     const headers = { Accept: 'application/json' };
     if (payload) { headers['Content-Type'] = 'application/json'; headers.RequestVerificationToken = token; }
-    const response = await fetch(url, {
+    const response = await fetch(url + suffix, {
       method, headers, credentials: 'same-origin',
       ...(payload ? { body: JSON.stringify(payload) } : {})
     });
@@ -33,12 +33,37 @@
     row.className = 'd-flex gap-2 align-items-center';
     row.dataset.id = stop.id;
     row.dataset.version = stop.rowVersion;
+    row.dataset.active = String(stop.isActive);
     const number = document.createElement('span');
     const name = document.createElement('input');
     name.className = 'form-control'; name.required = true;
     name.maxLength = 150; name.value = stop.name;
     name.setAttribute('aria-label', 'Stop name');
     row.append(number, name);
+    const badge = document.createElement('small');
+    badge.className = stop.isActive ? 'badge bg-success' : 'badge bg-secondary';
+    badge.textContent = stop.isActive ? 'Active' : 'Inactive';
+    row.append(badge);
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = stop.isActive ? 'btn btn-outline-danger btn-sm' : 'btn btn-outline-success btn-sm';
+    toggle.textContent = stop.isActive ? 'Deactivate' : 'Activate';
+    toggle.setAttribute('aria-label', toggle.textContent + ' stop ' + stop.name);
+    toggle.addEventListener('click', async () => {
+      const desired = row.dataset.active !== 'true';
+      if (!window.confirm((desired ? 'Activate' : 'Deactivate') + ' stop "' + name.value + '"? Unsaved name/order edits will be discarded.')) return;
+      toggle.disabled = true;
+      try {
+        await request('PUT', { routeRowVersion: version, stopRowVersion: row.dataset.version,
+          isActive: desired }, '/' + encodeURIComponent(row.dataset.id) + '/state');
+        await reload();
+        alert('Stop ' + (desired ? 'activated.' : 'deactivated.'), true);
+      } catch (error) {
+        alert(error.message);
+        toggle.disabled = false;
+      }
+    });
+    row.append(toggle);
     [-1, 1].forEach(direction => {
       const button = document.createElement('button');
       button.type = 'button'; button.className = 'btn btn-outline-secondary btn-sm';
