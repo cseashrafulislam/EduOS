@@ -261,6 +261,14 @@ public sealed class CommunicationService(
         return ApiResponse<bool>.SuccessResponse(true);
     }
 
+    public async Task<ApiResponse<int>> MarkAllMyNotificationsReadAsync(CancellationToken ct = default)
+    {
+        if (!SignedIn) return ApiResponse<int>.ErrorResponse("Sign in required.", 403);
+        // Repository uses a single tenant/user-scoped conditional update: safe to retry and idempotent.
+        var count = await notifications.MarkAllAsReadAsync(user.TenantId, user.UserId, DateTime.UtcNow, ct);
+        return ApiResponse<int>.SuccessResponse(count);
+    }
+
     public async Task<ApiResponse<MessageDto>> SendMessageAsync(Guid clientRequestId, SendMessageRequestDto request, CancellationToken ct = default)
     {
         if (!SignedIn) return ApiResponse<MessageDto>.ErrorResponse("Sign in required.", 403);

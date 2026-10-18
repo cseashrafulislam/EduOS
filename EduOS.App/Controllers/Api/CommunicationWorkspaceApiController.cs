@@ -47,6 +47,10 @@ public sealed class CommunicationWorkspaceApiController(ICommunicationService se
     public async Task<IActionResult> MarkNotificationRead(long id, CancellationToken ct)
     { var r = await service.MarkNotificationReadAsync(id, ct); return StatusCode(r.StatusCode, r); }
 
+    [HttpPost("notifications/read-all")]
+    public async Task<IActionResult> MarkAllNotificationsRead(CancellationToken ct)
+    { var r = await service.MarkAllMyNotificationsReadAsync(ct); return StatusCode(r.StatusCode, r); }
+
     [HttpPost("messages/{clientRequestId:guid}")]
     public async Task<IActionResult> SendMessage(Guid clientRequestId, [FromBody] SendMessageRequestDto request, CancellationToken ct)
     { var r = await service.SendMessageAsync(clientRequestId, request, ct); return StatusCode(r.StatusCode, r); }

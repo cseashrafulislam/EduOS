@@ -21,3 +21,19 @@ export async function loadNotifications() {
         td.colSpan = 5; tr.append(td); tbody.append(tr); }
     pager('notification');
 }
+
+export function initNotificationInbox() {
+    const button = el('cwMarkAllNotificationsRead');
+    if (!button) return;
+    button.addEventListener('click', async () => {
+        if (!window.confirm('Mark all your unread notifications as read?')) return;
+        button.disabled = true;
+        try {
+            const count = await api('/api/communication/notifications/read-all', 'POST');
+            state.notificationPage = 1;
+            await loadNotifications();
+            alert(`${Number(count) || 0} notification(s) marked as read.`, true);
+        } catch (error) { alert(error.message); }
+        finally { button.disabled = false; }
+    });
+}

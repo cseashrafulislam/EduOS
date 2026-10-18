@@ -10,6 +10,7 @@ public interface ICommunicationService
     Task<ApiResponse<bool>> MarkNoticeReadAsync(Guid noticeReference, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<NotificationDto>>> GetMyNotificationsAsync(int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<bool>> MarkNotificationReadAsync(long notificationId, CancellationToken cancellationToken = default);
+    Task<ApiResponse<int>> MarkAllMyNotificationsReadAsync(CancellationToken cancellationToken = default);
     Task<ApiResponse<MessageDto>> SendMessageAsync(Guid clientRequestId, SendMessageRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<MessageThreadDto>> GetThreadAsync(Guid threadReference, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<MessageDto>>> GetThreadMessagesAsync(Guid threadReference, int page, int pageSize, CancellationToken cancellationToken = default);
