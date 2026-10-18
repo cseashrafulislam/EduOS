@@ -131,21 +131,24 @@ public sealed partial class IntegrationAdministrationService(
             else
             {
                 row = new WebhookEndpoint { TenantId = user.TenantId, CreatedBy = user.UserId };
-                db.WebhookEndpoints.Add(row);
             }
             if (request.ClearSecret && request.IsActive)
                 return ApiResponse<WebhookEndpointDto>.ErrorResponse("Deactivate the webhook before clearing its secret.");
+            // Compute and validate the final configuration before modifying tracked state.
+            var proposedSecret = request.ClearSecret ? string.Empty :
+                !string.IsNullOrEmpty(request.Secret)
+                    ? protection.CreateProtector("EduOS.Integrations.WebhookSecrets.v1").Protect(request.Secret)
+                    : row.ProtectedSecret;
+            if (proposedSecret.Length > 4000 ||
+                (request.IsActive && string.IsNullOrWhiteSpace(proposedSecret)))
+                return ApiResponse<WebhookEndpointDto>.ErrorResponse("Active webhooks require a secret (at least 16 characters).");
             row.Name = request.Name.Trim();
             row.Url = request.Url.Trim();
             row.EventCodes = string.Join(',', events);
             row.IsActive = request.IsActive;
-            if (request.ClearSecret) row.ProtectedSecret = string.Empty;
-            else if (!string.IsNullOrEmpty(request.Secret))
-                row.ProtectedSecret = protection.CreateProtector("EduOS.Integrations.WebhookSecrets.v1").Protect(request.Secret);
-            if (row.ProtectedSecret.Length > 4000 ||
-                (row.IsActive && string.IsNullOrWhiteSpace(row.ProtectedSecret)))
-                return ApiResponse<WebhookEndpointDto>.ErrorResponse("Active webhooks require a secret (at least 16 characters).");
+            row.ProtectedSecret = proposedSecret;
             if (endpointId.HasValue) { row.UpdatedAt = DateTime.UtcNow; row.UpdatedBy = user.UserId; }
+            else db.WebhookEndpoints.Add(row);
             await db.SaveChangesAsync(cancellationToken);
             return ApiResponse<WebhookEndpointDto>.SuccessResponse(Map(row));
         }
