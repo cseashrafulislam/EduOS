@@ -103,15 +103,29 @@
             for (const item of info.items || []) {
                 const tr = document.createElement('tr');
                 [item.studentName, item.hostelName, item.roomNumber + ' / ' + item.bedNumber, item.startDate].forEach(v => tr.append(td(v)));
-                const actions = document.createElement('td'), close = document.createElement('button');
-                close.type = 'button'; close.className = 'btn btn-outline-danger btn-sm'; close.textContent = 'Close';
-                close.addEventListener('click', () => closeAllocation(item, close)); actions.append(close); tr.append(actions); body.append(tr);
+                const actions = document.createElement('td'), future = item.startDate > today();
+                const button = document.createElement('button'); button.type = 'button';
+                button.className = future ? 'btn btn-outline-warning btn-sm' : 'btn btn-outline-danger btn-sm';
+                button.textContent = future ? 'Cancel reservation' : 'Close';
+                button.addEventListener('click', () => future ? cancelUpcoming(item, button) : closeAllocation(item, button));
+                actions.append(button); tr.append(actions); body.append(tr);
             }
             if (!info.items?.length) { const tr = document.createElement('tr'), cell = td('No active allocations.'); cell.colSpan = 5; tr.append(cell); body.append(tr); }
             activePages = Math.max(1, Number(info.totalPages) || 1);
             el('hostelPageInfo').textContent = 'Page ' + activePage + ' of ' + activePages + ' · ' + info.totalCount + ' total';
             el('hostelPrev').disabled = activePage <= 1; el('hostelNext').disabled = activePage >= activePages;
         } catch (error) { if (lookup === activeLookup) notify(error.message); }
+    }
+    async function cancelUpcoming(item, button) {
+        if (item.startDate <= today()) { notify('This allocation has started. Use Close instead.'); return; }
+        if (!confirm('Cancel the upcoming hostel reservation for ' + item.studentName + '?')) return;
+        button.disabled = true;
+        try {
+            await api('/api/hostel/allocations/' + encodeURIComponent(item.id) + '/cancel', 'POST',
+                { rowVersion: item.rowVersion });
+            notify('Upcoming reservation cancelled.', true);
+            await Promise.all([loadActive(), loadStudents(), loadBeds(), loadRooms()]);
+        } catch (error) { notify(error.message); } finally { button.disabled = false; }
     }
     async function closeAllocation(item, button) {
         if (!confirm('Close the hostel allocation for ' + item.studentName + '?')) return;

@@ -205,5 +205,11 @@ public sealed class HostelController : ControllerBase
     [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
     public async Task<IActionResult> Close(long id, [FromBody] CloseStudentHostelAllocationRequestDto request, CancellationToken ct) => ToAction(await _service.CloseAsync(id, request, ct));
 
+    [HttpPost("allocations/{id:long}/cancel")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    public async Task<IActionResult> CancelUpcomingAllocation(long id,
+        [FromBody] CancelStudentHostelAllocationRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.CancelUpcomingAllocationAsync(id, request, ct));
+
     private IActionResult ToAction<T>(EduOS.Core.Common.ApiResponse<T> response) => StatusCode(response.StatusCode, response);
 }

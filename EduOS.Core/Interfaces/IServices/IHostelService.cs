@@ -35,4 +35,5 @@ public interface IHostelService
     Task<ApiResponse<StudentHostelAllocationDto?>> GetMyAllocationAsync(CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentHostelAllocationDto>> AllocateAsync(AllocateStudentHostelRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentHostelAllocationDto>> CloseAsync(long id, CloseStudentHostelAllocationRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<StudentHostelAllocationDto>> CancelUpcomingAllocationAsync(long id, CancelStudentHostelAllocationRequestDto request, CancellationToken cancellationToken = default);
 }
