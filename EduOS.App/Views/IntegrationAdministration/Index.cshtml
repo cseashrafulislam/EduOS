@@ -73,6 +73,8 @@
             <strong>Read-only integration API</strong>
             <p class="mb-2">Create a credential with <code>integration:read</code> scope to retrieve your institution's saved usage snapshots. Send requests without login cookies.</p>
             <p class="mb-2">GET <code>/api/integration/v1/usage?page=1&amp;pageSize=20</code></p>
+            <p class="mb-2">GET <code>/api/integration/v1/usage/export</code> downloads the latest 100 saved usage snapshots as CSV (not the complete history). The same <code>integration:read</code> credential, tenant, revocation, expiry and subscription checks apply. Use a server-side, cookie-free client; never put the API key in browser JavaScript. For date-range exports use the TenantAdmin Institution Usage History page.</p>
+            <pre class="mb-2" style="white-space:pre-wrap">curl -H 'Authorization: ApiKey YOUR_API_KEY' 'https://YOUR_EDUOS_HOST/api/integration/v1/usage/export' -o institution-usage-latest-100.csv</pre>
             <pre id="iaApiExample" class="mb-2" style="white-space:pre-wrap">curl -H 'Authorization: ApiKey YOUR_API_KEY' 'https://YOUR_EDUOS_HOST/api/integration/v1/usage?page=1&amp;pageSize=20'</pre>
             <button type="button" id="iaCopyApiExample" class="btn btn-outline-primary btn-sm">Copy placeholder example</button>
             <p class="small mb-0 mt-2">The credential is shown only once. Never place it in URLs, browser JavaScript, or source control. Expiry and revocation are enforced.</p>
