@@ -14,4 +14,11 @@ function applyFilter(){
 filter.addEventListener("input",applyFilter);
 const form=document.getElementById("ttForm"),save=document.getElementById("ttSave");
 form?.addEventListener("submit",()=>{if(save)save.disabled=true;});
+rows.querySelectorAll(".tt-reset-form").forEach(resetForm=>{
+ resetForm.addEventListener("submit",event=>{
+  if(!window.confirm("Reset this terminology override to the default?")){event.preventDefault();return;}
+  const button=resetForm.querySelector('button[type="submit"]');
+  if(button)button.disabled=true;
+ });
+});
 })();

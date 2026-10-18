@@ -25,7 +25,15 @@
                         <tr>
                             <td>@row.Key</td><td>@row.SingularLabel</td><td>@row.PluralLabel</td>
                             <td>@row.SingularLabelBangla</td><td>@row.PluralLabelBangla</td>
-                            <td><a class="btn btn-outline-primary btn-sm" asp-action="Index" asp-route-editId="@row.Id">Edit</a></td>
+                            <td>
+                                <a class="btn btn-outline-primary btn-sm" asp-action="Index" asp-route-editId="@row.Id">Edit</a>
+                                <form asp-controller="TenantTerminology" asp-action="Reset" method="post" class="d-inline tt-reset-form">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@row.Id" />
+                                    <input type="hidden" name="rowVersion" value="@row.RowVersion" />
+                                    <button type="submit" class="btn btn-outline-danger btn-sm" aria-label="Reset @row.Key override">Reset override</button>
+                                </form>
+                            </td>
                         </tr>
                     }
                 </tbody>

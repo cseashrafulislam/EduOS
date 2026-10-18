@@ -1,0 +1,26 @@
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const root=path.resolve(__dirname,'../..');
+const read=file=>fs.readFileSync(path.join(root,file),'utf8');
+test('terminology reset is tenant-admin authorized, versioned and antiforgery protected',()=>{
+ const api=read('EduOS.App/Controllers/Api/TenantSettingController.cs');
+ const mvc=read('EduOS.App/Controllers/TenantTerminologyController.cs');
+ const service=read('EduOS.Service/Services/Tenants/TenantSettingService.cs');
+ const view=read('EduOS.App/Views/TenantTerminology/Index.cshtml');
+ const js=read('EduOS.App/wwwroot/js/platform/tenant-terminology.js');
+ assert.match(api,/HttpDelete\("terminology\/\{terminologyId:long\}"\)/);
+ assert.match(api,/RetireTerminologyAsync/);
+ assert.match(mvc,/ValidateAntiForgeryToken/);
+ assert.match(mvc,/RetireTerminologyAsync/);
+ assert.match(service,/x\.TenantId == _user\.TenantId/);
+ assert.match(service,/MatchesVersion\(row\.RowVersion, rowVersion\)/);
+ assert.match(service,/row\.IsDeleted = true/);
+ assert.match(service,/row\.DeletedBy = _user\.UserId/);
+ assert.match(view,/asp-action="Reset"/);
+ assert.match(view,/name="rowVersion"/);
+ assert.match(view,/@Html\.AntiForgeryToken\(\)/);
+ assert.match(js,/window\.confirm/);
+ assert.doesNotMatch(js,/innerHTML/);
+});

@@ -21,6 +21,23 @@ public sealed class TenantTerminologyController(ITenantSettingService service) :
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Reset([FromForm] long id, [FromForm] string? rowVersion,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.RetireTerminologyAsync(id, rowVersion, cancellationToken);
+        if (!result.Success)
+        {
+            TempData["TerminologyError"] = result.StatusCode == 409
+                ? "Terminology changed. Reload before resetting."
+                : result.Message;
+            return RedirectToAction(nameof(Index));
+        }
+        TempData["TerminologySuccess"] = "Terminology override reset to the default.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Save([FromForm] long? id,
         [FromForm] SaveTenantTerminologyRequestDto request, CancellationToken cancellationToken)
     {

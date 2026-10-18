@@ -63,6 +63,15 @@ public sealed class TenantSettingController : ControllerBase
         return StatusCode(response.StatusCode, response);
     }
 
+    [HttpDelete("terminology/{terminologyId:long}")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> ResetTerminology(long terminologyId, [FromQuery] string? rowVersion,
+        CancellationToken cancellationToken)
+    {
+        var response = await _service.RetireTerminologyAsync(terminologyId, rowVersion, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
     [HttpPut("terminology/{terminologyId:long}")]
     [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> UpdateTerminology(long terminologyId, [FromBody] SaveTenantTerminologyRequestDto request,

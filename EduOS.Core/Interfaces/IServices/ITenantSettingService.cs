@@ -11,4 +11,5 @@ public interface ITenantSettingService
     Task<ApiResponse<TenantSettingDto>> SaveSettingAsync(long? settingId, SaveTenantSettingRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<TenantTerminologyDto>>> GetTerminologyAsync(CancellationToken cancellationToken = default);
     Task<ApiResponse<TenantTerminologyDto>> SaveTerminologyAsync(long? terminologyId, SaveTenantTerminologyRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<bool>> RetireTerminologyAsync(long terminologyId, string? rowVersion, CancellationToken cancellationToken = default);
 }

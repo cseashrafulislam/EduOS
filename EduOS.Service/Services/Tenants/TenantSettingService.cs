@@ -184,6 +184,43 @@ public sealed class TenantSettingService : ITenantSettingService
         }
     }
 
+    /// <summary>Soft-retire one tenant-owned override so the default label applies again.</summary>
+    public async Task<ApiResponse<bool>> RetireTerminologyAsync(long terminologyId, string? rowVersion,
+        CancellationToken cancellationToken = default)
+    {
+        if (!CanManage()) return ApiResponse<bool>.ErrorResponse("Tenant administrator access is required.", 403);
+        if (terminologyId <= 0) return ApiResponse<bool>.ErrorResponse("Valid terminology ID is required.");
+        if (string.IsNullOrWhiteSpace(rowVersion)) return ApiResponse<bool>.ErrorResponse("RowVersion is required.", 409);
+        try
+        {
+            var row = await _terminology.GetQueryable()
+                .FirstOrDefaultAsync(x => x.Id == terminologyId && x.TenantId == _user.TenantId, cancellationToken);
+            if (row == null) return ApiResponse<bool>.ErrorResponse("Terminology not found.", 404);
+            if (!MatchesVersion(row.RowVersion, rowVersion))
+                return ApiResponse<bool>.ErrorResponse("Terminology changed. Reload and retry.", 409);
+            row.IsDeleted = true;
+            row.DeletedAt = DateTime.UtcNow;
+            row.DeletedBy = _user.UserId;
+            row.UpdatedAt = row.DeletedAt;
+            row.UpdatedBy = _user.UserId;
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            return ApiResponse<bool>.SuccessResponse(true, "Terminology override reset.");
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return ApiResponse<bool>.ErrorResponse("Terminology changed. Reload and retry.", 409);
+        }
+        catch (DbUpdateException)
+        {
+            return ApiResponse<bool>.ErrorResponse("Terminology reset conflicted with another update.", 409);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Terminology reset failed for {TenantId}", _user.TenantId);
+            return ApiResponse<bool>.ErrorResponse("Terminology could not be reset.", 500);
+        }
+    }
+
     private static TenantSettingDto Map(TenantSetting x) => new()
     {
         Id = x.Id, Key = x.Key, Value = x.IsSensitive ? null : x.Value, IsSensitive = x.IsSensitive,
