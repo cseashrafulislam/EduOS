@@ -4,6 +4,7 @@
     if (!el('transportTitle')) return;
     const canManage = !!el('transportAssignmentForm');
     let routes = [], vehicles = [], clientRequestId = newRequestId(), studentPage = 1, activePage = 1, activePages = 1;
+    let pendingStopCorrection = null;
     function newRequestId() { return crypto.randomUUID(); }
     function localDate() { const d = new Date(); return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-'); }
     function notify(message, success = false) {
@@ -101,6 +102,13 @@
                 const actions = document.createElement('td'), close = document.createElement('button');
                 close.type = 'button'; close.className = 'btn btn-outline-danger btn-sm'; close.textContent = 'Close';
                 close.addEventListener('click', () => closeAssignment(item, close));
+                if (item.startDate > localDate()) {
+                    const correct = document.createElement('button');
+                    correct.type = 'button'; correct.className = 'btn btn-outline-primary btn-sm me-2';
+                    correct.textContent = 'Change stops';
+                    correct.addEventListener('click', () => beginStopCorrection(item));
+                    actions.append(correct);
+                }
                 actions.append(close); tr.append(actions); body.append(tr);
             }
             if (!data.items?.length) {
@@ -112,6 +120,37 @@
             el('transportPrev').disabled = activePage <= 1;
             el('transportNext').disabled = activePage >= activePages;
         } catch (err) { notify(err.message); }
+    }
+    function beginStopCorrection(item) {
+        if (item.startDate <= localDate()) { notify('Only future assignments can change stops.'); return; }
+        const route = routes.find(x => x.reference === item.routeReference);
+        if (!route?.isActive || !route.stops) { notify('Route is unavailable. Refresh the route list.'); return; }
+        pendingStopCorrection = item;
+        for (const [id, selected] of [['transportCorrectPickup', item.pickupStopId], ['transportCorrectDrop', item.dropStopId]]) {
+            const select = el(id); select.replaceChildren(); option(select, '', 'No assigned stop');
+            route.stops.filter(x => x.isActive).forEach(x => option(select, String(x.id), x.name));
+            select.value = selected == null ? '' : String(selected);
+        }
+        el('transportStopCorrectionDetails').textContent = item.studentName + ' · ' + item.routeName + ' · starts ' + item.startDate;
+        el('transportStopCorrectionPanel').hidden = false;
+        el('transportCorrectPickup').focus();
+    }
+    async function submitStopCorrection(event) {
+        event.preventDefault();
+        if (!pendingStopCorrection) return;
+        const item = pendingStopCorrection, save = el('transportCorrectSave');
+        if (!confirm('Update pickup/drop stops for ' + item.studentName + '? Monthly fare will not change.')) return;
+        save.disabled = true;
+        try {
+            await api('/api/transport/assignments/' + encodeURIComponent(item.reference) + '/stops', 'PUT', {
+                pickupStopId: el('transportCorrectPickup').value ? Number(el('transportCorrectPickup').value) : null,
+                dropStopId: el('transportCorrectDrop').value ? Number(el('transportCorrectDrop').value) : null,
+                rowVersion: item.rowVersion
+            });
+            pendingStopCorrection = null; el('transportStopCorrectionPanel').hidden = true;
+            notify('Upcoming transport stops updated.', true);
+            await loadActive();
+        } catch (err) { notify(err.message); } finally { save.disabled = false; }
     }
     async function closeAssignment(item, button) {
         if (!confirm('Close the transport assignment for ' + item.studentName + '?')) return;
@@ -133,6 +172,8 @@
         el('transportFindStudents').addEventListener('click', () => { studentPage = 1; loadStudents(); });
         el('transportMoreStudents').addEventListener('click', () => { studentPage++; loadStudents(); });
         el('transportAssignmentForm').addEventListener('submit', assign);
+        el('transportStopCorrectionForm').addEventListener('submit', submitStopCorrection);
+        el('transportCorrectCancel').addEventListener('click', () => { pendingStopCorrection = null; el('transportStopCorrectionPanel').hidden = true; });
         el('transportActiveSearch').addEventListener('submit', event => { event.preventDefault(); activePage = 1; loadActive(); });
         el('transportPrev').addEventListener('click', () => { activePage = Math.max(1, activePage - 1); loadActive(); });
         el('transportNext').addEventListener('click', () => { activePage = Math.min(activePages, activePage + 1); loadActive(); });

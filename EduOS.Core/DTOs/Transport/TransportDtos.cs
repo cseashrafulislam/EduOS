@@ -97,6 +97,13 @@ public class AssignStudentTransportRequestDto
     public decimal? MonthlyFare { get; set; }
 }
 
+public sealed class CorrectUpcomingTransportStopsRequestDto
+{
+    public long? PickupStopId { get; set; }
+    public long? DropStopId { get; set; }
+    [Required] public string RowVersion { get; set; } = string.Empty;
+}
+
 public class CloseStudentTransportRequestDto
 {
     public DateOnly EndDate { get; set; }
@@ -115,6 +122,9 @@ public sealed class TransportStudentOptionDto
 public sealed class TransportAssignmentRowDto
 {
     public Guid Reference { get; set; }
+    public Guid RouteReference { get; set; }
+    public long? PickupStopId { get; set; }
+    public long? DropStopId { get; set; }
     public string StudentName { get; set; } = string.Empty;
     public string RouteName { get; set; } = string.Empty;
     public string VehicleNumber { get; set; } = string.Empty;

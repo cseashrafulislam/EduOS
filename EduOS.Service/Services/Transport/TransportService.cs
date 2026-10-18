@@ -169,6 +169,7 @@ public sealed partial class TransportService : ITransportService
                           route.TenantId == tenant && vehicle.TenantId == tenant &&
                           assignment.State == TransportAssignmentState.Active
                     select new { assignment.PublicId, assignment.StartDate, assignment.RowVersion,
+                        assignment.PickupStopId, assignment.DropStopId, RouteReference = route.PublicId,
                         enrollment.CampusId, student.FullName, student.StudentCode, RouteName = route.Name, vehicle.VehicleNumber };
         if (!_currentUser.IsTenantAdmin)
         {
@@ -186,7 +187,9 @@ public sealed partial class TransportService : ITransportService
             .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
         var items = records.Select(x => new TransportAssignmentRowDto
         {
-            Reference = x.PublicId, StartDate = x.StartDate, RowVersion = Convert.ToBase64String(x.RowVersion),
+            Reference = x.PublicId, RouteReference = x.RouteReference,
+            PickupStopId = x.PickupStopId, DropStopId = x.DropStopId,
+            StartDate = x.StartDate, RowVersion = Convert.ToBase64String(x.RowVersion),
             StudentName = x.FullName, RouteName = x.RouteName, VehicleNumber = x.VehicleNumber
         }).ToList();
         return ApiResponse<PagedResult<TransportAssignmentRowDto>>.SuccessResponse(new PagedResult<TransportAssignmentRowDto>
