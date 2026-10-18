@@ -82,7 +82,8 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
         if (id is <= 0 || request == null || !ValidCode(request.Code, 50) ||
             !ValidName(request.Name, 150) || request.Email?.Length > 200 ||
             request.Phone?.Length > 30 || request.Address?.Length > 500 ||
-            request.HeadName?.Length > 150 ||
+            request.HeadName?.Length > 150 || request.TimeZoneId?.Length > 100 ||
+            (!string.IsNullOrWhiteSpace(request.TimeZoneId) && !ValidTimeZone(request.TimeZoneId)) ||
             (!string.IsNullOrWhiteSpace(request.Email) &&
              !new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(request.Email)) ||
             !request.IsActive)
@@ -141,6 +142,8 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
             row.Name = request.Name.Trim(); row.Code = code;
             row.Phone = Trim(request.Phone); row.Email = Trim(request.Email);
             row.Address = Trim(request.Address);
+            if (request.IsOnlineCampus.HasValue) row.IsOnlineCampus = request.IsOnlineCampus.Value;
+            if (request.TimeZoneId != null) row.TimeZoneId = Trim(request.TimeZoneId);
             row.IsHeadOffice = request.IsHeadOffice; row.IsActive = request.IsActive;
             row.UpdatedAt = timestamp; row.UpdatedBy = _user.UserId;
             if (id.HasValue) _campuses.Update(row);
@@ -450,8 +453,16 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
         Id = row.Id, Reference = row.PublicId, Name = row.Name, Code = row.Code,
         Address = row.Address, Email = row.Email, Phone = row.Phone,
         HeadName = headName, IsHeadOffice = row.IsHeadOffice, IsActive = row.IsActive,
+        IsOnlineCampus = row.IsOnlineCampus, TimeZoneId = row.TimeZoneId,
         RowVersion = Version(row.RowVersion)
     };
+    private static bool ValidTimeZone(string id)
+    {
+        try { _ = TimeZoneInfo.FindSystemTimeZoneById(id.Trim()); return true; }
+        catch (TimeZoneNotFoundException) { return false; }
+        catch (InvalidTimeZoneException) { return false; }
+        catch (ArgumentException) { return false; }
+    }
     private static string CampusHeadKey(long id) => "Campus." + id + ".HeadName";
     private Task<string?> GetHeadNameAsync(long id, CancellationToken ct) =>
         _settings.GetQueryable().AsNoTracking().Where(x =>

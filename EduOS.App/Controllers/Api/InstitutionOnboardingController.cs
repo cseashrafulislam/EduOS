@@ -78,6 +78,7 @@ public sealed class InstitutionOnboardingController : ControllerBase
             Name = request.Name, Code = request.Code ?? string.Empty,
             Address = request.Address, Phone = request.Phone, Email = request.Email,
             HeadName = request.HeadName, IsHeadOffice = request.IsHeadOffice,
+            IsOnlineCampus = request.IsOnlineCampus, TimeZoneId = request.TimeZoneId,
             IsActive = request.IsActive, RowVersion = request.RowVersion
         }, ct));
     }

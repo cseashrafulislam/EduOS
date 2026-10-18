@@ -109,6 +109,17 @@
                             <input type="text" id="campusHeadName" name="headName" class="form-control" maxlength="150" autocomplete="name" />
                             <div class="invalid-feedback"></div>
                         </div>
+                        <div class="col-md-6">
+                            <label for="campusTimeZone" class="form-label">Campus time zone (optional)</label>
+                            <input id="campusTimeZone" class="form-control" maxlength="100" placeholder="Inherit institution time zone" />
+                            <div class="form-text">For example Asia/Dhaka. Blank inherits the institution time zone.</div>
+                        </div>
+                        <div class="col-md-6 d-flex align-items-end">
+                            <div class="form-check setup-check-control">
+                                <input class="form-check-input" type="checkbox" id="isOnlineCampus" />
+                                <label class="form-check-label" for="isOnlineCampus">Online campus</label>
+                            </div>
+                        </div>
                         <div class="col-md-6 d-flex align-items-end">
                             <div class="form-check setup-check-control">
                                 <input class="form-check-input" type="checkbox" id="isHeadOffice" name="isHeadOffice" />

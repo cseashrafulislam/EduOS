@@ -39,6 +39,8 @@ public sealed class InstitutionCampusWizardRequestDto
     public string? HeadName { get; set; }
     public bool IsHeadOffice { get; set; }
     public bool IsActive { get; set; } = true;
+    public bool? IsOnlineCampus { get; set; }
+    [global::System.ComponentModel.DataAnnotations.MaxLength(100)] public string? TimeZoneId { get; set; }
     public string? RowVersion { get; set; }
 }
 

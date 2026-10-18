@@ -179,6 +179,17 @@
                             <label for="campusHeadOffice" class="form-check-label">Head office / main campus</label>
                         </div>
                     </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="campusTimeZone">Campus time zone (optional)</label>
+                        <input id="campusTimeZone" maxlength="100" class="form-control" placeholder="Inherit institution time zone" />
+                        <div class="form-text">For example Asia/Dhaka. Blank inherits the institution time zone.</div>
+                    </div>
+                    <div class="col-md-6 d-flex align-items-end">
+                        <div class="form-check">
+                            <input id="campusOnline" type="checkbox" class="form-check-input" />
+                            <label for="campusOnline" class="form-check-label">Online campus</label>
+                        </div>
+                    </div>
                     <div class="col-12">
                         <label class="form-label" for="campusAddress">Address</label>
                         <textarea id="campusAddress" maxlength="500" class="form-control" rows="2"></textarea>

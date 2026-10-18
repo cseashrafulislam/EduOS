@@ -90,7 +90,9 @@
             name.append(make('div', campus.address || '', 'small text-muted'));
             row.append(name, make('td', campus.code),
                 make('td', campus.email || campus.phone || '—'),
-                make('td', campus.isHeadOffice ? 'Head Office' : 'Campus'));
+                make('td', (campus.isHeadOffice ? 'Head Office' : 'Campus') +
+                    (campus.isOnlineCampus ? ' · Online' : '') +
+                    (campus.timeZoneId ? ' · ' + campus.timeZoneId : '')));
             const actions = make('td', '');
             const edit = make('button', 'Edit', 'btn btn-sm btn-outline-primary me-2');
             edit.type = 'button';
@@ -118,6 +120,8 @@
         set('campusEmail', campus?.email);
         set('campusHeadName', campus?.headName);
         set('campusAddress', campus?.address);
+        set('campusTimeZone', campus?.timeZoneId);
+        el('campusOnline').checked = campus?.isOnlineCampus === true;
         el('campusHeadOffice').checked = campus?.isHeadOffice === true || state.campuses.length === 0;
         el('campusHeadOffice').disabled = campus?.isHeadOffice === true || state.campuses.length === 0;
         el('campusEditorHeading').textContent = campus ? 'Edit campus' : 'Add campus';
@@ -215,6 +219,8 @@
                     headName: value('campusHeadName') || null,
                     address: value('campusAddress') || null,
                     isHeadOffice: el('campusHeadOffice').checked,
+                    isOnlineCampus: el('campusOnline').checked,
+                    timeZoneId: value('campusTimeZone'),
                     isActive: true
                 })
             });

@@ -32,6 +32,8 @@
             phone: normalizeBanglaDigits(valueOf('campusPhone')),
             email: valueOf('campusEmail'),
             headName: valueOf('campusHeadName'),
+            isOnlineCampus: document.getElementById('isOnlineCampus')?.checked ?? false,
+            timeZoneId: valueOf('campusTimeZone'),
             isHeadOffice: document.getElementById('isHeadOffice')?.checked ?? false
         };
         if (!data.name) {
@@ -210,6 +212,9 @@
             setValue('campusPhone', campus.phone);
             setValue('campusEmail', campus.email);
             setValue('campusHeadName', campus.headName);
+            setValue('campusTimeZone', campus.timeZoneId);
+            const online = document.getElementById('isOnlineCampus');
+            if (online) online.checked = Boolean(campus.isOnlineCampus);
             const headOffice = document.getElementById('isHeadOffice');
             if (headOffice) headOffice.checked = Boolean(campus.isHeadOffice);
             openModal();

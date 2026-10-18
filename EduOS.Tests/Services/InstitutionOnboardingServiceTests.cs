@@ -32,6 +32,53 @@ public sealed class InstitutionOnboardingServiceTests
     }
 
     [Fact]
+    public async Task Campus_configuration_round_trip_and_legacy_update_preserves_values()
+    {
+        var options = Options();
+        await SeedTenant(options, 101);
+        await using var db = Context(options, 101);
+        var service = Foundation(db, new TestUser(101));
+        var created = await service.SaveCampusAsync(null, new SaveCampusRequestDto
+        {
+            Name = "Online Campus", Code = "ONL", IsOnlineCampus = true, TimeZoneId = "Asia/Dhaka"
+        });
+        created.Success.Should().BeTrue();
+        created.Data!.IsOnlineCampus.Should().BeTrue();
+        created.Data.TimeZoneId.Should().Be("Asia/Dhaka");
+        var legacy = await service.SaveCampusAsync(created.Data.Id, new SaveCampusRequestDto
+        {
+            Name = "Online Campus Updated", Code = "ONL", IsHeadOffice = true,
+            RowVersion = created.Data.RowVersion
+        });
+        legacy.Success.Should().BeTrue();
+        legacy.Data!.IsOnlineCampus.Should().BeTrue();
+        legacy.Data.TimeZoneId.Should().Be("Asia/Dhaka");
+        var cleared = await service.SaveCampusAsync(legacy.Data.Id, new SaveCampusRequestDto
+        {
+            Name = "Online Campus Updated", Code = "ONL", IsHeadOffice = true,
+            RowVersion = legacy.Data.RowVersion, IsOnlineCampus = false, TimeZoneId = ""
+        });
+        cleared.Success.Should().BeTrue();
+        cleared.Data!.IsOnlineCampus.Should().BeFalse();
+        cleared.Data.TimeZoneId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Campus_invalid_timezone_is_rejected_before_persistence()
+    {
+        var options = Options();
+        await SeedTenant(options, 101);
+        await using var db = Context(options, 101);
+        var service = Foundation(db, new TestUser(101));
+        var rejected = await service.SaveCampusAsync(null, new SaveCampusRequestDto
+        {
+            Name = "Invalid Zone", Code = "BAD", TimeZoneId = "Not/A_Real_Zone"
+        });
+        rejected.Success.Should().BeFalse();
+        (await db.Campuses.CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
     public async Task First_campus_is_head_office_and_default_subscription_limit_is_enforced()
     {
         var options = Options();
