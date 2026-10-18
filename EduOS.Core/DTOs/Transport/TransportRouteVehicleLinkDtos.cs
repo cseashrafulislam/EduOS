@@ -25,5 +25,6 @@ public sealed class TransportRouteVehicleLinkRowDto
     public DateOnly EffectiveFrom { get; set; }
     public DateOnly? EffectiveTo { get; set; }
     public bool IsCurrent { get; set; }
+    public bool IsCancelled { get; set; }
     public string RowVersion { get; set; } = string.Empty;
 }

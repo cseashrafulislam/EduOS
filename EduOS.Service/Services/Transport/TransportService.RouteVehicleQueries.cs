@@ -64,6 +64,7 @@ public sealed partial class TransportService
                     ActiveRiders = riderCounts.GetValueOrDefault(x.Id)?.Reservations ?? 0,
                     OccupiedToday = riderCounts.GetValueOrDefault(x.Id)?.OccupiedToday ?? 0,
                     EffectiveFrom = x.EffectiveFrom, EffectiveTo = x.EffectiveTo,
+                    IsCancelled = !x.IsCurrent,
                     IsCurrent = x.IsCurrent && x.EffectiveFrom <= today &&
                         (!x.EffectiveTo.HasValue || x.EffectiveTo.Value >= today),
                     RowVersion = Convert.ToBase64String(x.RowVersion)

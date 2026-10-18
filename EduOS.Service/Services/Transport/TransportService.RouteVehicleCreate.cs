@@ -50,7 +50,7 @@ public sealed partial class TransportService
                         "Route or vehicle changed. Reload and retry.", 409);
                 var end = request.EffectiveTo ?? DateOnly.MaxValue;
                 var overlapping = await _vehicleRoutes.GetQueryable().AsNoTracking()
-                    .Where(x => x.TenantId == tenant && !x.IsDeleted && x.VehicleId == vehicle.Id &&
+                    .Where(x => x.TenantId == tenant && !x.IsDeleted && x.IsCurrent && x.VehicleId == vehicle.Id &&
                         x.EffectiveFrom <= end &&
                         (!x.EffectiveTo.HasValue || x.EffectiveTo.Value >= request.EffectiveFrom))
                     .OrderBy(x => x.Id).ToListAsync(token);

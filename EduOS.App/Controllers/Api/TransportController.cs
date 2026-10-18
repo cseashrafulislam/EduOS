@@ -197,6 +197,11 @@ public sealed class TransportController : ControllerBase
         [FromBody] CloseTransportAssignmentRequestDto request, CancellationToken ct) =>
         ToAction(await _service.CloseRouteVehicleAssignmentAsync(id, request, ct));
 
+    [HttpPost("route-vehicle-links/{id:long}/cancel-upcoming")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    public async Task<IActionResult> CancelUpcomingRouteVehicle(long id, [FromBody] CancelUpcomingRouteVehicleLinkRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.CancelUpcomingRouteVehicleAssignmentAsync(id, request, ct));
+
     [HttpGet("capacity-report")]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
     public async Task<IActionResult> CapacityReport([FromQuery] long? campusId = null,
