@@ -51,6 +51,25 @@ public sealed class WebhookConfigurationPersistenceTests
         Assert.Equal("Original", (await fixture.Db.WebhookEndpoints.SingleAsync()).Name);
     }
 
+    [Fact]
+    public async Task Stale_version_does_not_change_existing_webhook()
+    {
+        await using var fixture = Create();
+        var row = new WebhookEndpoint
+        {
+            TenantId = 101, Name = "Original", Url = "https://hooks.example.org/old",
+            EventCodes = "WEBHOOK.TEST", IsActive = false, RowVersion = [1, 2, 3, 4]
+        };
+        fixture.Db.WebhookEndpoints.Add(row);
+        await fixture.Db.SaveChangesAsync();
+        fixture.Db.ChangeTracker.Clear();
+        var request = Request(false);
+        request.RowVersion = Convert.ToBase64String(new byte[] { 9, 8, 7, 6 });
+        var response = await fixture.Service.SaveWebhookEndpointAsync(row.Id, request);
+        Assert.Equal(409, response.StatusCode);
+        Assert.Equal("Original", (await fixture.Db.WebhookEndpoints.SingleAsync()).Name);
+    }
+
     private static SaveWebhookEndpointRequestDto Request(bool active) => new()
     {
         Name = "Valid", Url = "https://hooks.example.org/notify",

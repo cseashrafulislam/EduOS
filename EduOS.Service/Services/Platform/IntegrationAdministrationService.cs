@@ -32,6 +32,10 @@ public sealed partial class IntegrationAdministrationService(
         try { return current.AsSpan().SequenceEqual(Convert.FromBase64String(supplied)); }
         catch (FormatException) { return false; }
     }
+    private void DiscardWebhookWrite(WebhookEndpoint? row)
+    {
+        if (row != null) db.Entry(row).State = EntityState.Detached;
+    }
     private static bool ValidPage(int page, int size) => page > 0 && size is >= 1 and <= 100 && page <= int.MaxValue / size;
     private static WebhookEndpointDto Map(WebhookEndpoint row) => new()
     {
@@ -116,6 +120,7 @@ public sealed partial class IntegrationAdministrationService(
             (!string.IsNullOrEmpty(request.Secret) && request.Secret.Length < 16) ||
             (endpointId.HasValue && endpointId.Value <= 0))
             return ApiResponse<WebhookEndpointDto>.ErrorResponse("Invalid webhook configuration.");
+        WebhookEndpoint? pendingWrite = null;
         try
         {
             WebhookEndpoint row;
@@ -142,6 +147,7 @@ public sealed partial class IntegrationAdministrationService(
             if (proposedSecret.Length > 4000 ||
                 (request.IsActive && string.IsNullOrWhiteSpace(proposedSecret)))
                 return ApiResponse<WebhookEndpointDto>.ErrorResponse("Active webhooks require a secret (at least 16 characters).");
+            pendingWrite = row;
             row.Name = request.Name.Trim();
             row.Url = request.Url.Trim();
             row.EventCodes = string.Join(',', events);
@@ -153,11 +159,23 @@ public sealed partial class IntegrationAdministrationService(
             return ApiResponse<WebhookEndpointDto>.SuccessResponse(Map(row));
         }
         catch (DbUpdateConcurrencyException)
-        { return ApiResponse<WebhookEndpointDto>.ErrorResponse("Webhook changed; reload before saving.", 409); }
+        {
+            DiscardWebhookWrite(pendingWrite);
+            return ApiResponse<WebhookEndpointDto>.ErrorResponse("Webhook changed; reload before saving.", 409);
+        }
         catch (DbUpdateException)
-        { return ApiResponse<WebhookEndpointDto>.ErrorResponse("Webhook could not be saved due to a data conflict.", 409); }
+        {
+            DiscardWebhookWrite(pendingWrite);
+            return ApiResponse<WebhookEndpointDto>.ErrorResponse("Webhook could not be saved due to a data conflict.", 409);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            DiscardWebhookWrite(pendingWrite);
+            throw;
+        }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            DiscardWebhookWrite(pendingWrite);
             logger.LogError(ex, "Webhook configuration save failed for tenant {TenantId}", user.TenantId);
             return ApiResponse<WebhookEndpointDto>.ErrorResponse("Webhook save failed.", 500);
         }
