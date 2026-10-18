@@ -61,6 +61,15 @@
                         <input id="institutionTimezone" maxlength="100" required class="form-control" placeholder="Asia/Dhaka" />
                     </div>
                     <div class="col-md-4">
+                        <label for="institutionDateFormat" class="form-label">Date format</label>
+                        <select id="institutionDateFormat" class="form-select" required>
+                            <option value="dd-MM-yyyy">DD-MM-YYYY</option>
+                            <option value="dd/MM/yyyy">DD/MM/YYYY</option>
+                            <option value="yyyy-MM-dd">YYYY-MM-DD (ISO)</option>
+                            <option value="MM-dd-yyyy">MM-DD-YYYY</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
                         <label for="institutionLanguage" class="form-label">Default language</label>
                         <select id="institutionLanguage" class="form-select">
                             <option value="bn-BD">বাংলা (Bangladesh)</option>

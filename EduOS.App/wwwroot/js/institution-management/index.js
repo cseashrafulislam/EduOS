@@ -48,6 +48,7 @@
         set('institutionAddress', data.address);
         set('institutionCurrency', data.currencyCode);
         set('institutionTimezone', data.timeZoneId);
+        set('institutionDateFormat', data.dateFormat);
         const language = el('institutionLanguage');
         if ([...language.options].some(x => x.value === data.defaultLanguage))
             language.value = data.defaultLanguage;
@@ -173,6 +174,7 @@
                     currencyCode: value('institutionCurrency').toUpperCase(),
                     timeZoneId: value('institutionTimezone'),
                     defaultLanguage: value('institutionLanguage'),
+                    dateFormat: value('institutionDateFormat'),
                     rowVersion: state.profile.rowVersion
                 })
             });
