@@ -126,6 +126,53 @@ public sealed class ImportHistoryService : IImportHistoryService
         }
     }
 
+
+    /// <summary>Bounded tenant-scoped CSV report of failed rows for one import.</summary>
+    public async Task<ApiResponse<string>> ExportFailedRowsCsvAsync(Guid importReference,
+        CancellationToken cancellationToken = default)
+    {
+        if (!CanRead()) return ApiResponse<string>.ErrorResponse("Import history access denied.", 403);
+        if (importReference == Guid.Empty) return ApiResponse<string>.ErrorResponse("Invalid import reference.", 400);
+        try
+        {
+            var importId = await _imports.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == _user.TenantId && !x.IsDeleted && x.PublicId == importReference)
+                .Select(x => (long?)x.Id).FirstOrDefaultAsync(cancellationToken);
+            if (!importId.HasValue) return ApiResponse<string>.ErrorResponse("Import not found.", 404);
+            var failures = await _rows.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == _user.TenantId && !x.IsDeleted &&
+                    x.ImportLogId == importId.Value && !x.IsSuccess)
+                .OrderBy(x => x.RowNumber).ThenBy(x => x.Id)
+                .Take(1001)
+                .Select(x => new { x.RowNumber, x.BusinessKey, x.ErrorMessage })
+                .ToListAsync(cancellationToken);
+            if (failures.Count > 1000)
+                return ApiResponse<string>.ErrorResponse("More than 1,000 failed rows; review the paginated row history.", 413);
+            var csv = new System.Text.StringBuilder("RowNumber,BusinessKey,ErrorMessage\r\n");
+            foreach (var row in failures)
+                csv.Append(row.RowNumber.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                    .Append(',').Append(EscapeCsvCell(row.BusinessKey))
+                    .Append(',').Append(EscapeCsvCell(row.ErrorMessage)).Append("\r\n");
+            return ApiResponse<string>.SuccessResponse(csv.ToString());
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed import row export failed for tenant {TenantId}", _user.TenantId);
+            return ApiResponse<string>.ErrorResponse("Unable to export failed import rows.", 500);
+        }
+    }
+
+    private static string EscapeCsvCell(string? value)
+    {
+        var text = value ?? string.Empty;
+        var trimmed = text.TrimStart();
+        if (text.Length > 0 && (char.IsControl(text[0]) ||
+            (trimmed.Length > 0 && "=+-@".Contains(trimmed[0]))))
+            text = "'" + text;
+        return "\"" + text.Replace("\"", "\"\"") + "\"";
+    }
+
     private bool CanRead() => _user.IsAuthenticated && _user.TenantId > 0
         && (_user.IsTenantAdmin || _user.IsInRole("Principal"));
     private static bool ValidPage(int page, int pageSize) => page >= 1 && pageSize >= 1 && pageSize <= 100;

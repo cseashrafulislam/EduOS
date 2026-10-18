@@ -30,5 +30,15 @@ public sealed class ImportHistoryController : ControllerBase
         [FromQuery] int pageSize = 25, CancellationToken cancellationToken = default) =>
         Reply(await _service.GetImportRowsAsync(reference, page, pageSize, cancellationToken));
 
+    [HttpGet("{reference:guid}/failures/export")]
+    public async Task<IActionResult> ExportFailures(Guid reference, CancellationToken cancellationToken)
+    {
+        var result = await _service.ExportFailedRowsCsvAsync(reference, cancellationToken);
+        if (!result.Success) return StatusCode(result.StatusCode, result);
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(System.Text.Encoding.UTF8.GetBytes(result.Data ?? string.Empty),
+            "text/csv; charset=utf-8", $"import-failures-{reference:N}.csv");
+    }
+
     private IActionResult Reply<T>(ApiResponse<T> response) => StatusCode(response.StatusCode, response);
 }

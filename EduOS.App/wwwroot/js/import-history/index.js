@@ -54,6 +54,7 @@
     async function openDetails(reference) {
         if (!/^[a-f0-9-]{36}$/i.test(String(reference))) return;
         state.reference = reference; state.rowPage = 1;
+        const exportLink = e('importHistoryExportFailures'); exportLink.classList.add('d-none'); exportLink.removeAttribute('href');
         e('importHistoryDetails').classList.remove('d-none');
         e('importHistorySummary').textContent = 'Loading details…';
         e('importHistoryErrors').textContent = '';
@@ -62,6 +63,10 @@
             if (state.reference !== reference) return;
             e('importHistorySummary').textContent = result.importType + ' · ' + result.totalRows + ' total · ' + result.successRows + ' succeeded · ' + result.failedRows + ' failed · ' + utc(result.startedAt) + ' UTC';
             e('importHistoryErrors').textContent = result.errorSummary || '';
+            if (Number(result.failedRows) > 0) {
+                exportLink.href = '/api/import-history/' + encodeURIComponent(reference) + '/failures/export';
+                exportLink.classList.remove('d-none');
+            }
             await loadRows();
             e('importHistoryDetails').scrollIntoView({ behavior: 'smooth', block: 'start' });
         } catch (error) { if (state.reference === reference) message(error.message); }
@@ -93,6 +98,6 @@
     e('importHistoryNext').addEventListener('click', () => { if (state.page < state.pages) { state.page++; loadHistory(); } });
     e('importRowsPrevious').addEventListener('click', () => { if (state.rowPage > 1) { state.rowPage--; loadRows(); } });
     e('importRowsNext').addEventListener('click', () => { if (state.rowPage < state.rowPages) { state.rowPage++; loadRows(); } });
-    e('importHistoryClose').addEventListener('click', () => { state.reference = null; state.rowRequest?.abort(); e('importHistoryDetails').classList.add('d-none'); });
+    e('importHistoryClose').addEventListener('click', () => { state.reference = null; state.rowRequest?.abort(); const link = e('importHistoryExportFailures'); link.classList.add('d-none'); link.removeAttribute('href'); e('importHistoryDetails').classList.add('d-none'); });
     loadHistory();
 })();

@@ -9,4 +9,5 @@ public interface IImportHistoryService
     Task<ApiResponse<PagedResult<ImportLogDto>>> GetImportsAsync(string? importType, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<ImportLogDto>> GetImportAsync(Guid importReference, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<ImportLogItemDto>>> GetImportRowsAsync(Guid importReference, int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<ApiResponse<string>> ExportFailedRowsCsvAsync(Guid importReference, CancellationToken cancellationToken = default);
 }
