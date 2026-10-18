@@ -106,6 +106,57 @@ public sealed class AuditLogService : IAuditLogService
         }
     }
 
+    /// <summary>Bounded, tenant-scoped audit export. Never includes old/new entity values.</summary>
+    public async Task<ApiResponse<string>> ExportCsvAsync(AuditLogFilterDto filter, CancellationToken cancellationToken = default)
+    {
+        if (!CanRead()) return ApiResponse<string>.ErrorResponse("Tenant audit permission is required.", 403);
+        if (filter == null || !ValidRange(filter))
+            return ApiResponse<string>.ErrorResponse("UTC date range is invalid.", 400);
+        try
+        {
+            var rows = await FilterQuery(filter)
+                .OrderByDescending(x => x.OccurredAt).ThenByDescending(x => x.Id)
+                .Take(1001)
+                .Select(x => new { x.OccurredAt, x.UserId, x.UserName, x.Action,
+                    x.EntityName, x.EntityId, x.IpAddress, x.Endpoint, x.IsSuccess,
+                    x.CorrelationId, x.RequestId })
+                .ToListAsync(cancellationToken);
+            if (rows.Count > 1000)
+                return ApiResponse<string>.ErrorResponse("More than 1,000 matching audit entries. Narrow the filters before exporting.", 413);
+            var csv = new System.Text.StringBuilder(
+                "OccurredAtUtc,UserId,UserName,Action,EntityName,EntityId,IpAddress,Endpoint,Outcome,CorrelationId,RequestId\r\n");
+            foreach (var row in rows)
+            {
+                string?[] cells =
+                {
+                    row.OccurredAt.ToString("yyyy-MM-ddTHH:mm:ss.fffZ", System.Globalization.CultureInfo.InvariantCulture),
+                    row.UserId?.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    row.UserName, row.Action, row.EntityName,
+                    row.EntityId?.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    row.IpAddress, row.Endpoint, row.IsSuccess ? "Success" : "Failed",
+                    row.CorrelationId, row.RequestId
+                };
+                csv.Append(string.Join(",", cells.Select(CsvCell))).Append("\r\n");
+            }
+            return ApiResponse<string>.SuccessResponse(csv.ToString());
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Tenant audit CSV export failed for {TenantId}", _user.TenantId);
+            return ApiResponse<string>.ErrorResponse("Could not export audit records.", 500);
+        }
+    }
+
+    public static string CsvCell(string? value)
+    {
+        var text = value ?? string.Empty;
+        var first = text.TrimStart();
+        if (first.Length > 0 && ("=+-@".Contains(first[0]) || char.IsControl(first[0])))
+            text = "'" + text;
+        return "\"" + text.Replace("\"", "\"\"") + "\"";
+    }
+
     private IQueryable<AuditLog> FilterQuery(AuditLogFilterDto filter)
     {
         IQueryable<AuditLog> query = _repository.GetQueryable().AsNoTracking()

@@ -25,6 +25,17 @@ public sealed class AuditLogController : ControllerBase
         return StatusCode(response.StatusCode, response);
     }
 
+    [HttpGet("export")]
+    [Produces("text/csv")]
+    public async Task<IActionResult> Export([FromQuery] AuditLogFilterDto filter, CancellationToken cancellationToken)
+    {
+        var response = await _service.ExportCsvAsync(filter, cancellationToken);
+        if (!response.Success || response.Data == null) return StatusCode(response.StatusCode, response);
+        Response.Headers.CacheControl = "no-store, private";
+        return File(System.Text.Encoding.UTF8.GetBytes(response.Data), "text/csv; charset=utf-8",
+            $"audit-logs-{DateTime.UtcNow:yyyyMMdd}.csv");
+    }
+
     [HttpGet("statistics")]
     public async Task<IActionResult> Statistics([FromQuery] AuditLogFilterDto filter, CancellationToken cancellationToken)
     {

@@ -75,5 +75,29 @@
     el('auditClear').addEventListener('click', () => { el('auditFilterForm').reset(); state.page = 1; load(); });
     el('auditPrevious').addEventListener('click', () => { if (!state.loading && state.page > 1) { state.page--; load(); } });
     el('auditNext').addEventListener('click', () => { if (!state.loading && state.page < state.totalPages) { state.page++; load(); } });
+    let exporting = false;
+    async function exportCsv() {
+        if (exporting) return;
+        let q;
+        try { q = params(false); } catch (error) { alertMessage(error.message); return; }
+        const button = el('auditExport');
+        exporting = true; button.disabled = true; clearAlert();
+        try {
+            const response = await fetch('/api/v1/AuditLog/export?' + q.toString(), {
+                headers: { Accept: 'text/csv' }, credentials: 'same-origin', cache: 'no-store'
+            });
+            if (!response.ok) {
+                const error = await response.json().catch(() => null);
+                throw new Error(error?.message || 'Unable to export audit entries (' + response.status + ').');
+            }
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob), link = document.createElement('a');
+            link.href = url; link.download = 'audit-logs.csv';
+            document.body.append(link);
+            try { link.click(); } finally { link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
+        } catch (error) { alertMessage(error.message || 'Audit export failed.'); }
+        finally { exporting = false; button.disabled = false; }
+    }
+    el('auditExport').addEventListener('click', exportCsv);
     load();
 })();

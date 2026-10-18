@@ -11,4 +11,6 @@ public interface IAuditLogService
 {
     Task<ApiResponse<PagedResult<AuditLogDto>>> SearchAsync(AuditLogFilterDto filter, CancellationToken cancellationToken = default);
     Task<ApiResponse<AuditLogStatisticsDto>> GetStatisticsAsync(AuditLogFilterDto filter, CancellationToken cancellationToken = default);
+    /// <summary>Export at most 1,000 tenant-scoped matching entries; larger results require narrower filters.</summary>
+    Task<ApiResponse<string>> ExportCsvAsync(AuditLogFilterDto filter, CancellationToken cancellationToken = default);
 }
