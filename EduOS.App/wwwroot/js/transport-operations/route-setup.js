@@ -4,7 +4,8 @@
     if (!el('transportRouteSetupForm')) return;
     const form = el('transportRouteSetupForm');
     const token = form.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
-    let page = 1, totalPages = 1, loadSequence = 0;
+    let page = 1, totalPages = 1, loadSequence = 0, statePending = false;
+    const visibleRoutes = new Map();
     function notify(message, ok = false) {
         const box = el('transportRouteSetupAlert');
         box.className = 'alert alert-' + (ok ? 'success' : 'danger');
@@ -38,9 +39,10 @@
         if (term) q.set('search', term);
         const data = await api('/api/transport/route-setup?' + q.toString());
         if (sequence !== loadSequence) return;
-        const body = el('transportRouteSetupRows'); body.replaceChildren();
+        const body = el('transportRouteSetupRows'); body.replaceChildren(); visibleRoutes.clear();
         (data.items || []).forEach(item => {
             const tr = document.createElement('tr');
+            visibleRoutes.set(item.reference, item);
             tr.append(cell(item.campusName), cell(item.code));
             const routeCell = cell(item.name);
             if (item.isActive) {
@@ -50,7 +52,16 @@
                 link.textContent = 'Edit stops';
                 routeCell.append(link);
             }
-            tr.append(routeCell, cell(item.stopCount), cell(item.isActive ? 'Active' : 'Inactive'));
+            const statusCell = cell(item.isActive ? 'Active' : 'Inactive');
+            const toggle = document.createElement('button');
+            toggle.type = 'button';
+            toggle.className = 'btn btn-sm ms-2 ' + (item.isActive ? 'btn-outline-danger' : 'btn-outline-success');
+            toggle.textContent = item.isActive ? 'Deactivate' : 'Activate';
+            toggle.dataset.routeReference = item.reference;
+            toggle.disabled = statePending;
+            toggle.setAttribute('aria-label', toggle.textContent + ' route ' + item.code);
+            statusCell.append(toggle);
+            tr.append(routeCell, cell(item.stopCount), statusCell);
             body.append(tr);
         });
         if (!data.items?.length) { const tr = document.createElement('tr'); const td = cell('No routes found'); td.colSpan = 5; tr.append(td); body.append(tr); }
@@ -80,6 +91,29 @@
             await loadRoutes();
         } catch (err) { notify(err.message); } finally { button.disabled = false; }
     }
+    async function changeRouteState(event) {
+        const button = event.target.closest('button[data-route-reference]');
+        if (!button || statePending) return;
+        const item = visibleRoutes.get(button.dataset.routeReference);
+        if (!item || !item.rowVersion) { notify('Reload routes before changing state.'); return; }
+        const desired = !item.isActive;
+        const verb = desired ? 'activate' : 'deactivate';
+        if (!window.confirm('Do you want to ' + verb + ' route ' + item.code + '?')) return;
+        statePending = true; button.disabled = true;
+        try {
+            await api('/api/transport/route-setup/' + encodeURIComponent(item.reference) + '/state',
+                'PUT', { isActive: desired, rowVersion: item.rowVersion });
+            notify('Route ' + (desired ? 'activated.' : 'deactivated.'), true);
+            window.dispatchEvent(new CustomEvent('transport:routes-changed'));
+        } catch (err) { notify(err.message); }
+        finally {
+            statePending = false;
+            await loadRoutes().catch(err => notify(err.message));
+        }
+    }
+    el('transportRouteSetupRows').addEventListener('click', event => {
+        changeRouteState(event).catch(err => notify(err.message));
+    });
     form.addEventListener('submit', save);
     el('transportRouteSetupSearchForm').addEventListener('submit', event => { event.preventDefault(); page = 1; loadRoutes().catch(e => notify(e.message)); });
     el('transportRouteSetupPrev').addEventListener('click', () => { page = Math.max(1, page - 1); loadRoutes().catch(e => notify(e.message)); });

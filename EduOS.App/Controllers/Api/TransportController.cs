@@ -95,6 +95,12 @@ public sealed class TransportController : ControllerBase
     public async Task<IActionResult> CreateRouteWithStops([FromBody] CreateTransportRouteRequestDto request, CancellationToken ct) =>
         ToAction(await _service.CreateRouteWithStopsAsync(request, ct));
 
+    [HttpPut("route-setup/{reference:guid}/state")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    public async Task<IActionResult> SetRouteState(Guid reference,
+        [FromBody] SetTransportRouteStateRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.SetRouteStateAsync(reference, request, ct));
+
     [HttpGet("route-setup/{reference:guid}/stops")]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
     public async Task<IActionResult> RouteStopsForEdit(Guid reference, CancellationToken ct) =>
