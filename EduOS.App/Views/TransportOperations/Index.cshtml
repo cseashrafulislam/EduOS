@@ -95,11 +95,28 @@
             </form>
             <p class="small text-muted mt-2 mb-0">Available only before the start date. Route, vehicle, capacity and monthly fare remain unchanged.</p>
         </div></section>
+        <section id="transportVehicleChangePanel" class="card mt-3" hidden><div class="card-body">
+            <h3 class="h5">Change vehicle for upcoming rider</h3>
+            <p id="transportVehicleChangeDetails" class="text-muted small"></p>
+            <form id="transportVehicleChangeForm" class="row g-2">
+                <div class="col-md-8"><label for="transportVehicleChangeChoice" class="form-label">Available vehicles on this route</label>
+                    <select id="transportVehicleChangeChoice" class="form-select" required></select></div>
+                <div class="col-md-4 d-flex align-items-end gap-2"><button id="transportVehicleChangeSave" class="btn btn-primary" type="submit">Change vehicle</button>
+                    <button id="transportVehicleChangeCancel" class="btn btn-outline-secondary" type="button">Cancel</button></div>
+            </form>
+            <div class="d-flex align-items-center gap-3 mt-2">
+                <button id="transportVehicleChangePrev" type="button" class="btn btn-outline-secondary btn-sm">Previous vehicles</button>
+                <span id="transportVehicleChangePageInfo" class="small text-muted"></span>
+                <button id="transportVehicleChangeNext" type="button" class="btn btn-outline-secondary btn-sm">Next vehicles</button>
+            </div>
+            <p class="small text-muted mt-2 mb-0">Only future reservations. Route, pickup/drop stops and monthly fare are unchanged; seat capacity is rechecked when saving.</p>
+        </div></section>
     }
     @if (canManage) { <partial name="_AssignmentHistory" /> }
 </section>
 @section Scripts {
     <script src="~/js/transport-operations/index.js" asp-append-version="true"></script>
+    @if (canManage) { <script src="~/js/transport-operations/upcoming-vehicle-change.js" asp-append-version="true"></script> }
     @if (canManage) { <script src="~/js/transport-operations/assignment-history.js" asp-append-version="true"></script> }
     <script src="~/js/transport-operations/route-setup.js" asp-append-version="true"></script>
     <script src="~/js/transport-operations/vehicle-setup.js" asp-append-version="true"></script>

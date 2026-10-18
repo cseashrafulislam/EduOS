@@ -108,6 +108,12 @@
                     correct.textContent = 'Change stops';
                     correct.addEventListener('click', () => beginStopCorrection(item));
                     actions.append(correct);
+                    const changeVehicle = document.createElement('button');
+                    changeVehicle.type = 'button'; changeVehicle.className = 'btn btn-outline-primary btn-sm me-2';
+                    changeVehicle.textContent = 'Change vehicle';
+                    changeVehicle.addEventListener('click', () => window.dispatchEvent(
+                        new CustomEvent('transport:change-vehicle', { detail: item })));
+                    actions.append(changeVehicle);
                 }
                 actions.append(close); tr.append(actions); body.append(tr);
             }
@@ -177,6 +183,7 @@
         el('transportActiveSearch').addEventListener('submit', event => { event.preventDefault(); activePage = 1; loadActive(); });
         el('transportPrev').addEventListener('click', () => { activePage = Math.max(1, activePage - 1); loadActive(); });
         el('transportNext').addEventListener('click', () => { activePage = Math.min(activePages, activePage + 1); loadActive(); });
+        window.addEventListener('transport:refresh-assignments', loadActive);
         window.addEventListener('transport:routes-changed', loadStatic);
         window.addEventListener('transport:vehicles-changed', loadStatic);
         loadStudents(); loadActive();

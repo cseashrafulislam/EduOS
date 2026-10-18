@@ -104,6 +104,20 @@ public sealed class CorrectUpcomingTransportStopsRequestDto
     [Required] public string RowVersion { get; set; } = string.Empty;
 }
 
+public sealed class ChangeUpcomingTransportVehicleRequestDto
+{
+    [Required] public Guid VehicleReference { get; set; }
+    [Required] public string RowVersion { get; set; } = string.Empty;
+}
+public sealed class UpcomingTransportVehicleOptionDto
+{
+    public Guid VehicleReference { get; set; }
+    public string VehicleNumber { get; set; } = string.Empty;
+    public int Capacity { get; set; }
+    public int ReservedSeats { get; set; }
+    public bool Available { get; set; }
+    public bool IsCurrent { get; set; }
+}
 public class CloseStudentTransportRequestDto
 {
     public DateOnly EndDate { get; set; }
@@ -122,6 +136,7 @@ public sealed class TransportStudentOptionDto
 public sealed class TransportAssignmentRowDto
 {
     public Guid Reference { get; set; }
+    public Guid VehicleReference { get; set; }
     public Guid RouteReference { get; set; }
     public long? PickupStopId { get; set; }
     public long? DropStopId { get; set; }

@@ -80,6 +80,19 @@ public sealed class TransportController : ControllerBase
         [FromBody] CorrectUpcomingTransportStopsRequestDto request, CancellationToken ct) =>
         ToAction(await _service.CorrectUpcomingStopsAsync(reference, request, ct));
 
+    [HttpGet("assignments/{reference:guid}/vehicle-options")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> UpcomingVehicleOptions(Guid reference,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default) =>
+        ToAction(await _service.GetUpcomingVehicleOptionsAsync(reference, page, pageSize, ct));
+
+    [HttpPut("assignments/{reference:guid}/vehicle")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    public async Task<IActionResult> ChangeUpcomingVehicle(Guid reference,
+        [FromBody] ChangeUpcomingTransportVehicleRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.ChangeUpcomingVehicleAsync(reference, request, ct));
+
     [HttpPost("assignments/{reference:guid}/close")]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
     public async Task<IActionResult> Close(Guid reference, [FromBody] CloseStudentTransportRequestDto request, CancellationToken ct) => ToAction(await _service.CloseAsync(reference, request, ct));
