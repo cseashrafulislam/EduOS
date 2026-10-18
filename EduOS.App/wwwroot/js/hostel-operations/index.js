@@ -5,6 +5,7 @@
     const manager = !!el('hostelAllocationForm');
     let requestId = crypto.randomUUID(), studentPage = 1, bedPage = 1, activePage = 1, activePages = 1;
     let studentLookup = 0, bedLookup = 0, activeLookup = 0;
+    let pendingBedMove = null, movePage = 1, movePages = 1, moveLookup = 0;
     function today() { const d = new Date(); return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-'); }
     function notify(message, success = false) {
         const node = el('hostelAlert'); node.className = 'alert alert-' + (success ? 'success' : 'danger'); node.textContent = message; node.focus();
@@ -108,7 +109,15 @@
                 button.className = future ? 'btn btn-outline-warning btn-sm' : 'btn btn-outline-danger btn-sm';
                 button.textContent = future ? 'Cancel reservation' : 'Close';
                 button.addEventListener('click', () => future ? cancelUpcoming(item, button) : closeAllocation(item, button));
-                actions.append(button); tr.append(actions); body.append(tr);
+                actions.append(button);
+                if (future) {
+                    const move = document.createElement('button'); move.type = 'button';
+                    move.className = 'btn btn-outline-primary btn-sm ms-2';
+                    move.textContent = 'Change bed';
+                    move.addEventListener('click', () => beginBedMove(item));
+                    actions.append(move);
+                }
+                tr.append(actions); body.append(tr);
             }
             if (!info.items?.length) { const tr = document.createElement('tr'), cell = td('No active allocations.'); cell.colSpan = 5; tr.append(cell); body.append(tr); }
             activePages = Math.max(1, Number(info.totalPages) || 1);
@@ -125,6 +134,57 @@
                 { rowVersion: item.rowVersion });
             notify('Upcoming reservation cancelled.', true);
             await Promise.all([loadActive(), loadStudents(), loadBeds(), loadRooms()]);
+        } catch (error) { notify(error.message); } finally { button.disabled = false; }
+    }
+    function dismissBedMove() {
+        pendingBedMove = null; ++moveLookup;
+        el('hostelBedMovePanel').classList.add('d-none');
+        el('hostelBedMoveTarget').replaceChildren();
+    }
+    async function beginBedMove(item) {
+        if (item.startDate <= today()) { notify('Only future reservations can change beds.'); return; }
+        pendingBedMove = item; movePage = 1;
+        el('hostelBedMoveContext').textContent = item.studentName + ' · ' + item.hostelName +
+            ' · Room ' + item.roomNumber + ' / Bed ' + item.bedNumber;
+        el('hostelBedMovePanel').classList.remove('d-none');
+        await loadBedMoveOptions();
+        el('hostelBedMovePanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    async function loadBedMoveOptions() {
+        if (!pendingBedMove) return;
+        const lookup = ++moveLookup, id = pendingBedMove.id;
+        el('hostelBedMoveSave').disabled = true;
+        const select = el('hostelBedMoveTarget'); select.replaceChildren();
+        option(select, '', 'Loading available beds…');
+        try {
+            const params = new URLSearchParams({ page: String(movePage), pageSize: '25' });
+            const info = await api('/api/hostel/allocations/' + encodeURIComponent(id) + '/bed-options?' + params);
+            if (lookup !== moveLookup || pendingBedMove?.id !== id) return;
+            select.replaceChildren(); option(select, '', 'Choose an available bed');
+            (info.items || []).forEach(x => option(select, String(x.bedId),
+                'Bed ' + x.bedNumber + ' · Room ' + x.roomNumber));
+            movePages = Math.max(1, Number(info.totalPages) || 1);
+            el('hostelBedMovePageInfo').textContent = 'Page ' + movePage + ' of ' + movePages +
+                ' · ' + info.totalCount + ' available beds';
+            el('hostelBedMovePrev').disabled = movePage <= 1;
+            el('hostelBedMoveNext').disabled = movePage >= movePages;
+            el('hostelBedMoveSave').disabled = !info.items?.length;
+        } catch (error) { if (lookup === moveLookup) notify(error.message); }
+    }
+    async function submitBedMove() {
+        if (!pendingBedMove) return;
+        const targetBedId = Number(el('hostelBedMoveTarget').value);
+        if (!Number.isSafeInteger(targetBedId) || targetBedId <= 0) {
+            notify('Select an available bed.'); return;
+        }
+        if (!confirm('Change this upcoming reservation to the selected bed? Financial terms remain unchanged.')) return;
+        const button = el('hostelBedMoveSave'); button.disabled = true;
+        try {
+            await api('/api/hostel/allocations/' + encodeURIComponent(pendingBedMove.id) + '/reassign-bed', 'POST',
+                { targetBedId, rowVersion: pendingBedMove.rowVersion });
+            dismissBedMove();
+            notify('Upcoming reservation bed updated.', true);
+            await Promise.all([loadActive(), loadBeds(), loadRooms()]);
         } catch (error) { notify(error.message); } finally { button.disabled = false; }
     }
     async function closeAllocation(item, button) {
@@ -149,6 +209,10 @@
         el('hostelNextStudent').addEventListener('click', () => { studentPage++; loadStudents(); });
         el('hostelFindBeds').addEventListener('click', () => { bedPage = 1; loadBeds(); });
         el('hostelNextBed').addEventListener('click', () => { bedPage++; loadBeds(); });
+        el('hostelBedMovePrev').addEventListener('click', () => { movePage = Math.max(1, movePage - 1); loadBedMoveOptions(); });
+        el('hostelBedMoveNext').addEventListener('click', () => { movePage = Math.min(movePages, movePage + 1); loadBedMoveOptions(); });
+        el('hostelBedMoveCancel').addEventListener('click', dismissBedMove);
+        el('hostelBedMoveSave').addEventListener('click', submitBedMove);
         el('hostelAllocationForm').addEventListener('submit', allocate);
         el('hostelAllocationSearch').addEventListener('submit', e => { e.preventDefault(); activePage = 1; loadActive(); });
         el('hostelPrev').addEventListener('click', () => { activePage = Math.max(1, activePage - 1); loadActive(); });

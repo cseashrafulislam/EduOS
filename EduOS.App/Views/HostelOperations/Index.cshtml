@@ -37,6 +37,19 @@
             <form id="hostelAllocationSearch" class="d-flex gap-2"><input id="hostelAllocationTerm" maxlength="100" class="form-control" placeholder="Search student" /><button type="submit" class="btn btn-outline-primary">Search</button></form>
             <div class="table-responsive mt-3"><table class="table table-hover align-middle"><thead><tr><th>Student</th><th>Hostel</th><th>Room / Bed</th><th>Start</th><th>Action</th></tr></thead>
                 <tbody id="hostelActiveRows"><tr><td colspan="5">Loading…</td></tr></tbody></table></div>
+            <section id="hostelBedMovePanel" class="border rounded p-3 mt-3 d-none" aria-labelledby="hostelBedMoveTitle">
+                <h4 id="hostelBedMoveTitle" class="h6">Change bed before arrival (same room only)</h4>
+                <p id="hostelBedMoveContext" class="small text-muted"></p>
+                <label for="hostelBedMoveTarget" class="form-label">Available bed</label>
+                <select id="hostelBedMoveTarget" class="form-select mb-2"><option value="">Select a bed</option></select>
+                <p id="hostelBedMovePageInfo" class="small text-muted" role="status" aria-live="polite"></p>
+                <div class="d-flex gap-2 flex-wrap">
+                    <button id="hostelBedMovePrev" type="button" class="btn btn-outline-secondary btn-sm">Previous beds</button>
+                    <button id="hostelBedMoveNext" type="button" class="btn btn-outline-secondary btn-sm">Next beds</button>
+                    <button id="hostelBedMoveSave" type="button" class="btn btn-primary btn-sm">Confirm bed change</button>
+                    <button id="hostelBedMoveCancel" type="button" class="btn btn-outline-secondary btn-sm">Cancel</button>
+                </div>
+            </section>
             <div class="d-flex gap-3 justify-content-between align-items-center"><button id="hostelPrev" class="btn btn-outline-secondary btn-sm" type="button">Previous</button><span id="hostelPageInfo" class="small text-muted"></span><button id="hostelNext" class="btn btn-outline-secondary btn-sm" type="button">Next</button></div>
         </div></section>
     }
