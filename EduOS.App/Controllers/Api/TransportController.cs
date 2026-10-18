@@ -93,6 +93,12 @@ public sealed class TransportController : ControllerBase
         [FromBody] ChangeUpcomingTransportVehicleRequestDto request, CancellationToken ct) =>
         ToAction(await _service.ChangeUpcomingVehicleAsync(reference, request, ct));
 
+    [HttpPost("assignments/{reference:guid}/cancel")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    public async Task<IActionResult> CancelUpcoming(Guid reference,
+        [FromBody] CancelUpcomingTransportAssignmentRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.CancelUpcomingAsync(reference, request, ct));
+
     [HttpPost("assignments/{reference:guid}/close")]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
     public async Task<IActionResult> Close(Guid reference, [FromBody] CloseStudentTransportRequestDto request, CancellationToken ct) => ToAction(await _service.CloseAsync(reference, request, ct));

@@ -15,4 +15,5 @@ public sealed class TransportAssignmentHistoryRowDto
     public DateOnly StartDate { get; set; }
     public DateOnly? EndDate { get; set; }
     public TransportAssignmentState State { get; set; }
+    public string RowVersion { get; set; } = string.Empty;
 }

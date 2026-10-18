@@ -41,7 +41,7 @@ public sealed partial class TransportService
                 (!campusId.HasValue || enrollment.CampusId == campusId.Value)
             select new
             {
-                assignment.Id, assignment.PublicId, assignment.StartDate, assignment.EndDate,
+                assignment.Id, assignment.PublicId, assignment.RowVersion, assignment.StartDate, assignment.EndDate,
                 assignment.State, CampusId = campus.Id, CampusName = campus.Name,
                 StudentName = student.FullName, student.StudentCode,
                 RouteName = route.Name, RouteReference = route.PublicId,
@@ -71,7 +71,7 @@ public sealed partial class TransportService
                 Page = page, PageSize = pageSize, TotalCount = total,
                 Items = records.Select(x => new TransportAssignmentHistoryRowDto
                 {
-                    Reference = x.PublicId, CampusId = x.CampusId, CampusName = x.CampusName,
+                    Reference = x.PublicId, RowVersion = Convert.ToBase64String(x.RowVersion), CampusId = x.CampusId, CampusName = x.CampusName,
                     StudentName = x.StudentName, StudentCode = x.StudentCode,
                     RouteName = x.RouteName, VehicleNumber = x.VehicleNumber,
                     StartDate = x.StartDate, EndDate = x.EndDate, State = x.State

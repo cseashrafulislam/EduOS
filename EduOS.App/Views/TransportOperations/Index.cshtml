@@ -112,10 +112,31 @@
             <p class="small text-muted mt-2 mb-0">Only future reservations. Route, pickup/drop stops and monthly fare are unchanged; seat capacity is rechecked when saving.</p>
         </div></section>
     }
+    @if (canManage) {
+        <section class="card mt-3" aria-labelledby="transportUpcomingCancelTitle"><div class="card-body">
+            <h3 id="transportUpcomingCancelTitle" class="h5">Cancel upcoming transport reservations</h3>
+            <p class="small text-muted">Only reservations starting after today are shown. Cancelling releases the reserved seat; no fares or payments are modified.</p>
+            <form id="transportUpcomingCancelSearch" class="d-flex gap-2">
+                <label class="visually-hidden" for="transportUpcomingCancelTerm">Search upcoming reservations</label>
+                <input id="transportUpcomingCancelTerm" class="form-control" maxlength="100" placeholder="Search student or route" />
+                <button type="submit" class="btn btn-outline-primary">Search</button>
+            </form>
+            <div class="table-responsive mt-3"><table class="table table-sm table-hover align-middle">
+                <thead><tr><th>Student</th><th>Campus</th><th>Route</th><th>Vehicle</th><th>Starts</th><th>Action</th></tr></thead>
+                <tbody id="transportUpcomingCancelRows"><tr><td colspan="6">Loading…</td></tr></tbody>
+            </table></div>
+            <div class="d-flex justify-content-between align-items-center gap-2">
+                <button id="transportUpcomingCancelPrev" class="btn btn-outline-secondary btn-sm" type="button">Previous</button>
+                <span id="transportUpcomingCancelPageInfo" class="small text-muted"></span>
+                <button id="transportUpcomingCancelNext" class="btn btn-outline-secondary btn-sm" type="button">Next</button>
+            </div>
+        </div></section>
+    }
     @if (canManage) { <partial name="_AssignmentHistory" /> }
 </section>
 @section Scripts {
     <script src="~/js/transport-operations/index.js" asp-append-version="true"></script>
+    @if (canManage) { <script src="~/js/transport-operations/upcoming-cancellation.js" asp-append-version="true"></script> }
     @if (canManage) { <script src="~/js/transport-operations/upcoming-vehicle-change.js" asp-append-version="true"></script> }
     @if (canManage) { <script src="~/js/transport-operations/assignment-history.js" asp-append-version="true"></script> }
     <script src="~/js/transport-operations/route-setup.js" asp-append-version="true"></script>
