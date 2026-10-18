@@ -30,6 +30,14 @@ public sealed class IntegrationAdministrationApiController(IIntegrationAdministr
     public async Task<IActionResult> Deliveries(long id, [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken ct = default)
     { var r = await service.GetWebhookDeliveriesAsync(id, page, pageSize, ct); return StatusCode(r.StatusCode, r); }
 
+    [HttpGet("webhooks/{id:long}/deliveries/export")]
+    public async Task<IActionResult> ExportDeliveries(long id, CancellationToken ct)
+    {
+        var result = await service.ExportWebhookDeliveriesCsvAsync(id, ct);
+        if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
+        return File(System.Text.Encoding.UTF8.GetBytes(result.Data), "text/csv; charset=utf-8", $"webhook-deliveries-{id}.csv");
+    }
+
     [HttpPost("webhooks/{id:long}/test")]
     public async Task<IActionResult> TestWebhook(long id, [FromBody] CreateWebhookTestRequestDto request, CancellationToken ct)
     { var r = await service.TestWebhookAsync(id, request, ct); return StatusCode(r.StatusCode, r); }

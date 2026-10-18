@@ -9,6 +9,7 @@ public interface IIntegrationAdministrationService
     Task<ApiResponse<PagedResult<WebhookEndpointDto>>> GetWebhookEndpointsAsync(int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<WebhookEndpointDto>> SaveWebhookEndpointAsync(long? endpointId, SaveWebhookEndpointRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<WebhookDeliveryDto>>> GetWebhookDeliveriesAsync(long endpointId, int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<ApiResponse<string>> ExportWebhookDeliveriesCsvAsync(long endpointId, CancellationToken cancellationToken = default);
     Task<ApiResponse<WebhookDeliveryDto>> TestWebhookAsync(long endpointId, CreateWebhookTestRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<WebhookDeliveryDto>> RetryWebhookAsync(long deliveryId, RetryWebhookDeliveryRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<ApiCredentialDto>>> GetApiCredentialsAsync(int page, int pageSize, CancellationToken cancellationToken = default);

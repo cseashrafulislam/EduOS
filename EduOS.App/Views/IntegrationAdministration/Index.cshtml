@@ -43,6 +43,12 @@
     </div></div>
     <div class="card mb-3"><div class="card-body">
         <h4>Delivery history <small id="iaDeliveryFor" class="text-muted"></small></h4>
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+            <label class="form-label mb-0" for="iaDeliveryExportEndpoint">Export endpoint</label>
+            <select id="iaDeliveryExportEndpoint" class="form-select form-select-sm w-auto" aria-label="Webhook endpoint for export"><option value="">Loading webhooks...</option></select>
+            <button id="iaDeliveryExport" type="button" class="btn btn-outline-primary btn-sm" disabled>Download delivery CSV</button>
+            <small class="text-muted">Maximum 1,000 rows; no payloads or secrets.</small>
+        </div>
         <div class="table-responsive"><table class="table table-sm table-striped">
             <thead><tr><th>Event</th><th>Event ID</th><th>State</th><th>Attempts</th><th>Last attempt</th><th>Next attempt</th><th>Failure</th></tr></thead>
             <tbody id="iaDeliveryRows"></tbody></table></div>
@@ -90,4 +96,4 @@
         </div>
     </div></div>
 </div>
-@section Scripts { <script src="~/js/integration-admin/admin.js" asp-append-version="true"></script><script src="~/js/integration-admin/credential-usage-example.js" asp-append-version="true"></script> }
+@section Scripts { <script src="~/js/integration-admin/admin.js" asp-append-version="true"></script><script src="~/js/integration-admin/credential-usage-example.js" asp-append-version="true"></script><script src="~/js/integration-admin/delivery-export.js" asp-append-version="true"></script> }
