@@ -36,7 +36,8 @@ public sealed partial class TransportService
             join campus in _campuses.GetQueryable().AsNoTracking() on enrollment.CampusId equals campus.Id
             where assignment.TenantId == tenant && enrollment.TenantId == tenant &&
                 route.TenantId == tenant && vehicle.TenantId == tenant && campus.TenantId == tenant &&
-                !assignment.IsDeleted && campus.IsActive && !campus.IsDeleted &&
+                !assignment.IsDeleted && !enrollment.IsDeleted && !route.IsDeleted &&
+                !vehicle.IsDeleted && campus.IsActive && !campus.IsDeleted &&
                 enrollment.StudentId == assignment.StudentId &&
                 (!route.CampusId.HasValue || route.CampusId.Value == enrollment.CampusId) &&
                 (!vehicle.CampusId.HasValue || vehicle.CampusId.Value == enrollment.CampusId) &&

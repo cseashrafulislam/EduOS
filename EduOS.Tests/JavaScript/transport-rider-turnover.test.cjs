@@ -15,6 +15,8 @@ test('canonical rider turnover is tenant and campus scoped with bounded months a
     for (const token of ['_assignments.GetQueryable().AsNoTracking()', 'assignment.TenantId == tenant',
         'enrollment.TenantId == tenant', 'route.TenantId == tenant', 'vehicle.TenantId == tenant',
         'campus.TenantId == tenant', 'enrollment.StudentId == assignment.StudentId',
+        '!assignment.IsDeleted', '!enrollment.IsDeleted', '!route.IsDeleted',
+        '!vehicle.IsDeleted', '!campus.IsDeleted', 'campus.IsActive',
         'AllowedCampusIds(tenant)', 'GroupBy(', 'span >= 12',
         'TransportAssignmentState.Cancelled', 'TransportAssignmentState.Closed',
         'StartDate <= today', 'EndDate.Value <= today', 'SuppressRiderTurnoverSmallCohort'])

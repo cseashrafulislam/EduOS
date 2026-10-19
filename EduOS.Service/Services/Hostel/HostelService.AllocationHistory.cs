@@ -32,7 +32,9 @@ public sealed partial class HostelService
             where allocation.TenantId == tenant && enrollment.TenantId == tenant &&
                 student.TenantId == tenant && bed.TenantId == tenant && room.TenantId == tenant &&
                 hostel.TenantId == tenant && campus.TenantId == tenant &&
-                enrollment.StudentId == allocation.StudentId &&
+                !allocation.IsDeleted && !enrollment.IsDeleted && !student.IsDeleted &&
+                !bed.IsDeleted && !room.IsDeleted && !hostel.IsDeleted && !campus.IsDeleted &&
+                campus.IsActive && enrollment.StudentId == allocation.StudentId &&
                 enrollment.CampusId == hostel.CampusId &&
                 (!campusId.HasValue || hostel.CampusId == campusId.Value)
             select new

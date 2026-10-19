@@ -18,6 +18,10 @@ for (const marker of ['allocation.TenantId == tenant','enrollment.TenantId == te
     'OrderByDescending(x => x.StartDate).ThenByDescending(x => x.Id)',
     'pageSize is < 1 or > 100','fromDate.Value > toDate.Value'])
     assert.ok(service.includes(marker),marker);
+// Exclude soft-deleted canonical records before paging and CSV export.
+for (const marker of ['!allocation.IsDeleted','!enrollment.IsDeleted','!student.IsDeleted',
+    '!bed.IsDeleted','!room.IsDeleted','!hostel.IsDeleted','!campus.IsDeleted','campus.IsActive'])
+    assert.ok(service.includes(marker), marker);
 assert.match(iface,/GetAllocationHistoryAsync/);
 assert.match(api,/\[HttpGet\("allocation-history"\)\][\s\S]*?\[Authorize\(Roles = "TenantAdmin,Principal,HostelWarden"\)\]/);
 assert.match(api,/\[ResponseCache\(NoStore = true, Location = ResponseCacheLocation.None\)\]/);

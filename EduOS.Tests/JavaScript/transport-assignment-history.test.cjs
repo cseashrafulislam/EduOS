@@ -17,6 +17,10 @@ for (const marker of ['assignment.TenantId == tenant','enrollment.TenantId == te
     'pageSize is < 1 or > 100','fromDate.Value > toDate.Value',
     'route.CampusId.Value == enrollment.CampusId','vehicle.CampusId.Value == enrollment.CampusId'])
     assert.ok(service.includes(marker),marker);
+// Exclude soft-deleted canonical records before paging and CSV export.
+for (const marker of ['!assignment.IsDeleted','!enrollment.IsDeleted','!student.IsDeleted',
+    '!route.IsDeleted','!vehicle.IsDeleted','!campus.IsDeleted','campus.IsActive'])
+    assert.ok(service.includes(marker), marker);
 assert.match(iface,/GetAssignmentHistoryAsync/);
 assert.match(api,/\[HttpGet\("assignment-history"\)\][\s\S]*?\[Authorize\(Roles = "TenantAdmin,Principal,TransportManager"\)\]/);
 assert.match(api,/\[ResponseCache\(NoStore = true, Location = ResponseCacheLocation.None\)\]/);

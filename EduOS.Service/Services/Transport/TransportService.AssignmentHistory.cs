@@ -35,6 +35,8 @@ public sealed partial class TransportService
             where assignment.TenantId == tenant && enrollment.TenantId == tenant &&
                 student.TenantId == tenant && route.TenantId == tenant &&
                 vehicle.TenantId == tenant && campus.TenantId == tenant &&
+                !assignment.IsDeleted && !enrollment.IsDeleted && !student.IsDeleted &&
+                !route.IsDeleted && !vehicle.IsDeleted && !campus.IsDeleted && campus.IsActive &&
                 enrollment.StudentId == assignment.StudentId &&
                 (!route.CampusId.HasValue || route.CampusId.Value == enrollment.CampusId) &&
                 (!vehicle.CampusId.HasValue || vehicle.CampusId.Value == enrollment.CampusId) &&
