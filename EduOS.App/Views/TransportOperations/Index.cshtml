@@ -49,7 +49,7 @@
     }
     @if (canManage) { <partial name="_VehicleSetup" /> }
     @if (canManage) { <partial name="_RouteVehicleLinks" /> }
-    @if (canManage) { <partial name="_StopDemand" /> <partial name="_CapacityReport" /> <partial name="_FleetInsights" /> }
+    @if (canManage) { <partial name="_StopDemand" /> <partial name="_RiderReadiness" /> <partial name="_CapacityReport" /> <partial name="_FleetInsights" /> }
     @if (User.IsInRole("TenantAdmin")) { <partial name="_DriverRegistry" /> <partial name="_DriverLicenseCompliance" /> <partial name="_DriverReadiness" /> <partial name="_VehicleDriverLinks" /> }
     @if (canManage)
     {
@@ -140,6 +140,7 @@
     @if (canManage) { <script src="~/js/transport-operations/upcoming-vehicle-change.js" asp-append-version="true"></script> }
     @if (canManage) { <script src="~/js/transport-operations/assignment-history.js" asp-append-version="true"></script> }
     @if (canManage) { <script src="~/js/transport-operations/rider-turnover.js" asp-append-version="true"></script> }
+    @if (canManage) { <script src="~/js/transport-operations/rider-readiness.js" asp-append-version="true"></script> }
     <script src="~/js/transport-operations/route-setup.js" asp-append-version="true"></script>
     <script src="~/js/transport-operations/vehicle-setup.js" asp-append-version="true"></script>
     <script src="~/js/transport-operations/route-vehicle-core.js" asp-append-version="true"></script>

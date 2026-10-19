@@ -208,6 +208,30 @@ public sealed class TransportController : ControllerBase
     public async Task<IActionResult> CancelUpcomingRouteVehicle(long id, [FromBody] CancelUpcomingRouteVehicleLinkRequestDto request, CancellationToken ct) =>
         ToAction(await _service.CancelUpcomingRouteVehicleAssignmentAsync(id, request, ct));
 
+    [HttpGet("rider-readiness")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> RiderReadiness([FromQuery] long? campusId = null,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 25, [FromQuery] string? search = null,
+        [FromQuery] bool attentionOnly = true, CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetRiderReadinessAsync(campusId, page, pageSize, search, attentionOnly, cancellationToken));
+
+    [HttpGet("rider-readiness/export")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> RiderReadinessExport([FromQuery] long? campusId = null,
+        [FromQuery] string? search = null, [FromQuery] bool attentionOnly = true,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _service.ExportRiderReadinessCsvAsync(campusId, search, attentionOnly, cancellationToken);
+        if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
+        Response.Headers["Cache-Control"] = "no-store";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(System.Text.Encoding.UTF8.GetPreamble().Concat(
+            System.Text.Encoding.UTF8.GetBytes(result.Data)).ToArray(),
+            "text/csv; charset=utf-8", "transport-rider-readiness.csv");
+    }
+
     [HttpGet("capacity-report")]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
     public async Task<IActionResult> CapacityReport([FromQuery] long? campusId = null,
