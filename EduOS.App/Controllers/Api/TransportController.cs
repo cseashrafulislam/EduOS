@@ -80,6 +80,12 @@ public sealed class TransportController : ControllerBase
         [FromBody] CorrectUpcomingTransportStopsRequestDto request, CancellationToken ct) =>
         ToAction(await _service.CorrectUpcomingStopsAsync(reference, request, ct));
 
+    [HttpPut("assignments/{reference:guid}/active-stops")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    public async Task<IActionResult> CorrectActiveStops(Guid reference,
+        [FromBody] CorrectUpcomingTransportStopsRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.CorrectActiveStopsAsync(reference, request, ct));
+
     [HttpGet("assignments/{reference:guid}/vehicle-options")]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]

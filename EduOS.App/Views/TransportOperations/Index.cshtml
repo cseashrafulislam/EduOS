@@ -86,14 +86,14 @@
             </div>
         </div></section>
         <section id="transportStopCorrectionPanel" class="card mt-3" hidden><div class="card-body">
-            <h3 class="h5">Correct upcoming rider stops</h3>
+            <h3 class="h5" id="transportStopCorrectionTitle">Correct rider stops</h3>
             <p id="transportStopCorrectionDetails" class="text-muted small"></p>
             <form id="transportStopCorrectionForm" class="row g-2">
                 <div class="col-md-5"><label for="transportCorrectPickup" class="form-label">Pickup stop</label><select id="transportCorrectPickup" class="form-select"></select></div>
                 <div class="col-md-5"><label for="transportCorrectDrop" class="form-label">Drop stop</label><select id="transportCorrectDrop" class="form-select"></select></div>
                 <div class="col-md-2 d-flex align-items-end gap-2"><button id="transportCorrectSave" class="btn btn-primary" type="submit">Save</button><button id="transportCorrectCancel" class="btn btn-outline-secondary" type="button">Cancel</button></div>
             </form>
-            <p class="small text-muted mt-2 mb-0">Available only before the start date. Route, vehicle, capacity and monthly fare remain unchanged.</p>
+            <p class="small text-muted mt-2 mb-0" id="transportStopCorrectionHelp">For future or currently operating assignments. Route, vehicle and monthly fare remain unchanged; campus, stops and capacity are revalidated.</p>
         </div></section>
         <section id="transportVehicleChangePanel" class="card mt-3" hidden><div class="card-body">
             <h3 class="h5">Change vehicle for upcoming rider</h3>

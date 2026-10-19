@@ -102,12 +102,14 @@
                 const actions = document.createElement('td'), close = document.createElement('button');
                 close.type = 'button'; close.className = 'btn btn-outline-danger btn-sm'; close.textContent = 'Close';
                 close.addEventListener('click', () => closeAssignment(item, close));
-                if (item.startDate > localDate()) {
+                {
                     const correct = document.createElement('button');
                     correct.type = 'button'; correct.className = 'btn btn-outline-primary btn-sm me-2';
                     correct.textContent = 'Change stops';
                     correct.addEventListener('click', () => beginStopCorrection(item));
                     actions.append(correct);
+                }
+                if (item.startDate > localDate()) {
                     const changeVehicle = document.createElement('button');
                     changeVehicle.type = 'button'; changeVehicle.className = 'btn btn-outline-primary btn-sm me-2';
                     changeVehicle.textContent = 'Change vehicle';
@@ -128,7 +130,6 @@
         } catch (err) { notify(err.message); }
     }
     function beginStopCorrection(item) {
-        if (item.startDate <= localDate()) { notify('Only future assignments can change stops.'); return; }
         const route = routes.find(x => x.reference === item.routeReference);
         if (!route?.isActive || !route.stops) { notify('Route is unavailable. Refresh the route list.'); return; }
         pendingStopCorrection = item;
@@ -137,6 +138,8 @@
             route.stops.filter(x => x.isActive).forEach(x => option(select, String(x.id), x.name));
             select.value = selected == null ? '' : String(selected);
         }
+        const active = item.startDate <= localDate();
+        el('transportStopCorrectionTitle').textContent = active ? 'Correct current rider stops' : 'Correct upcoming rider stops';
         el('transportStopCorrectionDetails').textContent = item.studentName + ' · ' + item.routeName + ' · starts ' + item.startDate;
         el('transportStopCorrectionPanel').hidden = false;
         el('transportCorrectPickup').focus();
@@ -148,13 +151,15 @@
         if (!confirm('Update pickup/drop stops for ' + item.studentName + '? Monthly fare will not change.')) return;
         save.disabled = true;
         try {
-            await api('/api/transport/assignments/' + encodeURIComponent(item.reference) + '/stops', 'PUT', {
+            const active = item.startDate <= localDate();
+            const endpoint = active ? '/active-stops' : '/stops';
+            await api('/api/transport/assignments/' + encodeURIComponent(item.reference) + endpoint, 'PUT', {
                 pickupStopId: el('transportCorrectPickup').value ? Number(el('transportCorrectPickup').value) : null,
                 dropStopId: el('transportCorrectDrop').value ? Number(el('transportCorrectDrop').value) : null,
                 rowVersion: item.rowVersion
             });
             pendingStopCorrection = null; el('transportStopCorrectionPanel').hidden = true;
-            notify('Upcoming transport stops updated.', true);
+            notify(active ? 'Current transport stops updated.' : 'Upcoming transport stops updated.', true);
             await loadActive();
         } catch (err) { notify(err.message); } finally { save.disabled = false; }
     }
