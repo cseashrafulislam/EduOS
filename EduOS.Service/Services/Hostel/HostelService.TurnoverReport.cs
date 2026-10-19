@@ -17,6 +17,8 @@ public sealed partial class HostelService
         if (!CanManage()) return Denied<HostelTurnoverReportDto>();
         var currentMonth = new DateOnly(_clock.GetLocalNow().Year, _clock.GetLocalNow().Month, 1);
         var end = toMonth ?? currentMonth;
+        if (!fromMonth.HasValue && end < new DateOnly(1, 6, 1))
+            return ApiResponse<HostelTurnoverReportDto>.ErrorResponse("Invalid month range.", 400);
         var start = fromMonth ?? end.AddMonths(-5);
         var span = (end.Year - start.Year) * 12 + end.Month - start.Month;
         if (campusId is <= 0 || start.Day != 1 || end.Day != 1 || start > end ||
@@ -27,12 +29,18 @@ public sealed partial class HostelService
         var exclusiveEnd = end.AddMonths(1);
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
         var query = from allocation in _allocations.GetQueryable().AsNoTracking()
+            join enrollment in _enrollments.GetQueryable().AsNoTracking()
+                on allocation.StudentEnrollmentId equals enrollment.Id
             join bed in _beds.GetQueryable().AsNoTracking() on allocation.HostelBedId equals bed.Id
             join room in _rooms.GetQueryable().AsNoTracking() on bed.HostelRoomId equals room.Id
             join hostel in _hostels.GetQueryable().AsNoTracking() on room.HostelId equals hostel.Id
             join campus in _campuses.GetQueryable().AsNoTracking() on hostel.CampusId equals campus.Id
-            where allocation.TenantId == tenant && bed.TenantId == tenant && room.TenantId == tenant &&
-                hostel.TenantId == tenant && campus.TenantId == tenant && campus.IsActive &&
+            where allocation.TenantId == tenant && enrollment.TenantId == tenant &&
+                bed.TenantId == tenant && room.TenantId == tenant &&
+                hostel.TenantId == tenant && campus.TenantId == tenant &&
+                !allocation.IsDeleted && !enrollment.IsDeleted && !bed.IsDeleted &&
+                !room.IsDeleted && !hostel.IsDeleted && !campus.IsDeleted && campus.IsActive &&
+                enrollment.StudentId == allocation.StudentId && enrollment.CampusId == hostel.CampusId &&
                 (!campusId.HasValue || hostel.CampusId == campusId.Value)
             select new { allocation.StartDate, allocation.EndDate, allocation.State, hostel.CampusId };
         if (!_currentUser.IsTenantAdmin)

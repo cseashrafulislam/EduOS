@@ -14,6 +14,13 @@ const ui = read('EduOS.App/wwwroot/js/hostel-operations/turnover-report.js');
 test('turnover uses canonical tenant/campus scoped allocation aggregates and privacy suppression', () => {
     assert.match(service, /_allocations\.GetQueryable\(\)\.AsNoTracking\(\)/);
     for (const token of ['allocation.TenantId == tenant','bed.TenantId == tenant','room.TenantId == tenant','hostel.TenantId == tenant','campus.TenantId == tenant','AllowedCampusIds(tenant)']) assert.ok(service.includes(token), token);
+    // Do not count orphaned, deleted or cross-campus allocation rows in aggregate reports.
+    for (const token of ['join enrollment in _enrollments.GetQueryable().AsNoTracking()',
+        'enrollment.TenantId == tenant', 'enrollment.StudentId == allocation.StudentId',
+        'enrollment.CampusId == hostel.CampusId', '!allocation.IsDeleted',
+        '!enrollment.IsDeleted', '!bed.IsDeleted', '!room.IsDeleted',
+        '!hostel.IsDeleted', '!campus.IsDeleted']) assert.ok(service.includes(token), token);
+    assert.match(service, /end < new DateOnly\(1, 6, 1\)/);
     assert.match(service, /GroupBy\(/);
     assert.match(service, /span >= 12/);
     assert.match(service, /StartDate <= today/);
