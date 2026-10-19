@@ -270,9 +270,9 @@ public sealed class TransportController : ControllerBase
     [HttpGet("vehicle-driver-links")]
     [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> VehicleDriverLinks([FromQuery] long? campusId = null,
-        [FromQuery] int page = 1, [FromQuery] int pageSize = 15, [FromQuery] string? search = null,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 15, [FromQuery] string? search = null, [FromQuery] bool scheduledOnly = false,
         CancellationToken cancellationToken = default) =>
-        ToAction(await _service.GetVehicleDriverLinksAsync(campusId, page, pageSize, search, cancellationToken));
+        ToAction(await _service.GetVehicleDriverLinksAsync(campusId, page, pageSize, search, cancellationToken, scheduledOnly));
 
     [HttpGet("vehicle-driver-links/export")]
     [Authorize(Roles = "TenantAdmin")]
@@ -296,6 +296,12 @@ public sealed class TransportController : ControllerBase
     public async Task<IActionResult> CloseVehicleDriver(long id,
         [FromBody] CloseTransportAssignmentRequestDto request, CancellationToken ct) =>
         ToAction(await _service.CloseDriverAssignmentAsync(id, request, ct));
+
+    [HttpPost("vehicle-driver-links/{id:long}/cancel-upcoming")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> CancelUpcomingVehicleDriver(long id,
+        [FromBody] CancelUpcomingVehicleDriverAssignmentRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.CancelUpcomingDriverAssignmentAsync(id, request, ct));
 
     private IActionResult ToAction<T>(EduOS.Core.Common.ApiResponse<T> response) => StatusCode(response.StatusCode, response);
 }

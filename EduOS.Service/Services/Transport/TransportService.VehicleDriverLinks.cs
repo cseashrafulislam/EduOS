@@ -15,7 +15,7 @@ namespace EduOS.Service.Services.Transport;
 public sealed partial class TransportService
 {
     public async Task<ApiResponse<PagedResult<TransportVehicleDriverLinkRowDto>>> GetVehicleDriverLinksAsync(
-        long? campusId, int page, int pageSize, string? search, CancellationToken ct = default)
+        long? campusId, int page, int pageSize, string? search, CancellationToken ct = default, bool scheduledOnly = false)
     {
         if (!CanManageDriverRegistry()) return Denied<PagedResult<TransportVehicleDriverLinkRowDto>>();
         if (page < 1 || pageSize is < 1 or > 100 || (long)(page - 1) * pageSize > int.MaxValue ||
@@ -34,6 +34,7 @@ public sealed partial class TransportService
                         link.EffectiveTo, link.IsCurrent, link.RowVersion, CampusId = campus.Id,
                         CampusName = campus.Name, vehicle.VehicleNumber, DriverName = driver.FullName,
                         driver.LicenseExpiresOn };
+        if (scheduledOnly) query = query.Where(x => x.IsCurrent && x.EffectiveFrom > DateOnly.FromDateTime(_clock.GetLocalNow().DateTime));
         var term = search?.Trim();
         if (!string.IsNullOrWhiteSpace(term))
             query = query.Where(x => x.VehicleNumber.Contains(term) || x.DriverName.Contains(term) ||
@@ -51,7 +52,9 @@ public sealed partial class TransportService
                     VehicleId = x.VehicleId, VehicleNumber = x.VehicleNumber,
                     TransportDriverId = x.TransportDriverId, DriverName = x.DriverName,
                     LicenseExpiresOn = x.LicenseExpiresOn, EffectiveFrom = x.EffectiveFrom,
-                    EffectiveTo = x.EffectiveTo, IsCurrent = x.IsCurrent && x.EffectiveFrom <= today &&
+                    EffectiveTo = x.EffectiveTo, IsScheduled = x.IsCurrent && x.EffectiveFrom > today,
+                    IsCancelled = !x.IsCurrent && x.EffectiveFrom > today,
+                    IsCurrent = x.IsCurrent && x.EffectiveFrom <= today &&
                         (!x.EffectiveTo.HasValue || x.EffectiveTo.Value >= today),
                     RowVersion = Convert.ToBase64String(x.RowVersion)
                 }).ToList(),
@@ -108,7 +111,7 @@ public sealed partial class TransportService
                 if (exact != null)
                     return ApiResponse<VehicleDriverAssignmentDto>.SuccessResponse(
                         MapVehicleDriverLink(exact), "Identical assignment already exists.");
-                if (related.Any(x => x.EffectiveFrom <= end &&
+                if (related.Any(x => x.IsCurrent && x.EffectiveFrom <= end &&
                     (!x.EffectiveTo.HasValue || x.EffectiveTo.Value >= request.EffectiveFrom)))
                     return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse("Vehicle or driver has an overlapping assignment.", 409);
                 // Retire expired current rows before insert to respect the existing filtered unique indexes.
@@ -122,9 +125,6 @@ public sealed partial class TransportService
                 if (related.Any(x => x.IsCurrent && (!x.EffectiveTo.HasValue || x.EffectiveTo.Value >= today)))
                     return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse(
                         "A current assignment must expire before another can be scheduled.", 409);
-                if (related.Any(x => !x.IsCurrent && x.EffectiveFrom <= end &&
-                    (!x.EffectiveTo.HasValue || x.EffectiveTo.Value >= request.EffectiveFrom)))
-                    return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse("Historical assignment overlaps the requested dates.", 409);
                 if (related.Any(x => !x.IsCurrent && x.EffectiveTo.HasValue && x.EffectiveTo.Value < today))
                     await _unitOfWork.SaveChangesAsync(token);
                 var now = _clock.GetUtcNow().UtcDateTime;
