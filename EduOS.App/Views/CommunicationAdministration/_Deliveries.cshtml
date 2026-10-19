@@ -6,7 +6,7 @@
             <select class="form-select" id="deliveryChannel"><option value="">All channels</option><option value="1">In-app</option><option value="2">Email</option><option value="3">SMS</option><option value="4">Push</option></select></div>
         <div class="col-md-3"><label class="form-label" for="deliveryState">State</label>
             <select class="form-select" id="deliveryState"><option value="">All states</option><option value="1">Pending</option><option value="2">Processing</option><option value="3">Sent</option><option value="4">Delivered</option><option value="5">Failed</option></select></div>
-        <div class="col-md-3"><button type="button" class="btn btn-outline-primary" id="deliveryRefresh">Refresh history</button></div>
+        <div class="col-md-3 d-flex gap-2"><button type="button" class="btn btn-outline-primary" id="deliveryRefresh">Refresh history</button><button type="button" class="btn btn-outline-secondary" id="deliveryExport">Export CSV</button></div>
     </div>
     <div id="deliveryAlert" class="alert alert-danger d-none" role="alert"></div>
     <div class="table-responsive"><table class="table table-sm table-hover">

@@ -15,12 +15,40 @@
         node.textContent = message;
         node.classList.remove('d-none');
     };
+    const filters = () => {
+        const params = new URLSearchParams();
+        if (el('deliveryChannel').value) params.set('channel', el('deliveryChannel').value);
+        if (el('deliveryState').value) params.set('state', el('deliveryState').value);
+        return params;
+    };
+    let exporting = false;
+    async function exportCsv() {
+        if (exporting) return;
+        exporting = true;
+        const button = el('deliveryExport');
+        button.disabled = true;
+        el('deliveryAlert').classList.add('d-none');
+        try {
+            const response = await fetch('/api/communication-admin/deliveries/export?' + filters().toString(), {
+                credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'text/csv' }
+            });
+            if (!response.ok) {
+                const result = await response.json().catch(() => null);
+                throw Error(result?.message || 'Unable to export delivery history (' + response.status + ').');
+            }
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob), link = document.createElement('a');
+            link.href = url; link.download = 'communication-deliveries.csv';
+            document.body.append(link);
+            try { link.click(); } finally { link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
+        } catch (error) { alert(error.message || 'Delivery export failed.'); }
+        finally { exporting = false; button.disabled = false; }
+    }
     async function load() {
         const sequence = ++requestSequence;
         el('deliveryAlert').classList.add('d-none');
-        const params = new URLSearchParams({ page: String(page), pageSize: '20' });
-        if (el('deliveryChannel').value) params.set('channel', el('deliveryChannel').value);
-        if (el('deliveryState').value) params.set('state', el('deliveryState').value);
+        const params = filters();
+        params.set('page', String(page)); params.set('pageSize', '20');
         try {
             const response = await fetch('/api/communication-admin/deliveries?' + params,
                 { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
@@ -54,6 +82,7 @@
         for (const id of ['deliveryChannel', 'deliveryState'])
             el(id).addEventListener('change', () => { page = 1; load(); });
         el('deliveryRefresh').addEventListener('click', load);
+        el('deliveryExport').addEventListener('click', exportCsv);
         el('deliveryPrev').addEventListener('click', () => { if (page > 1) { page--; load(); } });
         el('deliveryNext').addEventListener('click', () => { if (page < pages) { page++; load(); } });
         load();
