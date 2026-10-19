@@ -132,13 +132,14 @@
             </div>
         </div></section>
     }
-    @if (canManage) { <partial name="_AssignmentHistory" /> }
+    @if (canManage) { <partial name="_AssignmentHistory" /> <partial name="_RiderTurnover" /> }
 </section>
 @section Scripts {
     <script src="~/js/transport-operations/index.js" asp-append-version="true"></script>
     @if (canManage) { <script src="~/js/transport-operations/upcoming-cancellation.js" asp-append-version="true"></script> }
     @if (canManage) { <script src="~/js/transport-operations/upcoming-vehicle-change.js" asp-append-version="true"></script> }
     @if (canManage) { <script src="~/js/transport-operations/assignment-history.js" asp-append-version="true"></script> }
+    @if (canManage) { <script src="~/js/transport-operations/rider-turnover.js" asp-append-version="true"></script> }
     <script src="~/js/transport-operations/route-setup.js" asp-append-version="true"></script>
     <script src="~/js/transport-operations/vehicle-setup.js" asp-append-version="true"></script>
     <script src="~/js/transport-operations/route-vehicle-core.js" asp-append-version="true"></script>

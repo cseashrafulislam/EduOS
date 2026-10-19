@@ -304,5 +304,29 @@ public sealed class TransportController : ControllerBase
         [FromBody] CancelUpcomingVehicleDriverAssignmentRequestDto request, CancellationToken ct) =>
         ToAction(await _service.CancelUpcomingDriverAssignmentAsync(id, request, ct));
 
+    [HttpGet("rider-turnover")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> RiderTurnover([FromQuery] long? campusId = null,
+        [FromQuery] DateOnly? fromMonth = null, [FromQuery] DateOnly? toMonth = null,
+        CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetRiderTurnoverAsync(campusId, fromMonth, toMonth, cancellationToken));
+
+    [HttpGet("rider-turnover/export")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> RiderTurnoverExport([FromQuery] long? campusId = null,
+        [FromQuery] DateOnly? fromMonth = null, [FromQuery] DateOnly? toMonth = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _service.ExportRiderTurnoverCsvAsync(campusId, fromMonth, toMonth, cancellationToken);
+        if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
+        Response.Headers["Cache-Control"] = "no-store";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(System.Text.Encoding.UTF8.GetPreamble().Concat(
+            System.Text.Encoding.UTF8.GetBytes(result.Data)).ToArray(),
+            "text/csv; charset=utf-8", "transport-rider-turnover.csv");
+    }
+
     private IActionResult ToAction<T>(EduOS.Core.Common.ApiResponse<T> response) => StatusCode(response.StatusCode, response);
 }

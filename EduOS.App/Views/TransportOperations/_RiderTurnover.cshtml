@@ -1,0 +1,15 @@
+<section id="transportTurnoverPanel" class="card mb-3" aria-labelledby="transportTurnoverTitle"><div class="card-body">
+    <h3 id="transportTurnoverTitle" class="h5">Transport rider assignment turnover</h3>
+    <p class="small text-muted">Monthly assignment starts and closures, not physical trips or boarding. Only authorized campuses. Counts 1–4 suppressed; no student, driver or fare details.</p>
+    <form id="transportTurnoverFilter" class="row g-2 align-items-end mb-2">
+        <div class="col-md-3"><label for="transportTurnoverCampus" class="form-label">Campus</label><select id="transportTurnoverCampus" class="form-select"><option value="">All permitted campuses</option></select></div>
+        <div class="col-md-3"><label for="transportTurnoverFrom" class="form-label">From month</label><input id="transportTurnoverFrom" type="month" class="form-control" required /></div>
+        <div class="col-md-3"><label for="transportTurnoverTo" class="form-label">To month</label><input id="transportTurnoverTo" type="month" class="form-control" required /></div>
+        <div class="col-md-3 d-flex gap-2"><button type="submit" class="btn btn-outline-primary">Show turnover</button><button id="transportTurnoverExport" type="button" class="btn btn-outline-secondary" disabled>CSV</button></div>
+    </form>
+    <div id="transportTurnoverStatus" role="status" aria-live="polite" class="small text-muted mb-2"></div>
+    <div class="table-responsive"><table class="table table-sm table-hover">
+        <thead><tr><th scope="col">Month</th><th scope="col">Assignment starts</th><th scope="col">Assignment closures</th></tr></thead>
+        <tbody id="transportTurnoverRows"><tr><td colspan="3">Choose a month range.</td></tr></tbody>
+    </table></div>
+</div></section>
