@@ -18,6 +18,7 @@
         if (campus) params.set('campusId',campus);
         const search = el('hostelCapacitySearch').value.trim();
         if (search) params.set('search',search);
+        if (el('hostelCapacityAttentionOnly').checked) params.set('attentionOnly','true');
         return params;
     }
     function invalidate() {
@@ -57,7 +58,9 @@
             el('hostelCapacityPrev').disabled = requestedPage <= 1;
             el('hostelCapacityNext').disabled = requestedPage >= pages;
             el('hostelCapacityCsv').disabled = !hasRows || exporting;
-            status('Capacity uses authorized, non-deleted beds and active allocations.');
+            status(el('hostelCapacityAttentionOnly').checked ?
+                'Showing rooms needing review. Risk-only mode scans at most 1,000 candidate rooms.' :
+                'Capacity uses authorized, non-deleted beds and active allocations.');
         } catch (error) {
             if (requestSerial === serial) { invalidate(); status(error.message,true); }
         }
@@ -68,6 +71,7 @@
     };
     el('hostelCapacitySearch').addEventListener('input',filterChanged);
     el('hostelCapacityCampus').addEventListener('change',filterChanged);
+    el('hostelCapacityAttentionOnly').addEventListener('change',filterChanged);
     el('hostelCapacityFilter').addEventListener('submit',e=>{e.preventDefault();page=1;load();});
     el('hostelCapacityPrev').addEventListener('click',()=>{page=Math.max(1,page-1);load();});
     el('hostelCapacityNext').addEventListener('click',()=>{page=Math.min(pages,page+1);load();});
@@ -85,7 +89,8 @@
             const blob = await response.blob();
             if (requestSerial !== serial) return;
             const url = URL.createObjectURL(blob), link = document.createElement('a');
-            link.href = url; link.download = 'hostel-capacity.csv';
+            link.href = url; link.download = el('hostelCapacityAttentionOnly').checked ?
+                'hostel-capacity-risks.csv' : 'hostel-capacity.csv';
             document.body.append(link); link.click(); link.remove();
             setTimeout(()=>URL.revokeObjectURL(url),1000);
             status('Filtered capacity CSV downloaded.');

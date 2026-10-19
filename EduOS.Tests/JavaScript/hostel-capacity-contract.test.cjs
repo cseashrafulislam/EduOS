@@ -27,7 +27,7 @@ test('hostel full capacity export reuses authorized report and excludes PII',()=
   const exportSource = fs.readFileSync(path.join(root,'EduOS.Service/Services/Hostel/HostelService.CapacityExport.cs'),'utf8');
   const api = fs.readFileSync(path.join(root,'EduOS.App/Controllers/Api/HostelController.cs'),'utf8');
   const view = fs.readFileSync(path.join(root,'EduOS.App/Views/HostelOperations/Index.cshtml'),'utf8');
-  assert.match(exportSource,/GetCapacityAsync\(campusId, 1, 100, search, cancellationToken\)/);
+  assert.match(exportSource,/GetCapacityAsync\(campusId, 1, 100, search, cancellationToken, attentionOnly\)/);
   assert.match(exportSource,/TotalCount > 1000/);
   assert.match(exportSource,/rows\.Any\(x => !ids\.Add\(x\.RoomId\)\)/);
   assert.match(exportSource,/CsvCell\(row\.HostelName\)/);

@@ -218,12 +218,13 @@ public sealed partial class HostelService : IHostelService
 
     /// <summary>Privacy-minimized, tenant/campus-scoped physical room capacity report.</summary>
     public async Task<ApiResponse<PagedResult<HostelCapacityRowDto>>> GetCapacityAsync(
-        long? campusId, int page, int pageSize, string? search, CancellationToken cancellationToken = default)
+        long? campusId, int page, int pageSize, string? search, CancellationToken cancellationToken = default, bool attentionOnly = false)
     {
         if (!CanManage()) return Denied<PagedResult<HostelCapacityRowDto>>();
         if (page < 1 || pageSize is < 1 or > 100 || (long)(page - 1) * pageSize > int.MaxValue ||
             campusId is <= 0 || search?.Trim().Length > 100)
             return ApiResponse<PagedResult<HostelCapacityRowDto>>.ErrorResponse("Invalid report filter.");
+        if (attentionOnly) return await GetCapacityRiskAsync(campusId, page, pageSize, search, cancellationToken);
         var tenant = _currentUser.TenantId;
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
         var term = search?.Trim();
@@ -290,7 +291,8 @@ public sealed partial class HostelService : IHostelService
                 HasRisk = occupiedBeds > room.Capacity || inactiveReserved > 0 ||
                     (occupancy != null && occupancy.Records > occupiedBeds) ||
                     (occupiedBeds > 0 && (!room.HostelActive || !room.RoomActive)) ||
-                    (room.HostelActive && room.RoomActive && activeBeds > room.Capacity)
+                    (room.HostelActive && room.RoomActive && activeBeds > room.Capacity) ||
+                    (room.HostelActive && room.RoomActive && room.Capacity > 0 && activeBeds == 0)
             });
         }
         return ApiResponse<PagedResult<HostelCapacityRowDto>>.SuccessResponse(new PagedResult<HostelCapacityRowDto>

@@ -9,9 +9,9 @@ public sealed partial class HostelService
 {
     // Bounded, privacy-minimized export reuses the same tenant/campus-authorized report.
     public async Task<ApiResponse<string>> ExportCapacityCsvAsync(
-        long? campusId, string? search, CancellationToken cancellationToken = default)
+        long? campusId, string? search, CancellationToken cancellationToken = default, bool attentionOnly = false)
     {
-        var first = await GetCapacityAsync(campusId, 1, 100, search, cancellationToken);
+        var first = await GetCapacityAsync(campusId, 1, 100, search, cancellationToken, attentionOnly);
         if (!first.Success || first.Data == null)
             return ApiResponse<string>.ErrorResponse(first.Message ?? "Capacity report unavailable.", first.StatusCode);
         if (first.Data.TotalCount > 1000)
@@ -19,7 +19,7 @@ public sealed partial class HostelService
         var rows = new List<HostelCapacityRowDto>(first.Data.Items);
         for (var page = 2; page <= (first.Data.TotalCount + 99) / 100; page++)
         {
-            var next = await GetCapacityAsync(campusId, page, 100, search, cancellationToken);
+            var next = await GetCapacityAsync(campusId, page, 100, search, cancellationToken, attentionOnly);
             if (!next.Success || next.Data == null || next.Data.TotalCount != first.Data.TotalCount)
                 return ApiResponse<string>.ErrorResponse("Export changed during retrieval. Retry.", 409);
             rows.AddRange(next.Data.Items);

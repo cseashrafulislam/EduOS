@@ -19,8 +19,8 @@ public interface IHostelService
     Task<ApiResponse<string>> ExportRoomInventoryCsvAsync(long? campusId, string? search, CancellationToken cancellationToken = default);
     Task<ApiResponse<HostelRoomInventoryDto>> SetRoomCapacityAsync(long roomId, SetHostelRoomCapacityRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<HostelRoomInventoryDto>> SetRoomStateAsync(long roomId, SetHostelRoomStateRequestDto request, CancellationToken cancellationToken = default);
-    Task<ApiResponse<PagedResult<HostelCapacityRowDto>>> GetCapacityAsync(long? campusId, int page, int pageSize, string? search, CancellationToken cancellationToken = default);
-    Task<ApiResponse<string>> ExportCapacityCsvAsync(long? campusId, string? search, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<HostelCapacityRowDto>>> GetCapacityAsync(long? campusId, int page, int pageSize, string? search, CancellationToken cancellationToken = default, bool attentionOnly = false);
+    Task<ApiResponse<string>> ExportCapacityCsvAsync(long? campusId, string? search, CancellationToken cancellationToken = default, bool attentionOnly = false);
     Task<ApiResponse<HostelTurnoverReportDto>> GetTurnoverReportAsync(long? campusId, DateOnly? fromMonth, DateOnly? toMonth, CancellationToken cancellationToken = default);
     Task<ApiResponse<string>> ExportTurnoverReportCsvAsync(long? campusId, DateOnly? fromMonth, DateOnly? toMonth, CancellationToken cancellationToken = default);
     Task<ApiResponse<HostelOccupancyInsightsDto>> GetOccupancyInsightsAsync(long? campusId, string? search, CancellationToken cancellationToken = default);

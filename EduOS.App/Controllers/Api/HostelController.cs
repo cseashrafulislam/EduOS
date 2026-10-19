@@ -123,8 +123,9 @@ public sealed class HostelController : ControllerBase
     [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<IActionResult> Capacity([FromQuery] long? campusId, [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 25, [FromQuery] string? search = null, CancellationToken cancellationToken = default) =>
-        ToAction(await _service.GetCapacityAsync(campusId, page, pageSize, search, cancellationToken));
+        [FromQuery] int pageSize = 25, [FromQuery] string? search = null,
+        [FromQuery] bool attentionOnly = false, CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetCapacityAsync(campusId, page, pageSize, search, cancellationToken, attentionOnly));
 
     [HttpGet("turnover-report")]
     [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
@@ -161,9 +162,10 @@ public sealed class HostelController : ControllerBase
     [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<IActionResult> ExportCapacity([FromQuery] long? campusId = null,
-        [FromQuery] string? search = null, CancellationToken cancellationToken = default)
+        [FromQuery] string? search = null, [FromQuery] bool attentionOnly = false,
+        CancellationToken cancellationToken = default)
     {
-        var result = await _service.ExportCapacityCsvAsync(campusId, search, cancellationToken);
+        var result = await _service.ExportCapacityCsvAsync(campusId, search, cancellationToken, attentionOnly);
         if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
         Response.Headers["Cache-Control"] = "no-store";
         return File(System.Text.Encoding.UTF8.GetPreamble().Concat(

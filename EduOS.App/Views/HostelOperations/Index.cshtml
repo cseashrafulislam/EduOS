@@ -75,13 +75,17 @@
         @await Html.PartialAsync("_TurnoverReport")
         <section id="hostelCapacityPanel" class="card mb-3"><div class="card-body">
             <h3 class="h5">Capacity and occupancy report</h3>
-            <p class="small text-muted">Campus-authorized room inventory only. CSV excludes student identifiers and payments.</p>
+            <p class="small text-muted">Campus-authorized room inventory only. Use Needs review to triage occupancy, inactive-bed and provisioning risks before pagination. Risk-only mode requires at most 1,000 matching candidate rooms; narrow the campus/search if needed. CSV excludes student identifiers and payments.</p>
             <form id="hostelCapacityFilter" class="row g-2 mb-2">
                 <div class="col-md-3"><label class="visually-hidden" for="hostelCapacityCampus">Campus</label>
                     <select id="hostelCapacityCampus" class="form-select" aria-label="Filter hostel capacity by campus"><option value="">All permitted campuses</option></select></div>
                 <div class="col-md-4"><label class="visually-hidden" for="hostelCapacitySearch">Search hostel or room</label>
                     <input id="hostelCapacitySearch" class="form-control" maxlength="100" placeholder="Hostel or room" /></div>
-                <div class="col-md-5 d-flex gap-2 flex-wrap">
+                <div class="col-md-2 d-flex align-items-center"><div class="form-check">
+                    <input id="hostelCapacityAttentionOnly" class="form-check-input" type="checkbox" />
+                    <label class="form-check-label" for="hostelCapacityAttentionOnly">Needs review</label>
+                </div></div>
+                <div class="col-md-3 d-flex gap-2 flex-wrap">
                     <button class="btn btn-outline-primary" type="submit">Filter</button>
                     <button id="hostelCapacityCsv" class="btn btn-outline-secondary" type="button" disabled>Export all filtered rooms (CSV)</button>
                 </div>
