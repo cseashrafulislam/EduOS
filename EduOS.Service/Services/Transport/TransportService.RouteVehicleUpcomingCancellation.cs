@@ -2,6 +2,8 @@ using EduOS.Core.Common;
 using EduOS.Core.DTOs.Transport;
 using EduOS.Core.Enums.Domain;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using System.Transactions;
 namespace EduOS.Service.Services.Transport;
 public sealed partial class TransportService
 {
@@ -13,7 +15,9 @@ public sealed partial class TransportService
             return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse("Invalid cancellation request.");
         var tenant = _currentUser.TenantId;
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
-        return await _unitOfWork.ExecuteInTransactionAsync(async token =>
+        try
+        {
+            return await _unitOfWork.ExecuteInTransactionAsync(async token =>
         {
             var link = await _vehicleRoutes.GetQueryable().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Id == assignmentId && !x.IsDeleted, token);
@@ -45,6 +49,21 @@ public sealed partial class TransportService
             link.UpdatedBy = _currentUser.UserId;
             await _unitOfWork.SaveChangesAsync(token);
             return ApiResponse<RouteVehicleAssignmentDto>.SuccessResponse(MapRouteVehicleLink(link), "Cancelled.");
-        }, System.Data.IsolationLevel.Serializable, ct);
+            }, System.Data.IsolationLevel.Serializable, ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse("Assignment changed. Reload and retry.", 409);
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Route-vehicle cancellation conflict for tenant {TenantId}", tenant);
+            return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse("Concurrent route-vehicle assignment conflict.", 409);
+        }
+        catch (TransactionAbortedException ex)
+        {
+            _logger.LogWarning(ex, "Route-vehicle cancellation aborted for tenant {TenantId}", tenant);
+            return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse("Concurrent route-vehicle assignment conflict.", 409);
+        }
     }
 }

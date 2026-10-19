@@ -24,6 +24,16 @@ public class TransportUpcomingRouteVehicleCancellationContractTests
         Assert.Contains("x.IsCurrent && x.VehicleId",Read("EduOS.Service/Services/Transport/TransportService.RouteVehicleCreate.cs"));
         Assert.Contains("IsCancelled = !x.IsCurrent",Read("EduOS.Service/Services/Transport/TransportService.RouteVehicleQueries.cs"));
     }
+    [Fact]
+    public void Cancellation_handles_database_concurrency_and_transaction_conflicts()
+    {
+        var source = Read("EduOS.Service/Services/Transport/TransportService.RouteVehicleUpcomingCancellation.cs");
+        Assert.Contains("catch (DbUpdateConcurrencyException)", source);
+        Assert.Contains("catch (DbUpdateException ex)", source);
+        Assert.Contains("catch (TransactionAbortedException ex)", source);
+        Assert.Contains("ErrorResponse(\"Assignment changed. Reload and retry.\", 409)", source);
+        Assert.Contains("IsolationLevel.Serializable", source);
+    }
     private static string Read(string path)
     {
         var dir=new DirectoryInfo(AppContext.BaseDirectory);
