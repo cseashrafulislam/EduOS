@@ -1,0 +1,38 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.resolve(__dirname, '../..');
+const read = file => fs.readFileSync(path.join(root, file), 'utf8');
+const service = read('EduOS.Service/Services/Hostel/HostelService.TurnoverReport.cs');
+const dto = read('EduOS.Core/DTOs/Hostel/HostelTurnoverReportDto.cs');
+const iface = read('EduOS.Core/Interfaces/IServices/IHostelService.cs');
+const api = read('EduOS.App/Controllers/Api/HostelController.cs');
+const view = read('EduOS.App/Views/HostelOperations/Index.cshtml');
+const partial = read('EduOS.App/Views/HostelOperations/_TurnoverReport.cshtml');
+const ui = read('EduOS.App/wwwroot/js/hostel-operations/turnover-report.js');
+test('turnover uses canonical tenant/campus scoped allocation aggregates and privacy suppression', () => {
+    assert.match(service, /_allocations\.GetQueryable\(\)\.AsNoTracking\(\)/);
+    for (const token of ['allocation.TenantId == tenant','bed.TenantId == tenant','room.TenantId == tenant','hostel.TenantId == tenant','campus.TenantId == tenant','AllowedCampusIds(tenant)']) assert.ok(service.includes(token), token);
+    assert.match(service, /GroupBy\(/);
+    assert.match(service, /span >= 12/);
+    assert.match(service, /StartDate <= today/);
+    assert.match(service, /EndDate.Value <= today/);
+    assert.match(service, /SuppressSmallCohort/);
+    assert.doesNotMatch(dto, /StudentId|StudentName|MonthlyRent|SecurityDeposit|FeeHeadId/);
+});
+test('turnover has authorized API, service interface, Razor/JS and safe CSV', () => {
+    assert.match(iface, /GetTurnoverReportAsync/);
+    assert.match(iface, /ExportTurnoverReportCsvAsync/);
+    assert.match(api, /\[HttpGet\("turnover-report"\)\]/);
+    assert.match(api, /\[HttpGet\("turnover-report\/export"\)\]/);
+    assert.match(api, /Authorize\(Roles = "TenantAdmin,Principal,HostelWarden"\)/);
+    assert.match(view, /_TurnoverReport/);
+    assert.match(view, /turnover-report\.js/);
+    assert.match(partial, /hostelTurnoverFilter/);
+    assert.match(ui, /query !== filters\(\)/);
+    assert.match(ui, /textContent/);
+    assert.doesNotMatch(ui, /innerHTML/);
+    assert.match(service, /"Suppressed"/);
+    new Function(ui);
+});

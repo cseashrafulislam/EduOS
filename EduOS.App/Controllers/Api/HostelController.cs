@@ -126,6 +126,30 @@ public sealed class HostelController : ControllerBase
         [FromQuery] int pageSize = 25, [FromQuery] string? search = null, CancellationToken cancellationToken = default) =>
         ToAction(await _service.GetCapacityAsync(campusId, page, pageSize, search, cancellationToken));
 
+    [HttpGet("turnover-report")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> TurnoverReport([FromQuery] long? campusId = null,
+        [FromQuery] DateOnly? fromMonth = null, [FromQuery] DateOnly? toMonth = null,
+        CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetTurnoverReportAsync(campusId, fromMonth, toMonth, cancellationToken));
+
+    [HttpGet("turnover-report/export")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> TurnoverReportExport([FromQuery] long? campusId = null,
+        [FromQuery] DateOnly? fromMonth = null, [FromQuery] DateOnly? toMonth = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _service.ExportTurnoverReportCsvAsync(campusId, fromMonth, toMonth, cancellationToken);
+        if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
+        Response.Headers["Cache-Control"] = "no-store";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(System.Text.Encoding.UTF8.GetPreamble().Concat(
+            System.Text.Encoding.UTF8.GetBytes(result.Data)).ToArray(),
+            "text/csv; charset=utf-8", "hostel-turnover-report.csv");
+    }
+
     [HttpGet("occupancy-insights")]
     [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
