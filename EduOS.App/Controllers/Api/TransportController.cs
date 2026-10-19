@@ -212,8 +212,8 @@ public sealed class TransportController : ControllerBase
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
     public async Task<IActionResult> CapacityReport([FromQuery] long? campusId = null,
         [FromQuery] int page = 1, [FromQuery] int pageSize = 15, [FromQuery] string? search = null,
-        CancellationToken cancellationToken = default) =>
-        ToAction(await _service.GetCapacityReportAsync(campusId, page, pageSize, search, cancellationToken));
+        [FromQuery] bool attentionOnly = false, CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetCapacityReportAsync(campusId, page, pageSize, search, cancellationToken, attentionOnly));
 
     [HttpGet("fleet-insights")]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
@@ -225,9 +225,10 @@ public sealed class TransportController : ControllerBase
     [HttpGet("capacity-report/export")]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
     public async Task<IActionResult> CapacityExport([FromQuery] long? campusId = null,
-        [FromQuery] string? search = null, CancellationToken cancellationToken = default)
+        [FromQuery] string? search = null, [FromQuery] bool attentionOnly = false,
+        CancellationToken cancellationToken = default)
     {
-        var result = await _service.ExportCapacityCsvAsync(campusId, search, cancellationToken);
+        var result = await _service.ExportCapacityCsvAsync(campusId, search, cancellationToken, attentionOnly);
         if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
         return File(System.Text.Encoding.UTF8.GetBytes(result.Data), "text/csv; charset=utf-8", "transport-capacity.csv");
     }

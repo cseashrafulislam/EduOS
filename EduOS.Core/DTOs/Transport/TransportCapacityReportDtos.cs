@@ -13,4 +13,5 @@ public sealed class TransportCapacityReportRowDto
     public int CurrentRouteLinks { get; set; }
     public decimal UtilizationPercent { get; set; }
     public bool OverCapacity { get; set; }
+    public bool HasRisk { get; set; }
 }

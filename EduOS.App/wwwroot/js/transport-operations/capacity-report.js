@@ -16,6 +16,7 @@
         const campus = el('transportCapacityCampus').value, search = el('transportCapacitySearch').value.trim();
         if (campus) q.set('campusId', campus);
         if (search) q.set('search', search);
+        if (el('transportCapacityAttentionOnly').checked) q.set('attentionOnly', 'true');
         return q;
     }
     function cell(value) { const td = document.createElement('td'); td.textContent = value == null ? '—' : String(value); return td; }
@@ -42,11 +43,12 @@
             const tr = document.createElement('tr');
             [item.campusName, item.vehicleNumber, item.isActive ? 'Active' : 'Inactive',
                 item.capacity, item.activeRiders, item.availableSeats, item.currentRouteLinks,
-                item.utilizationPercent + '%'].forEach(x => tr.append(cell(x)));
+                item.utilizationPercent + '%', item.hasRisk ? 'Needs review' : '—'].forEach(x => tr.append(cell(x)));
+            if (item.hasRisk) tr.classList.add('table-warning');
             if (item.overCapacity) tr.classList.add('table-danger');
             body.append(tr);
         }
-        if (!data.items?.length) { const tr = document.createElement('tr'), td = cell('No vehicles match this filter.'); td.colSpan = 8; tr.append(td); body.append(tr); }
+        if (!data.items?.length) { const tr = document.createElement('tr'), td = cell('No vehicles match this filter.'); td.colSpan = 9; tr.append(td); body.append(tr); }
         pages = Math.max(1, Number(data.totalPages) || 1);
         el('transportCapacityPageInfo').textContent = 'Page ' + page + ' of ' + pages + ' · ' + data.totalCount + ' vehicles';
         el('transportCapacityPrev').disabled = page <= 1;
@@ -56,6 +58,7 @@
     }
     el('transportCapacitySearch').addEventListener('input', invalidate);
     el('transportCapacityCampus').addEventListener('change', invalidate);
+    el('transportCapacityAttentionOnly').addEventListener('change', invalidate);
     form.addEventListener('submit', event => { event.preventDefault(); page = 1; load().catch(e => alertUser(e.message)); });
     el('transportCapacityPrev').addEventListener('click', () => { page = Math.max(1, page - 1); load().catch(e => alertUser(e.message)); });
     el('transportCapacityNext').addEventListener('click', () => { page = Math.min(pages, page + 1); load().catch(e => alertUser(e.message)); });

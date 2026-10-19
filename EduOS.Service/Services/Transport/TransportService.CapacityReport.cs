@@ -11,12 +11,13 @@ public sealed partial class TransportService
 {
     // Operational report: no student identifiers, fares, driver identity or monetary writes.
     public async Task<ApiResponse<PagedResult<TransportCapacityReportRowDto>>> GetCapacityReportAsync(
-        long? campusId, int page, int pageSize, string? search, CancellationToken ct = default)
+        long? campusId, int page, int pageSize, string? search, CancellationToken ct = default, bool attentionOnly = false)
     {
         if (!CanManage()) return Denied<PagedResult<TransportCapacityReportRowDto>>();
         if (page < 1 || pageSize is < 1 or > 100 || (long)(page - 1) * pageSize > int.MaxValue ||
             campusId is <= 0 || search?.Trim().Length > 100)
             return ApiResponse<PagedResult<TransportCapacityReportRowDto>>.ErrorResponse("Invalid capacity report filters.");
+        if (attentionOnly) return await GetCapacityRiskAsync(campusId, page, pageSize, search, ct);
         var tenant = _currentUser.TenantId;
         var query = from vehicle in _vehicles.GetQueryable().AsNoTracking()
                     join campus in _campuses.GetQueryable().AsNoTracking()
@@ -74,6 +75,8 @@ public sealed partial class TransportService
                         AvailableSeats = Math.Max(0, x.Capacity - count),
                         CurrentRouteLinks = routes.GetValueOrDefault(x.Id),
                         OverCapacity = count > x.Capacity,
+                        HasRisk = count > x.Capacity || (count > 0 && (!x.IsActive || routes.GetValueOrDefault(x.Id) == 0)) ||
+                            (x.IsActive && x.Capacity <= 0),
                         UtilizationPercent = x.Capacity > 0
                             ? Math.Round(100m * count / x.Capacity, 1, MidpointRounding.AwayFromZero) : 0m
                     };
@@ -84,9 +87,9 @@ public sealed partial class TransportService
 
     // Bounded, privacy-minimized export reuses the authorized paged report.
     public async Task<ApiResponse<string>> ExportCapacityCsvAsync(
-        long? campusId, string? search, CancellationToken ct = default)
+        long? campusId, string? search, CancellationToken ct = default, bool attentionOnly = false)
     {
-        var first = await GetCapacityReportAsync(campusId, 1, 100, search, ct);
+        var first = await GetCapacityReportAsync(campusId, 1, 100, search, ct, attentionOnly);
         if (!first.Success || first.Data == null)
             return ApiResponse<string>.ErrorResponse(first.Message ?? "Capacity report unavailable.", first.StatusCode);
         if (first.Data.TotalCount > 1000)
@@ -94,7 +97,7 @@ public sealed partial class TransportService
         var rows = new List<TransportCapacityReportRowDto>(first.Data.Items);
         for (var page = 2; page <= (first.Data.TotalCount + 99) / 100; page++)
         {
-            var next = await GetCapacityReportAsync(campusId, page, 100, search, ct);
+            var next = await GetCapacityReportAsync(campusId, page, 100, search, ct, attentionOnly);
             if (!next.Success || next.Data == null || next.Data.TotalCount != first.Data.TotalCount)
                 return ApiResponse<string>.ErrorResponse("Export changed during retrieval. Retry.", 409);
             rows.AddRange(next.Data.Items);
@@ -102,7 +105,7 @@ public sealed partial class TransportService
         var uniqueVehicles = new HashSet<Guid>();
         if (rows.Count != first.Data.TotalCount || rows.Any(x => !uniqueVehicles.Add(x.VehicleReference)))
             return ApiResponse<string>.ErrorResponse("Export changed during retrieval. Retry.", 409);
-        var csv = new StringBuilder("Campus,Vehicle,Type,Active,Capacity,Active Riders,Available Seats,Current Route Links,Utilization %,Over Capacity\r\n");
+        var csv = new StringBuilder("Campus,Vehicle,Type,Active,Capacity,Active Riders,Available Seats,Current Route Links,Utilization %,Over Capacity,Needs Review\r\n");
         foreach (var row in rows)
         {
             csv.Append(CsvCell(row.CampusName)).Append(',').Append(CsvCell(row.VehicleNumber)).Append(',')
@@ -112,7 +115,8 @@ public sealed partial class TransportService
                 .Append(row.AvailableSeats.ToString(CultureInfo.InvariantCulture)).Append(',')
                 .Append(row.CurrentRouteLinks.ToString(CultureInfo.InvariantCulture)).Append(',')
                 .Append(row.UtilizationPercent.ToString(CultureInfo.InvariantCulture)).Append(',')
-                .Append(row.OverCapacity ? "Yes" : "No").Append("\r\n");
+                .Append(row.OverCapacity ? "Yes" : "No").Append(',')
+                .Append(row.HasRisk ? "Yes" : "No").Append("\r\n");
         }
         return ApiResponse<string>.SuccessResponse(csv.ToString());
     }
