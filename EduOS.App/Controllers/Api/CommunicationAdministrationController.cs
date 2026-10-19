@@ -14,14 +14,6 @@ namespace EduOS.App.Controllers.Api;
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class CommunicationAdministrationController(ICommunicationAdministrationService service) : ControllerBase
 {
-    [HttpGet("deliveries")]
-    public async Task<IActionResult> Deliveries([FromQuery] int page = 1, [FromQuery] int pageSize = 20,
-        [FromQuery] int? channel = null, [FromQuery] int? state = null, CancellationToken ct = default)
-    {
-        var result = await service.GetDeliveriesAsync(page, pageSize, channel, state, ct);
-        return StatusCode(result.StatusCode, result);
-    }
-
     [HttpGet("gateways")]
     public async Task<IActionResult> Gateways(CancellationToken ct)
     {
