@@ -329,54 +329,94 @@ public sealed partial class TransportService : ITransportService
         }
     }
 
-    public async Task<ApiResponse<StudentTransportDto>> CloseAsync(Guid reference, CloseStudentTransportRequestDto request,
+    /// <summary>Close an operating rider assignment; future reservations require cancellation.</summary>
+    public async Task<ApiResponse<StudentTransportDto>> CloseAsync(
+        Guid reference, CloseStudentTransportRequestDto request,
         CancellationToken cancellationToken = default)
     {
         if (!CanManage()) return Denied<StudentTransportDto>();
-        if (reference == Guid.Empty || request == null) return Error("Transport close request is invalid.");
+        if (reference == Guid.Empty || request == null ||
+            !TryDecodeVersion(request.RowVersion, out var version))
+            return Error("Assignment reference and row version are required.");
         var tenant = _currentUser.TenantId;
         try
         {
-            var entity = await _assignments.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenant &&
-                x.PublicId == reference, cancellationToken);
-            if (entity == null) return Error("Assignment not found.", 404);
-            if (!_currentUser.IsTenantAdmin)
+            return await _unitOfWork.ExecuteInTransactionAsync(async ct =>
             {
-                var campus = await _enrollments.GetQueryable().AsNoTracking()
-                    .Where(x => x.TenantId == tenant && x.Id == entity.StudentEnrollmentId && x.StudentId == entity.StudentId)
-                    .Select(x => (long?)x.CampusId).FirstOrDefaultAsync(cancellationToken);
-                if (!campus.HasValue || !await CanManageCampusAsync(campus.Value, tenant, cancellationToken))
+                var entity = await _assignments.GetQueryable().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && !x.IsDeleted && x.PublicId == reference, ct);
+                if (entity == null) return Error("Assignment not found.", 404);
+                var enrollmentCampus = await (from enrollment in _enrollments.GetQueryable().AsNoTracking()
+                    join student in _students.GetQueryable().AsNoTracking() on enrollment.StudentId equals student.Id
+                    where enrollment.TenantId == tenant && student.TenantId == tenant &&
+                        !enrollment.IsDeleted && !student.IsDeleted &&
+                        enrollment.Id == entity.StudentEnrollmentId &&
+                        enrollment.StudentId == entity.StudentId
+                    select (long?)enrollment.CampusId).FirstOrDefaultAsync(ct);
+                if (!enrollmentCampus.HasValue || !await _campuses.GetQueryable().AsNoTracking()
+                    .AnyAsync(x => x.TenantId == tenant && !x.IsDeleted &&
+                        x.Id == enrollmentCampus.Value, ct))
+                    return Error("Assignment enrollment or campus is unavailable.", 409);
+                if (!await CanManageCampusAsync(enrollmentCampus.Value, tenant, ct))
                     return Denied<StudentTransportDto>();
-            }
-            var endDate = request.EndDate == default ? DateOnly.FromDateTime(_clock.GetLocalNow().DateTime) : request.EndDate;
-            if (entity.State == TransportAssignmentState.Closed)
-            {
-                if (entity.EndDate.HasValue && (request.EndDate == default || entity.EndDate.Value == endDate))
-                    return ApiResponse<StudentTransportDto>.SuccessResponse(await MapAsync(entity, cancellationToken), "Assignment already closed.");
-                return Error("Assignment was already closed with a different end date.", 409);
-            }
-            if (entity.State != TransportAssignmentState.Active)
-                return Error("Assignment cannot be closed in its current state.", 409);
-            if (!TryDecodeVersion(request.RowVersion, out var version) || !entity.RowVersion.AsSpan().SequenceEqual(version))
-                return Error("Assignment was changed. Reload and retry.", 409);
-            if (endDate < entity.StartDate) return Error("End date cannot precede start date.");
-            entity.EndDate = endDate;
-            entity.State = TransportAssignmentState.Closed;
-            entity.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
-            entity.UpdatedBy = _currentUser.UserId;
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            return ApiResponse<StudentTransportDto>.SuccessResponse(await MapAsync(entity, cancellationToken), "Assignment closed.");
+                if (!await _routes.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && !x.IsDeleted && x.Id == entity.RouteId &&
+                    (!x.CampusId.HasValue || x.CampusId.Value == enrollmentCampus.Value), ct) ||
+                    !await _vehicles.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && !x.IsDeleted && x.Id == entity.VehicleId &&
+                    (!x.CampusId.HasValue || x.CampusId.Value == enrollmentCampus.Value), ct))
+                    return Error("Assignment route or vehicle does not belong to the campus.", 409);
+                var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+                var endDate = request.EndDate == default ? today : request.EndDate;
+                if (entity.State == TransportAssignmentState.Closed)
+                {
+                    if (entity.EndDate.HasValue &&
+                        (request.EndDate == default || entity.EndDate.Value == endDate))
+                        return ApiResponse<StudentTransportDto>.SuccessResponse(
+                            await MapAsync(entity, ct), "Assignment already closed.");
+                    return Error("Assignment was already closed with a different end date.", 409);
+                }
+                if (entity.State != TransportAssignmentState.Active)
+                    return Error("Assignment cannot be closed in its current state.", 409);
+                if (!IsValidTransportClosureDate(entity.StartDate, endDate, today))
+                    return Error("Closure must be between assignment start and today. Cancel future reservations.", 409);
+                if (!entity.RowVersion.AsSpan().SequenceEqual(version))
+                    return Error("Assignment changed. Reload and retry.", 409);
+                entity.EndDate = endDate;
+                entity.State = TransportAssignmentState.Closed;
+                entity.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
+                entity.UpdatedBy = _currentUser.UserId;
+                await _unitOfWork.SaveChangesAsync(ct);
+                _logger.LogInformation(
+                    "Transport assignment closed: tenant {TenantId}, assignment {AssignmentId}, end {EndDate}",
+                    tenant, entity.Id, endDate);
+                return ApiResponse<StudentTransportDto>.SuccessResponse(
+                    await MapAsync(entity, ct), "Assignment closed.");
+            }, System.Data.IsolationLevel.Serializable, cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
         {
-            return Error("Assignment was changed by another user.", 409);
+            return Error("Assignment changed. Reload and retry.", 409);
         }
-        catch (Exception ex)
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Transport closure conflict for tenant {TenantId}", tenant);
+            return Error("Assignment closure conflicts with another update.", 409);
+        }
+        catch (TransactionAbortedException ex)
+        {
+            _logger.LogWarning(ex, "Transport closure transaction aborted for tenant {TenantId}", tenant);
+            return Error("Assignment closure conflicts with another update.", 409);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogError(ex, "Transport close failed for tenant {TenantId}", tenant);
             return Error("Transport assignment could not be closed.", 500);
         }
     }
+
+    public static bool IsValidTransportClosureDate(DateOnly start, DateOnly end, DateOnly today) =>
+        start <= today && end >= start && end <= today;
 
     private async Task<StudentTransportDto> MapAsync(StudentTransport value, CancellationToken ct)
     {

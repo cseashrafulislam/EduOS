@@ -117,7 +117,14 @@
                         new CustomEvent('transport:change-vehicle', { detail: item })));
                     actions.append(changeVehicle);
                 }
-                actions.append(close); tr.append(actions); body.append(tr);
+                if (item.startDate <= localDate()) actions.append(close);
+                else {
+                    const hint = document.createElement('span');
+                    hint.className = 'small text-muted';
+                    hint.textContent = 'Use Upcoming cancellations to release this reservation.';
+                    actions.append(hint);
+                }
+                tr.append(actions); body.append(tr);
             }
             if (!data.items?.length) {
                 const tr = document.createElement('tr'), td = textCell('No active assignments');
@@ -164,10 +171,11 @@
         } catch (err) { notify(err.message); } finally { save.disabled = false; }
     }
     async function closeAssignment(item, button) {
+        if (item.startDate > localDate()) { notify('Cancel upcoming reservations instead of closing them.'); return; }
         if (!confirm('Close the transport assignment for ' + item.studentName + '?')) return;
         const date = prompt('End date (YYYY-MM-DD)', localDate());
         if (!date) return;
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < item.startDate) { notify('Choose a valid end date on or after the start.'); return; }
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < item.startDate || date > localDate()) { notify('Choose a valid end date on or after the start.'); return; }
         button.disabled = true;
         try {
             await api('/api/transport/assignments/' + encodeURIComponent(item.reference) + '/close', 'POST',
