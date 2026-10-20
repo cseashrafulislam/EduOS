@@ -1,0 +1,14 @@
+<section id="hostelAvailabilityPanel" class="card mb-3"><div class="card-body">
+    <h3 class="h5">Future bed availability planner</h3>
+    <p class="small text-muted">Find beds available for an entire future interval. Results exclude student identities and charges. Availability is advisory and rechecked when allocating.</p>
+    <form id="hostelAvailabilityForm" class="row g-2 mb-2">
+        <div class="col-md-2"><label for="hostelAvailabilityFrom" class="form-label">From</label><input id="hostelAvailabilityFrom" type="date" class="form-control" required /></div>
+        <div class="col-md-2"><label for="hostelAvailabilityTo" class="form-label">To (inclusive)</label><input id="hostelAvailabilityTo" type="date" class="form-control" required /></div>
+        <div class="col-md-3"><label for="hostelAvailabilityCampus" class="form-label">Campus</label><select id="hostelAvailabilityCampus" class="form-select"><option value="">All permitted campuses</option></select></div>
+        <div class="col-md-3"><label for="hostelAvailabilitySearch" class="form-label">Hostel, room or bed</label><input id="hostelAvailabilitySearch" maxlength="100" class="form-control" /></div>
+        <div class="col-md-2 d-flex align-items-end gap-2"><button type="submit" class="btn btn-outline-primary">Find</button><button id="hostelAvailabilityCsv" type="button" class="btn btn-outline-secondary" disabled>CSV</button></div>
+    </form>
+    <div id="hostelAvailabilityStatus" role="status" aria-live="polite" class="small text-muted mb-2"></div>
+    <div class="table-responsive"><table class="table table-sm table-hover"><thead><tr><th>Hostel</th><th>Room</th><th>Bed</th><th>Room capacity</th><th>Free room slots</th></tr></thead><tbody id="hostelAvailabilityRows"></tbody></table></div>
+    <div class="d-flex justify-content-between align-items-center"><button id="hostelAvailabilityPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button><span id="hostelAvailabilityPage"></span><button id="hostelAvailabilityNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button></div>
+</div></section>

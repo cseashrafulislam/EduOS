@@ -6,6 +6,8 @@ namespace EduOS.Core.Interfaces.IServices;
 
 public interface IHostelService
 {
+    Task<ApiResponse<PagedResult<HostelBedAvailabilityRowDto>>> GetBedAvailabilityAsync(long? campusId, DateOnly fromDate, DateOnly toDate, int page, int pageSize, string? search, CancellationToken cancellationToken = default);
+    Task<ApiResponse<string>> ExportBedAvailabilityCsvAsync(long? campusId, DateOnly fromDate, DateOnly toDate, string? search, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<HostelAllocationReadinessRowDto>>> GetAllocationReadinessAsync(long? campusId, int page, int pageSize, string? search, bool attentionOnly, CancellationToken cancellationToken = default);
     Task<ApiResponse<string>> ExportAllocationReadinessCsvAsync(long? campusId, string? search, bool attentionOnly, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<HostelFacilityCampusDto>>> GetFacilityCampusesAsync(CancellationToken ct = default);
