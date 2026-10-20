@@ -61,22 +61,32 @@ public sealed partial class HostelService
         var reservations = await (from allocation in _allocations.GetQueryable().AsNoTracking()
             join bed in _beds.GetQueryable().AsNoTracking() on allocation.HostelBedId equals bed.Id
             where allocation.TenantId == tenant && bed.TenantId == tenant &&
-                !allocation.IsDeleted && !bed.IsDeleted && roomIds.Contains(bed.HostelRoomId) &&
+                !allocation.IsDeleted && roomIds.Contains(bed.HostelRoomId) &&
                 allocation.State != HostelAllocationState.Cancelled &&
                 allocation.StartDate <= toDate &&
                 (!allocation.EndDate.HasValue || allocation.EndDate.Value >= fromDate)
-            select new { RoomId = bed.HostelRoomId, BedId = bed.Id })
-            .Distinct().ToListAsync(cancellationToken);
+            select new { RoomId = bed.HostelRoomId, BedId = bed.Id,
+                allocation.StartDate, allocation.EndDate })
+            .Distinct().Take(10001).ToListAsync(cancellationToken);
+        if (reservations.Count > 10000)
+            return ApiResponse<PagedResult<HostelBedAvailabilityRowDto>>.ErrorResponse(
+                "Too many overlapping reservations. Narrow the date range or campus.", 413);
         var reservedByRoom = reservations.GroupBy(x => x.RoomId)
-            .ToDictionary(g => g.Key, g => g.Select(x => x.BedId).ToHashSet());
+            .ToDictionary(g => g.Key, g => g.ToList());
 
         var available = new List<HostelBedAvailabilityRowDto>();
         foreach (var group in candidates.GroupBy(x => x.RoomId))
         {
-            var reserved = reservedByRoom.GetValueOrDefault(group.Key) ?? new HashSet<long>();
+            var bookings = reservedByRoom.GetValueOrDefault(group.Key);
+            var blockedBeds = bookings?.Select(x => x.BedId).ToHashSet() ?? new HashSet<long>();
+            var peakOccupied = PeakOccupiedBeds(
+                bookings?.Select(x => (x.BedId, x.StartDate, x.EndDate)).ToArray()
+                    ?? Array.Empty<(long, DateOnly, DateOnly?)>(), fromDate, toDate);
             var capacity = group.First().Capacity;
-            var freeSlots = Math.Max(0, capacity - reserved.Count);
-            available.AddRange(group.Where(x => !reserved.Contains(x.BedId))
+            // The union of reserved beds over 90 days is NOT concurrent occupancy:
+            // two different beds may be booked in disjoint weeks.
+            var freeSlots = Math.Max(0, capacity - peakOccupied);
+            available.AddRange(group.Where(x => !blockedBeds.Contains(x.BedId))
                 .Take(freeSlots).Select(x => new HostelBedAvailabilityRowDto
                 {
                     BedId = x.BedId, CampusId = x.CampusId, HostelName = x.HostelName,
@@ -92,6 +102,27 @@ public sealed partial class HostelService
                 Page = page, PageSize = pageSize, TotalCount = sorted.Count,
                 Items = sorted.Skip((page - 1) * pageSize).Take(pageSize).ToList()
             });
+    }
+
+    /// <summary>
+    /// Maximum distinct occupied beds on any day of an inclusive requested interval.
+    /// Multiple overlapping records for one bed consume only one physical slot.
+    /// Pure helper retained for interval-overlap regression tests.
+    /// </summary>
+    public static int PeakOccupiedBeds(
+        IReadOnlyList<(long BedId, DateOnly StartDate, DateOnly? EndDate)> bookings,
+        DateOnly fromDate, DateOnly toDate)
+    {
+        if (toDate < fromDate || bookings.Count == 0) return 0;
+        var peak = 0;
+        for (var day = fromDate.DayNumber; day <= toDate.DayNumber; day++)
+        {
+            var occupied = bookings.Where(x => x.StartDate.DayNumber <= day &&
+                    (!x.EndDate.HasValue || x.EndDate.Value.DayNumber >= day))
+                .Select(x => x.BedId).Distinct().Count();
+            if (occupied > peak) peak = occupied;
+        }
+        return peak;
     }
 
     public async Task<ApiResponse<string>> ExportBedAvailabilityCsvAsync(
