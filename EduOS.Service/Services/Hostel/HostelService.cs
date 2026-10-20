@@ -558,64 +558,6 @@ public sealed partial class HostelService : IHostelService
         }
     }
 
-    public async Task<ApiResponse<StudentHostelAllocationDto>> CloseAsync(long id, CloseStudentHostelAllocationRequestDto request,
-        CancellationToken cancellationToken = default)
-    {
-        if (!CanManage()) return Denied<StudentHostelAllocationDto>();
-        if (id <= 0 || request == null) return Error("Invalid allocation close request.");
-        var tenant = _currentUser.TenantId;
-        try
-        {
-            var allocation = await _allocations.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenant &&
-                x.Id == id, cancellationToken);
-            if (allocation == null) return Error("Hostel allocation not found.", 404);
-            if (!_currentUser.IsTenantAdmin)
-            {
-                var enrollmentCampus = await _enrollments.GetQueryable().AsNoTracking()
-                    .Where(x => x.TenantId == tenant && x.Id == allocation.StudentEnrollmentId &&
-                        x.StudentId == allocation.StudentId).Select(x => (long?)x.CampusId)
-                    .FirstOrDefaultAsync(cancellationToken);
-                var bedCampus = await (from bed in _beds.GetQueryable().AsNoTracking()
-                    join room in _rooms.GetQueryable().AsNoTracking() on bed.HostelRoomId equals room.Id
-                    join hostel in _hostels.GetQueryable().AsNoTracking() on room.HostelId equals hostel.Id
-                    where bed.TenantId == tenant && room.TenantId == tenant && hostel.TenantId == tenant &&
-                        bed.Id == allocation.HostelBedId
-                    select (long?)hostel.CampusId).FirstOrDefaultAsync(cancellationToken);
-                if (!enrollmentCampus.HasValue || enrollmentCampus != bedCampus ||
-                    !await CanManageCampusAsync(enrollmentCampus.Value, tenant, cancellationToken))
-                    return Denied<StudentHostelAllocationDto>();
-            }
-            var end = request.EndDate == default ? DateOnly.FromDateTime(_clock.GetLocalNow().DateTime) : request.EndDate;
-            if (allocation.State == HostelAllocationState.Closed)
-            {
-                if (allocation.EndDate.HasValue && (request.EndDate == default || allocation.EndDate.Value == end))
-                    return ApiResponse<StudentHostelAllocationDto>.SuccessResponse(await MapAsync(allocation, cancellationToken), "Allocation already closed.");
-                return Error("Allocation was already closed with a different end date.", 409);
-            }
-            if (allocation.State != HostelAllocationState.Active)
-                return Error("Allocation cannot be closed in its current state.", 409);
-            if (!TryDecodeVersion(request.RowVersion, out var bytes) ||
-                !allocation.RowVersion.AsSpan().SequenceEqual(bytes))
-                return Error("Hostel allocation changed. Reload and retry.", 409);
-            if (end < allocation.StartDate) return Error("End date cannot precede start date.");
-            allocation.EndDate = end;
-            allocation.State = HostelAllocationState.Closed;
-            allocation.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
-            allocation.UpdatedBy = _currentUser.UserId;
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            return ApiResponse<StudentHostelAllocationDto>.SuccessResponse(await MapAsync(allocation, cancellationToken), "Allocation closed.");
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            return Error("Allocation was changed by another user.", 409);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Hostel close failed for tenant {TenantId}", tenant);
-            return Error("Hostel allocation could not be closed.", 500);
-        }
-    }
-
     private async Task<StudentHostelAllocationDto> MapAsync(StudentHostelAllocation row, CancellationToken ct)
     {
         var tenant = _currentUser.TenantId;

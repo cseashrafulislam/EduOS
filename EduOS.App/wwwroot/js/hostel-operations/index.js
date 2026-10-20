@@ -196,8 +196,8 @@
         if (!confirm('Close the hostel allocation for ' + item.studentName + '?')) return;
         const endDate = prompt('End date (YYYY-MM-DD)', today());
         if (!endDate) return;
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(endDate) || endDate < item.startDate) {
-            notify('Enter a valid end date on or after the start date.'); return;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(endDate) || endDate < item.startDate || endDate > today()) {
+            notify('Enter an end date from the start date through today.'); return;
         }
         button.disabled = true;
         try {
