@@ -38,11 +38,16 @@ public sealed partial class HostelService
         if (allocation.State != HostelAllocationState.Active || allocation.StartDate <= today ||
             !source.Room.IsActive || !source.Hostel.IsActive)
             return ApiResponse<PagedResult<HostelBedOptionDto>>.ErrorResponse("Only upcoming reservations in active rooms can change beds.", 409);
+        if (allocation.EndDate.HasValue && allocation.EndDate.Value < allocation.StartDate)
+            return ApiResponse<PagedResult<HostelBedOptionDto>>.ErrorResponse("Reservation dates are invalid.", 409);
+        var requestedEnd = allocation.EndDate ?? DateOnly.MaxValue;
         var query = _beds.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == tenant && !x.IsDeleted && x.IsActive && x.HostelRoomId == source.Room.Id &&
             x.Id != allocation.HostelBedId &&
             !_allocations.GetQueryable().Any(a => a.TenantId == tenant && !a.IsDeleted &&
-                a.HostelBedId == x.Id && !a.EndDate.HasValue));
+                a.State != HostelAllocationState.Cancelled && a.Id != allocation.Id &&
+                a.HostelBedId == x.Id && a.StartDate <= requestedEnd &&
+                (!a.EndDate.HasValue || a.EndDate.Value >= allocation.StartDate)));
         var total = await query.CountAsync(cancellationToken);
         var beds = await query.OrderBy(x => x.BedNumber).ThenBy(x => x.Id)
             .Skip((page - 1) * pageSize).Take(pageSize)
@@ -93,6 +98,8 @@ public sealed partial class HostelService
                 var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
                 if (allocation.State != HostelAllocationState.Active || allocation.StartDate <= today)
                     return Error("Only upcoming active reservations can change beds.", 409);
+                if (allocation.EndDate.HasValue && allocation.EndDate.Value < allocation.StartDate)
+                    return Error("Reservation dates are invalid.", 409);
                 // A successful retry must not update audit or concurrency values.
                 if (allocation.HostelBedId == request.TargetBedId)
                     return ApiResponse<StudentHostelAllocationDto>.SuccessResponse(
@@ -105,17 +112,17 @@ public sealed partial class HostelService
                     x.TenantId == tenant && !x.IsDeleted && x.IsActive && x.Id == request.TargetBedId &&
                     x.HostelRoomId == source.Room.Id, ct);
                 if (target == null) return Error("Select an active available bed in the same room.", 409);
-                if (await _allocations.GetQueryable().AsNoTracking().AnyAsync(x =>
-                    x.TenantId == tenant && !x.IsDeleted && x.HostelBedId == target.Id &&
-                    !x.EndDate.HasValue, ct))
-                    return Error("Selected bed is already reserved.", 409);
-                var roomBedIds = _beds.GetQueryable().AsNoTracking().Where(x =>
-                    x.TenantId == tenant && !x.IsDeleted && x.HostelRoomId == source.Room.Id).Select(x => x.Id);
-                var reservations = await _allocations.GetQueryable().AsNoTracking().CountAsync(x =>
-                    x.TenantId == tenant && !x.IsDeleted && !x.EndDate.HasValue &&
-                    roomBedIds.Contains(x.HostelBedId), ct);
-                if (source.Room.Capacity <= 0 || reservations > source.Room.Capacity)
+                if (source.Room.Capacity <= 0)
                     return Error("Room reservation capacity is invalid.", 409);
+                // Same-room bed changes do not increase room occupancy.
+                // Only a non-cancelled overlapping stay may block the target bed.
+                var requestedEnd = allocation.EndDate ?? DateOnly.MaxValue;
+                if (await _allocations.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && !x.IsDeleted &&
+                    x.State != HostelAllocationState.Cancelled && x.Id != allocation.Id &&
+                    x.HostelBedId == target.Id && x.StartDate <= requestedEnd &&
+                    (!x.EndDate.HasValue || x.EndDate.Value >= allocation.StartDate), ct))
+                    return Error("Selected bed is reserved during the requested stay.", 409);
                 var oldBedId = allocation.HostelBedId;
                 allocation.HostelBedId = target.Id;
                 allocation.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
@@ -139,4 +146,10 @@ public sealed partial class HostelService
             return Error("Reservation bed could not be changed.", 500);
         }
     }
+
+    /// <summary>Inclusive interval overlap, including open-ended reservations.</summary>
+    public static bool ReservationIntervalsOverlap(
+        DateOnly firstStart, DateOnly? firstEnd, DateOnly secondStart, DateOnly? secondEnd) =>
+        firstStart <= (secondEnd ?? DateOnly.MaxValue) &&
+        secondStart <= (firstEnd ?? DateOnly.MaxValue);
 }
