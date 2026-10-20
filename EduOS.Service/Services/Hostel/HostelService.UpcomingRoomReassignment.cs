@@ -39,24 +39,48 @@ public sealed partial class HostelService
         if (allocation.State != HostelAllocationState.Active || allocation.StartDate <= today ||
             !source.Bed.IsActive || !source.Room.IsActive || !source.Hostel.IsActive)
             return ApiResponse<PagedResult<HostelBedOptionDto>>.ErrorResponse("Only future reservations in active accommodation can change rooms.", 409);
+        if (allocation.EndDate.HasValue && allocation.EndDate.Value < allocation.StartDate)
+            return ApiResponse<PagedResult<HostelBedOptionDto>>.ErrorResponse("Reservation dates are invalid.", 409);
+        var requestedEnd = allocation.EndDate ?? DateOnly.MaxValue;
         var query = from bed in _beds.GetQueryable().AsNoTracking()
             join room in _rooms.GetQueryable().AsNoTracking() on bed.HostelRoomId equals room.Id
             where bed.TenantId == tenant && room.TenantId == tenant &&
                 !bed.IsDeleted && !room.IsDeleted && bed.IsActive && room.IsActive &&
                 room.HostelId == source.Hostel.Id && room.Id != source.Room.Id &&
-                room.RentPerBed == source.Room.RentPerBed && room.Capacity > 0 &&
-                !_allocations.GetQueryable().Any(a => a.TenantId == tenant && !a.IsDeleted &&
-                    a.HostelBedId == bed.Id && !a.EndDate.HasValue) &&
-                (from reservation in _allocations.GetQueryable()
-                 join reservedBed in _beds.GetQueryable() on reservation.HostelBedId equals reservedBed.Id
-                 where reservation.TenantId == tenant && !reservation.IsDeleted &&
-                     !reservation.EndDate.HasValue && reservedBed.TenantId == tenant &&
-                     reservedBed.HostelRoomId == room.Id
-                 select reservation.Id).Count() < room.Capacity
-            select new { BedId = bed.Id, bed.BedNumber, room.RoomNumber };
-        var total = await query.CountAsync(cancellationToken);
-        var beds = await query.OrderBy(x => x.RoomNumber).ThenBy(x => x.BedNumber).ThenBy(x => x.BedId)
-            .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
+                room.RentPerBed == source.Room.RentPerBed && room.Capacity > 0
+            select new { BedId = bed.Id, RoomId = room.Id, room.Capacity, bed.BedNumber, room.RoomNumber };
+        var candidateCount = await query.CountAsync(cancellationToken);
+        if (candidateCount > 1000)
+            return ApiResponse<PagedResult<HostelBedOptionDto>>.ErrorResponse(
+                "Too many destination beds. Narrow the inventory before reassignment.", 413);
+        var candidates = await query.OrderBy(x => x.RoomNumber).ThenBy(x => x.BedNumber)
+            .ThenBy(x => x.BedId).ToListAsync(cancellationToken);
+        var roomIds = candidates.Select(x => x.RoomId).Distinct().ToArray();
+        // Include reservations on inactive/deleted beds: they still consume physical room capacity.
+        var reservations = await (from reservation in _allocations.GetQueryable().AsNoTracking()
+            join reservedBed in _beds.GetQueryable().AsNoTracking() on reservation.HostelBedId equals reservedBed.Id
+            where reservation.TenantId == tenant && reservedBed.TenantId == tenant &&
+                !reservation.IsDeleted && reservation.State != HostelAllocationState.Cancelled &&
+                reservation.Id != allocation.Id && roomIds.Contains(reservedBed.HostelRoomId) &&
+                reservation.StartDate <= requestedEnd &&
+                (!reservation.EndDate.HasValue || reservation.EndDate.Value >= allocation.StartDate)
+            select new { RoomId = reservedBed.HostelRoomId, BedId = reservedBed.Id,
+                reservation.StartDate, reservation.EndDate }).Take(10001).ToListAsync(cancellationToken);
+        if (reservations.Count > 10000)
+            return ApiResponse<PagedResult<HostelBedOptionDto>>.ErrorResponse(
+                "Too many overlapping reservations. Narrow the inventory.", 413);
+        var byRoom = reservations.GroupBy(x => x.RoomId).ToDictionary(x => x.Key, x => x.ToList());
+        var available = candidates.Where(candidate =>
+        {
+            var bookings = byRoom.GetValueOrDefault(candidate.RoomId);
+            if (bookings == null) return true;
+            if (bookings.Any(x => x.BedId == candidate.BedId)) return false;
+            return PeakOccupiedBedsForReservationInterval(
+                bookings.Select(x => (x.BedId, x.StartDate, x.EndDate)).ToArray(),
+                allocation.StartDate, allocation.EndDate) < candidate.Capacity;
+        }).ToList();
+        var total = available.Count;
+        var beds = available.Skip((page - 1) * pageSize).Take(pageSize).ToList();
         return ApiResponse<PagedResult<HostelBedOptionDto>>.SuccessResponse(new PagedResult<HostelBedOptionDto>
         {
             Page = page, PageSize = pageSize, TotalCount = total,
@@ -118,17 +142,27 @@ public sealed partial class HostelService
                         room.HostelId == source.Hostel.Id && room.RentPerBed == source.Room.RentPerBed
                     select new { Bed = bed, Room = room }).FirstOrDefaultAsync(ct);
                 if (target == null) return Error("Choose an active bed in another room of the same hostel and tariff.", 409);
-                if (await _allocations.GetQueryable().AsNoTracking().AnyAsync(x =>
-                    x.TenantId == tenant && !x.IsDeleted && x.HostelBedId == target.Bed.Id &&
-                    !x.EndDate.HasValue, ct))
-                    return Error("Destination bed is already reserved.", 409);
-                var targetBedIds = _beds.GetQueryable().AsNoTracking().Where(x =>
-                    x.TenantId == tenant && !x.IsDeleted && x.HostelRoomId == target.Room.Id).Select(x => x.Id);
-                var reserved = await _allocations.GetQueryable().AsNoTracking().CountAsync(x =>
-                    x.TenantId == tenant && !x.IsDeleted && !x.EndDate.HasValue &&
-                    targetBedIds.Contains(x.HostelBedId), ct);
-                if (target.Room.Capacity <= 0 || reserved >= target.Room.Capacity)
-                    return Error("Destination room is at capacity.", 409);
+                if (allocation.EndDate.HasValue && allocation.EndDate.Value < allocation.StartDate)
+                    return Error("Reservation dates are invalid.", 409);
+                var requestedEnd = allocation.EndDate ?? DateOnly.MaxValue;
+                var reservations = await (from reservation in _allocations.GetQueryable().AsNoTracking()
+                    join reservedBed in _beds.GetQueryable().AsNoTracking() on reservation.HostelBedId equals reservedBed.Id
+                    where reservation.TenantId == tenant && reservedBed.TenantId == tenant &&
+                        !reservation.IsDeleted && reservation.State != HostelAllocationState.Cancelled &&
+                        reservation.Id != allocation.Id && reservedBed.HostelRoomId == target.Room.Id &&
+                        reservation.StartDate <= requestedEnd &&
+                        (!reservation.EndDate.HasValue || reservation.EndDate.Value >= allocation.StartDate)
+                    select new { BedId = reservedBed.Id, reservation.StartDate, reservation.EndDate })
+                    .Take(10001).ToListAsync(ct);
+                if (reservations.Count > 10000)
+                    return Error("Too many overlapping reservations in the destination room.", 413);
+                if (reservations.Any(x => x.BedId == target.Bed.Id))
+                    return Error("Destination bed is reserved during the requested stay.", 409);
+                var peak = PeakOccupiedBedsForReservationInterval(
+                    reservations.Select(x => (x.BedId, x.StartDate, x.EndDate)).ToArray(),
+                    allocation.StartDate, allocation.EndDate);
+                if (target.Room.Capacity <= 0 || peak >= target.Room.Capacity)
+                    return Error("Destination room is at capacity during the requested stay.", 409);
                 var previousBedId = allocation.HostelBedId;
                 allocation.HostelBedId = target.Bed.Id;
                 allocation.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
@@ -151,5 +185,55 @@ public sealed partial class HostelService
             _logger.LogError(ex, "Hostel room reassignment failed for tenant {TenantId}", tenant);
             return Error("Reservation room could not be changed.", 500);
         }
+    }
+
+    /// <summary>
+    /// Peak number of distinct physical beds occupied within an inclusive reservation interval.
+    /// Merge overlapping bookings per bed before sweeping change points. This also supports
+    /// open-ended reservations without iterating every day through DateOnly.MaxValue.
+    /// </summary>
+    public static int PeakOccupiedBedsForReservationInterval(
+        IReadOnlyList<(long BedId, DateOnly StartDate, DateOnly? EndDate)> bookings,
+        DateOnly fromDate, DateOnly? toDate)
+    {
+        if (toDate.HasValue && toDate.Value < fromDate) return 0;
+        var endLimit = toDate?.DayNumber ?? DateOnly.MaxValue.DayNumber;
+        var changes = new SortedDictionary<int, int>();
+        static void AddChange(SortedDictionary<int, int> changes, int day, int delta)
+        {
+            changes[day] = changes.GetValueOrDefault(day) + delta;
+        }
+        foreach (var bed in bookings.GroupBy(x => x.BedId))
+        {
+            var spans = bed.Where(x => !x.EndDate.HasValue || x.EndDate.Value >= x.StartDate)
+                .Select(x => (Start: Math.Max(x.StartDate.DayNumber, fromDate.DayNumber),
+                    End: Math.Min(x.EndDate?.DayNumber ?? DateOnly.MaxValue.DayNumber, endLimit)))
+                .Where(x => x.Start <= x.End).OrderBy(x => x.Start).ThenBy(x => x.End).ToArray();
+            if (spans.Length == 0) continue;
+            var start = spans[0].Start;
+            var end = spans[0].End;
+            for (var i = 1; i < spans.Length; i++)
+            {
+                if ((long)spans[i].Start <= (long)end + 1)
+                {
+                    end = Math.Max(end, spans[i].End);
+                    continue;
+                }
+                AddChange(changes, start, 1);
+                if (end < DateOnly.MaxValue.DayNumber) AddChange(changes, end + 1, -1);
+                start = spans[i].Start;
+                end = spans[i].End;
+            }
+            AddChange(changes, start, 1);
+            if (end < DateOnly.MaxValue.DayNumber) AddChange(changes, end + 1, -1);
+        }
+        var occupied = 0;
+        var peak = 0;
+        foreach (var change in changes)
+        {
+            occupied += change.Value;
+            peak = Math.Max(peak, occupied);
+        }
+        return peak;
     }
 }
