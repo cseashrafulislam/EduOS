@@ -43,6 +43,29 @@ public sealed class HostelAllocationReadinessTests
         Assert.Equal("Inactive student", Classify(Today, studentActive: false));
     }
 
+    [Fact]
+    public void Invalid_date_range_is_reported_even_for_a_future_reservation()
+    {
+        Assert.Equal("Invalid allocation dates", ClassifyWithIntegrity(Today.AddDays(2), invalidDates: true));
+    }
+
+    [Fact]
+    public void Enrollment_identity_mismatch_is_reported_without_student_details()
+    {
+        Assert.Equal("Enrollment identity mismatch", ClassifyWithIntegrity(Today, enrollmentMatches: false));
+    }
+
+    [Fact]
+    public void Valid_future_reservation_keeps_scheduled_arrival_status()
+    {
+        Assert.Equal("Scheduled arrival", ClassifyWithIntegrity(Today.AddDays(1)));
+    }
+
+    private static string ClassifyWithIntegrity(DateOnly start, bool invalidDates = false,
+        bool enrollmentMatches = true) =>
+        HostelService.ClassifyAllocationReadinessWithIntegrity(invalidDates, enrollmentMatches,
+            true, true, true, true, true, true, true, true, start, Today);
+
     private static string Classify(DateOnly start, bool campusActive = true, bool facilityActive = true,
         bool roomActive = true, bool bedActive = true, bool campusMatch = true,
         bool current = true, bool enrollmentActive = true, bool studentActive = true) =>

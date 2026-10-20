@@ -29,12 +29,17 @@ public sealed partial class HostelService
             where allocation.TenantId == tenant && enrollment.TenantId == tenant &&
                 student.TenantId == tenant && bed.TenantId == tenant && room.TenantId == tenant &&
                 hostel.TenantId == tenant && campus.TenantId == tenant &&
+                !allocation.IsDeleted && !enrollment.IsDeleted && !student.IsDeleted &&
+                !bed.IsDeleted && !room.IsDeleted && !hostel.IsDeleted && !campus.IsDeleted &&
                 allocation.State == HostelAllocationState.Active &&
-                enrollment.StudentId == allocation.StudentId &&
+                (!allocation.EndDate.HasValue || allocation.EndDate.Value >= today ||
+                    allocation.EndDate.Value < allocation.StartDate) &&
                 (!campusId.HasValue || hostel.CampusId == campusId.Value)
             select new
             {
                 allocation.Id, allocation.StartDate,
+                InvalidDates = allocation.EndDate.HasValue && allocation.EndDate.Value < allocation.StartDate,
+                EnrollmentMatches = enrollment.StudentId == allocation.StudentId,
                 CampusId = campus.Id, CampusName = campus.Name, HostelName = hostel.Name,
                 room.RoomNumber, bed.BedNumber,
                 CampusActive = campus.IsActive, FacilityActive = hostel.IsActive,
@@ -53,7 +58,8 @@ public sealed partial class HostelService
         if (!string.IsNullOrWhiteSpace(term))
             query = query.Where(x => x.HostelName.Contains(term) || x.RoomNumber.Contains(term) ||
                 x.BedNumber.Contains(term) || x.CampusName.Contains(term));
-        query = query.Where(x => !x.CampusActive || !x.FacilityActive || !x.RoomActive ||
+        query = query.Where(x => x.InvalidDates || !x.EnrollmentMatches ||
+            !x.CampusActive || !x.FacilityActive || !x.RoomActive ||
             !x.BedActive || !x.EnrollmentCampusMatches || !x.EnrollmentCurrent ||
             !x.EnrollmentActive || !x.StudentActive || (!attentionOnly && x.StartDate > today));
         var total = await query.CountAsync(cancellationToken);
@@ -61,9 +67,9 @@ public sealed partial class HostelService
             .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
         var result = rows.Select(x =>
         {
-            var readiness = ClassifyAllocationReadiness(x.CampusActive, x.FacilityActive, x.RoomActive,
-                x.BedActive, x.EnrollmentCampusMatches, x.EnrollmentCurrent, x.EnrollmentActive,
-                x.StudentActive, x.StartDate, today);
+            var readiness = ClassifyAllocationReadinessWithIntegrity(x.InvalidDates, x.EnrollmentMatches,
+                x.CampusActive, x.FacilityActive, x.RoomActive, x.BedActive, x.EnrollmentCampusMatches,
+                x.EnrollmentCurrent, x.EnrollmentActive, x.StudentActive, x.StartDate, today);
             return new HostelAllocationReadinessRowDto
             {
                 AllocationId = x.Id, CampusId = x.CampusId, CampusName = x.CampusName,
@@ -76,6 +82,18 @@ public sealed partial class HostelService
             {
                 Page = page, PageSize = pageSize, TotalCount = total, Items = result
             });
+    }
+
+    // Preserve invalid records as actionable exceptions without disclosing student identity.
+    public static string ClassifyAllocationReadinessWithIntegrity(bool invalidDates, bool enrollmentMatches,
+        bool campusActive, bool facilityActive, bool roomActive, bool bedActive,
+        bool enrollmentCampusMatches, bool enrollmentCurrent, bool enrollmentActive,
+        bool studentActive, DateOnly startDate, DateOnly today)
+    {
+        if (invalidDates) return "Invalid allocation dates";
+        if (!enrollmentMatches) return "Enrollment identity mismatch";
+        return ClassifyAllocationReadiness(campusActive, facilityActive, roomActive, bedActive,
+            enrollmentCampusMatches, enrollmentCurrent, enrollmentActive, studentActive, startDate, today);
     }
 
     // Pure classification: all safety exceptions outrank a future scheduled arrival.
