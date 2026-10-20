@@ -26,6 +26,14 @@ assert.match(svc, /assignment\.RowVersion\.AsSpan\(\)\.SequenceEqual\(version\)/
 assert.match(svc, /assignment\.RouteVehicleAssignmentId = pairing\.Id/);
 assert.match(svc, /assignment\.VehicleId = vehicle\.Id/);
 assert.match(svc, /reserved >= vehicle\.Capacity/);
+assert.match(svc, /PeakReservedSeats\(/);
+assert.match(svc, /x\.StartDate <= requestedEnd/);
+assert.match(svc, /x\.EndDate\.Value >= assignment\.StartDate/);
+assert.match(svc, /Take\(10001\)/);
+assert.match(svc, /overlapping\.Count > 10000/);
+assert.match(svc, /assignment\.EndDate\.HasValue && link\.EffectiveTo\.Value >= assignment\.EndDate\.Value/);
+assert.match(svc, /assignment\.EndDate\.HasValue && x\.EffectiveTo\.Value >= assignment\.EndDate\.Value/);
+assert.doesNotMatch(svc, /GroupBy\(x => x\.VehicleId\)[\s\S]*?Count = x\.Count\(\)/);
 assert.match(svc, /x\.IsCurrent/);
 assert.match(svc, /x\.EffectiveFrom <= assignment\.StartDate/);
 assert.match(svc, /assignment\.UpdatedBy/);

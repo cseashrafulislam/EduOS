@@ -41,7 +41,7 @@ public sealed partial class TransportService
             join vehicle in _vehicles.GetQueryable().AsNoTracking() on link.VehicleId equals vehicle.Id
             where link.TenantId == tenant && !link.IsDeleted && link.IsCurrent &&
                 link.RouteId == route.Id && link.EffectiveFrom <= assignment.StartDate &&
-                (!link.EffectiveTo.HasValue || link.EffectiveTo.Value >= (assignment.EndDate ?? assignment.StartDate)) &&
+                (!link.EffectiveTo.HasValue || (assignment.EndDate.HasValue && link.EffectiveTo.Value >= assignment.EndDate.Value)) &&
                 vehicle.TenantId == tenant && !vehicle.IsDeleted && vehicle.IsActive &&
                 vehicle.CampusId == enrollment.CampusId && vehicle.Capacity > 0
             select new { LinkId = link.Id, vehicle.PublicId, VehicleId = vehicle.Id, vehicle.VehicleNumber, vehicle.Capacity };
@@ -49,13 +49,22 @@ public sealed partial class TransportService
         var rows = await options.OrderBy(x => x.VehicleNumber).ThenBy(x => x.LinkId)
             .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
         var vehicleIds = rows.Select(x => x.VehicleId).Distinct().ToArray();
-        var counts = await _assignments.GetQueryable().AsNoTracking()
+        // Seat demand is the peak simultaneous occupancy within the requested interval,
+        // not the number of reservations ever recorded against the vehicle.
+        var requestedEnd = assignment.EndDate ?? DateOnly.MaxValue;
+        var overlapping = await _assignments.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == tenant && !x.IsDeleted &&
                 x.State == TransportAssignmentState.Active && x.Id != assignment.Id &&
-                vehicleIds.Contains(x.VehicleId))
-            .GroupBy(x => x.VehicleId)
-            .Select(x => new { VehicleId = x.Key, Count = x.Count() })
-            .ToDictionaryAsync(x => x.VehicleId, x => x.Count, ct);
+                vehicleIds.Contains(x.VehicleId) && x.StartDate <= requestedEnd &&
+                (!x.EndDate.HasValue || x.EndDate.Value >= assignment.StartDate))
+            .Select(x => new { x.VehicleId, x.StartDate, x.EndDate })
+            .Take(10001).ToListAsync(ct);
+        if (overlapping.Count > 10000)
+            return ApiResponse<PagedResult<UpcomingTransportVehicleOptionDto>>.ErrorResponse(
+                "Too many overlapping reservations. Narrow the vehicle selection.", 413);
+        var counts = overlapping.GroupBy(x => x.VehicleId)
+            .ToDictionary(g => g.Key, g => PeakReservedSeats(
+                g.Select(x => (x.StartDate, x.EndDate)), assignment.StartDate, requestedEnd).Peak);
         return ApiResponse<PagedResult<UpcomingTransportVehicleOptionDto>>.SuccessResponse(
             new PagedResult<UpcomingTransportVehicleOptionDto>
             {
@@ -110,7 +119,7 @@ public sealed partial class TransportService
                     .Where(x => x.TenantId == tenant && !x.IsDeleted && x.IsCurrent &&
                         x.RouteId == route.Id && x.VehicleId == vehicle.Id &&
                         x.EffectiveFrom <= assignment.StartDate &&
-                        (!x.EffectiveTo.HasValue || x.EffectiveTo.Value >= (assignment.EndDate ?? assignment.StartDate)))
+                        (!x.EffectiveTo.HasValue || (assignment.EndDate.HasValue && x.EffectiveTo.Value >= assignment.EndDate.Value)))
                     .OrderByDescending(x => x.EffectiveFrom).FirstOrDefaultAsync(token);
                 if (pairing == null) return Error("Vehicle is not assigned to this route for the reservation period.", 409);
                 // A retry after a successful update is a no-op, even if its old concurrency token is stale.
@@ -119,9 +128,21 @@ public sealed partial class TransportService
                         await MapAsync(assignment, token), "Vehicle already matches this reservation.");
                 if (!assignment.RowVersion.AsSpan().SequenceEqual(version))
                     return Error("Assignment changed. Reload and retry.", 409);
-                var reserved = await _assignments.GetQueryable().AsNoTracking().CountAsync(x =>
-                    x.TenantId == tenant && !x.IsDeleted && x.Id != assignment.Id &&
-                    x.VehicleId == vehicle.Id && x.State == TransportAssignmentState.Active, token);
+                // Recheck under the serializable write transaction: disjoint bookings
+                // do not occupy a seat simultaneously, but inclusive overlaps do.
+                var requestedEnd = assignment.EndDate ?? DateOnly.MaxValue;
+                var overlapping = await _assignments.GetQueryable().AsNoTracking()
+                    .Where(x => x.TenantId == tenant && !x.IsDeleted && x.Id != assignment.Id &&
+                        x.VehicleId == vehicle.Id && x.State == TransportAssignmentState.Active &&
+                        x.StartDate <= requestedEnd &&
+                        (!x.EndDate.HasValue || x.EndDate.Value >= assignment.StartDate))
+                    .Select(x => new { x.StartDate, x.EndDate })
+                    .Take(10001).ToListAsync(token);
+                if (overlapping.Count > 10000)
+                    return Error("Too many overlapping reservations to validate capacity.", 413);
+                var reserved = PeakReservedSeats(
+                    overlapping.Select(x => (x.StartDate, x.EndDate)),
+                    assignment.StartDate, requestedEnd).Peak;
                 if (reserved >= vehicle.Capacity)
                     return Error("Destination vehicle has no available seats.", 409);
                 assignment.VehicleId = vehicle.Id;
