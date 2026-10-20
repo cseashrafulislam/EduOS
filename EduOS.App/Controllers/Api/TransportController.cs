@@ -329,6 +329,12 @@ public sealed class TransportController : ControllerBase
         [FromBody] CloseTransportAssignmentRequestDto request, CancellationToken ct) =>
         ToAction(await _service.CloseDriverAssignmentAsync(id, request, ct));
 
+    [HttpPost("vehicle-driver-links/{id:long}/replace-active")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> ReplaceActiveVehicleDriver(long id,
+        [FromBody] ReplaceActiveVehicleDriverRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.ReplaceActiveDriverAsync(id, request, ct));
+
     [HttpPost("vehicle-driver-links/{id:long}/cancel-upcoming")]
     [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> CancelUpcomingVehicleDriver(long id,

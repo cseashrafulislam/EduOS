@@ -12,6 +12,18 @@
         <div class="col-md-3"><label for="transportVehicleDriverTo" class="form-label">Effective to (optional)</label><input id="transportVehicleDriverTo" class="form-control" type="date" /><div class="form-text">Defaults to license expiry.</div></div>
         <div class="col-md-2 d-flex align-items-end"><button id="transportVehicleDriverAssign" type="submit" class="btn btn-primary w-100">Assign driver</button></div>
     </form>
+    <section class="border rounded p-3 mb-3" aria-labelledby="transportVehicleDriverReplaceTitle">
+        <h4 id="transportVehicleDriverReplaceTitle" class="h6">Replace operating vehicle driver</h4>
+        <p class="small text-muted">Select a licensed replacement driver in the assignment form above, then find the active vehicle below. The replacement is effective today and preserves riders and monetary terms.</p>
+        <form id="transportVehicleDriverReplaceForm" class="row g-2">
+            <div class="col-md-5"><label for="transportVehicleDriverReplaceSearch" class="form-label">Find operating vehicle</label>
+                <div class="input-group"><input id="transportVehicleDriverReplaceSearch" class="form-control" maxlength="100" placeholder="Vehicle or current driver" />
+                <button id="transportVehicleDriverReplaceFind" type="button" class="btn btn-outline-secondary">Find</button></div></div>
+            <div class="col-md-5"><label for="transportVehicleDriverReplaceSource" class="form-label">Active assignment</label>
+                <select id="transportVehicleDriverReplaceSource" class="form-select" required><option value="">Find a vehicle</option></select></div>
+            <div class="col-md-2 d-flex align-items-end"><button type="submit" class="btn btn-outline-primary w-100">Replace driver</button></div>
+        </form>
+    </section>
     <h4 class="h6">Vehicle–driver assignment history</h4>
     <form id="transportVehicleDriverSearchForm" class="row g-2 mb-2">
         <div class="col-md-4"><label for="transportVehicleDriverCampus" class="visually-hidden">Campus</label><select id="transportVehicleDriverCampus" class="form-select"><option value="">All campuses</option></select></div>
