@@ -232,6 +232,27 @@ public sealed class TransportController : ControllerBase
             "text/csv; charset=utf-8", "transport-rider-readiness.csv");
     }
 
+    [HttpGet("seat-forecast")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> SeatForecast([FromQuery] DateOnly fromDate,
+        [FromQuery] DateOnly toDate, [FromQuery] long? campusId = null,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 15,
+        [FromQuery] string? search = null, CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetSeatForecastAsync(campusId, fromDate, toDate, page, pageSize, search, cancellationToken));
+
+    [HttpGet("seat-forecast/export")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> SeatForecastExport([FromQuery] DateOnly fromDate,
+        [FromQuery] DateOnly toDate, [FromQuery] long? campusId = null,
+        [FromQuery] string? search = null, CancellationToken cancellationToken = default)
+    {
+        var result = await _service.ExportSeatForecastCsvAsync(campusId, fromDate, toDate, search, cancellationToken);
+        if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
+        return File(System.Text.Encoding.UTF8.GetBytes(result.Data), "text/csv; charset=utf-8", "transport-seat-forecast.csv");
+    }
+
     [HttpGet("capacity-report")]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
     public async Task<IActionResult> CapacityReport([FromQuery] long? campusId = null,

@@ -1,0 +1,22 @@
+<section class="card mb-3" id="transportSeatForecastPanel"><div class="card-body">
+    <h3 class="h5">Future vehicle seat availability</h3>
+    <p class="small text-muted">Peak concurrent reservations across a selected 1–90 day future interval. This is a planning report, not a seat hold; allocation saves recheck capacity. No student names, identifiers, drivers or fares are exported.</p>
+    <div id="transportSeatForecastAlert" class="d-none" role="alert" tabindex="-1"></div>
+    <form id="transportSeatForecastFilter" class="row g-2 mb-3">
+        <div class="col-md-2"><label for="transportSeatForecastFrom" class="form-label">From</label><input id="transportSeatForecastFrom" type="date" class="form-control" required /></div>
+        <div class="col-md-2"><label for="transportSeatForecastTo" class="form-label">To</label><input id="transportSeatForecastTo" type="date" class="form-control" required /></div>
+        <div class="col-md-3"><label for="transportSeatForecastCampus" class="form-label">Campus</label><select id="transportSeatForecastCampus" class="form-select"><option value="">All authorized campuses</option></select></div>
+        <div class="col-md-3"><label for="transportSeatForecastSearch" class="form-label">Vehicle</label><input id="transportSeatForecastSearch" class="form-control" maxlength="100" placeholder="Vehicle number" /></div>
+        <div class="col-md-2 d-flex align-items-end gap-2"><button type="submit" class="btn btn-primary">Apply</button><button id="transportSeatForecastCsv" type="button" class="btn btn-outline-success" disabled>CSV</button></div>
+    </form>
+    <div id="transportSeatForecastStatus" class="small text-muted" role="status" aria-live="polite"></div>
+    <div class="table-responsive"><table class="table table-sm table-hover align-middle">
+        <thead><tr><th>Campus</th><th>Vehicle</th><th>Status</th><th>Capacity</th><th>Peak reserved</th><th>Peak date</th><th>Minimum free</th><th>Risk</th></tr></thead>
+        <tbody id="transportSeatForecastRows"><tr><td colspan="8">Loading…</td></tr></tbody>
+    </table></div>
+    <div class="d-flex justify-content-between align-items-center">
+        <button id="transportSeatForecastPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+        <span id="transportSeatForecastPage" class="small text-muted"></span>
+        <button id="transportSeatForecastNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+    </div>
+</div></section>
