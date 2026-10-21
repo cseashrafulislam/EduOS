@@ -1,5 +1,26 @@
 import { el, admin, state, api, cell, dateText, alert, action, pager } from './workspace-core.js?v=1';
 import { showNoticeReaders } from './workspace-notice-readers.js?v=1';
+async function archiveNotice(row, edit, button) {
+    if (!admin || !row?.reference || button.disabled) return;
+    if (!window.confirm('Archive this notice? It will no longer be visible to readers; read receipts are retained.')) return;
+    button.disabled = true;
+    try {
+        const path = '/api/communication/notices/' + encodeURIComponent(row.reference) +
+            '?rowVersion=' + encodeURIComponent(row.rowVersion || '');
+        await api(path, 'DELETE');
+        await loadNotices(edit);
+        if (state.noticePage > 1 && !state.noticeItems.length) {
+            state.noticePage--;
+            await loadNotices(edit);
+        }
+        alert('Notice archived. Historical read receipts are retained.', true);
+    } catch (error) {
+        alert(error.message);
+        if (error.status === 409) await loadNotices(edit).catch(() => {});
+    } finally {
+        button.disabled = false;
+    }
+}
 export function renderNotices(edit) {
     const tbody = el('cwNoticeRows'); tbody.replaceChildren();
     for (const row of state.noticeItems) {
@@ -13,7 +34,12 @@ export function renderNotices(edit) {
             if (tr.nextSibling?.dataset?.detail === row.reference) tr.nextSibling.remove();
             else { details.dataset.detail = row.reference; tr.after(details); }
         }));
-        if (admin) { actions.append(action('Edit', () => edit(row))); actions.append(action('Readers', () => showNoticeReaders(row))); }
+        if (admin) {
+            actions.append(action('Edit', () => edit(row)));
+            actions.append(action('Readers', () => showNoticeReaders(row)));
+            const archive = action('Archive', () => archiveNotice(row, edit, archive));
+            actions.append(archive);
+        }
         else actions.append(action('Mark read', async () => {
             try { await api('/api/communication/notices/' + encodeURIComponent(row.reference) + '/read', 'POST');
                 alert('Notice marked as read.', true); } catch (error) { alert(error.message); }

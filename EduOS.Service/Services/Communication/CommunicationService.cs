@@ -223,6 +223,49 @@ public sealed class CommunicationService(
         }
     }
 
+    /// <summary>
+    /// Tenant-scoped, idempotent notice archival. Missing/previously archived identifiers
+    /// return success without revealing whether another tenant owns the reference.
+    /// No global query filter bypass is permitted in this tenant-admin workflow.
+    /// </summary>
+    public async Task<ApiResponse<bool>> ArchiveNoticeAsync(Guid noticeReference, string? rowVersion, CancellationToken ct = default)
+    {
+        if (!Admin) return ApiResponse<bool>.ErrorResponse("Tenant administrator required.", 403);
+        if (noticeReference == Guid.Empty) return ApiResponse<bool>.ErrorResponse("Invalid notice reference.");
+        var tenant = user.TenantId;
+        try
+        {
+            var row = await db.Notices.FirstOrDefaultAsync(
+                x => x.TenantId == tenant && x.PublicId == noticeReference, ct);
+            // A repeated DELETE is safe, and an inaccessible tenant reference is indistinguishable
+            // from a missing one. Never query soft-deleted rows with IgnoreQueryFilters().
+            if (row == null) return ApiResponse<bool>.SuccessResponse(true);
+            if (!SameVersion(row.RowVersion, rowVersion))
+                return ApiResponse<bool>.ErrorResponse("Notice changed; reload before archiving.", 409);
+            var now = DateTime.UtcNow;
+            row.IsDeleted = true;
+            row.DeletedAt = now;
+            row.DeletedBy = user.UserId;
+            row.UpdatedAt = now;
+            row.UpdatedBy = user.UserId;
+            await db.SaveChangesAsync(ct);
+            return ApiResponse<bool>.SuccessResponse(true);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return ApiResponse<bool>.ErrorResponse("Notice changed; reload before archiving.", 409);
+        }
+        catch (DbUpdateException)
+        {
+            return ApiResponse<bool>.ErrorResponse("Notice could not be archived due to a data conflict.", 409);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(ex, "Notice archive failed for tenant {TenantId}", tenant);
+            return ApiResponse<bool>.ErrorResponse("Notice archive failed.", 500);
+        }
+    }
+
     public async Task<ApiResponse<bool>> MarkNoticeReadAsync(Guid noticeReference, CancellationToken ct = default)
     {
         if (!SignedIn) return ApiResponse<bool>.ErrorResponse("Sign in required.", 403);

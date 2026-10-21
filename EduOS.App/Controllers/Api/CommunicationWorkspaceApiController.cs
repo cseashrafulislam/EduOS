@@ -29,6 +29,11 @@ public sealed class CommunicationWorkspaceApiController(ICommunicationService se
     public async Task<IActionResult> UpdateNotice(Guid reference, [FromBody] SaveNoticeRequestDto request, CancellationToken ct)
     { var r = await service.SaveNoticeAsync(reference, request, ct); return StatusCode(r.StatusCode, r); }
 
+    [HttpDelete("notices/{reference:guid}")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> ArchiveNotice(Guid reference, [FromQuery] string? rowVersion, CancellationToken ct)
+    { var r = await service.ArchiveNoticeAsync(reference, rowVersion, ct); return StatusCode(r.StatusCode, r); }
+
     [HttpGet("notices/{reference:guid}/read-receipts")]
     [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> NoticeReadReceipts(Guid reference, [FromQuery] int page = 1,
