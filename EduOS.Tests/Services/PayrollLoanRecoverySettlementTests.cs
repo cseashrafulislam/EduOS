@@ -102,7 +102,6 @@ public sealed class PayrollLoanRecoverySettlementTests
         var run = await db.PayrollRuns.SingleAsync();
         var loan = await db.LoanAdvances.SingleAsync();
         loan.UpdatedAt = run.CalculatedAt!.Value.AddMinutes(1);
-        await db.SaveChangesAsync();
         var result = await new PayrollJournalPostingService(db, new TestUser(), TimeProvider.System)
             .PostAsync(run.PublicId, Request(run));
         result.StatusCode.Should().Be(409);
@@ -173,7 +172,7 @@ public sealed class PayrollLoanRecoverySettlementTests
             PeriodStart = new DateOnly(2026, 10, 1), PeriodEnd = new DateOnly(2026, 10, 20),
             CampusId = 1, State = PayrollRunState.Approved,
             ApprovedByUserId = 8, CreatedBy = 7,
-            CalculatedAt = now.AddDays(-2), RowVersion = new byte[] { 1 } });
+            CalculatedAt = now.AddMinutes(1), RowVersion = new byte[] { 1 } });
         db.PayrollEmployees.Add(new PayrollEmployee { Id = 1, TenantId = 41,
             PayrollRunId = 1, EmployeeId = 7, GrossAmount = 100m,
             DeductionAmount = 25m, NetAmount = 75m });
