@@ -118,7 +118,7 @@ public sealed partial class ExamWorkflowService
                 x.AcademicBatchId == batch.Id && x.State == ResultPublicationState.Published &&
                 !x.IsDeleted, token))
                 return Error<StudentAssessmentComponentMarkDto>("Published component marks cannot be edited.", 409);
-            if (!CanPublish() && !await CanEditOfferingAsync(subject!.SubjectOfferingId, token)
+            if (!CanPublish() && !await CanEditOfferingAsync(subject!.SubjectOfferingId, token))
                 return Error<StudentAssessmentComponentMarkDto>("Not assigned to this subject.", 403);
             if (request.ObtainedMarks > component.FullMarks)
                 return Error<StudentAssessmentComponentMarkDto>("Mark exceeds component full marks.", 409);
@@ -187,6 +187,20 @@ public sealed partial class ExamWorkflowService
                 x.TenantId == tenant && x.Id == row.AcademicBatchId && !x.IsDeleted, token);
             if (exam == null || batch == null)
                 return Error<ResultPublicationDto>("Publication scope is no longer valid.", 409);
+            // A completed subject may have unlocked dependent registrations.
+            var completed = await (from sub in _subjects.GetQueryable().AsNoTracking()
+                join registration in _registrations.GetQueryable().AsNoTracking()
+                    on sub.SubjectOfferingId equals registration.SubjectOfferingId
+                join enrollment in _enrollments.GetQueryable().AsNoTracking()
+                    on registration.StudentEnrollmentId equals enrollment.Id
+                where sub.TenantId == tenant && registration.TenantId == tenant &&
+                    enrollment.TenantId == tenant && !sub.IsDeleted && !registration.IsDeleted &&
+                    !enrollment.IsDeleted && sub.AssessmentId == row.AssessmentId &&
+                    enrollment.AcademicBatchId == row.AcademicBatchId &&
+                    registration.State == SubjectRegistrationState.Completed
+                select registration.Id).AnyAsync(token);
+            if (completed)
+                return Error<ResultPublicationDto>("Completed subject registrations prevent publication withdrawal.", 409);
             var now = _clock.GetUtcNow().UtcDateTime;
             row.State = ResultPublicationState.Withdrawn;
             row.VisibleToStudent = false; row.VisibleToGuardian = false;

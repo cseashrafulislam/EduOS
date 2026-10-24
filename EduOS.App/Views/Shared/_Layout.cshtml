@@ -239,6 +239,10 @@
                 @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
                      User?.IsInRole("VicePrincipal") == true || User?.IsInRole("ExamController") == true)
                 {
+                    <a class="nav-link @ActiveFor("/ExamOperations/SubjectCompletions")" href="/ExamOperations/SubjectCompletions">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                        <span>Subject Completion Register</span>
+                    </a>
                     <a class="nav-link @ActiveFor("/ExamOperations/AssessmentComponents")" href="/ExamOperations/AssessmentComponents">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
                         <span>Assessment Components</span>

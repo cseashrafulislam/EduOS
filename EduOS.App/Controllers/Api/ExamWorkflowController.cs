@@ -45,6 +45,16 @@ public sealed class ExamWorkflowController : ControllerBase
     public async Task<IActionResult> Publish([FromBody] PublishResultRequestDto request,
         CancellationToken ct) => Result(await _service.PublishResultAsync(request, ct));
 
+    [HttpGet("subject-completions")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> SubjectCompletions([FromQuery] SubjectCompletionQueryDto query,
+        CancellationToken ct) => Result(await _service.SearchSubjectCompletionsAsync(query, ct));
+
+    [HttpPost("subject-completions/{id:long}/complete")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> CompleteSubject(long id, [FromBody] CompleteSubjectRequestDto request,
+        CancellationToken ct) => Result(await _service.CompleteSubjectAsync(id, request, ct));
+
     [HttpPost("results/publications/{id:long}/withdraw")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
     public async Task<IActionResult> Withdraw(long id,
