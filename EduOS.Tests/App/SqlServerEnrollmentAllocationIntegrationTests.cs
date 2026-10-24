@@ -142,7 +142,8 @@ public sealed class SqlServerEnrollmentAllocationIntegrationTests
         new GenericRepository<StudentGuardian>(db), new GenericRepository<AcademicBatch>(db),
         new GenericRepository<AcademicYear>(db), new GenericRepository<AcademicCurriculum>(db),
         new GenericRepository<CurriculumSubject>(db), new GenericRepository<SubjectOffering>(db),
-        new GenericRepository<Subject>(db), new GenericRepository<RoutineEntry>(db),
+        new GenericRepository<Subject>(db), new GenericRepository<SubjectPrerequisite>(db),
+        new GenericRepository<RoutineEntry>(db),
         new GenericRepository<RoutineTimeSlot>(db), new GenericRepository<Room>(db),
         db, new TestManager(tenant, managerUserId), TimeProvider.System,
         NullLogger<AcademicEnrollmentService>.Instance);

@@ -168,13 +168,104 @@ public sealed class AcademicEnrollmentServiceTests
         (await db.StudentEnrollments.IgnoreQueryFilters().CountAsync()).Should().Be(0);
     }
 
+
+    [Fact]
+    public async Task Elective_request_and_approval_require_completed_prerequisites()
+    {
+        var options = Options();
+        var seed = await SeedAsync(options, 10);
+        await using var db = Context(options, 101, 7, "TenantAdmin");
+        var mapped = await db.CurriculumSubjects.Where(x => x.AcademicCurriculumId == seed.CurriculumId).ToListAsync();
+        db.SubjectPrerequisites.Add(new SubjectPrerequisite
+        {
+            TenantId = 101, AcademicCurriculumId = seed.CurriculumId,
+            SubjectId = mapped.Single(x => x.IsOptional).SubjectId,
+            PrerequisiteSubjectId = mapped.Single(x => !x.IsOptional).SubjectId, IsMandatory = true
+        });
+        await db.SaveChangesAsync();
+        var service = Service(db, new TestUser(101, 7, "TenantAdmin"));
+        var enrolled = await service.EnrollAsync(new CreateStudentEnrollmentRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), StudentReference = seed.StudentRef,
+            AcademicBatchId = seed.BatchId, AcademicCurriculumId = seed.CurriculumId,
+            RollNo = "01", EnrollmentDate = new DateOnly(2026, 9, 21)
+        });
+        enrolled.Success.Should().BeTrue();
+        var request = new RegisterStudentSubjectRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), StudentEnrollmentReference = enrolled.Data!.Reference,
+            SubjectOfferingReference = seed.OptionalOfferingRef
+        };
+        (await service.RequestOptionalSubjectAsync(request)).StatusCode.Should().Be(409);
+        var core = await db.StudentSubjectRegistrations.SingleAsync();
+        core.State = SubjectRegistrationState.Completed;
+        await db.SaveChangesAsync();
+        var created = await service.RequestOptionalSubjectAsync(request);
+        created.Success.Should().BeTrue();
+        (await service.RequestOptionalSubjectAsync(request)).Data!.Id.Should().Be(created.Data!.Id);
+        var elective = await db.StudentSubjectRegistrations.SingleAsync(x => x.Id == created.Data.Id);
+        elective.RowVersion = [1, 2, 3, 4, 5, 6, 7, 8];
+        core.State = SubjectRegistrationState.Approved;
+        await db.SaveChangesAsync();
+        var decision = new ChangeSubjectRegistrationStateRequestDto
+        {
+            State = SubjectRegistrationState.Approved,
+            RowVersion = Convert.ToBase64String(elective.RowVersion)
+        };
+        (await service.DecideSubjectAsync(elective.Id, decision)).StatusCode.Should().Be(409);
+        (await db.StudentSubjectRegistrations.SingleAsync(x => x.Id == elective.Id))
+            .State.Should().Be(SubjectRegistrationState.Pending);
+        core.State = SubjectRegistrationState.Completed;
+        await db.SaveChangesAsync();
+        (await service.DecideSubjectAsync(elective.Id, decision)).Success.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Elective_workspace_shows_prerequisite_eligibility_for_same_student_only()
+    {
+        var options = Options();
+        var seed = await SeedAsync(options, 10);
+        await using var db = Context(options, 101, 7, "TenantAdmin");
+        var mapped = await db.CurriculumSubjects.Where(x => x.AcademicCurriculumId == seed.CurriculumId).ToListAsync();
+        db.SubjectPrerequisites.Add(new SubjectPrerequisite
+        {
+            TenantId = 101, AcademicCurriculumId = seed.CurriculumId,
+            SubjectId = mapped.Single(x => x.IsOptional).SubjectId,
+            PrerequisiteSubjectId = mapped.Single(x => !x.IsOptional).SubjectId, IsMandatory = true
+        });
+        await db.SaveChangesAsync();
+        var service = Service(db, new TestUser(101, 7, "TenantAdmin"));
+        foreach (var (reference, roll) in new[] { (seed.StudentRef, "01"), (seed.OtherStudentRef, "02") })
+            (await service.EnrollAsync(new CreateStudentEnrollmentRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), StudentReference = reference,
+                AcademicBatchId = seed.BatchId, AcademicCurriculumId = seed.CurriculumId,
+                RollNo = roll, EnrollmentDate = new DateOnly(2026, 9, 21)
+            })).Success.Should().BeTrue();
+        var otherId = await db.StudentEnrollments.Where(x => x.RollNo == "02").Select(x => x.Id).SingleAsync();
+        (await db.StudentSubjectRegistrations.SingleAsync(x => x.StudentEnrollmentId == otherId))
+            .State = SubjectRegistrationState.Completed;
+        await db.SaveChangesAsync();
+        var query = new StudentOptionalSubjectQueryService(
+            new GenericRepository<Student>(db), new GenericRepository<StudentEnrollment>(db),
+            new GenericRepository<SubjectOffering>(db), new GenericRepository<CurriculumSubject>(db),
+            new GenericRepository<Subject>(db), new GenericRepository<StudentSubjectRegistration>(db),
+            new GenericRepository<SubjectPrerequisite>(db), new TestUser(101, 7, "TenantAdmin"));
+        var workspace = await query.GetAsync(seed.StudentRef);
+        workspace.Success.Should().BeTrue();
+        workspace.Data!.Offerings.Should().ContainSingle();
+        workspace.Data.Offerings[0].IsEligible.Should().BeFalse();
+        workspace.Data.Offerings[0].MissingPrerequisites.Should().ContainSingle(x => x.Contains("MATH"));
+    }
+
     private static AcademicEnrollmentService Service(EduOSDbContext db, ICurrentUserService user) => new(
         new GenericRepository<StudentEnrollment>(db), new GenericRepository<StudentSubjectRegistration>(db),
         new GenericRepository<Student>(db), new GenericRepository<Guardian>(db),
         new GenericRepository<StudentGuardian>(db), new GenericRepository<AcademicBatch>(db),
         new GenericRepository<AcademicYear>(db), new GenericRepository<AcademicCurriculum>(db),
         new GenericRepository<CurriculumSubject>(db), new GenericRepository<SubjectOffering>(db),
-        new GenericRepository<Subject>(db), new GenericRepository<RoutineEntry>(db),
+        new GenericRepository<Subject>(db), new GenericRepository<SubjectPrerequisite>(db),
+        new GenericRepository<RoutineEntry>(db),
         new GenericRepository<RoutineTimeSlot>(db), new GenericRepository<Room>(db),
         db, user, TimeProvider.System, NullLogger<AcademicEnrollmentService>.Instance);
 

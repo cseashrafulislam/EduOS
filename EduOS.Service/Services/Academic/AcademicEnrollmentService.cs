@@ -25,6 +25,7 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
     private readonly IGenericRepository<CurriculumSubject> _curriculumSubjects;
     private readonly IGenericRepository<SubjectOffering> _offerings;
     private readonly IGenericRepository<Subject> _subjects;
+    private readonly IGenericRepository<SubjectPrerequisite> _prerequisites;
     private readonly IGenericRepository<RoutineEntry> _routineEntries;
     private readonly IGenericRepository<RoutineTimeSlot> _timeSlots;
     private readonly IGenericRepository<Room> _rooms;
@@ -40,6 +41,7 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
         IGenericRepository<AcademicBatch> batches, IGenericRepository<AcademicYear> years,
         IGenericRepository<AcademicCurriculum> curricula, IGenericRepository<CurriculumSubject> curriculumSubjects,
         IGenericRepository<SubjectOffering> offerings, IGenericRepository<Subject> subjects,
+        IGenericRepository<SubjectPrerequisite> prerequisites,
         IGenericRepository<RoutineEntry> routineEntries, IGenericRepository<RoutineTimeSlot> timeSlots,
         IGenericRepository<Room> rooms, IUnitOfWork unitOfWork,
         ICurrentUserService currentUser, TimeProvider clock, ILogger<AcademicEnrollmentService> logger)
@@ -47,7 +49,7 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
         _enrollments = enrollments; _registrations = registrations;
         _students = students; _guardians = guardians; _studentGuardians = studentGuardians;
         _batches = batches; _years = years; _curricula = curricula;
-        _curriculumSubjects = curriculumSubjects; _offerings = offerings; _subjects = subjects;
+        _curriculumSubjects = curriculumSubjects; _offerings = offerings; _subjects = subjects; _prerequisites = prerequisites;
         _routineEntries = routineEntries; _timeSlots = timeSlots; _rooms = rooms;
         _uow = unitOfWork; _user = currentUser; _clock = clock; _logger = logger;
     }
@@ -250,7 +252,7 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
                     offer.AcademicYearId == enrollment.AcademicYearId && item.IsOptional &&
                     item.AcademicCurriculumId == enrollment.AcademicCurriculumId &&
                     item.AcademicLevelId == enrollment.AcademicLevelId
-                select new { offer.Id, item.CreditHours }).FirstOrDefaultAsync(ct);
+                select new { offer.Id, item.CreditHours, item.SubjectId }).FirstOrDefaultAsync(ct);
             if (offering == null)
                 return Error<StudentSubjectRegistrationDto>("Optional subject offering is not available for this enrollment.", 409);
             var replay = await _registrations.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
@@ -267,6 +269,9 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
                 x.TenantId == tenant && x.StudentEnrollmentId == enrollment.Id &&
                 x.SubjectOfferingId == offering.Id && !x.IsDeleted, ct))
                 return Error<StudentSubjectRegistrationDto>("Subject registration already exists.", 409);
+            var missing = await MissingPrerequisitesAsync(enrollment, offering.SubjectId, ct);
+            if (missing.Count > 0)
+                return Error<StudentSubjectRegistrationDto>("Complete prerequisites first: " + string.Join(", ", missing), 409);
             var now = _clock.GetUtcNow().UtcDateTime;
             var entity = new StudentSubjectRegistration
             {
@@ -302,7 +307,8 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
             var offering = await (from offer in _offerings.GetQueryable().AsNoTracking()
                 join item in _curriculumSubjects.GetQueryable().AsNoTracking() on offer.CurriculumSubjectId equals item.Id
                 where offer.TenantId == tenant && item.TenantId == tenant && offer.Id == entity.SubjectOfferingId
-                select new { item.IsOptional }).FirstOrDefaultAsync(ct);
+                select new { item.IsOptional, item.SubjectId, item.AcademicCurriculumId, item.AcademicLevelId,
+                    offer.AcademicBatchId, offer.AcademicYearId, offer.IsActive, ItemActive = item.IsActive }).FirstOrDefaultAsync(ct);
             if (offering == null || !offering.IsOptional)
                 return Error<StudentSubjectRegistrationDto>("Required subjects cannot use elective approval.", 409);
             if (entity.State == request.State)
@@ -313,6 +319,21 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
             }
             if (entity.State != SubjectRegistrationState.Pending)
                 return Error<StudentSubjectRegistrationDto>("Only pending subject requests can be decided.", 409);
+            if (request.State == SubjectRegistrationState.Approved)
+            {
+                var enrollment = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Id == entity.StudentEnrollmentId && x.IsCurrent &&
+                    x.State == EnrollmentState.Active && !x.IsDeleted, ct);
+                if (enrollment == null || !offering.IsActive || !offering.ItemActive ||
+                    offering.AcademicBatchId != enrollment.AcademicBatchId ||
+                    offering.AcademicYearId != enrollment.AcademicYearId ||
+                    offering.AcademicCurriculumId != enrollment.AcademicCurriculumId ||
+                    offering.AcademicLevelId != enrollment.AcademicLevelId)
+                    return Error<StudentSubjectRegistrationDto>("Elective is no longer valid for the enrollment.", 409);
+                var missing = await MissingPrerequisitesAsync(enrollment, offering.SubjectId, ct);
+                if (missing.Count > 0)
+                    return Error<StudentSubjectRegistrationDto>("Complete prerequisites first: " + string.Join(", ", missing), 409);
+            }
             var now = _clock.GetUtcNow().UtcDateTime;
             entity.State = request.State;
             entity.ApprovedAt = request.State == SubjectRegistrationState.Approved ? now : null;
@@ -370,6 +391,15 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
             RowVersion = Convert.ToBase64String(x.Routine.RowVersion)
         }).ToList();
         return ApiResponse<IReadOnlyList<RoutineEntryDto>>.SuccessResponse(result);
+    }
+
+    private async Task<IReadOnlyList<string>> MissingPrerequisitesAsync(StudentEnrollment enrollment, long subjectId, CancellationToken ct)
+    {
+        var helper = new SubjectPrerequisiteEligibility(_prerequisites, _enrollments, _registrations,
+            _offerings, _curriculumSubjects, _subjects);
+        var result = await helper.MissingAsync(_user.TenantId, enrollment.StudentId, enrollment.CampusId,
+            enrollment.AcademicCurriculumId, [subjectId], DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime), ct);
+        return result.GetValueOrDefault(subjectId) ?? Array.Empty<string>();
     }
 
     private async Task<Student?> AuthorizedStudentAsync(Guid reference, CancellationToken ct)

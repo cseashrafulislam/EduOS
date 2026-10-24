@@ -30,7 +30,8 @@
                 <h2 class="h5">2. Request optional subject</h2>
                 <form id="subjectsRequestForm" class="row g-3">
                     <div class="col-12"><label class="form-label" for="subjectsOffering">Available elective *</label>
-                        <select id="subjectsOffering" class="form-select" required disabled><option value="">Select a student first</option></select></div>
+                        <select id="subjectsOffering" class="form-select" required disabled><option value="">Select a student first</option></select>
+                        <div id="subjectsEligibility" class="form-text" aria-live="polite">Prerequisites are checked before request and approval.</div></div>
                     <div class="col-12"><label class="form-label" for="subjectsRemarks">Remarks</label>
                         <textarea id="subjectsRemarks" class="form-control" maxlength="500" rows="2"></textarea></div>
                     <div class="col-12"><button id="subjectsRequestButton" class="btn btn-primary" type="submit" disabled>Submit Elective Request</button></div>

@@ -13,7 +13,13 @@ async function api(url,body){
  if(!r.ok||p?.success!==true)throw Error(p?.message||'Request failed. Reload and retry.');
  return p.data;
 }
-function refresh(){el('subjectsOffering').disabled=busy||!workspace;el('subjectsRequestButton').disabled=busy||!workspace||!val('subjectsOffering');}
+function refresh(){
+ const chosen=(workspace?.offerings||[]).find(x=>x.reference===val('subjectsOffering'));
+ const missing=chosen?.missingPrerequisites||[];
+ el('subjectsOffering').disabled=busy||!workspace;
+ el('subjectsRequestButton').disabled=busy||!workspace||!chosen||chosen.isEligible===false;
+ el('subjectsEligibility').textContent=missing.length?'Complete prerequisites: '+missing.join(', '):'Eligibility is rechecked on approval.';
+}
 async function load(ref){
  const data=await api('/api/student-optional-subjects/students/'+encodeURIComponent(ref));
  if(student?.reference!==ref)return;
@@ -21,7 +27,11 @@ async function load(ref){
  el('subjectsStudentName').textContent=data.studentName;
  el('subjectsStudentDetails').textContent=data.studentCode+' · Roll: '+data.rollNo;
  const menu=el('subjectsOffering');menu.replaceChildren(new Option('Choose optional subject',''));
- for(const item of data.offerings||[])menu.add(new Option(item.subjectName+' ('+item.code+')',item.reference));
+ for(const item of data.offerings||[]){
+   const missing=item.missingPrerequisites||[];
+   const option=new Option(item.subjectName+' ('+item.code+')'+(missing.length?' — Requires: '+missing.join(', '):''),item.reference);
+   option.disabled=item.isEligible===false;menu.add(option);
+  }
  const table=el('subjectsRegistrations');table.replaceChildren();
  for(const item of data.registrations||[]){
   const row=document.createElement('tr');
@@ -52,6 +62,8 @@ async function search(e){
 }
 async function submit(e){
  e.preventDefault();if(busy||!workspace||!val('subjectsOffering'))return;
+  const chosen=(workspace.offerings||[]).find(x=>x.reference===val('subjectsOffering'));
+  if(!chosen||chosen.isEligible===false)return notice('Complete prerequisites and reload the workspace.',true);
  requestId??=crypto.randomUUID();busy=true;refresh();
  try{
   await api('/api/academic-enrollments/subjects/requests',{clientRequestId:requestId,studentEnrollmentReference:workspace.enrollmentReference,subjectOfferingReference:val('subjectsOffering'),remarks:val('subjectsRemarks')||null});

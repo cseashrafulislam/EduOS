@@ -19,6 +19,7 @@ public sealed class StudentOptionalSubjectQueryService : IStudentOptionalSubject
     private readonly IGenericRepository<CurriculumSubject> _curriculumSubjects;
     private readonly IGenericRepository<Subject> _subjects;
     private readonly IGenericRepository<StudentSubjectRegistration> _registrations;
+    private readonly IGenericRepository<SubjectPrerequisite> _prerequisites;
     private readonly ICurrentUserService _user;
 
     public StudentOptionalSubjectQueryService(IGenericRepository<Student> students,
@@ -27,11 +28,11 @@ public sealed class StudentOptionalSubjectQueryService : IStudentOptionalSubject
         IGenericRepository<CurriculumSubject> curriculumSubjects,
         IGenericRepository<Subject> subjects,
         IGenericRepository<StudentSubjectRegistration> registrations,
-        ICurrentUserService user)
+        IGenericRepository<SubjectPrerequisite> prerequisites, ICurrentUserService user)
     {
         _students = students; _enrollments = enrollments; _offerings = offerings;
         _curriculumSubjects = curriculumSubjects; _subjects = subjects;
-        _registrations = registrations; _user = user;
+        _registrations = registrations; _prerequisites = prerequisites; _user = user;
     }
 
     public async Task<ApiResponse<StudentOptionalSubjectWorkspaceDto>> GetAsync(
@@ -66,11 +67,21 @@ public sealed class StudentOptionalSubjectQueryService : IStudentOptionalSubject
                 item.AcademicCurriculumId == enrollment.AcademicCurriculumId &&
                 item.AcademicLevelId == enrollment.AcademicLevelId
             orderby subject.Name, offering.Code
-            select new OptionalSubjectOfferingDto
+            select new { item.SubjectId, Offering = new OptionalSubjectOfferingDto
             {
                 Reference = offering.PublicId, Code = subject.Code,
                 SubjectName = subject.Name, Capacity = offering.Capacity
-            }).Take(200).ToListAsync(ct);
+            } }).Take(200).ToListAsync(ct);
+        var helper = new SubjectPrerequisiteEligibility(_prerequisites, _enrollments, _registrations,
+            _offerings, _curriculumSubjects, _subjects);
+        var missing = await helper.MissingAsync(tenant, student.Id, enrollment.CampusId,
+            enrollment.AcademicCurriculumId, options.Select(x => x.SubjectId).ToArray(),
+            DateOnly.FromDateTime(DateTime.UtcNow), ct);
+        foreach (var option in options)
+        {
+            option.Offering.MissingPrerequisites = missing.GetValueOrDefault(option.SubjectId) ?? Array.Empty<string>();
+            option.Offering.IsEligible = option.Offering.MissingPrerequisites.Count == 0;
+        }
 
         var registrations = await (from registration in _registrations.GetQueryable().AsNoTracking()
             join offering in _offerings.GetQueryable().AsNoTracking()
@@ -97,7 +108,7 @@ public sealed class StudentOptionalSubjectQueryService : IStudentOptionalSubject
         {
             StudentReference = student.PublicId, EnrollmentReference = enrollment.PublicId,
             StudentName = student.FullName, StudentCode = student.StudentCode, RollNo = enrollment.RollNo,
-            Offerings = options, Registrations = registrations
+            Offerings = options.Select(x => x.Offering).ToList(), Registrations = registrations
         });
     }
 }
