@@ -37,7 +37,8 @@ public sealed partial class StudentTransferRequestService
                 if (student.StatusCode != "Active" || !enrollment.IsCurrent || enrollment.State != EnrollmentState.Active)
                     return Error<TransferRequestDto>("Current active enrollment required.", 409);
                 if (await _exits.GetQueryable().AsNoTracking().AnyAsync(x =>
-                    x.TenantId == tenant && x.StudentId == student.Id && !x.IsDeleted, token))
+                    x.TenantId == tenant && x.StudentId == student.Id &&
+                x.StudentEnrollmentId == enrollment.Id && !x.IsDeleted, token))
                     return Error<TransferRequestDto>("Student has a final exit.", 409);
             }
             var now = _clock.GetUtcNow().UtcDateTime;
