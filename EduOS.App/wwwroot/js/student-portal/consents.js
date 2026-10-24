@@ -28,8 +28,8 @@
     async function api(url, options = {}) {
         const response = await fetch(url, {
             credentials: 'same-origin', cache: 'no-store', referrerPolicy: 'no-referrer',
-            headers: { Accept: 'application/json', ...(options.headers || {}) },
-            ...options
+            ...options,
+            headers: { Accept: 'application/json', ...(options.headers || {}) }
         });
         const body = await response.json().catch(() => null);
         if (!response.ok || !body?.success) {
