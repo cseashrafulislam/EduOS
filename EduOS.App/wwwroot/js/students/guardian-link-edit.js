@@ -99,6 +99,7 @@ export function renderGuardianLinks({ $, api, state, render, notice }) {
                     canReceiveSms: sms.checked, canReceiveEmail: email.checked,
                     isAuthorizedPickup: pickup.checked, rowVersion: guardian.rowVersion
                 });
+                state.busy = false;
                 render(updated);
                 notice('Guardian relationship updated.');
             } catch (error) {
