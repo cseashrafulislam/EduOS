@@ -207,6 +207,14 @@
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
                     <span>Exam Marks &amp; Results</span>
                 </a>
+                @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
+                     User?.IsInRole("VicePrincipal") == true || User?.IsInRole("ExamController") == true)
+                {
+                    <a class="nav-link @ActiveFor("/ExamOperations/Transcripts")" href="/ExamOperations/Transcripts">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                        <span>Transcript Issue Register</span>
+                    </a>
+                }
                 <a class="nav-link @ActiveFor("/AcademicRoutines")" href="/AcademicRoutines/Index">
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#calendar" /></svg>
                     <span>Class Routines</span>

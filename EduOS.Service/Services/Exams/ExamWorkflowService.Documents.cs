@@ -329,18 +329,7 @@ public sealed partial class ExamWorkflowService
             var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.PublicId == request.StudentReference && !x.IsDeleted, token);
             if (student == null) return Error<TranscriptIssueDto>("Student not found.", 404);
-            var enrolled = _enrollments.GetQueryable().AsNoTracking().Where(x =>
-                x.TenantId == tenant && x.StudentId == student.Id && !x.IsDeleted).Select(x => x.Id);
-            if (!await (from summary in _summaries.GetQueryable().AsNoTracking()
-                join publication in _publications.GetQueryable().AsNoTracking()
-                    on new { summary.TenantId, Id = summary.ResultPublicationId }
-                    equals new { publication.TenantId, publication.Id }
-                where summary.TenantId == tenant &&
-                    enrolled.Contains(summary.StudentEnrollmentId) &&
-                    !summary.IsDeleted && !publication.IsDeleted &&
-                    publication.State == ResultPublicationState.Published &&
-                    !summary.IsWithheld
-                select summary.Id).AnyAsync(token))
+            if (!await EligibleTranscriptStudentIds(tenant).AnyAsync(id => id == student.Id, token))
                 return Error<TranscriptIssueDto>("No published, released result exists for the student.", 409);
             var now = _clock.GetUtcNow().UtcDateTime;
             var row = new TranscriptIssue

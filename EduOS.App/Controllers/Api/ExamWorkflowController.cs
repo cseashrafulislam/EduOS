@@ -119,6 +119,16 @@ public sealed class ExamWorkflowController : ControllerBase
         [FromBody] RevokeCertificateRequestDto request, CancellationToken ct) =>
         Result(await _service.RevokeCertificateAsync(id, request, ct));
 
+    [HttpGet("transcripts/candidates")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> TranscriptCandidates([FromQuery] string? search, CancellationToken ct) =>
+        Result(await _service.GetTranscriptCandidatesAsync(search, ct));
+
+    [HttpGet("transcripts")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> TranscriptRegister([FromQuery] TranscriptRegisterQueryDto query, CancellationToken ct) =>
+        Result(await _service.SearchTranscriptRegisterAsync(query, ct));
+
     [HttpPost("transcripts")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
     public async Task<IActionResult> IssueTranscript([FromBody] IssueTranscriptRequestDto request,

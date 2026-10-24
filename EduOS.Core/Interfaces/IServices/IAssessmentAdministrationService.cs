@@ -23,6 +23,8 @@ public interface IAssessmentAdministrationService
     Task<ApiResponse<StudentAssessmentComponentMarkDto>> SaveComponentMarkAsync(long? componentMarkId, SaveStudentAssessmentComponentMarkRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<ResultPublicationDto>> WithdrawResultPublicationAsync(long publicationId, WithdrawResultPublicationRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<CertificateTemplateDto>> SaveCertificateTemplateAsync(long? templateId, SaveCertificateTemplateRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<IReadOnlyList<TranscriptCandidateDto>>> GetTranscriptCandidatesAsync(string? search, CancellationToken cancellationToken = default);
+    Task<ApiResponse<TranscriptRegisterPageDto>> SearchTranscriptRegisterAsync(TranscriptRegisterQueryDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<TranscriptIssueDto>> IssueTranscriptAsync(IssueTranscriptRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<TranscriptIssueDto>> RevokeTranscriptAsync(Guid transcriptReference, RevokeTranscriptRequestDto request, CancellationToken cancellationToken = default);
 }
