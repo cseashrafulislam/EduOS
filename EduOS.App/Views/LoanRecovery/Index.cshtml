@@ -1,0 +1,52 @@
+@{
+    ViewData["Title"] = "Employee Loan Cash Recovery";
+}
+<section id="loanRecovery" class="container-fluid py-3">
+    <h2 class="h4">Employee loan cash recovery → Institutional GL</h2>
+    <p class="text-muted">Record actual cash received against an existing posted loan disbursement. Debit cash-in-hand, credit the original loan receivable. Payroll withholding is not recorded here.</p>
+    <p><a class="btn btn-sm btn-outline-secondary" href="/PayrollOperations/Index">Payroll operations</a>
+       <a class="btn btn-sm btn-outline-secondary" href="/LoanDisbursement/Index">Loan disbursement</a>
+       <a class="btn btn-sm btn-outline-secondary" href="/AccountingJournals/Index">Institutional journals</a></p>
+    @Html.AntiForgeryToken()
+    <div id="recoveryNotice" class="alert d-none" role="alert" aria-live="polite"></div>
+    <form id="recoveryFilter" class="card card-body mb-3">
+        <label class="form-check"><input id="recoveryOpen" class="form-check-input" type="checkbox" checked /> Open loans only</label>
+        <button class="btn btn-sm btn-primary mt-2" type="submit">Load disbursed loans</button>
+    </form>
+    <div class="card card-body">
+        <div class="table-responsive"><table class="table table-sm table-striped align-middle">
+            <thead><tr><th>Loan</th><th>Employee</th><th>Issue date</th><th>Principal</th><th>Outstanding</th><th>Disbursement journal</th><th>Actions</th></tr></thead>
+            <tbody id="recoveryRows"></tbody>
+        </table></div>
+        <div class="d-flex gap-2 align-items-center">
+            <button id="recoveryPrev" class="btn btn-sm btn-outline-secondary" type="button">Previous</button>
+            <span id="recoveryPage"></span>
+            <button id="recoveryNext" class="btn btn-sm btn-outline-secondary" type="button">Next</button>
+        </div>
+    </div>
+    <section id="recoveryHistoryPanel" class="card card-body mt-3 d-none">
+        <h3 class="h6">Posted cash recovery history</h3>
+        <p id="recoveryHistoryLoan" class="small text-muted"></p>
+        <div class="table-responsive"><table class="table table-sm">
+            <thead><tr><th>Date</th><th>Amount</th><th>Journal</th><th>Remarks</th></tr></thead>
+            <tbody id="recoveryHistoryRows"></tbody>
+        </table></div>
+    </section>
+    <section id="recoveryConfirmPanel" class="card card-body mt-3 d-none">
+        <h3 class="h6">Post loan cash receipt</h3>
+        <p id="recoverySelected"></p>
+        <form id="recoveryForm" class="row g-2">
+            <div class="col-md-3"><label class="form-label" for="recoveryDate">Cash receipt date</label><input class="form-control" id="recoveryDate" type="date" required /></div>
+            <div class="col-md-3"><label class="form-label" for="recoveryAmount">Amount (BDT)</label><input class="form-control" id="recoveryAmount" type="number" min="0.01" step="0.01" required /></div>
+            <div class="col-md-3"><label class="form-label" for="recoveryPeriod">Open accounting period</label><select class="form-select" id="recoveryPeriod" required></select></div>
+            <div class="col-md-3"><label class="form-label" for="recoveryCash">Cash-in-hand debit ledger</label><select class="form-select" id="recoveryCash" required></select></div>
+            <div class="col-12"><label class="form-label" for="recoveryRemarks">Remarks</label><input class="form-control" id="recoveryRemarks" maxlength="500" /></div>
+            <div class="col-12 small text-muted">Cash only. Bank receipts and payroll deductions require separate verified workflows. Posted journals are immutable.</div>
+            <div class="col-12 d-flex gap-2">
+                <button id="recoveryConfirm" class="btn btn-danger" type="submit">Post balanced cash recovery</button>
+                <button id="recoveryCancel" class="btn btn-outline-secondary" type="button">Cancel</button>
+            </div>
+        </form>
+    </section>
+</section>
+@section Scripts { <script src="~/js/finance/loan-recovery.js" asp-append-version="true"></script> }
