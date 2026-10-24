@@ -50,7 +50,7 @@
             const action = document.createElement('td'); action.className = 'schedule-action';
             const button = document.createElement('button'); button.type = 'button';
             button.className = 'btn btn-sm btn-outline-primary'; button.textContent = 'Edit';
-            button.disabled = state.busy || ![0, 1, 'Draft', 'Scheduled'].includes(row.state);
+            button.disabled = state.busy || ![1, 2, 'Draft', 'Scheduled'].includes(row.state);
             button.addEventListener('click', () => edit(row));
             action.append(button); tr.append(action); body.append(tr);
         }
