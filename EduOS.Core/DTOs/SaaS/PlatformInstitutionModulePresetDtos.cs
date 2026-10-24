@@ -25,7 +25,7 @@ public sealed class PlatformInstitutionModuleRowDto
 public sealed class SavePlatformInstitutionModulePresetDto
 {
     public Guid RequestId { get; set; }
-    [System.ComponentModel.DataAnnotations.Required]
+    [global::System.ComponentModel.DataAnnotations.Required]
     public string InstitutionTypeRowVersion { get; set; } = string.Empty;
     public string? RowVersion { get; set; }
     public bool IsRequired { get; set; }
