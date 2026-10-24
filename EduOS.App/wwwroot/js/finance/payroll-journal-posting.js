@@ -50,7 +50,7 @@ function choose(row) {
     const body = document.createElement('tbody');
     for (const component of row.components || []) {
         const tr = document.createElement('tr'); tr.dataset.component = String(component.salaryComponentId);
-        const type = Number(component.type);
+        const type = typeof component.type === 'string' ? ({Earning:1,Deduction:2,EmployerContribution:3}[component.type] || 0) : Number(component.type);
         tr.append(cell(component.code + ' — ' + component.name), cell(money(component.amount)));
         const primary = document.createElement('td');
         primary.append(accountSelect(type === 2 ? ['Liability'] : ['Expense'], 'accountId',
