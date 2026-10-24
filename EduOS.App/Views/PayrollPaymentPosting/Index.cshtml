@@ -1,0 +1,45 @@
+@{
+    ViewData["Title"] = "Institutional Payroll Payment Settlement";
+    var canPost = User.IsInRole("TenantAdmin");
+}
+<section class="container-fluid py-3" id="payrollPaymentPosting" data-post="@canPost.ToString().ToLowerInvariant()">
+    <h2 class="h4">Payroll payments → Institutional GL</h2>
+    <p class="text-muted">Verify pending cash or bank-transfer disbursements against posted salary payable. Maker and verifier must differ; no platform subscription billing is involved.</p>
+    <p><a class="btn btn-sm btn-outline-secondary" href="/PayrollOperations/Index">Payroll operations</a>
+       <a class="btn btn-sm btn-outline-secondary" href="/PayrollJournalPosting/Index">Payroll accrual posting</a></p>
+    @Html.AntiForgeryToken()
+    <div id="payrollPaymentNotice" class="alert d-none" role="alert" aria-live="polite"></div>
+    <form id="payrollPaymentFilter" class="card card-body mb-3">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4"><label class="form-label" for="payrollPaymentPeriod">Open accounting period</label><select class="form-select" id="payrollPaymentPeriod"><option value="">Select period</option></select></div>
+            <div class="col-md-3"><label class="form-check"><input type="checkbox" class="form-check-input" id="payrollPaymentPending" checked /> Pending only</label></div>
+            <div class="col-md-3"><button type="submit" class="btn btn-primary">Load payments</button></div>
+        </div>
+    </form>
+    <div class="card card-body">
+        <div class="table-responsive"><table class="table table-sm table-striped align-middle">
+            <thead><tr><th>Payroll run</th><th>Employee</th><th>Campus</th><th>Payment date</th><th>Method</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody id="payrollPaymentRows"></tbody>
+        </table></div>
+        <div class="d-flex gap-2 align-items-center">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="payrollPaymentPrev">Previous</button>
+            <span id="payrollPaymentPage"></span>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="payrollPaymentNext">Next</button>
+        </div>
+    </div>
+    @if (canPost)
+    {
+        <section class="card card-body mt-3 d-none" id="payrollPaymentConfirmPanel">
+            <h3 class="h6">Confirm salary payable settlement</h3>
+            <p id="payrollPaymentSelected"></p>
+            <label class="form-label" for="payrollPaymentAccount">Settlement asset ledger</label>
+            <select class="form-select" id="payrollPaymentAccount"></select>
+            <p class="small text-muted mt-2">Bank transfers use the bank account's linked COA ledger. Cash disbursements require a cash-in-hand ledger.</p>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-danger" id="payrollPaymentConfirm">Verify &amp; post balanced GL</button>
+                <button type="button" class="btn btn-outline-secondary" id="payrollPaymentCancel">Cancel</button>
+            </div>
+        </section>
+    }
+</section>
+@section Scripts { <script src="~/js/finance/payroll-payment-posting.js" asp-append-version="true"></script> }
