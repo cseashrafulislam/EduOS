@@ -1,0 +1,22 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const root = path.resolve(__dirname, "../..");
+const js = fs.readFileSync(path.join(root, "EduOS.App/wwwroot/js/platform/product-module-administration.js"), "utf8");
+const view = fs.readFileSync(path.join(root, "EduOS.App/Views/PlatformProductModuleAdministration/Index.cshtml"), "utf8");
+const nav = fs.readFileSync(path.join(root, "EduOS.App/Views/Shared/_Layout.cshtml"), "utf8");
+
+test("product module configuration submits antiforgery, request ID and row version", () => {
+    assert.match(js, /RequestVerificationToken/);
+    assert.match(js, /requestId = crypto\.randomUUID\(\)/);
+    assert.match(js, /requestId, rowVersion: selected\.rowVersion/);
+    assert.match(js, /\/api\/platform\/catalog\/modules\//);
+    assert.doesNotMatch(js, /innerHTML/);
+});
+test("core modules cannot be disabled in editor and workspace is navigable", () => {
+    assert.match(js, /active\.disabled = item\.isCore/);
+    assert.match(view, /platformModuleAdministration/);
+    assert.match(view, /product-module-administration\.js/);
+    assert.match(nav, /PlatformProductModuleAdministration\/Index/);
+});
