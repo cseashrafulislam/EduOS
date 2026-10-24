@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 
 namespace EduOS.Service.Services.SaaS
 {
-    public class SubscriptionPlanService : ISubscriptionPlanService
+    public partial class SubscriptionPlanService : ISubscriptionPlanService
     {
         private readonly ISubscriptionPlanRepository _planRepository;
         private readonly IGenericRepository<PlanFeature> _planFeatureRepository;

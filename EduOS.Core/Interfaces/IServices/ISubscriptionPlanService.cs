@@ -24,5 +24,8 @@ namespace EduOS.Core.Interfaces.IServices
         /// Side-by-side comparison view for pricing page
         /// </summary>
         Task<ApiResponse<PlanComparisonDto>> GetPlanComparisonAsync();
+
+        Task<ApiResponse<IReadOnlyList<SubscriptionPlanAvailabilityDto>>> GetAdminPlanAvailabilityAsync(CancellationToken ct = default);
+        Task<ApiResponse<SubscriptionPlanAvailabilityDto>> ChangePlanAvailabilityAsync(long id, ChangeSubscriptionPlanAvailabilityRequestDto request, CancellationToken ct = default);
     }
 }

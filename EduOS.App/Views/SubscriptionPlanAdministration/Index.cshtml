@@ -1,0 +1,20 @@
+@{
+    ViewData["Title"] = "Subscription Plan Availability";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<section id="subscriptionPlanAdministration" class="container-fluid py-3">
+    @Html.AntiForgeryToken()
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <div><h1 class="h4">Subscription Plan Availability</h1>
+            <p class="text-muted">Control which plans accept new subscriptions and appear in public pricing. Existing subscriptions and price snapshots are unchanged.</p></div>
+        <button id="planRefresh" class="btn btn-outline-secondary" type="button">Refresh</button>
+    </div>
+    <p id="planMessage" role="status" aria-live="polite"></p>
+    <div class="table-responsive"><table class="table table-striped table-sm">
+        <thead><tr><th>Plan</th><th>Code</th><th>Monthly</th><th>Yearly</th><th>Subscription status</th><th>Public pricing</th><th>Actions</th></tr></thead>
+        <tbody id="planRows"><tr><td colspan="7">Loading…</td></tr></tbody>
+    </table></div>
+</section>
+@section Scripts {
+    <script src="~/js/platform/subscription-plan-administration.js" asp-append-version="true"></script>
+}
