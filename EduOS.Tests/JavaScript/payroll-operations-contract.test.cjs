@@ -33,6 +33,6 @@ for(const field of ['ClientRequestId','RowVersion','GrossAmount','DeductionAmoun
     assert.ok(dto.includes(field),'DTO missing: '+field);
 for(const route of ['runs','runs/{reference:guid}','runs/{reference:guid}/employees',
     'runs/{reference:guid}/approve','runs/{reference:guid}/post','payments']) {
-    assert.ok(api.includes('"'+route+'"),'),'Canonical route missing: '+route);
+    assert.ok(api.includes('"'+route+'")'),'Canonical route missing: '+route);
 }
 console.log('Payroll operations canonical routes, security token, state and JavaScript syntax: PASS');
