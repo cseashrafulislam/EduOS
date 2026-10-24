@@ -83,6 +83,7 @@
     {
         @await Html.PartialAsync("_AllocationHistory")
         @await Html.PartialAsync("_AllocationReadiness")
+        @await Html.PartialAsync("_CheckoutFollowUp")
         @await Html.PartialAsync("_OccupancyInsights")
         @await Html.PartialAsync("_TurnoverReport")
         <section id="hostelCapacityPanel" class="card mb-3"><div class="card-body">
@@ -276,5 +277,6 @@
         <script src="~/js/hostel-operations/facilities.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/allocation-history.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/allocation-readiness.js" asp-append-version="true"></script>
+        <script src="~/js/hostel-operations/checkout-follow-up.js" asp-append-version="true"></script>
     }
 }

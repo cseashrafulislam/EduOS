@@ -220,6 +220,33 @@ public sealed class HostelController : ControllerBase
         [FromQuery] string? search = null, CancellationToken cancellationToken = default) =>
         ToAction(await _service.GetActiveAllocationsAsync(page, pageSize, search, cancellationToken));
 
+    [HttpGet("checkout-follow-ups")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> CheckoutFollowUps([FromQuery] long? campusId = null,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 25,
+        [FromQuery] string? search = null, [FromQuery] int daysAhead = 30,
+        [FromQuery] bool overdueOnly = false, CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetCheckoutFollowUpsAsync(campusId, page, pageSize, search,
+            daysAhead, overdueOnly, cancellationToken));
+
+    [HttpGet("checkout-follow-ups/export")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> CheckoutFollowUpsExport([FromQuery] long? campusId = null,
+        [FromQuery] string? search = null, [FromQuery] int daysAhead = 30,
+        [FromQuery] bool overdueOnly = false, CancellationToken cancellationToken = default)
+    {
+        var result = await _service.ExportCheckoutFollowUpsCsvAsync(campusId, search,
+            daysAhead, overdueOnly, cancellationToken);
+        if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
+        Response.Headers["Cache-Control"] = "no-store";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(System.Text.Encoding.UTF8.GetPreamble().Concat(
+            System.Text.Encoding.UTF8.GetBytes(result.Data)).ToArray(),
+            "text/csv; charset=utf-8", "hostel-checkout-follow-ups.csv");
+    }
+
     [HttpGet("allocation-history")]
     [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]

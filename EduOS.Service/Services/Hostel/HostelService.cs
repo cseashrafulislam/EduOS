@@ -310,8 +310,8 @@ public sealed partial class HostelService : IHostelService
         if (!CanManage()) return Denied<PagedResult<HostelStudentOptionDto>>();
         if (page < 1 || pageSize is < 1 or > 100) return ApiResponse<PagedResult<HostelStudentOptionDto>>.ErrorResponse("Invalid paging parameters.");
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
-        var from = startDate ?? today;
-        if (from < today || from > today.AddDays(365) || !IsValidFiniteBookingPeriod(from, endDate, today))
+        var reservationStart = startDate ?? today;
+        if (reservationStart < today || reservationStart > today.AddDays(365) || !IsValidFiniteBookingPeriod(reservationStart, endDate, today))
             return ApiResponse<PagedResult<HostelStudentOptionDto>>.ErrorResponse("Invalid reservation period.");
         var through = endDate ?? DateOnly.MaxValue;
         var tenant = _currentUser.TenantId;
@@ -322,7 +322,7 @@ public sealed partial class HostelService : IHostelService
                         _campuses.GetQueryable().Any(c => c.TenantId == tenant && c.Id == enrollment.CampusId && c.IsActive) &&
                         !_allocations.GetQueryable().Any(x => x.TenantId == tenant && x.StudentId == student.Id &&
                             !x.IsDeleted && x.State != HostelAllocationState.Cancelled &&
-                            x.StartDate <= through && (!x.EndDate.HasValue || x.EndDate.Value >= from))
+                            x.StartDate <= through && (!x.EndDate.HasValue || x.EndDate.Value >= reservationStart))
                     select new { enrollment.PublicId, enrollment.CampusId, student.FullName, student.StudentCode, enrollment.RollNo };
         if (!_currentUser.IsTenantAdmin)
         {
@@ -355,8 +355,8 @@ public sealed partial class HostelService : IHostelService
         if (!CanManage()) return Denied<PagedResult<HostelBedOptionDto>>();
         if (page < 1 || pageSize is < 1 or > 100) return ApiResponse<PagedResult<HostelBedOptionDto>>.ErrorResponse("Invalid paging parameters.");
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
-        var from = startDate ?? today;
-        if (from < today || from > today.AddDays(365))
+        var reservationStart = startDate ?? today;
+        if (reservationStart < today || reservationStart > today.AddDays(365))
             return ApiResponse<PagedResult<HostelBedOptionDto>>.ErrorResponse("Invalid reservation start date.");
         var tenant = _currentUser.TenantId;
         var query = from bed in _beds.GetQueryable().AsNoTracking()
@@ -367,10 +367,10 @@ public sealed partial class HostelService : IHostelService
                         _campuses.GetQueryable().Any(c => c.TenantId == tenant && c.Id == hostel.CampusId && c.IsActive) &&
                         !_allocations.GetQueryable().Any(x => x.TenantId == tenant && x.HostelBedId == bed.Id &&
                             !x.IsDeleted && x.State != HostelAllocationState.Cancelled &&
-                            (!x.EndDate.HasValue || x.EndDate.Value >= from)) &&
+                            (!x.EndDate.HasValue || x.EndDate.Value >= reservationStart)) &&
                         _allocations.GetQueryable().Count(x => x.TenantId == tenant &&
                             !x.IsDeleted && x.State != HostelAllocationState.Cancelled &&
-                            (!x.EndDate.HasValue || x.EndDate.Value >= from) &&
+                            (!x.EndDate.HasValue || x.EndDate.Value >= reservationStart) &&
                             _beds.GetQueryable().Any(b => b.TenantId == tenant && b.Id == x.HostelBedId &&
                                 b.HostelRoomId == room.Id)) < room.Capacity
                     select new { BedId = bed.Id, bed.BedNumber, room.RoomNumber, room.RentPerBed,

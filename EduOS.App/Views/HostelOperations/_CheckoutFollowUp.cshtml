@@ -1,0 +1,24 @@
+<section id="hostelCheckoutPanel" class="card mb-3" aria-labelledby="hostelCheckoutTitle">
+    <div class="card-body">
+        <h3 id="hostelCheckoutTitle" class="h5">Checkout follow-up and overdue reservations</h3>
+        <p class="small text-muted">Finite active reservations approaching checkout or overdue. An expired reservation is not proof of physical departure; confirm occupancy and Finance settlement before using the existing Close action. No student identity or monetary details appear here.</p>
+        <form id="hostelCheckoutFilter" class="row g-2 mb-2">
+            <div class="col-md-3"><label class="form-label" for="hostelCheckoutCampus">Campus</label><select id="hostelCheckoutCampus" class="form-select"><option value="">All permitted campuses</option></select></div>
+            <div class="col-md-3"><label class="form-label" for="hostelCheckoutSearch">Location</label><input id="hostelCheckoutSearch" class="form-control" maxlength="100" placeholder="Campus, hostel, room or bed" /></div>
+            <div class="col-md-2"><label class="form-label" for="hostelCheckoutDays">Days ahead</label><select id="hostelCheckoutDays" class="form-select"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="60">60 days</option><option value="90">90 days</option></select></div>
+            <div class="col-md-2 d-flex align-items-end"><div class="form-check mb-2"><input id="hostelCheckoutOverdue" type="checkbox" class="form-check-input" /><label class="form-check-label" for="hostelCheckoutOverdue">Overdue only</label></div></div>
+            <div class="col-md-2 d-flex align-items-end"><button type="submit" class="btn btn-outline-primary w-100">Filter</button></div>
+        </form>
+        <div class="d-flex justify-content-end mb-2"><button id="hostelCheckoutExport" type="button" class="btn btn-outline-secondary btn-sm" disabled>Export filtered CSV</button></div>
+        <div id="hostelCheckoutStatus" class="small text-muted mb-2" role="status" aria-live="polite"></div>
+        <div class="table-responsive"><table class="table table-sm table-hover">
+            <thead><tr><th>Campus</th><th>Hostel</th><th>Room / bed</th><th>Start</th><th>Checkout</th><th>Days</th><th>Follow-up</th></tr></thead>
+            <tbody id="hostelCheckoutRows"></tbody>
+        </table></div>
+        <div class="d-flex justify-content-between align-items-center">
+            <button id="hostelCheckoutPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+            <span id="hostelCheckoutPage" class="small text-muted"></span>
+            <button id="hostelCheckoutNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+        </div>
+    </div>
+</section>
