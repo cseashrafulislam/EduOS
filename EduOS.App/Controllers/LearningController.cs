@@ -23,6 +23,10 @@ public sealed class LearningController : Controller
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult AssignmentFiles() => View();
     [HttpGet]
+    [Authorize(Roles = "TenantAdmin,Principal,Teacher")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult CourseCompletions() => View();
+    [HttpGet]
     [Authorize(Roles = "Student")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult MySubmissions() => View();

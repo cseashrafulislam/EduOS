@@ -61,6 +61,25 @@ public sealed class LmsWorkflowController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("courses/{reference:guid}/completion-register")]
+    [Authorize(Roles = "TenantAdmin,Principal,Teacher")]
+    public async Task<IActionResult> CompletionRegister(Guid reference, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, [FromQuery] string? search = null, CancellationToken ct = default)
+    {
+        var result = await _service.GetCourseCompletionRegisterAsync(reference, page, pageSize, search, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("courses/enrollments/{enrollmentId:long}/complete")]
+    [Authorize(Roles = "TenantAdmin,Principal,Teacher")]
+    public async Task<IActionResult> CompleteEnrollment(long enrollmentId,
+        [FromBody] CompleteCourseEnrollmentRequestDto request, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await _service.CompleteCourseEnrollmentAsync(enrollmentId, request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet("instructors")]
     [Authorize(Roles = "TenantAdmin,Principal")]
     public async Task<IActionResult> SearchInstructors([FromQuery] string search, [FromQuery] int take = 20,

@@ -37,6 +37,8 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
     private readonly IGenericRepository<AcademicTerm>? _submissionTerms;
     private readonly IGenericRepository<AcademicBatch>? _submissionBatches;
     private readonly IGenericRepository<AcademicCurriculum>? _submissionCurricula;
+    private readonly IGenericRepository<Quiz>? _completionQuizzes;
+    private readonly IGenericRepository<QuizAttempt>? _completionAttempts;
     private readonly IUnitOfWork _uow;
     private readonly ICurrentUserService _user;
     private readonly TimeProvider _clock;
@@ -55,7 +57,9 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
         IGenericRepository<AcademicYear>? submissionYears = null,
         IGenericRepository<AcademicTerm>? submissionTerms = null,
         IGenericRepository<AcademicBatch>? submissionBatches = null,
-        IGenericRepository<AcademicCurriculum>? submissionCurricula = null)
+        IGenericRepository<AcademicCurriculum>? submissionCurricula = null,
+        IGenericRepository<Quiz>? completionQuizzes = null,
+        IGenericRepository<QuizAttempt>? completionAttempts = null)
     {
         _courses = courses; _enrollments = enrollments; _lessons = lessons; _progress = progress;
         _assignments = assignments; _submissions = submissions; _students = students;
@@ -65,6 +69,7 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
         _submissionFiles = submissionFiles; _submissionYears = submissionYears;
         _submissionTerms = submissionTerms; _submissionBatches = submissionBatches;
         _submissionCurricula = submissionCurricula;
+        _completionQuizzes = completionQuizzes; _completionAttempts = completionAttempts;
     }
 
     public async Task<ApiResponse<CourseDto>> SaveCourseAsync(Guid? courseReference, SaveCourseRequestDto request,

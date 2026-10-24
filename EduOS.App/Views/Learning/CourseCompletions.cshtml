@@ -1,0 +1,35 @@
+@{
+    ViewData["Title"] = "LMS Course Completion Register";
+}
+<section class="container-fluid py-3" id="lmsCompletionApp">
+    <h2 class="h4">Course Completion Register</h2>
+    <p class="text-muted">Review published lessons, graded assignments and passed quizzes before completing an active enrollment. Completed records are read-only.</p>
+    <div id="lmsCompletionAlert" class="d-none" role="alert" tabindex="-1" aria-live="polite"></div>
+    <div class="card mb-3"><div class="card-body row g-2 align-items-end">
+        <div class="col-lg-6"><label class="form-label" for="lmsCompletionCourse">Course</label><select id="lmsCompletionCourse" class="form-select"><option value="">Loading courses…</option></select></div>
+        <div class="col-lg-4"><label class="form-label" for="lmsCompletionSearch">Student name or code</label><input id="lmsCompletionSearch" maxlength="100" class="form-control" /></div>
+        <div class="col-lg-2"><button id="lmsCompletionSearchButton" type="button" class="btn btn-primary w-100">Search</button></div>
+        <div class="col-12 d-flex gap-2 align-items-center">
+            <button id="lmsCompletionCoursePrev" type="button" class="btn btn-outline-secondary btn-sm">Previous courses</button>
+            <span id="lmsCompletionCoursePage" class="small text-muted"></span>
+            <button id="lmsCompletionCourseNext" type="button" class="btn btn-outline-secondary btn-sm">Next courses</button>
+        </div>
+    </div></div>
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <strong>Enrollment eligibility</strong>
+            <div><button id="lmsCompletionCsv" type="button" class="btn btn-sm btn-outline-secondary">CSV</button>
+            <button id="lmsCompletionPrint" type="button" class="btn btn-sm btn-outline-secondary">Print</button></div>
+        </div>
+        <div class="table-responsive"><table id="lmsCompletionTable" class="table table-sm table-striped align-middle mb-0">
+            <thead><tr><th>Student</th><th>State</th><th>Lessons</th><th>Assignments</th><th>Quizzes</th><th>Eligibility / reason</th><th>Action</th></tr></thead>
+            <tbody id="lmsCompletionRows"><tr><td colspan="7" class="text-muted">Select a course.</td></tr></tbody>
+        </table></div>
+        <div class="card-footer d-flex align-items-center gap-2">
+            <button id="lmsCompletionPrev" type="button" class="btn btn-sm btn-outline-secondary">Previous</button>
+            <span id="lmsCompletionPage" class="small text-muted"></span>
+            <button id="lmsCompletionNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button>
+        </div>
+    </div>
+</section>
+@section Scripts { <script src="~/js/learning/course-completions.js" asp-append-version="true"></script> }
