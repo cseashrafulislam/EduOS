@@ -117,23 +117,23 @@ public sealed class LoanDisbursementService : ILoanDisbursementService
                 return Error<PostLoanDisbursementResultDto>("Duplicate disbursement journals require reconciliation.", 409);
             if (existing.Count == 1)
             {
-                var journal = existing[0];
+                var postedJournal = existing[0];
                 var lines = await db.JournalLines.AsNoTracking().Where(x => x.TenantId == tenant &&
-                    x.JournalId == journal.Id && !x.IsDeleted).ToListAsync(ct);
-                if (journal.State != JournalState.Posted || journal.ReversalOfJournalId.HasValue ||
-                    journal.IdempotencyKey != PostingKey(tenant, loanId) ||
-                    journal.JournalDate != request.DisbursementDate ||
-                    journal.AccountingPeriodId != request.AccountingPeriodId ||
+                    x.JournalId == postedJournal.Id && !x.IsDeleted).ToListAsync(ct);
+                if (postedJournal.State != JournalState.Posted || postedJournal.ReversalOfJournalId.HasValue ||
+                    postedJournal.IdempotencyKey != PostingKey(tenant, loanId) ||
+                    postedJournal.JournalDate != request.DisbursementDate ||
+                    postedJournal.AccountingPeriodId != request.AccountingPeriodId ||
                     lines.Count != 2 || lines.Count(x => x.AccountId == request.LoanReceivableAccountId &&
                         x.DebitAmount == loan.PrincipalAmount && x.CreditAmount == 0m) != 1 ||
                     lines.Count(x => x.AccountId == request.CashAccountId &&
                         x.CreditAmount == loan.PrincipalAmount && x.DebitAmount == 0m) != 1 ||
                     await db.Journals.AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
-                        x.ReversalOfJournalId == journal.Id && x.State == JournalState.Posted && !x.IsDeleted, ct))
+                        x.ReversalOfJournalId == postedJournal.Id && x.State == JournalState.Posted && !x.IsDeleted, ct))
                     return Error<PostLoanDisbursementResultDto>("Existing disbursement does not match request or was reversed.", 409);
                 return ApiResponse<PostLoanDisbursementResultDto>.SuccessResponse(new PostLoanDisbursementResultDto
-                { LoanId = loanId, JournalReference = journal.PublicId,
-                    JournalNumber = journal.JournalNumber, Amount = loan.PrincipalAmount, AlreadyPosted = true });
+                { LoanId = loanId, JournalReference = postedJournal.PublicId,
+                    JournalNumber = postedJournal.JournalNumber, Amount = loan.PrincipalAmount, AlreadyPosted = true });
             }
             if (!Version(loan.RowVersion, request.RowVersion))
                 return Error<PostLoanDisbursementResultDto>("Loan changed; reload and retry.", 409);
