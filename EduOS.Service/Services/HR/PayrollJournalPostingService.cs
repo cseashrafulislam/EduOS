@@ -1,6 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Payroll;
 using EduOS.Core.Entities.Accounting;
+using EduOS.Core.Entities.Payroll;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IServices;
@@ -12,7 +13,7 @@ using System.Text;
 namespace EduOS.Service.Services.HR;
 
 /// <summary>Institutional salary accrual. Uses canonical payroll snapshots and institutional GL only.</summary>
-public sealed class PayrollJournalPostingService : IPayrollJournalPostingService
+public sealed partial class PayrollJournalPostingService : IPayrollJournalPostingService
 {
     private readonly EduOSDbContext db;
     private readonly ICurrentUserService user;
@@ -77,7 +78,8 @@ public sealed class PayrollJournalPostingService : IPayrollJournalPostingService
                     components.TryGetValue(g.Key, out var component);
                     return new PayrollPostingComponentDto { SalaryComponentId = g.Key,
                         Code = component?.Code ?? "(missing)", Name = component?.Name ?? "(missing)",
-                        Type = component?.Type ?? SalaryComponentType.Earning, Amount = g.Sum(x => x.Amount) };
+                        Type = component?.Type ?? SalaryComponentType.Earning, Amount = g.Sum(x => x.Amount),
+                        IsLoanRecovery = component?.Code == "LOAN_RECOVERY" };
                 }).ToArray();
             var journal = run.JournalId.HasValue ? journals.GetValueOrDefault(run.JournalId.Value) : null;
             return new PayrollPostingRowDto { Reference = run.PublicId, RunNumber = run.RunNumber,
@@ -143,10 +145,30 @@ public sealed class PayrollJournalPostingService : IPayrollJournalPostingService
                             x.Description == "Component " + m.SalaryComponentId + " employer liability" &&
                             x.AccountId == m.OffsetAccountId.Value)))))
                     return Error<PostPayrollJournalResultDto>("Retry uses different payroll account mappings.", 409);
+                var existingLoanLines = existingLines.Where(x => x.Description != null &&
+                    x.Description.StartsWith("Payroll loan recovery ", StringComparison.Ordinal)).ToArray();
+                if (existingLoanLines.Length > 0)
+                {
+                    var loanComponent = await db.SalaryComponents.AsNoTracking().SingleOrDefaultAsync(x =>
+                        x.TenantId == tenant && x.Code == "LOAN_RECOVERY" && !x.IsDeleted, ct);
+                    var loanMapping = loanComponent == null ? null : request.Mappings.SingleOrDefault(x =>
+                        x.SalaryComponentId == loanComponent.Id);
+                    var recovered = await db.LoanAdvanceRecoveries.AsNoTracking().Where(x =>
+                        x.TenantId == tenant && x.JournalId == prior.Id && !x.IsDeleted).ToListAsync(ct);
+                    if (loanComponent == null || loanMapping == null || loanMapping.OffsetAccountId.HasValue ||
+                        recovered.Count != existingLoanLines.Length || recovered.Any(x =>
+                            !x.PayrollEmployeeId.HasValue || !existingLoanLines.Any(l =>
+                                l.AccountId == loanMapping.AccountId && l.EmployeeId.HasValue &&
+                                l.Description == "Payroll loan recovery " + x.LoanAdvanceId &&
+                                l.CreditAmount == x.Amount && l.DebitAmount == 0m)))
+                        return Error<PostPayrollJournalResultDto>("Posted payroll loan recovery needs reconciliation.", 409);
+                }
                 return ApiResponse<PostPayrollJournalResultDto>.SuccessResponse(new PostPayrollJournalResultDto
                 { PayrollReference = reference, JournalReference = prior.PublicId,
                     JournalNumber = prior.JournalNumber, TotalDebit = existingLines.Sum(x => x.DebitAmount),
-                    TotalCredit = existingLines.Sum(x => x.CreditAmount), AlreadyPosted = true });
+                    TotalCredit = existingLines.Sum(x => x.CreditAmount), AlreadyPosted = true,
+                     LoanRecoveriesSettled = existingLoanLines.Length,
+                     LoanAmountSettled = existingLoanLines.Sum(x => x.CreditAmount) });
             }
             if (run.State != PayrollRunState.Approved || !run.ApprovedByUserId.HasValue ||
                 run.ApprovedByUserId == run.CreatedBy)
@@ -186,10 +208,6 @@ public sealed class PayrollJournalPostingService : IPayrollJournalPostingService
             if (components.Count != componentIds.Length || componentIds.Any(x =>
                 !request.Mappings.Any(m => m.SalaryComponentId == x)))
                 return Error<PostPayrollJournalResultDto>("Salary component mapping is missing.", 409);
-            if (components.Values.Any(x => x.Code == "LOAN_RECOVERY" &&
-                payrollLines.Any(l => l.SalaryComponentId == x.Id && l.Amount > 0m)))
-                return Error<PostPayrollJournalResultDto>(
-                    "Loan recoveries require loan-balance and recovery-ledger settlement before posting.", 409);
             var lineLookup = payrollLines.ToLookup(x => x.PayrollEmployeeId);
             foreach (var person in people)
             {
@@ -215,6 +233,27 @@ public sealed class PayrollJournalPostingService : IPayrollJournalPostingService
                 x.AllowsPosting && x.CurrencyCode == "BDT").ToDictionaryAsync(x => x.Id, ct);
             if (accounts.Count != accountIds.Length || accounts[request.SalaryPayableAccountId].AccountType != AccountType.Liability)
                 return Error<PostPayrollJournalResultDto>("All posting ledgers must be active BDT accounts; net payable must be a liability.", 409);
+            var loanPlan = new List<LoanPostingAllocation>();
+            var loanComponents = components.Values.Where(x => x.Code == "LOAN_RECOVERY").ToArray();
+            if (loanComponents.Length > 1)
+                return Error<PostPayrollJournalResultDto>("Duplicate loan recovery components require reconciliation.", 409);
+            if (loanComponents.Length == 1 && payrollLines.Any(x =>
+                x.SalaryComponentId == loanComponents[0].Id && x.Amount > 0m))
+            {
+                var loanComponent = loanComponents[0];
+                var loanMapping = mapping[loanComponent.Id];
+                if (loanComponent.Type != SalaryComponentType.Deduction ||
+                    loanMapping.OffsetAccountId.HasValue ||
+                    accounts[loanMapping.AccountId].AccountType != AccountType.Asset ||
+                    loanMapping.AccountId == request.SalaryPayableAccountId)
+                    return Error<PostPayrollJournalResultDto>(
+                        "Loan recovery must credit the original asset receivable ledger.", 409);
+                var prepared = await PrepareLoanRecoveriesAsync(
+                    run, people, payrollLines, loanComponent.Id, loanMapping.AccountId, ct);
+                if (prepared.Error != null)
+                    return Error<PostPayrollJournalResultDto>(prepared.Error, 409);
+                loanPlan = prepared.Items;
+            }
             var entriesToPost = new List<JournalLine>();
             foreach (var group in payrollLines.GroupBy(x => x.SalaryComponentId).OrderBy(x => x.Key))
             {
@@ -235,10 +274,24 @@ public sealed class PayrollJournalPostingService : IPayrollJournalPostingService
                 }
                 else if (component.Type == SalaryComponentType.Deduction)
                 {
-                    if (m.OffsetAccountId.HasValue || account.AccountType != AccountType.Liability)
-                        return Error<PostPayrollJournalResultDto>("Deductions require a liability credit ledger.", 409);
-                    entriesToPost.Add(new JournalLine { AccountId = m.AccountId, CreditAmount = amount,
-                        Description = "Component " + group.Key + " deduction liability" });
+                    if (component.Code == "LOAN_RECOVERY")
+                    {
+                        var allocations = loanPlan.Where(x => x.Amount > 0m).ToArray();
+                        if (allocations.Sum(x => x.Amount) != amount ||
+                            m.OffsetAccountId.HasValue || account.AccountType != AccountType.Asset)
+                            return Error<PostPayrollJournalResultDto>("Loan deductions do not match asset recovery allocations.", 409);
+                        foreach (var allocation in allocations)
+                            entriesToPost.Add(new JournalLine { AccountId = m.AccountId,
+                                EmployeeId = allocation.EmployeeId, CreditAmount = allocation.Amount,
+                                Description = "Payroll loan recovery " + allocation.Loan.Id });
+                    }
+                    else
+                    {
+                        if (m.OffsetAccountId.HasValue || account.AccountType != AccountType.Liability)
+                            return Error<PostPayrollJournalResultDto>("Deductions require a liability credit ledger.", 409);
+                        entriesToPost.Add(new JournalLine { AccountId = m.AccountId, CreditAmount = amount,
+                            Description = "Component " + group.Key + " deduction liability" });
+                    }
                 }
                 else if (component.Type == SalaryComponentType.EmployerContribution)
                 {
@@ -285,6 +338,20 @@ public sealed class PayrollJournalPostingService : IPayrollJournalPostingService
                 line.CreatedBy = user.UserId;
             }
             db.JournalLines.AddRange(entriesToPost);
+            foreach (var allocation in loanPlan)
+            {
+                db.LoanAdvanceRecoveries.Add(new LoanAdvanceRecovery
+                {
+                    TenantId = tenant, ClientRequestId = PayrollLoanKey(tenant, run.PublicId, allocation.Loan.Id),
+                    LoanAdvanceId = allocation.Loan.Id, PayrollEmployeeId = allocation.PayrollEmployeeId,
+                    RecoveryDate = run.PeriodEnd, Amount = allocation.Amount, JournalId = journal.Id,
+                    Remarks = "Payroll loan recovery " + run.RunNumber,
+                    CreatedAt = now, CreatedBy = user.UserId
+                });
+                allocation.Loan.OutstandingAmount -= allocation.Amount;
+                allocation.Loan.IsClosed = allocation.Loan.OutstandingAmount == 0m;
+                allocation.Loan.UpdatedAt = now; allocation.Loan.UpdatedBy = user.UserId;
+            }
             run.JournalId = journal.Id; run.State = PayrollRunState.Posted; run.PostedAt = now;
             run.UpdatedAt = now; run.UpdatedBy = user.UserId;
             await db.SaveChangesAsync(ct);
@@ -292,7 +359,9 @@ public sealed class PayrollJournalPostingService : IPayrollJournalPostingService
             return ApiResponse<PostPayrollJournalResultDto>.SuccessResponse(new PostPayrollJournalResultDto
             {
                 PayrollReference = reference, JournalReference = referenceId, JournalNumber = journal.JournalNumber,
-                TotalDebit = debit, TotalCredit = credit
+                TotalDebit = debit, TotalCredit = credit,
+                LoanRecoveriesSettled = loanPlan.Count,
+                LoanAmountSettled = loanPlan.Sum(x => x.Amount)
             }, "Payroll accrual posted to institutional GL.");
         }
         catch (DbUpdateConcurrencyException) { return Error<PostPayrollJournalResultDto>("Payroll changed concurrently; reload.", 409); }

@@ -22,6 +22,7 @@ public sealed class PayrollPostingComponentDto
     public string Name { get; set; } = string.Empty;
     public SalaryComponentType Type { get; set; }
     public decimal Amount { get; set; }
+    public bool IsLoanRecovery { get; set; }
 }
 public sealed class PayrollPostingRowDto
 {
@@ -67,4 +68,6 @@ public sealed class PostPayrollJournalResultDto
     public decimal TotalDebit { get; set; }
     public decimal TotalCredit { get; set; }
     public bool AlreadyPosted { get; set; }
+    public int LoanRecoveriesSettled { get; set; }
+    public decimal LoanAmountSettled { get; set; }
 }

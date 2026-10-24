@@ -31,7 +31,7 @@
     {
         <section id="payrollPostingMappingPanel" class="card card-body d-none">
             <h3 class="h6">Component → institutional COA mappings</h3>
-            <p class="small text-muted">Each earning debits an expense ledger. Each deduction credits a withholding liability. Employer contributions require both an expense and a liability. Loan recovery is blocked pending controlled loan settlement.</p>
+            <p class="small text-muted">Each earning debits an expense ledger. Ordinary deductions credit withholding liabilities. LOAN_RECOVERY credits the original employee-loan receivable asset, settles each loan separately, and reduces its outstanding balance atomically. Only loans disbursed and unchanged since payroll calculation can be posted. Employer contributions require expense and liability accounts.</p>
             <div id="payrollPostingSelected" class="mb-2"></div>
             <div id="payrollPostingMappings" class="table-responsive"></div>
             <div class="d-flex gap-2"><button id="payrollPostingConfirm" type="button" class="btn btn-danger">Post balanced payroll GL</button><button id="payrollPostingCancel" type="button" class="btn btn-outline-secondary">Cancel</button></div>

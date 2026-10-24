@@ -115,7 +115,9 @@ public sealed class LoanRecoveryService : ILoanRecoveryService
                 equals new { j.TenantId, Id = (long?)j.Id }
             where r.TenantId == tenant && r.LoanAdvanceId == loanId && !r.IsDeleted &&
                 j.State == JournalState.Posted && !j.IsDeleted &&
-                j.SourceType == "LoanAdvanceRecovery" && j.SourceId == r.Id
+                ((j.SourceType == "LoanAdvanceRecovery" && j.SourceId == r.Id &&
+                    !r.PayrollEmployeeId.HasValue) ||
+                 (j.SourceType == "PayrollRun" && r.PayrollEmployeeId.HasValue))
             orderby r.RecoveryDate descending, r.Id descending
             select new LoanRecoveryHistoryDto
             { RecoveryId = r.Id, RecoveryDate = r.RecoveryDate, Amount = r.Amount,
@@ -252,10 +254,22 @@ public sealed class LoanRecoveryService : ILoanRecoveryService
                     pe.EmployeeId == loan.EmployeeId && run.PeriodEnd >= loan.IssueDate &&
                     run.State != PayrollRunState.Cancelled && component.Code == "LOAN_RECOVERY" &&
                     line.Amount > 0m
-                select line.Id).AnyAsync(ct);
-            if (payrollWithholding)
-                return Error<PostLoanRecoveryResultDto>(
-                    "Payroll has loan withholding without per-loan settlement; reconcile payroll before cash recovery.", 409);
+                select new { PayrollEmployeeId = pe.Id, Amount = line.Amount,
+                    RunJournalId = run.JournalId, RunState = run.State }).ToListAsync(ct);
+            var payrollEmployeeIds = payrollWithholding.Select(x => x.PayrollEmployeeId).Distinct().ToArray();
+            var payrollSettlements = await db.LoanAdvanceRecoveries.AsNoTracking().Where(x =>
+                x.TenantId == tenant && !x.IsDeleted && x.PayrollEmployeeId.HasValue &&
+                payrollEmployeeIds.Contains(x.PayrollEmployeeId.Value)).ToListAsync(ct);
+            foreach (var withheld in payrollWithholding)
+            {
+                var settlements = payrollSettlements.Where(x =>
+                    x.PayrollEmployeeId == withheld.PayrollEmployeeId).ToArray();
+                if (withheld.RunState != PayrollRunState.Posted || !withheld.RunJournalId.HasValue ||
+                    settlements.Length == 0 || settlements.Any(x => x.JournalId != withheld.RunJournalId) ||
+                    settlements.Sum(x => x.Amount) != withheld.Amount)
+                    return Error<PostLoanRecoveryResultDto>(
+                        "Payroll loan withholding is not fully settled per loan; reconcile payroll first.", 409);
+            }
             var previous = await db.LoanAdvanceRecoveries.AsNoTracking().Where(x =>
                 x.TenantId == tenant && x.LoanAdvanceId == loanId && !x.IsDeleted)
                 .OrderBy(x => x.Id).Take(501).ToListAsync(ct);
@@ -267,18 +281,30 @@ public sealed class LoanRecoveryService : ILoanRecoveryService
                 var journal = await db.Journals.AsNoTracking().SingleOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == prior.JournalId && !x.IsDeleted, ct);
                 if (journal == null || journal.State != JournalState.Posted ||
-                    journal.SourceType != "LoanAdvanceRecovery" || journal.SourceId != prior.Id ||
+                    (prior.PayrollEmployeeId.HasValue ?
+                        journal.SourceType != "PayrollRun" :
+                        journal.SourceType != "LoanAdvanceRecovery" || journal.SourceId != prior.Id) ||
                     journal.CampusId != disbursement.CampusId ||
                     await db.Journals.AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
                         x.ReversalOfJournalId == journal.Id && x.State == JournalState.Posted && !x.IsDeleted, ct))
                     return Error<PostLoanRecoveryResultDto>("Earlier recovery journal needs reconciliation.", 409);
                 var priorLines = await db.JournalLines.AsNoTracking().Where(x => x.TenantId == tenant &&
                     x.JournalId == journal.Id && !x.IsDeleted).ToListAsync(ct);
-                if (priorLines.Count != 2 || priorLines.Count(x =>
+                if (prior.PayrollEmployeeId.HasValue)
+                {
+                    if (priorLines.Count(x => x.AccountId == receivable.Id &&
+                        x.EmployeeId == loan.EmployeeId && x.Description == "Payroll loan recovery " + loan.Id &&
+                        x.CreditAmount == prior.Amount && x.DebitAmount == 0m) != 1 ||
+                        !await db.PayrollEmployees.AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
+                            x.Id == prior.PayrollEmployeeId && x.EmployeeId == loan.EmployeeId &&
+                            !x.IsDeleted, ct))
+                        return Error<PostLoanRecoveryResultDto>("Earlier payroll recovery entries need reconciliation.", 409);
+                }
+                else if (priorLines.Count != 2 || priorLines.Count(x =>
                     x.AccountId == receivable.Id && x.CreditAmount == prior.Amount &&
                     x.DebitAmount == 0m) != 1 ||
                     priorLines.Count(x => x.DebitAmount == prior.Amount && x.CreditAmount == 0m) != 1)
-                    return Error<PostLoanRecoveryResultDto>("Earlier recovery entries need reconciliation.", 409);
+                    return Error<PostLoanRecoveryResultDto>("Earlier cash recovery entries need reconciliation.", 409);
             }
             if (await db.Journals.AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
                 !x.IsDeleted && x.IdempotencyKey == PostingKey(tenant, request.ClientRequestId), ct))

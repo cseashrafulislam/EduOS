@@ -53,8 +53,15 @@ function choose(row) {
         const type = typeof component.type === 'string' ? ({Earning:1,Deduction:2,EmployerContribution:3}[component.type] || 0) : Number(component.type);
         tr.append(cell(component.code + ' — ' + component.name), cell(money(component.amount)));
         const primary = document.createElement('td');
-        primary.append(accountSelect(type === 2 ? ['Liability'] : ['Expense'], 'accountId',
-            type === 2 ? 'Withholding liability' : 'Expense ledger')); tr.append(primary);
+        const isLoan = component.isLoanRecovery === true;
+        primary.append(accountSelect(isLoan ? ['Asset'] : (type === 2 ? ['Liability'] : ['Expense']), 'accountId',
+            isLoan ? 'Original loan receivable asset' : (type === 2 ? 'Withholding liability' : 'Expense ledger')));
+        if (isLoan) {
+            const note = document.createElement('small'); note.className = 'text-muted d-block';
+            note.textContent = 'Each employee loan is reconciled to its disbursement and settled atomically with this journal.';
+            primary.append(note);
+        }
+        tr.append(primary);
         const offset = document.createElement('td');
         if (type === 3) offset.append(accountSelect(['Liability'], 'offsetAccountId', 'Employer liability'));
         tr.append(offset); body.append(tr);
@@ -131,7 +138,9 @@ async function post() {
             {accountingPeriodId:periodId, salaryPayableAccountId:payable,
                 rowVersion:selected.rowVersion, mappings});
         alertBox('Journal ' + result.journalNumber + ' posted. Debit ' + money(result.totalDebit) +
-            ' / Credit ' + money(result.totalCredit) + '.');
+            ' / Credit ' + money(result.totalCredit) + '.' +
+            (result.loanRecoveriesSettled ? ' Loan installments settled: ' +
+                result.loanRecoveriesSettled + ' (' + money(result.loanAmountSettled) + ').' : ''));
         selected = null; el('payrollPostingMappingPanel').classList.add('d-none'); await load();
     } catch (e) { alertBox(e.message, true); } finally { button.disabled = false; }
 }
