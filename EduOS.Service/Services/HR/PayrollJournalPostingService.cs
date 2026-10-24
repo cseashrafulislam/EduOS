@@ -134,12 +134,14 @@ public sealed class PayrollJournalPostingService : IPayrollJournalPostingService
                     x.JournalId == prior.Id && !x.IsDeleted).ToListAsync(ct);
                 if (!existingLines.Any(x => x.Description == "Payroll net payable" &&
                     x.AccountId == request.SalaryPayableAccountId) ||
-                    request.Mappings.Any(m => !existingLines.Any(x =>
-                        x.Description != null && x.Description.StartsWith("Component " + m.SalaryComponentId + " ") &&
-                        x.AccountId == m.AccountId) ||
+                    request.Mappings.Any(m => existingLines.Any(x => x.Description != null &&
+                        x.Description.StartsWith("Component " + m.SalaryComponentId + " ")) &&
+                        (!existingLines.Any(x => x.Description != null &&
+                            x.Description.StartsWith("Component " + m.SalaryComponentId + " ") &&
+                            x.AccountId == m.AccountId) ||
                         (m.OffsetAccountId.HasValue && !existingLines.Any(x =>
                             x.Description == "Component " + m.SalaryComponentId + " employer liability" &&
-                            x.AccountId == m.OffsetAccountId.Value))))
+                            x.AccountId == m.OffsetAccountId.Value)))))
                     return Error<PostPayrollJournalResultDto>("Retry uses different payroll account mappings.", 409);
                 return ApiResponse<PostPayrollJournalResultDto>.SuccessResponse(new PostPayrollJournalResultDto
                 { PayrollReference = reference, JournalReference = prior.PublicId,
