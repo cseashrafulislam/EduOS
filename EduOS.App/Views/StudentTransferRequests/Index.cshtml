@@ -7,7 +7,7 @@
     <header class="mb-3 d-flex justify-content-between align-items-start gap-3 flex-wrap">
         <div>
             <h1 class="h4">Student Transfer Requests</h1>
-            <p class="text-muted mb-0">Source-institution submission and approval. Approval does not issue a TC, close enrollment or transfer private records.</p>
+            <p class="text-muted mb-0">Source review, destination enrollment confirmation, final source exit and certificate-linked completion. No private student data is copied between institutions.</p>
         </div>
         <a class="btn btn-outline-secondary" href="/StudentLifecycle/Index">Final Exit &amp; TC</a>
     </header>
@@ -51,7 +51,7 @@
                     <button id="transferRefresh" type="button" class="btn btn-sm btn-outline-secondary" disabled>Refresh</button>
                 </div>
                 <div class="table-responsive"><table class="table table-sm align-middle">
-                    <thead><tr><th>Requested (UTC)</th><th>Destination</th><th>State</th><th>Reason</th><th>Review</th></tr></thead>
+                    <thead><tr><th>Requested (UTC)</th><th>Destination</th><th>State</th><th>Reason</th><th>Actions</th></tr></thead>
                     <tbody id="transferHistory"><tr><td colspan="5">Select a student.</td></tr></tbody>
                 </table></div>
             </div></section>
@@ -62,7 +62,7 @@
             <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
                 <div>
                     <h2 id="destinationInboxTitle" class="h5 mb-1">Incoming destination transfers</h2>
-                    <p class="small text-muted mb-0">Only source-approved requests addressed to your institution appear here. No source learner or guardian details are disclosed. Acceptance acknowledges the handoff; it does not enroll a student or complete a transfer.</p>
+                    <p class="small text-muted mb-0">Only source-approved requests addressed to your institution appear here. No source learner or guardian details are disclosed. Acceptance acknowledges the handoff. Create the destination student and enrollment using the existing authorized workflows, then link them here. Source must issue the final Transfer exit and TC before completing.</p>
                 </div>
                 <button id="destinationRefresh" type="button" class="btn btn-outline-primary btn-sm">Refresh inbox</button>
             </div>
@@ -72,6 +72,19 @@
                     <tbody id="destinationRows"><tr><td colspan="5">Loading incoming transfers…</td></tr></tbody>
                 </table>
             </div>
+            <form id="destinationEnrollmentForm" class="border-top pt-3 mt-3 d-none">
+                <h3 class="h6">Link existing destination enrollment</h3>
+                <p class="small text-muted">Use a student and an active current enrollment already created in this institution. This action never imports source personal data or allocates another seat.</p>
+                <div class="mb-2">Transfer: <code id="destinationSelectedReference"></code></div>
+                <div class="row g-2">
+                    <div class="col-md-5"><label class="form-label" for="destinationStudentReference">Destination student reference</label>
+                        <input id="destinationStudentReference" class="form-control" required maxlength="36" autocomplete="off" /></div>
+                    <div class="col-md-5"><label class="form-label" for="destinationEnrollmentReference">Current enrollment reference</label>
+                        <input id="destinationEnrollmentReference" class="form-control" required maxlength="36" autocomplete="off" /></div>
+                    <div class="col-md-2 d-flex align-items-end"><button id="destinationEnrollmentSubmit" class="btn btn-primary w-100" type="submit">Link</button></div>
+                </div>
+                <p class="small mt-2 mb-0"><a href="/Students/Index">Student Directory</a> · <a href="/EnrollmentManagement/Index">Enrollment Management</a></p>
+            </form>
         </div>
     </section>
 </div>
