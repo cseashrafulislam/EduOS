@@ -43,18 +43,24 @@ public sealed class UsageHistoryService(
     public async Task<ApiResponse<UsageStatisticsDto>> CaptureTodayAsync(CancellationToken ct = default)
     {
         if (!CanManage) return ApiResponse<UsageStatisticsDto>.ErrorResponse("Tenant administrator required.", 403);
-        var tenantId = user.TenantId;
-        var tenant = await db.Tenants.AsNoTracking().FirstOrDefaultAsync(x => x.Id == tenantId && !x.IsDeleted, ct);
+        return await CaptureForTenantAsync(db, user.TenantId, user.UserId, DateTime.UtcNow, logger, ct);
+    }
+
+    /// <summary>
+    /// Shared writer for manual and trusted scheduled capture. The caller must already have
+    /// established the same tenant on this DbContext; this method never bypasses tenant filters.
+    /// The unique (TenantId, PeriodStart, PeriodEnd) index arbitrates concurrent retries.
+    /// </summary>
+    public static async Task<ApiResponse<UsageStatisticsDto>> CaptureForTenantAsync(
+        EduOSDbContext db, long tenantId, long? actorId, DateTime utcNow,
+        ILogger logger, CancellationToken ct = default)
+    {
+        if (tenantId <= 0 || db.CurrentTenantId != tenantId)
+            return ApiResponse<UsageStatisticsDto>.ErrorResponse("Tenant scope mismatch.", 403);
+        var tenant = await db.Tenants.AsNoTracking().FirstOrDefaultAsync(x =>
+            x.Id == tenantId && !x.IsDeleted, ct);
         if (tenant == null) return ApiResponse<UsageStatisticsDto>.ErrorResponse("Institution not found.", 404);
-        var localToday = DateTime.UtcNow;
-        try
-        {
-            if (!string.IsNullOrWhiteSpace(tenant.TimeZoneId))
-                localToday = TimeZoneInfo.ConvertTimeFromUtc(localToday, TimeZoneInfo.FindSystemTimeZoneById(tenant.TimeZoneId));
-        }
-        catch (TimeZoneNotFoundException) { logger.LogWarning("Unknown tenant timezone {TenantId}; UTC used.", tenantId); }
-        catch (InvalidTimeZoneException) { logger.LogWarning("Invalid tenant timezone {TenantId}; UTC used.", tenantId); }
-        var day = DateOnly.FromDateTime(localToday);
+        var day = ResolveLocalDay(utcNow, tenant.TimeZoneId, logger, tenantId, out _);
         var existing = await db.UsageStatistics.AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == tenantId && !x.IsDeleted && x.PeriodStart == day && x.PeriodEnd == day, ct);
         if (existing != null)
@@ -69,14 +75,15 @@ public sealed class UsageHistoryService(
         {
             TenantId = tenantId, PeriodStart = day, PeriodEnd = day,
             ActiveStudents = students, ActiveEmployees = employees, ActiveCampuses = campuses,
-            CreatedBy = user.UserId
+            CreatedBy = actorId
         };
         db.UsageStatistics.Add(row);
         db.AuditLogs.Add(new AuditLog
         {
-            TenantId = tenantId, UserId = user.UserId, Action = "UsageSnapshotCaptured",
+            TenantId = tenantId, UserId = actorId,
+            Action = actorId.HasValue ? "UsageSnapshotCaptured" : "UsageSnapshotCapturedAutomatically",
             EntityName = nameof(UsageStatistics), NewValue = day.ToString("yyyy-MM-dd"),
-            OccurredAt = DateTime.UtcNow, IsSuccess = true
+            OccurredAt = utcNow, IsSuccess = true
         });
         try
         {
@@ -86,6 +93,7 @@ public sealed class UsageHistoryService(
         catch (DbUpdateException ex)
         {
             logger.LogWarning(ex, "Usage capture conflict for tenant {TenantId}", tenantId);
+            // A second worker may have won the unique-key race. Do not overwrite its snapshot.
             var winner = await db.UsageStatistics.AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenantId && !x.IsDeleted && x.PeriodStart == day && x.PeriodEnd == day, ct);
             return winner != null
@@ -94,6 +102,47 @@ public sealed class UsageHistoryService(
         }
     }
 
+    private static DateOnly ResolveLocalDay(DateTime utcNow, string? configuredZone, ILogger logger,
+        long tenantId, out string effectiveZone)
+    {
+        effectiveZone = "UTC";
+        if (string.IsNullOrWhiteSpace(configuredZone)) return DateOnly.FromDateTime(utcNow);
+        try
+        {
+            var zone = TimeZoneInfo.FindSystemTimeZoneById(configuredZone);
+            effectiveZone = zone.Id;
+            return DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(
+                DateTime.SpecifyKind(utcNow, DateTimeKind.Utc), zone));
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            logger.LogWarning("Unknown tenant timezone {TenantId}; UTC used.", tenantId);
+        }
+        catch (InvalidTimeZoneException)
+        {
+            logger.LogWarning("Invalid tenant timezone {TenantId}; UTC used.", tenantId);
+        }
+        return DateOnly.FromDateTime(utcNow);
+    }
+
+    public async Task<ApiResponse<UsageCaptureAutomationDto>> GetAutomationStatusAsync(CancellationToken ct = default)
+    {
+        if (!CanManage) return ApiResponse<UsageCaptureAutomationDto>.ErrorResponse("Tenant administrator required.", 403);
+        var tenantId = user.TenantId;
+        var tenant = await db.Tenants.AsNoTracking().FirstOrDefaultAsync(x =>
+            x.Id == tenantId && !x.IsDeleted, ct);
+        if (tenant == null) return ApiResponse<UsageCaptureAutomationDto>.ErrorResponse("Institution not found.", 404);
+        var localDay = ResolveLocalDay(DateTime.UtcNow, tenant.TimeZoneId, logger, tenantId, out var effectiveZone);
+        var lastDay = await db.UsageStatistics.AsNoTracking()
+            .Where(x => x.TenantId == tenantId && !x.IsDeleted)
+            .OrderByDescending(x => x.PeriodStart).ThenByDescending(x => x.Id)
+            .Select(x => (DateOnly?)x.PeriodStart).FirstOrDefaultAsync(ct);
+        return ApiResponse<UsageCaptureAutomationDto>.SuccessResponse(new()
+        {
+            LocalDay = localDay, LastCapturedDay = lastDay,
+            CapturedToday = lastDay == localDay, EffectiveTimeZoneId = effectiveZone
+        });
+    }
 
     /// <summary>Compares the last saved tenant snapshot with the currently effective plan.
     /// Zero plan limits mean unlimited. No snapshot or plan means no inferred usage/limit.</summary>

@@ -45,6 +45,13 @@ public sealed class UsageHistoryApiController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("automation-status")]
+    public async Task<IActionResult> AutomationStatus(CancellationToken ct = default)
+    {
+        var result = await _service.GetAutomationStatusAsync(ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("capture")]
     public async Task<IActionResult> Capture(CancellationToken ct)
     {

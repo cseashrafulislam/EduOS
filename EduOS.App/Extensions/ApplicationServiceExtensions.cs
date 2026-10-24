@@ -58,6 +58,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<IInstitutionProfileWizardService, InstitutionProfileWizardService>();
             s.AddScoped<IDashboardService, DashboardService>();
             s.AddScoped<IUsageHistoryService, UsageHistoryService>();
+            s.AddScoped<DailyUsageSnapshotJob>();
             s.AddScoped<IPlatformTenantLifecycleService, PlatformTenantLifecycleService>();
             s.AddScoped<IAuditLogService, AuditLogService>();
             s.AddScoped<ILoginActivityService, LoginActivityService>();

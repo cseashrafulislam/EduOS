@@ -1,4 +1,5 @@
 using EduOS.App.Hubs;
+using EduOS.BackgroundJobs.Jobs;
 using EduOS.App.Extensions;
 using EduOS.App.Filters;
 using EduOS.App.Health;
@@ -437,5 +438,10 @@ app.MapHub<NotificationHub>("/hubs/notifications").RequireAuthorization();
 //     "subscription-renewal-reminder",
 //     job => job.RunAsync(),
 //     Cron.Daily(9));
+
+// One check per UTC hour captures the current local day for each completed active tenant.
+// Idempotent daily uniqueness also protects manual capture and multiple app instances.
+RecurringJob.AddOrUpdate<DailyUsageSnapshotJob>(
+    "platform-daily-usage-snapshots", job => job.RunAsync(CancellationToken.None), Cron.Hourly());
 
 app.Run();

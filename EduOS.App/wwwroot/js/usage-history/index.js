@@ -57,6 +57,19 @@ async function loadQuota() {
     }
 }
 
+async function loadAutomation() {
+    const element = $("uhAutomationStatus");
+    try {
+        const data = await api("/automation-status");
+        element.textContent = "Institution local day: " + data.localDay +
+            " (" + data.effectiveTimeZoneId + "). " +
+            (data.capturedToday ? "Today's snapshot is saved." :
+                "Today's snapshot has not been saved yet.") +
+            (data.lastCapturedDay ? " Latest saved day: " + data.lastCapturedDay + "." : "");
+    } catch (error) {
+        element.textContent = "Automatic capture status unavailable: " + error.message;
+    }
+}
 async function load() {
     const generation = ++state.generation, page = state.page;
     status("Loading usage history...");
@@ -87,11 +100,11 @@ $("uhCapture").addEventListener("click", async () => {
     status("Capturing current counts...");
     try {
         await api("/capture", "POST");
-        state.page = 1; await load(); await loadQuota();
+        state.page = 1; await load(); await loadQuota(); await loadAutomation();
     } catch (error) { status(error.message, true); }
     finally { state.capturing = false; $("uhCapture").disabled = false; }
 });
-$("uhRefresh").addEventListener("click", () => { load(); loadQuota(); });
+$("uhRefresh").addEventListener("click", () => { load(); loadQuota(); loadAutomation(); });
 for (const [id, delta] of [["uhPrev", -1], ["uhNext", 1]]) {
     $(id).addEventListener("click", () => {
         const next = state.page + delta;
@@ -101,4 +114,5 @@ for (const [id, delta] of [["uhPrev", -1], ["uhNext", 1]]) {
 }
 load();
 loadQuota();
+loadAutomation();
 })();

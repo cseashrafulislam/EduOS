@@ -18,6 +18,8 @@
             </table></div>
         </div>
     </section>
+    <div class="alert alert-secondary" role="status" id="uhAutomationStatus" aria-live="polite">Checking automatic daily capture status...</div>
+    <p class="text-muted small">The background worker checks each active, onboarded institution once per hour and saves at most one snapshot per institution-local day. A missing snapshot can still be captured manually. Automatic capture depends on the background worker running.</p>
     <button id="uhCapture" type="button" class="btn btn-primary mb-3">Capture today's usage</button>
     <button id="uhRefresh" type="button" class="btn btn-outline-secondary mb-3">Refresh</button>
     <form method="get" action="/api/usage-history/export" class="row g-2 align-items-end mb-3">
