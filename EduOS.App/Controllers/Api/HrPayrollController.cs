@@ -51,36 +51,36 @@ public sealed class HrPayrollController : ControllerBase
         Result(await _service.SaveSalaryStructureAsync(request, ct));
 
     [HttpPost("runs")]
-    [Authorize(Roles = "TenantAdmin,Principal,HR,Accountant")]
+    [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> CreateRun([FromBody] CreatePayrollRunRequestDto request,
         CancellationToken ct) =>
         Result(await _service.CreatePayrollRunAsync(request, ct));
 
     [HttpGet("runs")]
-    [Authorize(Roles = "TenantAdmin,Principal,HR,Accountant")]
+    [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> Runs([FromQuery] int? year, [FromQuery] int? month,
         [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken ct = default) =>
         Result(await _service.GetPayrollRunsAsync(year, month, page, pageSize, ct));
 
     [HttpGet("runs/{reference:guid}")]
-    [Authorize(Roles = "TenantAdmin,Principal,HR,Accountant")]
+    [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> Run(Guid reference, CancellationToken ct) =>
         Result(await _service.GetPayrollRunAsync(reference, ct));
 
     [HttpGet("runs/{reference:guid}/employees")]
-    [Authorize(Roles = "TenantAdmin,Principal,HR,Accountant")]
+    [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> Employees(Guid reference, [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20, CancellationToken ct = default) =>
         Result(await _service.GetPayrollEmployeesAsync(reference, page, pageSize, ct));
 
     [HttpPost("runs/{reference:guid}/approve")]
-    [Authorize(Roles = "TenantAdmin,Principal,Accountant")]
+    [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> Approve(Guid reference,
         [FromBody] ApprovePayrollRunRequestDto request, CancellationToken ct) =>
         Result(await _service.ApprovePayrollRunAsync(reference, request, ct));
 
     [HttpPost("runs/{reference:guid}/post")]
-    [Authorize(Roles = "TenantAdmin,Principal,Accountant")]
+    [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> Post(Guid reference,
         [FromBody] PostPayrollRunRequestDto request, CancellationToken ct) =>
         Result(await _service.PostPayrollRunAsync(reference, request, ct));
@@ -111,7 +111,7 @@ public sealed class HrPayrollController : ControllerBase
         Result(await _service.GetMyPayslipsAsync(year, page, pageSize, ct));
 
     [HttpPost("payments")]
-    [Authorize(Roles = "TenantAdmin,Principal,HR,Accountant")]
+    [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> Payment([FromBody] RecordPayrollPaymentRequestDto request,
         CancellationToken ct) =>
         Result(await _service.RecordPayrollPaymentAsync(request, ct));

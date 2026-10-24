@@ -82,7 +82,7 @@ function render(data) {
         {
             const action = document.createElement('td'), button = document.createElement('button');
             button.type = 'button'; button.className = 'btn btn-sm btn-primary';
-            if ([2, 'Calculated'].includes(row.state)) {
+            if (canPost && [2, 'Calculated'].includes(row.state)) {
                 button.textContent = 'Approve payroll';
                 button.addEventListener('click', async () => {
                     if (!confirm('Approve calculated payroll ' + row.runNumber + '? Maker and approver must differ.')) return;
