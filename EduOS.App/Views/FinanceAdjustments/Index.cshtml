@@ -81,6 +81,11 @@
             <div class="col-md-4"><label class="form-label" for="adjustRefundReason">Reason</label><input id="adjustRefundReason" maxlength="1000" class="form-control" required /></div>
             <div class="col-md-2 align-self-end"><button class="btn btn-primary w-100" type="submit">Request refund</button></div>
         </form>
+        <div class="row g-2 mb-3 align-items-end">
+            <div class="col-md-4"><label class="form-label" for="adjustRefundPeriod">Open accounting period for verified payout</label><select id="adjustRefundPeriod" class="form-select"><option value="">Select open period</option></select></div>
+            <div class="col-md-3"><label class="form-label" for="adjustRefundPayoutDate">Actual cash payout date</label><input id="adjustRefundPayoutDate" type="date" class="form-control" /></div>
+            <div class="col-md-5"><label class="form-label" for="adjustRefundEvidence">Independently checked cash voucher/reference</label><input id="adjustRefundEvidence" class="form-control" maxlength="100" placeholder="Verified voucher number" /></div>
+        </div>
         <h4 class="h6">Refund requests for displayed receipts</h4>
         <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Receipt</th><th>Amount</th><th>Status</th><th>Requested by</th><th>Actions</th></tr></thead><tbody id="adjustRefundRows"></tbody></table></div>
     </div></div>

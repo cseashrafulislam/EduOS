@@ -22,6 +22,11 @@ public sealed partial class FinanceAdjustmentService
             (long)(page-1)*pageSize > int.MaxValue)
             return Error<RefundOperationsRegisterDto>("Invalid register filters.");
         var tenant=user.TenantId;
+        var periods=await db.AccountingPeriods.AsNoTracking().Where(x=>x.TenantId==tenant &&
+            !x.IsDeleted && !x.IsClosed).OrderByDescending(x=>x.StartDate).Take(101)
+            .Select(x=>new StudentInvoicePostingPeriodDto
+            {Id=x.Id,Name=x.Name,StartDate=x.StartDate,EndDate=x.EndDate}).ToListAsync(ct);
+        if(periods.Count>100) return Error<RefundOperationsRegisterDto>("Too many open accounting periods.",409);
         var campuses=from a in db.PaymentAllocations.AsNoTracking()
             join i in db.StudentInvoices.AsNoTracking()
                 on new { a.TenantId, Id=a.StudentInvoiceId } equals new { i.TenantId, i.Id }
@@ -53,7 +58,7 @@ public sealed partial class FinanceAdjustmentService
         var byPayment=pageRows.ToDictionary(x=>x.Id);
         return ApiResponse<RefundOperationsRegisterDto>.SuccessResponse(new RefundOperationsRegisterDto
         {
-            Page=page,PageSize=pageSize,TotalCount=count,
+            Page=page,PageSize=pageSize,TotalCount=count,OpenPeriods=periods,
             Payments=pageRows.Select(x=>new RefundPaymentRegisterRowDto
             { PaymentReference=x.PublicId,ReceiptNumber=x.ReceiptNumber,Amount=x.Amount,
                 CampusId=x.CampusId,StudentCode=x.StudentCode,StudentName=x.FullName,

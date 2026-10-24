@@ -5,6 +5,7 @@ public sealed class RefundOperationsRegisterDto
     public int Page { get; set; }
     public int PageSize { get; set; }
     public int TotalCount { get; set; }
+    public IReadOnlyList<StudentInvoicePostingPeriodDto> OpenPeriods { get; set; } = Array.Empty<StudentInvoicePostingPeriodDto>();
     public IReadOnlyList<RefundPaymentRegisterRowDto> Payments { get; set; } = Array.Empty<RefundPaymentRegisterRowDto>();
     public IReadOnlyList<RefundRegisterRowDto> Refunds { get; set; } = Array.Empty<RefundRegisterRowDto>();
 }

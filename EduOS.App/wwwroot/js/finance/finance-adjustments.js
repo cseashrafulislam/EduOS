@@ -95,6 +95,12 @@ async function loadRefunds(){
  const q=new URLSearchParams({page:String(refundPage),pageSize:String(refundSize)});
  if(campus)q.set('campusId',campus);
  const data=await api(base+'/refunds?'+q);
+ const periodSelect=el('RefundPeriod'),priorPeriod=periodSelect.value;
+ periodSelect.replaceChildren(new Option('Select open accounting period',''));
+ for(const period of data.openPeriods||[])
+  periodSelect.add(new Option(period.name+' ('+period.startDate+' to '+period.endDate+')',String(period.id)));
+ periodSelect.value=priorPeriod;
+ if(!el('RefundPayoutDate').value)el('RefundPayoutDate').value=new Date().toISOString().slice(0,10);
  refundTotal=data.totalCount;
  el('RefundPage').textContent='Page '+refundPage+' / '+Math.max(1,Math.ceil(refundTotal/refundSize));
  el('RefundPrev').disabled=refundPage===1;
@@ -126,16 +132,17 @@ async function loadRefunds(){
   }
   if(r.state===2){
    actions.append(button('Record verified payout',()=>run(null,async()=>{
-    const reference=prompt('Independently verified cash payout voucher/reference (max 100 characters):');
-    if(reference===null)return;
-    if(!reference.trim()||reference.trim().length>100)throw Error('Voucher reference required (max 100).');
-    const period=prompt('Open accounting period ID covering the actual payout date:');if(period===null)return;
-    if(!/^\d+$/.test(period)||Number(period)<1)throw Error('Invalid period.');
-    const date=prompt('Actual payout date (YYYY-MM-DD):',new Date().toISOString().slice(0,10));if(date===null)return;
-    if(!/^\d{4}-\d{2}-\d{2}$/.test(date))throw Error('Invalid payout date.');
-    if(!confirm('Confirm cash was paid, independently verified, and voucher is correct?'))return;
+    const reference=el('RefundEvidence').value.trim();
+    const period=el('RefundPeriod').value;
+    const date=el('RefundPayoutDate').value;
+    if(!reference||reference.length>100)throw Error('Independently verified voucher reference is required (max 100).');
+    if(!/^\d+$/.test(period)||Number(period)<1)throw Error('Select an open accounting period.');
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(date))throw Error('Select the actual cash payout date.');
+    const selected=(el('RefundPeriod').selectedOptions[0]?.textContent||'');
+    if(!confirm('Confirm cash was paid, independently checked, and voucher is correct for '+selected+'?'))return;
     await api(base+'/refunds/'+r.id+'/record-payout','POST',{clientRequestId:crypto.randomUUID(),
-     accountingPeriodId:Number(period),payoutDate:date,payoutEvidenceReference:reference.trim(),rowVersion:r.rowVersion});
+     accountingPeriodId:Number(period),payoutDate:date,payoutEvidenceReference:reference,rowVersion:r.rowVersion});
+    el('RefundEvidence').value='';
     await loadRefunds();
    })));
   }
