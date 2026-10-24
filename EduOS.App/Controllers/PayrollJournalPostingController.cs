@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace EduOS.App.Controllers;
 
 [Authorize(Roles = "TenantAdmin,Principal,Accountant")]
-[RequireModule("FINANCE")]
+[RequireModule("FINANCE"), RequireModule("PAYROLL")]
 public sealed class PayrollJournalPostingController : Controller
 {
     [HttpGet]

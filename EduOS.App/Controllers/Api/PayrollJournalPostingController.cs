@@ -11,7 +11,7 @@ using Microsoft.AspNetCore.RateLimiting;
 namespace EduOS.App.Controllers.Api;
 
 [ApiController, Route("api/finance/payroll-posting")]
-[Authorize(Roles = "TenantAdmin,Principal,Accountant"), RequireModule("FINANCE")]
+[Authorize(Roles = "TenantAdmin,Principal,Accountant"), RequireModule("FINANCE"), RequireModule("PAYROLL")]
 [AutoValidateAntiforgeryToken, EnableRateLimiting("ApiPolicy")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class PayrollJournalPostingController : ControllerBase
