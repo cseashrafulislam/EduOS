@@ -222,6 +222,12 @@ public sealed class TransportController : ControllerBase
         [FromBody] CreateTransportRouteVehicleLinkRequestDto request, CancellationToken ct) =>
         ToAction(await _service.AssignRouteVehicleAsync(request, ct));
 
+    [HttpPost("route-vehicle-links/{id:long}/reschedule-start")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    public async Task<IActionResult> RescheduleUpcomingRouteVehicleStart(long id,
+        [FromBody] RescheduleUpcomingRouteVehicleRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.RescheduleUpcomingRouteVehicleStartAsync(id, request, ct));
+
     [HttpPost("route-vehicle-links/{id:long}/extend")]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
     public async Task<IActionResult> ExtendOperatingRouteVehicle(long id,
