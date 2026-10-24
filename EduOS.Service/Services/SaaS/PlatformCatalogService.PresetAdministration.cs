@@ -148,7 +148,8 @@ public partial class PlatformCatalogService
         var audit = new AuditLog
         {
             TenantId = null, UserId = user.UserId, Action = "InstitutionTypeModule.PresetChanged",
-            EntityName = nameof(InstitutionTypeModule), EntityId = row.Id,
+            // Audit the institution-type aggregate, since a newly inserted mapping has no database ID until save.
+            EntityName = nameof(InstitutionTypeDefinition), EntityId = institutionTypeId,
             OldValue = current, NewValue = desired, RequestId = requestId,
             Endpoint = "/api/platform/catalog/institution-module-presets",
             IsSuccess = true, OccurredAt = now, CreatedAt = now, CreatedBy = user.UserId
