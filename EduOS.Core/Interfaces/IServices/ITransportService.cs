@@ -58,6 +58,7 @@ public interface ITransportService
     Task<ApiResponse<PagedResult<UpcomingTransportVehicleOptionDto>>> GetUpcomingVehicleOptionsAsync(Guid reference, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<UpcomingTransportVehicleOptionDto>>> GetOperatingTransferVehiclesAsync(Guid reference, DateOnly effectiveDate, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentTransportDto>> TransferOperatingRiderAsync(Guid reference, TransferOperatingTransportVehicleRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<StudentTransportDto>> RescheduleUpcomingRiderStartAsync(Guid reference, RescheduleUpcomingTransportStartRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentTransportDto>> ChangeUpcomingVehicleAsync(Guid reference, ChangeUpcomingTransportVehicleRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentTransportDto>> CorrectUpcomingStopsAsync(Guid reference, CorrectUpcomingTransportStopsRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentTransportDto>> CorrectActiveStopsAsync(Guid reference, CorrectUpcomingTransportStopsRequestDto request, CancellationToken cancellationToken = default);

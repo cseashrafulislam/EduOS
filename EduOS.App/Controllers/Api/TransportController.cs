@@ -112,6 +112,12 @@ public sealed class TransportController : ControllerBase
         [FromBody] TransferOperatingTransportVehicleRequestDto request, CancellationToken ct) =>
         ToAction(await _service.TransferOperatingRiderAsync(reference, request, ct));
 
+    [HttpPost("assignments/{reference:guid}/reschedule-start")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    public async Task<IActionResult> RescheduleUpcomingStart(Guid reference,
+        [FromBody] RescheduleUpcomingTransportStartRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.RescheduleUpcomingRiderStartAsync(reference, request, ct));
+
     [HttpPut("assignments/{reference:guid}/vehicle")]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
     public async Task<IActionResult> ChangeUpcomingVehicle(Guid reference,

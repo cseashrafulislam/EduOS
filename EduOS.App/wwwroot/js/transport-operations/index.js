@@ -120,6 +120,12 @@
                     changeVehicle.textContent = 'Change vehicle';
                     changeVehicle.addEventListener('click', () => window.dispatchEvent(
                         new CustomEvent('transport:change-vehicle', { detail: item })));
+                    const reschedule = document.createElement('button');
+                    reschedule.type = 'button'; reschedule.className = 'btn btn-outline-secondary btn-sm me-2';
+                    reschedule.textContent = 'Reschedule start';
+                    reschedule.addEventListener('click', () => window.dispatchEvent(
+                        new CustomEvent('transport:reschedule-upcoming', { detail: item })));
+                    actions.append(reschedule);
                     actions.append(changeVehicle);
                 }
                 if (item.startDate <= localDate() && (!item.endDate || item.endDate >= localDate())) {
