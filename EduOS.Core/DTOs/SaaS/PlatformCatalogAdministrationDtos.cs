@@ -15,6 +15,6 @@ public sealed class ChangeInstitutionTypeActivationRequestDto
 {
     public Guid RequestId { get; set; }
     public bool IsActive { get; set; }
-    [System.ComponentModel.DataAnnotations.Required]
+    [global::System.ComponentModel.DataAnnotations.Required]
     public string RowVersion { get; set; } = string.Empty;
 }
