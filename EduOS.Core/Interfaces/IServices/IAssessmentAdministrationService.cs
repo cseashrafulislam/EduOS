@@ -14,6 +14,8 @@ public interface IAssessmentAdministrationService
     Task<ApiResponse<AssessmentDto>> ChangeAssessmentStateAsync(Guid reference, ChangeAssessmentStateRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<bool>> SaveMarksRegisterAsync(SaveMarksRegisterRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<ResultPublicationDto>> PublishResultAsync(PublishResultRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<IReadOnlyList<CertificateCandidateDto>>> GetCertificateCandidatesAsync(string? search, CancellationToken cancellationToken = default);
+    Task<ApiResponse<CertificateIssueRegisterPageDto>> SearchCertificateIssueRegisterAsync(CertificateIssueRegisterQueryDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<CertificateIssueDto>> IssueCertificateAsync(IssueCertificateRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<CertificateIssueDto>> RevokeCertificateAsync(long certificateId, RevokeCertificateRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<AssessmentSubjectDto>> SaveAssessmentSubjectAsync(long? subjectId, SaveAssessmentSubjectRequestDto request, CancellationToken cancellationToken = default);

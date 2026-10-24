@@ -244,8 +244,13 @@ public sealed partial class ExamWorkflowService
                 var studentRef = await _students.GetQueryable().AsNoTracking()
                     .Where(x => x.TenantId == tenant && x.Id == replay.StudentId)
                     .Select(x => x.PublicId).FirstOrDefaultAsync(token);
+                var enrollmentRef = await _enrollments.GetQueryable().AsNoTracking()
+                    .Where(x => x.TenantId == tenant && x.Id == replay.StudentEnrollmentId)
+                    .Select(x => x.PublicId).FirstOrDefaultAsync(token);
                 if (replay.CertificateTemplateId != request.CertificateTemplateId ||
-                    studentRef != request.StudentReference || replay.IssueDate != request.IssueDate)
+                    studentRef != request.StudentReference ||
+                    enrollmentRef != request.StudentEnrollmentReference ||
+                    replay.IssueDate != request.IssueDate)
                     return Error<CertificateIssueDto>("Request ID used for a different certificate.", 409);
                 return ApiResponse<CertificateIssueDto>.SuccessResponse(
                     await MapCertificateAsync(replay, token), "Certificate already issued.");
@@ -261,6 +266,12 @@ public sealed partial class ExamWorkflowService
                     !x.IsDeleted, token);
             if (template == null || enrollment == null)
                 return Error<CertificateIssueDto>("Certificate template or student enrollment not found.", 404);
+            if (request.IssueDate < enrollment.EnrollmentDate ||
+                request.IssueDate > DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime))
+                return Error<CertificateIssueDto>("Certificate date must follow enrollment and cannot be in the future.", 409);
+            if (!await EligibleCertificateEnrollmentIds(tenant, request.IssueDate)
+                .AnyAsync(id => id == enrollment.Id, token))
+                return Error<CertificateIssueDto>("No passed, released published result exists for this enrollment and issue date.", 409);
             var now = _clock.GetUtcNow().UtcDateTime;
             var row = new CertificateIssue
             {
@@ -422,7 +433,8 @@ public sealed partial class ExamWorkflowService
             StudentEnrollmentReference = enrollmentRef, CertificateTemplateId = row.CertificateTemplateId,
             CertificateNumber = row.CertificateNumber, IssueDate = row.IssueDate,
             IssuedByUserId = row.IssuedByUserId, FileAssetId = row.FileAssetId,
-            IsRevoked = row.IsRevoked, RevokedAt = row.RevokedAt
+            IsRevoked = row.IsRevoked, RevokedAt = row.RevokedAt,
+            RowVersion = Version(row.RowVersion)
         };
     }
     private async Task<TranscriptIssueDto> MapTranscriptAsync(TranscriptIssue row, CancellationToken ct)

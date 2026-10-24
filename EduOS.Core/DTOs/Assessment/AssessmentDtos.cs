@@ -234,6 +234,7 @@ public class CertificateIssueDto
     public long? FileAssetId { get; set; }
     public bool IsRevoked { get; set; }
     public DateTime? RevokedAt { get; set; }
+    public string RowVersion { get; set; } = string.Empty;
 }
 
 public class IssueCertificateRequestDto

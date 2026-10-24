@@ -1,0 +1,57 @@
+@{
+    ViewData["Title"] = "Certificate Issue Register";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<section class="container-fluid py-4" id="certificateIssueWorkspace">
+    @Html.AntiForgeryToken()
+    <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
+        <div><h1 class="h4 mb-1">Certificate issue register</h1>
+            <p class="text-muted mb-0">Issue and revoke certificate records for enrollments with passed, published and released results. This does not create a signed PDF.</p></div>
+        <a class="btn btn-outline-secondary" asp-controller="ExamOperations" asp-action="CertificateTemplates">Manage templates</a>
+    </div>
+    <div id="certificateRegisterNotice" class="alert d-none" role="alert" aria-live="polite"></div>
+    <div class="card mb-3"><div class="card-body">
+        <h2 class="h6">Issue certificate</h2>
+        <form id="certificateIssueForm" class="row g-2 align-items-end">
+            <div class="col-lg-3"><label class="form-label" for="certificateCandidateSearch">Student name/code</label>
+                <input class="form-control" id="certificateCandidateSearch" maxlength="100" minlength="2" autocomplete="off" placeholder="At least 2 characters" required /></div>
+            <div class="col-lg-2"><button type="button" id="certificateFindCandidate" class="btn btn-outline-primary w-100">Find eligible</button></div>
+            <div class="col-lg-3"><label class="form-label" for="certificateCandidate">Student enrollment</label>
+                <select class="form-select" id="certificateCandidate" required><option value="">Search first</option></select></div>
+            <div class="col-lg-2"><label class="form-label" for="certificateTemplate">Active template</label>
+                <select class="form-select" id="certificateTemplate" required><option value="">Loading templates…</option></select></div>
+            <div class="col-lg-2"><label class="form-label" for="certificateIssueDate">Issue date</label>
+                <input class="form-control" id="certificateIssueDate" type="date" required /></div>
+            <div class="col-12"><button type="submit" id="certificateIssueSubmit" class="btn btn-primary">Issue certificate record</button>
+                <span class="small text-muted ms-2">Stable request ID prevents duplicate issuance on retries. No document file is generated.</span></div>
+        </form>
+    </div></div>
+    <div class="card"><div class="card-body">
+        <div class="row g-2 align-items-end mb-3">
+            <div class="col-lg-5"><label class="form-label" for="certificateRegisterSearch">Search issued certificates</label>
+                <input class="form-control" id="certificateRegisterSearch" maxlength="100" placeholder="Certificate number, student name or code" /></div>
+            <div class="col-lg-7 d-flex flex-wrap gap-2">
+                <button id="certificateRegisterRefresh" class="btn btn-outline-primary" type="button">Search</button>
+                <button id="certificateRegisterCsv" class="btn btn-outline-secondary" type="button">CSV (current page)</button>
+                <button id="certificateRegisterPrint" class="btn btn-outline-secondary" type="button">Print register</button>
+            </div>
+        </div>
+        <div class="table-responsive"><table class="table table-sm table-hover" id="certificateRegisterTable">
+            <thead><tr><th>Certificate</th><th>Student code</th><th>Student</th><th>Campus / batch</th><th>Template</th><th>Issue date</th><th>Status</th><th class="certificate-register-action">Action</th></tr></thead>
+            <tbody id="certificateRegisterRows"><tr><td colspan="8">Loading…</td></tr></tbody>
+        </table></div>
+        <div class="d-flex justify-content-between align-items-center">
+            <span class="text-muted small" id="certificateRegisterCount"></span>
+            <div class="d-flex gap-2"><button id="certificateRegisterPrev" class="btn btn-sm btn-outline-secondary" type="button">Previous</button>
+                <button id="certificateRegisterNext" class="btn btn-sm btn-outline-secondary" type="button">Next</button></div>
+        </div>
+    </div></div>
+</section>
+<style>
+@@media print {
+    #certificateIssueForm, #certificateRegisterRefresh, #certificateRegisterCsv, #certificateRegisterPrint,
+    #certificateRegisterPrev, #certificateRegisterNext, #certificateRegisterSearch,
+    #certificateRegisterNotice, .certificate-register-action { display: none !important; }
+}
+</style>
+@section Scripts { <script src="~/js/exams/certificates.js" asp-append-version="true"></script> }
