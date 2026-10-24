@@ -19,7 +19,7 @@ public sealed class PayrollLoanRecoverySettlementTests
     [Fact]
     public async Task Posted_payroll_reconciles_loan_asset_and_recovery_once()
     {
-        await using var db = await SeedAsync();
+        await using var db = Seed();
         var run = await db.PayrollRuns.SingleAsync();
         var request = Request(run);
         var service = new PayrollJournalPostingService(db, new TestUser(), TimeProvider.System);
@@ -45,7 +45,7 @@ public sealed class PayrollLoanRecoverySettlementTests
     [Fact]
     public async Task Cash_recovery_after_posted_payroll_withholding_reconciles_both_sources()
     {
-        await using var db = await SeedAsync();
+        await using var db = Seed();
         var run = await db.PayrollRuns.SingleAsync();
         var posting = await new PayrollJournalPostingService(db, new TestUser(), TimeProvider.System)
             .PostAsync(run.PublicId, Request(run));
@@ -69,7 +69,7 @@ public sealed class PayrollLoanRecoverySettlementTests
     [Fact]
     public async Task Wrong_receivable_mapping_rejects_without_mutating_loan()
     {
-        await using var db = await SeedAsync();
+        await using var db = Seed();
         var run = await db.PayrollRuns.SingleAsync();
         var request = Request(run);
         request.Mappings = new[]
@@ -87,7 +87,7 @@ public sealed class PayrollLoanRecoverySettlementTests
     [Fact]
     public async Task Missing_disbursement_rejects_without_recovery()
     {
-        await using var db = await SeedAsync(withDisbursement: false);
+        await using var db = Seed(withDisbursement: false);
         var run = await db.PayrollRuns.SingleAsync();
         var result = await new PayrollJournalPostingService(db, new TestUser(), TimeProvider.System)
             .PostAsync(run.PublicId, Request(run));
@@ -98,7 +98,7 @@ public sealed class PayrollLoanRecoverySettlementTests
     [Fact]
     public async Task Changed_loan_after_calculation_rejects_stale_payroll_snapshot()
     {
-        await using var db = await SeedAsync();
+        await using var db = Seed();
         var run = await db.PayrollRuns.SingleAsync();
         var loan = await db.LoanAdvances.SingleAsync();
         loan.UpdatedAt = run.CalculatedAt!.Value.AddMinutes(1);
@@ -120,7 +120,7 @@ public sealed class PayrollLoanRecoverySettlementTests
         }
     };
 
-    private static async Task<EduOSDbContext> SeedAsync(bool withDisbursement = true)
+    private static EduOSDbContext Seed(bool withDisbursement = true)
     {
         var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
         accessor.HttpContext.Items["TenantId"] = 41L;
@@ -182,7 +182,7 @@ public sealed class PayrollLoanRecoverySettlementTests
                 SalaryComponentId = 1, Amount = 100m, Description = "Fixed" },
             new PayrollLine { Id = 2, TenantId = 41, PayrollEmployeeId = 1,
                 SalaryComponentId = 2, Amount = 25m, Description = "Scheduled loan recovery" });
-        await db.SaveChangesAsync();
+        db.SaveChanges();
         return db;
     }
 
