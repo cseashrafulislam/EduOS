@@ -91,6 +91,10 @@
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#users" /></svg>
                         <span>User &amp; Role Management</span>
                     </a>
+                    <a class="nav-link @ActiveFor("/TenantPermissionOverrides")" href="/TenantPermissionOverrides/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#shield" /></svg>
+                        <span>Member Permission Exceptions</span>
+                    </a>
                 }
                 @if (User?.IsInRole("TenantAdmin") == true)
                 {
