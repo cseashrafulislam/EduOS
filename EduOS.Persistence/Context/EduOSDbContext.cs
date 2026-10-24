@@ -1675,6 +1675,14 @@ public class EduOSDbContext :
         ValidateImmutableHistory(entries);
         await ValidateAggregateImmutabilityAsync(entries, cancellationToken);
 
+        // Invalidate receiving-tenant attestations in the SAME transaction as the
+        // canonical enrollment change. The subsequent source completion checks
+        // this timestamp and the transfer rowversion, so stale confirmations fail.
+        await InvalidateDestinationEnrollmentConfirmationsAsync(entries, cancellationToken);
+        entries = ChangeTracker.Entries<BaseEntity>()
+            .Where(x => x.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+            .ToList();
+
         var pendingAudits = new List<PendingAudit>();
 
         foreach (var entry in entries)
@@ -1730,6 +1738,38 @@ public class EduOSDbContext :
         }
 
         return affectedRows;
+    }
+
+    private async Task InvalidateDestinationEnrollmentConfirmationsAsync(
+        IReadOnlyList<EntityEntry<BaseEntity>> entries, CancellationToken cancellationToken)
+    {
+        // Only the current tenant's changed enrollment IDs are used. TransferRequest
+        // is global to support a cross-tenant handoff; no source student data is read.
+        var changed = entries
+            .Where(x => x.Entity is StudentEnrollment &&
+                x.State is EntityState.Modified or EntityState.Deleted)
+            .Select(x => (StudentEnrollment)x.Entity)
+            .Where(x => x.TenantId > 0 && x.Id > 0)
+            .GroupBy(x => x.TenantId);
+
+        foreach (var group in changed)
+        {
+            var enrollmentIds = group.Select(x => x.Id).Distinct().ToArray();
+            var pending = await TransferRequests.Where(x =>
+                x.DestinationTenantId == group.Key &&
+                x.DestinationEnrollmentId.HasValue &&
+                enrollmentIds.Contains(x.DestinationEnrollmentId.Value) &&
+                x.State == TransferRequestState.DestinationAccepted &&
+                x.DestinationEnrollmentConfirmedAt != null)
+                .ToListAsync(cancellationToken);
+            foreach (var transfer in pending)
+            {
+                transfer.DestinationEnrollmentConfirmedAt = null;
+                transfer.DestinationEnrollmentConfirmedByUserId = null;
+                transfer.DestinationEnrollmentVersionAtConfirmation = null;
+                // EF tracks this transition, preserving its audit and rowversion.
+            }
+        }
     }
 
     private static string GetAuditAction(EntityState state)
