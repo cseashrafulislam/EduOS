@@ -146,6 +146,10 @@
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
                         <span>Student Transfer / Exit</span>
                     </a>
+                    <a class="nav-link @ActiveFor("/StudentTransferRequests")" href="/StudentTransferRequests/Index#destinationInbox">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
+                        <span>Transfer Requests / Inbox</span>
+                    </a>
                 }
                 @if (User?.IsInRole("TenantAdmin") == true)
                 {
