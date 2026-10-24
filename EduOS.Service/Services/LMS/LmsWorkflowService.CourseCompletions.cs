@@ -4,6 +4,7 @@ using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.LMS;
 using EduOS.Core.Enums.Domain;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using System.Data;
 
 namespace EduOS.Service.Services.LMS;
