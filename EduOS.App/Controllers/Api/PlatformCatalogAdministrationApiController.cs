@@ -21,6 +21,14 @@ public sealed class PlatformCatalogAdministrationApiController(IPlatformCatalogS
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpPost("{id:long}/metadata")]
+    public async Task<IActionResult> SaveMetadata(long id,
+        [FromBody] SaveInstitutionTypeMetadataRequestDto request, CancellationToken ct)
+    {
+        var result = await catalog.SaveInstitutionTypeMetadataAsync(id, request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("{id:long}/activation")]
     public async Task<IActionResult> ChangeActivation(long id,
         [FromBody] ChangeInstitutionTypeActivationRequestDto request, CancellationToken ct)

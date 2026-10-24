@@ -9,6 +9,7 @@ public interface IPlatformCatalogService
     Task<ApiResponse<InstitutionTypeDetailDto>> GetInstitutionTypeByCodeAsync(string code);
     Task<ApiResponse<List<ProductModuleDto>>> GetModulesAsync();
     Task<ApiResponse<IReadOnlyList<PlatformInstitutionTypeAdminDto>>> GetAdminInstitutionTypesAsync(CancellationToken ct = default);
+    Task<ApiResponse<PlatformInstitutionTypeAdminDto>> SaveInstitutionTypeMetadataAsync(long id, SaveInstitutionTypeMetadataRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<PlatformInstitutionTypeAdminDto>> ChangeInstitutionTypeActivationAsync(long id, ChangeInstitutionTypeActivationRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<IReadOnlyList<PlatformProductModuleAdminDto>>> GetAdminProductModulesAsync(CancellationToken ct = default);
     Task<ApiResponse<PlatformProductModuleAdminDto>> SaveProductModuleConfigurationAsync(long id, SavePlatformProductModuleRequestDto request, CancellationToken ct = default);

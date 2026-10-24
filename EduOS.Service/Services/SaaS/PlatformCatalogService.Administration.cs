@@ -37,6 +37,7 @@ public partial class PlatformCatalogService
     private static PlatformInstitutionTypeAdminDto MapAdmin(InstitutionTypeDefinition row) => new()
     {
         Id = row.Id, Code = row.Code, Name = row.Name,
+        NameBangla = row.NameBangla, Description = row.Description,
         AcademicCycleType = row.DefaultAcademicCycle.ToString(),
         DisplayOrder = row.DisplayOrder, IsActive = row.IsActive,
         RowVersion = Convert.ToBase64String(row.RowVersion)

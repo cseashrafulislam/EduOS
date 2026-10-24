@@ -1,19 +1,55 @@
 @{
-    ViewData["Title"] = "Institution Type Availability";
+    ViewData["Title"] = "Institution Type Management";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
 <section id="institutionTypeAdministration" class="container-fluid py-3">
     @Html.AntiForgeryToken()
     <div class="d-flex align-items-center justify-content-between mb-3">
-        <div><h1 class="h4">Institution Type Availability</h1>
-            <p class="text-muted">Control which institution types appear during new registration. Existing institutions are not modified.</p></div>
+        <div><h1 class="h4">Institution Type Management</h1>
+            <p class="text-muted">Configure signup labels and academic-cycle defaults for future registrations. Existing institutions are not changed.</p></div>
         <button id="catalogRefresh" class="btn btn-outline-secondary" type="button">Refresh</button>
     </div>
     <p id="catalogMessage" role="status" aria-live="polite"></p>
     <div class="table-responsive"><table class="table table-striped table-sm">
-        <thead><tr><th>Institution type</th><th>Code</th><th>Academic cycle</th><th>Registration</th><th>Action</th></tr></thead>
+        <thead><tr><th>Institution type</th><th>Code</th><th>Academic cycle</th><th>Registration</th><th>Actions</th></tr></thead>
         <tbody id="catalogRows"><tr><td colspan="5">Loading…</td></tr></tbody>
     </table></div>
+    <section id="catalogEditor" class="card p-3 mt-3" hidden>
+        <h2 class="h5">Edit institution type <span id="catalogEditCode"></span></h2>
+        <form id="catalogForm">
+            <div class="mb-3">
+                <label for="catalogEditName" class="form-label">Name</label>
+                <input id="catalogEditName" class="form-control" maxlength="150" required />
+            </div>
+            <div class="mb-3">
+                <label for="catalogEditNameBangla" class="form-label">Bangla name</label>
+                <input id="catalogEditNameBangla" class="form-control" maxlength="150" />
+            </div>
+            <div class="mb-3">
+                <label for="catalogEditDescription" class="form-label">Description</label>
+                <textarea id="catalogEditDescription" class="form-control" maxlength="1000" rows="3"></textarea>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="catalogEditCycle" class="form-label">Default academic cycle</label>
+                    <select id="catalogEditCycle" class="form-select" required>
+                        <option value="Annual">Annual</option>
+                        <option value="Semester">Semester</option>
+                        <option value="Trimester">Trimester</option>
+                        <option value="Quarterly">Quarterly</option>
+                        <option value="Modular">Modular</option>
+                        <option value="BatchBased">Batch-based</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label for="catalogEditOrder" class="form-label">Display order</label>
+                    <input id="catalogEditOrder" type="number" class="form-control" min="0" max="100000" step="1" required />
+                </div>
+            </div>
+            <button id="catalogSave" type="submit" class="btn btn-primary">Save metadata</button>
+            <button id="catalogCancel" type="button" class="btn btn-outline-secondary">Cancel</button>
+        </form>
+    </section>
 </section>
 @section Scripts {
     <script src="~/js/platform/institution-type-administration.js" asp-append-version="true"></script>
