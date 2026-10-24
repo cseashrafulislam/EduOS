@@ -263,8 +263,8 @@ public sealed partial class FinanceAdjustmentService
             {
                 var invoice=invoices.Single(x=>x.Id==allocation.StudentInvoiceId);
                 var source=sourceJournals.Single(x=>x.Id==invoice.JournalId);
-                var lines=sourceLines.Where(x=>x.JournalId==source.Id).ToArray();
-                var debits=lines.Where(x=>x.DebitAmount>0m).ToArray();
+                var invoiceLines=sourceLines.Where(x=>x.JournalId==source.Id).ToArray();
+                var debits=invoiceLines.Where(x=>x.DebitAmount>0m).ToArray();
                 if(source.State!=JournalState.Posted || source.SourceType!="StudentInvoice" ||
                     source.SourceId!=invoice.Id || source.CampusId!=receipt.CampusId ||
                     source.ReversalOfJournalId.HasValue || invoice.CurrencyCode!="BDT" ||
@@ -272,8 +272,8 @@ public sealed partial class FinanceAdjustmentService
                     invoice.TotalAmount<=0m || invoice.PaidAmount<0m ||
                     invoice.DueAmount<0m || invoice.PaidAmount+invoice.DueAmount!=invoice.TotalAmount ||
                     debits.Length==0 || debits.Select(x=>x.AccountId).Distinct().Count()!=1 ||
-                    lines.Sum(x=>x.DebitAmount)!=invoice.TotalAmount ||
-                    lines.Sum(x=>x.CreditAmount)!=invoice.TotalAmount ||
+                    invoiceLines.Sum(x=>x.DebitAmount)!=invoice.TotalAmount ||
+                    invoiceLines.Sum(x=>x.CreditAmount)!=invoice.TotalAmount ||
                     debits.Any(x=>x.StudentId!=payment.StudentId || x.CampusId!=receipt.CampusId))
                     return Error<RefundDto>("Invoice GL provenance or receivable ledger is inconsistent.",409);
                 receivables.Add(allocation.Id,debits[0].AccountId);
