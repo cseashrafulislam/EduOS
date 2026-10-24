@@ -17,6 +17,8 @@ public interface ITenantUserAdministrationService
     Task<ApiResponse<bool>> RevokeInvitationAsync(Guid reference, RevokeTenantInvitationRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<bool>> SendInvitationAsync(CreateTenantInvitationRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<bool>> AcceptInvitationAsync(AcceptTenantInvitationRequestDto request, CancellationToken ct = default);
+    Task<ApiResponse<IReadOnlyList<TenantMemberPermissionOverrideDto>>> GetMemberPermissionOverridesAsync(long membershipId, CancellationToken ct = default);
+    Task<ApiResponse<TenantMemberPermissionOverrideDto>> SetMemberPermissionOverrideAsync(long membershipId, long permissionId, SetTenantMemberPermissionOverrideRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<IReadOnlyList<UserCampusAccessDto>>> GetMemberCampusesAsync(long membershipId, CancellationToken ct = default);
     Task<ApiResponse<bool>> SetMemberCampusesAsync(long membershipId, SetMembershipCampusAccessRequestDto request, CancellationToken ct = default);
 }
