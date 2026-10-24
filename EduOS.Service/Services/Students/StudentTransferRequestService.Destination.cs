@@ -14,6 +14,7 @@ public sealed partial class StudentTransferRequestService
         State = item.State, RequestedAt = item.RequestedAt,
         AcceptedAt = item.AcceptedAt,
         DestinationEnrollmentLinked = item.DestinationStudentId.HasValue && item.DestinationEnrollmentId.HasValue,
+        DestinationEnrollmentConfirmedAt = item.DestinationEnrollmentConfirmedAt,
         RowVersion = Convert.ToBase64String(item.RowVersion)
     };
 

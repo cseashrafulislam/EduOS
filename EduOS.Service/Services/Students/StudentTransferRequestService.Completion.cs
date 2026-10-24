@@ -61,6 +61,9 @@ public sealed partial class StudentTransferRequestService
             var now = _clock.GetUtcNow().UtcDateTime;
             item.DestinationStudentId = student.Id;
             item.DestinationEnrollmentId = enrollment.Id;
+            item.DestinationEnrollmentConfirmedAt = null;
+            item.DestinationEnrollmentConfirmedByUserId = null;
+            item.DestinationEnrollmentVersionAtConfirmation = null;
             item.UpdatedAt = now;
             item.UpdatedBy = _user.UserId;
             await _uow.SaveChangesAsync(token);
@@ -102,6 +105,12 @@ public sealed partial class StudentTransferRequestService
                 return Error<TransferRequestDto>("Destination must accept and link its enrolled student first.", 409);
             if (!Matches(item.RowVersion, expected))
                 return Error<TransferRequestDto>("Transfer changed. Reload and retry.", 409);
+            // The source must not bypass tenant filters to read destination learners.
+            // Require a recent explicit receiving-tenant attestation.
+            if (!DestinationTransferConfirmationPolicy.IsFresh(
+                    item.DestinationEnrollmentConfirmedAt, _clock.GetUtcNow().UtcDateTime))
+                return Error<TransferRequestDto>(
+                    "Destination enrollment confirmation expired or missing. Ask destination to reconfirm.", 409);
             if (student.StatusCode != "TC" || enrollment.IsCurrent ||
                 enrollment.State != EnrollmentState.Transferred)
                 return Error<TransferRequestDto>("Issue the source student's final Transfer exit and TC first.", 409);

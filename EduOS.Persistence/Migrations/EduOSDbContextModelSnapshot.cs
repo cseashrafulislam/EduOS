@@ -15438,8 +15438,18 @@ namespace EduOS.Persistence.Migrations
                     b.Property<long?>("DeletedBy")
                         .HasColumnType("bigint");
 
+                    b.Property<DateTime?>("DestinationEnrollmentConfirmedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DestinationEnrollmentConfirmedByUserId")
+                        .HasColumnType("bigint");
+
                     b.Property<long?>("DestinationEnrollmentId")
                         .HasColumnType("bigint");
+
+                    b.Property<string>("DestinationEnrollmentVersionAtConfirmation")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<long?>("DestinationStudentId")
                         .HasColumnType("bigint");

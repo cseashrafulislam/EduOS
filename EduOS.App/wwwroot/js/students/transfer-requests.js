@@ -114,7 +114,14 @@
                 exit.href = '/StudentLifecycle/Index?studentReference=' + encodeURIComponent(state.reference);
                 exit.textContent = 'Final Exit & TC';
                 action.append(exit);
-                if (item.destinationEnrollmentLinked) {
+                if (item.destinationEnrollmentLinked && item.destinationEnrollmentConfirmedAt) {
+                    const confirmedAt = new Date(item.destinationEnrollmentConfirmedAt).getTime();
+                    if (Number.isFinite(confirmedAt) && Date.now() - confirmedAt > 10 * 60 * 1000)
+                        action.append(document.createTextNode(' Confirmation expired; request reconfirmation.'));
+                }
+                if (item.destinationEnrollmentLinked && item.destinationEnrollmentConfirmedAt &&
+                    Date.now() >= new Date(item.destinationEnrollmentConfirmedAt).getTime() &&
+                    Date.now() - new Date(item.destinationEnrollmentConfirmedAt).getTime() <= 10 * 60 * 1000) {
                     const complete = document.createElement('button');
                     complete.type = 'button';
                     complete.className = 'btn btn-sm btn-outline-success';
@@ -259,9 +266,39 @@
                 button.disabled = destinationBusy;
                 button.addEventListener('click', () => selectDestinationEnrollment(item));
                 cell.append(button);
-            } else cell.textContent = item.destinationEnrollmentLinked ? 'Enrollment linked' : 'Acknowledged';
+            } else if (isAccepted(item.state) && item.destinationEnrollmentLinked) {
+                const label = document.createElement('span');
+                label.className = 'small me-2';
+                label.textContent = item.destinationEnrollmentConfirmedAt ?
+                    'Confirmed: ' + new Date(item.destinationEnrollmentConfirmedAt).toLocaleString() : 'Linked, not confirmed';
+                cell.append(label);
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'btn btn-sm btn-outline-success';
+                button.textContent = 'Reconfirm active enrollment';
+                button.disabled = destinationBusy;
+                button.addEventListener('click', () => confirmDestinationEnrollment(item));
+                cell.append(button);
+            } else cell.textContent = 'Acknowledged';
             row.append(cell);
             tbody.append(row);
+        }
+    }
+    async function confirmDestinationEnrollment(item) {
+        if (destinationBusy || !confirm('Verify the linked student has an active current enrollment now? Confirmation expires after 10 minutes.')) return;
+        destinationBusy = true;
+        el('destinationRefresh').disabled = true;
+        try {
+            await api('/api/student-transfer-requests/destination/' +
+                encodeURIComponent(item.reference) + '/confirm-enrollment', {
+                method: 'POST', body: JSON.stringify({ rowVersion: item.rowVersion })
+            });
+            notice('Destination enrollment confirmed for 10 minutes. Source may now finalize after exit and TC.');
+        } catch (error) { notice(error.message, true); }
+        finally {
+            destinationBusy = false;
+            el('destinationRefresh').disabled = false;
+            await refreshDestination();
         }
     }
     async function refreshDestination() {

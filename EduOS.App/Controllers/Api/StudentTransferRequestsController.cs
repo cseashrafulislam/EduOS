@@ -78,6 +78,15 @@ public sealed class StudentTransferRequestsController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpPost("destination/{transferReference:guid}/confirm-enrollment")]
+    public async Task<IActionResult> ConfirmDestinationEnrollment(Guid transferReference,
+        [FromBody] DestinationTransferConfirmationDto request, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await _service.ConfirmDestinationEnrollmentAsync(transferReference, request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("{transferReference:guid}/complete")]
     public async Task<IActionResult> Complete(Guid transferReference,
         [FromBody] CompleteTransferRequestDto request, CancellationToken ct)

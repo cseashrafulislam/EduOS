@@ -12,6 +12,7 @@ public sealed class DestinationTransferInboxDto
     public DateTime RequestedAt { get; set; }
     public DateTime? AcceptedAt { get; set; }
     public bool DestinationEnrollmentLinked { get; set; }
+    public DateTime? DestinationEnrollmentConfirmedAt { get; set; }
     public string RowVersion { get; set; } = string.Empty;
 }
 
@@ -25,6 +26,11 @@ public sealed class DestinationTransferEnrollmentDto
 {
     [Required] public Guid StudentReference { get; set; }
     [Required] public Guid EnrollmentReference { get; set; }
+    [Required] public string RowVersion { get; set; } = string.Empty;
+}
+
+public sealed class DestinationTransferConfirmationDto
+{
     [Required] public string RowVersion { get; set; } = string.Empty;
 }
 

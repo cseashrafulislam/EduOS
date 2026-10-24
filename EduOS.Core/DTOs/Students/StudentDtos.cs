@@ -218,6 +218,7 @@ public class TransferRequestDto
     public long RequestedByUserId { get; set; }
     public DateTime? CompletedAt { get; set; }
     public bool DestinationEnrollmentLinked { get; set; }
+    public DateTime? DestinationEnrollmentConfirmedAt { get; set; }
     public string RowVersion { get; set; } = string.Empty;
 }
 
