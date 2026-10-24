@@ -114,7 +114,7 @@
             if (!field('minMarks').value || !field('maxMarks').value ||
                 !field('gradePoint').value || !letter || letter.length > 20 ||
                 ![minMarks, maxMarks, gradePoint].every(Number.isFinite) ||
-                [minMarks, maxMarks, gradePoint].some(x => Math.round(x * 100) !== x * 100) ||
+                [minMarks, maxMarks, gradePoint].some(x => Math.abs(Math.round(x * 100) - x * 100) > 1e-7) ||
                 minMarks < 0 || maxMarks > 100 || minMarks > maxMarks ||
                 gradePoint < 0 || gradePoint > 10)
                 throw new Error('Invalid interval, grade point or letter in row ' + (index + 1) + '.');

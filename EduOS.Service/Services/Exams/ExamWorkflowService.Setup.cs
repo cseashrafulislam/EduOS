@@ -276,8 +276,10 @@ public sealed partial class ExamWorkflowService
             request.Name.Trim().Length > 150 || string.IsNullOrWhiteSpace(request.Code) ||
             request.Code.Trim().Length > 50 || request.Rules == null ||
             request.Rules.Count is < 1 or > 100 || request.Rules.Any(x =>
-                x.MinMarks < 0 || x.MaxMarks > 100 || x.MinMarks > x.MaxMarks ||
-                x.GradeLetter.Length is < 1 or > 20 || x.GradePoint is < 0 or > 10 ||
+                x == null || x.MinMarks < 0 || x.MaxMarks > 100 || x.MinMarks > x.MaxMarks ||
+                string.IsNullOrWhiteSpace(x.GradeLetter) || x.GradeLetter.Trim().Length > 20 ||
+                x.GradePoint is < 0 or > 10 ||
+                !Exact2(x.MinMarks) || !Exact2(x.MaxMarks) || !Exact2(x.GradePoint) ||
                 x.Id.HasValue || x.RowVersion != null))
             return Task.FromResult(Error<GradeSchemeDto>("Invalid grade scheme or grade rules."));
         return WriteAsync("save grade scheme", async token =>

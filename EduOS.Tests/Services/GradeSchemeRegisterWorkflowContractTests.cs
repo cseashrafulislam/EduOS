@@ -37,6 +37,9 @@ public sealed class GradeSchemeRegisterWorkflowContractTests
         service.Should().Contain("MapGradeScheme(row, rules)");
         setup.Should().Contain("Existing grading schemes require a controlled versioned amendment.");
         setup.Should().Contain("Grade intervals must cover 0–100 without overlaps or gaps.");
+        setup.Should().Contain("string.IsNullOrWhiteSpace(x.GradeLetter)");
+        setup.Should().Contain("!Exact2(x.MinMarks)");
+        setup.Should().Contain("!Exact2(x.MaxMarks)");
     }
 
     [Fact]
