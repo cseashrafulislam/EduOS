@@ -30,6 +30,8 @@
     const states = { 1: 'Draft', 2: 'Submitted', 3: 'Source approved', 4: 'Destination accepted',
         5: 'Rejected', 6: 'Completed', 7: 'Cancelled' };
     const isSubmitted = state => state === 2 || state === 'Submitted';
+    const isAccepted = state => Number(state) === 4 || state === 'DestinationAccepted';
+    const validGuid = text => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text);
     const isOpen = state => [2, 3, 4].includes(Number(state)) ||
         ['Submitted', 'SourceApproved', 'DestinationAccepted'].includes(String(state));
     function refreshButtons() {
@@ -106,9 +108,36 @@
                     button.addEventListener('click', () => review(item, approve));
                     action.append(button);
                 }
+            } else if (isAccepted(item.state)) {
+                const exit = document.createElement('a');
+                exit.className = 'btn btn-sm btn-outline-secondary me-1';
+                exit.href = '/StudentLifecycle/Index?studentReference=' + encodeURIComponent(state.reference);
+                exit.textContent = 'Final Exit & TC';
+                action.append(exit);
+                if (item.destinationEnrollmentLinked) {
+                    const complete = document.createElement('button');
+                    complete.type = 'button';
+                    complete.className = 'btn btn-sm btn-outline-success';
+                    complete.textContent = 'Complete transfer';
+                    complete.disabled = state.busy;
+                    complete.addEventListener('click', () => completeTransfer(item));
+                    action.append(complete);
+                } else action.append(document.createTextNode(' Await destination enrollment link'));
             } else action.textContent = '—';
             tr.append(action); body.append(tr);
         }
+    }
+    async function completeTransfer(item) {
+        if (state.busy || !confirm('Complete only after the source final Transfer exit and TC have been issued. Continue?')) return;
+        state.busy = true; refreshButtons();
+        try {
+            await api('/api/student-transfer-requests/' + encodeURIComponent(item.reference) + '/complete', {
+                method: 'POST', body: JSON.stringify({ rowVersion: item.rowVersion })
+            });
+            await selectStudent(state.reference);
+            notice('Transfer completed and its certificate linked.');
+        } catch (error) { notice(error.message, true); }
+        finally { state.busy = false; refreshButtons(); }
     }
     async function submit(event) {
         event.preventDefault();
@@ -156,6 +185,39 @@
     const initial = new URLSearchParams(location.search).get('studentReference');
     if (initial && /^[0-9a-f-]{36}$/i.test(initial)) selectStudent(initial);
     let destinationBusy = false;
+    let destinationSelected = null;
+    function selectDestinationEnrollment(item) {
+        destinationSelected = item;
+        el('destinationEnrollmentForm').classList.remove('d-none');
+        el('destinationSelectedReference').textContent = item.reference;
+        el('destinationStudentReference').value = '';
+        el('destinationEnrollmentReference').value = '';
+        el('destinationStudentReference').focus();
+    }
+    async function linkDestinationEnrollment(event) {
+        event.preventDefault();
+        if (destinationBusy || !destinationSelected) return;
+        const studentReference = value('destinationStudentReference');
+        const enrollmentReference = value('destinationEnrollmentReference');
+        if (!validGuid(studentReference) || !validGuid(enrollmentReference))
+            return notice('Enter valid destination student and enrollment references.', true);
+        if (!confirm('Link this existing active destination enrollment to the incoming transfer?')) return;
+        destinationBusy = true;
+        el('destinationEnrollmentSubmit').disabled = true;
+        try {
+            await api('/api/student-transfer-requests/destination/' +
+                encodeURIComponent(destinationSelected.reference) + '/enrollment', {
+                method: 'POST', body: JSON.stringify({
+                    studentReference, enrollmentReference, rowVersion: destinationSelected.rowVersion
+                })
+            });
+            destinationSelected = null;
+            el('destinationEnrollmentForm').classList.add('d-none');
+            notice('Destination enrollment linked. The source institution can now issue its final transfer exit and complete the transfer.');
+            await refreshDestination();
+        } catch (error) { notice(error.message, true); }
+        finally { destinationBusy = false; el('destinationEnrollmentSubmit').disabled = false; }
+    }
     function destinationMessage(message) {
         const tbody = el('destinationRows');
         const row = document.createElement('tr');
@@ -189,7 +251,15 @@
                     button.addEventListener('click', () => decideDestination(item, accept));
                     cell.append(button);
                 }
-            } else cell.textContent = 'Acknowledged';
+            } else if (isAccepted(item.state) && !item.destinationEnrollmentLinked) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'btn btn-sm btn-outline-primary';
+                button.textContent = 'Link enrollment';
+                button.disabled = destinationBusy;
+                button.addEventListener('click', () => selectDestinationEnrollment(item));
+                cell.append(button);
+            } else cell.textContent = item.destinationEnrollmentLinked ? 'Enrollment linked' : 'Acknowledged';
             row.append(cell);
             tbody.append(row);
         }
@@ -224,6 +294,7 @@
             await refreshDestination();
         }
     }
+    el('destinationEnrollmentForm').addEventListener('submit', linkDestinationEnrollment);
     el('destinationRefresh').addEventListener('click', refreshDestination);
     refreshDestination();
 })();
