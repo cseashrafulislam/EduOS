@@ -75,28 +75,9 @@ public sealed partial class StudentTransferRequestService
             if (!Matches(item.RowVersion, expected))
                 return Error<DestinationTransferInboxDto>("Transfer request changed. Reload and retry.", 409);
 
-            // Validate source records internally without disclosing any source personal data.
-            var source = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                x.TenantId == item.SourceTenantId && x.Id == item.SourceStudentId && !x.IsDeleted, token);
-            var enrollment = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                x.TenantId == item.SourceTenantId && x.Id == item.SourceEnrollmentId &&
-                x.StudentId == item.SourceStudentId && !x.IsDeleted, token);
-            if (source == null || enrollment == null)
-                return Error<DestinationTransferInboxDto>("Source transfer is no longer valid.", 409);
-            if (request.Accept)
-            {
-                var active = source.StatusCode == "Active" && enrollment.IsCurrent &&
-                    enrollment.State == EnrollmentState.Active;
-                var transferred = source.StatusCode == "TC" &&
-                    enrollment.State == EnrollmentState.Transferred &&
-                    await _exits.GetQueryable().AsNoTracking().AnyAsync(x =>
-                        x.TenantId == item.SourceTenantId && x.StudentId == item.SourceStudentId &&
-                        x.StudentEnrollmentId == item.SourceEnrollmentId &&
-                        x.ExitType == StudentExitType.Transfer && !x.IsDeleted, token);
-                if (!active && !transferred)
-                    return Error<DestinationTransferInboxDto>("Source enrollment is no longer transferable.", 409);
-            }
-
+            // Source approval was performed inside the source tenant boundary.
+            // Destination requests must not bypass the global tenant query filter
+            // to read source learners, enrollments, exits or guardians.
             var now = _clock.GetUtcNow().UtcDateTime;
             item.State = target; item.UpdatedAt = now; item.UpdatedBy = _user.UserId;
             if (request.Accept) { item.AcceptedAt = now; item.AcceptedByUserId = _user.UserId; }
