@@ -75,7 +75,7 @@ function render(data) {
         if (canPost) {
             const td = document.createElement('td'), btn = document.createElement('button');
             btn.type = 'button'; btn.className = 'btn btn-sm btn-primary'; btn.textContent = 'Map & post';
-            btn.disabled = Boolean(row.journalReference) || row.state !== 3;
+            btn.disabled = Boolean(row.journalReference) || ![3, 'Approved'].includes(row.state);
             btn.addEventListener('click', () => choose(row)); td.append(btn); tr.append(td);
         }
         body.append(tr);
