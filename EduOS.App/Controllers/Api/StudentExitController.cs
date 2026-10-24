@@ -27,6 +27,13 @@ public sealed class StudentExitController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("{studentReference:guid}/certificates/{certificateNumber}")]
+    public async Task<IActionResult> Certificate(Guid studentReference, string certificateNumber, CancellationToken cancellationToken)
+    {
+        var result = await _service.GetCertificateAsync(studentReference, certificateNumber, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet("{studentReference:guid}/history")]
     public async Task<IActionResult> History(Guid studentReference, CancellationToken cancellationToken)
     {
