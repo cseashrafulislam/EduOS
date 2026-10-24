@@ -155,5 +155,5 @@ if(admin) {
 el('payrollSlipPrev').addEventListener('click',()=>{if(state.slipPage>1){state.slipPage--;loadSlips();}});
 el('payrollSlipNext').addEventListener('click',()=>{if(state.slipPage<state.slipPages){state.slipPage++;loadSlips();}});
 el('payrollMy').addEventListener('click',()=>{state.slipPage=1;loadSlips();});
-loadSlips();
+if(!admin)loadSlips();
 })();
