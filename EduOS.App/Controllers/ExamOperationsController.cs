@@ -30,5 +30,10 @@ public sealed class ExamOperationsController : Controller
     [HttpGet]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult AssessmentSchedules() => View();
+
+    [HttpGet]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult Certificates() => View();
 }

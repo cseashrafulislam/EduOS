@@ -229,7 +229,10 @@ public sealed partial class ExamWorkflowService
                 x.TenantId == tenant && x.Id == sub!.SubjectOfferingId, token);
             var batch = offering == null ? null : await _batches.GetQueryable().AsNoTracking()
                 .FirstOrDefaultAsync(x => x.TenantId == tenant && x.Id == offering.AcademicBatchId, token);
-            if (batch == null) return Error<AssessmentScheduleDto>("Subject batch not found.", 409);
+            if (batch == null || !batch.IsActive || batch.IsDeleted || !offering!.IsActive ||
+                offering.IsDeleted || batch.CampusId != exam.CampusId ||
+                batch.AcademicYearId != exam.AcademicYearId)
+                return Error<AssessmentScheduleDto>("Subject batch does not match assessment campus and year.", 409);
             if (request.RoomId.HasValue && !await _rooms.GetQueryable().AsNoTracking().AnyAsync(x =>
                 x.TenantId == tenant && x.Id == request.RoomId.Value &&
                 x.CampusId == batch.CampusId && x.IsActive && !x.IsDeleted, token))
@@ -245,6 +248,31 @@ public sealed partial class ExamWorkflowService
                 !x.IsDeleted && (!scheduleId.HasValue || x.Id != scheduleId.Value))
                 .AnyAsync(x => x.AssessmentDate == request.AssessmentDate, token);
             if (clashes) return Error<AssessmentScheduleDto>("A schedule already exists on this date.", 409);
+            if (request.RoomId.HasValue)
+            {
+                if (!request.StartTime.HasValue || !request.EndTime.HasValue)
+                    return Error<AssessmentScheduleDto>("Room booking requires a start and end time.", 409);
+                var roomClash = await (
+                    from scheduled in _schedules.GetQueryable().AsNoTracking()
+                    join subject in _subjects.GetQueryable().AsNoTracking()
+                        on scheduled.AssessmentSubjectId equals subject.Id
+                    join assessment in _assessments.GetQueryable().AsNoTracking()
+                        on subject.AssessmentId equals assessment.Id
+                    where scheduled.TenantId == tenant && subject.TenantId == tenant &&
+                        assessment.TenantId == tenant && !scheduled.IsDeleted &&
+                        !subject.IsDeleted && !assessment.IsDeleted &&
+                        (!scheduleId.HasValue || scheduled.Id != scheduleId.Value) &&
+                        assessment.CampusId == exam.CampusId &&
+                        assessment.State != AssessmentState.Cancelled &&
+                        scheduled.RoomId == request.RoomId &&
+                        scheduled.AssessmentDate == request.AssessmentDate &&
+                        (!scheduled.StartTime.HasValue || !scheduled.EndTime.HasValue ||
+                            scheduled.StartTime < request.EndTime &&
+                            request.StartTime < scheduled.EndTime)
+                    select scheduled.Id).AnyAsync(token);
+                if (roomClash)
+                    return Error<AssessmentScheduleDto>("Room already booked for an overlapping assessment.", 409);
+            }
             var now = _clock.GetUtcNow().UtcDateTime;
             if (row == null)
             {

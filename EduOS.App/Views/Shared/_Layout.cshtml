@@ -225,6 +225,10 @@
                 @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
                      User?.IsInRole("VicePrincipal") == true || User?.IsInRole("ExamController") == true)
                 {
+                    <a class="nav-link @ActiveFor("/ExamOperations/AssessmentSchedules")" href="/ExamOperations/AssessmentSchedules">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#calendar" /></svg>
+                        <span>Assessment Schedules</span>
+                    </a>
                     <a class="nav-link @ActiveFor("/ExamOperations/GradeSchemes")" href="/ExamOperations/GradeSchemes">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
                         <span>Grade Schemes</span>
