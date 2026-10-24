@@ -80,16 +80,16 @@ public sealed class StudentExitService : IStudentExitService
                 return ApiResponse<StudentExitResultDto>.ErrorResponse("Only an active student can exit.", 409);
             if (!VersionsMatch(student.RowVersion, expectedVersion))
                 return ApiResponse<StudentExitResultDto>.ErrorResponse("Student changed. Reload and retry.", 409);
-            if (await _exits.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenantId &&
-                x.StudentId == student.Id, cancellationToken))
-                return ApiResponse<StudentExitResultDto>.ErrorResponse("Student has an existing final exit.", 409);
-
             var enrollments = await _enrollments.GetQueryable().Where(x => x.TenantId == tenantId &&
                 x.StudentId == student.Id && (x.State == EnrollmentState.Active || x.IsCurrent)).OrderByDescending(x => x.EnrollmentDate)
                 .ToListAsync(cancellationToken);
             var current = enrollments.FirstOrDefault(x => x.IsCurrent && x.State == EnrollmentState.Active);
             if (current == null)
                 return ApiResponse<StudentExitResultDto>.ErrorResponse("An active current enrollment is required.", 409);
+            // A prior exit belongs to its historical enrollment; a newly readmitted student may exit again.
+            if (await _exits.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenantId &&
+                x.StudentId == student.Id && x.StudentEnrollmentId == current.Id, cancellationToken))
+                return ApiResponse<StudentExitResultDto>.ErrorResponse("Student has an existing final exit.", 409);
             var due = await (from invoice in _invoices.GetQueryable().AsNoTracking()
                 join enrollment in _enrollments.GetQueryable().AsNoTracking() on invoice.StudentEnrollmentId equals enrollment.Id
                 where invoice.TenantId == tenantId && enrollment.TenantId == tenantId &&

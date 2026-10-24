@@ -74,6 +74,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<IStudentDirectoryService, StudentDirectoryService>();
             s.AddScoped<IStudentPromotionService, StudentPromotionService>();
             s.AddScoped<IStudentExitService, StudentExitService>();
+            s.AddScoped<IStudentReadmissionService, StudentReadmissionService>();
             s.AddScoped<IAcademicSetupService, AcademicSetupService>();
             s.AddScoped<IAcademicRoutineService, AcademicRoutineService>();
             s.AddScoped<IAcademicEnrollmentService, AcademicEnrollmentService>();
