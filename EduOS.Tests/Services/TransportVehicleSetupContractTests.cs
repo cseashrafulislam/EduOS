@@ -13,7 +13,9 @@ public class TransportVehicleSetupContractTests
         Assert.Contains("AllowedCampusIds(tenant)", source);
         Assert.Contains("IsolationLevel.Serializable", source);
         Assert.Contains("x.State == TransportAssignmentState.Active", source);
-        Assert.Contains("request.Capacity < occupied", source);
+        Assert.Contains("request.Capacity < peak", source);
+        Assert.Contains("PeakReservedSeats(", source);
+        Assert.Contains("DateOnly.MaxValue", source);
         Assert.Contains("occupied > 0 || currentRoutes > 0", source);
         Assert.Contains("vehicle.RowVersion.AsSpan().SequenceEqual(version)", source);
         Assert.Contains("DbUpdateConcurrencyException", source);

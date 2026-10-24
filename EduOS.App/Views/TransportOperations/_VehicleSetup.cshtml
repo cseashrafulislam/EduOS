@@ -1,6 +1,6 @@
 <section class="card mb-3" id="transportVehicleSetupPanel"><div class="card-body">
     <h3 class="h5">Vehicle inventory and capacity control</h3>
-    <p class="text-muted small">Create campus vehicles and update capacity or activation. Close rider and route assignments before deactivation.</p>
+    <p class="text-muted small">Create campus vehicles and update capacity or activation. Capacity changes use peak simultaneous reservations from today onward, not the sum of disjoint bookings. Close rider, route and driver assignments before deactivation.</p>
     <div id="transportVehicleSetupAlert" class="d-none" role="alert" tabindex="-1"></div>
     <form id="transportVehicleSetupForm" class="row g-2 mb-3">
         @Html.AntiForgeryToken()
@@ -16,8 +16,8 @@
         <div class="col-md-2"><button type="submit" class="btn btn-outline-primary">Search</button></div>
     </form>
     <div class="table-responsive"><table class="table table-sm table-hover align-middle">
-        <thead><tr><th>Campus</th><th>Number</th><th>Type</th><th>Capacity</th><th>Occupied today</th><th>Active reservations</th><th>Open route links</th><th>Status</th><th>Action</th></tr></thead>
-        <tbody id="transportVehicleSetupRows"><tr><td colspan="9">Loading…</td></tr></tbody>
+        <thead><tr><th>Campus</th><th>Number</th><th>Type</th><th>Capacity</th><th>Occupied today</th><th>Active reservations</th><th>Peak reserved</th><th>Open route links</th><th>Status</th><th>Action</th></tr></thead>
+        <tbody id="transportVehicleSetupRows"><tr><td colspan="10">Loading…</td></tr></tbody>
     </table></div>
     <div class="d-flex justify-content-between align-items-center">
         <button id="transportVehicleSetupPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>

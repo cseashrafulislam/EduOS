@@ -24,6 +24,8 @@ public sealed class TransportVehicleSetupRowDto
     // Currently effective riders; AssignedStudents retains all active reservations for capacity safeguards.
     public int OccupiedToday { get; set; }
     public int AssignedStudents { get; set; }
+    // Maximum simultaneous reservations from today onward; used for safe capacity reductions.
+    public int PeakReservedSeats { get; set; }
     public int CurrentRouteAssignments { get; set; }
     public bool IsActive { get; set; }
     public string RowVersion { get; set; } = string.Empty;

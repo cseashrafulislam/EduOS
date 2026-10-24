@@ -44,7 +44,7 @@
         capacity.value = String(item.capacity); capacity.className = 'form-control form-control-sm';
         capacity.setAttribute('aria-label', 'Capacity for ' + item.vehicleNumber);
         capacityCell.append(capacity); tr.append(capacityCell);
-        tr.append(cell(item.occupiedToday)); tr.append(cell(item.assignedStudents)); tr.append(cell(item.currentRouteAssignments));
+        tr.append(cell(item.occupiedToday)); tr.append(cell(item.assignedStudents)); tr.append(cell(item.peakReservedSeats)); tr.append(cell(item.currentRouteAssignments));
         const statusCell = document.createElement('td'), status = document.createElement('select');
         status.className = 'form-select form-select-sm';
         option(status, 'true', 'Active'); option(status, 'false', 'Inactive');
@@ -56,9 +56,9 @@
             if (!Number.isInteger(value) || value < 1 || value > 1000) {
                 alertUser('Capacity must be 1–1000.'); return;
             }
-            if (value < item.assignedStudents || (!active &&
+            if (value < item.peakReservedSeats || (!active &&
                 (item.assignedStudents > 0 || item.currentRouteAssignments > 0))) {
-                alertUser('Capacity or activation conflicts with existing assignments.'); return;
+                alertUser('Capacity is below peak simultaneous reservations, or deactivation conflicts with existing assignments.'); return;
             }
             if (!active && item.isActive && !confirm('Deactivate this vehicle?')) return;
             button.disabled = true;
@@ -85,7 +85,7 @@
         (data.items || []).forEach(item => body.append(row(item)));
         if (!data.items?.length) {
             const tr = document.createElement('tr'), td = cell('No vehicles found');
-            td.colSpan = 9; tr.append(td); body.append(tr);
+            td.colSpan = 10; tr.append(td); body.append(tr);
         }
         pages = Math.max(1, Number(data.totalPages) || 1);
         el('transportVehicleSetupPageInfo').textContent =
