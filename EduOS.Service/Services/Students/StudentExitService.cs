@@ -14,7 +14,7 @@ using System.Transactions;
 
 namespace EduOS.Service.Services.Students;
 
-public sealed class StudentExitService : IStudentExitService
+public sealed partial class StudentExitService : IStudentExitService
 {
     private readonly IGenericRepository<Student> _students;
     private readonly IGenericRepository<StudentEnrollment> _enrollments;
