@@ -17,6 +17,7 @@ using EduOS.Core.Entities.LMS;
 using EduOS.Core.Entities.Payroll;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Students;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Entities.System;
 using EduOS.Core.Entities.Transport;
 using EduOS.Core.Interfaces.IRepositories;
