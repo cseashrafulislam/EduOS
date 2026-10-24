@@ -1059,6 +1059,13 @@ public class EduOSDbContext :
             .HasForeignKey(nameof(TransferRequest.DestinationTenantId), nameof(TransferRequest.DestinationStudentId))
             .HasPrincipalKey(nameof(BaseTenantEntity.TenantId), nameof(BaseEntity.Id))
             .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<TransferRequest>()
+            .HasOne<StudentEnrollment>()
+            .WithMany()
+            .HasForeignKey(nameof(TransferRequest.DestinationTenantId), nameof(TransferRequest.DestinationEnrollmentId))
+            .HasPrincipalKey(nameof(BaseTenantEntity.TenantId), nameof(BaseEntity.Id))
+            .OnDelete(DeleteBehavior.Restrict);
     }
 
     private static void Reference<TEntity, TPrincipal>(
@@ -1171,6 +1178,9 @@ public class EduOSDbContext :
         UniqueTenant<StudentExitRecord>(modelBuilder, nameof(StudentExitRecord.ClientRequestId));
         modelBuilder.Entity<TransferRequest>().HasIndex(x => x.PublicId).IsUnique();
         modelBuilder.Entity<TransferRequest>().HasIndex(x => new { x.SourceTenantId, x.ClientRequestId }).IsUnique().HasFilter("[IsDeleted] = 0");
+        modelBuilder.Entity<TransferRequest>()
+            .HasIndex(x => new { x.DestinationTenantId, x.DestinationEnrollmentId })
+            .IsUnique().HasFilter("[DestinationEnrollmentId] IS NOT NULL AND [IsDeleted] = 0");
         UniqueTenant<TransferCertificate>(modelBuilder, nameof(TransferCertificate.ClientRequestId));
         UniqueTenant<TransferCertificate>(modelBuilder, nameof(TransferCertificate.CertificateNumber));
 
