@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.RateLimiting;
 
 namespace EduOS.App.Controllers.Api;
 
-[Authorize(Roles = "Student,Parent")]
+[Authorize(Roles = "Student,Parent,Guardian")]
 [AutoValidateAntiforgeryToken]
 [EnableRateLimiting("LearnerIdentityPolicy")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
