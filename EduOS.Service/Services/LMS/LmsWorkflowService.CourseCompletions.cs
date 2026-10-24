@@ -31,15 +31,27 @@ public sealed partial class LmsWorkflowService
             var term = search.Trim();
             query = query.Where(x => x.Student.FullName.Contains(term) || x.Student.StudentCode.StartsWith(term));
         }
+        var skip = (long)(page - 1) * pageSize;
+        if (skip > int.MaxValue)
+            return Error<PagedResult<CourseCompletionRegisterRowDto>>("Page is outside the allowed range.");
         var count = await query.CountAsync(ct);
         var selected = await query.OrderBy(x => x.Student.StudentCode).ThenBy(x => x.Enrollment.Id)
-            .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+            .Skip((int)skip).Take(pageSize).ToListAsync(ct);
         var rows = new List<CourseCompletionRegisterRowDto>(selected.Count);
         foreach (var item in selected)
         {
             var eligibility = item.Enrollment.State == CourseEnrollmentState.Completed
                 ? new CourseCompletionEligibilityDto { Ready = true }
                 : await EvaluateCourseCompletionAsync(item.Enrollment, course, ct);
+            if (item.Enrollment.State == CourseEnrollmentState.Active)
+            {
+                var academicError = await CompletionAcademicScopeErrorAsync(item.Enrollment, course, ct);
+                if (academicError != null)
+                {
+                    eligibility.Ready = false;
+                    eligibility.Blockers = eligibility.Blockers.Concat(new[] { academicError }).ToArray();
+                }
+            }
             rows.Add(MapCourseCompletion(item.Enrollment, item.Student.PublicId, item.Student.StudentCode,
                 item.Student.FullName, eligibility));
         }
