@@ -114,14 +114,13 @@
                 exit.href = '/StudentLifecycle/Index?studentReference=' + encodeURIComponent(state.reference);
                 exit.textContent = 'Final Exit & TC';
                 action.append(exit);
-                if (item.destinationEnrollmentLinked && item.destinationEnrollmentConfirmedAt) {
-                    const confirmedAt = new Date(item.destinationEnrollmentConfirmedAt).getTime();
-                    if (Number.isFinite(confirmedAt) && Date.now() - confirmedAt > 10 * 60 * 1000)
-                        action.append(document.createTextNode(' Confirmation expired; request reconfirmation.'));
-                }
-                if (item.destinationEnrollmentLinked && item.destinationEnrollmentConfirmedAt &&
-                    Date.now() >= new Date(item.destinationEnrollmentConfirmedAt).getTime() &&
-                    Date.now() - new Date(item.destinationEnrollmentConfirmedAt).getTime() <= 10 * 60 * 1000) {
+                const confirmedMs = item.destinationEnrollmentConfirmedAt ?
+                    new Date(item.destinationEnrollmentConfirmedAt).getTime() : NaN;
+                const confirmationAge = Date.now() - confirmedMs;
+                const freshConfirmation = item.destinationEnrollmentLinked &&
+                    Number.isFinite(confirmedMs) && confirmationAge >= 0 &&
+                    confirmationAge <= 10 * 60 * 1000;
+                if (freshConfirmation) {
                     const complete = document.createElement('button');
                     complete.type = 'button';
                     complete.className = 'btn btn-sm btn-outline-success';
@@ -129,7 +128,14 @@
                     complete.disabled = state.busy;
                     complete.addEventListener('click', () => completeTransfer(item));
                     action.append(complete);
-                } else action.append(document.createTextNode(' Await destination enrollment link'));
+                } else {
+                    const message = !item.destinationEnrollmentLinked ?
+                        ' Await destination enrollment link.' :
+                        !Number.isFinite(confirmedMs) ?
+                            ' Destination confirmation required or invalidated; ask destination to reconfirm.' :
+                            ' Destination confirmation expired; ask destination to reconfirm.';
+                    action.append(document.createTextNode(message));
+                }
             } else action.textContent = '—';
             tr.append(action); body.append(tr);
         }
@@ -270,7 +276,7 @@
                 const label = document.createElement('span');
                 label.className = 'small me-2';
                 label.textContent = item.destinationEnrollmentConfirmedAt ?
-                    'Confirmed: ' + new Date(item.destinationEnrollmentConfirmedAt).toLocaleString() : 'Linked, not confirmed';
+                    'Confirmed: ' + new Date(item.destinationEnrollmentConfirmedAt).toLocaleString() : 'Confirmation required or invalidated';
                 cell.append(label);
                 const button = document.createElement('button');
                 button.type = 'button';
