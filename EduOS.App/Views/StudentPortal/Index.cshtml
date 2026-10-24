@@ -7,6 +7,24 @@
         <p class="text-muted">Only your own or explicitly linked students are visible. Each section respects institutional module access.</p>
         <a class="btn btn-outline-primary btn-sm" href="/MyStudentLeaves/Index">Request Student Leave</a>
     </header>
+    @if (User.IsInRole("Student") || User.IsInRole("Parent") || User.IsInRole("Guardian"))
+    {
+        <section class="card mb-3" id="learnerConsents" aria-labelledby="learnerConsentsTitle">
+            <div class="card-body">
+                <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center">
+                    <h3 id="learnerConsentsTitle" class="h5 mb-0">Learner data-sharing consent</h3>
+                    <button id="learnerConsentRefresh" class="btn btn-outline-primary btn-sm" type="button">Refresh consents</button>
+                </div>
+                <p class="text-muted small mt-2">Review which institutions request learner information, approve or deny requests, and revoke existing grants. Only students you control or are linked to can be managed. Approvals may share data across institutions.</p>
+                @Html.AntiForgeryToken()
+                <div id="learnerConsentAlert" class="d-none" role="status" aria-live="polite"></div>
+                <h4 class="h6 mt-3">Pending requests</h4>
+                <div id="learnerConsentPending" aria-live="polite"><p class="text-muted">Loading pending requests…</p></div>
+                <h4 class="h6 mt-3">Active data grants</h4>
+                <div id="learnerConsentGrants" aria-live="polite"><p class="text-muted">Loading active grants…</p></div>
+            </div>
+        </section>
+    }
     <div id="studentPortalAlert" class="d-none" role="alert" tabindex="-1"></div>
     <section class="card mb-3"><div class="card-body row g-3 align-items-end">
         <div class="col-md-6"><label class="form-label" for="studentPortalStudent">Student</label>
@@ -37,5 +55,6 @@
     </div></section>
 </section>
 @section Scripts {
+    <script src="~/js/student-portal/consents.js" asp-append-version="true"></script>
     <script src="~/js/student-portal/index.js" asp-append-version="true"></script>
 }
