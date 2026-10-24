@@ -71,7 +71,9 @@ public sealed class PayrollJournalPostingServiceTests
         var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
         accessor.HttpContext.Items["TenantId"] = 41L;
         return new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
-            .UseInMemoryDatabase("payroll-gl-" + Guid.NewGuid().ToString("N")).Options, accessor);
+            .UseInMemoryDatabase("payroll-gl-" + Guid.NewGuid().ToString("N"))
+            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
+            .Options, accessor);
     }
     private sealed class TestUser(string role) : ICurrentUserService
     {
