@@ -93,12 +93,12 @@
         }
         for (const item of items) {
             const row = document.createElement('tr');
-            for (const text of [
+            for (const [index, text] of [
                 item.processedAtUtc, item.exitType, item.finalStatus,
                 item.certificateNo || '—', String(item.dueAtExit ?? 0)
-            ]) {
+            ].entries()) {
                 const cell = document.createElement('td');
-                if (text === item.certificateNo && item.certificateNo) {
+                if (index === 3 && item.certificateNo) {
                     const link = document.createElement('a');
                     link.href = '/StudentLifecycle/Certificate?' + new URLSearchParams({
                         studentReference: item.studentReference,
