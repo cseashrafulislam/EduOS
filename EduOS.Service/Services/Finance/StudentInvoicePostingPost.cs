@@ -17,9 +17,9 @@ public sealed partial class StudentInvoicePostingService
         try
         {
             await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, ct);
-            var source = await (from invoice in db.StudentInvoices
+            var source = await (from invoiceRow in db.StudentInvoices
                 join enrollment in db.StudentEnrollments.AsNoTracking()
-                    on new { invoice.TenantId, Id = invoice.StudentEnrollmentId }
+                    on new { invoiceRow.TenantId, Id = invoiceRow.StudentEnrollmentId }
                     equals new { enrollment.TenantId, enrollment.Id }
                 join student in db.Students.AsNoTracking()
                     on new { enrollment.TenantId, Id = enrollment.StudentId }
@@ -27,9 +27,9 @@ public sealed partial class StudentInvoicePostingService
                 join campus in db.Campuses.AsNoTracking()
                     on new { enrollment.TenantId, Id = enrollment.CampusId }
                     equals new { campus.TenantId, campus.Id }
-                where invoice.TenantId == tenant && invoice.PublicId == invoiceReference &&
-                    !invoice.IsDeleted && !enrollment.IsDeleted && !student.IsDeleted && !campus.IsDeleted
-                select new { invoice, enrollment.CampusId, enrollment.StudentId,
+                where invoiceRow.TenantId == tenant && invoiceRow.PublicId == invoiceReference &&
+                    !invoiceRow.IsDeleted && !enrollment.IsDeleted && !student.IsDeleted && !campus.IsDeleted
+                select new { invoice = invoiceRow, enrollment.CampusId, enrollment.StudentId,
                     enrollment.AcademicProgramId }).SingleOrDefaultAsync(ct);
             if (source == null) return Error<PostStudentInvoiceJournalResultDto>("Invoice not found.", 404);
             var invoice = source.invoice;

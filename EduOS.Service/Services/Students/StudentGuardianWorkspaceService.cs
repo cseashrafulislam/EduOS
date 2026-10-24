@@ -206,7 +206,7 @@ public sealed class StudentGuardianWorkspaceService : IStudentGuardianWorkspaceS
 
     private async Task<ApiResponse<T>> WriteAsync<T>(Func<CancellationToken, Task<ApiResponse<T>>> action, CancellationToken ct)
     {
-        try { return await _uow.ExecuteInTransactionAsync(action, IsolationLevel.Serializable, ct); }
+        try { return await _uow.ExecuteInTransactionAsync(action, System.Data.IsolationLevel.Serializable, ct); }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
         catch (DbUpdateConcurrencyException ex)
         {
