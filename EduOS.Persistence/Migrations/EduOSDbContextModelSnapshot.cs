@@ -15354,11 +15354,19 @@ namespace EduOS.Persistence.Migrations
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
 
+                    b.Property<string>("StudentCodeAtIssue")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<long>("StudentEnrollmentId")
                         .HasColumnType("bigint");
 
                     b.Property<long>("StudentId")
                         .HasColumnType("bigint");
+
+                    b.Property<string>("StudentNameAtIssue")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<long>("TenantId")
                         .HasColumnType("bigint");

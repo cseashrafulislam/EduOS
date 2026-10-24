@@ -56,8 +56,10 @@ public sealed partial class StudentExitService
                 StudentReference = student.PublicId,
                 CertificateNumber = certificate.CertificateNumber,
                 IssueDate = certificate.IssueDate,
-                StudentCode = student.StudentCode,
-                StudentName = student.FullName,
+                StudentCode = certificate.StudentCodeAtIssue ?? student.StudentCode,
+                StudentName = certificate.StudentNameAtIssue ?? student.FullName,
+                IdentityFromIssueSnapshot = certificate.StudentNameAtIssue != null &&
+                    certificate.StudentCodeAtIssue != null,
                 RollNo = enrollment.RollNo,
                 CampusId = enrollment.CampusId,
                 AcademicYearId = enrollment.AcademicYearId,

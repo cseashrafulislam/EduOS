@@ -111,6 +111,10 @@ public class TransferCertificate : BaseTenantEntity
     public long? TransferRequestId { get; set; }
     [Required, MaxLength(50)] public string CertificateNumber { get; set; } = string.Empty;
     public DateOnly IssueDate { get; set; }
+    // Captured once when the certificate is issued. Null means a legacy certificate
+    // whose historical identity cannot be reconstructed reliably.
+    [MaxLength(200)] public string? StudentNameAtIssue { get; set; }
+    [MaxLength(50)] public string? StudentCodeAtIssue { get; set; }
     [MaxLength(1000)] public string? Reason { get; set; }
     [MaxLength(1000)] public string? ConductRemark { get; set; }
     public bool FeesCleared { get; set; }

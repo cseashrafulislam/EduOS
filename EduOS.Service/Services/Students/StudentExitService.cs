@@ -122,6 +122,7 @@ public sealed partial class StudentExitService : IStudentExitService
                     TenantId = tenantId, PublicId = Guid.NewGuid(), ClientRequestId = request.ClientRequestId,
                     StudentId = student.Id, StudentEnrollmentId = current.Id,
                     CertificateNumber = certificateNo, IssueDate = endDate,
+                    StudentNameAtIssue = student.FullName, StudentCodeAtIssue = student.StudentCode,
                     Reason = record.Reason, ConductRemark = record.ConductRemark, FeesCleared = feesCleared,
                     IssuedByUserId = _currentUser.UserId, CreatedAt = now, CreatedBy = _currentUser.UserId
                 };
