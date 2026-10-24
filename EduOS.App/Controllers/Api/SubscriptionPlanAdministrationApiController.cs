@@ -21,6 +21,21 @@ public sealed class SubscriptionPlanAdministrationApiController(ISubscriptionPla
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("{id:long}/configuration")]
+    public async Task<IActionResult> Configuration(long id, CancellationToken ct)
+    {
+        var result = await plans.GetPlanConfigurationAsync(id, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("{id:long}/configuration")]
+    public async Task<IActionResult> SaveConfiguration(long id,
+        [FromBody] SaveSubscriptionPlanConfigurationRequestDto request, CancellationToken ct)
+    {
+        var result = await plans.SavePlanConfigurationAsync(id, request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("{id:long}/availability")]
     public async Task<IActionResult> ChangeAvailability(long id,
         [FromBody] ChangeSubscriptionPlanAvailabilityRequestDto request, CancellationToken ct)

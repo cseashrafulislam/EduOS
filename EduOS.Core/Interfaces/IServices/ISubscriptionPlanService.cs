@@ -25,6 +25,9 @@ namespace EduOS.Core.Interfaces.IServices
         /// </summary>
         Task<ApiResponse<PlanComparisonDto>> GetPlanComparisonAsync();
 
+        Task<ApiResponse<SubscriptionPlanConfigurationDto>> GetPlanConfigurationAsync(long id, CancellationToken ct = default);
+        Task<ApiResponse<SubscriptionPlanConfigurationDto>> SavePlanConfigurationAsync(long id, SaveSubscriptionPlanConfigurationRequestDto request, CancellationToken ct = default);
+
         Task<ApiResponse<IReadOnlyList<SubscriptionPlanAvailabilityDto>>> GetAdminPlanAvailabilityAsync(CancellationToken ct = default);
         Task<ApiResponse<SubscriptionPlanAvailabilityDto>> ChangePlanAvailabilityAsync(long id, ChangeSubscriptionPlanAvailabilityRequestDto request, CancellationToken ct = default);
     }
