@@ -25,6 +25,7 @@ public interface IAssessmentAdministrationService
     Task<ApiResponse<GradeSchemeRegisterPageDto>> SearchGradeSchemesAsync(GradeSchemeRegisterQueryDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<GradeSchemeDto>> GetGradeSchemeAsync(long gradeSchemeId, CancellationToken cancellationToken = default);
     Task<ApiResponse<GradeSchemeDto>> SaveGradeSchemeAsync(long? gradeSchemeId, SaveGradeSchemeRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<AssessmentComponentRegisterPageDto>> SearchAssessmentComponentsAsync(AssessmentComponentRegisterQueryDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<AssessmentComponentDto>> SaveAssessmentComponentAsync(long? componentId, SaveAssessmentComponentRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentAssessmentComponentMarkDto>> SaveComponentMarkAsync(long? componentMarkId, SaveStudentAssessmentComponentMarkRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<ResultPublicationDto>> WithdrawResultPublicationAsync(long publicationId, WithdrawResultPublicationRequestDto request, CancellationToken cancellationToken = default);

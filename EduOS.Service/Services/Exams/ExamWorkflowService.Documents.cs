@@ -32,6 +32,12 @@ public sealed partial class ExamWorkflowService
                     !x.IsDeleted, token);
             if (exam == null || exam.State != AssessmentState.Draft)
                 return Error<AssessmentComponentDto>("Components can only be edited in Draft state.", 409);
+            var offering = await _offerings.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.Id == subject!.SubjectOfferingId && x.IsActive && !x.IsDeleted, token);
+            var batch = offering == null ? null : await _batches.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.Id == offering.AcademicBatchId && x.IsActive && !x.IsDeleted, token);
+            if (batch == null || batch.CampusId != exam.CampusId || batch.AcademicYearId != exam.AcademicYearId)
+                return Error<AssessmentComponentDto>("Subject offering is outside assessment campus/year.", 409);
             var old = componentId.HasValue ? await _components.GetQueryable().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Id == componentId.Value &&
                 x.AssessmentSubjectId == subject!.Id && !x.IsDeleted, token) : null;

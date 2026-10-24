@@ -110,6 +110,11 @@ public sealed class ExamWorkflowController : ControllerBase
     public async Task<IActionResult> SaveGradeScheme([FromBody] SaveGradeSchemeRequestDto request,
         CancellationToken ct) => Result(await _service.SaveGradeSchemeAsync(null, request, ct));
 
+    [HttpGet("components")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> ComponentRegister([FromQuery] AssessmentComponentRegisterQueryDto query,
+        CancellationToken ct) => Result(await _service.SearchAssessmentComponentsAsync(query, ct));
+
     [HttpPost("components")]
     [HttpPut("components/{id:long}")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
