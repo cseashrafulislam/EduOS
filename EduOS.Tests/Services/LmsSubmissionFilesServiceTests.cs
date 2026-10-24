@@ -4,6 +4,7 @@ using EduOS.Core.Entities.Files;
 using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.LMS;
 using EduOS.Core.Entities.Students;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
 using EduOS.Persistence.Repositories;

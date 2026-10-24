@@ -29,6 +29,7 @@ public sealed class CommunicationGatewaySecurityTests
             new GenericRepository<CommunicationGateway>(db),
             new GenericRepository<MessageTemplate>(db),
             new GenericRepository<NoticeCategory>(db),
+            new GenericRepository<CommunicationDelivery>(db),
             new InMemoryUnitOfWork(db), new User(tenant),
             new EphemeralDataProtectionProvider(),
             NullLogger<CommunicationAdministrationService>.Instance);
@@ -207,7 +208,8 @@ public sealed class CommunicationGatewaySecurityTests
 
     private static CommunicationAdministrationService Create(EduOSDbContext db, long tenant) => new(
         new GenericRepository<CommunicationGateway>(db), new GenericRepository<MessageTemplate>(db),
-        new GenericRepository<NoticeCategory>(db), new InMemoryUnitOfWork(db), new User(tenant),
+        new GenericRepository<NoticeCategory>(db), new GenericRepository<CommunicationDelivery>(db),
+        new InMemoryUnitOfWork(db), new User(tenant),
         new EphemeralDataProtectionProvider(),
         NullLogger<CommunicationAdministrationService>.Instance);
 

@@ -3,6 +3,7 @@ using EduOS.App.Controllers;
 using EduOS.App.Controllers.Api;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc;
 using Xunit;
 
@@ -37,7 +38,8 @@ public sealed class DocumentAdministrationSecurityContractTests
     {
         var method = typeof(DocumentFilesApiController).GetMethod("Upload");
         Assert.NotNull(method);
-        Assert.Equal(6291456L, method!.GetCustomAttribute<RequestSizeLimitAttribute>()!.Bytes);
+        Assert.Equal<long?>(6291456L,
+            ((IRequestSizeLimitMetadata)method!.GetCustomAttribute<RequestSizeLimitAttribute>()!).MaxRequestBodySize);
         Assert.Contains("multipart/form-data", method.GetCustomAttribute<ConsumesAttribute>()!.ContentTypes);
     }
 
