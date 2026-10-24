@@ -177,7 +177,7 @@ public sealed class LearnerConsentService : ILearnerConsentService
     private bool CanReview() =>
         _currentUser.IsAuthenticated
         && _currentUser.UserId > 0
-        && (_currentUser.IsInRole("Student") || _currentUser.IsInRole("Parent"));
+        && (_currentUser.IsInRole("Student") || _currentUser.IsInRole("Parent") || _currentUser.IsInRole("Guardian"));
 
     private DateTime UtcNow() => _clock.GetUtcNow().UtcDateTime;
 
