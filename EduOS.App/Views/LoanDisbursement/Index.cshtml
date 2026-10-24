@@ -1,0 +1,42 @@
+@{
+    ViewData["Title"] = "Employee Loan Cash Disbursement";
+}
+<section id="loanDisbursement" class="container-fluid py-3">
+    <h2 class="h4">Employee loan → Institutional GL</h2>
+    <p class="text-muted">Post an existing approved employee loan as cash paid and a matching loan receivable. Requires a separate creator and administrator poster. This does not record payroll deductions or SaaS billing.</p>
+    <p><a class="btn btn-sm btn-outline-secondary" href="/PayrollOperations/Index">Payroll operations</a>
+       <a class="btn btn-sm btn-outline-secondary" href="/AccountingJournals/Index">Institutional journals</a></p>
+    @Html.AntiForgeryToken()
+    <div id="loanNotice" class="alert d-none" role="alert" aria-live="polite"></div>
+    <form id="loanFilter" class="card card-body mb-3">
+        <label class="form-check"><input id="loanPending" class="form-check-input" type="checkbox" checked /> Unposted only</label>
+        <button type="submit" class="btn btn-sm btn-primary mt-2">Load loans</button>
+    </form>
+    <div class="card card-body">
+        <div class="table-responsive"><table class="table table-sm table-striped align-middle">
+            <thead><tr><th>Loan</th><th>Employee</th><th>Issue date</th><th>Principal (BDT)</th><th>Outstanding</th><th>Installment</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody id="loanRows"></tbody>
+        </table></div>
+        <div class="d-flex gap-2 align-items-center">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="loanPrev">Previous</button>
+            <span id="loanPage"></span>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="loanNext">Next</button>
+        </div>
+    </div>
+    <section id="loanConfirmPanel" class="card card-body mt-3 d-none">
+        <h3 class="h6">Post cash disbursement</h3>
+        <p id="loanSelected"></p>
+        <div class="row g-2">
+            <div class="col-md-3"><label for="loanDate" class="form-label">Disbursement date</label><input type="date" id="loanDate" class="form-control" required /></div>
+            <div class="col-md-3"><label for="loanPeriod" class="form-label">Open accounting period</label><select id="loanPeriod" class="form-select" required></select></div>
+            <div class="col-md-3"><label for="loanReceivable" class="form-label">Loan receivable (debit)</label><select id="loanReceivable" class="form-select" required></select></div>
+            <div class="col-md-3"><label for="loanCash" class="form-label">Cash-in-hand (credit)</label><select id="loanCash" class="form-select" required></select></div>
+        </div>
+        <p class="small text-muted mt-2">Cash-only: bank transfers need verified bank-account provenance and are not supported here. Loan recovery is a separate accounting operation.</p>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-danger" id="loanConfirm">Post balanced disbursement</button>
+            <button type="button" class="btn btn-outline-secondary" id="loanCancel">Cancel</button>
+        </div>
+    </section>
+</section>
+@section Scripts { <script src="~/js/finance/loan-disbursement.js" asp-append-version="true"></script> }
