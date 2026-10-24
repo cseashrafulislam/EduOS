@@ -14,6 +14,8 @@ public interface IPlatformCatalogService
     Task<ApiResponse<PlatformProductModuleAdminDto>> SaveProductModuleConfigurationAsync(long id, SavePlatformProductModuleRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<PlatformInstitutionModulePresetDto>> GetAdminInstitutionModulePresetAsync(long institutionTypeId, CancellationToken ct = default);
     Task<ApiResponse<PlatformInstitutionModuleRowDto>> SaveInstitutionModulePresetAsync(long institutionTypeId, long moduleId, SavePlatformInstitutionModulePresetDto request, CancellationToken ct = default);
+    Task<ApiResponse<PlatformModuleFeatureDirectoryDto>> GetAdminModuleFeaturesAsync(long moduleId, CancellationToken ct = default);
+    Task<ApiResponse<PlatformModuleFeatureRowDto>> SaveModuleFeatureMappingAsync(long moduleId, long featureId, SavePlatformModuleFeatureRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<IReadOnlyList<PlatformFeatureAdminDto>>> GetAdminFeaturesAsync(CancellationToken ct = default);
     Task<ApiResponse<PlatformFeatureAdminDto>> SaveFeatureConfigurationAsync(long id, SavePlatformFeatureRequestDto request, CancellationToken ct = default);
 }

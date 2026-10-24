@@ -32,6 +32,25 @@ public sealed class PlatformCatalogSeederTests
     }
 
     [Fact]
+    public async Task Module_feature_seeder_preserves_administrator_removed_mapping()
+    {
+        await using var db = Context();
+        await SubscriptionSeeder.SeedAsync(db);
+        await PlatformCatalogSeeder.SeedAsync(db);
+        var mapping = await db.ProductModuleFeatures.FirstAsync();
+        var moduleId = mapping.ProductModuleId;
+        var featureId = mapping.FeatureId;
+        var activeCount = await db.ProductModuleFeatures.CountAsync();
+        mapping.IsDeleted = true;
+        mapping.DeletedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+        await PlatformCatalogSeeder.SeedAsync(db);
+        (await db.ProductModuleFeatures.CountAsync()).Should().Be(activeCount - 1);
+        (await db.ProductModuleFeatures.IgnoreQueryFilters().CountAsync(x =>
+            x.ProductModuleId == moduleId && x.FeatureId == featureId)).Should().Be(1);
+    }
+
+    [Fact]
     public async Task Subscription_seeder_preserves_custom_existing_names_and_backfills_blank_descriptions()
     {
         await using var db = Context();

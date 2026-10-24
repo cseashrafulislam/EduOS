@@ -226,7 +226,9 @@ public static class PlatformCatalogSeeder
     {
         var modules = await context.ProductModules.AsNoTracking().ToDictionaryAsync(x => x.Code, StringComparer.OrdinalIgnoreCase);
         var features = await context.Features.AsNoTracking().ToDictionaryAsync(x => x.Code, StringComparer.OrdinalIgnoreCase);
-        var existing = (await context.ProductModuleFeatures.AsNoTracking()
+        // Preserve host-admin removals: a soft-deleted mapping is an intentional
+        // catalog decision and must not be recreated by a later startup seed.
+        var existing = (await context.ProductModuleFeatures.IgnoreQueryFilters().AsNoTracking()
             .Select(x => new { x.ProductModuleId, x.FeatureId }).ToListAsync())
             .Select(x => $"{x.ProductModuleId}:{x.FeatureId}")
             .ToHashSet(StringComparer.Ordinal);
