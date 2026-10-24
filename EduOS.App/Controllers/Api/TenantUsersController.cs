@@ -10,6 +10,7 @@ namespace EduOS.App.Controllers.Api;
 [Authorize(Roles = "TenantAdmin")]
 [AutoValidateAntiforgeryToken]
 [EnableRateLimiting("ApiPolicy")]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 [Route("api/tenant-users")]
 public sealed class TenantUsersController(ITenantUserAdministrationService service) : ControllerBase
 {
