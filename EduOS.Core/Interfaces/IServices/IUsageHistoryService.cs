@@ -9,4 +9,5 @@ public interface IUsageHistoryService
         int page, int pageSize, CancellationToken ct = default);
     Task<ApiResponse<string>> ExportHistoryCsvAsync(DateOnly? fromDate, DateOnly? toDate, CancellationToken ct = default);
     Task<ApiResponse<UsageStatisticsDto>> CaptureTodayAsync(CancellationToken ct = default);
+    Task<ApiResponse<UsageQuotaOverviewDto>> GetQuotaOverviewAsync(CancellationToken ct = default);
 }

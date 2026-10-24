@@ -94,6 +94,49 @@ public sealed class UsageHistoryService(
         }
     }
 
+
+    /// <summary>Compares the last saved tenant snapshot with the currently effective plan.
+    /// Zero plan limits mean unlimited. No snapshot or plan means no inferred usage/limit.</summary>
+    public async Task<ApiResponse<UsageQuotaOverviewDto>> GetQuotaOverviewAsync(CancellationToken ct = default)
+    {
+        if (!CanManage) return ApiResponse<UsageQuotaOverviewDto>.ErrorResponse("Tenant administrator required.", 403);
+        var tenantId = user.TenantId;
+        var now = DateTime.UtcNow;
+        var snapshot = await db.UsageStatistics.AsNoTracking()
+            .Where(x => x.TenantId == tenantId && !x.IsDeleted)
+            .OrderByDescending(x => x.PeriodStart).ThenByDescending(x => x.Id)
+            .Select(x => new { x.PeriodStart, x.ActiveStudents, x.ActiveEmployees, x.ActiveCampuses })
+            .FirstOrDefaultAsync(ct);
+        var subscription = await db.TenantSubscriptions.AsNoTracking()
+            .Where(x => x.TenantId == tenantId && !x.IsDeleted &&
+                (x.State == SubscriptionState.Active || x.State == SubscriptionState.Trial ||
+                 x.State == SubscriptionState.Grace) &&
+                x.StartsAt <= now && x.EndsAt > now)
+            .OrderByDescending(x => x.StartsAt).ThenByDescending(x => x.Id)
+            .Select(x => new { x.SubscriptionPlanId, x.State, x.EndsAt })
+            .FirstOrDefaultAsync(ct);
+        var plan = subscription == null ? null : await db.SubscriptionPlans.AsNoTracking()
+            .Where(x => x.Id == subscription.SubscriptionPlanId && !x.IsDeleted)
+            .Select(x => new { x.Name, x.MaxStudents, x.MaxEmployees, x.MaxCampuses })
+            .FirstOrDefaultAsync(ct);
+        var result = new UsageQuotaOverviewDto
+        {
+            HasActiveSubscription = subscription != null,
+            PlanName = plan?.Name ?? (subscription == null ? "No current subscription" : "Plan unavailable"),
+            SubscriptionStatus = subscription?.State.ToString() ?? "None",
+            SubscriptionEndsAt = subscription?.EndsAt,
+            SnapshotDay = snapshot?.PeriodStart,
+            Metrics = snapshot == null ? Array.Empty<UsageQuotaMetricDto>() :
+                new[]
+                {
+                    UsageQuotaMetricDto.FromCount("Active students", snapshot.ActiveStudents, plan?.MaxStudents),
+                    UsageQuotaMetricDto.FromCount("Active employees", snapshot.ActiveEmployees, plan?.MaxEmployees),
+                    UsageQuotaMetricDto.FromCount("Active campuses", snapshot.ActiveCampuses, plan?.MaxCampuses)
+                }
+        };
+        return ApiResponse<UsageQuotaOverviewDto>.SuccessResponse(result);
+    }
+
     /// <summary>Bounded tenant-only export. Unmetered storage/SMS/email fields are intentionally excluded.</summary>
     public async Task<ApiResponse<string>> ExportHistoryCsvAsync(
         DateOnly? fromDate, DateOnly? toDate, CancellationToken ct = default)

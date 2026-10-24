@@ -7,6 +7,17 @@
     <p class="text-muted">Daily tenant-scoped snapshots of active students, employees and campuses. A day is determined by the institution timezone, falling back to UTC. Capturing twice on the same day returns the original snapshot.</p>
     <div class="alert alert-info" role="note">Storage, SMS and email metering are not connected to this capture. Their existing database fields are not displayed as measured values.</div>
     @Html.AntiForgeryToken()
+    <section class="card mb-3" aria-labelledby="uhQuotaTitle">
+        <div class="card-body">
+            <h3 id="uhQuotaTitle" class="h5">Subscription quota comparison</h3>
+            <p class="text-muted small mb-2">Compares the most recent saved daily snapshot with current plan limits. These counts are not live. A zero plan limit means unlimited. Storage, SMS and email are not metered here.</p>
+            <div id="uhQuotaInfo" role="status" aria-live="polite">Loading quota comparison...</div>
+            <div class="table-responsive mt-2"><table class="table table-sm">
+                <thead><tr><th>Resource</th><th>Saved count</th><th>Plan limit</th><th>Utilization</th><th>Status</th></tr></thead>
+                <tbody id="uhQuotaRows"></tbody>
+            </table></div>
+        </div>
+    </section>
     <button id="uhCapture" type="button" class="btn btn-primary mb-3">Capture today's usage</button>
     <button id="uhRefresh" type="button" class="btn btn-outline-secondary mb-3">Refresh</button>
     <form method="get" action="/api/usage-history/export" class="row g-2 align-items-end mb-3">

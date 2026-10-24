@@ -38,6 +38,13 @@ public sealed class UsageHistoryApiController : ControllerBase
             "text/csv", "institution-usage-history.csv");
     }
 
+    [HttpGet("quota-overview")]
+    public async Task<IActionResult> QuotaOverview(CancellationToken ct = default)
+    {
+        var result = await _service.GetQuotaOverviewAsync(ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("capture")]
     public async Task<IActionResult> Capture(CancellationToken ct)
     {
