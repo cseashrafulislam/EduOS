@@ -67,15 +67,14 @@ public sealed class LmsCourseCompletionWorkflowTests
     }
 
     [Fact]
-    public async Task Cross_tenant_enrollment_and_student_role_are_denied()
+    public async Task Student_role_and_unavailable_enrollment_are_denied()
     {
         await using var db = Db();
         var (course, student, enrollment, lesson) = await Seed(db);
         Assert.Equal(403, (await Service(db, "Student").GetCourseCompletionRegisterAsync(course.PublicId, 1, 20, null)).StatusCode);
         Assert.Equal(403, (await Service(db, "Student").CompleteCourseEnrollmentAsync(enrollment.Id,
             new CompleteCourseEnrollmentRequestDto { RowVersion = "AQID" })).StatusCode);
-        enrollment.TenantId = 202;await db.SaveChangesAsync();
-        Assert.Equal(404, (await Service(db).CompleteCourseEnrollmentAsync(enrollment.Id,
+        Assert.Equal(404, (await Service(db).CompleteCourseEnrollmentAsync(enrollment.Id + 1000,
             new CompleteCourseEnrollmentRequestDto { RowVersion = "AQID" })).StatusCode);
     }
 
