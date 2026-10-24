@@ -11,6 +11,9 @@ u.renderLinks=items=>{
   if(!x.isCancelled && x.effectiveFrom>u.today() && Number(x.activeRiders)===0){
    const btn=document.createElement('button');btn.type='button';btn.textContent='Cancel reservation';
    btn.addEventListener('click',()=>u.cancelUpcomingLink(x));td.append(btn);
+  }else if(!x.isCancelled && x.isCurrent && x.effectiveTo){
+   const btn=document.createElement('button');btn.type='button';btn.textContent='Extend';
+   btn.addEventListener('click',()=>u.extendLink(x));td.append(btn);
   }else if(!x.isCancelled && !x.effectiveTo){
    const btn=document.createElement('button');btn.type='button';btn.textContent='End';
    btn.addEventListener('click',()=>u.closeLink(x));

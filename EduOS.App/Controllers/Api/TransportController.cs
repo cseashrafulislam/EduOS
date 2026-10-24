@@ -197,6 +197,12 @@ public sealed class TransportController : ControllerBase
         [FromBody] CreateTransportRouteVehicleLinkRequestDto request, CancellationToken ct) =>
         ToAction(await _service.AssignRouteVehicleAsync(request, ct));
 
+    [HttpPost("route-vehicle-links/{id:long}/extend")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    public async Task<IActionResult> ExtendOperatingRouteVehicle(long id,
+        [FromBody] ExtendOperatingRouteVehicleRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.ExtendOperatingRouteVehicleAsync(id, request, ct));
+
     [HttpPost("route-vehicle-links/{id:long}/close")]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
     public async Task<IActionResult> CloseRouteVehicle(long id,

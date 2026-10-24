@@ -1,0 +1,25 @@
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const root=path.resolve(__dirname,'../..');
+const read=p=>fs.readFileSync(path.join(root,p),'utf8');
+test('route vehicle extension is wired through authorized API, transactional service and UI',()=>{
+ const controller=read('EduOS.App/Controllers/Api/TransportController.cs');
+ const service=read('EduOS.Service/Services/Transport/TransportService.RouteVehicleExtension.cs');
+ const view=read('EduOS.App/Views/TransportOperations/_RouteVehicleLinks.cshtml');
+ const render=read('EduOS.App/wwwroot/js/transport-operations/route-vehicle-render.js');
+ const js=read('EduOS.App/wwwroot/js/transport-operations/route-vehicle-extend.js');
+ const index=read('EduOS.App/Views/TransportOperations/Index.cshtml');
+ assert.match(controller,/HttpPost\("route-vehicle-links\/\{id:long\}\/extend"\)/);
+ assert.match(controller,/Authorize\(Roles = "TenantAdmin,Principal,TransportManager"\)/);
+ assert.match(service,/IsolationLevel\.Serializable/);
+ assert.match(service,/CanManageCampusAsync/);
+ assert.match(service,/RowVersion\.AsSpan\(\)\.SequenceEqual/);
+ assert.match(service,/x\.VehicleId == link\.VehicleId/);
+ assert.match(render,/u\.extendLink\(x\)/);
+ assert.match(js,/rowVersion:item\.rowVersion/);
+ assert.match(index,/route-vehicle-extend\.js/);
+ assert.match(view,/Extend an operating/);
+ assert.doesNotMatch(js,/innerHTML/);
+});
