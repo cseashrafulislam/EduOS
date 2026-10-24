@@ -46,6 +46,29 @@ function renderRow(item){
    catch(error){u.notify(error.message);}finally{button.disabled=false;}
   };
   action.append(date,button);
+  if(item.effectiveTo&&item.licenseExpiresOn&&
+     item.effectiveTo>=u.today()&&item.licenseExpiresOn>item.effectiveTo){
+   const extension=document.createElement('input');
+   extension.type='date';extension.className='form-control form-control-sm mt-2';
+   extension.min=item.effectiveTo;extension.max=item.licenseExpiresOn;
+   extension.setAttribute('aria-label','New end date for '+item.vehicleNumber);
+   const extendButton=document.createElement('button');
+   extendButton.type='button';extendButton.className='btn btn-outline-primary btn-sm mt-1';
+   extendButton.textContent='Extend after license renewal';
+   extendButton.onclick=async()=>{
+    if(!extension.value||extension.value<=item.effectiveTo||
+       extension.value>item.licenseExpiresOn)
+     return u.notify('Choose an end date later than the current end and no later than license expiry.');
+    if(!confirm('Extend this operating driver assignment through '+extension.value+'?'))return;
+    extendButton.disabled=true;
+    try{
+     await u.api(u.endpoint+'/'+item.id+'/extend','POST',{
+      effectiveTo:extension.value,rowVersion:item.rowVersion});
+     u.notify('Driver assignment extended.',true);await u.loadLinks();
+    }catch(error){u.notify(error.message);}finally{extendButton.disabled=false;}
+   };
+   action.append(extension,extendButton);
+  }
  }else action.textContent='Closed';
  tr.append(action);return tr;
 }

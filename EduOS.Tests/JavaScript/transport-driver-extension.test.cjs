@@ -1,0 +1,24 @@
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const root=path.resolve(__dirname,'../..');
+const read=p=>fs.readFileSync(path.join(root,p),'utf8');
+test('operating driver extension is wired from authorized API through service and tenant-admin UI',()=>{
+ const controller=read('EduOS.App/Controllers/Api/TransportController.cs');
+ const service=read('EduOS.Service/Services/Transport/TransportService.DriverExtension.cs');
+ const view=read('EduOS.App/Views/TransportOperations/_VehicleDriverLinks.cshtml');
+ const js=read('EduOS.App/wwwroot/js/transport-operations/vehicle-driver-list.js');
+ assert.match(controller,/HttpPost\("vehicle-driver-links\/\{id:long\}\/extend"\)/);
+ assert.match(controller,/Authorize\(Roles = "TenantAdmin"\)/);
+ assert.match(service,/IsolationLevel\.Serializable/);
+ assert.match(service,/CanManageCampusAsync/);
+ assert.match(service,/RowVersion\.AsSpan\(\)\.SequenceEqual/);
+ assert.match(service,/LicenseExpiresOn/);
+ assert.match(service,/x\.IsCurrent && x\.Id != link\.Id/);
+ assert.match(js,/item\.id\+'\/extend'/);
+ assert.match(js,/rowVersion:item\.rowVersion/);
+ assert.match(js,/textContent/);
+ assert.doesNotMatch(js,/innerHTML/);
+ assert.match(view,/renewing a driver's license/);
+});
