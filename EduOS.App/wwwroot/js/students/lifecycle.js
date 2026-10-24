@@ -98,7 +98,18 @@
                 item.certificateNo || '—', String(item.dueAtExit ?? 0)
             ]) {
                 const cell = document.createElement('td');
-                cell.textContent = text ?? ''; row.append(cell);
+                if (text === item.certificateNo && item.certificateNo) {
+                    const link = document.createElement('a');
+                    link.href = '/StudentLifecycle/Certificate?' + new URLSearchParams({
+                        studentReference: item.studentReference,
+                        certificateNumber: item.certificateNo
+                    });
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    link.textContent = item.certificateNo + ' · Print';
+                    cell.append(link);
+                } else cell.textContent = text ?? '';
+                row.append(cell);
             }
             body.append(row);
         }
