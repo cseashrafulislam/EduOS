@@ -182,7 +182,7 @@ public sealed class LearnerConsentService : ILearnerConsentService
     private DateTime UtcNow() => _clock.GetUtcNow().UtcDateTime;
 
     private static ApiResponse<T> Denied<T>() =>
-        ApiResponse<T>.ErrorResponse("Student or parent access is required.", 403);
+        ApiResponse<T>.ErrorResponse("Student or linked parent/guardian access is required.", 403);
 
     private static ApiResponse<LearnerConsentResolutionDto> MapResolution(
         LearnerConsentMutationResult result) => result.State switch
