@@ -80,6 +80,21 @@ public sealed class TenantUsersController(ITenantUserAdministrationService servi
         return StatusCode(r.StatusCode, r);
     }
 
+    [HttpGet("{membershipId:long}/permission-overrides")]
+    public async Task<IActionResult> MemberPermissionOverrides(long membershipId, CancellationToken ct)
+    {
+        var r = await service.GetMemberPermissionOverridesAsync(membershipId, ct);
+        return StatusCode(r.StatusCode, r);
+    }
+
+    [HttpPut("{membershipId:long}/permission-overrides/{permissionId:long}")]
+    public async Task<IActionResult> SetMemberPermissionOverride(long membershipId, long permissionId,
+        [FromBody] SetTenantMemberPermissionOverrideRequestDto request, CancellationToken ct)
+    {
+        var r = await service.SetMemberPermissionOverrideAsync(membershipId, permissionId, request, ct);
+        return StatusCode(r.StatusCode, r);
+    }
+
     [HttpGet("{membershipId:long}/campuses")]
     public async Task<IActionResult> GetCampuses(long membershipId, CancellationToken ct)
     {
