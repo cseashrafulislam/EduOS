@@ -24,8 +24,10 @@
         return result.data;
     }
     function selection() {
-        const index = Number(el('cmScope').value);
-        return Number.isInteger(index) ? state.scopes[index] : null;
+        const raw = el('cmScope').value;
+        if (raw === '') return null;
+        const index = Number(raw);
+        return Number.isInteger(index) && index >= 0 ? state.scopes[index] || null : null;
     }
     function component() { return state.roster?.components?.find(x => String(x.id) === el('cmComponent').value); }
     function clear() {
