@@ -9,4 +9,6 @@ public interface IStudentTransferRequestService
     Task<ApiResponse<IReadOnlyList<TransferRequestDto>>> GetRequestsAsync(Guid studentReference, CancellationToken ct = default);
     Task<ApiResponse<TransferRequestDto>> SubmitAsync(SubmitStudentTransferRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<TransferRequestDto>> ReviewAsync(Guid transferReference, ReviewTransferRequestDto request, CancellationToken ct = default);
+    Task<ApiResponse<IReadOnlyList<DestinationTransferInboxDto>>> GetDestinationInboxAsync(CancellationToken ct = default);
+    Task<ApiResponse<DestinationTransferInboxDto>> DecideDestinationAsync(Guid transferReference, DestinationTransferDecisionDto request, CancellationToken ct = default);
 }
