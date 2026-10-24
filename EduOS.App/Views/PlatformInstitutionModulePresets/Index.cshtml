@@ -1,0 +1,26 @@
+@{
+    ViewData["Title"] = "Institution Module Presets";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<section id="institutionModulePresets" class="container-fluid py-3">
+    @Html.AntiForgeryToken()
+    <h1 class="h4">Institution Module Presets</h1>
+    <p class="text-muted">Configure future onboarding defaults for each institution type. Existing tenant selections are not rewritten. New required modules are blocked until existing institutions are reconciled.</p>
+    <div class="d-flex gap-2 align-items-end mb-3">
+        <div>
+            <label for="presetType" class="form-label">Institution type</label>
+            <select id="presetType" class="form-select"><option value="">Select institution type</option></select>
+        </div>
+        <button id="presetRefresh" type="button" class="btn btn-outline-secondary">Refresh</button>
+    </div>
+    <p id="presetMessage" role="status" aria-live="polite"></p>
+    <div class="table-responsive">
+        <table class="table table-striped table-sm">
+            <thead><tr><th>Module</th><th>Core</th><th>Active</th><th>Required</th><th>Default enabled</th><th>Action</th></tr></thead>
+            <tbody id="presetRows"><tr><td colspan="6">Choose an institution type.</td></tr></tbody>
+        </table>
+    </div>
+</section>
+@section Scripts {
+    <script src="~/js/platform/institution-module-presets.js" asp-append-version="true"></script>
+}
