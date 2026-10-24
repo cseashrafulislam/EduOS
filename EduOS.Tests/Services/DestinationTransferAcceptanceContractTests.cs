@@ -46,8 +46,9 @@ public sealed class DestinationTransferAcceptanceContractTests
         var service = Read("EduOS.Service", "Services", "Students",
             "StudentTransferRequestService.Destination.cs");
         service.Should().Contain("records.Select(MapDestination)");
-        service.Should().Contain("x.TenantId == item.SourceTenantId");
-        service.Should().Contain("x.StudentEnrollmentId == item.SourceEnrollmentId");
+        service.Should().NotContain("_students.GetQueryable()");
+        service.Should().NotContain("_enrollments.GetQueryable()");
+        service.Should().Contain("global tenant query filter");
     }
 
     [Fact]
