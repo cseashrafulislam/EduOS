@@ -1,0 +1,66 @@
+@model EduOS.Core.DTOs.Student.StudentTransferCertificateDto
+@{
+    Layout = null;
+    ViewData["Title"] = "Transfer Certificate";
+}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow,noarchive" />
+    <title>Transfer Certificate - @Model.CertificateNumber</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; background: #edf1f5; color: #182b3a; font-family: Arial, sans-serif; }
+        .toolbar { max-width: 850px; margin: 24px auto 0; display: flex; justify-content: space-between; gap: 12px; }
+        .toolbar a, .toolbar button { padding: 10px 18px; border: 1px solid #23496a; background: white; border-radius: 5px; color: #23496a; cursor: pointer; text-decoration: none; font-size: 14px; }
+        .sheet { width: min(210mm, 100%); min-height: 277mm; margin: 18px auto 30px; padding: 24mm 20mm; background: white; box-shadow: 0 4px 20px #0002; }
+        h1 { text-align: center; font-size: 25px; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 6px; }
+        .subtitle { text-align: center; color: #536576; margin-bottom: 36px; font-size: 13px; }
+        .ref { display: flex; justify-content: space-between; gap: 18px; border-top: 1px solid #d3dce4; border-bottom: 1px solid #d3dce4; padding: 12px 0; font-size: 13px; }
+        .statement { font-size: 15px; line-height: 1.9; margin-top: 30px; }
+        dl { display: grid; grid-template-columns: 170px 1fr; gap: 12px 20px; margin: 24px 0; font-size: 14px; }
+        dt { font-weight: bold; } dd { margin: 0; overflow-wrap: anywhere; }
+        .remarks { margin-top: 26px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; }
+        .footer { margin-top: 85px; display: flex; justify-content: flex-end; }
+        .signature { width: 230px; border-top: 1px solid #344d62; padding-top: 9px; text-align: center; font-size: 13px; }
+        @@page { size: A4 portrait; margin: 0; }
+        @@media print { body { background: white; } .toolbar { display: none; } .sheet { width: 100%; margin: 0; min-height: 0; box-shadow: none; padding: 24mm 20mm; } }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <a href="@Url.Action("Index", "StudentLifecycle")">Back to Student Lifecycle</a>
+        <button id="certificatePrint" type="button">Print certificate</button>
+    </div>
+    <main class="sheet">
+        <h1>Transfer Certificate</h1>
+        <div class="subtitle">Source institution administrative record · Historical issue</div>
+        <div class="ref">
+            <span><strong>Certificate:</strong> @Model.CertificateNumber</span>
+            <span><strong>Issued:</strong> @Model.IssueDate.ToString("dd MMM yyyy")</span>
+        </div>
+        <p class="statement">This document confirms that the following student was issued a transfer certificate for the historical enrollment shown below. The certificate details are retrieved from the issuing institution's records.</p>
+        <dl>
+            <dt>Student</dt><dd>@Model.StudentName</dd>
+            <dt>Student code</dt><dd>@Model.StudentCode</dd>
+            <dt>Roll number</dt><dd>@Model.RollNo</dd>
+            <dt>Campus ID</dt><dd>@Model.CampusId</dd>
+            <dt>Academic year ID</dt><dd>@Model.AcademicYearId</dd>
+            <dt>Academic program ID</dt><dd>@Model.AcademicProgramId</dd>
+            <dt>Fees cleared at exit</dt><dd>@(Model.FeesCleared ? "Yes" : "No")</dd>
+        </dl>
+        @if (!string.IsNullOrWhiteSpace(Model.Reason))
+        {
+            <div class="remarks"><strong>Reason:</strong> @Model.Reason</div>
+        }
+        @if (!string.IsNullOrWhiteSpace(Model.ConductRemark))
+        {
+            <div class="remarks"><strong>Conduct remark:</strong> @Model.ConductRemark</div>
+        }
+        <div class="footer"><div class="signature">Authorized institutional signatory</div></div>
+    </main>
+    <script src="~/js/students/certificate-print.js" asp-append-version="true"></script>
+</body>
+</html>
