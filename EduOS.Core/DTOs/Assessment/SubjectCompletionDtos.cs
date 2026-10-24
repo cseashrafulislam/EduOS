@@ -1,6 +1,14 @@
 using System.ComponentModel.DataAnnotations;
 using EduOS.Core.Enums.Domain;
 namespace EduOS.Core.DTOs.Assessment;
+public sealed class SubjectCompletionBatchDto
+{
+    public long Id { get; set; }
+    public string Name { get; set; } = "";
+    public string AcademicYearName { get; set; } = "";
+    public long CampusId { get; set; }
+    public DateOnly AcademicYearEnd { get; set; }
+}
 public sealed class SubjectCompletionQueryDto
 {
     [Range(1, long.MaxValue)] public long AcademicBatchId { get; set; }

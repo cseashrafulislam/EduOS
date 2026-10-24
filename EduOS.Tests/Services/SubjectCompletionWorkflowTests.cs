@@ -53,6 +53,8 @@ public sealed class SubjectCompletionWorkflowTests
         service.Should().Contain("Matches(row.RowVersion, request.RowVersion)");
         service.Should().Contain("Subject already completed.");
         service.Should().Contain("RecordAuditAsync");
+        service.Should().Contain("GetSubjectCompletionBatchesAsync");
+        service.Should().Contain("year.EndDate < today");
         Read("EduOS.Service","Services","Exams","ExamWorkflowService.Documents.cs")
             .Should().Contain("Completed subject registrations prevent publication withdrawal.");
     }
@@ -70,6 +72,7 @@ public sealed class SubjectCompletionWorkflowTests
             .Should().Contain("@Html.AntiForgeryToken()");
         var js = Read("EduOS.App","wwwroot","js","exams","subject-completions.js");
         js.Should().Contain("RequestVerificationToken: token");
+        js.Should().Contain("/api/exams/workflow/subject-completions/batches");
         js.Should().Contain("td.textContent");
         js.Should().Contain("rowVersion: row.rowVersion");
         js.Should().Contain("URL.createObjectURL");

@@ -21,13 +21,11 @@
     }
     const completed = x => x === 5 || x === 'Completed';
     async function init() {
-        const scopes = await api('/api/exams/workflow/scopes') || [];
-        const batches = new Map();
-        for (const s of scopes) if (!batches.has(s.academicBatchId))
-            batches.set(s.academicBatchId, s.academicBatchName);
+        const batches = await api('/api/exams/workflow/subject-completions/batches') || [];
         const select = el('completionBatch'); select.replaceChildren(new Option('Select academic batch', ''));
-        for (const [id, name] of batches) select.add(new Option(name, String(id)));
-        if (!batches.size) notice('No assessment batches available for reconciliation.', true);
+        for (const batch of batches)
+            select.add(new Option(batch.name + ' / ' + batch.academicYearName + ' / Campus ' + batch.campusId, String(batch.id)));
+        if (!batches.length) notice('No ended academic-year batches available for reconciliation.', true);
     }
     function render() {
         const body = el('completionRows'); body.replaceChildren();

@@ -6,6 +6,26 @@ using Microsoft.EntityFrameworkCore;
 namespace EduOS.Service.Services.Exams;
 public sealed partial class ExamWorkflowService
 {
+    public async Task<ApiResponse<IReadOnlyList<SubjectCompletionBatchDto>>> GetSubjectCompletionBatchesAsync(
+        CancellationToken ct = default)
+    {
+        if (!CanPublish()) return Error<IReadOnlyList<SubjectCompletionBatchDto>>("Completion permission required.", 403);
+        var tenant = _user.TenantId;
+        var today = DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime);
+        var batches = await (from batch in _batches.GetQueryable().AsNoTracking()
+            join year in _years.GetQueryable().AsNoTracking() on batch.AcademicYearId equals year.Id
+            where batch.TenantId == tenant && year.TenantId == tenant &&
+                !batch.IsDeleted && !year.IsDeleted && year.EndDate < today &&
+                (!year.CampusId.HasValue || year.CampusId == batch.CampusId)
+            orderby year.EndDate descending, batch.Name
+            select new SubjectCompletionBatchDto
+            {
+                Id = batch.Id, Name = batch.Name, AcademicYearName = year.Name,
+                CampusId = batch.CampusId, AcademicYearEnd = year.EndDate
+            }).Take(500).ToListAsync(ct);
+        return ApiResponse<IReadOnlyList<SubjectCompletionBatchDto>>.SuccessResponse(batches);
+    }
+
     public async Task<ApiResponse<SubjectCompletionPageDto>> SearchSubjectCompletionsAsync(
         SubjectCompletionQueryDto request, CancellationToken ct = default)
     {
@@ -182,7 +202,7 @@ public sealed partial class ExamWorkflowService
             var released = pubs.Where(p => p.AssessmentId == x.Exam.Id &&
                 p.State == ResultPublicationState.Published).ToList();
             var pub = released.Count == 1 ? released[0] : null;
-            var snapshots = pub == null ? [] : summaries.Where(s =>
+            var snapshots = summaries.Where(s => pub != null &&
                 s.ResultPublicationId == pub.Id && s.AssessmentId == x.Exam.Id &&
                 s.PublicationVersionNo == pub.VersionNo).ToList();
             var summary = snapshots.Count == 1 ? snapshots[0] : null;

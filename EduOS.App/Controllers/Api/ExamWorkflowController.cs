@@ -45,6 +45,11 @@ public sealed class ExamWorkflowController : ControllerBase
     public async Task<IActionResult> Publish([FromBody] PublishResultRequestDto request,
         CancellationToken ct) => Result(await _service.PublishResultAsync(request, ct));
 
+    [HttpGet("subject-completions/batches")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> SubjectCompletionBatches(CancellationToken ct) =>
+        Result(await _service.GetSubjectCompletionBatchesAsync(ct));
+
     [HttpGet("subject-completions")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
     public async Task<IActionResult> SubjectCompletions([FromQuery] SubjectCompletionQueryDto query,
