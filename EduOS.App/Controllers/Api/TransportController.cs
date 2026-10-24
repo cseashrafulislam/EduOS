@@ -74,6 +74,12 @@ public sealed class TransportController : ControllerBase
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
     public async Task<IActionResult> Assign([FromBody] AssignStudentTransportRequestDto request, CancellationToken ct) => ToAction(await _service.AssignAsync(request, ct));
 
+    [HttpPost("assignments/{reference:guid}/extend")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    public async Task<IActionResult> ExtendOperatingRider(Guid reference,
+        [FromBody] ExtendOperatingTransportAssignmentRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.ExtendOperatingRiderAsync(reference, request, ct));
+
     [HttpPut("assignments/{reference:guid}/stops")]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
     public async Task<IActionResult> CorrectUpcomingStops(Guid reference,

@@ -86,6 +86,19 @@
                 <button id="transportNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
             </div>
         </div></section>
+        <section id="transportRiderExtensionPanel" class="card mt-3" hidden><div class="card-body">
+            <h3 class="h5">Extend operating rider reservation</h3>
+            <p id="transportRiderExtensionDetails" class="text-muted small"></p>
+            <form id="transportRiderExtensionForm" class="row g-2">
+                <div class="col-md-6"><label for="transportRiderExtensionDate" class="form-label">New reservation end date</label>
+                    <input id="transportRiderExtensionDate" type="date" class="form-control" required /></div>
+                <div class="col-md-6 d-flex align-items-end gap-2">
+                    <button id="transportRiderExtensionSave" type="submit" class="btn btn-primary">Extend reservation</button>
+                    <button id="transportRiderExtensionCancel" type="button" class="btn btn-outline-secondary">Cancel</button>
+                </div>
+            </form>
+            <p class="small text-muted mt-2 mb-0">The route, vehicle, stops and monthly fare stay unchanged. Campus, pairing dates and peak seat capacity are revalidated.</p>
+        </div></section>
         <section id="transportStopCorrectionPanel" class="card mt-3" hidden><div class="card-body">
             <h3 class="h5" id="transportStopCorrectionTitle">Correct rider stops</h3>
             <p id="transportStopCorrectionDetails" class="text-muted small"></p>

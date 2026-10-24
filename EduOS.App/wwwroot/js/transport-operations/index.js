@@ -5,6 +5,7 @@
     const canManage = !!el('transportAssignmentForm');
     let routes = [], vehicles = [], clientRequestId = newRequestId(), studentPage = 1, activePage = 1, activePages = 1;
     let pendingStopCorrection = null;
+    let pendingRiderExtension = null;
     function newRequestId() { return crypto.randomUUID(); }
     function localDate() { const d = new Date(); return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-'); }
     function notify(message, success = false) {
@@ -121,6 +122,13 @@
                         new CustomEvent('transport:change-vehicle', { detail: item })));
                     actions.append(changeVehicle);
                 }
+                if (item.startDate <= localDate() && item.endDate && item.endDate >= localDate()) {
+                    const extend = document.createElement('button');
+                    extend.type = 'button'; extend.className = 'btn btn-outline-success btn-sm me-2';
+                    extend.textContent = 'Extend';
+                    extend.addEventListener('click', () => beginRiderExtension(item));
+                    actions.append(extend);
+                }
                 if (item.startDate <= localDate()) actions.append(close);
                 else {
                     const hint = document.createElement('span');
@@ -139,6 +147,38 @@
             el('transportPrev').disabled = activePage <= 1;
             el('transportNext').disabled = activePage >= activePages;
         } catch (err) { notify(err.message); }
+    }
+    function beginRiderExtension(item) {
+        if (!item.endDate || item.startDate > localDate() || item.endDate < localDate()) {
+            notify('Only operating reservations with a current finite end can be extended.'); return;
+        }
+        pendingRiderExtension = item;
+        el('transportRiderExtensionDetails').textContent =
+            item.studentName + ' · ' + item.vehicleNumber + ' · current end ' + item.endDate;
+        const input = el('transportRiderExtensionDate');
+        input.min = item.endDate;
+        input.value = '';
+        el('transportRiderExtensionPanel').hidden = false;
+        input.focus();
+    }
+    async function submitRiderExtension(event) {
+        event.preventDefault();
+        if (!pendingRiderExtension) return;
+        const item = pendingRiderExtension, endDate = el('transportRiderExtensionDate').value;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(endDate) || endDate <= item.endDate) {
+            notify('Choose a new end date after the existing reservation end.'); return;
+        }
+        if (!confirm('Extend the reservation for ' + item.studentName + ' through ' + endDate + '?')) return;
+        const save = el('transportRiderExtensionSave');
+        save.disabled = true;
+        try {
+            await api('/api/transport/assignments/' + encodeURIComponent(item.reference) + '/extend',
+                'POST', { endDate, rowVersion: item.rowVersion });
+            pendingRiderExtension = null;
+            el('transportRiderExtensionPanel').hidden = true;
+            notify('Rider reservation extended.', true);
+            await Promise.all([loadActive(), loadStatic()]);
+        } catch (err) { notify(err.message); } finally { save.disabled = false; }
     }
     function beginStopCorrection(item) {
         const route = routes.find(x => x.reference === item.routeReference);
@@ -195,6 +235,10 @@
         el('transportFindStudents').addEventListener('click', () => { studentPage = 1; loadStudents(); });
         el('transportMoreStudents').addEventListener('click', () => { studentPage++; loadStudents(); });
         el('transportAssignmentForm').addEventListener('submit', assign);
+        el('transportRiderExtensionForm').addEventListener('submit', submitRiderExtension);
+        el('transportRiderExtensionCancel').addEventListener('click', () => {
+            pendingRiderExtension = null; el('transportRiderExtensionPanel').hidden = true;
+        });
         el('transportStopCorrectionForm').addEventListener('submit', submitStopCorrection);
         el('transportCorrectCancel').addEventListener('click', () => { pendingStopCorrection = null; el('transportStopCorrectionPanel').hidden = true; });
         el('transportActiveSearch').addEventListener('submit', event => { event.preventDefault(); activePage = 1; loadActive(); });
