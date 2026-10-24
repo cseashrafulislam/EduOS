@@ -82,7 +82,7 @@ public sealed partial class ExamWorkflowService
         if (!CanRead()) return Task.FromResult(Error<StudentAssessmentComponentMarkDto>("Marks access denied.", 403));
         if (componentMarkId is <= 0 || request == null || request.AssessmentComponentId <= 0 ||
             request.StudentAssessmentMarkId <= 0 || request.ObtainedMarks < 0m ||
-            !Exact2(request.ObtainedMarks) ||
+            !Exact2(request.ObtainedMarks) || (request.IsAbsent && request.IsWithheld) ||
             (request.IsAbsent || request.IsWithheld) && request.ObtainedMarks != 0m)
             return Task.FromResult(Error<StudentAssessmentComponentMarkDto>("Invalid component mark."));
         return WriteAsync("assessment component marks", async token =>
@@ -102,7 +102,23 @@ public sealed partial class ExamWorkflowService
                     !x.IsDeleted, token);
             if (exam == null || exam.State != AssessmentState.MarksEntry)
                 return Error<StudentAssessmentComponentMarkDto>("Assessment is not open for marks entry.", 409);
-            if (!CanPublish() && !await CanEditOfferingAsync(subject!.SubjectOfferingId, token))
+            var offering = await _offerings.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.Id == subject!.SubjectOfferingId && x.IsActive && !x.IsDeleted, token);
+            var batch = offering == null ? null : await _batches.GetQueryable().AsNoTracking()
+                .FirstOrDefaultAsync(x => x.TenantId == tenant && x.Id == offering.AcademicBatchId &&
+                    x.IsActive && !x.IsDeleted, token);
+            if (offering == null || batch == null || batch.CampusId != exam.CampusId ||
+                batch.AcademicYearId != exam.AcademicYearId)
+                return Error<StudentAssessmentComponentMarkDto>("Assessment campus or academic year mismatch.", 409);
+            var eligible = await EligibleAsync(offering.Id, batch.Id, token);
+            if (!eligible.Any(x => x.RegistrationId == master.StudentSubjectRegistrationId))
+                return Error<StudentAssessmentComponentMarkDto>("Student is not eligible for this subject.", 409);
+            if (await _publications.GetQueryable().AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenant && x.AssessmentId == exam.Id &&
+                x.AcademicBatchId == batch.Id && x.State == ResultPublicationState.Published &&
+                !x.IsDeleted, token))
+                return Error<StudentAssessmentComponentMarkDto>("Published component marks cannot be edited.", 409);
+            if (!CanPublish() && !await CanEditOfferingAsync(subject!.SubjectOfferingId, token)
                 return Error<StudentAssessmentComponentMarkDto>("Not assigned to this subject.", 403);
             if (request.ObtainedMarks > component.FullMarks)
                 return Error<StudentAssessmentComponentMarkDto>("Mark exceeds component full marks.", 409);
@@ -113,10 +129,20 @@ public sealed partial class ExamWorkflowService
                 return Error<StudentAssessmentComponentMarkDto>("Component mark not found.", 404);
             if (row != null && !Matches(row.RowVersion, request.RowVersion))
                 return Error<StudentAssessmentComponentMarkDto>("Component mark changed.", 409);
-            if (row == null && await _componentMarks.GetQueryable().AsNoTracking().AnyAsync(x =>
-                x.TenantId == tenant && x.AssessmentComponentId == component.Id &&
-                x.StudentAssessmentMarkId == master.Id && !x.IsDeleted, token))
-                return Error<StudentAssessmentComponentMarkDto>("Component mark already recorded.", 409);
+            if (row == null)
+            {
+                var existing = await _componentMarks.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.AssessmentComponentId == component.Id &&
+                    x.StudentAssessmentMarkId == master.Id && !x.IsDeleted, token);
+                if (existing != null)
+                {
+                    if (!componentMarkId.HasValue && existing.ObtainedMarks == request.ObtainedMarks &&
+                        existing.IsAbsent == request.IsAbsent && existing.IsWithheld == request.IsWithheld)
+                        return ApiResponse<StudentAssessmentComponentMarkDto>.SuccessResponse(
+                            MapComponentMark(existing), "Component mark already recorded.");
+                    return Error<StudentAssessmentComponentMarkDto>("Component mark already recorded.", 409);
+                }
+            }
             var now = _clock.GetUtcNow().UtcDateTime;
             row ??= new StudentAssessmentComponentMark
             {

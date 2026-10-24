@@ -38,6 +38,10 @@ public sealed class ExamOperationsController : Controller
     public IActionResult Certificates() => View();
 
     [HttpGet]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult ComponentMarks() => View();
+
+    [HttpGet]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult AssessmentComponents() => View();

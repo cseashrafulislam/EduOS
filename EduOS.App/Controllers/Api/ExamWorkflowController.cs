@@ -121,6 +121,10 @@ public sealed class ExamWorkflowController : ControllerBase
     public async Task<IActionResult> SaveComponent(long? id, [FromBody] SaveAssessmentComponentRequestDto request,
         CancellationToken ct) => Result(await _service.SaveAssessmentComponentAsync(id, request, ct));
 
+    [HttpGet("component-marks/roster")]
+    public async Task<IActionResult> ComponentMarkRoster([FromQuery] AssessmentComponentMarkRosterQueryDto query,
+        CancellationToken ct) => Result(await _service.GetComponentMarkRosterAsync(query, ct));
+
     [HttpPost("component-marks")]
     [HttpPut("component-marks/{id:long}")]
     public async Task<IActionResult> SaveComponentMark(long? id,
