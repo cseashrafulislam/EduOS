@@ -155,7 +155,7 @@ public sealed class PayrollLoanRecoverySettlementTests
         db.LoanAdvances.Add(new LoanAdvance { Id = 1, TenantId = 41, EmployeeId = 7,
             IssueDate = new DateOnly(2026, 10, 5), PrincipalAmount = 100m,
             OutstandingAmount = 100m, InstallmentAmount = 25m,
-            CreatedAt = now.AddDays(-10) });
+            CreatedAt = now.AddDays(-10), RowVersion = new byte[] { 1 } });
         if (withDisbursement)
         {
         db.Journals.Add(new Journal { Id = 1, TenantId = 41, JournalNumber = "JRN-LOAN",
