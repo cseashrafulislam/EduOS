@@ -176,6 +176,10 @@ public sealed partial class ExamWorkflowService
                 x.TenantId == tenant && x.Id == offering.AcademicBatchId &&
                 x.CampusId == exam.CampusId && x.AcademicYearId == exam.AcademicYearId && x.IsActive, token);
             if (batch == null) return Error<AssessmentSubjectDto>("Offering is outside assessment scope.", 409);
+            if (await _registrations.GetQueryable().AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenant && x.SubjectOfferingId == offering.Id &&
+                x.State == SubjectRegistrationState.Completed && !x.IsDeleted, token))
+                return Error<AssessmentSubjectDto>("Completed subject registrations prevent assessment changes.", 409);
             var row = subjectId.HasValue ? await _subjects.GetQueryable().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Id == subjectId.Value && x.AssessmentId == exam.Id && !x.IsDeleted, token) : null;
             if (subjectId.HasValue && row == null) return Error<AssessmentSubjectDto>("Assessment subject not found.", 404);

@@ -55,6 +55,8 @@ public sealed class SubjectCompletionWorkflowTests
         service.Should().Contain("RecordAuditAsync");
         service.Should().Contain("GetSubjectCompletionBatchesAsync");
         service.Should().Contain("year.EndDate < today");
+        Read("EduOS.Service","Services","Exams","ExamWorkflowService.Setup.cs")
+            .Should().Contain("Completed subject registrations prevent assessment changes.");
         Read("EduOS.Service","Services","Exams","ExamWorkflowService.Documents.cs")
             .Should().Contain("Completed subject registrations prevent publication withdrawal.");
     }
