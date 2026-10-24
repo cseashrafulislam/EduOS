@@ -122,6 +122,14 @@
                         new CustomEvent('transport:change-vehicle', { detail: item })));
                     actions.append(changeVehicle);
                 }
+                if (item.startDate <= localDate() && (!item.endDate || item.endDate >= localDate())) {
+                    const transfer = document.createElement('button');
+                    transfer.type = 'button'; transfer.className = 'btn btn-outline-primary btn-sm me-2';
+                    transfer.textContent = 'Transfer vehicle';
+                    transfer.addEventListener('click', () => window.dispatchEvent(
+                        new CustomEvent('transport:transfer-operating-vehicle', { detail: item })));
+                    actions.append(transfer);
+                }
                 if (item.startDate <= localDate() && item.endDate && item.endDate >= localDate()) {
                     const extend = document.createElement('button');
                     extend.type = 'button'; extend.className = 'btn btn-outline-success btn-sm me-2';

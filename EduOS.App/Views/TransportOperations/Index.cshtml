@@ -109,6 +109,26 @@
             </form>
             <p class="small text-muted mt-2 mb-0" id="transportStopCorrectionHelp">For future or currently operating assignments. Route, vehicle and monthly fare remain unchanged; campus, stops and capacity are revalidated.</p>
         </div></section>
+        <section id="transportOperatingTransferPanel" class="card mt-3" hidden><div class="card-body">
+            <h3 class="h5">Transfer an operating rider to another vehicle</h3>
+            <p id="transportOperatingTransferDetails" class="small text-muted"></p>
+            <form id="transportOperatingTransferForm" class="row g-2">
+                <div class="col-md-4"><label for="transportOperatingTransferDate" class="form-label">Effective date</label>
+                    <input id="transportOperatingTransferDate" type="date" class="form-control" required /></div>
+                <div class="col-md-5"><label for="transportOperatingTransferVehicle" class="form-label">Available destination vehicle</label>
+                    <select id="transportOperatingTransferVehicle" class="form-select" required></select></div>
+                <div class="col-md-3 d-flex align-items-end gap-2">
+                    <button id="transportOperatingTransferSave" type="submit" class="btn btn-primary">Transfer</button>
+                    <button id="transportOperatingTransferCancel" type="button" class="btn btn-outline-secondary">Cancel</button>
+                </div>
+            </form>
+            <div class="d-flex align-items-center gap-3 mt-2">
+                <button id="transportOperatingTransferPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+                <span id="transportOperatingTransferPageInfo" class="small text-muted"></span>
+                <button id="transportOperatingTransferNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+            </div>
+            <p class="small text-muted mt-2 mb-0">Same route and stops, unchanged monthly fare. Original reservation ends the day before transfer; destination reservation begins on the effective date. No ledger writes.</p>
+        </div></section>
         <section id="transportVehicleChangePanel" class="card mt-3" hidden><div class="card-body">
             <h3 class="h5">Change vehicle for upcoming rider</h3>
             <p id="transportVehicleChangeDetails" class="text-muted small"></p>
@@ -152,6 +172,7 @@
     <script src="~/js/transport-operations/index.js" asp-append-version="true"></script>
     @if (canManage) { <script src="~/js/transport-operations/upcoming-cancellation.js" asp-append-version="true"></script> }
     @if (canManage) { <script src="~/js/transport-operations/upcoming-vehicle-change.js" asp-append-version="true"></script> }
+    @if (canManage) { <script src="~/js/transport-operations/operating-vehicle-transfer.js" asp-append-version="true"></script> }
     @if (canManage) { <script src="~/js/transport-operations/assignment-history.js" asp-append-version="true"></script> }
     @if (canManage) { <script src="~/js/transport-operations/rider-turnover.js" asp-append-version="true"></script> }
     @if (canManage) { <script src="~/js/transport-operations/rider-readiness.js" asp-append-version="true"></script> }

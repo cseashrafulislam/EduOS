@@ -99,6 +99,19 @@ public sealed class TransportController : ControllerBase
         [FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default) =>
         ToAction(await _service.GetUpcomingVehicleOptionsAsync(reference, page, pageSize, ct));
 
+    [HttpGet("assignments/{reference:guid}/transfer-vehicles")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> OperatingTransferVehicles(Guid reference, [FromQuery] DateOnly effectiveDate,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default) =>
+        ToAction(await _service.GetOperatingTransferVehiclesAsync(reference, effectiveDate, page, pageSize, ct));
+
+    [HttpPost("assignments/{reference:guid}/transfer-vehicle")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    public async Task<IActionResult> TransferOperatingRider(Guid reference,
+        [FromBody] TransferOperatingTransportVehicleRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.TransferOperatingRiderAsync(reference, request, ct));
+
     [HttpPut("assignments/{reference:guid}/vehicle")]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
     public async Task<IActionResult> ChangeUpcomingVehicle(Guid reference,
