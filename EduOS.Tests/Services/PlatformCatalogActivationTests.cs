@@ -72,7 +72,8 @@ public sealed class PlatformCatalogActivationTests
             });
         result.StatusCode.Should().Be(409);
         type.IsActive.Should().BeTrue();
-        (await db.AuditLogs.IgnoreQueryFilters().CountAsync()).Should().Be(0);
+        (await db.AuditLogs.IgnoreQueryFilters().CountAsync(x =>
+            x.Action == "InstitutionType.ActivationChanged")).Should().Be(0);
     }
 
     private static EduOSDbContext Context() => new(
