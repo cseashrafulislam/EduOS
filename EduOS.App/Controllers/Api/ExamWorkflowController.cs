@@ -84,6 +84,17 @@ public sealed class ExamWorkflowController : ControllerBase
     public async Task<IActionResult> SaveSchedule(long? id, [FromBody] SaveAssessmentScheduleRequestDto request,
         CancellationToken ct) => Result(await _service.SaveAssessmentScheduleAsync(id, request, ct));
 
+    [HttpGet("grade-schemes")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> GradeSchemeRegister(
+        [FromQuery] GradeSchemeRegisterQueryDto query, CancellationToken ct) =>
+        Result(await _service.SearchGradeSchemesAsync(query, ct));
+
+    [HttpGet("grade-schemes/{id:long}")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> GradeScheme(long id, CancellationToken ct) =>
+        Result(await _service.GetGradeSchemeAsync(id, ct));
+
     [HttpPost("grade-schemes")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
     public async Task<IActionResult> SaveGradeScheme([FromBody] SaveGradeSchemeRequestDto request,
