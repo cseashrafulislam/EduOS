@@ -11,7 +11,7 @@ const dto=read('EduOS.Core/DTOs/Payroll/PayrollDtos.cs');
 new Function(js);
 for(const endpoint of ['/api/hr-payroll/runs','/approve','/employees','/api/hr-payroll/my-payslips'])
     assert.ok(js.includes(endpoint),'Missing canonical route: '+endpoint);
-for(const obsolete of ['/api/hr-payroll/generate','/api/hr-payroll/period','/api/hr-payroll/pay','/api/hr-payroll/my','/api/hr-payroll/salary-structure'])
+for(const obsolete of ['/api/hr-payroll/generate','/api/hr-payroll/period','/api/hr-payroll/pay','/api/hr-payroll/salary-structure'])
     assert.ok(!js.includes(obsolete),'Obsolete payroll route: '+obsolete);
 assert.match(js,/RequestVerificationToken=token/);
 assert.match(js,/clientRequestId:state.requestId/);
