@@ -79,6 +79,13 @@ public sealed class HrPayrollController : ControllerBase
         [FromBody] PostPayrollRunRequestDto request, CancellationToken ct) =>
         Result(await _service.PostPayrollRunAsync(reference, request, ct));
 
+    [HttpGet("bonuses")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> Bonuses([FromQuery] int? year, [FromQuery] int? month,
+        [FromQuery] Guid? employeeReference, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, CancellationToken ct = default) =>
+        Result(await _service.GetBonusesAsync(year, month, employeeReference, page, pageSize, ct));
+
     [HttpPost("bonuses")]
     [HttpPut("bonuses/{bonusId:long}")]
     [Authorize(Roles = "TenantAdmin,Principal,HR,Accountant")]

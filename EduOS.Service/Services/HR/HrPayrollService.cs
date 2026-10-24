@@ -434,11 +434,46 @@ public sealed class HrPayrollService : IPayrollAdministrationService
             "Payroll posting requires configured salary-component ledger mappings and a balanced accounting journal.", 409);
     }
 
+    /// <summary>Tenant administrator's immutable bonus register; payroll snapshots are not changed by this read.</summary>
+    public async Task<ApiResponse<PagedResult<BonusDto>>> GetBonusesAsync(
+        int? year, int? month, Guid? employeeReference, int page, int pageSize, CancellationToken ct = default)
+    {
+        // The payroll administration service has no campus-access repository. Restrict this
+        // cross-campus financial register to the tenant administrator rather than leaking HR data.
+        if (!_user.IsAuthenticated || _user.TenantId <= 0 || !_user.IsTenantAdmin)
+            return Denied<PagedResult<BonusDto>>();
+        if (year is < 2000 or > 2200 || month is < 1 or > 12 ||
+            employeeReference == Guid.Empty || page < 1 || pageSize is < 1 or > 50 ||
+            (long)(page - 1) * pageSize > int.MaxValue)
+            return Error<PagedResult<BonusDto>>("Invalid bonus filters or pagination.");
+        var tenant = _user.TenantId;
+        var query = from bonus in _bonuses.GetQueryable().AsNoTracking()
+                    join employee in _employees.GetQueryable().AsNoTracking()
+                        on new { bonus.TenantId, Id = bonus.EmployeeId }
+                        equals new { employee.TenantId, employee.Id }
+                    where bonus.TenantId == tenant && !bonus.IsDeleted && !employee.IsDeleted
+                    select new { Bonus = bonus, Employee = employee };
+        if (year.HasValue) query = query.Where(x => x.Bonus.BonusDate.Year == year.Value);
+        if (month.HasValue) query = query.Where(x => x.Bonus.BonusDate.Month == month.Value);
+        if (employeeReference.HasValue)
+            query = query.Where(x => x.Employee.PublicId == employeeReference.Value);
+        var count = await query.CountAsync(ct);
+        var rows = await query.OrderByDescending(x => x.Bonus.BonusDate)
+            .ThenByDescending(x => x.Bonus.Id).Skip((int)((long)(page - 1) * pageSize))
+            .Take(pageSize).ToListAsync(ct);
+        return ApiResponse<PagedResult<BonusDto>>.SuccessResponse(new PagedResult<BonusDto>
+        {
+            Items = rows.Select(x => MapBonus(x.Bonus, x.Employee)).ToList(),
+            Page = page, PageSize = pageSize, TotalCount = count
+        });
+    }
+
     public async Task<ApiResponse<BonusDto>> SaveBonusAsync(long? bonusId, SaveBonusRequestDto request, CancellationToken ct = default)
     {
         if (!Manager()) return Denied<BonusDto>();
         if (request == null || request.ClientRequestId == Guid.Empty || request.EmployeeReference == Guid.Empty ||
             request.BonusDate == default || request.Amount <= 0 || request.Amount > 999999999999m ||
+            request.Amount != decimal.Round(request.Amount, 2) ||
             request.Reason?.Length > 500 || bonusId is <= 0)
             return Error<BonusDto>("Invalid bonus request.");
         var employee = await ActiveEmployeeAsync(request.EmployeeReference, ct);

@@ -1,0 +1,36 @@
+@{
+    ViewData["Title"] = "Employee Bonus Register";
+}
+<section id="bonusWorkspace" class="container-fluid py-3">
+    <h2 class="h4">Employee bonus register</h2>
+    <p class="text-muted">Record a bonus before generating the employee's monthly payroll. Bonuses are incorporated into payroll accrual when the payroll run is calculated; this page does not pay cash or post a separate journal.</p>
+    <p><a class="btn btn-sm btn-outline-secondary" href="/PayrollOperations/Index">Payroll operations</a> <a class="btn btn-sm btn-outline-secondary" href="/PayrollJournalPosting/Index">Institutional payroll GL</a></p>
+    @Html.AntiForgeryToken()
+    <div id="bonusNotice" class="alert d-none" role="alert" aria-live="polite"></div>
+    <div class="card card-body mb-3">
+        <h3 class="h6">Record bonus</h3>
+        <form id="bonusCreate" class="row g-2">
+            <div class="col-md-6"><label class="form-label" for="bonusEmployeeSearch">Find employee (name/code)</label>
+                <div class="input-group"><input id="bonusEmployeeSearch" class="form-control" maxlength="100" required minlength="2" />
+                <button id="bonusFind" type="button" class="btn btn-outline-primary">Search</button></div></div>
+            <div class="col-md-6"><label class="form-label" for="bonusEmployee">Employee</label><select id="bonusEmployee" class="form-select" required><option value="">Search for an employee</option></select></div>
+            <div class="col-md-3"><label class="form-label" for="bonusDate">Bonus date</label><input id="bonusDate" type="date" class="form-control" required /></div>
+            <div class="col-md-3"><label class="form-label" for="bonusAmount">Amount (BDT)</label><input id="bonusAmount" type="number" min="0.01" max="999999999999" step="0.01" class="form-control" required /></div>
+            <div class="col-md-6"><label class="form-label" for="bonusReason">Reason</label><input id="bonusReason" class="form-control" maxlength="500" /></div>
+            <div class="col-12"><button id="bonusSave" class="btn btn-primary" type="submit">Record bonus</button></div>
+        </form>
+    </div>
+    <div class="card card-body">
+        <h3 class="h6">Recorded bonuses</h3>
+        <form id="bonusFilter" class="row g-2 align-items-end mb-3">
+            <div class="col-md-3"><label class="form-label" for="bonusYear">Year</label><input id="bonusYear" type="number" min="2000" max="2200" class="form-control" /></div>
+            <div class="col-md-3"><label class="form-label" for="bonusMonth">Month</label><select id="bonusMonth" class="form-select"><option value="">All months</option>@for(var m=1;m<=12;m++){<option value="@m">@System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(m)</option>}</select></div>
+            <div class="col-md-3"><label class="form-check"><input id="bonusSelectedOnly" type="checkbox" class="form-check-input" /> Selected employee only</label></div>
+            <div class="col-md-3"><button type="submit" class="btn btn-outline-primary">Load register</button></div>
+        </form>
+        <div class="table-responsive"><table class="table table-striped table-sm"><thead><tr><th>Bonus ID</th><th>Date</th><th>Employee</th><th>Amount (BDT)</th><th>Reason</th></tr></thead><tbody id="bonusRows"></tbody></table></div>
+        <div class="d-flex align-items-center gap-2"><button id="bonusPrev" type="button" class="btn btn-sm btn-outline-secondary">Previous</button><span id="bonusPage"></span><button id="bonusNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button></div>
+        <p class="small text-muted mt-2 mb-0">Existing bonus entries cannot be overwritten. If a request times out, check the register before submitting it again. Bonus records currently have no persisted request-id uniqueness constraint.</p>
+    </div>
+</section>
+@section Scripts { <script src="~/js/payroll/bonuses.js" asp-append-version="true"></script> }
