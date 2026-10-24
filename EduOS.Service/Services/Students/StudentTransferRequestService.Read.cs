@@ -24,7 +24,8 @@ public sealed partial class StudentTransferRequestService
             x.State == EnrollmentState.Active && !x.IsDeleted, ct);
         if (enrollment == null) return Error<StudentTransferEligibilityDto>("Current active enrollment not found.", 409);
         if (await _exits.GetQueryable().AsNoTracking().AnyAsync(x =>
-            x.TenantId == tenant && x.StudentId == student.Id && !x.IsDeleted, ct))
+            x.TenantId == tenant && x.StudentId == student.Id &&
+            x.StudentEnrollmentId == enrollment.Id && !x.IsDeleted, ct))
             return Error<StudentTransferEligibilityDto>("Student has a final exit record.", 409);
         return ApiResponse<StudentTransferEligibilityDto>.SuccessResponse(new StudentTransferEligibilityDto
         {
