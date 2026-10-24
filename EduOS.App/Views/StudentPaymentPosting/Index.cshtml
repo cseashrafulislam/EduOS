@@ -1,0 +1,38 @@
+@{
+    ViewData["Title"] = "Student Cash Receipt GL Posting";
+    var canPost = User.IsInRole("TenantAdmin") || User.IsInRole("Principal");
+}
+<section class="container-fluid py-3" id="studentPaymentPosting" data-post="@canPost.ToString().ToLowerInvariant()">
+    <h2>Student Cash Receipts → Institutional GL</h2>
+    <p class="text-muted">Post collected cash to a selected cash-in-hand ledger and settle receivables using already-posted invoice journals. SaaS billing is separate.</p>
+    <p><a href="/StudentInvoicePosting/Index" class="btn btn-outline-secondary btn-sm">Post invoices first</a> <a href="/FeeOperations/Index" class="btn btn-outline-secondary btn-sm">Fee operations</a></p>
+    @Html.AntiForgeryToken()
+    <div id="paymentPostingNotice" class="alert d-none" role="alert" aria-live="polite"></div>
+    <form id="paymentPostingFilters" class="card card-body mb-3">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3"><label for="paymentPostingCampus" class="form-label">Campus</label>
+                <select id="paymentPostingCampus" class="form-select"><option value="">All authorized campuses</option></select></div>
+            <div class="col-md-3"><label for="paymentPostingSearch" class="form-label">Receipt / student</label>
+                <input id="paymentPostingSearch" class="form-control" maxlength="100" autocomplete="off" /></div>
+            <div class="col-md-3"><label for="paymentPostingPeriod" class="form-label">Open accounting period</label>
+                <select id="paymentPostingPeriod" class="form-select"><option value="">Choose a period</option></select></div>
+            <div class="col-md-3"><label for="paymentPostingCash" class="form-label">Cash-in-hand GL account</label>
+                <select id="paymentPostingCash" class="form-select"><option value="">Choose cash ledger</option></select></div>
+            <div class="col-md-3"><label class="form-check"><input id="paymentPostingUnposted" class="form-check-input" type="checkbox" checked /> Unposted only</label></div>
+            <div class="col-md-3"><button type="submit" class="btn btn-primary">Find receipts</button></div>
+        </div>
+    </form>
+    <div class="card card-body">
+        <div class="table-responsive"><table class="table table-striped table-sm align-middle">
+            <thead><tr><th>Receipt</th><th>Student</th><th>Campus</th><th>Date</th><th>Amount</th><th>Status</th><th>Journal</th>@if(canPost){<th>Action</th>}</tr></thead>
+            <tbody id="paymentPostingRows"></tbody>
+        </table></div>
+        <div class="d-flex align-items-center gap-2">
+            <button id="paymentPostingPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+            <span id="paymentPostingPage" aria-live="polite"></span>
+            <button id="paymentPostingNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+        </div>
+    </div>
+    <p class="small text-muted mt-2">One campus per receipt. Invoice GL must be posted first. Receipts with multiple receivable accounts inside one invoice require allocation-level accounting and are rejected. Posted journals are immutable.</p>
+</section>
+@section Scripts { <script src="~/js/finance/student-payment-posting.js" asp-append-version="true"></script> }
