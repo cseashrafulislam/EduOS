@@ -1,5 +1,6 @@
 using EduOS.App.Controllers;
 using EduOS.App.Controllers.Api;
+using ApiTenantUsersController = EduOS.App.Controllers.Api.TenantUsersController;
 using EduOS.Core.DTOs.Auth;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Interfaces;
@@ -27,9 +28,9 @@ public sealed class TenantMemberPermissionOverrideTests
         var controller = typeof(TenantPermissionOverridesController);
         Assert.Contains(controller.GetCustomAttributes(typeof(AuthorizeAttribute), true)
             .Cast<AuthorizeAttribute>(), x => x.Roles == "TenantAdmin");
-        var action = typeof(TenantUsersController).GetMethod(nameof(TenantUsersController.SetMemberPermissionOverride));
+        var action = typeof(ApiTenantUsersController).GetMethod(nameof(ApiTenantUsersController.SetMemberPermissionOverride));
         Assert.NotNull(action);
-        Assert.NotEmpty(typeof(TenantUsersController).GetCustomAttributes(
+        Assert.NotEmpty(typeof(ApiTenantUsersController).GetCustomAttributes(
             typeof(AutoValidateAntiforgeryTokenAttribute), true));
         Assert.Empty(action!.GetCustomAttributes(typeof(AllowAnonymousAttribute), true));
     }
