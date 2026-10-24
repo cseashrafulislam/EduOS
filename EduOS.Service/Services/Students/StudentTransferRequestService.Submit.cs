@@ -53,7 +53,8 @@ public sealed partial class StudentTransferRequestService
             if (!Matches(student.RowVersion, studentVersion) || !Matches(enrollment.RowVersion, enrollmentVersion))
                 return Error<TransferRequestDto>("Student or enrollment changed. Reload and retry.", 409);
             if (await _exits.GetQueryable().AsNoTracking().AnyAsync(x =>
-                x.TenantId == tenant && x.StudentId == student.Id && !x.IsDeleted, token))
+                x.TenantId == tenant && x.StudentId == student.Id &&
+                x.StudentEnrollmentId == enrollment.Id && !x.IsDeleted, token))
                 return Error<TransferRequestDto>("Student already has a final exit.", 409);
             if (await _requests.GetQueryable().AsNoTracking().AnyAsync(x =>
                 x.SourceTenantId == tenant && x.SourceStudentId == student.Id && !x.IsDeleted &&
