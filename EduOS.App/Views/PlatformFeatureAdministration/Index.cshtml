@@ -1,0 +1,43 @@
+@{
+    ViewData["Title"] = "Feature Catalog Management";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<section id="platformFeatureAdministration" class="container-fluid py-3">
+    @Html.AntiForgeryToken()
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h1 class="h4">Feature Catalog Management</h1>
+            <p class="text-muted">Manage existing feature labels and availability. Feature codes, module mappings and existing plan assignments are preserved.</p>
+        </div>
+        <button id="featureRefresh" type="button" class="btn btn-outline-secondary">Refresh</button>
+    </div>
+    <p id="featureMessage" role="status" aria-live="polite"></p>
+    <div class="table-responsive">
+        <table class="table table-striped table-sm">
+            <thead><tr><th>Code</th><th>Name</th><th>Description</th><th>Availability</th><th>Action</th></tr></thead>
+            <tbody id="featureRows"><tr><td colspan="5">Loading…</td></tr></tbody>
+        </table>
+    </div>
+    <section id="featureEditor" class="card p-3 mt-3" hidden>
+        <h2 class="h5">Edit feature <span id="featureEditCode"></span></h2>
+        <form id="featureForm">
+            <div class="mb-3">
+                <label class="form-label" for="featureEditName">Name</label>
+                <input id="featureEditName" class="form-control" maxlength="150" required />
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="featureEditDescription">Description</label>
+                <textarea id="featureEditDescription" class="form-control" maxlength="500" rows="3"></textarea>
+            </div>
+            <div class="form-check mb-3">
+                <input id="featureEditActive" type="checkbox" class="form-check-input" />
+                <label class="form-check-label" for="featureEditActive">Available for new plan configuration</label>
+            </div>
+            <button id="featureSave" class="btn btn-primary" type="submit">Save changes</button>
+            <button id="featureCancel" class="btn btn-outline-secondary" type="button">Cancel</button>
+        </form>
+    </section>
+</section>
+@section Scripts {
+    <script src="~/js/platform/feature-catalog-administration.js" asp-append-version="true"></script>
+}
