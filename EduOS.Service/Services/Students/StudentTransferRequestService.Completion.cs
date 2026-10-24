@@ -39,25 +39,28 @@ public sealed partial class StudentTransferRequestService
                 !x.IsDeleted, token);
             if (enrollment == null)
                 return Error<DestinationTransferInboxDto>("Current active destination enrollment not found.", 409);
-            if (item.DestinationStudentId.HasValue)
-            {
-                if (item.DestinationStudentId != student.Id)
-                    return Error<DestinationTransferInboxDto>("Transfer is already linked to a different student.", 409);
+            if (item.DestinationStudentId.HasValue && item.DestinationStudentId != student.Id)
+                return Error<DestinationTransferInboxDto>("Transfer is already linked to a different student.", 409);
+            if (item.DestinationEnrollmentId.HasValue && item.DestinationEnrollmentId != enrollment.Id)
+                return Error<DestinationTransferInboxDto>("Transfer is already linked to a different enrollment.", 409);
+            // Exact retry is safe even when the caller holds the old transfer rowversion.
+            // Re-validate current enrollment before returning success; do not attest stale placement.
+            if (item.DestinationStudentId == student.Id && item.DestinationEnrollmentId == enrollment.Id)
                 return ApiResponse<DestinationTransferInboxDto>.SuccessResponse(
                     MapDestination(item), "Destination enrollment already linked.");
-            }
             if (!Matches(item.RowVersion, expected))
                 return Error<DestinationTransferInboxDto>("Transfer changed. Reload and retry.", 409);
             if (await _requests.GetQueryable().AsNoTracking().AnyAsync(x =>
-                x.Id != item.Id && x.DestinationTenantId == tenant &&
-                x.DestinationStudentId == student.Id && !x.IsDeleted &&
-                (x.State == TransferRequestState.DestinationAccepted ||
-                 x.State == TransferRequestState.Completed), token))
-                return Error<DestinationTransferInboxDto>("Destination student is already linked to another transfer.", 409);
+                x.Id != item.Id && x.DestinationTenantId == tenant && !x.IsDeleted &&
+                (x.DestinationEnrollmentId == enrollment.Id ||
+                 (x.DestinationStudentId == student.Id &&
+                  x.State == TransferRequestState.DestinationAccepted)), token))
+                return Error<DestinationTransferInboxDto>("Destination enrollment or active student transfer is already linked.", 409);
             // Enrollment creation, seat allocation and roll uniqueness remain owned by
             // the canonical destination enrollment workflow and its database constraints.
             var now = _clock.GetUtcNow().UtcDateTime;
             item.DestinationStudentId = student.Id;
+            item.DestinationEnrollmentId = enrollment.Id;
             item.UpdatedAt = now;
             item.UpdatedBy = _user.UserId;
             await _uow.SaveChangesAsync(token);
@@ -94,7 +97,8 @@ public sealed partial class StudentTransferRequestService
                 return ApiResponse<TransferRequestDto>.SuccessResponse(
                     Map(item, student, enrollment), "Transfer already completed.");
             if (item.State != TransferRequestState.DestinationAccepted ||
-                !item.DestinationTenantId.HasValue || !item.DestinationStudentId.HasValue)
+                !item.DestinationTenantId.HasValue || !item.DestinationStudentId.HasValue ||
+                !item.DestinationEnrollmentId.HasValue)
                 return Error<TransferRequestDto>("Destination must accept and link its enrolled student first.", 409);
             if (!Matches(item.RowVersion, expected))
                 return Error<TransferRequestDto>("Transfer changed. Reload and retry.", 409);
