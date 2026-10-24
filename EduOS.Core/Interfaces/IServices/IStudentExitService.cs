@@ -7,4 +7,5 @@ public interface IStudentExitService
 {
     Task<ApiResponse<StudentExitResultDto>> ProcessAsync(ProcessStudentExitDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<StudentExitResultDto>>> GetHistoryAsync(Guid studentReference, CancellationToken cancellationToken = default);
+    Task<ApiResponse<StudentTransferCertificateDto>> GetCertificateAsync(Guid studentReference, string certificateNumber, CancellationToken cancellationToken = default);
 }
