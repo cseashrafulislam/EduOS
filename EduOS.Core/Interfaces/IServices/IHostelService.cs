@@ -40,6 +40,7 @@ public interface IHostelService
     Task<ApiResponse<StudentHostelAllocationDto>> AllocateAsync(AllocateStudentHostelRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentHostelAllocationDto>> CloseAsync(long id, CloseStudentHostelAllocationRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentHostelAllocationDto>> CancelUpcomingAllocationAsync(long id, CancelStudentHostelAllocationRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<StudentHostelAllocationDto>> RescheduleUpcomingAllocationStartAsync(long id, RescheduleUpcomingHostelStartRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<HostelBedOptionDto>>> GetUpcomingRoomTransferOptionsAsync(long id, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentHostelAllocationDto>> ReassignUpcomingRoomAsync(long id, ReassignUpcomingHostelRoomRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<HostelBedOptionDto>>> GetUpcomingBedReassignmentOptionsAsync(long id, int page, int pageSize, CancellationToken cancellationToken = default);

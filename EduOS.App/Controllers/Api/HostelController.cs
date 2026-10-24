@@ -264,6 +264,12 @@ public sealed class HostelController : ControllerBase
         [FromBody] CancelStudentHostelAllocationRequestDto request, CancellationToken ct) =>
         ToAction(await _service.CancelUpcomingAllocationAsync(id, request, ct));
 
+    [HttpPost("allocations/{id:long}/reschedule-start")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    public async Task<IActionResult> RescheduleUpcomingAllocationStart(long id,
+        [FromBody] RescheduleUpcomingHostelStartRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.RescheduleUpcomingAllocationStartAsync(id, request, ct));
+
     [HttpGet("allocations/{id:long}/bed-options")]
     [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
