@@ -15430,6 +15430,9 @@ namespace EduOS.Persistence.Migrations
                     b.Property<long?>("DeletedBy")
                         .HasColumnType("bigint");
 
+                    b.Property<long?>("DestinationEnrollmentId")
+                        .HasColumnType("bigint");
+
                     b.Property<long?>("DestinationStudentId")
                         .HasColumnType("bigint");
 
@@ -15492,6 +15495,10 @@ namespace EduOS.Persistence.Migrations
                     b.HasIndex("RejectedByUserId");
 
                     b.HasIndex("RequestedByUserId");
+
+                    b.HasIndex("DestinationTenantId", "DestinationEnrollmentId")
+                        .IsUnique()
+                        .HasFilter("[DestinationEnrollmentId] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.HasIndex("DestinationTenantId", "DestinationStudentId");
 
@@ -21559,6 +21566,12 @@ namespace EduOS.Persistence.Migrations
                         .HasForeignKey("SourceTenantId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Academic.StudentEnrollment", null)
+                        .WithMany()
+                        .HasForeignKey("DestinationTenantId", "DestinationEnrollmentId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("EduOS.Core.Entities.Students.Student", null)
                         .WithMany()
