@@ -20,6 +20,7 @@ public sealed partial class StudentTransferRequestService : IStudentTransferRequ
     private readonly IGenericRepository<Student> _students;
     private readonly IGenericRepository<StudentEnrollment> _enrollments;
     private readonly IGenericRepository<StudentExitRecord> _exits;
+    private readonly IGenericRepository<TransferCertificate> _certificates;
     private readonly IUnitOfWork _uow;
     private readonly ICurrentUserService _user;
     private readonly TimeProvider _clock;
@@ -27,11 +28,12 @@ public sealed partial class StudentTransferRequestService : IStudentTransferRequ
 
     public StudentTransferRequestService(IGenericRepository<TransferRequest> requests,
         IGenericRepository<Student> students, IGenericRepository<StudentEnrollment> enrollments,
-        IGenericRepository<StudentExitRecord> exits, IUnitOfWork unitOfWork,
+        IGenericRepository<StudentExitRecord> exits, IGenericRepository<TransferCertificate> certificates,
+        IUnitOfWork unitOfWork,
         ICurrentUserService currentUser, TimeProvider clock, ILogger<StudentTransferRequestService> logger)
     {
         _requests = requests; _students = students; _enrollments = enrollments; _exits = exits;
-        _uow = unitOfWork; _user = currentUser; _clock = clock; _logger = logger;
+        _certificates = certificates; _uow = unitOfWork; _user = currentUser; _clock = clock; _logger = logger;
     }
 
     private bool CanManage() => _user.IsAuthenticated && _user.IsTenantAdmin && _user.TenantId > 0;
@@ -51,6 +53,7 @@ public sealed partial class StudentTransferRequestService : IStudentTransferRequ
         DestinationTenantId = request.DestinationTenantId, State = request.State,
         Reason = request.Reason, RequestedAt = request.RequestedAt,
         RequestedByUserId = request.RequestedByUserId, CompletedAt = request.CompletedAt,
+        DestinationEnrollmentLinked = request.DestinationStudentId.HasValue,
         RowVersion = Convert.ToBase64String(request.RowVersion)
     };
 
