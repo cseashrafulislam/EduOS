@@ -62,6 +62,46 @@ public class LearnerConsentServiceTests
     }
 
     [Fact]
+    public async Task Linked_guardian_role_can_review_and_approve_learner_consent()
+    {
+        var options = CreateOptions();
+        var scenario = await SeedScenarioAsync(options);
+        await using var context = CreateContext(options, 101, 77, "Guardian");
+        var service = CreateService(context, new TestCurrentUser(101, 77, "Guardian"));
+
+        var pending = await service.GetPendingAsync();
+        var approved = await service.ResolveAsync(scenario.RequestReference,
+            new ResolveLearnerIdentityConsentRequestDto { Decision = LearnerConsentDecision.Approve });
+        var active = await service.GetActiveGrantsAsync();
+
+        pending.Success.Should().BeTrue();
+        pending.Data.Should().ContainSingle(x => x.Reference == scenario.RequestReference);
+        approved.Success.Should().BeTrue();
+        approved.Data!.State.Should().Be("Approved");
+        active.Data.Should().ContainSingle(x => x.Reference == approved.Data.GrantReference);
+    }
+
+    [Fact]
+    public async Task Unlinked_guardian_cannot_list_or_approve_learner_consent()
+    {
+        var options = CreateOptions();
+        var scenario = await SeedScenarioAsync(options);
+        await using var context = CreateContext(options, 101, 88, "Guardian");
+        var service = CreateService(context, new TestCurrentUser(101, 88, "Guardian"));
+
+        var pending = await service.GetPendingAsync();
+        var decision = await service.ResolveAsync(scenario.RequestReference,
+            new ResolveLearnerIdentityConsentRequestDto { Decision = LearnerConsentDecision.Approve });
+        var active = await service.GetActiveGrantsAsync();
+
+        pending.Success.Should().BeTrue();
+        pending.Data.Should().BeEmpty();
+        decision.StatusCode.Should().Be(404);
+        active.Data.Should().BeEmpty();
+        (await context.LearnerDataGrants.IgnoreQueryFilters().CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
     public async Task Parent_without_guardianship_gets_neutral_not_found_and_cannot_create_grant()
     {
         var options = CreateOptions();
