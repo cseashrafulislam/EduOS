@@ -101,6 +101,17 @@ public sealed class ExamWorkflowController : ControllerBase
         [FromBody] SaveStudentAssessmentComponentMarkRequestDto request, CancellationToken ct) =>
         Result(await _service.SaveComponentMarkAsync(id, request, ct));
 
+    [HttpGet("certificate-templates")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> CertificateTemplateRegister(
+        [FromQuery] CertificateTemplateRegisterQueryDto query, CancellationToken ct) =>
+        Result(await _service.SearchCertificateTemplatesAsync(query, ct));
+
+    [HttpGet("certificate-templates/{id:long}")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> CertificateTemplate(long id, CancellationToken ct) =>
+        Result(await _service.GetCertificateTemplateAsync(id, ct));
+
     [HttpPost("certificate-templates")]
     [HttpPut("certificate-templates/{id:long}")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]

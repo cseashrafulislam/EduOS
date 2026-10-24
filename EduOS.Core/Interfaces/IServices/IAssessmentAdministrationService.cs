@@ -22,6 +22,8 @@ public interface IAssessmentAdministrationService
     Task<ApiResponse<AssessmentComponentDto>> SaveAssessmentComponentAsync(long? componentId, SaveAssessmentComponentRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentAssessmentComponentMarkDto>> SaveComponentMarkAsync(long? componentMarkId, SaveStudentAssessmentComponentMarkRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<ResultPublicationDto>> WithdrawResultPublicationAsync(long publicationId, WithdrawResultPublicationRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<CertificateTemplateRegisterPageDto>> SearchCertificateTemplatesAsync(CertificateTemplateRegisterQueryDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<CertificateTemplateDto>> GetCertificateTemplateAsync(long templateId, CancellationToken cancellationToken = default);
     Task<ApiResponse<CertificateTemplateDto>> SaveCertificateTemplateAsync(long? templateId, SaveCertificateTemplateRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<TranscriptCandidateDto>>> GetTranscriptCandidatesAsync(string? search, CancellationToken cancellationToken = default);
     Task<ApiResponse<TranscriptRegisterPageDto>> SearchTranscriptRegisterAsync(TranscriptRegisterQueryDto request, CancellationToken cancellationToken = default);

@@ -1,0 +1,65 @@
+@{
+    ViewData["Title"] = "Certificate Template Management";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<section class="container-fluid py-4" id="certificateTemplateWorkspace">
+    @Html.AntiForgeryToken()
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+        <div><h1 class="h4 mb-1">Certificate templates</h1>
+            <p class="text-muted mb-0">Maintain escaped-text templates and merge placeholders. Issued templates are immutable; this page does not generate certificates.</p></div>
+        <a class="btn btn-outline-secondary" asp-controller="ExamOperations" asp-action="Index">Exam marks &amp; results</a>
+    </div>
+    <div id="certificateTemplateNotice" class="alert d-none" role="alert" aria-live="polite"></div>
+    <div class="card mb-3"><div class="card-body">
+        <h2 class="h6" id="certificateTemplateFormTitle">New template</h2>
+        <form id="certificateTemplateForm">
+            <input id="certificateTemplateId" type="hidden" />
+            <input id="certificateTemplateVersion" type="hidden" />
+            <div class="row g-3">
+                <div class="col-md-6"><label class="form-label" for="certificateTemplateCode">Code</label>
+                    <input class="form-control" id="certificateTemplateCode" maxlength="50" required /></div>
+                <div class="col-md-6"><label class="form-label" for="certificateTemplateName">Name</label>
+                    <input class="form-control" id="certificateTemplateName" maxlength="150" required /></div>
+                <div class="col-12"><label class="form-label" for="certificateTemplateBody">Template text (no HTML tags)</label>
+                    <textarea class="form-control" id="certificateTemplateBody" rows="5" maxlength="50000" required></textarea>
+                    <small class="text-muted">Only plain text and approved merge placeholders; &lt; and &gt; are not accepted.</small></div>
+                <div class="col-auto form-check ms-3"><input class="form-check-input" id="certificateTemplateActive" type="checkbox" checked />
+                    <label class="form-check-label" for="certificateTemplateActive">Active</label></div>
+                <div class="col-auto form-check"><input class="form-check-input" id="certificateTemplateDefault" type="checkbox" />
+                    <label class="form-check-label" for="certificateTemplateDefault">Default template</label></div>
+            </div>
+            <div class="mt-3 d-flex gap-2">
+                <button id="certificateTemplateSave" class="btn btn-primary" type="submit">Save template</button>
+                <button id="certificateTemplateClear" class="btn btn-outline-secondary" type="button">Clear form</button>
+            </div>
+        </form>
+    </div></div>
+    <div class="card"><div class="card-body">
+        <div class="d-flex flex-wrap align-items-end gap-2 mb-3">
+            <div class="flex-grow-1"><label class="form-label" for="certificateTemplateSearch">Search templates</label>
+                <input class="form-control" id="certificateTemplateSearch" maxlength="100" placeholder="Name or code" /></div>
+            <button class="btn btn-outline-primary" id="certificateTemplateRefresh" type="button">Search</button>
+            <button class="btn btn-outline-secondary" id="certificateTemplateCsv" type="button">CSV (current page)</button>
+            <button class="btn btn-outline-secondary" id="certificateTemplatePrint" type="button">Print register</button>
+        </div>
+        <div class="table-responsive"><table class="table table-sm table-hover" id="certificateTemplateTable">
+            <thead><tr><th>Code</th><th>Name</th><th>Active</th><th>Default</th><th>Issued</th><th class="certificate-template-action">Action</th></tr></thead>
+            <tbody id="certificateTemplateRows"><tr><td colspan="6">Loading…</td></tr></tbody>
+        </table></div>
+        <div class="d-flex justify-content-between align-items-center">
+            <span class="text-muted small" id="certificateTemplateCount"></span>
+            <div class="d-flex gap-2">
+                <button id="certificateTemplatePrev" class="btn btn-sm btn-outline-secondary" type="button">Previous</button>
+                <button id="certificateTemplateNext" class="btn btn-sm btn-outline-secondary" type="button">Next</button>
+            </div>
+        </div>
+    </div></div>
+</section>
+<style>
+@@media print {
+    #certificateTemplateForm, #certificateTemplateRefresh, #certificateTemplateCsv,
+    #certificateTemplatePrint, #certificateTemplateSearch, #certificateTemplatePrev,
+    #certificateTemplateNext, #certificateTemplateNotice, .certificate-template-action { display: none !important; }
+}
+</style>
+@section Scripts { <script src="~/js/exams/certificate-templates.js" asp-append-version="true"></script> }
