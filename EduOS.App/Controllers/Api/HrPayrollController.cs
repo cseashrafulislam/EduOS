@@ -38,6 +38,12 @@ public sealed class HrPayrollController : ControllerBase
         [FromBody] SaveSalaryComponentRequestDto request, CancellationToken ct) =>
         Result(await _service.SaveSalaryComponentAsync(componentId, request, ct));
 
+    [HttpGet("salary-structures/{employeeReference:guid}")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> SalaryStructureHistory(Guid employeeReference,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 10, CancellationToken ct = default) =>
+        Result(await _service.GetSalaryStructuresAsync(employeeReference, page, pageSize, ct));
+
     [HttpPost("salary-structures")]
     [Authorize(Roles = "TenantAdmin,Principal,HR,Accountant")]
     public async Task<IActionResult> SaveSalary([FromBody] SaveSalaryStructureRequestDto request,

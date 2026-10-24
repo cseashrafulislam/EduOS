@@ -9,6 +9,7 @@ public interface IPayrollAdministrationService
     Task<ApiResponse<IReadOnlyList<SalaryComponentDto>>> GetSalaryComponentsAsync(CancellationToken cancellationToken = default);
     Task<ApiResponse<SalaryComponentDto>> SaveSalaryComponentAsync(long? componentId, SaveSalaryComponentRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<SalaryStructureDto>> SaveSalaryStructureAsync(SaveSalaryStructureRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<SalaryStructureDto>>> GetSalaryStructuresAsync(Guid employeeReference, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<PayrollRunDto>> CreatePayrollRunAsync(CreatePayrollRunRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<PayrollRunDto>> GetPayrollRunAsync(Guid runReference, CancellationToken cancellationToken = default);
     Task<ApiResponse<PayrollRunDto>> ApprovePayrollRunAsync(Guid runReference, ApprovePayrollRunRequestDto request, CancellationToken cancellationToken = default);

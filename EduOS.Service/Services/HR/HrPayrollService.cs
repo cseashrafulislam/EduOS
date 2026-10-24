@@ -227,6 +227,46 @@ public sealed class HrPayrollService : IPayrollAdministrationService
         }
     }
 
+
+    /// <summary>Tenant-administrator-only historical salary structure register.
+    /// Cross-campus payroll data is never exposed to campus-limited roles.</summary>
+    public async Task<ApiResponse<PagedResult<SalaryStructureDto>>> GetSalaryStructuresAsync(
+        Guid employeeReference, int page, int pageSize, CancellationToken ct = default)
+    {
+        if (!_user.IsAuthenticated || !_user.IsTenantAdmin || _user.TenantId <= 0)
+            return Denied<PagedResult<SalaryStructureDto>>();
+        if (employeeReference == Guid.Empty || page < 1 || pageSize is < 1 or > 50 ||
+            (long)(page - 1) * pageSize > int.MaxValue)
+            return Error<PagedResult<SalaryStructureDto>>("Invalid employee or pagination.");
+        var tenant = _user.TenantId;
+        var employee = await _employees.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.PublicId == employeeReference && !x.IsDeleted, ct);
+        if (employee == null)
+            return Error<PagedResult<SalaryStructureDto>>("Employee not found.", 404);
+        var query = _structures.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.EmployeeId == employee.Id && !x.IsDeleted);
+        var count = await query.CountAsync(ct);
+        var rows = await query.OrderByDescending(x => x.EffectiveFrom).ThenByDescending(x => x.Id)
+            .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        var ids = rows.Select(x => x.Id).ToArray();
+        var lines = await _structureLines.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && ids.Contains(x.SalaryStructureId) && !x.IsDeleted)
+            .OrderBy(x => x.Id).ToListAsync(ct);
+        var componentIds = lines.Select(x => x.SalaryComponentId).Distinct().ToArray();
+        var components = await _components.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && componentIds.Contains(x.Id) && !x.IsDeleted).ToListAsync(ct);
+        if (lines.Any(x => !components.Any(c => c.Id == x.SalaryComponentId)))
+            return Error<PagedResult<SalaryStructureDto>>(
+                "Salary history references a missing component; contact payroll administration.", 409);
+        var lookup = lines.ToLookup(x => x.SalaryStructureId);
+        var items = rows.Select(x => MapStructure(x, employee, lookup[x.Id].ToList(), components)).ToList();
+        return ApiResponse<PagedResult<SalaryStructureDto>>.SuccessResponse(
+            new PagedResult<SalaryStructureDto>
+            {
+                Page = page, PageSize = pageSize, TotalCount = count, Items = items
+            });
+    }
+
     public async Task<ApiResponse<PayrollRunDto>> CreatePayrollRunAsync(CreatePayrollRunRequestDto request,
         CancellationToken ct = default)
     {
