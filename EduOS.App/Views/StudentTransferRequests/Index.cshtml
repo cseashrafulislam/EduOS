@@ -57,6 +57,23 @@
             </div></section>
         </div>
     </div>
+    <section id="destinationInbox" class="card border-0 shadow-sm mt-4" aria-labelledby="destinationInboxTitle">
+        <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                <div>
+                    <h2 id="destinationInboxTitle" class="h5 mb-1">Incoming destination transfers</h2>
+                    <p class="small text-muted mb-0">Only source-approved requests addressed to your institution appear here. No source learner or guardian details are disclosed. Acceptance acknowledges the handoff; it does not enroll a student or complete a transfer.</p>
+                </div>
+                <button id="destinationRefresh" type="button" class="btn btn-outline-primary btn-sm">Refresh inbox</button>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                    <thead><tr><th>Transfer reference</th><th>Source institution ID</th><th>Requested (UTC)</th><th>State</th><th>Decision</th></tr></thead>
+                    <tbody id="destinationRows"><tr><td colspan="5">Loading incoming transfers…</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+    </section>
 </div>
 @section Scripts {
     <script src="~/js/students/transfer-requests.js" asp-append-version="true"></script>
