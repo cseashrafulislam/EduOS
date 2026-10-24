@@ -1,79 +1,159 @@
 (() => {
- 'use strict';const root=document.getElementById('payrollApp');if(!root)return;
- const el=id=>document.getElementById(id),manager=root.dataset.manager==='true';
- const state={request:null,signature:null,rows:[],busy:false};
- const opt=(value,label)=>{const x=document.createElement('option');x.value=String(value);x.textContent=label;return x;};
- const td=value=>{const x=document.createElement('td');x.textContent=value==null?'':String(value);return x;};
- function msg(type,text){const x=el('payrollAlert');x.className='alert alert-'+type;x.textContent=text;x.focus();}
- async function api(url,method='GET',body){
-   const r=await fetch(url,{method,cache:'no-store',credentials:'same-origin',headers:{Accept:'application/json',...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})});
-   const j=await r.json().catch(()=>null);if(!r.ok||!j?.success)throw new Error(j?.message||'Request failed.');return j.data;
- }
- function render(rows){
-   state.rows=rows||[];const body=el('payrollRows');body.replaceChildren();
-   for(const row of state.rows){
-     const tr=document.createElement('tr');tr.append(td(row.employeeName+' ('+row.employeeCode+')'),td(row.month+'/'+row.year),td(row.grossSalary),
-       td((Number(row.attendanceDeduction)||0)+(Number(row.loanDeduction)||0)),td(row.netSalary),td(row.status));
-     if(manager){const x=document.createElement('td');if(row.status!=='Paid'&&Number(row.netSalary)>0){
-       const b=document.createElement('button');b.type='button';b.textContent='Record payment';b.className='btn btn-sm btn-outline-primary';b.onclick=()=>pay(row);x.append(b);}
-       tr.append(x);}
-     body.append(tr);
-   }
-   if(!state.rows.length){const tr=document.createElement('tr'),x=td('No records.');x.colSpan=manager?7:6;tr.append(x);body.append(tr);}
- }
- async function searchEmployees(){
-   try{const items=await api('/api/hr-payroll/employee-options?search='+encodeURIComponent(el('payrollSearchInput').value.trim()));
-     const box=el('payrollEmployee');box.replaceChildren(opt('','Select employee'));for(const item of items||[])box.append(opt(item.reference,item.name+' ('+item.employeeCode+')'));
-     if(items?.length===100)msg('warning','Showing first 100 results. Narrow the search.');}
-   catch(e){msg('danger',e.message);}
- }
- async function saveSalary(e){
-   e.preventDefault();if(!e.currentTarget.reportValidity())return;
-   const request={employeeReference:el('payrollEmployee').value,basicSalary:Number(el('payrollBasic').value),houseRent:Number(el('payrollHouse').value),
-     medical:Number(el('payrollMedical').value),transport:Number(el('payrollTransport').value),others:Number(el('payrollOthers').value),
-     effectiveFrom:el('payrollEffectiveFrom').value+'T00:00:00'};
-   if(!confirm('Save a new salary structure effective '+el('payrollEffectiveFrom').value+'? The previous current structure will be closed.'))return;
-   el('payrollSaveSalary').disabled=true;
-   try{await api('/api/hr-payroll/salary-structure','PUT',request);msg('success','Salary structure saved.');}
-   catch(ex){msg('danger',ex.message);}finally{el('payrollSaveSalary').disabled=false;}
- }
- async function loadPeriod(){
-   const year=Number(el('payrollYear').value),month=Number(el('payrollMonth').value),page=Number(el('payrollPage').value);
-   try{const result=await api('/api/hr-payroll/period?year='+year+'&month='+month+'&page='+page+'&pageSize=25');
-     render(result.rows);el('payrollCount').textContent=result.totalCount+' payroll row(s), page '+result.page;}
-   catch(e){msg('danger',e.message);}
- }
- async function generate(){
-   const year=Number(el('payrollYear').value),month=Number(el('payrollMonth').value);
-   if(year<2000||year>2200||month<1||month>12)return msg('danger','Select a valid payroll period.');
-   if(!confirm('Generate payroll for '+month+'/'+year+'? Verify salary structures and attendance first.'))return;
-   const key=year+'-'+month;if(state.signature!==key){state.signature=key;state.request=crypto.randomUUID();}
-   el('payrollGenerate').disabled=true;
-   try{const result=await api('/api/hr-payroll/generate','POST',{clientRequestId:state.request,year,month});
-     render(result.rows);el('payrollSummary').textContent='Generated: '+result.generated+', existing: '+result.existing;
-     state.request=null;state.signature=null;msg('success','Payroll generated.');}
-   catch(e){msg('danger',e.message+' Request ID retained for safe retry.');}
-   finally{el('payrollGenerate').disabled=false;}
- }
- async function pay(row){
-   const method=prompt('Payment method (Bank, Cash, Bkash, Nagad)','Bank');if(method===null)return;
-   if(!['Bank','Cash','Bkash','Nagad'].includes(method))return msg('warning','Unsupported payment method.');
-   if(!confirm('Confirm '+row.netSalary+' payment to '+row.employeeName+'? This is a financial transaction.'))return;
-   try{const result=await api('/api/hr-payroll/pay','POST',{payrollReference:row.reference,paymentMethod:method,rowVersion:row.rowVersion,note:null});
-     const n=state.rows.findIndex(x=>x.reference===result.reference);if(n>=0)state.rows[n]=result;render(state.rows);msg('success','Payroll payment recorded.');}
-   catch(e){msg('danger',e.message);}
- }
- async function my(){
-   try{const rows=await api('/api/hr-payroll/my');render(rows);el('payrollCount').textContent=(rows||[]).length+' payslip(s)';}
-   catch(e){msg('danger',e.message);}
- }
- const now=new Date();
- if(manager){
-   el('payrollMonth').value=String(now.getMonth()+1);el('payrollYear').value=String(now.getFullYear());
-   el('payrollSearch').addEventListener('click',searchEmployees);el('payrollSalaryForm').addEventListener('submit',saveSalary);
-   el('payrollLoad').addEventListener('click',loadPeriod);el('payrollGenerate').addEventListener('click',generate);
-   for(const id of ['payrollYear','payrollMonth'])el(id).addEventListener('change',()=>{state.request=null;state.signature=null;});
-   searchEmployees();
- }else my();
- el('payrollMy').addEventListener('click',my);
+'use strict';
+const root = document.getElementById('payrollApp'); if (!root) return;
+const admin = root.dataset.manager === 'true';
+const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value;
+const el = id => document.getElementById(id);
+const state = {runPage:1, runPages:1, detailPage:1, detailPages:1, slipPage:1, slipPages:1,
+    selected:null, requestId:null, requestPeriod:null, busy:false};
+const cell = value => {const td=document.createElement('td');td.textContent=value==null?'':String(value);return td;};
+const money = value => Number(value||0).toLocaleString('en-BD',{minimumFractionDigits:2,maximumFractionDigits:2});
+const status = value => ({1:'Draft',2:'Calculated',3:'Approved',4:'Posted',5:'Cancelled'}[value] ||
+    ({Draft:'Draft',Calculated:'Calculated',Approved:'Approved',Posted:'Posted',Cancelled:'Cancelled'}[value] || String(value)));
+function notice(message,error=false) {
+    const box=el('payrollAlert');box.className='alert '+(error?'alert-danger':'alert-success');
+    box.textContent=message;box.focus();
+}
+async function api(url,method='GET',body) {
+    const headers={Accept:'application/json'};
+    if(method!=='GET') {
+        if(!token)throw Error('Antiforgery token missing. Reload the page.');
+        headers.RequestVerificationToken=token;
+    }
+    if(body!==undefined)headers['Content-Type']='application/json';
+    const response=await fetch(url,{method,cache:'no-store',credentials:'same-origin',headers,
+        ...(body===undefined?{}:{body:JSON.stringify(body)})});
+    const result=await response.json().catch(()=>null);
+    if(!response.ok||!result?.success)throw Error(result?.message||'Payroll request failed.');
+    return result.data;
+}
+function pageInfo(prefix,page,pages,count) {
+    el(prefix+'PageLabel').textContent='Page '+page+' of '+pages+' · '+count+' records';
+    el(prefix+'Prev').disabled=page<=1;el(prefix+'Next').disabled=page>=pages;
+}
+function empty(body,cols,message) {
+    const tr=document.createElement('tr'),td=cell(message);td.colSpan=cols;tr.append(td);body.append(tr);
+}
+function period() {
+    const year=Number(el('payrollYear').value),month=Number(el('payrollMonth').value);
+    if(!Number.isInteger(year)||year<2000||year>2200||!Number.isInteger(month)||month<1||month>12)
+        throw Error('Select a valid payroll month and year.');
+    return {year,month};
+}
+function action(text,handler,css='btn-outline-primary') {
+    const button=document.createElement('button');button.type='button';
+    button.className='btn btn-sm '+css;button.textContent=text;
+    button.addEventListener('click',handler);return button;
+}
+async function loadRuns() {
+    if(!admin)return;
+    try {
+        const {year,month}=period();
+        const data=await api('/api/hr-payroll/runs?'+new URLSearchParams({
+            year:String(year),month:String(month),page:String(state.runPage),pageSize:'10'}));
+        const body=el('payrollRunRows');body.replaceChildren();
+        state.runPages=Math.max(1,Math.ceil((data.totalCount||0)/10));
+        for(const row of data.items||[]) {
+            const tr=document.createElement('tr');
+            tr.append(cell(row.runNumber),cell(row.month+'/'+row.year),cell(row.campusId??'Institution-wide'),
+                cell(row.employeeCount),cell(money(row.grossAmount)),cell(money(row.deductionAmount)),
+                cell(money(row.netAmount)),cell(status(row.state)));
+            const controls=document.createElement('td');
+            controls.append(action('Employees',()=>loadEmployees(row.reference,1)));
+            if(status(row.state)==='Calculated')
+                controls.append(' ',action('Approve',()=>approve(row),'btn-outline-warning'));
+            if(status(row.state)==='Approved')
+                controls.append(' ',action('GL posting',()=>{window.location.assign('/PayrollJournalPosting/Index');},'btn-outline-success'));
+            if(status(row.state)==='Posted')
+                controls.append(' ',action('Payments',()=>{window.location.assign('/PayrollPaymentPosting/Index');},'btn-outline-success'));
+            tr.append(controls);body.append(tr);
+        }
+        if(!data.items?.length)empty(body,9,'No payroll runs for this period.');
+        pageInfo('payrollRun',state.runPage,state.runPages,data.totalCount||0);
+    } catch(e){notice(e.message,true);}
+}
+async function generate() {
+    if(state.busy)return;
+    let selected;try{selected=period();}catch(e){return notice(e.message,true);}
+    if(!confirm('Calculate payroll for '+selected.month+'/'+selected.year+'? Salary structures must cover the full month.'))return;
+    const key=selected.year+'-'+selected.month;
+    if(state.requestPeriod!==key){state.requestPeriod=key;state.requestId=crypto.randomUUID();}
+    state.busy=true;el('payrollGenerate').disabled=true;
+    try {
+        const row=await api('/api/hr-payroll/runs','POST',{clientRequestId:state.requestId,...selected});
+        state.requestId=null;state.requestPeriod=null;state.runPage=1;
+        notice('Payroll '+row.runNumber+' calculated. A different authorized administrator must approve it.');
+        await loadRuns();
+    } catch(e){notice(e.message+' The request ID is retained for a safe retry; inspect the register first.',true);}
+    finally{state.busy=false;el('payrollGenerate').disabled=false;}
+}
+async function approve(row) {
+    if(state.busy)return;
+    if(!confirm('Approve '+row.runNumber+'? The payroll creator cannot approve their own run.'))return;
+    state.busy=true;
+    try {
+        const latest=await api('/api/hr-payroll/runs/'+encodeURIComponent(row.reference));
+        if(status(latest.state)!=='Calculated')throw Error('Payroll is no longer calculated. Reload the register.');
+        await api('/api/hr-payroll/runs/'+encodeURIComponent(row.reference)+'/approve','POST',
+            {rowVersion:latest.rowVersion});
+        notice('Payroll approved. Post the balanced institutional journal before recording payments.');
+        await loadRuns();
+    }catch(e){notice(e.message,true);}
+    finally{state.busy=false;}
+}
+async function loadEmployees(reference,page=1) {
+    if(!admin)return;
+    state.selected=reference;state.detailPage=page;
+    try {
+        const data=await api('/api/hr-payroll/runs/'+encodeURIComponent(reference)+'/employees?'+
+            new URLSearchParams({page:String(page),pageSize:'10'}));
+        if(state.selected!==reference)return;
+        const body=el('payrollEmployeeRows');body.replaceChildren();
+        for(const row of data.items||[]) {
+            const tr=document.createElement('tr');
+            const breakdown=(row.lines||[]).map(x=>x.salaryComponentName+': '+money(x.amount)).join('; ');
+            tr.append(cell(row.employeeCode),cell(row.employeeName),cell(money(row.grossAmount)),
+                cell(money(row.deductionAmount)),cell(money(row.netAmount)),cell(breakdown));
+            body.append(tr);
+        }
+        if(!data.items?.length)empty(body,6,'No employees in this payroll run.');
+        state.detailPages=Math.max(1,Math.ceil((data.totalCount||0)/10));
+        pageInfo('payrollDetail',page,state.detailPages,data.totalCount||0);
+        el('payrollDetails').classList.remove('d-none');
+    }catch(e){notice(e.message,true);}
+}
+async function loadSlips() {
+    try {
+        const data=await api('/api/hr-payroll/my-payslips?'+new URLSearchParams({
+            page:String(state.slipPage),pageSize:'10'}));
+        const body=el('payrollSlipRows');body.replaceChildren();
+        for(const row of data.items||[]) {
+            const tr=document.createElement('tr');
+            tr.append(cell(row.employeeName),cell(money(row.grossAmount)),cell(money(row.deductionAmount)),
+                cell(money(row.netAmount)),
+                cell((row.lines||[]).map(x=>x.salaryComponentName+': '+money(x.amount)).join('; ')));
+            body.append(tr);
+        }
+        if(!data.items?.length)empty(body,5,'No posted payslips found.');
+        state.slipPages=Math.max(1,Math.ceil((data.totalCount||0)/10));
+        pageInfo('payrollSlip',state.slipPage,state.slipPages,data.totalCount||0);
+    }catch(e){notice(e.message,true);}
+}
+if(admin) {
+    const now=new Date();el('payrollYear').value=String(now.getFullYear());
+    el('payrollMonth').value=String(now.getMonth()+1);
+    el('payrollLoad').addEventListener('click',()=>{state.runPage=1;loadRuns();});
+    el('payrollGenerate').addEventListener('click',generate);
+    for(const id of ['payrollYear','payrollMonth'])
+        el(id).addEventListener('change',()=>{state.requestId=null;state.requestPeriod=null;state.runPage=1;});
+    el('payrollRunPrev').addEventListener('click',()=>{if(state.runPage>1){state.runPage--;loadRuns();}});
+    el('payrollRunNext').addEventListener('click',()=>{if(state.runPage<state.runPages){state.runPage++;loadRuns();}});
+    el('payrollDetailPrev').addEventListener('click',()=>{if(state.selected&&state.detailPage>1)loadEmployees(state.selected,state.detailPage-1);});
+    el('payrollDetailNext').addEventListener('click',()=>{if(state.selected&&state.detailPage<state.detailPages)loadEmployees(state.selected,state.detailPage+1);});
+    loadRuns();
+}
+el('payrollSlipPrev').addEventListener('click',()=>{if(state.slipPage>1){state.slipPage--;loadSlips();}});
+el('payrollSlipNext').addEventListener('click',()=>{if(state.slipPage<state.slipPages){state.slipPage++;loadSlips();}});
+el('payrollMy').addEventListener('click',()=>{state.slipPage=1;loadSlips();});
+loadSlips();
 })();
