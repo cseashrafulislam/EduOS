@@ -24,7 +24,7 @@ public sealed class PayrollLoanRecoverySettlementTests
         var request = Request(run);
         var service = new PayrollJournalPostingService(db, new TestUser(), TimeProvider.System);
         var posted = await service.PostAsync(run.PublicId, request);
-        posted.StatusCode.Should().Be(200);
+        Assert.True(posted.StatusCode == 200, posted.Message);
         var accrual = await db.Journals.SingleAsync(x => x.SourceType == "PayrollRun");
         var lines = await db.JournalLines.Where(x => x.JournalId == accrual.Id).ToListAsync();
         lines.Sum(x => x.DebitAmount).Should().Be(100m);
@@ -49,7 +49,7 @@ public sealed class PayrollLoanRecoverySettlementTests
         var run = await db.PayrollRuns.SingleAsync();
         var posting = await new PayrollJournalPostingService(db, new TestUser(), TimeProvider.System)
             .PostAsync(run.PublicId, Request(run));
-        posting.StatusCode.Should().Be(200);
+        Assert.True(posting.StatusCode == 200, posting.Message);
         var loan = await db.LoanAdvances.SingleAsync();
         var cashService = new LoanRecoveryService(db, new TestUser(), TimeProvider.System);
         var history = await cashService.GetHistoryAsync(loan.Id);
@@ -60,7 +60,7 @@ public sealed class PayrollLoanRecoverySettlementTests
             Amount = 10m, AccountingPeriodId = 1, CashAccountId = 4,
             RowVersion = Convert.ToBase64String(loan.RowVersion)
         });
-        received.StatusCode.Should().Be(200);
+        Assert.True(received.StatusCode == 200, received.Message);
         (await db.LoanAdvances.SingleAsync()).OutstandingAmount.Should().Be(65m);
         (await db.LoanAdvanceRecoveries.CountAsync()).Should().Be(2);
         (await db.Journals.CountAsync(x => x.SourceType == "LoanAdvanceRecovery")).Should().Be(1);
