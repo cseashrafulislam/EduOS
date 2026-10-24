@@ -54,4 +54,19 @@ public sealed class StudentTransferRequestsController : ControllerBase
         var result = await _service.ReviewAsync(transferReference, request, ct);
         return StatusCode(result.StatusCode, result);
     }
+    [HttpGet("destination/inbox")]
+    public async Task<IActionResult> DestinationInbox(CancellationToken ct)
+    {
+        var result = await _service.GetDestinationInboxAsync(ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("destination/{transferReference:guid}/decision")]
+    public async Task<IActionResult> DestinationDecision(Guid transferReference,
+        [FromBody] DestinationTransferDecisionDto request, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await _service.DecideDestinationAsync(transferReference, request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
 }
