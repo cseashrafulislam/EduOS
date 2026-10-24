@@ -134,6 +134,8 @@ public partial class PlatformCatalogService
                 IsRequired = request.IsRequired, IsDefaultEnabled = request.IsDefaultEnabled,
                 CreatedAt = now, CreatedBy = user.UserId
             };
+            // SQL Server generates rowversion; in-memory provider needs a token for regression tests.
+            if (!db.Database.IsRelational()) row.RowVersion = Guid.NewGuid().ToByteArray();
             db.InstitutionTypeModules.Add(row);
         }
         else

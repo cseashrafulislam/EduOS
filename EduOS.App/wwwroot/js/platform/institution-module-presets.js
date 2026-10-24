@@ -101,7 +101,7 @@ function render(data) {
     }
 }
 async function load() {
-    if (busy || !typeSelect.value) {
+    if (!typeSelect.value) {
         rows.replaceChildren();
         const tr = document.createElement("tr");
         cell(tr, "Choose an institution type.").colSpan = 6;
