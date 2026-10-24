@@ -43,7 +43,7 @@
         </div>
         <p class="statement">This document confirms that the following student was issued a transfer certificate for the historical enrollment shown below. The certificate details are retrieved from the issuing institution's records.</p>
         <dl>
-            <dt>Student</dt><dd>@Model.StudentName</dd>
+            <dt>Student (current record)</dt><dd>@Model.StudentName</dd>
             <dt>Student code</dt><dd>@Model.StudentCode</dd>
             <dt>Roll number</dt><dd>@Model.RollNo</dd>
             <dt>Campus ID</dt><dd>@Model.CampusId</dd>
@@ -59,6 +59,7 @@
         {
             <div class="remarks"><strong>Conduct remark:</strong> @Model.ConductRemark</div>
         }
+        <p class="subtitle">Student name is drawn from the current directory; issue date, certificate number and exit remarks are historical records.</p>
         <div class="footer"><div class="signature">Authorized institutional signatory</div></div>
     </main>
     <script src="~/js/students/certificate-print.js" asp-append-version="true"></script>
