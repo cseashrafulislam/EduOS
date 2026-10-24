@@ -89,6 +89,8 @@ public class TransferRequest : BaseEntity
     public long SourceEnrollmentId { get; set; }
     public long? DestinationTenantId { get; set; }
     public long? DestinationStudentId { get; set; }
+    // Durable tenant-scoped enrollment identity; never infer it from a student's current enrollment.
+    public long? DestinationEnrollmentId { get; set; }
     public TransferRequestState State { get; set; } = TransferRequestState.Draft;
     [MaxLength(1000)] public string? Reason { get; set; }
     public DateTime RequestedAt { get; set; } = DateTime.UtcNow;
