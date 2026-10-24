@@ -26,6 +26,7 @@
                 <div class="col-md-6 d-flex align-items-end gap-2"><button id="hostelFindBeds" type="button" class="btn btn-outline-primary">Find</button><button id="hostelNextBed" type="button" class="btn btn-outline-secondary">Next page</button></div>
                 <div class="col-12"><label for="hostelBed" class="form-label">Unoccupied bed</label><select id="hostelBed" class="form-select" required><option value="">Choose bed</option></select></div>
                 <div class="col-md-6"><label for="hostelStart" class="form-label">Start date</label><input id="hostelStart" type="date" class="form-control" required /></div>
+                <div class="col-md-6"><label for="hostelEnd" class="form-label">Checkout date (optional)</label><input id="hostelEnd" type="date" class="form-control" /><small class="text-muted">Fixed stays: up to 90 days inclusive, starting within 365 days. Leave blank for an open-ended stay.</small></div>
                 <div class="col-md-6"><label for="hostelRent" class="form-label">Monthly rent (optional)</label><input id="hostelRent" type="number" min="0" step="0.01" class="form-control" placeholder="Use room default" /></div>
                 <div class="col-12"><button id="hostelAllocate" class="btn btn-primary" type="submit">Allocate bed</button></div>
             </form>
@@ -35,8 +36,8 @@
             <h3 class="h5">Active allocations</h3>
             <p class="small text-muted">Future reservations can be cancelled before arrival. Started allocations must be closed. Cancellation releases the bed without changing payment records.</p>
             <form id="hostelAllocationSearch" class="d-flex gap-2"><input id="hostelAllocationTerm" maxlength="100" class="form-control" placeholder="Search student" /><button type="submit" class="btn btn-outline-primary">Search</button></form>
-            <div class="table-responsive mt-3"><table class="table table-hover align-middle"><thead><tr><th>Student</th><th>Hostel</th><th>Room / Bed</th><th>Start</th><th>Action</th></tr></thead>
-                <tbody id="hostelActiveRows"><tr><td colspan="5">Loading…</td></tr></tbody></table></div>
+            <div class="table-responsive mt-3"><table class="table table-hover align-middle"><thead><tr><th>Student</th><th>Hostel</th><th>Room / Bed</th><th>Start</th><th>End</th><th>Action</th></tr></thead>
+                <tbody id="hostelActiveRows"><tr><td colspan="6">Loading…</td></tr></tbody></table></div>
             <section id="hostelStartReschedulePanel" class="border rounded p-3 mt-3 d-none" aria-labelledby="hostelRescheduleTitle">
                 <h4 id="hostelRescheduleTitle" class="h6">Reschedule upcoming arrival</h4>
                 <p id="hostelRescheduleContext" class="small text-muted"></p>

@@ -109,6 +109,8 @@ public class AllocateStudentHostelRequestDto
     public Guid StudentEnrollmentReference { get; set; }
     public long HostelBedId { get; set; }
     public DateOnly StartDate { get; set; }
+    /// <summary>Inclusive optional checkout date; finite reservations are limited to 90 days.</summary>
+    public DateOnly? EndDate { get; set; }
     public decimal? MonthlyRent { get; set; }
 }
 
@@ -143,5 +145,6 @@ public sealed class HostelAllocationRowDto
     public string RoomNumber { get; set; } = string.Empty;
     public string BedNumber { get; set; } = string.Empty;
     public DateOnly StartDate { get; set; }
+    public DateOnly? EndDate { get; set; }
     public string RowVersion { get; set; } = string.Empty;
 }

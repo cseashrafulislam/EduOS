@@ -203,14 +203,16 @@ public sealed class HostelController : ControllerBase
     [HttpGet("eligible-students")]
     [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
     public async Task<IActionResult> EligibleStudents([FromQuery] int page = 1, [FromQuery] int pageSize = 25,
-        [FromQuery] string? search = null, CancellationToken cancellationToken = default) =>
-        ToAction(await _service.GetEligibleStudentsAsync(page, pageSize, search, cancellationToken));
+        [FromQuery] string? search = null, [FromQuery] DateOnly? startDate = null,
+        [FromQuery] DateOnly? endDate = null, CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetEligibleStudentsAsync(page, pageSize, search, cancellationToken, startDate, endDate));
 
     [HttpGet("available-beds")]
     [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
     public async Task<IActionResult> AvailableBeds([FromQuery] int page = 1, [FromQuery] int pageSize = 25,
-        [FromQuery] string? search = null, CancellationToken cancellationToken = default) =>
-        ToAction(await _service.GetAvailableBedsAsync(page, pageSize, search, cancellationToken));
+        [FromQuery] string? search = null, [FromQuery] DateOnly? startDate = null,
+        CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetAvailableBedsAsync(page, pageSize, search, cancellationToken, startDate));
 
     [HttpGet("active-allocations")]
     [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]

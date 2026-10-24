@@ -42,7 +42,8 @@ public sealed partial class HostelService
         var reservations = await (from allocation in _allocations.GetQueryable().AsNoTracking()
             join bed in _beds.GetQueryable().AsNoTracking() on allocation.HostelBedId equals bed.Id
             where allocation.TenantId == tenant && bed.TenantId == tenant &&
-                ids.Contains(bed.HostelRoomId) && allocation.State == HostelAllocationState.Active
+                ids.Contains(bed.HostelRoomId) && allocation.State == HostelAllocationState.Active &&
+                (!allocation.EndDate.HasValue || allocation.EndDate.Value >= today)
             group allocation.HostelBedId by bed.HostelRoomId into g
             select new { RoomId = g.Key, Count = g.Distinct().Count() })
             .ToDictionaryAsync(x => x.RoomId, x => x.Count, cancellationToken);
@@ -94,7 +95,8 @@ public sealed partial class HostelService
                 var reserved = await (from allocation in _allocations.GetQueryable().AsNoTracking()
                     join bed in _beds.GetQueryable().AsNoTracking() on allocation.HostelBedId equals bed.Id
                     where allocation.TenantId == tenant && bed.TenantId == tenant &&
-                        bed.HostelRoomId == room.Id && allocation.State == HostelAllocationState.Active
+                        bed.HostelRoomId == room.Id && allocation.State == HostelAllocationState.Active &&
+                        (!allocation.EndDate.HasValue || allocation.EndDate.Value >= today)
                     select bed.Id).Distinct().CountAsync(ct);
                 var occupied = await (from allocation in _allocations.GetQueryable().AsNoTracking()
                     join bed in _beds.GetQueryable().AsNoTracking() on allocation.HostelBedId equals bed.Id

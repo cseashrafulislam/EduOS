@@ -68,7 +68,8 @@ public sealed partial class HostelService : IHostelService
                     a.HostelBedId == bed.Id && a.State == HostelAllocationState.Active &&
                     a.StartDate <= today && (!a.EndDate.HasValue || a.EndDate.Value >= today)),
                 HasActiveReservations = _allocations.GetQueryable().Any(a => a.TenantId == tenant &&
-                    a.HostelBedId == bed.Id && a.State == HostelAllocationState.Active)
+                    a.HostelBedId == bed.Id && a.State == HostelAllocationState.Active &&
+                    (!a.EndDate.HasValue || a.EndDate.Value >= today))
             };
         if (!_currentUser.IsTenantAdmin)
         {
@@ -121,10 +122,11 @@ public sealed partial class HostelService : IHostelService
                     return ApiResponse<HostelBedInventoryDto>.ErrorResponse("Active campus not found.", 404);
                 if (!await CanManageCampusAsync(hostel.CampusId, tenant, ct))
                     return Denied<HostelBedInventoryDto>();
+                var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
                 var reserved = await _allocations.GetQueryable().AsNoTracking().AnyAsync(x =>
                     x.TenantId == tenant && x.HostelBedId == bed.Id &&
-                    x.State == HostelAllocationState.Active, ct);
-                var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+                    x.State == HostelAllocationState.Active &&
+                    (!x.EndDate.HasValue || x.EndDate.Value >= today), ct);
                 var occupiedToday = await _allocations.GetQueryable().AsNoTracking().AnyAsync(x =>
                     x.TenantId == tenant && x.HostelBedId == bed.Id &&
                     x.State == HostelAllocationState.Active &&
@@ -302,10 +304,16 @@ public sealed partial class HostelService : IHostelService
     }
 
     public async Task<ApiResponse<PagedResult<HostelStudentOptionDto>>> GetEligibleStudentsAsync(
-        int page, int pageSize, string? search, CancellationToken cancellationToken = default)
+        int page, int pageSize, string? search, CancellationToken cancellationToken = default,
+        DateOnly? startDate = null, DateOnly? endDate = null)
     {
         if (!CanManage()) return Denied<PagedResult<HostelStudentOptionDto>>();
         if (page < 1 || pageSize is < 1 or > 100) return ApiResponse<PagedResult<HostelStudentOptionDto>>.ErrorResponse("Invalid paging parameters.");
+        var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+        var from = startDate ?? today;
+        if (from < today || from > today.AddDays(365) || !IsValidFiniteBookingPeriod(from, endDate, today))
+            return ApiResponse<PagedResult<HostelStudentOptionDto>>.ErrorResponse("Invalid reservation period.");
+        var through = endDate ?? DateOnly.MaxValue;
         var tenant = _currentUser.TenantId;
         var query = from enrollment in _enrollments.GetQueryable().AsNoTracking()
                     join student in _students.GetQueryable().AsNoTracking() on enrollment.StudentId equals student.Id
@@ -313,7 +321,8 @@ public sealed partial class HostelService : IHostelService
                         enrollment.IsCurrent && enrollment.State == EnrollmentState.Active && student.StatusCode == "Active" &&
                         _campuses.GetQueryable().Any(c => c.TenantId == tenant && c.Id == enrollment.CampusId && c.IsActive) &&
                         !_allocations.GetQueryable().Any(x => x.TenantId == tenant && x.StudentId == student.Id &&
-                            x.State == HostelAllocationState.Active)
+                            !x.IsDeleted && x.State != HostelAllocationState.Cancelled &&
+                            x.StartDate <= through && (!x.EndDate.HasValue || x.EndDate.Value >= from))
                     select new { enrollment.PublicId, enrollment.CampusId, student.FullName, student.StudentCode, enrollment.RollNo };
         if (!_currentUser.IsTenantAdmin)
         {
@@ -340,10 +349,15 @@ public sealed partial class HostelService : IHostelService
     }
 
     public async Task<ApiResponse<PagedResult<HostelBedOptionDto>>> GetAvailableBedsAsync(
-        int page, int pageSize, string? search, CancellationToken cancellationToken = default)
+        int page, int pageSize, string? search, CancellationToken cancellationToken = default,
+        DateOnly? startDate = null)
     {
         if (!CanManage()) return Denied<PagedResult<HostelBedOptionDto>>();
         if (page < 1 || pageSize is < 1 or > 100) return ApiResponse<PagedResult<HostelBedOptionDto>>.ErrorResponse("Invalid paging parameters.");
+        var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+        var from = startDate ?? today;
+        if (from < today || from > today.AddDays(365))
+            return ApiResponse<PagedResult<HostelBedOptionDto>>.ErrorResponse("Invalid reservation start date.");
         var tenant = _currentUser.TenantId;
         var query = from bed in _beds.GetQueryable().AsNoTracking()
                     join room in _rooms.GetQueryable().AsNoTracking() on bed.HostelRoomId equals room.Id
@@ -352,9 +366,11 @@ public sealed partial class HostelService : IHostelService
                         bed.IsActive && room.IsActive && hostel.IsActive && room.Capacity > 0 &&
                         _campuses.GetQueryable().Any(c => c.TenantId == tenant && c.Id == hostel.CampusId && c.IsActive) &&
                         !_allocations.GetQueryable().Any(x => x.TenantId == tenant && x.HostelBedId == bed.Id &&
-                            x.State == HostelAllocationState.Active) &&
+                            !x.IsDeleted && x.State != HostelAllocationState.Cancelled &&
+                            (!x.EndDate.HasValue || x.EndDate.Value >= from)) &&
                         _allocations.GetQueryable().Count(x => x.TenantId == tenant &&
-                            x.State == HostelAllocationState.Active &&
+                            !x.IsDeleted && x.State != HostelAllocationState.Cancelled &&
+                            (!x.EndDate.HasValue || x.EndDate.Value >= from) &&
                             _beds.GetQueryable().Any(b => b.TenantId == tenant && b.Id == x.HostelBedId &&
                                 b.HostelRoomId == room.Id)) < room.Capacity
                     select new { BedId = bed.Id, bed.BedNumber, room.RoomNumber, room.RentPerBed,
@@ -390,15 +406,18 @@ public sealed partial class HostelService : IHostelService
         if (!CanManage()) return Denied<PagedResult<HostelAllocationRowDto>>();
         if (page < 1 || pageSize is < 1 or > 100) return ApiResponse<PagedResult<HostelAllocationRowDto>>.ErrorResponse("Invalid paging parameters.");
         var tenant = _currentUser.TenantId;
+        var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
         var query = from allocation in _allocations.GetQueryable().AsNoTracking()
                     join student in _students.GetQueryable().AsNoTracking() on allocation.StudentId equals student.Id
                     join bed in _beds.GetQueryable().AsNoTracking() on allocation.HostelBedId equals bed.Id
                     join room in _rooms.GetQueryable().AsNoTracking() on bed.HostelRoomId equals room.Id
                     join hostel in _hostels.GetQueryable().AsNoTracking() on room.HostelId equals hostel.Id
                     where allocation.TenantId == tenant && student.TenantId == tenant && bed.TenantId == tenant &&
-                        room.TenantId == tenant && hostel.TenantId == tenant && allocation.State == HostelAllocationState.Active
+                        room.TenantId == tenant && hostel.TenantId == tenant &&
+                        allocation.State == HostelAllocationState.Active &&
+                        (!allocation.EndDate.HasValue || allocation.EndDate.Value >= today)
                     select new { allocation.Id, allocation.StudentId, allocation.StudentEnrollmentId, hostel.CampusId,
-                        allocation.StartDate, allocation.RowVersion, student.FullName, student.StudentCode,
+                        allocation.StartDate, allocation.EndDate, allocation.RowVersion, student.FullName, student.StudentCode,
                         HostelName = hostel.Name, room.RoomNumber, bed.BedNumber };
         if (!_currentUser.IsTenantAdmin)
         {
@@ -419,7 +438,8 @@ public sealed partial class HostelService : IHostelService
         var items = data.Select(x => new HostelAllocationRowDto
         {
             Id = x.Id, StudentName = x.FullName, HostelName = x.HostelName, RoomNumber = x.RoomNumber,
-            BedNumber = x.BedNumber, StartDate = x.StartDate, RowVersion = Convert.ToBase64String(x.RowVersion)
+            BedNumber = x.BedNumber, StartDate = x.StartDate, EndDate = x.EndDate,
+            RowVersion = Convert.ToBase64String(x.RowVersion)
         }).ToList();
         return ApiResponse<PagedResult<HostelAllocationRowDto>>.SuccessResponse(new PagedResult<HostelAllocationRowDto>
         {
@@ -449,6 +469,10 @@ public sealed partial class HostelService : IHostelService
         if (request == null || request.ClientRequestId == Guid.Empty || request.StudentEnrollmentReference == Guid.Empty ||
             request.HostelBedId <= 0) return Error("Enrollment, bed and client request references are required.");
         if (request.MonthlyRent.HasValue && request.MonthlyRent < 0) return Error("Monthly rent cannot be negative.");
+        var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+        var start = request.StartDate == default ? today : request.StartDate;
+        if (!IsValidFiniteBookingPeriod(start, request.EndDate, today))
+            return Error("Finite hostel reservations must start within 365 days and last at most 90 inclusive days.");
         var tenant = _currentUser.TenantId;
         try
         {
@@ -479,6 +503,7 @@ public sealed partial class HostelService : IHostelService
                     x.Id == existing.StudentEnrollmentId).Select(x => x.PublicId).FirstOrDefaultAsync(cancellationToken);
                 if (enrollmentReference != request.StudentEnrollmentReference || existing.HostelBedId != request.HostelBedId ||
                     (request.StartDate != default && existing.StartDate != request.StartDate) ||
+                    existing.EndDate != request.EndDate ||
                     (request.MonthlyRent.HasValue && existing.MonthlyRent != request.MonthlyRent.Value))
                     return Error("Client request ID was reused for different allocation data.", 409);
                 var replay = await MapAsync(existing, cancellationToken);
@@ -510,24 +535,32 @@ public sealed partial class HostelService : IHostelService
                 !string.Equals(selection.Hostel.GenderRestriction, student.Gender, StringComparison.OrdinalIgnoreCase))
                 return Error("The student's gender does not meet the hostel restriction.", 409);
             if (selection.Room.Capacity <= 0) return Error("Hostel room capacity is unavailable.", 409);
+            var end = request.EndDate ?? DateOnly.MaxValue;
             if (await _allocations.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
-                x.StudentId == student.Id && x.State == HostelAllocationState.Active, cancellationToken))
-                return Error("Student already has an active hostel allocation.", 409);
+                !x.IsDeleted && x.StudentId == student.Id && x.State != HostelAllocationState.Cancelled &&
+                x.StartDate <= end && (!x.EndDate.HasValue || x.EndDate.Value >= start), cancellationToken))
+                return Error("Student has an overlapping hostel reservation.", 409);
             if (await _allocations.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
-                x.HostelBedId == selection.Bed.Id && x.State == HostelAllocationState.Active, cancellationToken))
-                return Error("Selected bed is occupied.", 409);
-            var roomBedIds = await _beds.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
-                x.HostelRoomId == selection.Room.Id).Select(x => x.Id).ToArrayAsync(cancellationToken);
-            var occupied = await _allocations.GetQueryable().AsNoTracking().CountAsync(x => x.TenantId == tenant &&
-                roomBedIds.Contains(x.HostelBedId) && x.State == HostelAllocationState.Active, cancellationToken);
-            if (occupied >= selection.Room.Capacity) return Error("Hostel room has reached capacity.", 409);
-            var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+                !x.IsDeleted && x.HostelBedId == selection.Bed.Id && x.State != HostelAllocationState.Cancelled &&
+                x.StartDate <= end && (!x.EndDate.HasValue || x.EndDate.Value >= start), cancellationToken))
+                return Error("Selected bed is reserved during the requested period.", 409);
+            var roomStays = await (from stay in _allocations.GetQueryable().AsNoTracking()
+                join bed in _beds.GetQueryable().AsNoTracking() on stay.HostelBedId equals bed.Id
+                where stay.TenantId == tenant && bed.TenantId == tenant &&
+                    !stay.IsDeleted && !bed.IsDeleted && stay.State != HostelAllocationState.Cancelled &&
+                    bed.HostelRoomId == selection.Room.Id && stay.StartDate <= end &&
+                    (!stay.EndDate.HasValue || stay.EndDate.Value >= start)
+                select new { stay.StartDate, stay.EndDate }).Take(5001).ToListAsync(cancellationToken);
+            if (roomStays.Count > 5000) return Error("Too many overlapping reservations to validate safely.", 413);
+            if (PeakConcurrentStays(start, request.EndDate,
+                roomStays.Select(x => (x.StartDate, x.EndDate))) > selection.Room.Capacity)
+                return Error("Hostel room would exceed capacity during the requested stay.", 409);
             var now = _clock.GetUtcNow().UtcDateTime;
             var allocation = new StudentHostelAllocation
             {
                 TenantId = tenant, ClientRequestId = request.ClientRequestId, StudentId = student.Id,
                 StudentEnrollmentId = enrollment.Id, HostelBedId = selection.Bed.Id,
-                StartDate = request.StartDate == default ? today : request.StartDate,
+                StartDate = start, EndDate = request.EndDate,
                 MonthlyRent = request.MonthlyRent ?? selection.Room.RentPerBed,
                 SecurityDeposit = 0m, State = HostelAllocationState.Active,
                 CreatedAt = now, CreatedBy = _currentUser.UserId
