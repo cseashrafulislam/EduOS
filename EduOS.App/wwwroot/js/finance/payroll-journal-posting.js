@@ -71,16 +71,32 @@ function render(data) {
         const tr = document.createElement('tr');
         for (const value of [row.runNumber, row.periodEnd, row.campusId || 'Institution-wide',
             money(row.grossAmount), money(row.deductionAmount), money(row.netAmount),
-            row.journalReference ? 'Posted · ' + row.journalReference : 'Approved / not posted']) tr.append(cell(value));
-        if (canPost) {
-            const td = document.createElement('td'), btn = document.createElement('button');
-            btn.type = 'button'; btn.className = 'btn btn-sm btn-primary'; btn.textContent = 'Map & post';
-            btn.disabled = Boolean(row.journalReference) || ![3, 'Approved'].includes(row.state);
-            btn.addEventListener('click', () => choose(row)); td.append(btn); tr.append(td);
+            row.journalReference ? 'Posted · ' + row.journalReference : ([2, 'Calculated'].includes(row.state) ? 'Calculated / approval required' : 'Approved / not posted')]) tr.append(cell(value));
+        {
+            const action = document.createElement('td'), button = document.createElement('button');
+            button.type = 'button'; button.className = 'btn btn-sm btn-primary';
+            if ([2, 'Calculated'].includes(row.state)) {
+                button.textContent = 'Approve payroll';
+                button.addEventListener('click', async () => {
+                    if (!confirm('Approve calculated payroll ' + row.runNumber + '? Maker and approver must differ.')) return;
+                    button.disabled = true;
+                    try {
+                        await request('/api/hr-payroll/runs/' + encodeURIComponent(row.reference) + '/approve',
+                            'POST', {rowVersion:row.rowVersion});
+                        alertBox('Payroll approved. Select its accounting mappings before GL posting.');
+                        await load();
+                    } catch (e) { alertBox(e.message, true); } finally { button.disabled = false; }
+                });
+            } else if (canPost && !row.journalReference && [3, 'Approved'].includes(row.state)) {
+                button.textContent = 'Map & post'; button.addEventListener('click', () => choose(row));
+            } else {
+                button.textContent = '—'; button.disabled = true;
+            }
+            action.append(button); tr.append(action);
         }
         body.append(tr);
     }
-    if (!data.runs?.length) { const tr = document.createElement('tr'), td = cell('No approved payroll runs found.'); td.colSpan = canPost ? 8 : 7; tr.append(td); body.append(tr); }
+    if (!data.runs?.length) { const tr = document.createElement('tr'), td = cell('No approved payroll runs found.'); td.colSpan = 8; tr.append(td); body.append(tr); }
     totalPages = Math.max(1, Math.ceil(data.totalCount / data.pageSize));
     el('payrollPostingPage').textContent = 'Page ' + data.page + ' of ' + totalPages + ' · ' + data.totalCount + ' runs';
     el('payrollPostingPrev').disabled = page <= 1;

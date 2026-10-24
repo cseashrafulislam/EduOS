@@ -44,7 +44,7 @@ public sealed class PayrollJournalPostingService : IPayrollJournalPostingService
             return Error<PayrollPostingRegisterDto>("Invalid payroll register pagination.");
         var tenant = user.TenantId;
         var query = db.PayrollRuns.AsNoTracking().Where(x => x.TenantId == tenant && !x.IsDeleted &&
-            (x.State == PayrollRunState.Approved || x.State == PayrollRunState.Posted));
+            (x.State == PayrollRunState.Calculated || x.State == PayrollRunState.Approved || x.State == PayrollRunState.Posted));
         if (!user.IsTenantAdmin)
             query = query.Where(x => x.CampusId.HasValue && db.UserCampusAccesses.Any(a =>
                 a.TenantId == tenant && a.UserId == user.UserId && a.CampusId == x.CampusId &&
