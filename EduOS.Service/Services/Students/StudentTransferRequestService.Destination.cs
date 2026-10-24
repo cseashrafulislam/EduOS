@@ -13,7 +13,7 @@ public sealed partial class StudentTransferRequestService
         Reference = item.PublicId, SourceTenantId = item.SourceTenantId,
         State = item.State, RequestedAt = item.RequestedAt,
         AcceptedAt = item.AcceptedAt,
-        DestinationEnrollmentLinked = item.DestinationStudentId.HasValue,
+        DestinationEnrollmentLinked = item.DestinationStudentId.HasValue && item.DestinationEnrollmentId.HasValue,
         RowVersion = Convert.ToBase64String(item.RowVersion)
     };
 
