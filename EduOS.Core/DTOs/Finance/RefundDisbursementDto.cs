@@ -1,9 +1,11 @@
 using System.ComponentModel.DataAnnotations;
 namespace EduOS.Core.DTOs.Finance;
-// Must be accepted only after an independently verified payout; not an instruction to pay.
+/// <summary>Record an independently checked cash payout voucher, never initiate a payment.</summary>
 public sealed class RecordRefundDisbursementRequestDto
 {
     public Guid ClientRequestId { get; set; }
-    [Required, MaxLength(150)] public string PayoutEvidenceReference { get; set; } = string.Empty;
+    [Range(1, long.MaxValue)] public long AccountingPeriodId { get; set; }
+    public DateOnly PayoutDate { get; set; }
+    [Required, MaxLength(100)] public string PayoutEvidenceReference { get; set; } = string.Empty;
     [Required] public string RowVersion { get; set; } = string.Empty;
 }

@@ -52,6 +52,62 @@ public sealed class FinanceAdjustmentServiceTests
         result.Success.Should().BeFalse();
         db.DiscountRules.Should().BeEmpty();
     }
+
+    [Fact]
+    public void Refund_planner_allocates_in_stable_order_without_touching_original_amounts()
+    {
+        var sources=new[]{
+            new RefundAllocationBalance(8,100m,20m),
+            new RefundAllocationBalance(3,50m,10m)};
+        var lines=RefundAllocationPlanner.Plan(sources,90m);
+        lines.Select(x=>x.AllocationId).Should().Equal(3,8);
+        lines.Select(x=>x.Amount).Should().Equal(40m,50m);
+        sources[0].OriginalAmount.Should().Be(100m);
+    }
+    [Fact]
+    public void Refund_planner_rejects_over_refund_and_invalid_precision()
+    {
+        var sources=new[]{new RefundAllocationBalance(1,50m,45m)};
+        Action excess=()=>RefundAllocationPlanner.Plan(sources,5.01m);
+        Action precision=()=>RefundAllocationPlanner.Plan(sources,0.001m);
+        excess.Should().Throw<InvalidOperationException>();
+        precision.Should().Throw<InvalidOperationException>();
+    }
+    [Fact]
+    public void Paid_invoices_cannot_be_mutated_by_refund_workflow()
+    {
+        EduOS.Service.Services.Finance.RefundInvoicePolicy.CanAdjust(
+            EduOS.Core.Enums.Domain.InvoiceState.Paid).Should().BeFalse();
+        EduOS.Service.Services.Finance.RefundInvoicePolicy.CanAdjust(
+            EduOS.Core.Enums.Domain.InvoiceState.PartiallyPaid).Should().BeTrue();
+    }
+    [Fact]
+    public async Task Refund_review_and_payout_require_institution_admin()
+    {
+        var accessor=new HttpContextAccessor{HttpContext=new DefaultHttpContext()};
+        accessor.HttpContext.Items["TenantId"]=11L;
+        await using var db=new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("finance-refund-security-"+Guid.NewGuid().ToString("N")).Options,accessor);
+        var service=new FinanceAdjustmentService(db,new TestUser(11,false),TimeProvider.System);
+        (await service.GetRefundRegisterAsync(null)).StatusCode.Should().Be(403);
+        (await service.ReviewRefundAsync(1,new ReviewRefundRequestDto())).StatusCode.Should().Be(403);
+        (await service.RecordRefundDisbursementAsync(1,new RecordRefundDisbursementRequestDto())).StatusCode.Should().Be(403);
+    }
+    [Fact]
+    public async Task Invalid_refund_payout_never_writes_a_journal()
+    {
+        var accessor=new HttpContextAccessor{HttpContext=new DefaultHttpContext()};
+        accessor.HttpContext.Items["TenantId"]=11L;
+        await using var db=new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("finance-refund-validation-"+Guid.NewGuid().ToString("N")).Options,accessor);
+        var service=new FinanceAdjustmentService(db,new TestUser(11,true),TimeProvider.System);
+        var response=await service.RecordRefundDisbursementAsync(1,new RecordRefundDisbursementRequestDto
+            {ClientRequestId=Guid.NewGuid(),PayoutEvidenceReference="",AccountingPeriodId=1,
+             PayoutDate=new DateOnly(2026,10,25),RowVersion="invalid"});
+        response.Success.Should().BeFalse();
+        db.Journals.Should().BeEmpty();
+        db.RefundAllocations.Should().BeEmpty();
+    }
     private sealed class TestUser(long tenant,bool admin):ICurrentUserService
     {
         public bool IsAuthenticated=>true;

@@ -47,6 +47,19 @@ public sealed class FinanceAdjustmentsController : ControllerBase
     [HttpPost("fines/{id:long}/waive")]
     public async Task<IActionResult> WaiveFine(long id,[FromBody] WaiveStudentFineRequestDto request,CancellationToken ct)
         => Reply(await service.WaiveFineAsync(id,request,ct));
+    [HttpGet("refunds")]
+    public async Task<IActionResult> Refunds([FromQuery] long? campusId, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25, CancellationToken ct = default)
+        => Reply(await service.GetRefundRegisterAsync(campusId,page,pageSize,ct));
+    [HttpPost("refunds")]
+    public async Task<IActionResult> RequestRefund([FromBody] CreateRefundRequestDto request,CancellationToken ct)
+        => Reply(await service.RequestRefundAsync(request,ct));
+    [HttpPost("refunds/{id:long}/review")]
+    public async Task<IActionResult> ReviewRefund(long id,[FromBody] ReviewRefundRequestDto request,CancellationToken ct)
+        => Reply(await service.ReviewRefundAsync(id,request,ct));
+    [HttpPost("refunds/{id:long}/record-payout")]
+    public async Task<IActionResult> RecordRefundPayout(long id,[FromBody] RecordRefundDisbursementRequestDto request,CancellationToken ct)
+        => Reply(await service.RecordRefundDisbursementAsync(id,request,ct));
     [HttpGet("enrollments/search")]
     public async Task<IActionResult> SearchEnrollments([FromQuery] string search,CancellationToken ct)
         => Reply(await service.SearchEnrollmentsAsync(search,ct));

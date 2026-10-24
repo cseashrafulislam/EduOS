@@ -84,8 +84,78 @@ el('ApplyForm').addEventListener('submit',e=>{e.preventDefault();run(e.currentTa
  fineDate:date('ApplyDate'),reason:el('ApplyReason').value.trim()||null};
  await api(base+'/fines','POST',body);await refreshRegister();
 });});
+
+let refundPage=1,refundTotal=0,refundSize=25;
+const refundStates={1:'Draft',2:'Approved',3:'Paid',4:'Rejected',5:'Cancelled'};
+function moneyText(value){return Number(value).toFixed(2);}
+function validRefundAmount(value){return /^\d{1,12}(?:\.\d{1,2})?$/.test(value)&&Number(value)>0;}
+async function loadRefunds(){
+ const campus=el('RefundCampus').value.trim();
+ if(campus && (!/^\d+$/.test(campus)||Number(campus)<1))throw Error('Invalid campus ID.');
+ const q=new URLSearchParams({page:String(refundPage),pageSize:String(refundSize)});
+ if(campus)q.set('campusId',campus);
+ const data=await api(base+'/refunds?'+q);
+ refundTotal=data.totalCount;
+ el('RefundPage').textContent='Page '+refundPage+' / '+Math.max(1,Math.ceil(refundTotal/refundSize));
+ el('RefundPrev').disabled=refundPage===1;
+ el('RefundNext').disabled=refundPage*refundSize>=refundTotal;
+ const select=el('RefundPayment');select.replaceChildren(new Option('Select posted receipt',''));
+ const rows=table('RefundPaymentRows',data.payments,6);
+ for(const p of data.payments){
+  const tr=document.createElement('tr');
+  [p.receiptNumber,p.studentCode+' — '+p.studentName,p.campusId,moneyText(p.amount),moneyText(p.reservedAmount)].forEach(x=>tr.append(cell(x)));
+  const action=cell('');action.append(button('Select',()=>{select.value=p.paymentReference;el('RefundAmount').focus();}));
+  tr.append(action);rows.append(tr);
+  select.add(new Option(p.receiptNumber+' — '+p.studentName+' / '+moneyText(p.amount),p.paymentReference));
+ }
+ const refunds=table('RefundRows',data.refunds,5);
+ for(const r of data.refunds){
+  const tr=document.createElement('tr');
+  [r.receiptNumber,moneyText(r.amount),refundStates[r.state]||r.state,r.requestedByUserId].forEach(x=>tr.append(cell(x)));
+  const actions=cell('');
+  if(r.state===1){
+   actions.append(button('Approve',()=>run(null,async()=>{
+    if(!confirm('Approve refund '+r.id+'? Requester and approver must differ.'))return;
+    await api(base+'/refunds/'+r.id+'/review','POST',{approve:true,note:'Approved after reviewing source cash receipt.',rowVersion:r.rowVersion});await loadRefunds();
+   })));
+   actions.append(' ');
+   actions.append(button('Reject',()=>run(null,async()=>{
+    const note=prompt('Rejection reason (required):');if(note===null)return;if(!note.trim())throw Error('Reason required.');
+    await api(base+'/refunds/'+r.id+'/review','POST',{approve:false,note:note.trim(),rowVersion:r.rowVersion});await loadRefunds();
+   })));
+  }
+  if(r.state===2){
+   actions.append(button('Record verified payout',()=>run(null,async()=>{
+    const reference=prompt('Independently verified cash payout voucher/reference (max 100 characters):');
+    if(reference===null)return;
+    if(!reference.trim()||reference.trim().length>100)throw Error('Voucher reference required (max 100).');
+    const period=prompt('Open accounting period ID covering the actual payout date:');if(period===null)return;
+    if(!/^\d+$/.test(period)||Number(period)<1)throw Error('Invalid period.');
+    const date=prompt('Actual payout date (YYYY-MM-DD):',new Date().toISOString().slice(0,10));if(date===null)return;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(date))throw Error('Invalid payout date.');
+    if(!confirm('Confirm cash was paid, independently verified, and voucher is correct?'))return;
+    await api(base+'/refunds/'+r.id+'/record-payout','POST',{clientRequestId:crypto.randomUUID(),
+     accountingPeriodId:Number(period),payoutDate:date,payoutEvidenceReference:reference.trim(),rowVersion:r.rowVersion});
+    await loadRefunds();
+   })));
+  }
+  tr.append(actions);refunds.append(tr);
+ }
+}
+el('RefundRefresh').addEventListener('click',()=>{refundPage=1;run(null,loadRefunds);});
+el('RefundPrev').addEventListener('click',()=>{if(refundPage>1){refundPage--;run(null,loadRefunds);}});
+el('RefundNext').addEventListener('click',()=>{if(refundPage*refundSize<refundTotal){refundPage++;run(null,loadRefunds);}});
+el('RefundRequestForm').addEventListener('submit',e=>{e.preventDefault();run(e.currentTarget,async()=>{
+ const amount=el('RefundAmount').value.trim();
+ if(!validRefundAmount(amount))throw Error('Refund amount must have at most two decimal places.');
+ if(!el('RefundPayment').value)throw Error('Select a posted cash receipt.');
+ await api(base+'/refunds','POST',{clientRequestId:crypto.randomUUID(),
+  studentPaymentReference:el('RefundPayment').value,amount,reason:el('RefundReason').value.trim()});
+ el('RefundRequestForm').reset();await loadRefunds();
+});});
 (async()=>{
  try{
+  await loadRefunds();
   const options=await api('/api/finance/fees/options');
   const heads=options.feeHeads||[];
   for(const id of ['DrHead','FrHead']){const select=el(id);for(const row of heads)select.add(new Option(row.name,String(row.id)));}

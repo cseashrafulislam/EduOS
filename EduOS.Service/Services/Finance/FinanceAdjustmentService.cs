@@ -12,8 +12,8 @@ using System.Data;
 
 namespace EduOS.Service.Services.Finance;
 
-/// <summary>Institutional discounts and fines, not Platform SaaS billing. Refund payout is fail-closed pending ledger integration.</summary>
-public sealed class FinanceAdjustmentService : IFinanceAdjustmentService
+/// <summary>Institutional fee adjustments, including controlled cash refunds; never Platform SaaS billing.</summary>
+public sealed partial class FinanceAdjustmentService : IFinanceAdjustmentService
 {
     private readonly EduOSDbContext db;
     private readonly ICurrentUserService user;
@@ -238,7 +238,17 @@ public sealed class FinanceAdjustmentService : IFinanceAdjustmentService
                     return Error<RefundDto>("Idempotency key was reused with different refund details.",409);
                 return ApiResponse<RefundDto>.SuccessResponse(Map(replay,payment.PublicId),"Existing refund request returned.");
             }
-            var total=await Refunds.Where(x=>x.StudentPaymentId==payment.Id && x.State!=RefundState.Rejected)
+            var originalAllocations=await (from a in db.PaymentAllocations.AsNoTracking()
+                join i in db.StudentInvoices.AsNoTracking()
+                    on new { a.TenantId, Id=a.StudentInvoiceId } equals new { i.TenantId, i.Id }
+                where a.TenantId==user.TenantId && a.StudentPaymentId==payment.Id &&
+                    !a.IsDeleted && !i.IsDeleted
+                select new { a.Amount,i.State,i.PaidAmount,i.TotalAmount,i.DueAmount }).ToListAsync(ct);
+            if(originalAllocations.Count==0 || originalAllocations.Sum(x=>x.Amount)!=payment.Amount ||
+                originalAllocations.Any(x=>!RefundInvoicePolicy.CanAdjust(x.State) ||
+                    x.PaidAmount<=0m || x.PaidAmount+x.DueAmount!=x.TotalAmount))
+                return Error<RefundDto>("Only cash receipts allocated to partially paid invoices can be refunded until the immutable paid-invoice credit-note integration is available.",409);
+            var total=await Refunds.Where(x=>x.StudentPaymentId==payment.Id && x.State!=RefundState.Rejected && x.State!=RefundState.Cancelled)
                 .SumAsync(x=>(decimal?)x.Amount,ct)??0m;
             if(total+request.Amount>payment.Amount) return Error<RefundDto>("Refund reservations exceed payment amount.",409);
             var now=clock.GetUtcNow().UtcDateTime;
@@ -251,10 +261,7 @@ public sealed class FinanceAdjustmentService : IFinanceAdjustmentService
         catch(DbUpdateConcurrencyException){return Error<RefundDto>("Refund changed; reload.",409);}
         catch(DbUpdateException){return Error<RefundDto>("Conflicting refund request.",409);}
     }
-    public Task<ApiResponse<RefundDto>> ReviewRefundAsync(long refundId, ReviewRefundRequestDto request, CancellationToken ct = default)
-        => Task.FromResult(Error<RefundDto>("Refund approval is disabled until verified allocation reversal and institutional GL integration are available.",409));
-    public Task<ApiResponse<RefundDto>> RecordRefundDisbursementAsync(long refundId, RecordRefundDisbursementRequestDto request, CancellationToken ct = default)
-        => Task.FromResult(Error<RefundDto>("Refund disbursement is disabled until verified payout evidence and balanced institutional GL reversal are integrated.",409));
+
 
 
     public async Task<ApiResponse<IReadOnlyList<FinanceEnrollmentOptionDto>>> SearchEnrollmentsAsync(string search, CancellationToken ct = default)
