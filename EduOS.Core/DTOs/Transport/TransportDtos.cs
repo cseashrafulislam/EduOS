@@ -94,6 +94,7 @@ public class AssignStudentTransportRequestDto
     public long? PickupStopId { get; set; }
     public long? DropStopId { get; set; }
     public DateOnly StartDate { get; set; }
+    public DateOnly? EndDate { get; set; }
     public decimal? MonthlyFare { get; set; }
 }
 
@@ -144,5 +145,6 @@ public sealed class TransportAssignmentRowDto
     public string RouteName { get; set; } = string.Empty;
     public string VehicleNumber { get; set; } = string.Empty;
     public DateOnly StartDate { get; set; }
+    public DateOnly? EndDate { get; set; }
     public string RowVersion { get; set; } = string.Empty;
 }

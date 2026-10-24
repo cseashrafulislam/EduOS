@@ -64,6 +64,7 @@
                 <div class="col-md-6"><label class="form-label" for="transportPickup">Pickup stop</label><select id="transportPickup" class="form-select"><option value="">No assigned pickup stop</option></select></div>
                 <div class="col-md-6"><label class="form-label" for="transportDrop">Drop stop</label><select id="transportDrop" class="form-select"><option value="">No assigned drop stop</option></select></div>
                 <div class="col-md-6"><label class="form-label" for="transportStart">Start date</label><input id="transportStart" type="date" class="form-control" required /></div>
+                <div class="col-md-6"><label class="form-label" for="transportEnd">End date (optional)</label><input id="transportEnd" type="date" class="form-control" aria-describedby="transportEndHelp" /><small id="transportEndHelp" class="text-muted">Leave blank for open-ended service; the route-vehicle link must also be open-ended.</small></div>
                 <div class="col-md-6"><label class="form-label" for="transportFare">Monthly fare (optional)</label><input id="transportFare" type="number" step="0.01" min="0" class="form-control" placeholder="Use route default" /></div>
                 <div class="col-12"><button id="transportSave" class="btn btn-primary" type="submit">Assign transport</button></div>
             </form>
@@ -76,8 +77,8 @@
                 <button type="submit" class="btn btn-outline-primary">Search</button>
             </form>
             <div class="table-responsive mt-3"><table class="table table-hover align-middle">
-                <thead><tr><th>Student</th><th>Route</th><th>Vehicle</th><th>Start</th><th>Action</th></tr></thead>
-                <tbody id="transportActiveRows"><tr><td colspan="5">Loading…</td></tr></tbody>
+                <thead><tr><th>Student</th><th>Route</th><th>Vehicle</th><th>Start</th><th>End</th><th>Action</th></tr></thead>
+                <tbody id="transportActiveRows"><tr><td colspan="6">Loading…</td></tr></tbody>
             </table></div>
             <div class="d-flex gap-3 align-items-center justify-content-between">
                 <button id="transportPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>

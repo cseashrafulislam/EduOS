@@ -82,7 +82,11 @@
                 routeReference: el('transportRoute').value, vehicleReference: el('transportVehicle').value,
                 pickupStopId: el('transportPickup').value ? Number(el('transportPickup').value) : null,
                 dropStopId: el('transportDrop').value ? Number(el('transportDrop').value) : null,
-                startDate: el('transportStart').value, monthlyFare: amount ? Number(amount) : null };
+                startDate: el('transportStart').value,
+                endDate: el('transportEnd').value || null,
+                monthlyFare: amount ? Number(amount) : null };
+            if (body.endDate && body.endDate < body.startDate)
+                throw new Error('Reservation end date must be on or after the start date.');
             if (amount && (!Number.isFinite(body.monthlyFare) || body.monthlyFare < 0)) throw new Error('Monthly fare must be nonnegative.');
             await api('/api/transport/assignments', 'POST', body);
             clientRequestId = newRequestId(); form.reset(); el('transportStart').value = localDate(); updateStops();
@@ -98,7 +102,7 @@
             const body = el('transportActiveRows'); body.replaceChildren();
             for (const item of data.items || []) {
                 const tr = document.createElement('tr');
-                [item.studentName, item.routeName, item.vehicleNumber, item.startDate].forEach(x => tr.append(textCell(x)));
+                [item.studentName, item.routeName, item.vehicleNumber, item.startDate, item.endDate || 'Open-ended'].forEach(x => tr.append(textCell(x)));
                 const actions = document.createElement('td'), close = document.createElement('button');
                 close.type = 'button'; close.className = 'btn btn-outline-danger btn-sm'; close.textContent = 'Close';
                 close.addEventListener('click', () => closeAssignment(item, close));
@@ -128,7 +132,7 @@
             }
             if (!data.items?.length) {
                 const tr = document.createElement('tr'), td = textCell('No active assignments');
-                td.colSpan = 5; tr.append(td); body.append(tr);
+                td.colSpan = 6; tr.append(td); body.append(tr);
             }
             activePages = Math.max(1, Number(data.totalPages) || 1);
             el('transportPageInfo').textContent = 'Page ' + activePage + ' of ' + activePages + ' · ' + data.totalCount + ' total';

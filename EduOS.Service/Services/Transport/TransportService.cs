@@ -90,6 +90,7 @@ public sealed partial class TransportService : ITransportService
     {
         if (!CanManage()) return Denied<IReadOnlyList<VehicleDto>>();
         var tenant = _currentUser.TenantId;
+        var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
         var vehiclesQuery = _vehicles.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant && x.IsActive &&
             (!x.CampusId.HasValue || _campuses.GetQueryable().Any(c => c.TenantId == tenant && c.Id == x.CampusId.Value && c.IsActive)));
         if (!_currentUser.IsTenantAdmin)
@@ -101,7 +102,8 @@ public sealed partial class TransportService : ITransportService
         var vehicles = await vehiclesQuery.OrderBy(x => x.VehicleNumber).ToListAsync(cancellationToken);
         var ids = vehicles.Select(x => x.Id).ToArray();
         var counts = await _assignments.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
-            x.State == TransportAssignmentState.Active && ids.Contains(x.VehicleId))
+            x.State == TransportAssignmentState.Active && ids.Contains(x.VehicleId) &&
+            (!x.EndDate.HasValue || x.EndDate.Value >= today))
             .GroupBy(x => x.VehicleId).Select(g => new { VehicleId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.VehicleId, x => x.Count, cancellationToken);
         IReadOnlyList<VehicleDto> result = vehicles.Select(x => new VehicleDto
@@ -120,13 +122,15 @@ public sealed partial class TransportService : ITransportService
         if (!CanManage()) return Denied<PagedResult<TransportStudentOptionDto>>();
         if (page < 1 || pageSize is < 1 or > 100) return ApiResponse<PagedResult<TransportStudentOptionDto>>.ErrorResponse("Invalid paging parameters.");
         var tenant = _currentUser.TenantId;
+        var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
         var query = from enrollment in _enrollments.GetQueryable().AsNoTracking()
                     join student in _students.GetQueryable().AsNoTracking() on enrollment.StudentId equals student.Id
                     where enrollment.TenantId == tenant && student.TenantId == tenant && student.StatusCode == "Active" &&
                           enrollment.IsCurrent && enrollment.State == EnrollmentState.Active &&
                           _campuses.GetQueryable().Any(c => c.TenantId == tenant && c.Id == enrollment.CampusId && c.IsActive) &&
                           !_assignments.GetQueryable().Any(x => x.TenantId == tenant && x.StudentId == student.Id &&
-                              x.State == TransportAssignmentState.Active)
+                              x.State == TransportAssignmentState.Active &&
+                              (!x.EndDate.HasValue || x.EndDate.Value >= today))
                     select new { enrollment.PublicId, enrollment.CampusId, student.FullName, student.StudentCode, enrollment.RollNo };
         if (!_currentUser.IsTenantAdmin)
         {
@@ -159,6 +163,7 @@ public sealed partial class TransportService : ITransportService
         if (!CanManage()) return Denied<PagedResult<TransportAssignmentRowDto>>();
         if (page < 1 || pageSize is < 1 or > 100) return ApiResponse<PagedResult<TransportAssignmentRowDto>>.ErrorResponse("Invalid paging parameters.");
         var tenant = _currentUser.TenantId;
+        var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
         var query = from assignment in _assignments.GetQueryable().AsNoTracking()
                     join student in _students.GetQueryable().AsNoTracking() on assignment.StudentId equals student.Id
                     join enrollment in _enrollments.GetQueryable().AsNoTracking() on assignment.StudentEnrollmentId equals enrollment.Id
@@ -167,8 +172,9 @@ public sealed partial class TransportService : ITransportService
                     where assignment.TenantId == tenant && student.TenantId == tenant &&
                           enrollment.TenantId == tenant && enrollment.StudentId == assignment.StudentId &&
                           route.TenantId == tenant && vehicle.TenantId == tenant &&
-                          assignment.State == TransportAssignmentState.Active
-                    select new { assignment.PublicId, assignment.StartDate, assignment.RowVersion,
+                          assignment.State == TransportAssignmentState.Active &&
+                          (!assignment.EndDate.HasValue || assignment.EndDate.Value >= today)
+                    select new { assignment.PublicId, assignment.StartDate, assignment.EndDate, assignment.RowVersion,
                         assignment.PickupStopId, assignment.DropStopId, RouteReference = route.PublicId, VehicleReference = vehicle.PublicId,
                         enrollment.CampusId, student.FullName, student.StudentCode, RouteName = route.Name, vehicle.VehicleNumber };
         if (!_currentUser.IsTenantAdmin)
@@ -189,7 +195,7 @@ public sealed partial class TransportService : ITransportService
         {
             Reference = x.PublicId, RouteReference = x.RouteReference, VehicleReference = x.VehicleReference,
             PickupStopId = x.PickupStopId, DropStopId = x.DropStopId,
-            StartDate = x.StartDate, RowVersion = Convert.ToBase64String(x.RowVersion),
+            StartDate = x.StartDate, EndDate = x.EndDate, RowVersion = Convert.ToBase64String(x.RowVersion),
             StudentName = x.FullName, RouteName = x.RouteName, VehicleNumber = x.VehicleNumber
         }).ToList();
         return ApiResponse<PagedResult<TransportAssignmentRowDto>>.SuccessResponse(new PagedResult<TransportAssignmentRowDto>
@@ -225,6 +231,8 @@ public sealed partial class TransportService : ITransportService
         var tenant = _currentUser.TenantId;
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
         var startDate = request.StartDate == default ? today : request.StartDate;
+        if (request.EndDate.HasValue && request.EndDate.Value < startDate)
+            return Error("Reservation end date cannot precede its start date.");
         try
         {
             using var scope = new TransactionScope(TransactionScopeOption.Required,
@@ -250,6 +258,7 @@ public sealed partial class TransportService : ITransportService
                     replay.VehicleReference != request.VehicleReference ||
                     replay.PickupStopId != request.PickupStopId || replay.DropStopId != request.DropStopId ||
                     (request.StartDate != default && replay.StartDate != request.StartDate) ||
+                    replay.EndDate != request.EndDate ||
                     (request.MonthlyFare.HasValue && replay.MonthlyFare != request.MonthlyFare.Value))
                     return Error("Client request ID was reused for different transport assignment data.", 409);
                 scope.Complete();
@@ -277,8 +286,9 @@ public sealed partial class TransportService : ITransportService
                 return Error("Route or vehicle is outside the student's campus.", 409);
             var vehicleRoute = await _vehicleRoutes.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
                 x.RouteId == route.Id && x.VehicleId == vehicle.Id && x.IsCurrent &&
-                x.EffectiveFrom <= startDate && (!x.EffectiveTo.HasValue || x.EffectiveTo >= startDate), cancellationToken);
-            if (vehicleRoute == null) return Error("Vehicle must have an active assignment to the selected route.", 409);
+                x.EffectiveFrom <= startDate &&
+                (!x.EffectiveTo.HasValue || (request.EndDate.HasValue && x.EffectiveTo.Value >= request.EndDate.Value)), cancellationToken);
+            if (vehicleRoute == null) return Error("Vehicle must serve the route for the entire reservation period.", 409);
             var stopIds = new[] { request.PickupStopId, request.DropStopId }.Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToArray();
             if (stopIds.Length > 0)
             {
@@ -287,11 +297,25 @@ public sealed partial class TransportService : ITransportService
                 if (foundStops != stopIds.Length) return Error("One or more stops do not belong to the selected route.", 409);
             }
             if (await _assignments.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
-                x.StudentId == student.Id && x.State == TransportAssignmentState.Active, cancellationToken))
+                x.StudentId == student.Id && x.State == TransportAssignmentState.Active &&
+                x.StartDate <= (request.EndDate ?? DateOnly.MaxValue) &&
+                (!x.EndDate.HasValue || x.EndDate.Value >= startDate), cancellationToken))
                 return Error("Student already has an active transport assignment.", 409);
-            var occupied = await _assignments.GetQueryable().AsNoTracking().CountAsync(x => x.TenantId == tenant &&
-                x.VehicleId == vehicle.Id && x.State == TransportAssignmentState.Active, cancellationToken);
-            if (occupied >= vehicle.Capacity) return Error("Vehicle has reached capacity.", 409);
+            // Check peak concurrent seats, not the sum of bookings from disjoint periods.
+            // Serializable transaction protects the read/check/insert against concurrent writers.
+            var requestedEnd = request.EndDate ?? DateOnly.MaxValue;
+            var overlapping = await _assignments.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenant && !x.IsDeleted &&
+                    x.VehicleId == vehicle.Id && x.State == TransportAssignmentState.Active &&
+                    x.StartDate <= requestedEnd &&
+                    (!x.EndDate.HasValue || x.EndDate.Value >= startDate))
+                .Select(x => new { x.StartDate, x.EndDate })
+                .Take(10001).ToListAsync(cancellationToken);
+            if (overlapping.Count > 10000)
+                return Error("Too many overlapping reservations to validate capacity.", 413);
+            var occupied = PeakReservedSeats(overlapping.Select(x => (x.StartDate, x.EndDate)),
+                startDate, requestedEnd).Peak;
+            if (occupied >= vehicle.Capacity) return Error("Vehicle has no available seats for this reservation period.", 409);
             var now = _clock.GetUtcNow().UtcDateTime;
             var entity = new StudentTransport
             {
@@ -299,7 +323,8 @@ public sealed partial class TransportService : ITransportService
                 StudentId = student.Id, StudentEnrollmentId = enrollment.Id,
                 RouteId = route.Id, VehicleId = vehicle.Id, RouteVehicleAssignmentId = vehicleRoute.Id,
                 PickupStopId = request.PickupStopId, DropStopId = request.DropStopId,
-                StartDate = startDate, MonthlyFare = request.MonthlyFare ?? route.DefaultFare,
+                StartDate = startDate, EndDate = request.EndDate,
+                MonthlyFare = request.MonthlyFare ?? route.DefaultFare,
                 State = TransportAssignmentState.Active, CreatedAt = now, CreatedBy = _currentUser.UserId
             };
             await _assignments.AddAsync(entity);
