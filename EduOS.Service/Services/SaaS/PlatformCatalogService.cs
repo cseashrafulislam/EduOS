@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 
 namespace EduOS.Service.Services.SaaS;
 
-public class PlatformCatalogService : IPlatformCatalogService
+public partial class PlatformCatalogService : IPlatformCatalogService
 {
     private readonly IGenericRepository<InstitutionTypeDefinition> _institutionTypeRepository;
     private readonly IGenericRepository<InstitutionTypeModule> _institutionTypeModuleRepository;
