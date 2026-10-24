@@ -155,4 +155,75 @@
     }
     const initial = new URLSearchParams(location.search).get('studentReference');
     if (initial && /^[0-9a-f-]{36}$/i.test(initial)) selectStudent(initial);
+    let destinationBusy = false;
+    function destinationMessage(message) {
+        const tbody = el('destinationRows');
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 5;
+        cell.textContent = message;
+        row.append(cell);
+        tbody.replaceChildren(row);
+    }
+    function renderDestination(items) {
+        const tbody = el('destinationRows');
+        tbody.replaceChildren();
+        if (!items.length) return destinationMessage('No incoming source-approved transfers.');
+        for (const item of items) {
+            const row = document.createElement('tr');
+            for (const text of [item.reference, item.sourceTenantId,
+                item.requestedAt, states[item.state] || item.state]) {
+                const cell = document.createElement('td');
+                cell.textContent = String(text ?? '');
+                row.append(cell);
+            }
+            const cell = document.createElement('td');
+            if (Number(item.state) === 3 || item.state === 'SourceApproved') {
+                for (const [accept, label] of [[true, 'Accept'], [false, 'Reject']]) {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'btn btn-sm me-1 ' +
+                        (accept ? 'btn-outline-success' : 'btn-outline-danger');
+                    button.textContent = label;
+                    button.disabled = destinationBusy;
+                    button.addEventListener('click', () => decideDestination(item, accept));
+                    cell.append(button);
+                }
+            } else cell.textContent = 'Acknowledged';
+            row.append(cell);
+            tbody.append(row);
+        }
+    }
+    async function refreshDestination() {
+        if (destinationBusy) return;
+        el('destinationRefresh').disabled = true;
+        try {
+            const items = await api('/api/student-transfer-requests/destination/inbox');
+            renderDestination(Array.isArray(items) ? items : []);
+        } catch (error) { destinationMessage(error.message); }
+        finally { el('destinationRefresh').disabled = false; }
+    }
+    async function decideDestination(item, accept) {
+        if (destinationBusy || !confirm((accept ? 'Accept' : 'Reject') +
+            ' the incoming transfer from institution #' + item.sourceTenantId +
+            '? This does not create an enrollment or transfer personal records.')) return;
+        destinationBusy = true;
+        el('destinationRefresh').disabled = true;
+        try {
+            await api('/api/student-transfer-requests/destination/' +
+                encodeURIComponent(item.reference) + '/decision', {
+                method: 'POST',
+                body: JSON.stringify({ accept, rowVersion: item.rowVersion })
+            });
+            notice(accept ? 'Destination handoff accepted. Enrollment and completion are separate steps.' :
+                'Incoming handoff rejected.');
+        } catch (error) { notice(error.message, true); }
+        finally {
+            destinationBusy = false;
+            el('destinationRefresh').disabled = false;
+            await refreshDestination();
+        }
+    }
+    el('destinationRefresh').addEventListener('click', refreshDestination);
+    refreshDestination();
 })();
