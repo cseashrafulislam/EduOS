@@ -89,7 +89,16 @@
                     ? 'Beds with any allocation history cannot move.' : 'Move to another room in the same hostel';
                 move.addEventListener('click', () => document.dispatchEvent(
                     new CustomEvent('hostel:relocate-bed', { detail: item })));
-                action.append(move); tr.append(action); tbody.append(tr);
+                action.append(move);
+                const correct = document.createElement('button');
+                correct.type = 'button'; correct.className = 'btn btn-outline-secondary btn-sm ms-1';
+                correct.textContent = 'Correct label';
+                correct.disabled = item.hasAllocationHistory;
+                correct.title = item.hasAllocationHistory
+                    ? 'Allocation history must retain the original bed label.' : 'Correct this unused physical bed label';
+                correct.addEventListener('click', () => document.dispatchEvent(
+                    new CustomEvent('hostel:correct-bed-number', { detail: item })));
+                action.append(correct); tr.append(action); tbody.append(tr);
             }
             if (!data.items?.length) {
                 const tr = document.createElement('tr'), cell = td('No beds match the filter.');
@@ -140,5 +149,6 @@
         } catch (error) { notify(error.message, true); }
         finally { controls(); }
     });
+    document.addEventListener('hostel:bed-number-corrected', () => { page = 1; load(); });
     load(); loadCampuses();
 })();

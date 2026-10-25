@@ -140,6 +140,12 @@ public sealed class HostelController : ControllerBase
         [FromQuery] int pageSize = 25, [FromQuery] string? search = null, CancellationToken cancellationToken = default) =>
         ToAction(await _service.GetBedInventoryAsync(campusId, page, pageSize, search, cancellationToken));
 
+    [HttpPut("beds/{id:long}/number")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    public async Task<IActionResult> CorrectUnusedBedNumber(long id,
+        [FromBody] CorrectUnusedHostelBedNumberRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.CorrectUnusedBedNumberAsync(id, request, ct));
+
     [HttpPut("beds/{id:long}/state")]
     [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
     public async Task<IActionResult> SetBedState(long id, [FromBody] SetHostelBedStateRequestDto request, CancellationToken ct) =>

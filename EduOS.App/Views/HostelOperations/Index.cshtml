@@ -227,6 +227,20 @@
                 <input id="hostelBedInventorySearch" class="form-control" maxlength="100" aria-label="Search beds" placeholder="Hostel, room or bed" />
                 <button class="btn btn-outline-primary" type="submit">Search</button>
             </form>
+            <form id="hostelBedNumberForm" class="border rounded p-3 mb-3 d-none" aria-labelledby="hostelBedNumberTitle">
+                <h4 id="hostelBedNumberTitle" class="h6">Correct unused bed label</h4>
+                <p id="hostelBedNumberContext" class="small text-muted"></p>
+                <p class="small text-muted">Only beds with no allocation history can be relabelled. Student stays, room assignments and financial records are unchanged.</p>
+                <div class="row g-2">
+                    <div class="col-md-7"><label for="hostelBedNumberValue" class="form-label">Corrected bed number</label>
+                        <input id="hostelBedNumberValue" class="form-control" maxlength="50" required autocomplete="off" /></div>
+                    <div class="col-md-5 d-flex align-items-end gap-2">
+                        <button id="hostelBedNumberSave" type="submit" class="btn btn-primary">Save bed number</button>
+                        <button id="hostelBedNumberCancel" type="button" class="btn btn-outline-secondary">Cancel</button>
+                    </div>
+                </div>
+                <div id="hostelBedNumberStatus" role="status" aria-live="polite" class="small mt-2"></div>
+            </form>
             <div id="hostelBedInventoryStatus" role="status" aria-live="polite" class="small text-muted"></div>
             <div class="table-responsive"><table class="table table-sm table-hover">
                 <thead><tr><th>Hostel</th><th>Room</th><th>Bed</th><th>State</th><th>Occupied today</th><th>Active reservations</th><th>Action</th></tr></thead>
@@ -297,6 +311,7 @@
         <script src="~/js/hostel-operations/turnover-report.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/bed-create.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/bed-inventory.js" asp-append-version="true"></script>
+        <script src="~/js/hostel-operations/bed-label-correction.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/bed-relocation.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/room-inventory.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/room-capacity.js" asp-append-version="true"></script>
