@@ -37,6 +37,10 @@ public sealed class LmsLiveClassServiceTests
         db.Add(offering);await db.SaveChangesAsync();
         db.Add(new InstructorAssignment { TenantId = 101, SubjectOfferingId = offering.Id, EmployeeId = employee.Id, EffectiveFrom = from, IsActive = true });
         await db.SaveChangesAsync();
+        // Another tenant's completed enrollment must not lock this tenant's course.
+        db.Add(new CourseEnrollment { TenantId = 202, CourseId = course.Id, StudentId = 900,
+            State = CourseEnrollmentState.Completed, CompletedAt = now });
+        await db.SaveChangesAsync();
         var service = Service(db,"TenantAdmin");
         var request = new SaveLiveClassRequestDto { CourseReference = course.PublicId, InstructorReference = employee.PublicId,
             Title = "Cells", StartsAt = now.AddDays(1), EndsAt = now.AddDays(1).AddHours(1), JoinUrl = "https://meet.example.com/room" };
@@ -48,6 +52,32 @@ public sealed class LmsLiveClassServiceTests
         var overlapping = new SaveLiveClassRequestDto { CourseReference = course.PublicId, InstructorReference = employee.PublicId,
             Title = "Different topic", StartsAt = request.StartsAt.AddMinutes(30), EndsAt = request.EndsAt.AddMinutes(30) };
         Assert.Equal(409,(await service.SaveLiveClassAsync(null,overlapping)).StatusCode);
+        // A completed enrollment locks all new and existing live-class authoring.
+        db.Add(new CourseEnrollment { TenantId = 101, CourseId = course.Id, StudentId = 901,
+            State = CourseEnrollmentState.Completed, CompletedAt = now });
+        await db.SaveChangesAsync();
+        var additional = new SaveLiveClassRequestDto { CourseReference = course.PublicId,
+            InstructorReference = employee.PublicId, Title = "New session",
+            StartsAt = request.StartsAt.AddHours(3), EndsAt = request.EndsAt.AddHours(3) };
+        var blockedCreate = await service.SaveLiveClassAsync(null, additional);
+        Assert.Equal(409, blockedCreate.StatusCode);
+        Assert.Contains("locked", blockedCreate.Message, StringComparison.OrdinalIgnoreCase);
+        var existing = await db.Set<LiveClass>().SingleAsync();
+        existing.RowVersion = [1, 2, 3]; await db.SaveChangesAsync();
+        var update = new SaveLiveClassRequestDto { CourseReference = course.PublicId,
+            InstructorReference = employee.PublicId, Title = "Edited session",
+            StartsAt = request.StartsAt, EndsAt = request.EndsAt,
+            RowVersion = Convert.ToBase64String(existing.RowVersion) };
+        var blockedUpdate = await service.SaveLiveClassAsync(existing.PublicId, update);
+        Assert.Equal(409, blockedUpdate.StatusCode);
+        Assert.Contains("locked", blockedUpdate.Message, StringComparison.OrdinalIgnoreCase);
+        var blockedCancel = await service.CancelLiveClassAsync(existing.PublicId,
+            Convert.ToBase64String(existing.RowVersion));
+        Assert.Equal(409, blockedCancel.StatusCode);
+        Assert.Contains("locked", blockedCancel.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Single(await db.Set<LiveClass>().Where(x => !x.IsDeleted).ToListAsync());
+        // Replaying an identical create must not mutate completed-course evidence.
+        Assert.Equal(existing.Id, (await service.SaveLiveClassAsync(null, request)).Data?.Id);
     }
 
     [Fact]

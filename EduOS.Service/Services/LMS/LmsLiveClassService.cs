@@ -220,6 +220,9 @@ public sealed class LmsLiveClassService : ILmsLiveClassService
                             "Live class already scheduled.");
                     return Fail<LiveClassDto>("Instructor has an overlapping live class.", 409);
                 }
+                // Completion evidence is immutable. An exact create replay above remains idempotent.
+                if (await CourseCompletionPublicationGuard.IsLockedAsync(_enrollments, tenant, course.Id, token))
+                    return Fail<LiveClassDto>(CourseCompletionPublicationGuard.Message, 409);
                 var now = Now;
                 if (row == null)
                 {
@@ -295,13 +298,15 @@ public sealed class LmsLiveClassService : ILmsLiveClassService
                     return Fail<LiveClassDto>("Live class instructor access denied.", 403);
                 if (row.IsDeleted)
                     return ApiResponse<LiveClassDto>.SuccessResponse(await MapAsync(row, course, token), "Already cancelled.");
+                if (await CourseCompletionPublicationGuard.IsLockedAsync(_enrollments, tenant, course.Id, token))
+                    return Fail<LiveClassDto>(CourseCompletionPublicationGuard.Message, 409);
                 if (!VersionMatches(row.RowVersion, rowVersion) || row.StartsAt <= Now)
                     return Fail<LiveClassDto>("Class started or row version changed.", 409);
                 row.IsDeleted = true; row.DeletedAt = Now; row.DeletedBy = _user.UserId;
                 row.UpdatedAt = Now; row.UpdatedBy = _user.UserId;
                 _classes.Update(row); await _uow.SaveChangesAsync(token);
                 return ApiResponse<LiveClassDto>.SuccessResponse(await MapAsync(row, course, token), "Live class cancelled.");
-            }, cancellationToken);
+            }, IsolationLevel.Serializable, cancellationToken);
         }
         catch (DbUpdateConcurrencyException) { return Fail<LiveClassDto>("Live class changed concurrently.", 409); }
         catch (DbUpdateException ex)

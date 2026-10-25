@@ -2,7 +2,15 @@
 'use strict';
 const root=document.getElementById('liveClassApp');if(!root)return;
 const $=id=>document.getElementById(id),author=root.dataset.author==='true',manager=root.dataset.manager==='true';
-const state={courses:[],classes:[],page:1,pages:1,editing:null,request:0};
+const state={courses:[],classes:[],page:1,pages:1,editing:null,request:0,locked:author,lockReason:null};
+function setLock(locked,reason){
+ if(!author)return;
+ state.locked=locked;state.lockReason=reason||null;
+ const banner=$('liveLock');banner.classList.toggle('d-none',!locked);
+ banner.textContent=reason||'Course authoring is unavailable until the current permissions are verified.';
+ $('liveForm').querySelectorAll('input,select,button').forEach(x=>{x.disabled=locked;});
+ render();
+}
 const element=(tag,value)=>{const x=document.createElement(tag);if(value!==undefined)x.textContent=value;return x;};
 const notice=(type,value)=>{const x=$('liveAlert');x.className='alert alert-'+type;x.textContent=value;x.focus();};
 async function api(url,method='GET',body){
@@ -46,7 +54,7 @@ function render(){
   if(row.recordingUrl)resources.append(document.createTextNode(' · '),link(row.recordingUrl,'Recording'));
   tr.append(resources);
   const actions=element('td');actions.className='live-actions';
-  if(author&&new Date(row.startsAt).getTime()>Date.now()){
+  if(author&&!state.locked&&new Date(row.startsAt).getTime()>Date.now()){
    actions.append(button('Edit','btn-outline-primary me-1',()=>edit(row)));
    actions.append(button('Cancel','btn-outline-danger',()=>cancel(row)));
   }
@@ -55,9 +63,16 @@ function render(){
 }
 async function loadClasses(){
  const ref=$('liveCourse').value,token=++state.request;
- if(!ref){state.classes=[];empty('Select a course.');return;}
- try{const rows=await api('/api/lms/live-classes/course/'+encodeURIComponent(ref));
-  if(token!==state.request)return;state.classes=rows||[];render();
+ if(!ref){state.classes=[];if(author)setLock(true,'Select a course to manage live classes.');empty('Select a course.');return;}
+ if(author)setLock(true,'Checking course authoring permissions…');
+ try{const [rows,lock]=await Promise.all([
+  api('/api/lms/live-classes/course/'+encodeURIComponent(ref)),
+  author?api('/api/lms/courses/'+encodeURIComponent(ref)+'/authoring-lock')
+   .catch(error=>({isLocked:true,reason:'Cannot verify course authoring permissions: '+error.message})):Promise.resolve(null)
+ ]);
+  if(token!==state.request)return;
+  if(author)setLock(!!lock?.isLocked,lock?.reason||null);
+  state.classes=rows||[];render();
  }catch(e){if(token===state.request){state.classes=[];empty('Unable to load classes.');notice('danger',e.message);}}
 }
 async function courses(){
@@ -94,7 +109,8 @@ function edit(row){
  $('liveTitle').focus();
 }
 async function save(e){
- e.preventDefault();if(!e.currentTarget.reportValidity())return;
+ e.preventDefault();if(state.locked)return notice('warning',state.lockReason||'Course authoring is locked.');
+ if(!e.currentTarget.reportValidity())return;
  const course=$('liveCourse').value;
  if(!course)return notice('warning','Select a course.');
  const startsAt=utc('liveStart'),endsAt=utc('liveEnd');
@@ -107,9 +123,10 @@ async function save(e){
  $('liveSave').disabled=true;
  try{await api('/api/lms/live-classes'+(previous?'/'+previous.reference:''),previous?'PUT':'POST',body);
   notice('success','Live class saved.');reset();await loadClasses();
- }catch(error){notice('danger',error.message);}finally{$('liveSave').disabled=false;}
+ }catch(error){notice('danger',error.message);}finally{$('liveSave').disabled=state.locked;}
 }
 async function cancel(row){
+ if(state.locked)return notice('warning',state.lockReason||'Course authoring is locked.');
  if(!confirm('Cancel this scheduled live class?'))return;
  try{await api('/api/lms/live-classes/'+row.reference+'/cancel','POST',{rowVersion:row.rowVersion});
   notice('success','Live class cancelled.');reset();await loadClasses();
@@ -121,5 +138,6 @@ $('liveCoursePrev').onclick=()=>{if(state.page>1){state.page--;courses();}};
 $('liveCourseNext').onclick=()=>{if(state.page<state.pages){state.page++;courses();}};
 $('livePrint').onclick=()=>window.print();
 if(author){$('liveForm').onsubmit=save;$('liveClear').onclick=reset;}
+if(author)setLock(true,'Select a course to manage live classes.');
 Promise.all([courses(),instructors()]);
 })();

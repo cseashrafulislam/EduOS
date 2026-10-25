@@ -9,6 +9,10 @@
         <div class="d-flex gap-2"><a asp-controller="Learning" asp-action="Index" class="btn btn-outline-secondary">Learning</a><button id="livePrint" type="button" class="btn btn-outline-primary">Print schedule</button></div>
     </header>
     <div id="liveAlert" class="d-none" role="alert" aria-live="polite" tabindex="-1"></div>
+    @if (author)
+    {
+        <div id="liveLock" class="alert alert-warning" role="status" aria-live="polite">Checking course authoring permissions…</div>
+    }
     <section class="card mb-3">
         <div class="card-body row g-2 align-items-end">
             <div class="col-md-9"><label class="form-label" for="liveCourse">Course</label><select id="liveCourse" class="form-select"><option value="">Loading courses…</option></select></div>
