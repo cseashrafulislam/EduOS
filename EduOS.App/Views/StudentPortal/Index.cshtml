@@ -25,6 +25,21 @@
             </div>
         </section>
     }
+    @if (User.IsInRole("Guardian") || User.IsInRole("Parent"))
+    {
+        <section class="card mb-3" id="guardianPreferences" aria-labelledby="guardianPreferencesTitle">
+            <div class="card-body">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <h3 class="h5 mb-0" id="guardianPreferencesTitle">Guardian communication preferences</h3>
+                    <button class="btn btn-outline-primary btn-sm" type="button" id="guardianPreferenceRefresh">Refresh</button>
+                </div>
+                <p class="text-muted small mt-2">Choose whether your linked students' school may contact you by SMS or email. Student relationships, primary guardian and pickup permissions are managed by the institution.</p>
+                @Html.AntiForgeryToken()
+                <div class="d-none" id="guardianPreferenceAlert" role="status" aria-live="polite"></div>
+                <div id="guardianPreferenceList" aria-live="polite"><p class="text-muted">Loading preferences…</p></div>
+            </div>
+        </section>
+    }
     <div id="studentPortalAlert" class="d-none" role="alert" tabindex="-1"></div>
     <section class="card mb-3"><div class="card-body row g-3 align-items-end">
         <div class="col-md-6"><label class="form-label" for="studentPortalStudent">Student</label>
@@ -56,5 +71,6 @@
 </section>
 @section Scripts {
     <script src="~/js/student-portal/consents.js" asp-append-version="true"></script>
+    <script src="~/js/student-portal/guardian-preferences.js" asp-append-version="true"></script>
     <script src="~/js/student-portal/index.js" asp-append-version="true"></script>
 }
