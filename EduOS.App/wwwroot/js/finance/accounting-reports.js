@@ -9,7 +9,7 @@ if (root) {
     const notice = (message, error = false) => { const el = $('reportNotice'); el.textContent = message;
         el.className = 'alert ' + (error ? 'alert-danger' : 'alert-success'); };
     const run = async work => { try { await work(); } catch (error) { notice(error.message || 'Report failed.', true); } };
-    const decimalKeys = /("(?:debitAmount|creditAmount|runningBalance|openingBalance|closingBalance|debitBalance|creditBalance|amount|totalIncome|totalExpenses|netSurplus)"\s*:\s*)(-?\d+(?:\.\d+)?)/g;
+    const decimalKeys = /("(?:debitAmount|creditAmount|runningBalance|openingBalance|closingBalance|debitBalance|creditBalance|amount|totalIncome|totalExpenses|netSurplus|totalAssets|totalLiabilities|totalEquity|unclosedNetSurplus|totalLiabilitiesAndEquity)"\s*:\s*)(-?\d+(?:\.\d+)?)/g;
     async function get(url) {
         const response = await fetch(url, { credentials:'same-origin', headers:{Accept:'application/json'} });
         const raw = await response.text();
@@ -151,6 +151,58 @@ if (root) {
             rows.push(['Total Expenses','','',money(statement.totalExpenses)]);
             rows.push(['Net Surplus / Deficit','','',money(statement.netSurplus)]);
             downloadCsv('institution-income-statement-' + $('incomeFrom').value + '-' + $('incomeTo').value + '.csv', rows);
+        }));
+    }
+
+    const balanceForm = $('balanceForm');
+    if (balanceForm) {
+        $('balanceAsOf').value = today;
+        let balanceSheet = null;
+        balanceForm.addEventListener('submit', event => { event.preventDefault(); run(async () => {
+            const date = $('balanceAsOf').value;
+            if (!date) throw new Error('Select an as-of date.');
+            $('balanceRun').disabled = true; $('balanceCsv').disabled = true; balanceSheet = null;
+            try {
+                const data = await get('/api/finance/accounting/reports/balance-sheet?' +
+                    new URLSearchParams({asOfDate:date}));
+                const sections = [
+                    ['Assets', data.assetRows || []],
+                    ['Liabilities', data.liabilityRows || []],
+                    ['Equity', data.equityRows || []]
+                ];
+                const totals = sections.map(([, rows]) => rows.reduce((sum, row) => sum + cents(row.amount), 0n));
+                const surplus = cents(data.unclosedNetSurplus);
+                const right = totals[1] + totals[2] + surplus;
+                if (totals[0] !== cents(data.totalAssets) ||
+                    totals[1] !== cents(data.totalLiabilities) ||
+                    totals[2] !== cents(data.totalEquity) ||
+                    right !== cents(data.totalLiabilitiesAndEquity) || totals[0] !== right)
+                    throw new Error('Balance sheet totals do not reconcile.');
+                $('balanceRows').innerHTML = sections.map(([label, rows]) =>
+                    '<tr class="table-secondary"><th colspan="3">' + label + '</th></tr>' +
+                    rows.map(x => '<tr><td>' + esc(x.accountCode) + '</td><td>' + esc(x.accountName) +
+                        '</td><td class="text-end">' + money(x.amount) + '</td></tr>').join('')).join('');
+                $('balanceAssets').textContent = money(totals[0]);
+                $('balanceLiabilities').textContent = money(totals[1]);
+                $('balanceEquity').textContent = money(totals[2]);
+                $('balanceSurplus').textContent = money(surplus);
+                $('balanceRight').textContent = money(right);
+                balanceSheet = data; $('balanceCsv').disabled = false;
+                notice('Institutional balance sheet loaded and reconciled.');
+            } finally { $('balanceRun').disabled = false; }
+        }); });
+        $('balanceCsv').addEventListener('click', () => run(async () => {
+            if (!balanceSheet) return;
+            const rows = [['Section','Account Code','Account Name','Amount BDT']];
+            for (const [label, items] of [['Assets',balanceSheet.assetRows || []],
+                ['Liabilities',balanceSheet.liabilityRows || []],['Equity',balanceSheet.equityRows || []]])
+                for (const row of items) rows.push([label,row.accountCode,row.accountName,money(row.amount)]);
+            rows.push(['Total Assets','','',money(balanceSheet.totalAssets)]);
+            rows.push(['Total Liabilities','','',money(balanceSheet.totalLiabilities)]);
+            rows.push(['Posted Equity','','',money(balanceSheet.totalEquity)]);
+            rows.push(['Unclosed Net Surplus','','',money(balanceSheet.unclosedNetSurplus)]);
+            rows.push(['Liabilities + Equity + Surplus','','',money(balanceSheet.totalLiabilitiesAndEquity)]);
+            downloadCsv('institution-balance-sheet-' + $('balanceAsOf').value + '.csv', rows);
         }));
     }
     run(loadAccounts);

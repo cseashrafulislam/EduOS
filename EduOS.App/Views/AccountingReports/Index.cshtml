@@ -12,6 +12,7 @@
         @if (User.IsInRole("TenantAdmin"))
         {
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#incomePanel">Income Statement</button></li>
+            <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#balancePanel">Balance Sheet</button></li>
         }
     </ul>
     <div class="tab-content">
@@ -56,6 +57,26 @@
                     <tfoot><tr><th colspan="2">Total income</th><th id="incomeTotal" class="text-end"></th></tr>
                     <tr><th colspan="2">Total expenses</th><th id="expenseTotal" class="text-end"></th></tr>
                     <tr><th colspan="2">Net surplus / (deficit)</th><th id="incomeNet" class="text-end"></th></tr></tfoot>
+                </table></div>
+            </div>
+
+            <div class="tab-pane fade" id="balancePanel">
+                <p class="text-muted">Institution-wide BDT position from all posted journals through the selected date, including reversals. Unclosed lifetime income less expenses is presented separately from posted equity. Signed contra balances are preserved.</p>
+                <form id="balanceForm" class="row g-2 align-items-end mb-3">
+                    <div class="col-md-3"><label class="form-label" for="balanceAsOf">As of date</label><input id="balanceAsOf" type="date" class="form-control" required /></div>
+                    <div class="col-md-3"><button id="balanceRun" class="btn btn-primary" type="submit">Run Balance Sheet</button></div>
+                    <div class="col-md-3"><button id="balanceCsv" class="btn btn-outline-secondary" type="button" disabled>Export CSV</button></div>
+                </form>
+                <div class="table-responsive"><table class="table table-sm table-striped">
+                    <thead><tr><th>Account code</th><th>Account name</th><th class="text-end">Amount (BDT)</th></tr></thead>
+                    <tbody id="balanceRows"></tbody>
+                    <tfoot>
+                        <tr><th colspan="2">Total assets</th><th id="balanceAssets" class="text-end"></th></tr>
+                        <tr><th colspan="2">Total liabilities</th><th id="balanceLiabilities" class="text-end"></th></tr>
+                        <tr><th colspan="2">Posted equity</th><th id="balanceEquity" class="text-end"></th></tr>
+                        <tr><th colspan="2">Unclosed net surplus / (deficit)</th><th id="balanceSurplus" class="text-end"></th></tr>
+                        <tr><th colspan="2">Liabilities + equity + unclosed surplus</th><th id="balanceRight" class="text-end"></th></tr>
+                    </tfoot>
                 </table></div>
             </div>
         }

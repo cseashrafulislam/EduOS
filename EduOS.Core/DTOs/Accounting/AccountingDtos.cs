@@ -194,3 +194,27 @@ public sealed class IncomeStatementDto
     public decimal TotalExpenses { get; set; }
     public decimal NetSurplus { get; set; }
 }
+
+public sealed class BalanceSheetRowDto
+{
+    public long AccountId { get; set; }
+    public string AccountCode { get; set; } = string.Empty;
+    public string AccountName { get; set; } = string.Empty;
+    // Signed natural balance: contra-asset, contra-liability and contra-equity remain negative.
+    public decimal Amount { get; set; }
+}
+
+public sealed class BalanceSheetDto
+{
+    public DateOnly AsOfDate { get; set; }
+    public string CurrencyCode { get; set; } = "BDT";
+    public IReadOnlyList<BalanceSheetRowDto> AssetRows { get; set; } = Array.Empty<BalanceSheetRowDto>();
+    public IReadOnlyList<BalanceSheetRowDto> LiabilityRows { get; set; } = Array.Empty<BalanceSheetRowDto>();
+    public IReadOnlyList<BalanceSheetRowDto> EquityRows { get; set; } = Array.Empty<BalanceSheetRowDto>();
+    public decimal TotalAssets { get; set; }
+    public decimal TotalLiabilities { get; set; }
+    public decimal TotalEquity { get; set; }
+    // Lifetime unclosed income less expense through AsOfDate; never double counts posted closing entries.
+    public decimal UnclosedNetSurplus { get; set; }
+    public decimal TotalLiabilitiesAndEquity { get; set; }
+}

@@ -146,4 +146,92 @@ public sealed class AccountingReportingService : IAccountingReportingService
             TotalIncome = totalIncome, TotalExpenses = totalExpenses, NetSurplus = totalIncome - totalExpenses
         });
     }
+
+    // Lifetime ledger balances as of the date, including compensating reversal journals.
+    // This does not assume an accounting year-end: posted closing entries move surplus into equity.
+    public async Task<ApiResponse<BalanceSheetDto>> GetBalanceSheetAsync(DateOnly asOfDate, CancellationToken ct = default)
+    {
+        if (!user.IsAuthenticated || user.TenantId <= 0 || !user.IsTenantAdmin)
+            return ApiResponse<BalanceSheetDto>.ErrorResponse("Tenant administrator access required for the institution-wide balance sheet.", 403);
+        if (asOfDate == default)
+            return ApiResponse<BalanceSheetDto>.ErrorResponse("Valid as-of date required.", 400);
+        var journals = Posted.Where(j => j.JournalDate <= asOfDate);
+        if (await journals.AnyAsync(j => j.CurrencyCode != "BDT", ct))
+            return ApiResponse<BalanceSheetDto>.ErrorResponse("Mixed-currency journals require an approved FX policy.", 409);
+        if (await journals.AnyAsync(j => !Lines.Any(l => l.JournalId == j.Id), ct))
+            return ApiResponse<BalanceSheetDto>.ErrorResponse("A posted journal has no lines; reconcile the ledger first.", 409);
+        var entries = from l in Lines
+            join j in journals on l.JournalId equals j.Id
+            select new { JournalId = j.Id, l.AccountId, l.DebitAmount, l.CreditAmount };
+        if (await entries.AnyAsync(l => l.DebitAmount < 0m || l.CreditAmount < 0m ||
+            (l.DebitAmount > 0m && l.CreditAmount > 0m) ||
+            (l.DebitAmount == 0m && l.CreditAmount == 0m), ct))
+            return ApiResponse<BalanceSheetDto>.ErrorResponse("Invalid debit/credit journal line prevents reporting.", 409);
+        var unbalanced = await (from l in entries
+            group l by l.JournalId into g
+            select new { Debit = g.Sum(x => x.DebitAmount), Credit = g.Sum(x => x.CreditAmount) })
+            .AnyAsync(x => x.Debit != x.Credit, ct);
+        if (unbalanced)
+            return ApiResponse<BalanceSheetDto>.ErrorResponse("An unbalanced posted journal prevents financial reporting.", 409);
+        var balances = await (from l in entries
+            group l by l.AccountId into g
+            select new { AccountId = g.Key, Debit = g.Sum(x => x.DebitAmount), Credit = g.Sum(x => x.CreditAmount) })
+            .ToListAsync(ct);
+        if (balances.Count > 5000)
+            return ApiResponse<BalanceSheetDto>.ErrorResponse("More than 5,000 posting accounts; reporting export integration required.", 422);
+        var accountIds = balances.Select(x => x.AccountId).ToArray();
+        var accounts = await db.Accounts.AsNoTracking()
+            .Where(a => a.TenantId == user.TenantId && !a.IsDeleted && accountIds.Contains(a.Id))
+            .Select(a => new { a.Id, a.Code, a.Name, a.AccountType, a.CurrencyCode, a.IsGroup, a.AllowsPosting })
+            .ToListAsync(ct);
+        if (accounts.Count != balances.Count)
+            return ApiResponse<BalanceSheetDto>.ErrorResponse("Posted ledger contains missing or deleted account references.", 409);
+        if (accounts.Any(a => a.CurrencyCode != "BDT" || a.IsGroup || !a.AllowsPosting))
+            return ApiResponse<BalanceSheetDto>.ErrorResponse("A posting account has invalid currency or posting configuration.", 409);
+        var byId = accounts.ToDictionary(a => a.Id);
+        var assets = new List<BalanceSheetRowDto>();
+        var liabilities = new List<BalanceSheetRowDto>();
+        var equity = new List<BalanceSheetRowDto>();
+        decimal unclosedSurplus = 0m;
+        foreach (var balance in balances.OrderBy(x => byId[x.AccountId].Code).ThenBy(x => x.AccountId))
+        {
+            var account = byId[balance.AccountId];
+            if (account.AccountType == AccountType.Income)
+            {
+                unclosedSurplus += balance.Credit - balance.Debit;
+                continue;
+            }
+            if (account.AccountType == AccountType.Expense)
+            {
+                unclosedSurplus -= balance.Debit - balance.Credit;
+                continue;
+            }
+            if (account.AccountType != AccountType.Asset &&
+                account.AccountType != AccountType.Liability &&
+                account.AccountType != AccountType.Equity)
+                return ApiResponse<BalanceSheetDto>.ErrorResponse("An account has an unsupported accounting classification.", 409);
+            var amount = account.AccountType == AccountType.Asset
+                ? balance.Debit - balance.Credit : balance.Credit - balance.Debit;
+            var row = new BalanceSheetRowDto
+            {
+                AccountId = account.Id, AccountCode = account.Code, AccountName = account.Name, Amount = amount
+            };
+            if (account.AccountType == AccountType.Asset) assets.Add(row);
+            else if (account.AccountType == AccountType.Liability) liabilities.Add(row);
+            else equity.Add(row);
+        }
+        var totalAssets = assets.Sum(x => x.Amount);
+        var totalLiabilities = liabilities.Sum(x => x.Amount);
+        var totalEquity = equity.Sum(x => x.Amount);
+        var totalLiabilitiesAndEquity = totalLiabilities + totalEquity + unclosedSurplus;
+        if (totalAssets != totalLiabilitiesAndEquity)
+            return ApiResponse<BalanceSheetDto>.ErrorResponse("Balance sheet does not reconcile; investigate account classification and posted journals.", 409);
+        return ApiResponse<BalanceSheetDto>.SuccessResponse(new BalanceSheetDto
+        {
+            AsOfDate = asOfDate, AssetRows = assets, LiabilityRows = liabilities, EquityRows = equity,
+            TotalAssets = totalAssets, TotalLiabilities = totalLiabilities, TotalEquity = totalEquity,
+            UnclosedNetSurplus = unclosedSurplus, TotalLiabilitiesAndEquity = totalLiabilitiesAndEquity
+        });
+    }
+
 }
