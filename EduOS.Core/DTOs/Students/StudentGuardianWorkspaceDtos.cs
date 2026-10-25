@@ -23,6 +23,8 @@ public sealed class StudentGuardianWorkspaceLinkDto
     public bool CanReceiveSms { get; set; }
     public bool CanReceiveEmail { get; set; }
     public bool IsAuthorizedPickup { get; set; }
+    public bool IsFinancialContact { get; set; }
+    public bool IsEmergencyContact { get; set; }
     public string RowVersion { get; set; } = string.Empty;
 }
 
@@ -41,6 +43,8 @@ public sealed class CreateStudentGuardianWorkspaceRequestDto
     public bool CanReceiveSms { get; set; } = true;
     public bool CanReceiveEmail { get; set; } = true;
     public bool IsAuthorizedPickup { get; set; }
+    public bool IsFinancialContact { get; set; }
+    public bool IsEmergencyContact { get; set; }
 }
 
 public sealed class UpdateStudentGuardianWorkspaceLinkDto
@@ -50,5 +54,7 @@ public sealed class UpdateStudentGuardianWorkspaceLinkDto
     public bool CanReceiveSms { get; set; }
     public bool CanReceiveEmail { get; set; }
     public bool IsAuthorizedPickup { get; set; }
+    public bool IsFinancialContact { get; set; }
+    public bool IsEmergencyContact { get; set; }
     [Required] public string RowVersion { get; set; } = string.Empty;
 }

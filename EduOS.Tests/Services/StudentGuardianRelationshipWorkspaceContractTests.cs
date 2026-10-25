@@ -31,6 +31,34 @@ public sealed class StudentGuardianRelationshipWorkspaceContractTests
     }
 
     [Fact]
+    public void Emergency_and_financial_contact_designations_round_trip_without_overwriting_guardian_roles()
+    {
+        var entity = Read("EduOS.Core", "Entities", "Students", "StudentEntities.cs");
+        var dto = Read("EduOS.Core", "DTOs", "Students", "StudentGuardianWorkspaceDtos.cs");
+        var service = Read("EduOS.Service", "Services", "Students", "StudentGuardianWorkspaceService.cs");
+        var view = Read("EduOS.App", "Views", "StudentGuardians", "Index.cshtml");
+        var save = Read("EduOS.App", "wwwroot", "js", "students", "guardian-save.js");
+        var edit = Read("EduOS.App", "wwwroot", "js", "students", "guardian-link-edit.js");
+        entity.Should().Contain("IsFinancialContact").And.Contain("IsEmergencyContact");
+        dto.Split("public bool IsFinancialContact").Length.Should().Be(4);
+        dto.Split("public bool IsEmergencyContact").Length.Should().Be(4);
+        service.Should().Contain("IsFinancialContact = x.IsFinancialContact")
+            .And.Contain("IsEmergencyContact = x.IsEmergencyContact")
+            .And.Contain("IsFinancialContact = request.IsFinancialContact")
+            .And.Contain("IsEmergencyContact = request.IsEmergencyContact")
+            .And.Contain("link.IsFinancialContact = request.IsFinancialContact")
+            .And.Contain("link.IsEmergencyContact = request.IsEmergencyContact")
+            .And.Contain("VersionMatches(link.RowVersion, request.RowVersion)")
+            .And.Contain("System.Data.IsolationLevel.Serializable");
+        view.Should().Contain("id=\"guardianFinancial\"").And.Contain("id=\"guardianEmergency\"");
+        save.Should().Contain("isFinancialContact: $('guardianFinancial').checked")
+            .And.Contain("isEmergencyContact: $('guardianEmergency').checked");
+        edit.Should().Contain("isFinancialContact: financial.checked")
+            .And.Contain("isEmergencyContact: emergency.checked")
+            .And.Contain("textContent").And.NotContain("innerHTML");
+    }
+
+    [Fact]
     public void Guardian_api_requires_admin_student_module_and_antiforgery()
     {
         var api = Read("EduOS.App", "Controllers", "Api", "StudentGuardiansController.cs");

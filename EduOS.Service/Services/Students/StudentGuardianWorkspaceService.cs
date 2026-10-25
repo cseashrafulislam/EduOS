@@ -86,6 +86,7 @@ public sealed class StudentGuardianWorkspaceService : IStudentGuardianWorkspaceS
                     Phone = g.Phone, Email = g.Email, RelationCode = x.RelationCode,
                     IsPrimary = x.IsPrimary, CanReceiveSms = x.CanReceiveSms,
                     CanReceiveEmail = x.CanReceiveEmail, IsAuthorizedPickup = x.IsAuthorizedPickup,
+                    IsFinancialContact = x.IsFinancialContact, IsEmergencyContact = x.IsEmergencyContact,
                     RowVersion = Convert.ToBase64String(x.RowVersion)
                 };
             }).ToArray()
@@ -153,7 +154,9 @@ public sealed class StudentGuardianWorkspaceService : IStudentGuardianWorkspaceS
                 TenantId = tenant, StudentId = student.Id, GuardianId = guardian.Id,
                 RelationCode = request.RelationCode.Trim(), IsPrimary = primary,
                 CanReceiveSms = request.CanReceiveSms, CanReceiveEmail = request.CanReceiveEmail,
-                IsAuthorizedPickup = request.IsAuthorizedPickup, CreatedAt = now, CreatedBy = _user.UserId
+                IsAuthorizedPickup = request.IsAuthorizedPickup,
+                IsFinancialContact = request.IsFinancialContact, IsEmergencyContact = request.IsEmergencyContact,
+                CreatedAt = now, CreatedBy = _user.UserId
             });
             await _uow.SaveChangesAsync(token);
             return await LoadAsync(request.StudentReference, token);
@@ -192,6 +195,8 @@ public sealed class StudentGuardianWorkspaceService : IStudentGuardianWorkspaceS
             link.RelationCode = request.RelationCode.Trim(); link.IsPrimary = request.IsPrimary;
             link.CanReceiveSms = request.CanReceiveSms; link.CanReceiveEmail = request.CanReceiveEmail;
             link.IsAuthorizedPickup = request.IsAuthorizedPickup;
+            link.IsFinancialContact = request.IsFinancialContact;
+            link.IsEmergencyContact = request.IsEmergencyContact;
             link.UpdatedAt = now; link.UpdatedBy = _user.UserId;
             await _uow.SaveChangesAsync(token);
             return await LoadAsync(studentReference, token);

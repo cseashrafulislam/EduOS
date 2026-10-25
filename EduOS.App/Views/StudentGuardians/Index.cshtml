@@ -6,7 +6,7 @@
     @Html.AntiForgeryToken()
     <header class="mb-3">
         <h1 class="h4">Student Guardians</h1>
-        <p class="text-muted">Manage guardian relationships, primary contact and communication/pickup permissions. Changes are limited to your institution.</p>
+        <p class="text-muted">Manage guardian relationships, primary, emergency and financial contacts, and communication/pickup permissions. Changes are limited to your institution.</p>
     </header>
     <div id="guardianNotice" class="alert alert-info" role="status" aria-live="polite">Search for a student to begin.</div>
     <div class="row g-3">
@@ -49,6 +49,10 @@
                         <label for="guardianEmailAllowed" class="form-check-label">May receive email</label></div>
                     <div class="col-12 form-check ms-2"><input id="guardianPickup" class="form-check-input" type="checkbox" />
                         <label for="guardianPickup" class="form-check-label">Authorized to pick up student</label></div>
+                    <div class="col-12 form-check ms-2"><input id="guardianFinancial" class="form-check-input" type="checkbox" />
+                        <label for="guardianFinancial" class="form-check-label">Financial contact (institution-authorized)</label></div>
+                    <div class="col-12 form-check ms-2"><input id="guardianEmergency" class="form-check-input" type="checkbox" />
+                        <label for="guardianEmergency" class="form-check-label">Emergency contact (institution-authorized)</label></div>
                     <div class="col-12"><button id="guardianCreate" class="btn btn-primary" type="submit" disabled>Save guardian</button></div>
                 </form>
             </div></section>

@@ -20,7 +20,9 @@ export function setupGuardianSave({ $, api, state, render, notice }) {
             isPrimary: $('guardianPrimary').checked,
             canReceiveSms: $('guardianSms').checked,
             canReceiveEmail: $('guardianEmailAllowed').checked,
-            isAuthorizedPickup: $('guardianPickup').checked
+            isAuthorizedPickup: $('guardianPickup').checked,
+            isFinancialContact: $('guardianFinancial').checked,
+            isEmergencyContact: $('guardianEmergency').checked
         };
         state.busy = true;
         $('guardianCreate').disabled = true;

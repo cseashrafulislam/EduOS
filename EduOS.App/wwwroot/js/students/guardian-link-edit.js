@@ -32,7 +32,9 @@ export function renderGuardianLinks({ $, api, state, render, notice }) {
         permissions.textContent = [
             guardian.canReceiveSms ? 'SMS allowed' : 'SMS disabled',
             guardian.canReceiveEmail ? 'Email allowed' : 'Email disabled',
-            guardian.isAuthorizedPickup ? 'Pickup authorized' : 'Pickup not authorized'
+            guardian.isAuthorizedPickup ? 'Pickup authorized' : 'Pickup not authorized',
+            guardian.isFinancialContact ? 'Financial contact' : 'Not financial contact',
+            guardian.isEmergencyContact ? 'Emergency contact' : 'Not emergency contact'
         ].join(' · ');
         const editor = document.createElement('form');
         editor.className = 'row g-2 mt-2 d-none';
@@ -67,6 +69,8 @@ export function renderGuardianLinks({ $, api, state, render, notice }) {
         const sms = checkbox('May receive SMS', guardian.canReceiveSms);
         const email = checkbox('May receive email', guardian.canReceiveEmail);
         const pickup = checkbox('Authorized pickup', guardian.isAuthorizedPickup);
+        const financial = checkbox('Financial contact (institution-authorized)', guardian.isFinancialContact);
+        const emergency = checkbox('Emergency contact (institution-authorized)', guardian.isEmergencyContact);
         const actions = document.createElement('div');
         actions.className = 'col-12 d-flex gap-2';
         const save = document.createElement('button');
@@ -97,7 +101,9 @@ export function renderGuardianLinks({ $, api, state, render, notice }) {
                 const updated = await api(url, 'PUT', {
                     relationCode: relation.value, isPrimary: primary.checked,
                     canReceiveSms: sms.checked, canReceiveEmail: email.checked,
-                    isAuthorizedPickup: pickup.checked, rowVersion: guardian.rowVersion
+                    isAuthorizedPickup: pickup.checked,
+                    isFinancialContact: financial.checked, isEmergencyContact: emergency.checked,
+                    rowVersion: guardian.rowVersion
                 });
                 state.busy = false;
                 render(updated);
