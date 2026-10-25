@@ -2,6 +2,7 @@ using EduOS.Core.DTOs.Library;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Library;
 using EduOS.Core.Entities.Students;
+using EduOS.Core.Entities.HR;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
@@ -347,6 +348,36 @@ public sealed class LibraryServiceTests
         (await service.GetCirculationRegisterAsync(null, "issued", 55, 1, 20)).Data!.TotalCount.Should().Be(0);
     }
 
+    [Fact]
+    public async Task Librarian_circulation_and_return_are_restricted_to_active_staff_campus()
+    {
+        var options = Options();
+        await using var db = Context(options, 101, "Librarian");
+        var (student, copy) = await SeedBorrower(db, 101, true);
+        var branch = new LibraryBranch { TenantId = 101, CampusId = 44, Name = "North", Code = "N" };
+        var staff = new Employee { TenantId = 101, UserId = 7, PersonId = 3,
+            DesignationId = 1, FullName = "Librarian", EmployeeCode = "LIB-1", State = EmployeeState.Active };
+        db.AddRange(branch, staff); await db.SaveChangesAsync();
+        db.Add(new EmployeeCampusAssignment { TenantId = 101, EmployeeId = staff.Id, CampusId = 44,
+            IsCurrent = true, EffectiveFrom = new DateOnly(2025, 1, 1) });
+        copy.LibraryBranchId = branch.Id;
+        var academic = await db.StudentEnrollments.SingleAsync();
+        academic.CampusId = 44;
+        await db.SaveChangesAsync();
+        var service = Service(db, 101, "Librarian");
+        var issued = await service.IssueAsync(Request(student, copy, Guid.NewGuid()));
+        issued.Success.Should().BeTrue(issued.Message);
+        (await service.GetCirculationRegisterAsync(null, "issued", null, 1, 20))
+            .Data!.TotalCount.Should().Be(1);
+        var campusAssignment = await db.Set<EmployeeCampusAssignment>().SingleAsync();
+        campusAssignment.CampusId = 55;await db.SaveChangesAsync();
+        (await service.GetCirculationRegisterAsync(null, "issued", null, 1, 20))
+            .Data!.TotalCount.Should().Be(0);
+        (await service.CloseAsync(issued.Data!.Reference, new ReturnBookRequestDto
+        { RowVersion = issued.Data.RowVersion })).StatusCode.Should().Be(403);
+        (await db.BookCopies.SingleAsync()).State.Should().Be(BookCopyState.Issued);
+    }
+
     private static IssueBookRequestDto Request(Student student, BookCopy copy, Guid key) => new()
     {
         ClientRequestId = key, BookCopyId = copy.Id, StudentReference = student.PublicId,
@@ -374,7 +405,9 @@ public sealed class LibraryServiceTests
         new GenericRepository<BookIssue>(db), new GenericRepository<BookCategory>(db),
         new GenericRepository<Student>(db), new GenericRepository<StudentEnrollment>(db),
         db, new TestUser(tenant, role), TimeProvider.System, NullLogger<LibraryService>.Instance,
-        new GenericRepository<LibraryBranch>(db));
+        new GenericRepository<LibraryBranch>(db),
+        new GenericRepository<Employee>(db),
+        new GenericRepository<EmployeeCampusAssignment>(db));
 
     private static DbContextOptions<EduOSDbContext> Options() => new DbContextOptionsBuilder<EduOSDbContext>()
         .UseInMemoryDatabase("library-" + Guid.NewGuid().ToString("N")).Options;

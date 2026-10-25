@@ -3,6 +3,7 @@ using EduOS.Core.DTOs.Library;
 using EduOS.Core.Entities.Library;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Students;
+using EduOS.Core.Entities.HR;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
@@ -20,6 +21,8 @@ public sealed partial class LibraryService : ILibraryService
     private readonly IGenericRepository<BookIssue> _issues;
     private readonly IGenericRepository<BookCategory> _categories;
     private readonly IGenericRepository<LibraryBranch>? _branches;
+    private readonly IGenericRepository<Employee>? _staffEmployees;
+    private readonly IGenericRepository<EmployeeCampusAssignment>? _staffCampusAssignments;
     private readonly IGenericRepository<Student> _students;
     private readonly IGenericRepository<StudentEnrollment> _enrollments;
     private readonly IUnitOfWork _uow;
@@ -31,11 +34,13 @@ public sealed partial class LibraryService : ILibraryService
         IGenericRepository<BookIssue> issues, IGenericRepository<BookCategory> categories,
         IGenericRepository<Student> students, IGenericRepository<StudentEnrollment> enrollments, IUnitOfWork unitOfWork,
         ICurrentUserService currentUser, TimeProvider clock, ILogger<LibraryService> logger,
-        IGenericRepository<LibraryBranch>? branches = null)
+        IGenericRepository<LibraryBranch>? branches = null,
+        IGenericRepository<Employee>? staffEmployees = null,
+        IGenericRepository<EmployeeCampusAssignment>? staffCampusAssignments = null)
     {
         _books = books; _copies = copies; _issues = issues; _categories = categories;
         _students = students; _enrollments = enrollments; _uow = unitOfWork; _user = currentUser; _clock = clock; _logger = logger;
-        _branches = branches;
+        _branches = branches; _staffEmployees = staffEmployees; _staffCampusAssignments = staffCampusAssignments;
     }
 
 
@@ -389,6 +394,8 @@ public sealed partial class LibraryService : ILibraryService
                 x.Id == request.BookCopyId, ct);
             if (copy == null || copy.State != BookCopyState.Available)
                 return Error("The selected copy is not available.", 409);
+            if (!await StaffCanManageBranchAsync(copy.LibraryBranchId, ct))
+                return Error("Copy is outside your assigned campus.", 403);
             if (!await _books.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.Id == copy.BookId && x.IsActive, ct))
                 return Error("Book is archived or unavailable.", 409);
             if (copy.LibraryBranchId.HasValue)
@@ -456,6 +463,14 @@ public sealed partial class LibraryService : ILibraryService
             var issue = await _issues.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenant &&
                 x.PublicId == reference, ct);
             if (issue == null) return Error("Issue not found.", 404);
+            if (IsCampusScopedLibrarian)
+            {
+                var branchId = await _copies.GetQueryable().AsNoTracking()
+                    .Where(x => x.TenantId == tenant && x.Id == issue.BookCopyId && !x.IsDeleted)
+                    .Select(x => x.LibraryBranchId).FirstOrDefaultAsync(ct);
+                if (!await StaffCanManageBranchAsync(branchId, ct))
+                    return Error("Copy is outside your assigned campus.", 403);
+            }
             if (issue.State == BookIssueState.Returned)
             {
                 if (request.ReturnDate != default && request.ReturnDate != issue.ReturnDate)

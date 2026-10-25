@@ -1,6 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Library;
 using EduOS.Core.Enums.Domain;
+using EduOS.Core.Entities.HR;
 using Microsoft.EntityFrameworkCore;
 
 namespace EduOS.Service.Services.Library;
@@ -40,6 +41,17 @@ public sealed partial class LibraryService
                 x.Student.StudentCode.Contains(term) || x.Book.Title.Contains(term) ||
                 x.Copy.AccessionNumber.Contains(term));
         }
+        if (IsCampusScopedLibrarian)
+        {
+            var staffCampuses = StaffCampusIds(tenant, today);
+            if (staffCampuses == null || _branches == null)
+                return Denied<PagedResult<LibraryCirculationRowDto>>();
+            var permittedBranches = _branches.GetQueryable().AsNoTracking()
+                .Where(b => b.TenantId == tenant && !b.IsDeleted && staffCampuses.Contains(b.CampusId))
+                .Select(b => b.Id);
+            query = query.Where(x => x.Copy.LibraryBranchId.HasValue &&
+                permittedBranches.Contains(x.Copy.LibraryBranchId.Value));
+        }
         if (campusId.HasValue)
         {
             var campus = campusId.Value;
@@ -77,5 +89,34 @@ public sealed partial class LibraryService
         return ApiResponse<PagedResult<LibraryCirculationRowDto>>.SuccessResponse(
             new PagedResult<LibraryCirculationRowDto>
             { Items = rows, TotalCount = total, Page = page, PageSize = pageSize });
+    }
+
+    private bool IsCampusScopedLibrarian =>
+        !_user.IsTenantAdmin && !_user.IsInRole("Principal") && _user.IsInRole("Librarian");
+
+    private IQueryable<long>? StaffCampusIds(long tenant, DateOnly today)
+    {
+        if (_staffEmployees == null || _staffCampusAssignments == null) return null;
+        var employeeIds = _staffEmployees.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && x.UserId == _user.UserId &&
+                x.State == EmployeeState.Active && !x.IsDeleted)
+            .Select(x => x.Id);
+        return _staffCampusAssignments.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && !x.IsDeleted && x.IsCurrent &&
+                employeeIds.Contains(x.EmployeeId) && x.EffectiveFrom <= today &&
+                (!x.EffectiveTo.HasValue || x.EffectiveTo.Value >= today))
+            .Select(x => x.CampusId);
+    }
+
+    private async Task<bool> StaffCanManageBranchAsync(long? branchId, CancellationToken ct)
+    {
+        if (!IsCampusScopedLibrarian) return true;
+        if (!branchId.HasValue || _branches == null) return false;
+        var tenant = _user.TenantId;
+        var today = DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime);
+        var campuses = StaffCampusIds(tenant, today);
+        return campuses != null && await _branches.GetQueryable().AsNoTracking().AnyAsync(x =>
+            x.TenantId == tenant && x.Id == branchId.Value && !x.IsDeleted &&
+            campuses.Contains(x.CampusId), ct);
     }
 }
