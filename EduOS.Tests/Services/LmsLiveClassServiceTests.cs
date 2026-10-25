@@ -108,6 +108,88 @@ public sealed class LmsLiveClassServiceTests
         Assert.Equal(404,(await service.SaveLiveClassAsync(null,invalid)).StatusCode);
     }
 
+    [Fact]
+    public async Task Completed_student_retains_historical_recording_after_promotion_but_not_foreign_campus()
+    {
+        await using var db = Db();
+        var now = DateTime.UtcNow;
+        var from = DateOnly.FromDateTime(now.AddDays(-180));
+        var to = DateOnly.FromDateTime(now.AddDays(-20));
+        var teacher = new Employee { TenantId = 101, EmployeeCode = "HIST-T", FullName = "Historical teacher" };
+        var student = new Student { TenantId = 101, UserId = 51, StudentCode = "HIST-S", FullName = "Student" };
+        var course = new Course { TenantId = 101, AcademicProgramId = 12, SubjectId = 21,
+            Code = "HIST-C", Title = "Historical course" };
+        var year = new AcademicYear { TenantId = 101, Name = "Previous", Code = "OLD",
+            StartDate = from, EndDate = to, IsActive = false };
+        var curriculum = new AcademicCurriculum { TenantId = 101, Name = "Previous curriculum",
+            Code = "OLD-C", AcademicProgramId = 12, EffectiveFrom = from, IsActive = false };
+        db.AddRange(teacher, student, course, year, curriculum);
+        await db.SaveChangesAsync();
+        var item = new CurriculumSubject { TenantId = 101, AcademicCurriculumId = curriculum.Id,
+            AcademicLevelId = 31, SubjectId = 21, IsActive = false };
+        var batch = new AcademicBatch { TenantId = 101, CampusId = 41,
+            AcademicYearId = year.Id, AcademicProgramId = 12, AcademicLevelId = 31,
+            Name = "Old batch", Code = "OLD-B", IsActive = false };
+        var campus = new EmployeeCampusAssignment { TenantId = 101, EmployeeId = teacher.Id,
+            CampusId = 41, EffectiveFrom = from, IsCurrent = false };
+        db.AddRange(item, batch, campus);
+        await db.SaveChangesAsync();
+        var offering = new SubjectOffering { TenantId = 101, AcademicBatchId = batch.Id,
+            AcademicYearId = year.Id, CurriculumSubjectId = item.Id, Code = "OLD-O", IsActive = false };
+        var academic = new StudentEnrollment { TenantId = 101, StudentId = student.Id,
+            CampusId = 41, AcademicYearId = year.Id, AcademicProgramId = 12, AcademicLevelId = 31,
+            AcademicBatchId = batch.Id, AcademicCurriculumId = curriculum.Id,
+            RollNo = "001", EnrollmentDate = from, EndDate = to,
+            State = EnrollmentState.Promoted, IsCurrent = false };
+        db.AddRange(offering, academic);
+        await db.SaveChangesAsync();
+        db.Add(new InstructorAssignment { TenantId = 101, SubjectOfferingId = offering.Id,
+            EmployeeId = teacher.Id, EffectiveFrom = from, IsActive = false });
+        db.Add(new CourseEnrollment { TenantId = 101, CourseId = course.Id,
+            StudentId = student.Id, StudentEnrollmentId = academic.Id,
+            State = CourseEnrollmentState.Completed, EnrolledAt = now.AddDays(-120),
+            CompletedAt = now.AddDays(-10) });
+        var session = new LiveClass { TenantId = 101, CourseId = course.Id,
+            InstructorEmployeeId = teacher.Id, Title = "Archived class",
+            StartsAt = now.AddDays(-90), EndsAt = now.AddDays(-90).AddHours(1),
+            JoinUrl = "https://meet.example.com/old",
+            RecordingUrl = "https://videos.example.com/old" };
+        db.Add(session);
+        await db.SaveChangesAsync();
+
+        var service = Service(db, "Student");
+        var detail = await service.GetLiveClassAsync(session.PublicId);
+        Assert.True(detail.Success, detail.Message);
+        Assert.Null(detail.Data!.JoinUrl);
+        Assert.Equal(session.RecordingUrl, detail.Data.RecordingUrl);
+        var register = await service.GetCourseRecordingsAsync(course.PublicId);
+        Assert.True(register.Success, register.Message);
+        Assert.Equal(1, register.Data!.TotalCount);
+        Assert.Single(register.Data.Items);
+        Assert.Equal(session.PublicId, register.Data.Items[0].Reference);
+        Assert.Equal(session.RecordingUrl, register.Data.Items[0].RecordingUrl);
+        Assert.Equal(0, (await service.GetCourseLiveClassesAsync(course.PublicId)).Data!.Count);
+
+        // A historical course enrollment is not a bypass for a different campus.
+        academic.CampusId = 42;
+        await db.SaveChangesAsync();
+        Assert.Equal(404, (await service.GetLiveClassAsync(session.PublicId)).StatusCode);
+        Assert.Equal(0, (await service.GetCourseRecordingsAsync(course.PublicId)).Data!.TotalCount);
+    }
+
+    [Fact]
+    public async Task Recording_register_validates_pagination_and_does_not_disclose_foreign_courses()
+    {
+        await using var db = Db();
+        var foreign = new Course { TenantId = 202, Code = "OTHER", Title = "Foreign course" };
+        db.Add(foreign);
+        await db.SaveChangesAsync();
+        var service = Service(db, "Student");
+        Assert.Equal(400, (await service.GetCourseRecordingsAsync(foreign.PublicId, 0, 20)).StatusCode);
+        Assert.Equal(400, (await service.GetCourseRecordingsAsync(foreign.PublicId, 1, 100)).StatusCode);
+        Assert.Equal(404, (await service.GetCourseRecordingsAsync(foreign.PublicId, 1, 20)).StatusCode);
+    }
+
     private static EduOSDbContext Db()
     {
         var options = new DbContextOptionsBuilder<EduOSDbContext>()

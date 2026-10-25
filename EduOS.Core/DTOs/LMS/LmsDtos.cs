@@ -303,6 +303,18 @@ public class LiveClassDto
     public string RowVersion { get; set; } = string.Empty;
 }
 
+/// <summary>Read-only historical recording metadata; meeting links and concurrency tokens are excluded.</summary>
+public sealed class LiveClassRecordingDto
+{
+    public Guid Reference { get; set; }
+    public Guid CourseReference { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string InstructorName { get; set; } = string.Empty;
+    public DateTime StartsAt { get; set; }
+    public DateTime EndsAt { get; set; }
+    public string RecordingUrl { get; set; } = string.Empty;
+}
+
 public class SaveLiveClassRequestDto
 {
     public Guid CourseReference { get; set; }

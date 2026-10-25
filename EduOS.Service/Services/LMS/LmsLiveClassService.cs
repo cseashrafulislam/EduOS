@@ -89,7 +89,7 @@ public sealed class LmsLiveClassService : ILmsLiveClassService
 
     /// <summary>Only assigned, active offerings in valid academic/curriculum/term windows may host live lessons.</summary>
     private async Task<long[]> EligibleBatchesAsync(Course course, long instructorId,
-        DateOnly startDate, DateOnly endDate, CancellationToken ct)
+        DateOnly startDate, DateOnly endDate, CancellationToken ct, bool historical = false)
     {
         if (!course.AcademicProgramId.HasValue || !course.SubjectId.HasValue) return [];
         var tenant = _user.TenantId;
@@ -106,8 +106,8 @@ public sealed class LmsLiveClassService : ILmsLiveClassService
                 campus.TenantId == tenant &&
                 !offering.IsDeleted && !item.IsDeleted && !curriculum.IsDeleted && !batch.IsDeleted &&
                 !year.IsDeleted && !assignment.IsDeleted && !campus.IsDeleted &&
-                offering.IsActive && item.IsActive && curriculum.IsActive && batch.IsActive &&
-                year.IsActive && assignment.IsActive && campus.IsCurrent &&
+                (historical || (offering.IsActive && item.IsActive && curriculum.IsActive &&
+                batch.IsActive && year.IsActive && assignment.IsActive && campus.IsCurrent)) &&
                 curriculum.AcademicProgramId == course.AcademicProgramId &&
                 batch.AcademicProgramId == course.AcademicProgramId && item.SubjectId == course.SubjectId &&
                 batch.AcademicLevelId == item.AcademicLevelId &&
@@ -123,33 +123,61 @@ public sealed class LmsLiveClassService : ILmsLiveClassService
                 (!batch.EndDate.HasValue || batch.EndDate >= endDate) &&
                 (!offering.AcademicTermId.HasValue || _terms.GetQueryable().Any(term =>
                     term.TenantId == tenant && term.Id == offering.AcademicTermId &&
-                    term.AcademicYearId == year.Id && term.IsActive && !term.IsDeleted &&
+                    term.AcademicYearId == year.Id && (historical || term.IsActive) && !term.IsDeleted &&
                     term.StartDate <= startDate && term.EndDate >= endDate))
             select batch.Id;
         return await query.Distinct().ToArrayAsync(ct);
     }
 
+    /// <summary>Historical recordings require the completed course's original academic enrollment,
+    /// its campus/curriculum offering and an instructor assignment valid on the session date.
+    /// A current enrollment in another batch must never grant access to historical recordings.</summary>
     private async Task<bool> CanReadAsync(Course course, LiveClass row, CancellationToken ct)
     {
         if (Manager) return true;
         if (_user.IsInRole("Teacher")) return row.InstructorEmployeeId == await OwnInstructorAsync(ct);
-        if (!Authenticated || !_user.IsInRole("Student") || !course.IsActive) return false;
+        if (!Authenticated || !_user.IsInRole("Student")) return false;
+        var tenant = _user.TenantId;
         var studentId = await _students.GetQueryable().AsNoTracking().Where(x =>
-            x.TenantId == _user.TenantId && x.UserId == _user.UserId &&
+            x.TenantId == tenant && x.UserId == _user.UserId &&
             x.StatusCode == "Active" && !x.IsDeleted).Select(x => x.Id).FirstOrDefaultAsync(ct);
         if (studentId <= 0) return false;
-        var dateFrom = DhakaDate(row.StartsAt);
-        var dateTo = DhakaDate(row.EndsAt);
-        var eligible = await EligibleBatchesAsync(course, row.InstructorEmployeeId, dateFrom, dateTo, ct);
-        if (eligible.Length == 0) return false;
-        var academic = _studentEnrollments.GetQueryable().AsNoTracking().Where(x =>
-            x.TenantId == _user.TenantId && x.StudentId == studentId &&
-            x.IsCurrent && x.State == EnrollmentState.Active && !x.IsDeleted &&
-            eligible.Contains(x.AcademicBatchId));
-        return await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x =>
-            x.TenantId == _user.TenantId && x.CourseId == course.Id && x.StudentId == studentId &&
-            x.State == CourseEnrollmentState.Active && !x.IsDeleted &&
-            academic.Any(a => !x.StudentEnrollmentId.HasValue || x.StudentEnrollmentId == a.Id), ct);
+        var from = DhakaDate(row.StartsAt);
+        var to = DhakaDate(row.EndsAt);
+        var isRecording = row.EndsAt <= Now && !string.IsNullOrWhiteSpace(row.RecordingUrl);
+        var currentBatches = course.IsActive
+            ? await EligibleBatchesAsync(course, row.InstructorEmployeeId, from, to, ct) : Array.Empty<long>();
+        var historicBatches = isRecording
+            ? await EligibleBatchesAsync(course, row.InstructorEmployeeId, from, to, ct, historical: true) : Array.Empty<long>();
+        if (currentBatches.Length == 0 && historicBatches.Length == 0) return false;
+        var academic = _studentEnrollments.GetQueryable().AsNoTracking().Where(a =>
+            a.TenantId == tenant && a.StudentId == studentId && !a.IsDeleted);
+        return await _enrollments.GetQueryable().AsNoTracking().AnyAsync(en =>
+            en.TenantId == tenant && en.CourseId == course.Id && en.StudentId == studentId &&
+            !en.IsDeleted && en.EnrolledAt <= row.EndsAt &&
+            ((en.State == CourseEnrollmentState.Active && course.IsActive &&
+              academic.Any(a => a.IsCurrent && a.State == EnrollmentState.Active &&
+                  currentBatches.Contains(a.AcademicBatchId) &&
+                  (!en.StudentEnrollmentId.HasValue || en.StudentEnrollmentId == a.Id))) ||
+             (en.State == CourseEnrollmentState.Completed && isRecording &&
+              en.CompletedAt.HasValue && en.CompletedAt.Value >= row.EndsAt &&
+              en.StudentEnrollmentId.HasValue &&
+              academic.Any(a => a.Id == en.StudentEnrollmentId.Value &&
+                  (a.State == EnrollmentState.Completed || a.State == EnrollmentState.Promoted ||
+                   a.State == EnrollmentState.Active) &&
+                  a.AcademicProgramId == course.AcademicProgramId &&
+                  a.EnrollmentDate <= from && (!a.EndDate.HasValue || a.EndDate.Value >= from) &&
+                  historicBatches.Contains(a.AcademicBatchId) &&
+                  _batches.GetQueryable().Any(batch => batch.TenantId == tenant &&
+                      batch.Id == a.AcademicBatchId && !batch.IsDeleted &&
+                      batch.CampusId == a.CampusId && batch.AcademicYearId == a.AcademicYearId) &&
+                  _offerings.GetQueryable().Any(offering => offering.TenantId == tenant &&
+                      !offering.IsDeleted && offering.AcademicBatchId == a.AcademicBatchId &&
+                      offering.AcademicYearId == a.AcademicYearId &&
+                      _curriculumSubjects.GetQueryable().Any(item => item.TenantId == tenant &&
+                          !item.IsDeleted && item.Id == offering.CurriculumSubjectId &&
+                          item.AcademicCurriculumId == a.AcademicCurriculumId &&
+                          item.SubjectId == course.SubjectId))))), ct);
     }
 
     private async Task<LiveClassDto> MapAsync(LiveClass row, Course course, CancellationToken ct)
@@ -162,7 +190,8 @@ public sealed class LmsLiveClassService : ILmsLiveClassService
             Id = row.Id, Reference = row.PublicId, CourseReference = course.PublicId,
             InstructorReference = teacher?.PublicId ?? Guid.Empty,
             InstructorName = teacher?.FullName ?? "Instructor", Title = row.Title,
-            StartsAt = row.StartsAt, EndsAt = row.EndsAt, JoinUrl = row.JoinUrl,
+            StartsAt = row.StartsAt, EndsAt = row.EndsAt,
+            JoinUrl = _user.IsInRole("Student") && row.EndsAt <= Now ? null : row.JoinUrl,
             RecordingUrl = row.RecordingUrl, RowVersion = Convert.ToBase64String(row.RowVersion)
         };
     }
@@ -277,6 +306,55 @@ public sealed class LmsLiveClassService : ILmsLiveClassService
             if (await CanReadAsync(course, row, cancellationToken))
                 result.Add(await MapAsync(row, course, cancellationToken));
         return ApiResponse<IReadOnlyList<LiveClassDto>>.SuccessResponse(result);
+    }
+
+    /// <summary>Exact, tenant-scoped historical recording register. Authorization precedes
+    /// pagination and counting, so unauthorized sessions never leak through page totals.</summary>
+    public async Task<ApiResponse<PagedResult<LiveClassRecordingDto>>> GetCourseRecordingsAsync(
+        Guid courseReference, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default)
+    {
+        if (!Authenticated) return Fail<PagedResult<LiveClassRecordingDto>>("Authentication required.", 403);
+        if (courseReference == Guid.Empty || page < 1 || page > 100000 || pageSize < 1 || pageSize > 50)
+            return Fail<PagedResult<LiveClassRecordingDto>>("Invalid course or pagination parameters.");
+        var tenant = _user.TenantId;
+        var course = await _courses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.PublicId == courseReference && !x.IsDeleted, cancellationToken);
+        if (course == null) return Fail<PagedResult<LiveClassRecordingDto>>("Course not found.", 404);
+        var now = Now;
+        var query = _classes.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.CourseId == course.Id && !x.IsDeleted &&
+            x.EndsAt <= now && x.RecordingUrl != null && x.RecordingUrl != "")
+            .OrderByDescending(x => x.StartsAt).ThenByDescending(x => x.Id);
+        var total = 0;
+        var skip = (page - 1) * pageSize;
+        var items = new List<LiveClassRecordingDto>(pageSize);
+        // Chunked reads avoid materializing unbounded course history while preserving exact totals.
+        for (var offset = 0; ; offset += 100)
+        {
+            var chunk = await query.Skip(offset).Take(100).ToListAsync(cancellationToken);
+            foreach (var row in chunk)
+            {
+                if (!await CanReadAsync(course, row, cancellationToken)) continue;
+                if (total >= skip && items.Count < pageSize)
+                {
+                    var mapped = await MapAsync(row, course, cancellationToken);
+                    items.Add(new LiveClassRecordingDto
+                    {
+                        Reference = mapped.Reference, CourseReference = mapped.CourseReference,
+                        Title = mapped.Title, InstructorName = mapped.InstructorName,
+                        StartsAt = mapped.StartsAt, EndsAt = mapped.EndsAt,
+                        RecordingUrl = mapped.RecordingUrl!
+                    });
+                }
+                total++;
+            }
+            if (chunk.Count < 100) break;
+        }
+        return ApiResponse<PagedResult<LiveClassRecordingDto>>.SuccessResponse(
+            new PagedResult<LiveClassRecordingDto>
+            {
+                Page = page, PageSize = pageSize, TotalCount = total, Items = items
+            });
     }
 
     public async Task<ApiResponse<LiveClassDto>> CancelLiveClassAsync(Guid liveClassReference, string rowVersion,

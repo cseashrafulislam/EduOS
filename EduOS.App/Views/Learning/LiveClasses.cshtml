@@ -5,8 +5,8 @@
 }
 <section id="liveClassApp" class="container-fluid py-3" data-author="@author.ToString().ToLowerInvariant()" data-manager="@manager.ToString().ToLowerInvariant()">
     <header class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-3">
-        <div><h2 class="h4 mb-1">Live Classes</h2><p class="text-muted mb-0">Course sessions, meeting access and instructor schedules.</p></div>
-        <div class="d-flex gap-2"><a asp-controller="Learning" asp-action="Index" class="btn btn-outline-secondary">Learning</a><button id="livePrint" type="button" class="btn btn-outline-primary">Print schedule</button></div>
+        <div><h2 class="h4 mb-1">Live Classes</h2><p class="text-muted mb-0">Course sessions, meeting access, and historical recordings for eligible students.</p></div>
+        <div class="d-flex gap-2"><a asp-controller="Learning" asp-action="Index" class="btn btn-outline-secondary">Learning</a><button id="liveExport" type="button" class="btn btn-outline-success">Export recordings CSV</button><button id="livePrint" type="button" class="btn btn-outline-primary">Print schedule</button></div>
     </header>
     <div id="liveAlert" class="d-none" role="alert" aria-live="polite" tabindex="-1"></div>
     @if (author)
@@ -45,8 +45,24 @@
             <thead><tr><th>Class</th><th>Instructor</th><th>Starts</th><th>Ends</th><th>Resources</th><th class="live-actions">Action</th></tr></thead>
             <tbody id="liveRows"><tr><td colspan="6" class="text-muted text-center p-3">Select a course.</td></tr></tbody>
         </table></div>
-        <div class="card-footer text-muted small">Sessions shown: past 30 days through the next 365 days. Visibility is restricted by enrollment, campus and instructor assignment.</div>
+        <div class="card-footer text-muted small">Schedule: past 30 days through the next 365 days. Student access is restricted by course enrollment, campus and instructor assignment.</div>
+    </section>
+    <section class="card mt-3" aria-labelledby="liveRecordingsTitle">
+        <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <h3 id="liveRecordingsTitle" class="h6 m-0">Historical class recordings</h3>
+            <span id="liveRecordingCount" class="small text-muted" aria-live="polite">0 recordings</span>
+        </div>
+        <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
+            <thead><tr><th>Class</th><th>Instructor</th><th>Session date</th><th>Recording</th></tr></thead>
+            <tbody id="liveRecordingRows"><tr><td colspan="4" class="text-muted text-center p-3">Select a course.</td></tr></tbody>
+        </table></div>
+        <div class="card-footer d-flex flex-wrap align-items-center gap-2">
+            <button id="liveRecordingPrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous recordings</button>
+            <span id="liveRecordingPage" class="small">Page 1</span>
+            <button id="liveRecordingNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next recordings</button>
+            <span class="small text-muted ms-auto">Only past sessions with recordings are shown. Completed students retain read-only access to eligible historical classes.</span>
+        </div>
     </section>
 </section>
-<style media="print">.live-actions,#liveForm,#liveRefresh,#livePrint,#liveCoursePrev,#liveCourseNext,.btn,nav,.sidebar{display:none!important}#liveClassApp{width:100%!important}</style>
+<style media="print">.live-actions,#liveForm,#liveRefresh,#livePrint,#liveExport,#liveCoursePrev,#liveCourseNext,#liveRecordingPrev,#liveRecordingNext,.btn,nav,.sidebar{display:none!important}#liveClassApp{width:100%!important}</style>
 @section Scripts { <script src="~/js/learning/live-classes.js" asp-append-version="true"></script> }
