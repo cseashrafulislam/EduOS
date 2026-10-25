@@ -9,5 +9,6 @@ public interface ISubscriptionInvoiceService
     Task<ApiResponse<List<SubscriptionInvoiceDto>>> GetMyInvoicesAsync();
     Task<ApiResponse<PagedResult<SubscriptionInvoiceDto>>> GetPageAsync(int page, int pageSize, InvoiceState? state = null, CancellationToken ct = default);
     Task<ApiResponse<SubscriptionInvoiceDto>> GetByIdAsync(long invoiceId);
+    Task<ApiResponse<string>> ExportCsvAsync(long invoiceId);
     Task<ApiResponse<List<SubscriptionInvoiceDto>>> GetUnpaidAsync();
 }

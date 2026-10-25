@@ -128,6 +128,22 @@ public sealed class SubscriptionController : ControllerBase
         return StatusCode(response.StatusCode, response);
     }
 
+
+    [HttpGet("invoices/{id:long}/export")]
+    [EnableRateLimiting("ApiPolicy")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> ExportInvoice(long id)
+    {
+        var result = await _invoices.ExportCsvAsync(id);
+        if (!result.Success || result.Data == null)
+            return StatusCode(result.StatusCode, result);
+        Response.Headers.CacheControl = "no-store";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        // UTF-8 BOM makes Bangla invoice descriptions readable in spreadsheet programs.
+        var bytes = System.Text.Encoding.UTF8.GetBytes("\uFEFF" + result.Data);
+        return File(bytes, "text/csv; charset=utf-8", $"subscription-invoice-{id}.csv");
+    }
+
     [HttpGet("invoices/{id:long}")]
     public async Task<IActionResult> GetInvoice(long id)
     {

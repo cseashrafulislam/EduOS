@@ -102,6 +102,8 @@ function renderInvoices(items){
   td(tr,money(inv.dueAmount,inv.currencyCode));td(tr,invoiceStatus[inv.state]||"Unknown");
   const actions=td(tr,"");actions.append(button("Details",()=>showInvoiceDetails(inv.id)));
   actions.append(button("Payments",()=>showPayments(inv.id)));
+  const exportButton=button("Download CSV",()=>downloadInvoiceCsv(inv.id,exportButton));
+  actions.append(exportButton);
   if(Number(inv.dueAmount)>0&&[2,3].includes(inv.state)&&
      typeof inv.invoiceNumber==="string"&&inv.invoiceNumber.startsWith("REN-")){
    actions.append(button("Remind owner",()=>remindOwner(inv.id)));
@@ -112,6 +114,27 @@ function renderInvoices(items){
   }
   body.append(tr);
  }
+}
+
+async function downloadInvoiceCsv(id,trigger){
+ if(trigger.disabled)return;
+ trigger.disabled=true;
+ try{
+  const response=await fetch("/api/subscription/invoices/"+encodeURIComponent(id)+"/export",{
+   method:"GET",credentials:"same-origin",cache:"no-store",headers:{Accept:"text/csv"}
+  });
+  if(!response.ok){
+   const error=await response.json().catch(()=>null);
+   throw Error(error?.message||"Invoice export failed ("+response.status+").");
+  }
+  const csv=await response.blob();
+  if(!csv.size||csv.size>10*1024*1024)throw Error("Invoice export is empty or exceeds 10 MB.");
+  const url=URL.createObjectURL(csv),link=document.createElement("a");
+  link.href=url;link.download="subscription-invoice-"+id+".csv";
+  document.body.append(link);link.click();link.remove();
+  window.setTimeout(()=>URL.revokeObjectURL(url),1000);
+ }catch(e){message(e.message||"Unable to download invoice.");}
+ finally{trigger.disabled=false;}
 }
 async function showInvoiceDetails(id){
  const version=++state.invoiceDetailVersion,box=$("sbInvoiceDetails");
