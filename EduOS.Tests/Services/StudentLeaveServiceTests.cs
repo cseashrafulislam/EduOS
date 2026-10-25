@@ -168,9 +168,6 @@ public sealed class StudentLeaveServiceTests
             Reason = "No longer needed", RowVersion = Convert.ToBase64String([9, 9, 9, 9])
         };
         (await manager.CancelAsync(row.Id, request)).StatusCode.Should().Be(409);
-        await using var otherDb = Context(options, 202);
-        (await Service(otherDb, new Actor(202, 14, "TenantAdmin"))
-            .CancelAsync(row.Id, request)).StatusCode.Should().Be(404);
         var approved = await manager.ReviewAsync(row.Id, new ReviewStudentLeaveRequestDto
         {
             State = LeaveState.Approved, RowVersion = Convert.ToBase64String(row.RowVersion)
@@ -178,6 +175,11 @@ public sealed class StudentLeaveServiceTests
         approved.Success.Should().BeTrue(approved.Message);
         request.RowVersion = Convert.ToBase64String(row.RowVersion);
         (await manager.CancelAsync(row.Id, request)).StatusCode.Should().Be(409);
+        // HttpContextAccessor shares ambient state: switch tenants only after
+        // the original tenant's review and cancellation checks have completed.
+        await using var otherDb = Context(options, 202);
+        (await Service(otherDb, new Actor(202, 14, "TenantAdmin"))
+            .CancelAsync(row.Id, request)).StatusCode.Should().Be(404);
     }
 
     private static StudentLeaveService Service(EduOSDbContext db, ICurrentUserService user) => new(
