@@ -38,6 +38,13 @@ public sealed partial class LmsAssessmentService
                     return await SameSubmittedAnswersAsync(attempt.Id, selections, token)
                         ? ApiResponse<QuizAttemptDto>.SuccessResponse(MapAttempt(attempt, quiz.PublicId), "Existing graded attempt.")
                         : Fail<QuizAttemptDto>("Submitted answers are immutable.", 409);
+                var courseActive = await _courses.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == _user.TenantId && x.Id == quiz.CourseId && x.IsActive && !x.IsDeleted, token);
+                var enrollmentActive = await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == _user.TenantId && x.Id == attempt.CourseEnrollmentId &&
+                    x.State == CourseEnrollmentState.Active && !x.IsDeleted, token);
+                if (!courseActive || !enrollmentActive)
+                    return Fail<QuizAttemptDto>("Completed or archived courses cannot submit new attempts.", 409);
                 if (attempt.State != QuizAttemptState.Started ||
                     !VersionMatches(attempt.RowVersion, request.RowVersion))
                     return Fail<QuizAttemptDto>("Attempt changed or expired.", 409);

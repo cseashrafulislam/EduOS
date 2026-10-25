@@ -31,6 +31,12 @@
   <form id="quizAnswerForm" class="d-none mt-3"><div id="quizCandidateQuestions" class="d-grid gap-3 mb-3"></div><button id="quizSubmit" class="btn btn-success" type="submit">Submit</button></form>
   <div id="quizResult" class="mt-2" aria-live="polite"></div><p class="small text-muted">Submitted answers and awarded marks can be reviewed after grading. Answer keys are never shown.</p>
  </div></div>
+ <div class="card mt-3" id="quizHistoryCard"><div class="card-header">My graded quiz history (including archived courses)</div><div class="card-body">
+  <div class="row g-2 mb-2"><div class="col-md-8"><label for="quizHistoryCourse">Course</label><select id="quizHistoryCourse" class="form-select"><option value="">Select course</option></select></div><div class="col-md-4 d-flex align-items-end gap-2"><button type="button" id="quizHistoryRefresh" class="btn btn-outline-primary">Search</button><button type="button" id="quizHistoryCsv" class="btn btn-outline-secondary">CSV</button><button type="button" id="quizHistoryPrint" class="btn btn-outline-secondary">Print</button></div></div>
+  <div class="table-responsive"><table class="table table-sm table-striped" id="quizHistoryTable"><thead><tr><th>Quiz</th><th>Attempt</th><th>Submitted</th><th>Marks</th><th>Pass</th><th>Review</th></tr></thead><tbody id="quizHistoryRows"></tbody></table></div>
+  <div class="d-flex justify-content-between align-items-center"><span id="quizHistoryCount" aria-live="polite"></span><div class="btn-group"><button type="button" id="quizHistoryPrev" class="btn btn-sm btn-outline-secondary">Previous</button><button type="button" id="quizHistoryNext" class="btn btn-sm btn-outline-secondary">Next</button></div></div>
+  <div id="quizHistoryReview" class="mt-2" aria-live="polite"></div><p class="small text-muted mb-0">Historical evidence is read-only. Answer keys are not disclosed. CSV exports the current page.</p>
+ </div></div>
  }
 </section>
 @section Scripts {
@@ -39,4 +45,5 @@
  <script src="~/js/learning/quizzes-editor.js" asp-append-version="true"></script>
  <script src="~/js/learning/quizzes-author.js" asp-append-version="true"></script>
  <script src="~/js/learning/quizzes-learner.js" asp-append-version="true"></script>
+ <script src="~/js/learning/quizzes-history.js" asp-append-version="true"></script>
 }

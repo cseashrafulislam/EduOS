@@ -38,6 +38,12 @@ public sealed class LmsAssessmentController : ControllerBase
     public async Task<IActionResult> MyEnrollment(Guid courseReference, CancellationToken ct) =>
         Reply(await _service.GetMyCourseEnrollmentIdAsync(courseReference, ct));
 
+    [HttpGet("course/{courseReference:guid}/history")]
+    [Authorize(Roles = "Student")]
+    public async Task<IActionResult> History(Guid courseReference, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, CancellationToken ct = default) =>
+        Reply(await _service.GetMyQuizHistoryAsync(courseReference, page, pageSize, ct));
+
     [HttpGet("{reference:guid}/author")]
     [Authorize(Roles = "TenantAdmin,Principal,Teacher")]
     public async Task<IActionResult> AuthorQuiz(Guid reference, CancellationToken ct) =>

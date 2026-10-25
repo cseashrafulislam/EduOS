@@ -16,8 +16,8 @@ public sealed partial class LmsAssessmentService
         var quiz = await _quizzes.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == _user.TenantId && x.PublicId == request.QuizReference && x.IsPublished && !x.IsDeleted, ct);
         if (quiz == null) return Fail<QuizAttemptDto>("Published quiz not found.", 404);
-        if (await EnrollmentAsync(quiz.CourseId, request.CourseEnrollmentId, ct) == null)
-            return Fail<QuizAttemptDto>("Course enrollment required.", 403);
+        var enrollment = await EnrollmentAsync(quiz.CourseId, request.CourseEnrollmentId, ct);
+        if (enrollment == null) return Fail<QuizAttemptDto>("Course enrollment required.", 403);
         try
         {
             return await _uow.ExecuteInTransactionAsync(async token =>
@@ -28,6 +28,13 @@ public sealed partial class LmsAssessmentService
                     return prior.QuizId == quiz.Id && prior.CourseEnrollmentId == request.CourseEnrollmentId
                         ? ApiResponse<QuizAttemptDto>.SuccessResponse(MapAttempt(prior, quiz.PublicId), "Existing attempt.")
                         : Fail<QuizAttemptDto>("Request ID already used.", 409);
+                var courseActive = await _courses.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == _user.TenantId && x.Id == quiz.CourseId && x.IsActive && !x.IsDeleted, token);
+                var enrollmentActive = await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == _user.TenantId && x.Id == enrollment.Id && !x.IsDeleted &&
+                    x.State == CourseEnrollmentState.Active, token);
+                if (!courseActive || !enrollmentActive)
+                    return Fail<QuizAttemptDto>("Completed or archived courses cannot start new attempts.", 409);
                 if ((quiz.OpensAt.HasValue && Now < quiz.OpensAt) ||
                     (quiz.ClosesAt.HasValue && Now > quiz.ClosesAt))
                     return Fail<QuizAttemptDto>("Quiz unavailable at this time.", 409);
@@ -62,7 +69,8 @@ public sealed partial class LmsAssessmentService
         if (attempt == null) return Fail<QuizAttemptDto>("Attempt not found.", 404);
         var quiz = await _quizzes.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == _user.TenantId && x.Id == attempt.QuizId && !x.IsDeleted, ct);
-        if (quiz == null || await EnrollmentAsync(quiz.CourseId, attempt.CourseEnrollmentId, ct) == null)
+        if (quiz == null || await EnrollmentAsync(quiz.CourseId, attempt.CourseEnrollmentId, ct) == null ||
+            !await CanReadArchivedAttemptAsync(quiz.CourseId, attempt.CourseEnrollmentId, ct))
             return Fail<QuizAttemptDto>("Attempt access denied.", 403);
         return ApiResponse<QuizAttemptDto>.SuccessResponse(MapAttempt(attempt, quiz.PublicId));
     }

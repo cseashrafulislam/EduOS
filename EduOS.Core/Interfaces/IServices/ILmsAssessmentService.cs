@@ -15,4 +15,5 @@ public interface ILmsAssessmentService
     Task<ApiResponse<long>> GetMyCourseEnrollmentIdAsync(Guid courseReference, CancellationToken cancellationToken = default);
     Task<ApiResponse<QuizAttemptDto>> GetMyAttemptAsync(long attemptId, CancellationToken cancellationToken = default);
     Task<ApiResponse<QuizAttemptReviewDto>> GetMyAttemptReviewAsync(long attemptId, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<QuizHistoryRowDto>>> GetMyQuizHistoryAsync(Guid courseReference, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default);
 }

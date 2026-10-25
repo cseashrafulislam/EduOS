@@ -14,7 +14,8 @@ public sealed partial class LmsAssessmentService
         if (attempt == null) return Fail<QuizAttemptReviewDto>("Attempt not found.", 404);
         var quiz = await _quizzes.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == _user.TenantId && x.Id == attempt.QuizId && !x.IsDeleted, ct);
-        if (quiz == null || await EnrollmentAsync(quiz.CourseId, attempt.CourseEnrollmentId, ct) == null)
+        if (quiz == null || await EnrollmentAsync(quiz.CourseId, attempt.CourseEnrollmentId, ct) == null ||
+            !await CanReadArchivedAttemptAsync(quiz.CourseId, attempt.CourseEnrollmentId, ct))
             return Fail<QuizAttemptReviewDto>("Attempt access denied.", 403);
         if (attempt.State is not (QuizAttemptState.Submitted or QuizAttemptState.Graded))
             return Fail<QuizAttemptReviewDto>("Review is available only after submission.", 409);

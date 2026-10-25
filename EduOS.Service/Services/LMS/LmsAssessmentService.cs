@@ -1,6 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.LMS;
 using EduOS.Core.Entities.HR;
+using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.LMS;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Enums.Domain;
@@ -25,6 +26,12 @@ public sealed partial class LmsAssessmentService : ILmsAssessmentService
     private readonly IGenericRepository<CourseEnrollment> _enrollments;
     private readonly IGenericRepository<Student> _students;
     private readonly IGenericRepository<Employee> _employees;
+    private readonly IGenericRepository<StudentEnrollment>? _historyAcademics;
+    private readonly IGenericRepository<AcademicBatch>? _historyBatches;
+    private readonly IGenericRepository<AcademicYear>? _historyYears;
+    private readonly IGenericRepository<AcademicCurriculum>? _historyCurricula;
+    private readonly IGenericRepository<AcademicTerm>? _historyTerms;
+    private readonly IGenericRepository<CurriculumSubject>? _historySubjects;
     private readonly IUnitOfWork _uow;
     private readonly ICurrentUserService _user;
     private readonly TimeProvider _clock;
@@ -36,12 +43,21 @@ public sealed partial class LmsAssessmentService : ILmsAssessmentService
         IGenericRepository<CourseEnrollment> enrollments, IGenericRepository<Student> students,
         IGenericRepository<Employee> employees, IUnitOfWork uow, ICurrentUserService user,
         TimeProvider clock, ILogger<LmsAssessmentService> logger,
-        IGenericRepository<QuizAnswerOption> answerOptions)
+        IGenericRepository<QuizAnswerOption> answerOptions,
+        IGenericRepository<StudentEnrollment>? historyAcademics = null,
+        IGenericRepository<AcademicBatch>? historyBatches = null,
+        IGenericRepository<AcademicYear>? historyYears = null,
+        IGenericRepository<AcademicCurriculum>? historyCurricula = null,
+        IGenericRepository<AcademicTerm>? historyTerms = null,
+        IGenericRepository<CurriculumSubject>? historySubjects = null)
     {
         _courses = courses; _quizzes = quizzes; _questions = questions; _options = options;
         _attempts = attempts; _answers = answers; _answerOptions = answerOptions; _enrollments = enrollments;
         _students = students; _employees = employees; _uow = uow;
         _user = user; _clock = clock; _logger = logger;
+        _historyAcademics = historyAcademics; _historyBatches = historyBatches;
+        _historyYears = historyYears; _historyCurricula = historyCurricula;
+        _historyTerms = historyTerms; _historySubjects = historySubjects;
     }
 
     private bool Authenticated => _user.IsAuthenticated && _user.TenantId > 0;
