@@ -40,6 +40,20 @@ function renderCurrent(){
   });actions.append(b);
  }
 }
+function renderLifecycle(info){
+ const box=$("sbLifecycle"),actions=$("sbRenewalActions");
+ if(!box||!actions)return;
+ actions.replaceChildren();
+ box.textContent=info?.guidance||"Renewal status is unavailable.";
+ if(info?.endsAtUtc){
+  box.textContent+=" Period ends: "+date(info.endsAtUtc)+".";
+ }
+ if(info?.canStartNewSubscription){
+  const a=document.createElement("a");a.href="/Account/PlanSelection";
+  a.className="btn btn-outline-primary btn-sm";a.textContent="Choose a plan";
+  actions.append(a);
+ }
+}
 function renderInvoices(items){
  const body=$("sbInvoiceRows");body.replaceChildren();if(!items.length){empty("sbInvoiceRows",8);return;}
  for(const inv of items){
@@ -79,11 +93,12 @@ function renderHistory(result){
 async function refresh(){
  const version=++state.version;
  try{
-  const [current,invoices,history]=await Promise.all([
+  const [current,invoices,history,lifecycle]=await Promise.all([
    api("/api/subscription/current"),api("/api/subscription/invoices"),
-   api("/api/subscription/history?page="+state.page+"&pageSize=10")]);
+   api("/api/subscription/history?page="+state.page+"&pageSize=10"),
+   api("/api/subscription/lifecycle-status")]);
   if(version!==state.version)return;
-  state.current=current;renderCurrent();renderInvoices(Array.isArray(invoices)?invoices:[]);renderHistory(history);
+  state.current=current;renderCurrent();renderLifecycle(lifecycle);renderInvoices(Array.isArray(invoices)?invoices:[]);renderHistory(history);
  }catch(e){if(version===state.version)message(e.message);}
 }
 $("sbRefresh").addEventListener("click",refresh);

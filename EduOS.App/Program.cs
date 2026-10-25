@@ -429,15 +429,9 @@ app.MapHub<NotificationHub>("/hubs/notifications").RequireAuthorization();
 // 15. RECURRING JOBS
 // =============================================================================
 
-// RecurringJob.AddOrUpdate<ISubscriptionExpiryJob>(
-//     "subscription-expiry-check",
-//     job => job.RunAsync(),
-//     Cron.Daily(2));
-//
-// RecurringJob.AddOrUpdate<IRenewalReminderJob>(
-//     "subscription-renewal-reminder",
-//     job => job.RunAsync(),
-//     Cron.Daily(9));
+// Expire elapsed paid/trial/grace periods. This never initiates an unapproved renewal payment.
+RecurringJob.AddOrUpdate<SubscriptionExpiryJob>(
+    "platform-subscription-expiry", job => job.RunAsync(CancellationToken.None), Cron.Hourly());
 
 // One check per UTC hour captures the current local day for each completed active tenant.
 // Idempotent daily uniqueness also protects manual capture and multiple app instances.

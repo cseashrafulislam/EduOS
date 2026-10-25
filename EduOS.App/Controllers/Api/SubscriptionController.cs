@@ -29,6 +29,13 @@ public sealed class SubscriptionController : ControllerBase
         return StatusCode(response.StatusCode, response);
     }
 
+    [HttpGet("lifecycle-status")]
+    public async Task<IActionResult> LifecycleStatus(CancellationToken ct)
+    {
+        var response = await _subscriptions.GetLifecycleStatusAsync(ct);
+        return StatusCode(response.StatusCode, response);
+    }
+
     [HttpGet("current")]
     public async Task<IActionResult> GetCurrent(CancellationToken ct)
     {

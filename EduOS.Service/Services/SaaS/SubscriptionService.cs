@@ -142,6 +142,44 @@ public sealed class SubscriptionService : ISubscriptionService
         }
     }
 
+    public async Task<ApiResponse<SubscriptionLifecycleStatusDto>> GetLifecycleStatusAsync(
+        CancellationToken ct = default)
+    {
+        if (!CanRead()) return Denied<SubscriptionLifecycleStatusDto>();
+        var now = _clock.GetUtcNow().UtcDateTime;
+        var rows = _subscriptions.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == _user.TenantId && !x.IsDeleted);
+        var latest = await rows.OrderByDescending(x => x.StartsAt)
+            .ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+        var blocked = await rows.AnyAsync(x =>
+            x.State == SubscriptionState.PendingPayment ||
+            ((x.State == SubscriptionState.Trial || x.State == SubscriptionState.Active ||
+              x.State == SubscriptionState.Grace) && x.EndsAt > now), ct);
+        var overdue = latest != null && latest.EndsAt <= now &&
+            latest.State is SubscriptionState.Trial or SubscriptionState.Active or SubscriptionState.Grace;
+        var guidance = latest == null
+            ? "Choose a subscription plan to get started."
+            : latest.State == SubscriptionState.PendingPayment
+                ? "Complete invoice payment and verification before activation."
+                : overdue || latest.State is SubscriptionState.Expired or SubscriptionState.Cancelled
+                    ? "This subscription has ended. Choose a plan and complete any required payment."
+                    : latest.AutoRenew
+                        ? "Auto-renew is a preference only. Automatic payment collection is not configured; renewal requires an approved payment."
+                        : "Review your expiry date and arrange your next subscription before it ends.";
+        return ApiResponse<SubscriptionLifecycleStatusDto>.SuccessResponse(new SubscriptionLifecycleStatusDto
+        {
+            SubscriptionReference = latest?.PublicId,
+            State = latest?.State.ToString() ?? "None",
+            ServerUtcNow = now,
+            EndsAtUtc = latest?.EndsAt,
+            IsPeriodOverdue = overdue,
+            AutoRenewEnabled = latest?.AutoRenew ?? false,
+            CanStartNewSubscription = !blocked,
+            AutomaticPaymentConfigured = false,
+            Guidance = guidance
+        });
+    }
+
     public async Task<ApiResponse<TenantSubscriptionDto?>> GetCurrentAsync(CancellationToken ct = default)
     {
         if (!CanRead()) return Denied<TenantSubscriptionDto?>();
