@@ -101,6 +101,10 @@ function renderInvoices(items){
   td(tr,money(inv.totalAmount,inv.currencyCode));td(tr,money(inv.paidAmount,inv.currencyCode));
   td(tr,money(inv.dueAmount,inv.currencyCode));td(tr,invoiceStatus[inv.state]||"Unknown");
   const actions=td(tr,"");actions.append(button("Payments",()=>showPayments(inv.id)));
+  if(Number(inv.dueAmount)>0&&[2,3].includes(inv.state)&&
+     typeof inv.invoiceNumber==="string"&&inv.invoiceNumber.startsWith("REN-")){
+   actions.append(button("Remind owner",()=>remindOwner(inv.id)));
+  }
   if(Number(inv.dueAmount)>0&&[2,3].includes(inv.state)){
    const link=document.createElement("a");link.href="/Account/Payment?invoiceId="+encodeURIComponent(inv.id);
    link.className="btn btn-primary btn-sm ms-1";link.textContent="Pay";actions.append(link);

@@ -35,6 +35,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<SubscriptionService>();
             s.AddScoped<ISubscriptionService>(sp => sp.GetRequiredService<SubscriptionService>());
             s.AddScoped<ISubscriptionInvoiceService, SubscriptionInvoiceService>();
+            s.AddScoped<SubscriptionRenewalReminderService>();
             s.AddScoped<ISubscriptionPaymentService, SubscriptionPaymentService>();
             s.AddScoped<IPlatformCatalogService, PlatformCatalogService>();
             s.AddScoped<ITenantModuleService, TenantModuleService>();
