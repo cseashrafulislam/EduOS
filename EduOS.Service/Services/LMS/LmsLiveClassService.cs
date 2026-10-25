@@ -308,6 +308,97 @@ public sealed class LmsLiveClassService : ILmsLiveClassService
         return ApiResponse<IReadOnlyList<LiveClassDto>>.SuccessResponse(result);
     }
 
+    /// <summary>Discover only courses with at least one authorized historical recording.
+    /// Per-session authorization precedes pagination and totals to prevent metadata leakage.</summary>
+    public async Task<ApiResponse<PagedResult<LiveClassRecordingCourseDto>>> GetRecordingCoursesAsync(
+        int page = 1, int pageSize = 20, CancellationToken cancellationToken = default)
+    {
+        if (!Authenticated) return Fail<PagedResult<LiveClassRecordingCourseDto>>("Authentication required.", 403);
+        if (page < 1 || page > 100000 || pageSize < 1 || pageSize > 50)
+            return Fail<PagedResult<LiveClassRecordingCourseDto>>("Invalid pagination parameters.");
+        var tenant = _user.TenantId;
+        var now = Now;
+        var query = _courses.GetQueryable().AsNoTracking().Where(course =>
+            course.TenantId == tenant && !course.IsDeleted &&
+            _classes.GetQueryable().Any(session => session.TenantId == tenant &&
+                session.CourseId == course.Id && !session.IsDeleted &&
+                session.EndsAt <= now && session.RecordingUrl != null && session.RecordingUrl != ""));
+        if (!Manager)
+        {
+            if (_user.IsInRole("Student"))
+            {
+                var studentId = await _students.GetQueryable().AsNoTracking()
+                    .Where(x => x.TenantId == tenant && x.UserId == _user.UserId &&
+                        x.StatusCode == "Active" && !x.IsDeleted)
+                    .Select(x => x.Id).FirstOrDefaultAsync(cancellationToken);
+                if (studentId == 0)
+                    return ApiResponse<PagedResult<LiveClassRecordingCourseDto>>.SuccessResponse(
+                        new PagedResult<LiveClassRecordingCourseDto>
+                        { Page = page, PageSize = pageSize, Items = new List<LiveClassRecordingCourseDto>() });
+                var enrolledCourseIds = _enrollments.GetQueryable().AsNoTracking().Where(x =>
+                    x.TenantId == tenant && x.StudentId == studentId && !x.IsDeleted &&
+                    (x.State == CourseEnrollmentState.Active || x.State == CourseEnrollmentState.Completed))
+                    .Select(x => x.CourseId);
+                query = query.Where(x => enrolledCourseIds.Contains(x.Id));
+            }
+            else if (_user.IsInRole("Teacher"))
+            {
+                var instructorId = await OwnInstructorAsync(cancellationToken);
+                if (instructorId == 0)
+                    return ApiResponse<PagedResult<LiveClassRecordingCourseDto>>.SuccessResponse(
+                        new PagedResult<LiveClassRecordingCourseDto>
+                        { Page = page, PageSize = pageSize, Items = new List<LiveClassRecordingCourseDto>() });
+                query = query.Where(course => _classes.GetQueryable().Any(session =>
+                    session.TenantId == tenant && session.CourseId == course.Id &&
+                    session.InstructorEmployeeId == instructorId && !session.IsDeleted &&
+                    session.EndsAt <= now && session.RecordingUrl != null && session.RecordingUrl != ""));
+            }
+            else return Fail<PagedResult<LiveClassRecordingCourseDto>>("LMS access denied.", 403);
+        }
+        var ordered = query.OrderBy(x => x.Title).ThenBy(x => x.Id);
+        var total = 0;
+        var skip = (page - 1) * pageSize;
+        var items = new List<LiveClassRecordingCourseDto>(pageSize);
+        for (var offset = 0; ; offset += 40)
+        {
+            var courses = await ordered.Skip(offset).Take(40).ToListAsync(cancellationToken);
+            foreach (var course in courses)
+            {
+                var permitted = Manager;
+                if (!permitted)
+                {
+                    var sessions = _classes.GetQueryable().AsNoTracking().Where(x =>
+                        x.TenantId == tenant && x.CourseId == course.Id && !x.IsDeleted &&
+                        x.EndsAt <= now && x.RecordingUrl != null && x.RecordingUrl != "")
+                        .OrderByDescending(x => x.StartsAt).ThenByDescending(x => x.Id);
+                    for (var sessionOffset = 0; ; sessionOffset += 50)
+                    {
+                        var batch = await sessions.Skip(sessionOffset).Take(50).ToListAsync(cancellationToken);
+                        foreach (var session in batch)
+                        {
+                            if (!await CanReadAsync(course, session, cancellationToken)) continue;
+                            permitted = true;
+                            break;
+                        }
+                        if (permitted || batch.Count < 50) break;
+                    }
+                }
+                if (!permitted) continue;
+                if (total >= skip && items.Count < pageSize)
+                    items.Add(new LiveClassRecordingCourseDto
+                    {
+                        Reference = course.PublicId, Title = course.Title,
+                        Code = course.Code, IsArchived = !course.IsActive
+                    });
+                total++;
+            }
+            if (courses.Count < 40) break;
+        }
+        return ApiResponse<PagedResult<LiveClassRecordingCourseDto>>.SuccessResponse(
+            new PagedResult<LiveClassRecordingCourseDto>
+            { Page = page, PageSize = pageSize, TotalCount = total, Items = items });
+    }
+
     /// <summary>Exact, tenant-scoped historical recording register. Authorization precedes
     /// pagination and counting, so unauthorized sessions never leak through page totals.</summary>
     public async Task<ApiResponse<PagedResult<LiveClassRecordingDto>>> GetCourseRecordingsAsync(
