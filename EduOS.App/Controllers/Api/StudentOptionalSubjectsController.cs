@@ -10,7 +10,7 @@ namespace EduOS.App.Controllers.Api;
 
 [ApiController]
 [Route("api/student-optional-subjects")]
-[Authorize(Roles = "TenantAdmin")]
+[Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,Student,Guardian,Parent")]
 [RequireModule("ACADEMIC")]
 [AutoValidateAntiforgeryToken]
 [EnableRateLimiting("ApiPolicy")]
