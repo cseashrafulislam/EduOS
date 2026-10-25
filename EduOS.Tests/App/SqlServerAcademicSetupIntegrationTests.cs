@@ -62,7 +62,10 @@ public sealed class SqlServerAcademicSetupIntegrationTests
             new GenericRepository<Campus>(db), new GenericRepository<AcademicDepartment>(db),
             new GenericRepository<AcademicYear>(db), new GenericRepository<AcademicTerm>(db),
             new GenericRepository<AcademicTrack>(db), new GenericRepository<Medium>(db),
-            new GenericRepository<Shift>(db), db, new AcademicAdmin(tenantId),
+            new GenericRepository<Shift>(db),
+            new GenericRepository<SubjectOffering>(db),
+            new GenericRepository<StudentSubjectRegistration>(db),
+            db, new AcademicAdmin(tenantId),
             NullLogger<AcademicSetupService>.Instance);
         var target = await db.AcademicCurriculums.AsNoTracking().SingleAsync(x => x.Id == curriculum2);
         Assert.Equal(8, target.RowVersion.Length);
