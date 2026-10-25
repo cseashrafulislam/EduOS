@@ -29,6 +29,7 @@ public interface IHostelService
     Task<ApiResponse<HostelTurnoverReportDto>> GetTurnoverReportAsync(long? campusId, DateOnly? fromMonth, DateOnly? toMonth, CancellationToken cancellationToken = default);
     Task<ApiResponse<string>> ExportTurnoverReportCsvAsync(long? campusId, DateOnly? fromMonth, DateOnly? toMonth, CancellationToken cancellationToken = default);
     Task<ApiResponse<HostelOccupancyInsightsDto>> GetOccupancyInsightsAsync(long? campusId, string? search, CancellationToken cancellationToken = default);
+    Task<ApiResponse<string>> ExportOccupancyInsightsCsvAsync(long? campusId, string? search, CancellationToken cancellationToken = default);
     Task<ApiResponse<HostelBedInventoryDto>> CreateBedAsync(CreateHostelBedRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<PagedResult<HostelBedRelocationRoomDto>>> GetBedRelocationRoomsAsync(long bedId, int page, int pageSize, string? search, CancellationToken ct = default);
     Task<ApiResponse<HostelBedInventoryDto>> RelocateUnusedBedAsync(long bedId, RelocateUnusedHostelBedRequestDto request, CancellationToken ct = default);

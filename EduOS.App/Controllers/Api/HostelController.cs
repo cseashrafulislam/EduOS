@@ -209,6 +209,21 @@ public sealed class HostelController : ControllerBase
         [FromQuery] string? search = null, CancellationToken cancellationToken = default) =>
         ToAction(await _service.GetOccupancyInsightsAsync(campusId, search, cancellationToken));
 
+    [HttpGet("occupancy-insights/export")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> OccupancyInsightsExport([FromQuery] long? campusId = null,
+        [FromQuery] string? search = null, CancellationToken cancellationToken = default)
+    {
+        var result = await _service.ExportOccupancyInsightsCsvAsync(campusId, search, cancellationToken);
+        if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
+        Response.Headers["Cache-Control"] = "no-store";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(System.Text.Encoding.UTF8.GetPreamble().Concat(
+            System.Text.Encoding.UTF8.GetBytes(result.Data)).ToArray(),
+            "text/csv; charset=utf-8", "hostel-occupancy-insights.csv");
+    }
+
     [HttpGet("capacity/export")]
     [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]

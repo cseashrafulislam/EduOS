@@ -22,12 +22,15 @@
     function stale() {
         ++sequence;
         el('hostelOccupancyInsightsMetrics').replaceChildren();
+        el('hostelOccupancyInsightsExport').disabled = true;
+        el('hostelOccupancyInsightsRefresh').disabled = false;
         el('hostelOccupancyInsightsStatus').textContent = 'Filter changed; apply to refresh metrics.';
     }
     async function load() {
         const token = ++sequence, snapshot = filters();
         const status = el('hostelOccupancyInsightsStatus'), button = el('hostelOccupancyInsightsRefresh');
         status.textContent = 'Loading occupancy metrics…'; button.disabled = true;
+        el('hostelOccupancyInsightsExport').disabled = true;
         try {
             const response = await fetch('/api/hostel/occupancy-insights?' + snapshot,
                 {credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}});
@@ -44,6 +47,7 @@
                 value.className = 'fs-5'; value.textContent = String(result.data[key] ?? '—') + suffix;
                 card.append(name, document.createElement('br'), value); col.append(card); grid.append(col);
             }
+            el('hostelOccupancyInsightsExport').disabled = false;
             status.textContent = 'Updated ' + new Date(result.data.generatedAtUtc).toLocaleString() +
                 ' · Live occupancy may change during retrieval.';
         } catch (error) {
@@ -58,5 +62,29 @@
     el('hostelCapacityCampus')?.addEventListener('change', stale);
     el('hostelCapacityFilter')?.addEventListener('submit', () => setTimeout(load, 0));
     window.addEventListener('hostel:allocations-changed', load);
+    el('hostelOccupancyInsightsExport').addEventListener('click', async () => {
+        const button = el('hostelOccupancyInsightsExport'), snapshot = filters(), token = sequence;
+        if (button.disabled) return;
+        button.disabled = true;
+        try {
+            const response = await fetch('/api/hostel/occupancy-insights/export?' + snapshot,
+                { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'text/csv' } });
+            if (!response.ok) {
+                const error = await response.json().catch(() => null);
+                throw Error(error?.message || 'Hostel occupancy export failed.');
+            }
+            const blob = await response.blob();
+            if (token !== sequence || snapshot !== filters())
+                throw Error('Occupancy filters changed during export. Refresh and retry.');
+            const url = URL.createObjectURL(blob), link = document.createElement('a');
+            link.href = url; link.download = 'hostel-occupancy-insights.csv';
+            document.body.append(link); link.click(); link.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } catch (error) {
+            if (token === sequence) el('hostelOccupancyInsightsStatus').textContent = error.message;
+        } finally {
+            if (token === sequence && snapshot === filters()) button.disabled = false;
+        }
+    });
     load();
 })();
