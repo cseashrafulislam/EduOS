@@ -106,6 +106,17 @@ public sealed class DocumentFileService(EduOSDbContext db, ICurrentUserService u
         return UploadCoreAsync(clientRequestId, upload, ct);
     }
 
+    // Student leave administrators may stage a scanned supporting file only after the
+    // leave service has checked the selected enrollment. No document is attached here.
+    public Task<ApiResponse<FileAssetDto>> UploadForLeaveAsync(Guid clientRequestId,
+        PrivateFileUploadDto upload, CancellationToken ct = default)
+    {
+        if (!user.IsAuthenticated || user.TenantId <= 0 || user.UserId <= 0 ||
+            !(user.IsTenantAdmin || user.IsInRole("Principal") || user.IsInRole("VicePrincipal")))
+            return Task.FromResult(ApiResponse<FileAssetDto>.ErrorResponse("Leave administrator required.", 403));
+        return UploadCoreAsync(clientRequestId, upload, ct);
+    }
+
     // A portal user can only stage a scanned file for an active student they control.
     // Attachment ownership is checked again in the serializable student-document transaction.
     public async Task<ApiResponse<FileAssetDto>> UploadPortalAsync(Guid studentReference,
