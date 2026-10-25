@@ -4,7 +4,7 @@
     if (!root) return;
     const el = id => document.getElementById(id);
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value;
-    const state = { enrollment: null, page: 1, pages: 1, requestId: null, saving: false };
+    const state = { enrollment: null, page: 1, pages: 1, requestId: null, uploadId: null, attachmentId: null, saving: false };
     const val = id => el(id).value.trim();
     function info(text, failed = false) {
         const box = el('leaveNotice'); box.className = 'alert ' + (failed ? 'alert-danger' : 'alert-success');
@@ -13,7 +13,7 @@
     async function api(url, options = {}) {
         const response = await fetch(url, {
             credentials: 'same-origin', cache: 'no-store', ...options,
-            headers: { Accept: 'application/json', ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+            headers: { Accept: 'application/json', ...(options.body && !(options.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
                 ...(options.method && options.method !== 'GET' ? { RequestVerificationToken: token } : {}) }
         });
         const result = await response.json().catch(() => null);
@@ -48,7 +48,7 @@
         } catch (e) { info(e.message, true); }
     }
     async function choose(student) {
-        state.enrollment = null; state.requestId = null; available();
+        state.enrollment = null; state.requestId = null; state.uploadId = null; state.attachmentId = null; available();
         el('leaveStudentLabel').textContent = 'Checking ' + student.studentCode + '...';
         try {
             const current = await api('/api/academic-enrollments/students/' +
@@ -74,6 +74,14 @@
                     const cell = document.createElement('td'); cell.textContent = value || ''; tr.append(cell);
                 }
                 const td = document.createElement('td');
+                if (row.attachmentFileId) {
+                    const link = document.createElement('a');
+                    link.href = '/api/student-leaves/' + encodeURIComponent(row.id) + '/attachment';
+                    link.className = 'btn btn-sm btn-outline-primary me-1';
+                    link.textContent = 'Evidence';
+                    link.rel = 'noreferrer';
+                    td.append(link);
+                }
                 if (row.state === 2) {
                     for (const [name, decision] of [['Approve', 3], ['Reject', 4]]) {
                         const button = document.createElement('button');
@@ -89,7 +97,11 @@
                     withdraw.textContent = 'Cancel';
                     withdraw.addEventListener('click', () => cancelLeave(row, withdraw));
                     td.append(withdraw);
-                } else td.textContent = row.reviewNote || '—';
+                } else {
+                    const note = document.createElement('span');
+                    note.textContent = row.reviewNote || '—';
+                    td.append(note);
+                }
                 tr.append(td); tbody.append(tr);
             }
             if (!page.items?.length) {
@@ -108,13 +120,29 @@
         if (val('leaveEnd') < val('leaveStart')) return info('Leave end date is before start.', true);
         if (!state.requestId) state.requestId = uuid();
         state.saving = true; available();
+        const enrollmentRef = state.enrollment.reference;
         try {
+            const file = el('leaveFile').files[0];
+            if (file && !state.attachmentId) {
+                if (file.size < 1 || file.size > 5242880)
+                    throw new Error('Supporting file must be between 1 byte and 5 MB.');
+                if (!state.uploadId) state.uploadId = uuid();
+                const form = new FormData();
+                form.append('enrollmentReference', enrollmentRef);
+                form.append('requestId', state.uploadId);
+                form.append('file', file);
+                const uploaded = await api('/api/student-leaves/attachments', { method: 'POST', body: form });
+                state.attachmentId = uploaded.id;
+            }
+            if (state.enrollment?.reference !== enrollmentRef)
+                throw new Error('Selected student changed. Review and submit again.');
             await api('/api/student-leaves', { method: 'POST', body: JSON.stringify({
                 clientRequestId: state.requestId, studentEnrollmentReference: state.enrollment.reference,
                 fromDate: val('leaveStart'), toDate: val('leaveEnd'),
-                reason: val('leaveReason'), attachmentFileId: null
+                reason: val('leaveReason'), attachmentFileId: state.attachmentId
             }) });
-            state.requestId = null; el('leaveApplyForm').reset(); state.page = 1;
+            state.requestId = null; state.uploadId = null; state.attachmentId = null;
+            el('leaveApplyForm').reset(); state.page = 1;
             await load(); info('Leave application submitted.');
         } catch (error) { info(error.message, true); }
         finally { state.saving = false; available(); }
@@ -155,7 +183,9 @@
     el('leaveFilter').addEventListener('change', () => { state.page = 1; load(); });
     el('leavePrevious').addEventListener('click', () => { if (state.page > 1) { state.page--; load(); } });
     el('leaveNext').addEventListener('click', () => { if (state.page < state.pages) { state.page++; load(); } });
-    for (const id of ['leaveStart', 'leaveEnd', 'leaveReason'])
-        el(id).addEventListener('input', () => { state.requestId = null; });
+    for (const id of ['leaveStart', 'leaveEnd', 'leaveReason', 'leaveFile'])
+        el(id).addEventListener('change', () => {
+            state.requestId = null; state.uploadId = null; state.attachmentId = null;
+        });
     load();
 })();
