@@ -114,6 +114,12 @@ public class SubscriptionInvoiceRepository : GenericRepository<SubscriptionInvoi
         _context.SubscriptionInvoices.IgnoreQueryFilters().AsNoTracking()
             .FirstOrDefaultAsync(x => !x.IsDeleted && x.Id == id && x.TenantId == tenantId, ct);
 
+    // Invoice lines have no navigation on the canonical invoice root. Scope explicitly by tenant and invoice.
+    public Task<List<SubscriptionInvoiceLine>> GetLinesForInvoiceAsync(long tenantId, long invoiceId, CancellationToken ct = default) =>
+        _context.SubscriptionInvoiceLines.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => !x.IsDeleted && x.TenantId == tenantId && x.SubscriptionInvoiceId == invoiceId)
+            .OrderBy(x => x.Id).ToListAsync(ct);
+
     public Task<SubscriptionInvoice?> GetByIdForPlatformAsync(long id, CancellationToken ct = default) =>
         _context.SubscriptionInvoices.IgnoreQueryFilters().AsNoTracking()
             .FirstOrDefaultAsync(x => !x.IsDeleted && x.Id == id, ct);
