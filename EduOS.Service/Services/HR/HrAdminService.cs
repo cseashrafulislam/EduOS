@@ -382,15 +382,54 @@ public sealed class HrAdminService : IHrAdminService
             });
     }
 
+    public async Task<ApiResponse<PagedResult<EmployeeCampusAssignmentDto>>> GetCampusAssignmentsAsync(
+        Guid employeeReference, int page = 1, int pageSize = 20, CancellationToken ct = default)
+    {
+        if (!_user.IsAuthenticated || !_user.IsTenantAdmin || _user.TenantId <= 0)
+            return Error<PagedResult<EmployeeCampusAssignmentDto>>(
+                "Institution administrator permission required for cross-campus assignment history.", 403);
+        if (employeeReference == Guid.Empty || page < 1 || pageSize is < 1 or > 100)
+            return Error<PagedResult<EmployeeCampusAssignmentDto>>("Invalid employee reference or pagination.");
+        var employee = await FindEmployeeAsync(employeeReference, ct);
+        if (employee == null)
+            return Error<PagedResult<EmployeeCampusAssignmentDto>>("Employee not found.", 404);
+        var query = from assignment in _campusAssignments.GetQueryable().AsNoTracking()
+            join campus in _campuses.GetQueryable().AsNoTracking()
+                on new { assignment.TenantId, Id = assignment.CampusId }
+                equals new { campus.TenantId, campus.Id } into campusGroup
+            from campus in campusGroup.DefaultIfEmpty()
+            where assignment.TenantId == _user.TenantId && assignment.EmployeeId == employee.Id &&
+                !assignment.IsDeleted
+            select new { assignment, campus };
+        var total = await query.CountAsync(ct);
+        var skip = (long)(page - 1) * pageSize;
+        if (skip > int.MaxValue)
+            return Error<PagedResult<EmployeeCampusAssignmentDto>>("Page out of range.");
+        var rows = await query.OrderByDescending(x => x.assignment.EffectiveFrom)
+            .ThenByDescending(x => x.assignment.Id).Skip((int)skip).Take(pageSize).ToListAsync(ct);
+        return ApiResponse<PagedResult<EmployeeCampusAssignmentDto>>.SuccessResponse(
+            new PagedResult<EmployeeCampusAssignmentDto>
+            {
+                Page = page, PageSize = pageSize, TotalCount = total,
+                Items = rows.Select(x =>
+                {
+                    var dto = MapCampus(x.assignment, employee);
+                    dto.CampusName = x.campus?.Name ?? "Campus unavailable";
+                    return dto;
+                }).ToList()
+            });
+    }
+
     public Task<ApiResponse<EmployeeCampusAssignmentDto>> AssignCampusAsync(
         AssignEmployeeCampusRequestDto request, CancellationToken ct = default)
     {
-        if (!CanHr()) return Task.FromResult(Error<EmployeeCampusAssignmentDto>("HR access required.", 403));
+        if (!_user.IsAuthenticated || !_user.IsTenantAdmin || _user.TenantId <= 0)
+            return Task.FromResult(Error<EmployeeCampusAssignmentDto>("Institution administrator permission required for campus assignment.", 403));
         if (request == null || request.ClientRequestId == Guid.Empty || request.EmployeeReference == Guid.Empty ||
             request.CampusId <= 0 || request.EffectiveFrom == default ||
             request.EffectiveTo.HasValue && request.EffectiveTo < request.EffectiveFrom)
             return Task.FromResult(Error<EmployeeCampusAssignmentDto>("Invalid employee campus assignment."));
-        return WriteAsync("assign campus", async token =>
+        return WriteCampusAsync(async token =>
         {
             var employee = await FindEmployeeAsync(request.EmployeeReference, token);
             if (employee == null) return Error<EmployeeCampusAssignmentDto>("Employee not found.", 404);
@@ -769,6 +808,19 @@ public sealed class HrAdminService : IHrAdminService
         RoutingNumber = row.RoutingNumber, CurrencyCode = row.CurrencyCode,
         IsPrimary = row.IsPrimary, IsActive = row.IsActive, RowVersion = Version(row.RowVersion)
     };
+
+    private async Task<ApiResponse<T>> WriteCampusAsync<T>(
+        Func<CancellationToken, Task<ApiResponse<T>>> callback, CancellationToken ct)
+    {
+        try { return await _uow.ExecuteInTransactionAsync(callback, System.Data.IsolationLevel.Serializable, ct); }
+        catch (DbUpdateConcurrencyException)
+        { return Error<T>("Campus assignment changed concurrently; reload.", 409); }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Campus assignment conflict tenant {TenantId}", _user.TenantId);
+            return Error<T>("Conflicting campus assignment; reload before retrying.", 409);
+        }
+    }
 
     private async Task<ApiResponse<T>> WriteShiftAsync<T>(
         Func<CancellationToken, Task<ApiResponse<T>>> callback, CancellationToken ct)

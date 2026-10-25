@@ -13,6 +13,7 @@ public interface IHrAdminService
     Task<ApiResponse<EmployeeDto>> ChangeEmployeeStateAsync(Guid employeeReference, ChangeEmployeeStateRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<EmployeeShiftAssignmentDto>> AssignShiftAsync(AssignEmployeeShiftRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<EmployeeShiftAssignmentDto>>> GetShiftAssignmentsAsync(Guid employeeReference, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<EmployeeCampusAssignmentDto>>> GetCampusAssignmentsAsync(Guid employeeReference, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default);
     Task<ApiResponse<EmployeeCampusAssignmentDto>> AssignCampusAsync(AssignEmployeeCampusRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<EmployeeAssignmentHistoryDto>>> GetAssignmentHistoryAsync(Guid employeeReference, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<EmployeeBankAccountDto>>> GetBankAccountsAsync(Guid employeeReference, CancellationToken cancellationToken = default);

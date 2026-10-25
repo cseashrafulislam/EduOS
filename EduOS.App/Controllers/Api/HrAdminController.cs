@@ -52,7 +52,14 @@ public sealed class HrAdminController : ControllerBase
         [FromQuery] int pageSize = 20, CancellationToken ct = default) =>
         Result(await _service.GetShiftAssignmentsAsync(reference, page, pageSize, ct));
 
+    [HttpGet("employees/{reference:guid}/campus-assignments")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> CampusAssignments(Guid reference, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, CancellationToken ct = default) =>
+        Result(await _service.GetCampusAssignmentsAsync(reference, page, pageSize, ct));
+
     [HttpPost("employees/campuses")]
+    [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> AssignCampus([FromBody] AssignEmployeeCampusRequestDto request, CancellationToken ct) =>
         Result(await _service.AssignCampusAsync(request, ct));
 

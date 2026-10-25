@@ -5,6 +5,7 @@ public sealed class EmployeeCampusAssignmentDto
     public long Id { get; set; }
     public Guid EmployeeReference { get; set; }
     public long CampusId { get; set; }
+    public string CampusName { get; set; } = string.Empty;
     public DateOnly EffectiveFrom { get; set; }
     public DateOnly? EffectiveTo { get; set; }
     public bool IsPrimary { get; set; }
