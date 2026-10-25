@@ -357,6 +357,115 @@ public sealed class LmsLiveClassService : ILmsLiveClassService
             });
     }
 
+
+    /// <summary>Authorized historical sessions awaiting their first recording publication.
+    /// Pagination and counts are calculated after campus/curriculum/instructor validation.</summary>
+    public async Task<ApiResponse<PagedResult<LiveClassDto>>> GetPendingRecordingsAsync(
+        Guid courseReference, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default)
+    {
+        if (!Author) return Fail<PagedResult<LiveClassDto>>("Instructor authorization required.", 403);
+        if (courseReference == Guid.Empty || page < 1 || page > 100000 || pageSize < 1 || pageSize > 50)
+            return Fail<PagedResult<LiveClassDto>>("Invalid course or pagination parameters.");
+        var tenant = _user.TenantId;
+        var course = await _courses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.PublicId == courseReference && !x.IsDeleted, cancellationToken);
+        if (course == null) return Fail<PagedResult<LiveClassDto>>("Course not found.", 404);
+        if (!await CanAuthorCourseAsync(course, cancellationToken))
+            return Fail<PagedResult<LiveClassDto>>("Course instructor access denied.", 403);
+        var ownInstructorId = Manager ? 0 : await OwnInstructorAsync(cancellationToken);
+        var now = Now;
+        var query = _classes.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.CourseId == course.Id && !x.IsDeleted &&
+            x.EndsAt <= now && (x.RecordingUrl == null || x.RecordingUrl == ""))
+            .OrderByDescending(x => x.StartsAt).ThenByDescending(x => x.Id);
+        var total = 0;
+        var skip = (page - 1) * pageSize;
+        var items = new List<LiveClassDto>(pageSize);
+        for (var offset = 0; ; offset += 100)
+        {
+            var chunk = await query.Skip(offset).Take(100).ToListAsync(cancellationToken);
+            foreach (var row in chunk)
+            {
+                if (!Manager && row.InstructorEmployeeId != ownInstructorId) continue;
+                var from = DhakaDate(row.StartsAt);
+                var to = DhakaDate(row.EndsAt);
+                if ((await EligibleBatchesAsync(course, row.InstructorEmployeeId, from, to,
+                    cancellationToken, historical: true)).Length == 0) continue;
+                if (total >= skip && items.Count < pageSize)
+                    items.Add(await MapAsync(row, course, cancellationToken));
+                total++;
+            }
+            if (chunk.Count < 100) break;
+        }
+        return ApiResponse<PagedResult<LiveClassDto>>.SuccessResponse(
+            new PagedResult<LiveClassDto> { Page = page, PageSize = pageSize,
+                TotalCount = total, Items = items });
+    }
+
+    /// <summary>Append-only publication serializes against course completion.
+    /// Exact replays succeed without a new row version; changed URLs never overwrite evidence.</summary>
+    public async Task<ApiResponse<LiveClassDto>> PublishRecordingAsync(
+        Guid liveClassReference, PublishLiveClassRecordingRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        if (!Author) return Fail<LiveClassDto>("Instructor authorization required.", 403);
+        if (liveClassReference == Guid.Empty || request == null ||
+            string.IsNullOrWhiteSpace(request.RecordingUrl) ||
+            request.RecordingUrl.Length > 1000 || !ValidUrl(request.RecordingUrl))
+            return Fail<LiveClassDto>("A valid HTTPS recording URL is required.");
+        var url = request.RecordingUrl.Trim();
+        var tenant = _user.TenantId;
+        try
+        {
+            return await _uow.ExecuteInTransactionAsync(async token =>
+            {
+                var row = await _classes.GetQueryable().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.PublicId == liveClassReference && !x.IsDeleted, token);
+                if (row == null) return Fail<LiveClassDto>("Live class not found.", 404);
+                var course = await _courses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Id == row.CourseId && !x.IsDeleted, token);
+                if (course == null) return Fail<LiveClassDto>("Course not found.", 404);
+                if (!await CanAuthorCourseAsync(course, token) ||
+                    (!Manager && row.InstructorEmployeeId != await OwnInstructorAsync(token)))
+                    return Fail<LiveClassDto>("Course instructor access denied.", 403);
+                if (row.EndsAt > Now)
+                    return Fail<LiveClassDto>("Recordings can only be published after the session ends.", 409);
+                var from = DhakaDate(row.StartsAt);
+                var to = DhakaDate(row.EndsAt);
+                if ((await EligibleBatchesAsync(course, row.InstructorEmployeeId, from, to,
+                    token, historical: true)).Length == 0)
+                    return Fail<LiveClassDto>("No valid historical instructor assignment or curriculum offering.", 409);
+                if (!string.IsNullOrWhiteSpace(row.RecordingUrl))
+                {
+                    if (string.Equals(row.RecordingUrl, url, StringComparison.Ordinal))
+                        return ApiResponse<LiveClassDto>.SuccessResponse(
+                            await MapAsync(row, course, token), "Recording already published.");
+                    return Fail<LiveClassDto>("Published recording is immutable.", 409);
+                }
+                if (!VersionMatches(row.RowVersion, request.RowVersion))
+                    return Fail<LiveClassDto>("Live class changed. Refresh before publishing.", 409);
+                if (await CourseCompletionPublicationGuard.IsLockedAsync(_enrollments, tenant, course.Id, token))
+                    return Fail<LiveClassDto>(CourseCompletionPublicationGuard.Message, 409);
+                row.RecordingUrl = url;
+                row.UpdatedAt = Now;
+                row.UpdatedBy = _user.UserId;
+                _classes.Update(row);
+                await _uow.SaveChangesAsync(token);
+                return ApiResponse<LiveClassDto>.SuccessResponse(
+                    await MapAsync(row, course, token), "Recording published.");
+            }, IsolationLevel.Serializable, cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Fail<LiveClassDto>("Live class changed concurrently.", 409);
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Recording publication conflict for tenant {TenantId}", tenant);
+            return Fail<LiveClassDto>("Recording publication conflicts with another request.", 409);
+        }
+    }
+
     public async Task<ApiResponse<LiveClassDto>> CancelLiveClassAsync(Guid liveClassReference, string rowVersion,
         CancellationToken cancellationToken = default)
     {

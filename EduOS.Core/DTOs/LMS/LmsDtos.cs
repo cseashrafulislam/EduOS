@@ -315,6 +315,13 @@ public sealed class LiveClassRecordingDto
     public string RecordingUrl { get; set; } = string.Empty;
 }
 
+/// <summary>Append-only post-session recording publication.</summary>
+public sealed class PublishLiveClassRecordingRequestDto
+{
+    [Required, MaxLength(1000)] public string RecordingUrl { get; set; } = string.Empty;
+    [Required] public string RowVersion { get; set; } = string.Empty;
+}
+
 public class SaveLiveClassRequestDto
 {
     public Guid CourseReference { get; set; }

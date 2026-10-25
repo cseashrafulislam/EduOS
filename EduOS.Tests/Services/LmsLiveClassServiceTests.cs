@@ -197,6 +197,85 @@ public sealed class LmsLiveClassServiceTests
         Assert.Equal(404, (await service.GetCourseRecordingsAsync(foreign.PublicId, 1, 20)).StatusCode);
     }
 
+
+    [Fact]
+    public async Task Post_session_recording_publication_is_append_only_idempotent_and_completion_safe()
+    {
+        await using var db = Db();
+        var now = DateTime.UtcNow;
+        var from = DateOnly.FromDateTime(now.AddDays(-30));
+        var to = DateOnly.FromDateTime(now.AddDays(90));
+        var teacher = new Employee { TenantId = 101, EmployeeCode = "PUB-T", FullName = "Teacher", CanTeach = true, State = EmployeeState.Active };
+        var course = new Course { TenantId = 101, AcademicProgramId = 12, SubjectId = 21, Code = "PUB-C", Title = "Course" };
+        var year = new AcademicYear { TenantId = 101, Code = "PUB-Y", Name = "Year", StartDate = from, EndDate = to, IsActive = true };
+        var curriculum = new AcademicCurriculum { TenantId = 101, Code = "PUB-CUR", Name = "Curriculum", AcademicProgramId = 12, EffectiveFrom = from, IsActive = true };
+        db.AddRange(teacher, course, year, curriculum);
+        await db.SaveChangesAsync();
+        var item = new CurriculumSubject { TenantId = 101, AcademicCurriculumId = curriculum.Id, AcademicLevelId = 31, SubjectId = 21, IsActive = true };
+        var batch = new AcademicBatch { TenantId = 101, CampusId = 41, AcademicYearId = year.Id,
+            AcademicProgramId = 12, AcademicLevelId = 31, Code = "PUB-B", Name = "Batch", IsActive = true };
+        var campus = new EmployeeCampusAssignment { TenantId = 101, EmployeeId = teacher.Id,
+            CampusId = 41, EffectiveFrom = from, IsCurrent = true };
+        db.AddRange(item, batch, campus);
+        await db.SaveChangesAsync();
+        var offering = new SubjectOffering { TenantId = 101, AcademicBatchId = batch.Id,
+            AcademicYearId = year.Id, CurriculumSubjectId = item.Id, Code = "PUB-O", IsActive = true };
+        db.Add(offering);
+        await db.SaveChangesAsync();
+        db.Add(new InstructorAssignment { TenantId = 101, SubjectOfferingId = offering.Id,
+            EmployeeId = teacher.Id, EffectiveFrom = from, IsActive = true });
+        var past = new LiveClass { TenantId = 101, CourseId = course.Id, InstructorEmployeeId = teacher.Id,
+            Title = "Finished session", StartsAt = now.AddDays(-1), EndsAt = now.AddDays(-1).AddHours(1),
+            RowVersion = [1, 2, 3] };
+        var second = new LiveClass { TenantId = 101, CourseId = course.Id, InstructorEmployeeId = teacher.Id,
+            Title = "Second session", StartsAt = now.AddDays(-2), EndsAt = now.AddDays(-2).AddHours(1),
+            RowVersion = [4, 5, 6] };
+        db.AddRange(past, second);
+        await db.SaveChangesAsync();
+        var service = Service(db, "TenantAdmin");
+        var pending = await service.GetPendingRecordingsAsync(course.PublicId);
+        Assert.True(pending.Success, pending.Message);
+        Assert.Equal(2, pending.Data!.TotalCount);
+        Assert.Equal(400, (await service.GetPendingRecordingsAsync(course.PublicId, 0)).StatusCode);
+        Assert.Equal(403, (await Service(db, "Student").GetPendingRecordingsAsync(course.PublicId)).StatusCode);
+        var request = new PublishLiveClassRecordingRequestDto {
+            RecordingUrl = "https://videos.example.com/lesson", RowVersion = Convert.ToBase64String(past.RowVersion) };
+        Assert.Equal(409, (await service.PublishRecordingAsync(past.PublicId,
+            new PublishLiveClassRecordingRequestDto { RecordingUrl = request.RecordingUrl,
+                RowVersion = Convert.ToBase64String(new byte[] { 99 }) })).StatusCode);
+        var future = new LiveClass { TenantId = 101, CourseId = course.Id, InstructorEmployeeId = teacher.Id,
+            Title = "Upcoming session", StartsAt = now.AddDays(1), EndsAt = now.AddDays(1).AddHours(1),
+            RowVersion = [7, 8, 9] };
+        db.Add(future);
+        await db.SaveChangesAsync();
+        Assert.Equal(409, (await service.PublishRecordingAsync(future.PublicId,
+            new PublishLiveClassRecordingRequestDto { RecordingUrl = request.RecordingUrl,
+                RowVersion = Convert.ToBase64String(future.RowVersion) })).StatusCode);
+        var published = await service.PublishRecordingAsync(past.PublicId, request);
+        Assert.True(published.Success, published.Message);
+        Assert.Equal(request.RecordingUrl, published.Data!.RecordingUrl);
+        Assert.True((await service.PublishRecordingAsync(past.PublicId, request)).Success);
+        Assert.Equal(409, (await service.PublishRecordingAsync(past.PublicId,
+            new PublishLiveClassRecordingRequestDto { RecordingUrl = "https://videos.example.com/other",
+                RowVersion = request.RowVersion })).StatusCode);
+        Assert.Equal(400, (await service.PublishRecordingAsync(second.PublicId,
+            new PublishLiveClassRecordingRequestDto { RecordingUrl = "http://unsafe.example.com",
+                RowVersion = Convert.ToBase64String(second.RowVersion) })).StatusCode);
+        Assert.Equal(403, (await Service(db, "Student").PublishRecordingAsync(second.PublicId, request)).StatusCode);
+        Assert.Equal(1, (await service.GetPendingRecordingsAsync(course.PublicId)).Data!.TotalCount);
+        db.Add(new CourseEnrollment { TenantId = 101, CourseId = course.Id, StudentId = 901,
+            State = CourseEnrollmentState.Completed, CompletedAt = now });
+        await db.SaveChangesAsync();
+        var locked = await service.PublishRecordingAsync(second.PublicId,
+            new PublishLiveClassRecordingRequestDto {
+                RecordingUrl = "https://videos.example.com/second",
+                RowVersion = Convert.ToBase64String(second.RowVersion) });
+        Assert.Equal(409, locked.StatusCode);
+        Assert.Contains("locked", locked.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.True((await service.PublishRecordingAsync(past.PublicId, request)).Success);
+        Assert.Null((await db.Set<LiveClass>().SingleAsync(x => x.Id == second.Id)).RecordingUrl);
+    }
+
     private static readonly InMemoryDatabaseRoot DatabaseRoot = new();
 
     private static EduOSDbContext Db(long tenantId = 101, string? databaseName = null)

@@ -37,6 +37,21 @@ public sealed class LmsLiveClassesController : ControllerBase
         [FromQuery] int pageSize = 20, CancellationToken ct = default) =>
         Reply(await _service.GetCourseRecordingsAsync(courseReference, page, pageSize, ct));
 
+    [HttpGet("course/{courseReference:guid}/pending-recordings")]
+    [Authorize(Roles = "TenantAdmin,Principal,Teacher")]
+    public async Task<IActionResult> PendingRecordings(Guid courseReference, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, CancellationToken ct = default) =>
+        Reply(await _service.GetPendingRecordingsAsync(courseReference, page, pageSize, ct));
+
+    [HttpPost("{reference:guid}/recording")]
+    [Authorize(Roles = "TenantAdmin,Principal,Teacher")]
+    public async Task<IActionResult> PublishRecording(Guid reference,
+        [FromBody] PublishLiveClassRecordingRequestDto request, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        return Reply(await _service.PublishRecordingAsync(reference, request, ct));
+    }
+
     [HttpGet("{reference:guid}")]
     public async Task<IActionResult> Details(Guid reference, CancellationToken ct) =>
         Reply(await _service.GetLiveClassAsync(reference, ct));

@@ -47,6 +47,35 @@
         </table></div>
         <div class="card-footer text-muted small">Schedule: past 30 days through the next 365 days. Student access is restricted by course enrollment, campus and instructor assignment.</div>
     </section>
+
+    @if (author)
+    {
+        <section class="card mt-3" aria-labelledby="livePendingTitle">
+            <div class="card-header d-flex justify-content-between align-items-center gap-2">
+                <h3 id="livePendingTitle" class="h6 m-0">Sessions awaiting recording publication</h3>
+                <span id="livePendingCount" class="small text-muted" aria-live="polite">0 sessions</span>
+            </div>
+            <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
+                <thead><tr><th>Class</th><th>Instructor</th><th>Ended</th><th class="live-actions">Action</th></tr></thead>
+                <tbody id="livePendingRows"><tr><td colspan="4" class="text-muted text-center p-3">Select a course.</td></tr></tbody>
+            </table></div>
+            <div class="card-footer d-flex gap-2 align-items-center">
+                <button id="livePendingPrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous</button>
+                <span id="livePendingPage" class="small">Page 1</span>
+                <button id="livePendingNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next</button>
+            </div>
+        </section>
+        <form id="livePublishForm" class="card mt-3 d-none">
+            <div class="card-header"><h3 class="h6 m-0">Publish a completed session recording</h3></div>
+            <div class="card-body row g-2 align-items-end">
+                <div class="col-md-12"><strong id="livePublishClass"></strong></div>
+                <div class="col-md-9"><label class="form-label" for="livePublishUrl">HTTPS recording URL</label>
+                    <input id="livePublishUrl" class="form-control" type="url" pattern="https://.*" maxlength="1000" required /></div>
+                <div class="col-md-3"><button id="livePublishSave" type="submit" class="btn btn-primary w-100">Publish recording</button></div>
+                <p class="small text-muted mb-0">Publication is append-only. Once published, the URL cannot be replaced. Completed courses cannot receive new publications.</p>
+            </div>
+        </form>
+    }
     <section class="card mt-3" aria-labelledby="liveRecordingsTitle">
         <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
             <h3 id="liveRecordingsTitle" class="h6 m-0">Historical class recordings</h3>
@@ -64,5 +93,5 @@
         </div>
     </section>
 </section>
-<style media="print">.live-actions,#liveForm,#liveRefresh,#livePrint,#liveExport,#liveCoursePrev,#liveCourseNext,#liveRecordingPrev,#liveRecordingNext,.btn,nav,.sidebar{display:none!important}#liveClassApp{width:100%!important}</style>
+<style media="print">.live-actions,#liveForm,#liveRefresh,#livePrint,#liveExport,#liveCoursePrev,#liveCourseNext,#liveRecordingPrev,#liveRecordingNext,#livePendingPrev,#livePendingNext,#livePublishForm,.btn,nav,.sidebar{display:none!important}#liveClassApp{width:100%!important}</style>
 @section Scripts { <script src="~/js/learning/live-classes.js" asp-append-version="true"></script> }
