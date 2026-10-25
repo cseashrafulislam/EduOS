@@ -550,7 +550,7 @@ public sealed class HrAdminService : IHrAdminService
     public async Task<ApiResponse<IReadOnlyList<EmployeeBankAccountDto>>> GetBankAccountsAsync(
         Guid employeeReference, CancellationToken ct = default)
     {
-        if (!CanHr()) return Error<IReadOnlyList<EmployeeBankAccountDto>>("HR access required.", 403);
+        if (!CanHr() || !_user.IsTenantAdmin) return Error<IReadOnlyList<EmployeeBankAccountDto>>("Institution administrator permission required for protected bank accounts.", 403);
         var employee = await FindEmployeeAsync(employeeReference, ct);
         if (employee == null) return Error<IReadOnlyList<EmployeeBankAccountDto>>("Employee not found.", 404);
         var list = await _bankAccounts.GetQueryable().AsNoTracking().Where(x =>
@@ -563,7 +563,7 @@ public sealed class HrAdminService : IHrAdminService
     public Task<ApiResponse<EmployeeBankAccountDto>> SaveBankAccountAsync(long? bankAccountId,
         SaveEmployeeBankAccountRequestDto request, CancellationToken ct = default)
     {
-        if (!CanHr()) return Task.FromResult(Error<EmployeeBankAccountDto>("HR access required.", 403));
+        if (!CanHr() || !_user.IsTenantAdmin) return Task.FromResult(Error<EmployeeBankAccountDto>("Institution administrator permission required for protected bank accounts.", 403));
         if (request == null || request.EmployeeReference == Guid.Empty || bankAccountId is <= 0 ||
             !ValidName(request.BankName, 150) || !ValidName(request.AccountName, 150) ||
             string.IsNullOrWhiteSpace(request.AccountNumber) || request.AccountNumber.Length > 200 ||
@@ -571,7 +571,7 @@ public sealed class HrAdminService : IHrAdminService
             request.BranchName?.Length > 100 || request.RoutingNumber?.Length > 100 ||
             bankAccountId.HasValue && !TryVersion(request.RowVersion, out _))
             return Task.FromResult(Error<EmployeeBankAccountDto>("Invalid employee bank details or row version."));
-        return WriteAsync("save employee bank account", async token =>
+        return WriteBankAsync(async token =>
         {
             var employee = await FindEmployeeAsync(request.EmployeeReference, token);
             if (employee == null) return Error<EmployeeBankAccountDto>("Employee not found.", 404);
@@ -586,6 +586,30 @@ public sealed class HrAdminService : IHrAdminService
             var now = _clock.GetUtcNow().UtcDateTime;
             var protector = _dataProtection.CreateProtector(
                 "EduOS.HR.EmployeeBankAccount.v1", _user.TenantId.ToString());
+            var last4 = number.Length <= 4 ? number : number[^4..];
+            if (row == null)
+            {
+                // A repeated create must not silently create a second payroll destination.
+                // Serializable isolation prevents simultaneous equivalent requests from passing this check.
+                var candidates = await _bankAccounts.GetQueryable().Where(x =>
+                    x.TenantId == _user.TenantId && x.EmployeeId == employee.Id &&
+                    x.AccountNumberLast4 == last4 && !x.IsDeleted).ToListAsync(token);
+                foreach (var existing in candidates)
+                {
+                    if (protector.Unprotect(existing.ProtectedAccountNumber) != number) continue;
+                    if (existing.BankName == request.BankName.Trim() &&
+                        existing.AccountName == request.AccountName.Trim() &&
+                        existing.BranchName == Trim(request.BranchName) &&
+                        existing.RoutingNumber == Trim(request.RoutingNumber) &&
+                        existing.CurrencyCode == request.CurrencyCode.Trim().ToUpperInvariant() &&
+                        existing.IsPrimary == (request.IsPrimary && request.IsActive) &&
+                        existing.IsActive == request.IsActive)
+                        return ApiResponse<EmployeeBankAccountDto>.SuccessResponse(
+                            MapBank(existing, employee.PublicId), "Bank account already registered.");
+                    return Error<EmployeeBankAccountDto>(
+                        "This account number is already registered. Edit the existing record instead.", 409);
+                }
+            }
             if (row != null && row.ProtectedAccountNumber.Length > 0 &&
                 protector.Unprotect(row.ProtectedAccountNumber) == number &&
                 row.BankName == request.BankName.Trim() &&
@@ -623,7 +647,7 @@ public sealed class HrAdminService : IHrAdminService
             }
             row.BankName = request.BankName.Trim(); row.AccountName = request.AccountName.Trim();
             row.ProtectedAccountNumber = protector.Protect(number);
-            row.AccountNumberLast4 = number.Length <= 4 ? number : number[^4..];
+            row.AccountNumberLast4 = last4;
             row.BranchName = Trim(request.BranchName); row.RoutingNumber = Trim(request.RoutingNumber);
             row.CurrencyCode = request.CurrencyCode.Trim().ToUpperInvariant();
             row.IsPrimary = request.IsPrimary && request.IsActive; row.IsActive = request.IsActive;
@@ -832,6 +856,19 @@ public sealed class HrAdminService : IHrAdminService
         {
             _logger.LogWarning(ex, "Shift assignment conflict tenant {TenantId}", _user.TenantId);
             return Error<T>("Conflicting shift assignment; reload before retrying.", 409);
+        }
+    }
+
+    private async Task<ApiResponse<T>> WriteBankAsync<T>(
+        Func<CancellationToken, Task<ApiResponse<T>>> callback, CancellationToken ct)
+    {
+        try { return await _uow.ExecuteInTransactionAsync(callback, System.Data.IsolationLevel.Serializable, ct); }
+        catch (DbUpdateConcurrencyException)
+        { return Error<T>("Bank account changed concurrently; reload.", 409); }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Bank account conflict tenant {TenantId}", _user.TenantId);
+            return Error<T>("Bank account conflicts with an existing transaction.", 409);
         }
     }
 

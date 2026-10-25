@@ -21,4 +21,9 @@ public sealed class HRController : Controller
     [Authorize(Roles = "TenantAdmin")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult CampusAssignments() => View();
+
+    [HttpGet]
+    [Authorize(Roles = "TenantAdmin")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult BankAccounts() => View();
 }

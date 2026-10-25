@@ -1,0 +1,48 @@
+@{
+    ViewData["Title"] = "Employee Bank Accounts";
+}
+<section id="hrBankWorkspace" class="container-fluid py-3">
+    <header class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div>
+            <h2 class="h4">Employee Bank Accounts</h2>
+            <p class="text-muted mb-0">Manage protected payroll destinations for your institution. Only masked account numbers are returned or displayed. Tenant administrator access only.</p>
+        </div>
+        <a class="btn btn-outline-secondary" href="/HR/Index">Employee Administration</a>
+    </header>
+    <div id="hrBankAlert" class="d-none" role="alert" tabindex="-1"></div>
+    <section class="card mb-3"><div class="card-body">
+        <h3 class="h6">Find employee</h3>
+        <form id="hrBankSearchForm" class="row g-2 align-items-end">
+            <div class="col-md-5"><label class="form-label" for="hrBankSearch">Employee name or code</label><input id="hrBankSearch" class="form-control" type="search" maxlength="100" minlength="2" required /></div>
+            <div class="col-md-2"><button id="hrBankFind" class="btn btn-outline-primary w-100" type="submit">Search</button></div>
+            <div class="col-md-5"><label class="form-label" for="hrBankEmployee">Employee</label><select id="hrBankEmployee" class="form-select"><option value="">Search first</option></select></div>
+        </form>
+    </div></section>
+    <section class="card mb-3"><div class="card-body">
+        <h3 class="h6" id="hrBankFormTitle">Register bank account</h3>
+        <form id="hrBankForm" autocomplete="off">
+            <div class="row g-3">
+                <div class="col-md-4"><label class="form-label" for="hrBankName">Bank name</label><input id="hrBankName" class="form-control" maxlength="150" required /></div>
+                <div class="col-md-4"><label class="form-label" for="hrBankAccountName">Account holder name</label><input id="hrBankAccountName" class="form-control" maxlength="150" required /></div>
+                <div class="col-md-4"><label class="form-label" for="hrBankNumber">Full account number</label><input id="hrBankNumber" class="form-control" type="password" maxlength="200" autocomplete="new-password" spellcheck="false" required /><small class="text-muted">Required for both registration and edits. Never retrieved from the server.</small></div>
+                <div class="col-md-4"><label class="form-label" for="hrBankBranch">Branch (optional)</label><input id="hrBankBranch" class="form-control" maxlength="100" /></div>
+                <div class="col-md-4"><label class="form-label" for="hrBankRouting">Routing number (optional)</label><input id="hrBankRouting" class="form-control" maxlength="100" /></div>
+                <div class="col-md-4"><label class="form-label" for="hrBankCurrency">Currency</label><input id="hrBankCurrency" class="form-control" value="BDT" readonly /></div>
+                <div class="col-md-3"><div class="form-check"><input id="hrBankPrimary" type="checkbox" class="form-check-input" /><label for="hrBankPrimary" class="form-check-label">Primary payroll account</label></div></div>
+                <div class="col-md-3"><div class="form-check"><input id="hrBankActive" type="checkbox" class="form-check-input" checked /><label for="hrBankActive" class="form-check-label">Active</label></div></div>
+                <div class="col-md-6 d-flex justify-content-end gap-2"><button id="hrBankCancel" class="btn btn-outline-secondary" type="button">Clear / cancel edit</button><button id="hrBankSave" class="btn btn-primary" type="submit">Save protected account</button></div>
+            </div>
+        </form>
+        <p class="small text-muted mt-3 mb-0">Making an account primary replaces the previous primary designation. Editing or deactivating an account does not retroactively change posted payroll payments.</p>
+    </div></section>
+    <section class="card"><div class="card-body">
+        <h3 class="h6">Registered accounts</h3>
+        <div class="table-responsive"><table class="table table-sm table-hover align-middle">
+            <thead><tr><th>Bank</th><th>Account holder</th><th>Account</th><th>Branch</th><th>Primary</th><th>Active</th><th>Action</th></tr></thead>
+            <tbody id="hrBankRows"><tr><td colspan="7">Select an employee.</td></tr></tbody>
+        </table></div>
+    </div></section>
+</section>
+@section Scripts {
+    <script src="~/js/hr/bank-accounts.js" asp-append-version="true"></script>
+}

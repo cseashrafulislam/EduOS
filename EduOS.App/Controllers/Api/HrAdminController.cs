@@ -69,11 +69,13 @@ public sealed class HrAdminController : ControllerBase
         Result(await _service.GetAssignmentHistoryAsync(reference, page, pageSize, ct));
 
     [HttpGet("employees/{reference:guid}/bank-accounts")]
+    [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> BankAccounts(Guid reference, CancellationToken ct) =>
         Result(await _service.GetBankAccountsAsync(reference, ct));
 
     [HttpPost("employees/bank-accounts")]
     [HttpPut("employees/bank-accounts/{bankAccountId:long}")]
+    [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> SaveBankAccount(long? bankAccountId,
         [FromBody] SaveEmployeeBankAccountRequestDto request, CancellationToken ct) =>
         Result(await _service.SaveBankAccountAsync(bankAccountId, request, ct));
