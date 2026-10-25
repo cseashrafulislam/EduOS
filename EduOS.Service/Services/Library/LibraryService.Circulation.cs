@@ -43,10 +43,11 @@ public sealed partial class LibraryService
         if (campusId.HasValue)
         {
             var campus = campusId.Value;
+            var matchingBranches = _branches!.GetQueryable().AsNoTracking()
+                .Where(b => b.TenantId == tenant && !b.IsDeleted && b.CampusId == campus)
+                .Select(b => b.Id);
             query = query.Where(x => x.Copy.LibraryBranchId.HasValue &&
-                _branches!.GetQueryable().AsNoTracking().Any(b =>
-                    b.TenantId == tenant && !b.IsDeleted &&
-                    b.Id == x.Copy.LibraryBranchId.Value && b.CampusId == campus));
+                matchingBranches.Contains(x.Copy.LibraryBranchId.Value));
         }
         var offset = ((long)page - 1) * pageSize;
         if (offset > int.MaxValue)
