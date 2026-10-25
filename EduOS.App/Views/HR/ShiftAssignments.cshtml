@@ -1,0 +1,46 @@
+@{
+    ViewData["Title"] = "Employee Shift Assignments";
+}
+<section id="hrShiftWorkspace" class="container-fluid py-3">
+    <header class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div>
+            <h2 class="h4">Employee Shift Assignments</h2>
+            <p class="text-muted mb-0">Assign effective-dated work shifts and inspect immutable assignment history. Institution administrator access only.</p>
+        </div>
+        <a class="btn btn-outline-secondary" href="/HR/Index">Employee Administration</a>
+    </header>
+    <div id="hrShiftAlert" class="d-none" role="alert" tabindex="-1"></div>
+    <section class="card mb-3"><div class="card-body">
+        <h3 class="h6">Find employee</h3>
+        <div class="row g-2 align-items-end">
+            <div class="col-md-5"><label class="form-label" for="hrShiftSearch">Employee name or code</label><input id="hrShiftSearch" class="form-control" maxlength="100" placeholder="At least 2 characters" /></div>
+            <div class="col-md-2"><button id="hrShiftFind" class="btn btn-outline-primary w-100" type="button">Search</button></div>
+            <div class="col-md-5"><label class="form-label" for="hrShiftEmployee">Employee</label><select id="hrShiftEmployee" class="form-select"><option value="">Search first</option></select></div>
+        </div>
+    </div></section>
+    <section class="card mb-3"><div class="card-body">
+        <h3 class="h6">Assign work shift</h3>
+        <form id="hrShiftForm" class="row g-2 align-items-end">
+            <div class="col-md-4"><label class="form-label" for="hrShiftCode">Active work shift</label><select id="hrShiftCode" class="form-select" required><option value="">Loading shifts…</option></select></div>
+            <div class="col-md-3"><label class="form-label" for="hrShiftFrom">Effective from</label><input id="hrShiftFrom" type="date" class="form-control" required /></div>
+            <div class="col-md-3"><label class="form-label" for="hrShiftTo">Effective to (optional)</label><input id="hrShiftTo" type="date" class="form-control" /></div>
+            <div class="col-md-2"><button id="hrShiftSave" class="btn btn-primary w-100" type="submit">Assign</button></div>
+        </form>
+        <p class="text-muted small mt-2 mb-0">An existing open-ended shift is closed before the new assignment begins. Overlapping periods are rejected. This does not calculate attendance or payroll.</p>
+    </div></section>
+    <section class="card"><div class="card-body">
+        <h3 class="h6">Assignment history</h3>
+        <div class="table-responsive"><table class="table table-sm table-hover">
+            <thead><tr><th>Shift</th><th>From</th><th>To</th><th>Status</th></tr></thead>
+            <tbody id="hrShiftRows"><tr><td colspan="4">Select an employee.</td></tr></tbody>
+        </table></div>
+        <div class="d-flex align-items-center justify-content-between gap-2">
+            <button id="hrShiftPrev" class="btn btn-outline-secondary btn-sm" type="button" disabled>Previous</button>
+            <span id="hrShiftPage" class="small text-muted" aria-live="polite"></span>
+            <button id="hrShiftNext" class="btn btn-outline-secondary btn-sm" type="button" disabled>Next</button>
+        </div>
+    </div></section>
+</section>
+@section Scripts {
+    <script src="~/js/hr/shift-assignments.js" asp-append-version="true"></script>
+}

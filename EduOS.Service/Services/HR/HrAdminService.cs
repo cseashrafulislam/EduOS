@@ -284,12 +284,13 @@ public sealed class HrAdminService : IHrAdminService
     public Task<ApiResponse<EmployeeShiftAssignmentDto>> AssignShiftAsync(
         AssignEmployeeShiftRequestDto request, CancellationToken ct = default)
     {
-        if (!CanHr()) return Task.FromResult(Error<EmployeeShiftAssignmentDto>("HR access required.", 403));
+        if (!_user.IsAuthenticated || !_user.IsTenantAdmin || _user.TenantId <= 0)
+            return Task.FromResult(Error<EmployeeShiftAssignmentDto>("Institution administrator permission required for cross-campus shift assignments.", 403));
         if (request == null || request.ClientRequestId == Guid.Empty || request.EmployeeReference == Guid.Empty ||
             request.WorkShiftId <= 0 || request.EffectiveFrom == default ||
             request.EffectiveTo.HasValue && request.EffectiveTo < request.EffectiveFrom)
             return Task.FromResult(Error<EmployeeShiftAssignmentDto>("Invalid employee shift assignment."));
-        return WriteAsync("assign shift", async token =>
+        return WriteShiftAsync(async token =>
         {
             var employee = await FindEmployeeAsync(request.EmployeeReference, token);
             if (employee == null) return Error<EmployeeShiftAssignmentDto>("Employee not found.", 404);
@@ -300,6 +301,22 @@ public sealed class HrAdminService : IHrAdminService
             if (request.EffectiveFrom < employee.JoiningDate ||
                 employee.LeavingDate.HasValue && request.EffectiveFrom > employee.LeavingDate.Value)
                 return Error<EmployeeShiftAssignmentDto>("Assignment date outside employment period.", 409);
+            // Semantic retry detection also covers assignments whose effective period has ended.
+            // Serializable isolation protects the overlapping-period predicate during concurrent writes.
+            var identical = await _shiftAssignments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == _user.TenantId && x.EmployeeId == employee.Id &&
+                x.WorkShiftId == shift.Id && x.EffectiveFrom == request.EffectiveFrom &&
+                x.EffectiveTo == request.EffectiveTo && !x.IsDeleted, token);
+            if (identical != null)
+                return ApiResponse<EmployeeShiftAssignmentDto>.SuccessResponse(MapShift(identical, employee, shift),
+                    "Existing shift assignment returned.");
+            var historicalOverlap = await _shiftAssignments.GetQueryable().AsNoTracking().AnyAsync(x =>
+                x.TenantId == _user.TenantId && x.EmployeeId == employee.Id && !x.IsDeleted &&
+                !x.IsCurrent &&
+                x.EffectiveFrom <= (request.EffectiveTo ?? DateOnly.MaxValue) &&
+                (!x.EffectiveTo.HasValue || x.EffectiveTo >= request.EffectiveFrom), token);
+            if (historicalOverlap)
+                return Error<EmployeeShiftAssignmentDto>("Shift assignment overlaps historical dates.", 409);
             var current = await _shiftAssignments.GetQueryable().FirstOrDefaultAsync(x =>
                 x.TenantId == _user.TenantId && x.EmployeeId == employee.Id && x.IsCurrent &&
                 !x.IsDeleted, token);
@@ -331,6 +348,38 @@ public sealed class HrAdminService : IHrAdminService
             return ApiResponse<EmployeeShiftAssignmentDto>.SuccessResponse(MapShift(row, employee, shift),
                 "Employee shift assigned.");
         }, ct);
+    }
+
+    public async Task<ApiResponse<PagedResult<EmployeeShiftAssignmentDto>>> GetShiftAssignmentsAsync(
+        Guid employeeReference, int page = 1, int pageSize = 20, CancellationToken ct = default)
+    {
+        if (!_user.IsAuthenticated || !_user.IsTenantAdmin || _user.TenantId <= 0)
+            return Error<PagedResult<EmployeeShiftAssignmentDto>>(
+                "Institution administrator permission required for cross-campus shift history.", 403);
+        if (employeeReference == Guid.Empty || page < 1 || pageSize is < 1 or > 100)
+            return Error<PagedResult<EmployeeShiftAssignmentDto>>("Invalid employee reference or pagination.");
+        var employee = await FindEmployeeAsync(employeeReference, ct);
+        if (employee == null)
+            return Error<PagedResult<EmployeeShiftAssignmentDto>>("Employee not found.", 404);
+        var query = from assignment in _shiftAssignments.GetQueryable().AsNoTracking()
+            join shift in _shifts.GetQueryable().AsNoTracking()
+                on new { assignment.TenantId, Id = assignment.WorkShiftId }
+                equals new { shift.TenantId, shift.Id }
+            where assignment.TenantId == _user.TenantId && assignment.EmployeeId == employee.Id &&
+                !assignment.IsDeleted && !shift.IsDeleted
+            select new { assignment, shift };
+        var total = await query.CountAsync(ct);
+        var skip = (long)(page - 1) * pageSize;
+        if (skip > int.MaxValue)
+            return Error<PagedResult<EmployeeShiftAssignmentDto>>("Page out of range.");
+        var rows = await query.OrderByDescending(x => x.assignment.EffectiveFrom)
+            .ThenByDescending(x => x.assignment.Id).Skip((int)skip).Take(pageSize).ToListAsync(ct);
+        return ApiResponse<PagedResult<EmployeeShiftAssignmentDto>>.SuccessResponse(
+            new PagedResult<EmployeeShiftAssignmentDto>
+            {
+                Page = page, PageSize = pageSize, TotalCount = total,
+                Items = rows.Select(x => MapShift(x.assignment, employee, x.shift)).ToArray()
+            });
     }
 
     public Task<ApiResponse<EmployeeCampusAssignmentDto>> AssignCampusAsync(
@@ -720,6 +769,19 @@ public sealed class HrAdminService : IHrAdminService
         RoutingNumber = row.RoutingNumber, CurrencyCode = row.CurrencyCode,
         IsPrimary = row.IsPrimary, IsActive = row.IsActive, RowVersion = Version(row.RowVersion)
     };
+
+    private async Task<ApiResponse<T>> WriteShiftAsync<T>(
+        Func<CancellationToken, Task<ApiResponse<T>>> callback, CancellationToken ct)
+    {
+        try { return await _uow.ExecuteInTransactionAsync(callback, System.Data.IsolationLevel.Serializable, ct); }
+        catch (DbUpdateConcurrencyException)
+        { return Error<T>("Shift assignment changed concurrently; reload.", 409); }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Shift assignment conflict tenant {TenantId}", _user.TenantId);
+            return Error<T>("Conflicting shift assignment; reload before retrying.", 409);
+        }
+    }
 
     private async Task<ApiResponse<T>> WriteAsync<T>(string operation,
         Func<CancellationToken, Task<ApiResponse<T>>> callback, CancellationToken ct)

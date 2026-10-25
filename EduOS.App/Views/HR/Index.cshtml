@@ -5,6 +5,10 @@
     <header class="mb-3">
         <h2 id="hrTitle">HR Administration</h2>
         <p class="text-muted">Employee directory and leave requests. Updates are checked by the server for your institution and role.</p>
+        @if (User.IsInRole("TenantAdmin"))
+        {
+            <a class="btn btn-outline-primary mt-2" href="/HR/ShiftAssignments">Employee shift assignments &amp; history</a>
+        }
     </header>
     <div id="hrAlert" class="d-none" role="alert" tabindex="-1"></div>
     <section class="card mb-4">

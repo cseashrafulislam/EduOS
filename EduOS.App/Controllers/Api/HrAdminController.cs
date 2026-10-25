@@ -42,8 +42,15 @@ public sealed class HrAdminController : ControllerBase
         Result(await _service.ChangeEmployeeStateAsync(reference, request, ct));
 
     [HttpPost("employees/shifts")]
+    [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> AssignShift([FromBody] AssignEmployeeShiftRequestDto request, CancellationToken ct) =>
         Result(await _service.AssignShiftAsync(request, ct));
+
+    [HttpGet("employees/{reference:guid}/shift-assignments")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> ShiftAssignments(Guid reference, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, CancellationToken ct = default) =>
+        Result(await _service.GetShiftAssignmentsAsync(reference, page, pageSize, ct));
 
     [HttpPost("employees/campuses")]
     public async Task<IActionResult> AssignCampus([FromBody] AssignEmployeeCampusRequestDto request, CancellationToken ct) =>
