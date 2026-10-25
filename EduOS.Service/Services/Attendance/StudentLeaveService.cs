@@ -2,6 +2,7 @@ using EduOS.Core.Common;
 using EduOS.Core.DTOs.Attendance;
 using EduOS.Core.DTOs.Files;
 using EduOS.Core.Entities.Files;
+using EduOS.Core.Entities.System;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Attendance;
 using EduOS.Core.Entities.Students;
@@ -228,6 +229,17 @@ public sealed class StudentLeaveService : IStudentLeaveService
                 };
                 await _leaves.AddAsync(leave);
                 await _uow.SaveChangesAsync(token);
+                if (leave.AttachmentFileId.HasValue)
+                {
+                    _db.AuditLogs.Add(new AuditLog
+                    {
+                        TenantId = tenant, UserId = _user.UserId,
+                        Action = "StudentLeave.AttachmentLinked", EntityName = "StudentLeaveApplication",
+                        EntityId = leave.Id, NewValue = leave.ClientRequestId.ToString("D"),
+                        OccurredAt = now
+                    });
+                    await _uow.SaveChangesAsync(token);
+                }
                 return ApiResponse<StudentLeaveApplicationDto>.SuccessResponse(Map(leave, enrollment.PublicId), "Leave submitted.");
             }, IsolationLevel.Serializable, ct);
         }
