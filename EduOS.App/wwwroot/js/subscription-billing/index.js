@@ -71,7 +71,9 @@ function renderUpcoming(){
  if(!Number.isFinite(remaining)||remaining<=0||remaining>30*86400000||!s.rowVersion){
   box.textContent="You can request a renewal invoice during the final 30 days of the current period.";return;
  }
- box.textContent="Request the next billing period at the plan's current price. No payment is collected automatically.";
+ box.textContent=s.autoRenew
+  ?"Auto-renew is enabled: an invoice will be scheduled automatically during the final 30 days. You may also request it now. No payment is collected automatically."
+  :"Request the next billing period at the plan's current price. No payment is collected automatically.";
  const b=button("Generate renewal invoice",async()=>{
   if(state.busy||!confirm("Create a renewal invoice? The next period begins after your current period. Payment requires separate verification."))return;
   if(!globalThis.crypto?.randomUUID){message("Secure request IDs are unavailable in this browser.");return;}

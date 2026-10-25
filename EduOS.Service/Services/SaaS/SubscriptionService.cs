@@ -174,7 +174,7 @@ public sealed partial class SubscriptionService : ISubscriptionService
                 : overdue || latest.State is SubscriptionState.Expired or SubscriptionState.Cancelled
                     ? "This subscription has ended. Choose a plan and complete any required payment."
                     : latest.AutoRenew
-                        ? "Auto-renew is a preference only. Automatic payment collection is not configured; renewal requires an approved payment."
+                        ? "Auto-renew schedules the next invoice within 30 days of expiry. Payment still requires separate verification; no automatic charge occurs."
                         : "Review your expiry date and arrange your next subscription before it ends.";
         return ApiResponse<SubscriptionLifecycleStatusDto>.SuccessResponse(new SubscriptionLifecycleStatusDto
         {

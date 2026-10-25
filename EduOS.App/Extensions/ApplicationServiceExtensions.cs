@@ -32,7 +32,8 @@ namespace EduOS.App.Extensions
             s.AddSingleton<IMfaChallengeService, MfaChallengeService>();
             s.AddHttpClient<IAamarPayClient, AamarPayClient>(x => x.Timeout = TimeSpan.FromSeconds(30));
             s.AddScoped<ISubscriptionPlanService, SubscriptionPlanService>();
-            s.AddScoped<ISubscriptionService, SubscriptionService>();
+            s.AddScoped<SubscriptionService>();
+            s.AddScoped<ISubscriptionService>(sp => sp.GetRequiredService<SubscriptionService>());
             s.AddScoped<ISubscriptionInvoiceService, SubscriptionInvoiceService>();
             s.AddScoped<ISubscriptionPaymentService, SubscriptionPaymentService>();
             s.AddScoped<IPlatformCatalogService, PlatformCatalogService>();
@@ -60,6 +61,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<IUsageHistoryService, UsageHistoryService>();
             s.AddScoped<DailyUsageSnapshotJob>();
             s.AddScoped<SubscriptionExpiryJob>();
+            s.AddScoped<SubscriptionAutoRenewJob>();
             s.AddScoped<IPlatformTenantLifecycleService, PlatformTenantLifecycleService>();
             s.AddScoped<IAuditLogService, AuditLogService>();
             s.AddScoped<ILoginActivityService, LoginActivityService>();

@@ -168,6 +168,62 @@ public sealed class SubscriptionServiceTests
         (await setup.Db.TenantSubscriptions.CountAsync()).Should().Be(1);
     }
 
+    [Fact]
+    public async Task Auto_renew_opt_in_schedules_exactly_one_unpaid_invoice()
+    {
+        await using var setup = await SetupAsync();
+        setup.ActivateRequest();
+        var plan = await AddPlanAsync(setup.Db, 900m);
+        (await setup.Service.StartAsync(Request(plan.Id))).Success.Should().BeTrue();
+        var current = await setup.Db.TenantSubscriptions.SingleAsync();
+        current.State = SubscriptionState.Active;
+        current.AutoRenew = true;
+        current.StartsAt = DateTime.UtcNow.AddDays(-20);
+        current.EndsAt = DateTime.UtcNow.AddDays(5);
+        await setup.Db.SaveChangesAsync();
+        // System job uses a trusted tenant scope; request credentials must not be
+        // reused to invoke host-level automatic renewal.
+        setup.Accessor.HttpContext = null;
+        using (setup.Db.BeginSystemTenantScope(setup.Tenant.Id))
+        {
+            var created = await setup.Service.ScheduleAutomaticRenewalAsync(setup.Tenant.Id, current.Id);
+            created.Success.Should().BeTrue();
+            created.Data!.State.Should().Be(SubscriptionState.PendingPayment);
+            created.Data.StartsAt.Should().Be(current.EndsAt);
+            (await setup.Service.ScheduleAutomaticRenewalAsync(setup.Tenant.Id, current.Id))
+                .Data!.Id.Should().Be(created.Data.Id);
+        }
+        (await setup.Db.TenantSubscriptions.CountAsync()).Should().Be(2);
+        (await setup.Db.SubscriptionInvoices.CountAsync()).Should().Be(2);
+        (await setup.Db.SubscriptionInvoiceLines.CountAsync()).Should().Be(2);
+        var renewalInvoice = await setup.Db.SubscriptionInvoices.OrderByDescending(x => x.Id).FirstAsync();
+        renewalInvoice.State.Should().Be(InvoiceState.Issued);
+        renewalInvoice.PaidAmount.Should().Be(0m);
+        renewalInvoice.DueAmount.Should().Be(900m);
+    }
+
+    [Fact]
+    public async Task Auto_renew_opt_out_does_not_issue_a_new_invoice()
+    {
+        await using var setup = await SetupAsync();
+        setup.ActivateRequest();
+        var plan = await AddPlanAsync(setup.Db, 900m);
+        (await setup.Service.StartAsync(Request(plan.Id))).Success.Should().BeTrue();
+        var current = await setup.Db.TenantSubscriptions.SingleAsync();
+        current.State = SubscriptionState.Active;
+        current.AutoRenew = false;
+        current.EndsAt = DateTime.UtcNow.AddDays(5);
+        await setup.Db.SaveChangesAsync();
+        setup.Accessor.HttpContext = null;
+        using (setup.Db.BeginSystemTenantScope(setup.Tenant.Id))
+        {
+            var result = await setup.Service.ScheduleAutomaticRenewalAsync(setup.Tenant.Id, current.Id);
+            result.StatusCode.Should().Be(409);
+        }
+        (await setup.Db.TenantSubscriptions.CountAsync()).Should().Be(1);
+        (await setup.Db.SubscriptionInvoices.CountAsync()).Should().Be(1);
+    }
+
     private static StartSubscriptionRequestDto Request(long planId) => new()
     {
         ClientRequestId = Guid.NewGuid(), SubscriptionPlanId = planId,

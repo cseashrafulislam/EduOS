@@ -433,6 +433,10 @@ app.MapHub<NotificationHub>("/hubs/notifications").RequireAuthorization();
 RecurringJob.AddOrUpdate<SubscriptionExpiryJob>(
     "platform-subscription-expiry", job => job.RunAsync(CancellationToken.None), Cron.Hourly());
 
+// Auto-renew only issues an invoice when the tenant opted in. It never collects payment.
+RecurringJob.AddOrUpdate<SubscriptionAutoRenewJob>(
+    "platform-subscription-auto-renew", job => job.RunAsync(CancellationToken.None), Cron.Hourly());
+
 // One check per UTC hour captures the current local day for each completed active tenant.
 // Idempotent daily uniqueness also protects manual capture and multiple app instances.
 RecurringJob.AddOrUpdate<DailyUsageSnapshotJob>(
