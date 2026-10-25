@@ -202,11 +202,12 @@ public sealed class AcademicSetupServiceTests
                 PrimaryCampusId = foreign.CampusId
             });
         invalid.StatusCode.Should().Be(404);
+        // HttpContextAccessor uses ambient context: assert own tenant before switching the test identity.
+        (await db.ProgramCampuses.CountAsync(x => x.AcademicProgramId == program.Id && x.IsActive))
+            .Should().Be(1);
         await using var otherDb = Context(options, 202, 8);
         (await Service(otherDb, new User(202, 8)).GetProgramCampusAllocationAsync(program.Id))
             .StatusCode.Should().Be(404);
-        (await db.ProgramCampuses.CountAsync(x => x.AcademicProgramId == program.Id && x.IsActive))
-            .Should().Be(1);
     }
 
     [Fact]
