@@ -40,8 +40,18 @@ async function refreshRules(){
 }
 async function refreshRegister(){
  const ref=enrollment(),result=await api(base+'/enrollments/'+encodeURIComponent(ref));
- const d=table('StudentDiscountRows',result.discounts,4);
- for(const row of result.discounts){const tr=document.createElement('tr');[row.discountRuleName,row.effectiveFrom,row.effectiveTo||'Open',row.reason||'—'].forEach(v=>tr.append(cell(v)));d.append(tr);}
+ const d=table('StudentDiscountRows',result.discounts,6);
+ for(const row of result.discounts){
+  const tr=document.createElement('tr');
+  [row.discountRuleName,row.effectiveFrom,row.effectiveTo||'Open',row.reason||'—',row.isActive?'Active':'Inactive'].forEach(v=>tr.append(cell(v)));
+  const actions=cell('');
+  if(row.isActive)actions.append(button('Deactivate',()=>run(null,async()=>{
+   if(!window.confirm('Deactivate this student discount for all future invoices? Issued invoices will not change.'))return;
+   await api(base+'/discounts/'+row.id+'/deactivate','POST',{rowVersion:row.rowVersion});
+   await refreshRegister();
+  })));
+  tr.append(actions);d.append(tr);
+ }
  const f=table('StudentFineRows',result.fines,5);
  for(const row of result.fines){
  const tr=document.createElement('tr');[row.fineRuleName,row.fineDate,row.amount,row.isWaived?'Waived':'Recorded (unposted)'].forEach(v=>tr.append(cell(v)));

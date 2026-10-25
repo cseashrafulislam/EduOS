@@ -8,6 +8,7 @@ public interface IFinanceAdjustmentService
     Task<ApiResponse<IReadOnlyList<DiscountRuleDto>>> GetDiscountRulesAsync(CancellationToken cancellationToken = default);
     Task<ApiResponse<DiscountRuleDto>> SaveDiscountRuleAsync(long? ruleId, SaveDiscountRuleRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentDiscountDto>> AssignDiscountAsync(AssignStudentDiscountRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<StudentDiscountDto>> DeactivateStudentDiscountAsync(long discountId, DeactivateStudentDiscountRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<FineRuleDto>>> GetFineRulesAsync(CancellationToken cancellationToken = default);
     Task<ApiResponse<FineRuleDto>> SaveFineRuleAsync(long? ruleId, SaveFineRuleRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentFineDto>> ApplyFineAsync(ApplyStudentFineRequestDto request, CancellationToken cancellationToken = default);

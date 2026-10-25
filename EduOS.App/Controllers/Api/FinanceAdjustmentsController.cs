@@ -33,6 +33,10 @@ public sealed class FinanceAdjustmentsController : ControllerBase
     [HttpPost("discounts")]
     public async Task<IActionResult> AssignDiscount([FromBody] AssignStudentDiscountRequestDto request,CancellationToken ct)
         => Reply(await service.AssignDiscountAsync(request,ct));
+    [HttpPost("discounts/{id:long}/deactivate")]
+    public async Task<IActionResult> DeactivateDiscount(long id,
+        [FromBody] DeactivateStudentDiscountRequestDto request, CancellationToken ct)
+        => Reply(await service.DeactivateStudentDiscountAsync(id,request,ct));
     [HttpGet("fine-rules")]
     public async Task<IActionResult> FineRules(CancellationToken ct) => Reply(await service.GetFineRulesAsync(ct));
     [HttpPost("fine-rules")]
