@@ -299,28 +299,35 @@ public sealed partial class LmsCourseContentService : ILmsCourseContentService
         var course = await CourseAsync(request.CourseReference, ct);
         if (course == null || !await CanEditAsync(course, ct))
             return Fail<ContentLessonDto>("Course author access denied.", 403);
-        var row = await _lessons.GetQueryable().FirstOrDefaultAsync(x =>
-            x.TenantId == Tenant && x.CourseId == course.Id && x.PublicId == request.LessonReference && !x.IsDeleted, ct);
-        if (row == null) return Fail<ContentLessonDto>("Lesson not found.", 404);
-        if (request.CourseSectionId.HasValue)
+        try
         {
-            var section = await _sections.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                x.TenantId == Tenant && x.CourseId == course.Id && x.Id == request.CourseSectionId &&
-                !x.IsDeleted, ct);
-            if (section == null) return Fail<ContentLessonDto>("Section not found.", 404);
-            if (row.IsPublished && !section.IsPublished)
-                return Fail<ContentLessonDto>("Publish the section before moving a published lesson.", 409);
+            return await _uow.ExecuteInTransactionAsync(async token =>
+            {
+                var row = await _lessons.GetQueryable().FirstOrDefaultAsync(x =>
+                    x.TenantId == Tenant && x.CourseId == course.Id &&
+                    x.PublicId == request.LessonReference && !x.IsDeleted, token);
+                if (row == null) return Fail<ContentLessonDto>("Lesson not found.", 404);
+                if (request.CourseSectionId.HasValue)
+                {
+                    var section = await _sections.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                        x.TenantId == Tenant && x.CourseId == course.Id && x.Id == request.CourseSectionId &&
+                        !x.IsDeleted, token);
+                    if (section == null) return Fail<ContentLessonDto>("Section not found.", 404);
+                    if (row.IsPublished && !section.IsPublished)
+                        return Fail<ContentLessonDto>("Publish the section before moving a published lesson.", 409);
+                }
+                if (row.CourseSectionId == request.CourseSectionId)
+                    return ApiResponse<ContentLessonDto>.SuccessResponse(LessonRow(row), "Lesson already assigned.");
+                if (await CourseCompletionPublicationGuard.IsLockedAsync(_enrollments, Tenant, course.Id, token))
+                    return Fail<ContentLessonDto>(CourseCompletionPublicationGuard.Message, 409);
+                if (!Version(row.RowVersion, request.RowVersion))
+                    return Fail<ContentLessonDto>("Lesson changed. Reload before assigning.", 409);
+                row.CourseSectionId = request.CourseSectionId; row.UpdatedAt = Now; row.UpdatedBy = _user.UserId;
+                _lessons.Update(row);
+                await _uow.SaveChangesAsync(token);
+                return ApiResponse<ContentLessonDto>.SuccessResponse(LessonRow(row), "Lesson assigned.");
+            }, IsolationLevel.Serializable, ct);
         }
-        if (row.CourseSectionId == request.CourseSectionId)
-            return ApiResponse<ContentLessonDto>.SuccessResponse(LessonRow(row), "Lesson already assigned.");
-        if (await CourseCompletionPublicationGuard.IsLockedAsync(_enrollments, Tenant, course.Id, ct))
-            return Fail<ContentLessonDto>(CourseCompletionPublicationGuard.Message, 409);
-        if (!Version(row.RowVersion, request.RowVersion))
-            return Fail<ContentLessonDto>("Lesson changed. Reload before assigning.", 409);
-        row.CourseSectionId = request.CourseSectionId; row.UpdatedAt = Now; row.UpdatedBy = _user.UserId;
-        _lessons.Update(row);
-        try { await _uow.SaveChangesAsync(ct);
-            return ApiResponse<ContentLessonDto>.SuccessResponse(LessonRow(row), "Lesson assigned."); }
         catch (DbUpdateConcurrencyException) { return Fail<ContentLessonDto>("Lesson changed concurrently.", 409); }
         catch (DbUpdateException) { return Fail<ContentLessonDto>("Lesson section assignment conflicts with existing data.", 409); }
     }
@@ -405,21 +412,31 @@ public sealed partial class LmsCourseContentService : ILmsCourseContentService
     {
         if (!Author) return Fail<bool>("Author permission required.", 403);
         if (resourceId <= 0) return Fail<bool>("Invalid resource.");
-        var row = await _resources.GetQueryable().FirstOrDefaultAsync(x =>
-            x.TenantId == Tenant && x.Id == resourceId, ct);
-        if (row == null) return Fail<bool>("Resource not found.", 404);
-        var lesson = await _lessons.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-            x.TenantId == Tenant && x.Id == row.LessonId && !x.IsDeleted, ct);
-        var course = lesson == null ? null : await _courses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-            x.TenantId == Tenant && x.Id == lesson.CourseId && !x.IsDeleted, ct);
-        if (course == null || !await CanEditAsync(course, ct)) return Fail<bool>("Course author access denied.", 403);
-        if (row.IsDeleted) return ApiResponse<bool>.SuccessResponse(true, "Resource already removed.");
-        if (await CourseCompletionPublicationGuard.IsLockedAsync(_enrollments, Tenant, course.Id, ct))
-            return Fail<bool>(CourseCompletionPublicationGuard.Message, 409);
-        if (!Version(row.RowVersion, rowVersion)) return Fail<bool>("Resource changed. Reload before removing.", 409);
-        row.IsDeleted = true; row.DeletedAt = Now; row.DeletedBy = _user.UserId;
-        row.UpdatedAt = Now; row.UpdatedBy = _user.UserId; _resources.Update(row);
-        try { await _uow.SaveChangesAsync(ct); return ApiResponse<bool>.SuccessResponse(true, "Resource removed."); }
+        try
+        {
+            return await _uow.ExecuteInTransactionAsync(async token =>
+            {
+                var row = await _resources.GetQueryable().FirstOrDefaultAsync(x =>
+                    x.TenantId == Tenant && x.Id == resourceId, token);
+                if (row == null) return Fail<bool>("Resource not found.", 404);
+                var lesson = await _lessons.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == Tenant && x.Id == row.LessonId && !x.IsDeleted, token);
+                var course = lesson == null ? null : await _courses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == Tenant && x.Id == lesson.CourseId && !x.IsDeleted, token);
+                if (course == null || !await CanEditAsync(course, token))
+                    return Fail<bool>("Course author access denied.", 403);
+                if (row.IsDeleted) return ApiResponse<bool>.SuccessResponse(true, "Resource already removed.");
+                if (await CourseCompletionPublicationGuard.IsLockedAsync(_enrollments, Tenant, course.Id, token))
+                    return Fail<bool>(CourseCompletionPublicationGuard.Message, 409);
+                if (!Version(row.RowVersion, rowVersion))
+                    return Fail<bool>("Resource changed. Reload before removing.", 409);
+                row.IsDeleted = true; row.DeletedAt = Now; row.DeletedBy = _user.UserId;
+                row.UpdatedAt = Now; row.UpdatedBy = _user.UserId; _resources.Update(row);
+                await _uow.SaveChangesAsync(token);
+                return ApiResponse<bool>.SuccessResponse(true, "Resource removed.");
+            }, IsolationLevel.Serializable, ct);
+        }
         catch (DbUpdateConcurrencyException) { return Fail<bool>("Resource changed concurrently.", 409); }
+        catch (DbUpdateException) { return Fail<bool>("Resource removal conflicts with existing data.", 409); }
     }
 }

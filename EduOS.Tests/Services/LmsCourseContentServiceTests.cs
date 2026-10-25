@@ -170,6 +170,34 @@ public sealed class LmsCourseContentServiceTests
         Assert.Empty(await db.Set<LessonResource>().ToListAsync());
     }
 
+    [Fact]
+    public async Task Completed_enrollment_blocks_lesson_move_and_resource_removal()
+    {
+        await using var db = Db();
+        var course = new Course { TenantId = 101, Code = "LOCK-MOVE", Title = "Locked move" };
+        db.Add(course); await db.SaveChangesAsync();
+        var section = new CourseSection { TenantId = 101, CourseId = course.Id,
+            Title = "Published section", DisplayOrder = 1, IsPublished = true };
+        var lesson = new Lesson { TenantId = 101, CourseId = course.Id,
+            Title = "Published lesson", IsPublished = true, RowVersion = [1, 2, 3] };
+        db.AddRange(section, lesson); await db.SaveChangesAsync();
+        var resource = new LessonResource { TenantId = 101, LessonId = lesson.Id,
+            Title = "Handout", ExternalUrl = "https://example.com/handout", RowVersion = [1, 2, 3] };
+        var completed = new CourseEnrollment { TenantId = 101, CourseId = course.Id,
+            StudentId = 123, State = CourseEnrollmentState.Completed, CompletedAt = DateTime.UtcNow };
+        db.AddRange(resource, completed); await db.SaveChangesAsync();
+        var service = Service(db, "TenantAdmin");
+        Assert.Equal(409, (await service.AssignLessonSectionAsync(new AssignLessonSectionRequestDto
+        {
+            CourseReference = course.PublicId, LessonReference = lesson.PublicId,
+            CourseSectionId = section.Id, RowVersion = Convert.ToBase64String(lesson.RowVersion)
+        })).StatusCode);
+        Assert.Equal(409, (await service.RemoveResourceAsync(resource.Id,
+            Convert.ToBase64String(resource.RowVersion))).StatusCode);
+        Assert.Null(lesson.CourseSectionId);
+        Assert.False(resource.IsDeleted);
+    }
+
     private static EduOSDbContext Db()
     {
         var options = new DbContextOptionsBuilder<EduOSDbContext>()
