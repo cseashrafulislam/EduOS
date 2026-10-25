@@ -26,6 +26,16 @@ public sealed class AcademicSetupController : ControllerBase
         [FromQuery] int take = 50, CancellationToken cancellationToken = default) =>
         ToAction(await _service.GetSetupOptionsAsync(academicYearId, search, take, cancellationToken));
 
+    [HttpGet("programmes/{academicProgramId:long}/campuses")]
+    public async Task<IActionResult> ProgrammeCampuses(long academicProgramId, CancellationToken cancellationToken) =>
+        ToAction(await _service.GetProgramCampusAllocationAsync(academicProgramId, cancellationToken));
+
+    [HttpPut("programmes/{academicProgramId:long}/campuses")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> UpdateProgrammeCampuses(long academicProgramId,
+        [FromBody] UpdateProgramCampusAllocationRequestDto request, CancellationToken cancellationToken) =>
+        ToAction(await _service.UpdateProgramCampusAllocationAsync(academicProgramId, request, cancellationToken));
+
     [HttpPost("programmes")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
     public async Task<IActionResult> CreateProgram([FromBody] SaveAcademicProgramRequestDto request, CancellationToken cancellationToken) =>

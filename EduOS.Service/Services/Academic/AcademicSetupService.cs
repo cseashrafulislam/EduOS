@@ -255,6 +255,96 @@ public sealed class AcademicSetupService : IAcademicSetupService
         });
     }
 
+
+    public async Task<ApiResponse<ProgramCampusAllocationDto>> GetProgramCampusAllocationAsync(
+        long academicProgramId, CancellationToken ct = default)
+    {
+        if (!CanRead()) return Denied<ProgramCampusAllocationDto>();
+        if (academicProgramId <= 0) return Error<ProgramCampusAllocationDto>("Valid programme ID is required.");
+        var tenant = _currentUser.TenantId;
+        var program = await _programs.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.Id == academicProgramId && x.IsActive && !x.IsDeleted, ct);
+        if (program == null) return Error<ProgramCampusAllocationDto>("Programme not found.", 404);
+        var links = await _programCampuses.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.AcademicProgramId == academicProgramId && x.IsActive && !x.IsDeleted)
+            .OrderBy(x => x.CampusId).ToListAsync(ct);
+        return ApiResponse<ProgramCampusAllocationDto>.SuccessResponse(MapAllocation(program, links));
+    }
+
+    public Task<ApiResponse<ProgramCampusAllocationDto>> UpdateProgramCampusAllocationAsync(
+        long academicProgramId, UpdateProgramCampusAllocationRequestDto request, CancellationToken ct = default)
+    {
+        // Programme allocation is tenant-wide configuration; campus-scoped managers cannot edit it.
+        if (!_currentUser.IsAuthenticated || _currentUser.TenantId <= 0 || !_currentUser.IsTenantAdmin)
+            return Task.FromResult(Denied<ProgramCampusAllocationDto>());
+        if (academicProgramId <= 0 || request == null || request.CampusIds == null ||
+            request.CampusIds.Count > 100 || request.CampusIds.Any(x => x <= 0) ||
+            request.CampusIds.Distinct().Count() != request.CampusIds.Count ||
+            request.AllowAllCampuses != (request.CampusIds.Count == 0) ||
+            (request.CampusIds.Count > 0 && (!request.PrimaryCampusId.HasValue ||
+                !request.CampusIds.Contains(request.PrimaryCampusId.Value))) ||
+            (request.CampusIds.Count == 0 && request.PrimaryCampusId.HasValue))
+            return Task.FromResult(Error<ProgramCampusAllocationDto>("Select valid campuses and a primary campus, or explicitly allow all campuses."));
+        byte[] expected;
+        try { expected = Convert.FromBase64String(request.RowVersion ?? string.Empty); }
+        catch (FormatException) { return Task.FromResult(Error<ProgramCampusAllocationDto>("Invalid programme version.")); }
+        if (expected.Length != 8)
+            return Task.FromResult(Error<ProgramCampusAllocationDto>("Valid programme version is required."));
+        var campusIds = request.CampusIds.ToArray();
+        return ExecuteWriteAsync("update programme campus allocation", async () =>
+        {
+            var tenant = _currentUser.TenantId;
+            var program = await _programs.GetQueryable().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.Id == academicProgramId && x.IsActive && !x.IsDeleted, ct);
+            if (program == null) return Error<ProgramCampusAllocationDto>("Programme not found.", 404);
+            var links = await _programCampuses.GetQueryable().Where(x =>
+                x.TenantId == tenant && x.AcademicProgramId == academicProgramId && !x.IsDeleted).ToListAsync(ct);
+            var current = links.Where(x => x.IsActive).Select(x => x.CampusId).OrderBy(x => x).ToArray();
+            var primary = links.FirstOrDefault(x => x.IsActive && x.IsPrimary)?.CampusId;
+            // Identical retries are safe even when the original successful write advanced RowVersion.
+            if (current.SequenceEqual(campusIds.OrderBy(x => x)) &&
+                (campusIds.Length == 0 || primary == request.PrimaryCampusId))
+                return ApiResponse<ProgramCampusAllocationDto>.SuccessResponse(
+                    MapAllocation(program, links), "Programme campus allocation already applied.");
+            if (!System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(program.RowVersion, expected))
+                return Error<ProgramCampusAllocationDto>("Programme changed. Reload before saving.", 409);
+            var available = await _campuses.GetQueryable().AsNoTracking().CountAsync(x =>
+                x.TenantId == tenant && campusIds.Contains(x.Id) && x.IsActive && !x.IsDeleted, ct);
+            if (available != campusIds.Length)
+                return Error<ProgramCampusAllocationDto>("One or more campuses are unavailable.", 404);
+            // Never strand an existing historical or active batch outside a newly restricted programme.
+            if (campusIds.Length > 0 && await _batches.GetQueryable().AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenant && x.AcademicProgramId == academicProgramId && !x.IsDeleted &&
+                !campusIds.Contains(x.CampusId), ct))
+                return Error<ProgramCampusAllocationDto>("Existing academic batches use a campus outside this allocation.", 409);
+            var now = DateTime.UtcNow;
+            foreach (var link in links)
+            {
+                var active = campusIds.Contains(link.CampusId);
+                var isPrimary = active && request.PrimaryCampusId == link.CampusId;
+                if (link.IsActive == active && link.IsPrimary == isPrimary) continue;
+                link.IsActive = active; link.IsPrimary = isPrimary;
+                link.UpdatedAt = now; link.UpdatedBy = _currentUser.UserId;
+                _programCampuses.Update(link);
+            }
+            foreach (var campusId in campusIds.Where(id => links.All(x => x.CampusId != id)))
+                await _programCampuses.AddAsync(new ProgramCampus
+                {
+                    TenantId = tenant, AcademicProgramId = academicProgramId, CampusId = campusId,
+                    IsPrimary = request.PrimaryCampusId == campusId, IsActive = true,
+                    CreatedAt = now, CreatedBy = _currentUser.UserId
+                });
+            program.UpdatedAt = now; program.UpdatedBy = _currentUser.UserId;
+            _programs.Update(program);
+            await _unitOfWork.SaveChangesAsync(ct);
+            var activeLinks = await _programCampuses.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == tenant && x.AcademicProgramId == academicProgramId && x.IsActive && !x.IsDeleted)
+                .ToListAsync(ct);
+            return ApiResponse<ProgramCampusAllocationDto>.SuccessResponse(
+                MapAllocation(program, activeLinks), "Programme campus allocation saved.");
+        }, serializable: true);
+    }
+
     public Task<ApiResponse<AcademicLevelDto>> CreateLevelAsync(SaveAcademicLevelRequestDto request,
         CancellationToken ct = default)
     {
@@ -647,9 +737,14 @@ public sealed class AcademicSetupService : IAcademicSetupService
     }
 
     private async Task<ApiResponse<T>> ExecuteWriteAsync<T>(
-        string operation, Func<Task<ApiResponse<T>>> action)
+        string operation, Func<Task<ApiResponse<T>>> action, bool serializable = false)
     {
-        try { return await _unitOfWork.ExecuteInTransactionAsync(_ => action()); }
+        try
+        {
+            return serializable
+                ? await _unitOfWork.ExecuteInTransactionAsync(_ => action(), System.Data.IsolationLevel.Serializable)
+                : await _unitOfWork.ExecuteInTransactionAsync(_ => action());
+        }
         catch (DbUpdateConcurrencyException ex)
         {
             _logger.LogWarning(ex, "Concurrent academic setup write {Operation} for tenant {TenantId}", operation, _currentUser.TenantId);
@@ -677,6 +772,18 @@ public sealed class AcademicSetupService : IAcademicSetupService
     private static string NormalizeCode(string code) => code.Trim().ToUpperInvariant();
     private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     private static string Version(byte[] value) => Convert.ToBase64String(value);
+    private static ProgramCampusAllocationDto MapAllocation(AcademicProgram program, IEnumerable<ProgramCampus> links)
+    {
+        var active = links.Where(x => x.IsActive && !x.IsDeleted).OrderBy(x => x.CampusId).ToArray();
+        return new ProgramCampusAllocationDto
+        {
+            AcademicProgramId = program.Id, ProgramName = program.Name, ProgramCode = program.Code,
+            CampusIds = active.Select(x => x.CampusId).ToArray(),
+            PrimaryCampusId = active.FirstOrDefault(x => x.IsPrimary)?.CampusId,
+            AllowAllCampuses = active.Length == 0, RowVersion = Version(program.RowVersion)
+        };
+    }
+
     private static AcademicProgramDto MapProgram(AcademicProgram x) => new()
     {
         Id = x.Id, AcademicDepartmentId = x.AcademicDepartmentId, Name = x.Name, Code = x.Code,

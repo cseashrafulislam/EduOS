@@ -179,6 +179,112 @@ public sealed class AcademicSetupServiceTests
         (await other.GetSetupOptionsAsync(null, null, 101)).StatusCode.Should().Be(400);
     }
 
+
+    [Fact]
+    public async Task Programme_campus_allocation_is_tenant_isolated_and_validates_campus()
+    {
+        var options = Options();
+        var own = await SeedAsync(options, 101);
+        var foreign = await SeedAsync(options, 202);
+        await using var db = Context(options, 101, 7);
+        var sut = Service(db, new User(101, 7));
+        var program = (await sut.CreateProgramAsync(new SaveAcademicProgramRequestDto
+        { Name = "Secondary", Code = "SEC", CampusIds = [own.CampusId] })).Data!;
+        var tracked = await db.AcademicPrograms.FirstAsync(x => x.Id == program.Id);
+        tracked.RowVersion = [1, 2, 3, 4, 5, 6, 7, 8];
+        await db.SaveChangesAsync();
+        var allocation = await sut.GetProgramCampusAllocationAsync(program.Id);
+        allocation.Data!.CampusIds.Should().ContainSingle().Which.Should().Be(own.CampusId);
+        var invalid = await sut.UpdateProgramCampusAllocationAsync(program.Id,
+            new UpdateProgramCampusAllocationRequestDto
+            {
+                RowVersion = allocation.Data.RowVersion, CampusIds = [foreign.CampusId],
+                PrimaryCampusId = foreign.CampusId
+            });
+        invalid.StatusCode.Should().Be(404);
+        await using var otherDb = Context(options, 202, 8);
+        (await Service(otherDb, new User(202, 8)).GetProgramCampusAllocationAsync(program.Id))
+            .StatusCode.Should().Be(404);
+        (await db.ProgramCampuses.CountAsync(x => x.AcademicProgramId == program.Id && x.IsActive))
+            .Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Programme_campus_allocation_supports_primary_switch_and_idempotent_retry()
+    {
+        var options = Options();
+        var seed = await SeedAsync(options, 101);
+        await using var db = Context(options, 101, 7);
+        var second = new Campus { TenantId = 101, Name = "Second", Code = "C-2" };
+        db.Add(second); await db.SaveChangesAsync();
+        var sut = Service(db, new User(101, 7));
+        var program = (await sut.CreateProgramAsync(new SaveAcademicProgramRequestDto
+        { Name = "Secondary", Code = "SEC", CampusIds = [seed.CampusId] })).Data!;
+        var tracked = await db.AcademicPrograms.FirstAsync(x => x.Id == program.Id);
+        tracked.RowVersion = [1, 2, 3, 4, 5, 6, 7, 8];
+        await db.SaveChangesAsync();
+        var allocation = (await sut.GetProgramCampusAllocationAsync(program.Id)).Data!;
+        var request = new UpdateProgramCampusAllocationRequestDto
+        {
+            RowVersion = allocation.RowVersion, CampusIds = [seed.CampusId, second.Id],
+            PrimaryCampusId = second.Id
+        };
+        (await sut.UpdateProgramCampusAllocationAsync(program.Id, request)).Success.Should().BeTrue();
+        (await sut.UpdateProgramCampusAllocationAsync(program.Id, request)).Success.Should().BeTrue();
+        var links = await db.ProgramCampuses.Where(x => x.AcademicProgramId == program.Id && x.IsActive).ToListAsync();
+        links.Should().HaveCount(2);
+        links.Count(x => x.IsPrimary).Should().Be(1);
+        links.Single(x => x.IsPrimary).CampusId.Should().Be(second.Id);
+        tracked.RowVersion = [9, 9, 9, 9, 9, 9, 9, 9];
+        await db.SaveChangesAsync();
+        var stale = await sut.UpdateProgramCampusAllocationAsync(program.Id,
+            new UpdateProgramCampusAllocationRequestDto
+            {
+                RowVersion = allocation.RowVersion, CampusIds = [seed.CampusId, second.Id],
+                PrimaryCampusId = seed.CampusId
+            });
+        stale.StatusCode.Should().Be(409);
+    }
+
+    [Fact]
+    public async Task Programme_campus_restrictions_preserve_existing_batches_and_unrestricted_requires_opt_in()
+    {
+        var options = Options();
+        var seed = await SeedAsync(options, 101);
+        await using var db = Context(options, 101, 7);
+        var second = new Campus { TenantId = 101, Name = "Second", Code = "C-2" };
+        db.Add(second); await db.SaveChangesAsync();
+        var sut = Service(db, new User(101, 7));
+        var program = (await sut.CreateProgramAsync(new SaveAcademicProgramRequestDto
+        { Name = "Secondary", Code = "SEC", CampusIds = [seed.CampusId] })).Data!;
+        var level = (await sut.CreateLevelAsync(new SaveAcademicLevelRequestDto
+        { AcademicProgramId = program.Id, Name = "Grade Nine", Code = "G9", LevelNo = 9 })).Data!;
+        (await sut.CreateBatchAsync(new SaveAcademicBatchRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), CampusId = seed.CampusId, AcademicYearId = seed.YearId,
+            AcademicProgramId = program.Id, AcademicLevelId = level.Id, Name = "Section A", Code = "A",
+            StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31)
+        })).Success.Should().BeTrue();
+        var tracked = await db.AcademicPrograms.FirstAsync(x => x.Id == program.Id);
+        tracked.RowVersion = [1, 2, 3, 4, 5, 6, 7, 8];
+        await db.SaveChangesAsync();
+        var version = (await sut.GetProgramCampusAllocationAsync(program.Id)).Data!.RowVersion;
+        var removeUsed = await sut.UpdateProgramCampusAllocationAsync(program.Id,
+            new UpdateProgramCampusAllocationRequestDto
+            {
+                RowVersion = version, CampusIds = [second.Id], PrimaryCampusId = second.Id
+            });
+        removeUsed.StatusCode.Should().Be(409);
+        var accidentalAll = await sut.UpdateProgramCampusAllocationAsync(program.Id,
+            new UpdateProgramCampusAllocationRequestDto { RowVersion = version, CampusIds = [] });
+        accidentalAll.StatusCode.Should().Be(400);
+        var explicitAll = await sut.UpdateProgramCampusAllocationAsync(program.Id,
+            new UpdateProgramCampusAllocationRequestDto
+            { RowVersion = version, CampusIds = [], AllowAllCampuses = true });
+        explicitAll.Success.Should().BeTrue();
+        explicitAll.Data!.AllowAllCampuses.Should().BeTrue();
+    }
+
     private static AcademicSetupService Service(EduOSDbContext db, ICurrentUserService user) => new(
         new GenericRepository<AcademicProgram>(db),
         new GenericRepository<AcademicLevel>(db),

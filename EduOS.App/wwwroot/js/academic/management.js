@@ -130,6 +130,43 @@
         el('termCurrent').checked = row.isCurrent;
         el('termForm').scrollIntoView({ behavior: 'smooth' });
     }
+
+    function syncAllocationPrimary() {
+        const unrestricted = el('allocationAllowAll').checked;
+        const campusSelect = el('allocationCampuses');
+        campusSelect.disabled = unrestricted;
+        const selected = unrestricted ? [] : [...campusSelect.selectedOptions].map(x => Number(x.value));
+        const primary = el('allocationPrimary'), previous = primary.value;
+        primary.replaceChildren(new Option(unrestricted ? 'Not applicable' : 'Select primary campus', ''));
+        selected.forEach(id => {
+            const campus = findCampus(id);
+            primary.add(new Option(campus?.name || ('Campus #' + id), String(id)));
+        });
+        if (selected.some(id => String(id) === previous)) primary.value = previous;
+        else if (selected.length) primary.value = String(selected[0]);
+        primary.disabled = unrestricted;
+    }
+    async function editProgramAllocation(row) {
+        const allocation = await api('/api/academic-setup/programmes/' +
+            encodeURIComponent(row.id) + '/campuses');
+        el('allocationProgramId').value = allocation.academicProgramId;
+        el('allocationRowVersion').value = allocation.rowVersion;
+        el('allocationProgramName').textContent = allocation.programName + ' (' + allocation.programCode + ')';
+        const selected = new Set(allocation.campusIds || []);
+        const campuses = el('allocationCampuses');
+        campuses.replaceChildren();
+        enabled(state.campuses).forEach(campus => {
+            const option = new Option(campus.name, String(campus.id));
+            option.selected = selected.has(campus.id);
+            campuses.add(option);
+        });
+        el('allocationAllowAll').checked = allocation.allowAllCampuses;
+        syncAllocationPrimary();
+        if (allocation.primaryCampusId)
+            el('allocationPrimary').value = String(allocation.primaryCampusId);
+        el('programAllocationForm').classList.remove('d-none');
+        el('programAllocationForm').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
     function render() {
         table('yearRows', state.years, [
             x => x.name, x => x.code, x => findCampus(x.campusId)?.name || 'All campuses',
@@ -148,6 +185,17 @@
         if (!catalog.programs.length) programs.append(node('span', 'No programmes', 'text-muted'));
         catalog.programs.forEach(x => programs.append(node('span',
             x.name + ' (' + x.code + ')', 'badge text-bg-light border me-2 mb-2')));
+        table('programCampusRows', catalog.programs, [
+            x => x.name + ' (' + x.code + ')',
+            x => x.campusIds?.length
+                ? x.campusIds.map(id => findCampus(id)?.name || ('Campus #' + id)).join(', ')
+                : 'All tenant campuses'
+        ], (x, td) => td.append(button('Manage campuses', async control => {
+            control.disabled = true;
+            try { await editProgramAllocation(x); }
+            catch (error) { notice(error.message, true); }
+            finally { control.disabled = false; }
+        })));
         table('levelRows', catalog.levels, [
             x => x.name, x => x.code,
             x => find('programs', x.academicProgramId)?.name || '', x => x.levelNo
@@ -199,6 +247,36 @@
     el('sectionProgram').addEventListener('change', levelsForSection);
     el('sectionYear').addEventListener('change', termsForSection);
     el('curriculumSelection').addEventListener('change', levelsForCurriculum);
+    el('allocationCampuses').addEventListener('change', syncAllocationPrimary);
+    el('allocationAllowAll').addEventListener('change', syncAllocationPrimary);
+    el('allocationCancel').addEventListener('click', () =>
+        el('programAllocationForm').classList.add('d-none'));
+    el('programAllocationForm').addEventListener('submit', async event => {
+        event.preventDefault();
+        const form = event.currentTarget, submit = form.querySelector('button[type="submit"]');
+        const allowAllCampuses = el('allocationAllowAll').checked;
+        const campusIds = allowAllCampuses ? [] :
+            [...el('allocationCampuses').selectedOptions].map(x => Number(x.value));
+        const primaryCampusId = allowAllCampuses ? null : Number(el('allocationPrimary').value) || null;
+        if (!allowAllCampuses && (!campusIds.length || !campusIds.includes(primaryCampusId))) {
+            notice('Select allowed campuses and a primary campus, or explicitly allow all campuses.', true);
+            return;
+        }
+        submit.disabled = true;
+        try {
+            await api('/api/academic-setup/programmes/' +
+                encodeURIComponent(field('allocationProgramId')) + '/campuses', {
+                method: 'PUT', body: JSON.stringify({
+                    rowVersion: field('allocationRowVersion'), campusIds,
+                    primaryCampusId, allowAllCampuses
+                })
+            });
+            form.classList.add('d-none');
+            await reload();
+            notice('Programme campus allocation saved.');
+        } catch (error) { notice(error.message, true); }
+        finally { submit.disabled = false; }
+    });
     el('academicRefresh').addEventListener('click', () => reload()
         .then(() => notice('Academic setup refreshed.')).catch(e => notice(e.message, true)));
     reload().catch(e => notice(e.message, true));
