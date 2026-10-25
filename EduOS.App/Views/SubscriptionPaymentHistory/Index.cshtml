@@ -43,20 +43,23 @@
     </div>
     <section class="card border-0 shadow-sm mt-4" aria-labelledby="gatewayRecoveryHeading">
         <div class="card-body">
-            <h2 class="h5" id="gatewayRecoveryHeading">Unreconciled AamarPay transactions</h2>
-            <p class="text-muted small">Only gateway payments initiated at least 10 minutes ago are shown. Recovery independently verifies the transaction with AamarPay; it never approves a payment from browser input.</p>
+            <h2 class="h5" id="gatewayRecoveryHeading">Gateway payment exception queue</h2>
+            <p class="text-muted small">Triage AamarPay payments unresolved for at least 10 minutes. Overdue means 24+ hours; blocked means the invoice cannot currently accept settlement. Neither age nor a blocked invoice proves payment failure. Recovery independently verifies AamarPay and never approves from browser input.</p>
             <form id="gatewayRecoveryFilters" class="row g-2 align-items-end">
-                <div class="col-md-9">
+                <div class="col-md-6">
                     <label class="form-label" for="gatewayRecoverySearch">Institution, invoice or transaction</label>
                     <input class="form-control" id="gatewayRecoverySearch" type="search" maxlength="100" autocomplete="off" />
                 </div>
-                <div class="col-md-3"><button type="submit" class="btn btn-outline-primary w-100">Find pending payments</button></div>
+                <div class="col-md-3"><label class="form-label" for="gatewayRecoveryCategory">Exception category</label>
+                    <select id="gatewayRecoveryCategory" class="form-select"><option value="All">All unresolved</option><option value="Overdue">Overdue (24+ hours)</option><option value="Blocked">Blocked invoice</option><option value="Awaiting">Awaiting (&lt;24 hours)</option></select>
+                </div>
+                <div class="col-md-3"><button type="submit" class="btn btn-outline-primary w-100">Find exceptions</button></div>
             </form>
             <form id="gatewayRecoveryAntiforgery" method="post" class="d-none">@Html.AntiForgeryToken()</form>
             <div id="gatewayRecoveryStatus" class="small text-muted my-3" role="status" aria-live="polite"></div>
             <div class="table-responsive">
                 <table class="table table-sm table-hover align-middle">
-                    <thead><tr><th>Institution / Invoice</th><th>Transaction</th><th>Amount / Due</th><th>Initiated</th><th>Action</th></tr></thead>
+                    <thead><tr><th>Institution / Invoice</th><th>Transaction</th><th>Amount / Due</th><th>Initiated</th><th>Exception / Age</th><th>Action</th></tr></thead>
                     <tbody id="gatewayRecoveryRows"></tbody>
                 </table>
             </div>

@@ -211,6 +211,18 @@ namespace EduOS.App.Controllers.Api
 
         [Authorize(Roles = "SuperAdmin")]
         [EnableRateLimiting("ApiPolicy")]
+        [HttpGet("admin/gateway-exceptions")]
+        public async Task<IActionResult> GetGatewayExceptionQueue(
+            [FromQuery] int page = 1, [FromQuery] int pageSize = 25,
+            [FromQuery] string? search = null, [FromQuery] string? category = "All",
+            CancellationToken ct = default)
+        {
+            var result = await _paymentService.GetGatewayExceptionQueueAsync(page, pageSize, search, category, ct);
+            return StatusCode(result.StatusCode, result);
+        }
+
+        [Authorize(Roles = "SuperAdmin")]
+        [EnableRateLimiting("ApiPolicy")]
         [HttpPost("admin/gateway-payments/{paymentId:long}/reconcile")]
         public async Task<IActionResult> ReconcileGatewayPayment(
             long paymentId, [FromBody] GatewayRecoveryRequestDto request)

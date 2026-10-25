@@ -16,6 +16,10 @@ public sealed class GatewayPaymentRecoveryDto
     public string CurrencyCode { get; set; } = "BDT";
     public DateTime InitiatedAt { get; set; }
     public string RowVersion { get; set; } = string.Empty;
+    public int AgeHours { get; set; }
+    public string ExceptionCategory { get; set; } = "Awaiting";
+    public string ExceptionReason { get; set; } = string.Empty;
+    public bool CanReconcile { get; set; }
 }
 public sealed class PagedGatewayPaymentRecoveryDto
 {

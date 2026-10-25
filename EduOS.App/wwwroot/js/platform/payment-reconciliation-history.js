@@ -126,12 +126,16 @@
             cell(tr, item.transactionId, 'Payment ID: ' + item.paymentId);
             cell(tr, money(item.amount, item.currencyCode), 'Invoice due: ' + money(item.invoiceDueAmount, item.currencyCode));
             cell(tr, date(item.initiatedAt), 'Gateway: AamarPay');
+            cell(tr, item.exceptionCategory || 'Awaiting', String(item.ageHours ?? 0) +
+                ' hours · ' + (item.exceptionReason || 'Provider status is not yet verified.'));
             const td = document.createElement('td');
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'btn btn-outline-primary btn-sm';
             button.textContent = 'Verify with gateway';
-            button.disabled = gatewayBusy;
+            button.disabled = gatewayBusy || item.canReconcile === false;
+            if (item.canReconcile === false)
+                button.title = 'Invoice cannot accept settlement; investigate the blocked exception.';
             button.addEventListener('click', () => gatewayReconcile(item.paymentId, item.rowVersion));
             td.append(button);
             tr.append(td);
@@ -140,7 +144,7 @@
         if (!items.length) {
             const tr = document.createElement('tr');
             const td = document.createElement('td');
-            td.colSpan = 5;
+            td.colSpan = 6;
             td.className = 'text-center text-muted py-3';
             td.textContent = 'No eligible unreconciled gateway payments.';
             tr.append(td);
@@ -157,12 +161,17 @@
         gatewayStatus.className = 'small text-muted my-3';
         gatewayPrevious.disabled = true;
         gatewayNext.disabled = true;
+        const category = get('gatewayRecoveryCategory').value;
         const query = new URLSearchParams({
             page: String(gatewayPage), pageSize: String(pageSize),
             search: get('gatewayRecoverySearch').value.trim()
         });
+        const endpoint = category === 'All'
+            ? '/api/subscription-payment/admin/gateway-pending?'
+            : '/api/subscription-payment/admin/gateway-exceptions?';
+        if (category !== 'All') query.set('category', category);
         try {
-            const response = await fetch('/api/subscription-payment/admin/gateway-pending?' + query, {
+            const response = await fetch(endpoint + query, {
                 credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' }
             });
             const payload = await response.json().catch(() => null);
@@ -173,7 +182,7 @@
             const pages = Math.max(1, Math.ceil(gatewayTotal / pageSize));
             if (gatewayPage > pages) { gatewayPage = pages; await gatewayLoad(); return; }
             gatewayRender(Array.isArray(payload.data?.items) ? payload.data.items : []);
-            gatewayStatus.textContent = 'Verification is performed directly against the payment provider.';
+            gatewayStatus.textContent = 'Exception labels are diagnostic only; only AamarPay can confirm settlement.';
         } catch (error) {
             if (current !== gatewayRequestId) return;
             gatewayTotal = 0;
