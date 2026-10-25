@@ -221,7 +221,7 @@ public sealed class StudentLeaveServiceTests
     }
 
     [Fact]
-    public async Task Unscanned_foreign_uploader_and_cross_tenant_file_references_are_denied()
+    public async Task Unscanned_foreign_uploader_and_cross_tenant_storage_keys_are_denied()
     {
         var options = Options();
         var (mine, _) = await Seed(options);
@@ -246,7 +246,7 @@ public sealed class StudentLeaveServiceTests
         file.UploadedByUserId = 11; file.IsVerifiedSafe = false;
         await db.SaveChangesAsync();
         (await service.ApplyAsync(request)).StatusCode.Should().Be(404);
-        file.IsVerifiedSafe = true; file.TenantId = 202;
+        file.IsVerifiedSafe = true; file.StorageKey = "tenant-202/documents/note.pdf";
         await db.SaveChangesAsync();
         (await service.ApplyAsync(request)).StatusCode.Should().Be(404);
         (await db.StudentLeaveApplications.CountAsync()).Should().Be(0);
