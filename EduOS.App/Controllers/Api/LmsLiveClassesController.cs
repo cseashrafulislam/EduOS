@@ -32,6 +32,11 @@ public sealed class LmsLiveClassesController : ControllerBase
     public async Task<IActionResult> Course(Guid courseReference, CancellationToken ct) =>
         Reply(await _service.GetCourseLiveClassesAsync(courseReference, ct));
 
+    [HttpGet("recording-courses")]
+    public async Task<IActionResult> RecordingCourses([FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, CancellationToken ct = default) =>
+        Reply(await _service.GetRecordingCoursesAsync(page, pageSize, ct));
+
     [HttpGet("course/{courseReference:guid}/recordings")]
     public async Task<IActionResult> Recordings(Guid courseReference, [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20, CancellationToken ct = default) =>
