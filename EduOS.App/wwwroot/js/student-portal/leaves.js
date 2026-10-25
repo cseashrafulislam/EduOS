@@ -75,16 +75,40 @@
                     row.reviewNote || '—']) {
                     const td = document.createElement('td'); td.textContent = item ?? ''; tr.append(td);
                 }
+                const action = document.createElement('td');
+                if (row.state === 2) {
+                    const button = document.createElement('button');
+                    button.type = 'button'; button.className = 'btn btn-sm btn-outline-danger';
+                    button.textContent = 'Withdraw';
+                    button.addEventListener('click', () => cancelLeave(row, button));
+                    action.append(button);
+                }
+                tr.append(action);
                 tbody.append(tr);
             }
             if (!page.items?.length) {
                 const row = document.createElement('tr'), cell = document.createElement('td');
-                cell.colSpan = 5; cell.textContent = 'No leave applications.';
+                cell.colSpan = 6; cell.textContent = 'No leave applications.';
                 row.append(cell); tbody.append(row);
             }
             el('myLeavePager').textContent = 'Showing ' + page.items.length + ' of ' + page.totalCount +
                 ' applications. Contact the office for older records.';
         } catch (e) { notify(e.message, true); }
+    }
+    async function cancelLeave(row, button) {
+        const reason = prompt('Why are you withdrawing this pending leave?', '');
+        if (reason === null) return;
+        if (!reason.trim() || reason.trim().length > 500)
+            return notify('Provide a cancellation reason (up to 500 characters).', true);
+        button.disabled = true;
+        try {
+            await api('/api/student-leaves/' + row.id + '/cancel', {
+                method: 'POST', body: JSON.stringify({
+                    reason: reason.trim(), rowVersion: row.rowVersion
+                })
+            });
+            await load(); notify('Pending leave withdrawn.');
+        } catch (e) { notify(e.message, true); button.disabled = false; }
     }
     async function submit(event) {
         event.preventDefault();

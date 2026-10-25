@@ -153,6 +153,56 @@ public sealed class StudentLeaveService : IStudentLeaveService
         }
     }
 
+    /// <summary>Cancel only a submitted request; never rewrite approved attendance history.</summary>
+    public async Task<ApiResponse<StudentLeaveApplicationDto>> CancelAsync(
+        long applicationId, CancelStudentLeaveRequestDto request, CancellationToken ct = default)
+    {
+        if (!CanRead()) return Error<StudentLeaveApplicationDto>("Student leave access denied.", 403);
+        if (applicationId <= 0 || request == null ||
+            string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Trim().Length > 500 ||
+            !TryVersion(request.RowVersion, out var expected))
+            return Error<StudentLeaveApplicationDto>("Cancellation reason and row version are required.");
+        var tenant = _user.TenantId;
+        var note = "Cancelled: " + request.Reason.Trim();
+        try
+        {
+            return await _uow.ExecuteInTransactionAsync(async token =>
+            {
+                var row = await _leaves.GetQueryable().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Id == applicationId && !x.IsDeleted, token);
+                if (row == null) return Error<StudentLeaveApplicationDto>("Leave application not found.", 404);
+                var enrollment = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Id == row.StudentEnrollmentId && !x.IsDeleted, token);
+                if (enrollment == null || (!CanManage() && !await OwnsEnrollmentAsync(enrollment, token)))
+                    return Error<StudentLeaveApplicationDto>("Leave application not found.", 404);
+                if (row.State == LeaveState.Cancelled)
+                    return row.ReviewNote == note
+                        ? ApiResponse<StudentLeaveApplicationDto>.SuccessResponse(
+                            Map(row, enrollment.PublicId), "Leave already cancelled.")
+                        : Error<StudentLeaveApplicationDto>("Leave already cancelled with a different reason.", 409);
+                if (row.State != LeaveState.Submitted)
+                    return Error<StudentLeaveApplicationDto>("Only submitted leave can be cancelled.", 409);
+                if (!VersionsMatch(row.RowVersion, expected))
+                    return Error<StudentLeaveApplicationDto>("Leave changed. Reload before cancelling.", 409);
+                var now = _clock.GetUtcNow().UtcDateTime;
+                row.State = LeaveState.Cancelled;
+                row.ReviewNote = note;
+                row.UpdatedAt = now; row.UpdatedBy = _user.UserId;
+                _leaves.Update(row);
+                await _uow.SaveChangesAsync(token);
+                return ApiResponse<StudentLeaveApplicationDto>.SuccessResponse(
+                    Map(row, enrollment.PublicId), "Leave cancelled.");
+            }, IsolationLevel.Serializable, ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        { return Error<StudentLeaveApplicationDto>("Leave changed. Reload and retry.", 409); }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Student leave cancellation conflict in tenant {TenantId}", tenant);
+            return Error<StudentLeaveApplicationDto>("Concurrent leave cancellation conflict.", 409);
+        }
+    }
+
     public async Task<ApiResponse<StudentLeaveApplicationDto>> ReviewAsync(
         long applicationId, ReviewStudentLeaveRequestDto request, CancellationToken ct = default)
     {

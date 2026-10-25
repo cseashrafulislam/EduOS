@@ -8,5 +8,6 @@ public interface IStudentLeaveService
 {
     Task<ApiResponse<PagedResult<StudentLeaveApplicationDto>>> GetApplicationsAsync(Guid? enrollmentReference, LeaveState? state, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentLeaveApplicationDto>> ApplyAsync(CreateStudentLeaveApplicationRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<StudentLeaveApplicationDto>> CancelAsync(long applicationId, CancelStudentLeaveRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentLeaveApplicationDto>> ReviewAsync(long applicationId, ReviewStudentLeaveRequestDto request, CancellationToken cancellationToken = default);
 }

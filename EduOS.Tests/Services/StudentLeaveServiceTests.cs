@@ -111,6 +111,75 @@ public sealed class StudentLeaveServiceTests
         (await manager.ReviewAsync(row.Id, decision)).StatusCode.Should().Be(409);
     }
 
+    [Fact]
+    public async Task Student_can_cancel_submitted_leave_idempotently_but_other_students_cannot()
+    {
+        var options = Options();
+        var (mine, _) = await Seed(options);
+        await using var db = Context(options, 101);
+        var owner = Service(db, new Actor(101, 11, "Student"));
+        var created = await owner.ApplyAsync(new CreateStudentLeaveApplicationRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), StudentEnrollmentReference = mine,
+            FromDate = From, ToDate = To, Reason = "Medical leave"
+        });
+        created.Success.Should().BeTrue();
+        var row = await db.StudentLeaveApplications.SingleAsync();
+        row.RowVersion = [1, 2, 3, 4];
+        await db.SaveChangesAsync();
+        var request = new CancelStudentLeaveRequestDto
+        {
+            Reason = "Appointment moved", RowVersion = Convert.ToBase64String(row.RowVersion)
+        };
+        var stranger = Service(db, new Actor(101, 12, "Student"));
+        (await stranger.CancelAsync(row.Id, request)).StatusCode.Should().Be(404);
+        var cancelled = await owner.CancelAsync(row.Id, request);
+        cancelled.Success.Should().BeTrue(cancelled.Message);
+        cancelled.Data!.State.Should().Be(LeaveState.Cancelled);
+        (await owner.CancelAsync(row.Id, request)).Success.Should().BeTrue();
+        request.Reason = "Another reason";
+        (await owner.CancelAsync(row.Id, request)).StatusCode.Should().Be(409);
+        var replacement = await owner.ApplyAsync(new CreateStudentLeaveApplicationRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), StudentEnrollmentReference = mine,
+            FromDate = From, ToDate = To, Reason = "Replacement"
+        });
+        replacement.Success.Should().BeTrue(replacement.Message);
+    }
+
+    [Fact]
+    public async Task Cancellation_rejects_stale_version_approved_leave_and_foreign_tenant()
+    {
+        var options = Options();
+        var (mine, _) = await Seed(options);
+        await using var db = Context(options, 101);
+        var manager = Service(db, new Actor(101, 7, "TenantAdmin"));
+        var created = await manager.ApplyAsync(new CreateStudentLeaveApplicationRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), StudentEnrollmentReference = mine,
+            FromDate = From, ToDate = To, Reason = "Family event"
+        });
+        created.Success.Should().BeTrue();
+        var row = await db.StudentLeaveApplications.SingleAsync();
+        row.RowVersion = [3, 3, 3, 3];
+        await db.SaveChangesAsync();
+        var request = new CancelStudentLeaveRequestDto
+        {
+            Reason = "No longer needed", RowVersion = Convert.ToBase64String([9, 9, 9, 9])
+        };
+        (await manager.CancelAsync(row.Id, request)).StatusCode.Should().Be(409);
+        await using var otherDb = Context(options, 202);
+        (await Service(otherDb, new Actor(202, 14, "TenantAdmin"))
+            .CancelAsync(row.Id, request)).StatusCode.Should().Be(404);
+        var approved = await manager.ReviewAsync(row.Id, new ReviewStudentLeaveRequestDto
+        {
+            State = LeaveState.Approved, RowVersion = Convert.ToBase64String(row.RowVersion)
+        });
+        approved.Success.Should().BeTrue(approved.Message);
+        request.RowVersion = Convert.ToBase64String(row.RowVersion);
+        (await manager.CancelAsync(row.Id, request)).StatusCode.Should().Be(409);
+    }
+
     private static StudentLeaveService Service(EduOSDbContext db, ICurrentUserService user) => new(
         new GenericRepository<StudentLeaveApplication>(db),
         new GenericRepository<StudentEnrollment>(db),

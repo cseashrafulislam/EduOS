@@ -84,6 +84,11 @@
                         button.addEventListener('click', () => review(row, decision, button));
                         td.append(button);
                     }
+                    const withdraw = document.createElement('button');
+                    withdraw.type = 'button'; withdraw.className = 'btn btn-sm btn-outline-secondary';
+                    withdraw.textContent = 'Cancel';
+                    withdraw.addEventListener('click', () => cancelLeave(row, withdraw));
+                    td.append(withdraw);
                 } else td.textContent = row.reviewNote || '—';
                 tr.append(td); tbody.append(tr);
             }
@@ -113,6 +118,21 @@
             await load(); info('Leave application submitted.');
         } catch (error) { info(error.message, true); }
         finally { state.saving = false; available(); }
+    }
+    async function cancelLeave(row, button) {
+        const reason = prompt('Reason for cancelling this pending leave:', '');
+        if (reason === null) return;
+        if (!reason.trim() || reason.trim().length > 500)
+            return info('Provide a reason (up to 500 characters).', true);
+        button.disabled = true;
+        try {
+            await api('/api/student-leaves/' + row.id + '/cancel', {
+                method: 'POST', body: JSON.stringify({
+                    reason: reason.trim(), rowVersion: row.rowVersion
+                })
+            });
+            await load(); info('Pending leave cancelled.');
+        } catch (e) { info(e.message, true); button.disabled = false; }
     }
     async function review(row, decision, button) {
         const note = prompt('Decision note (optional):', '');

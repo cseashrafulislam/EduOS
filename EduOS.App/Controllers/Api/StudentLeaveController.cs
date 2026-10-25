@@ -38,6 +38,15 @@ public sealed class StudentLeaveController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpPost("{applicationId:long}/cancel")]
+    public async Task<IActionResult> Cancel(long applicationId,
+        [FromBody] CancelStudentLeaveRequestDto request, CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await _service.CancelAsync(applicationId, request, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("{applicationId:long}/review")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
     public async Task<IActionResult> Review(long applicationId,

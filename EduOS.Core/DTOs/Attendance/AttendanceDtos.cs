@@ -220,6 +220,13 @@ public sealed class CreateStudentLeaveApplicationRequestDto
     public long? AttachmentFileId { get; set; }
 }
 
+/// <summary>Withdraw a pending leave request before review.</summary>
+public sealed class CancelStudentLeaveRequestDto
+{
+    [Required, MaxLength(500)] public string Reason { get; set; } = string.Empty;
+    [Required] public string RowVersion { get; set; } = string.Empty;
+}
+
 public sealed class ReviewStudentLeaveRequestDto
 {
     public LeaveState State { get; set; }
