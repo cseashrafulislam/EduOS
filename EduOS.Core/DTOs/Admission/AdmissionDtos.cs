@@ -22,6 +22,7 @@ public class AdmissionIntakeFormDto
     public decimal ApplicationFee { get; set; }
     public string CurrencyCode { get; set; } = "BDT";
     public IReadOnlyList<AdmissionFormFieldDto> Fields { get; set; } = Array.Empty<AdmissionFormFieldDto>();
+    public IReadOnlyList<AdmissionDocumentRequirementDto> DocumentRequirements { get; set; } = Array.Empty<AdmissionDocumentRequirementDto>();
     public string RowVersion { get; set; } = string.Empty;
 }
 

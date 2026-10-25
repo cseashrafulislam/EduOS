@@ -21,6 +21,7 @@ public class AdmissionIntakeForm : BaseTenantEntity
     public DateTime? ClosesAt { get; set; }
     [Column(TypeName = "decimal(18,2)")] public decimal ApplicationFee { get; set; }
     [MaxLength(10)] public string CurrencyCode { get; set; } = "BDT";
+    [Required] public string DocumentRequirementsJson { get; set; } = "[]";
 }
 
 public class AdmissionFormField : BaseTenantEntity

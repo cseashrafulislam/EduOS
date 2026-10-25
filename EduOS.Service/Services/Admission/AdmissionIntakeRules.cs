@@ -140,7 +140,7 @@ internal static partial class AdmissionIntakeRules
     public static string SerializeRequirements(IEnumerable<AdmissionDocumentRequirementDto> requirements) => JsonSerializer.Serialize(
         requirements.OrderBy(x => x.DocumentType, StringComparer.OrdinalIgnoreCase).Select(x => new AdmissionDocumentRequirementDto
         {
-            DocumentType = x.DocumentType.Trim(), Label = x.Label.Trim(), LabelBangla = Trim(x.LabelBangla),
+            DocumentType = x.DocumentType.Trim().ToUpperInvariant(), Label = x.Label.Trim(), LabelBangla = Trim(x.LabelBangla),
             IsRequired = x.IsRequired, MaxFileSizeMb = x.MaxFileSizeMb,
             AllowedExtensions = x.AllowedExtensions.Select(NormalizeExtension).OrderBy(y => y, StringComparer.OrdinalIgnoreCase).ToList()
         }), JsonOptions);
