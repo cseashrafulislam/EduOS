@@ -57,14 +57,14 @@ public sealed partial class SubscriptionPaymentService
             query = query.Where(x => x.invoice.State == InvoiceState.Paid ||
                 x.invoice.State == InvoiceState.Cancelled || x.invoice.State == InvoiceState.Refunded ||
                 x.invoice.DueAmount < x.payment.Amount || x.payment.Amount <= 0 ||
-                x.invoice.CurrencyCode != x.payment.CurrencyCode);
+                x.invoice.CurrencyCode.ToUpper() != x.payment.CurrencyCode.ToUpper());
         else if (category == "Overdue")
             query = query.Where(x => x.payment.InitiatedAt <= overdueCutoff);
         else if (category == "Awaiting")
             query = query.Where(x => x.payment.InitiatedAt > overdueCutoff &&
                 x.invoice.State != InvoiceState.Paid && x.invoice.State != InvoiceState.Cancelled &&
                 x.invoice.State != InvoiceState.Refunded && x.invoice.DueAmount >= x.payment.Amount &&
-                x.payment.Amount > 0 && x.invoice.CurrencyCode == x.payment.CurrencyCode);
+                x.payment.Amount > 0 && x.invoice.CurrencyCode.ToUpper() == x.payment.CurrencyCode.ToUpper());
         var total = await query.CountAsync(ct);
         var rows = await query.OrderBy(x => x.payment.InitiatedAt).ThenBy(x => x.payment.Id)
             .Skip((page - 1) * pageSize).Take(pageSize)
@@ -84,7 +84,7 @@ public sealed partial class SubscriptionPaymentService
                 {
                     var closed = x.InvoiceState is InvoiceState.Paid or InvoiceState.Cancelled or InvoiceState.Refunded;
                     var insufficient = x.Amount <= 0 || x.DueAmount < x.Amount;
-                    var currencyMismatch = !string.Equals(x.InvoiceCurrency, x.CurrencyCode, StringComparison.Ordinal);
+                    var currencyMismatch = !string.Equals(x.InvoiceCurrency, x.CurrencyCode, StringComparison.OrdinalIgnoreCase);
                     var blocked = closed || insufficient || currencyMismatch;
                     var hours = (int)Math.Clamp((now - x.InitiatedAt).TotalHours, 0, int.MaxValue);
                     return new GatewayPaymentRecoveryDto

@@ -133,6 +133,7 @@
             button.type = 'button';
             button.className = 'btn btn-outline-primary btn-sm';
             button.textContent = 'Verify with gateway';
+            button.dataset.blocked = String(item.canReconcile === false);
             button.disabled = gatewayBusy || item.canReconcile === false;
             if (item.canReconcile === false)
                 button.title = 'Invoice cannot accept settlement; investigate the blocked exception.';
@@ -221,7 +222,9 @@
             gatewayStatus.className = 'small text-danger my-3';
         } finally {
             gatewayBusy = false;
-            gatewayRows.querySelectorAll('button').forEach(button => { button.disabled = false; });
+            gatewayRows.querySelectorAll('button').forEach(button => {
+                button.disabled = button.dataset.blocked === 'true';
+            });
         }
     }
     get('gatewayRecoveryFilters').addEventListener('submit', event => {
