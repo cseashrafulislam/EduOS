@@ -222,6 +222,20 @@ public sealed class TransportController : ControllerBase
         [FromBody] CreateTransportRouteVehicleLinkRequestDto request, CancellationToken ct) =>
         ToAction(await _service.AssignRouteVehicleAsync(request, ct));
 
+    [HttpGet("route-vehicle-links/{id:long}/replacement-vehicles")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> UpcomingRouteVehicleChoices(long id,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        [FromQuery] string? search = null, CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetUpcomingRouteVehicleChoicesAsync(id, page, pageSize, search, cancellationToken));
+
+    [HttpPost("route-vehicle-links/{id:long}/change-upcoming-vehicle")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    public async Task<IActionResult> ChangeUpcomingRouteVehicle(long id,
+        [FromBody] ChangeUpcomingRouteVehicleRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.ChangeUpcomingRouteVehicleAsync(id, request, ct));
+
     [HttpPost("route-vehicle-links/{id:long}/reschedule-start")]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
     public async Task<IActionResult> RescheduleUpcomingRouteVehicleStart(long id,

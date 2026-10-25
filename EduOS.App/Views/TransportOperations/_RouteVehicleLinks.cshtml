@@ -13,6 +13,24 @@
         <div class="col-md-3"><label for="transportLinkTo" class="form-label">Effective to (optional)</label><input id="transportLinkTo" type="date" class="form-control" /></div>
         <div class="col-md-2 d-flex align-items-end"><button id="transportLinkCreate" class="btn btn-primary w-100" type="submit">Assign</button></div>
     </form>
+    <section id="transportUpcomingLinkVehiclePanel" class="border rounded p-3 mb-3" hidden aria-labelledby="transportUpcomingLinkVehicleTitle">
+        <h4 id="transportUpcomingLinkVehicleTitle" class="h6">Change vehicle before route service starts</h4>
+        <p id="transportUpcomingLinkVehicleContext" class="small text-muted"></p>
+        <p class="small text-muted">Only an upcoming link without rider references can change vehicles. The route and effective dates remain unchanged.</p>
+        <form id="transportUpcomingLinkVehicleSearchForm" class="row g-2 mb-2">
+            <div class="col-md-8"><label for="transportUpcomingLinkVehicleSearch" class="visually-hidden">Search available vehicles</label><input id="transportUpcomingLinkVehicleSearch" maxlength="100" class="form-control" placeholder="Search vehicle number or type" /></div>
+            <div class="col-md-4"><button class="btn btn-outline-secondary w-100" type="submit">Find vehicles</button></div>
+        </form>
+        <label for="transportUpcomingLinkVehicleSelect" class="form-label">Eligible same-campus vehicle</label>
+        <select id="transportUpcomingLinkVehicleSelect" class="form-select mb-2"></select>
+        <div class="d-flex gap-2 align-items-center mb-2">
+            <button id="transportUpcomingLinkVehiclePrev" class="btn btn-outline-secondary btn-sm" type="button">Previous</button>
+            <span id="transportUpcomingLinkVehiclePageInfo" class="small text-muted" role="status"></span>
+            <button id="transportUpcomingLinkVehicleNext" class="btn btn-outline-secondary btn-sm" type="button">Next</button>
+        </div>
+        <button id="transportUpcomingLinkVehicleSave" class="btn btn-primary btn-sm" type="button">Confirm vehicle change</button>
+        <button id="transportUpcomingLinkVehicleCancel" class="btn btn-outline-secondary btn-sm" type="button">Cancel</button>
+    </section>
     <h4 class="h6">Assignment history</h4>
     <form id="transportLinkSearchForm" class="row g-2 mb-2">
         <div class="col-md-4"><label for="transportLinkFilterCampus" class="visually-hidden">Campus filter</label><select id="transportLinkFilterCampus" class="form-select"></select></div>

@@ -14,6 +14,11 @@ u.renderLinks=items=>{
    reschedule.addEventListener('click',()=>u.rescheduleUpcomingLink(x));td.append(reschedule);
   }
   if(!x.isCancelled && x.effectiveFrom>u.today() && Number(x.activeRiders)===0){
+   const change=document.createElement('button');change.type='button';
+   change.textContent='Change scheduled vehicle';change.className='btn btn-outline-primary btn-sm me-1';
+   change.addEventListener('click',()=>u.changeUpcomingRouteVehicle(x));td.append(change);
+  }
+  if(!x.isCancelled && x.effectiveFrom>u.today() && Number(x.activeRiders)===0){
    const btn=document.createElement('button');btn.type='button';btn.textContent='Cancel reservation';
    btn.addEventListener('click',()=>u.cancelUpcomingLink(x));td.append(btn);
   }else if(!x.isCancelled && x.isCurrent && x.effectiveFrom<=u.today() && x.effectiveTo){
