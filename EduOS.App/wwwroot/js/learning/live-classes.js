@@ -2,7 +2,7 @@
 'use strict';
 const root=document.getElementById('liveClassApp');if(!root)return;
 const $=id=>document.getElementById(id),author=root.dataset.author==='true',manager=root.dataset.manager==='true';
-const state={courses:[],classes:[],recordings:[],recordingPage:1,recordingPages:1,recordingTotal:0,
+const state={courses:[],classes:[],recordings:[],recordingPage:1,recordingPages:1,recordingTotal:0,recordingCourses:[],recordingCoursePage:1,recordingCoursePages:1,recordingCourseRequest:0,
  page:1,pages:1,editing:null,request:0,recordingRequest:0,pendingRequest:0,pending:[],pendingPage:1,pendingPages:1,pendingTotal:0,selectedPending:null,locked:author,lockReason:null};
 function setLock(locked,reason){
  if(!author)return;
@@ -79,8 +79,29 @@ function renderRecordings(){
   const resource=element('td');resource.append(link(row.recordingUrl,'Watch recording'));tr.append(resource);body.append(tr);
  }
 }
+async function recordingCourses(){
+ const old=$('liveRecordingCourse').value,token=++state.recordingCourseRequest;
+ try{
+  const data=await api('/api/lms/live-classes/recording-courses?page='+state.recordingCoursePage+'&pageSize=20');
+  if(token!==state.recordingCourseRequest)return;
+  state.recordingCourses=data?.items||[];
+  state.recordingCoursePages=Math.max(1,data?.totalPages||Math.ceil((data?.totalCount||0)/20));
+  select('liveRecordingCourse',state.recordingCourses.map(x=>({
+   id:x.reference,name:x.title+' — '+x.code+(x.isArchived?' (Archived)':'')
+  })),'Select recording course');
+  if(state.recordingCourses.some(x=>x.reference===old))$('liveRecordingCourse').value=old;
+  if($('liveRecordingCourse').value!==old)state.recordingPage=1;
+  $('liveRecordingCoursePage').textContent='Page '+state.recordingCoursePage+' / '+state.recordingCoursePages;
+  $('liveRecordingCoursePrev').disabled=state.recordingCoursePage<=1;
+  $('liveRecordingCourseNext').disabled=state.recordingCoursePage>=state.recordingCoursePages;
+  await loadRecordings();
+ }catch(e){if(token===state.recordingCourseRequest){
+  state.recordings=[];state.recordingTotal=0;state.recordingPages=1;renderRecordings();
+  notice('danger','Unable to discover recording courses: '+e.message);
+ }}
+}
 async function loadRecordings(){
- const ref=$('liveCourse').value,token=++state.recordingRequest;
+ const ref=$('liveRecordingCourse').value,token=++state.recordingRequest;
  if(!ref){state.recordings=[];state.recordingTotal=0;state.recordingPages=1;renderRecordings();return;}
  try{
   const data=await api('/api/lms/live-classes/course/'+encodeURIComponent(ref)+
@@ -151,7 +172,7 @@ async function publishRecording(e){
   await api('/api/lms/live-classes/'+encodeURIComponent(row.reference)+'/recording',
    'POST',{recordingUrl:url,rowVersion:row.rowVersion});
   notice('success','Recording published. The URL is now immutable.');
-  await loadClasses();
+  await loadClasses();await recordingCourses();
  }catch(error){notice('danger',error.message);}
  finally{$('livePublishSave').disabled=state.locked;}
 }
@@ -172,9 +193,9 @@ function exportRecordings(){
 }
 async function loadClasses(){
  const ref=$('liveCourse').value,token=++state.request;
- if(!ref){state.classes=[];state.recordings=[];state.recordingTotal=0;state.recordingPages=1;
+ if(!ref){state.classes=[];
   if(author){setLock(true,'Select a course to manage live classes.');loadPending();}
-   empty('Select a course.');renderRecordings();return;}
+   empty('Select a course.');return;}
  if(author)setLock(true,'Checking course authoring permissions…');
  try{const [rows,lock]=await Promise.all([
   api('/api/lms/live-classes/course/'+encodeURIComponent(ref)),
@@ -185,7 +206,7 @@ async function loadClasses(){
   if(author)setLock(!!lock?.isLocked,lock?.reason||null);
   state.classes=rows||[];render();
  }catch(e){if(token===state.request){state.classes=[];empty('Unable to load classes.');notice('danger',e.message);}}
- if(token===state.request)await Promise.all([loadRecordings(),loadPending()]);
+ if(token===state.request)await loadPending();
 }
 async function courses(){
  const old=$('liveCourse').value,token=++state.request;
@@ -250,6 +271,10 @@ $('liveCoursePrev').onclick=()=>{if(state.page>1){state.page--;courses();}};
 $('liveCourseNext').onclick=()=>{if(state.page<state.pages){state.page++;courses();}};
 $('livePrint').onclick=()=>window.print();
 $('liveExport').onclick=exportRecordings;
+$('liveRecordingCourse').onchange=()=>{state.recordingPage=1;loadRecordings();};
+$('liveRecordingCourseRefresh').onclick=()=>recordingCourses();
+$('liveRecordingCoursePrev').onclick=()=>{if(state.recordingCoursePage>1){state.recordingCoursePage--;recordingCourses();}};
+$('liveRecordingCourseNext').onclick=()=>{if(state.recordingCoursePage<state.recordingCoursePages){state.recordingCoursePage++;recordingCourses();}};
 $('liveRecordingPrev').onclick=()=>{if(state.recordingPage>1){state.recordingPage--;loadRecordings();}};
 $('liveRecordingNext').onclick=()=>{if(state.recordingPage<state.recordingPages){state.recordingPage++;loadRecordings();}};
 if(author){
@@ -259,5 +284,5 @@ if(author){
  $('livePendingNext').onclick=()=>{if(state.pendingPage<state.pendingPages){state.pendingPage++;loadPending();}};
 }
 if(author)setLock(true,'Select a course to manage live classes.');
-Promise.all([courses(),instructors()]);
+Promise.all([courses(),instructors(),recordingCourses()]);
 })();
