@@ -10,6 +10,7 @@ using EduOS.Persistence.Repositories;
 using EduOS.Service.Services.LMS;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -20,7 +21,8 @@ public sealed class LmsLiveClassServiceTests
     [Fact]
     public async Task Schedule_is_idempotent_and_rejects_instructor_overlap()
     {
-        await using var db = Db();
+        var databaseName = "live-class-" + Guid.NewGuid().ToString("N");
+        await using var db = Db(101, databaseName);
         var now = DateTime.UtcNow;
         var from = DateOnly.FromDateTime(now.AddDays(-7));
         var to = DateOnly.FromDateTime(now.AddDays(90));
@@ -38,9 +40,12 @@ public sealed class LmsLiveClassServiceTests
         db.Add(new InstructorAssignment { TenantId = 101, SubjectOfferingId = offering.Id, EmployeeId = employee.Id, EffectiveFrom = from, IsActive = true });
         await db.SaveChangesAsync();
         // Another tenant's completed enrollment must not lock this tenant's course.
-        db.Add(new CourseEnrollment { TenantId = 202, CourseId = course.Id, StudentId = 900,
-            State = CourseEnrollmentState.Completed, CompletedAt = now });
-        await db.SaveChangesAsync();
+        await using (var otherTenant = Db(202, databaseName))
+        {
+            otherTenant.Add(new CourseEnrollment { TenantId = 202, CourseId = course.Id, StudentId = 900,
+                State = CourseEnrollmentState.Completed, CompletedAt = now });
+            await otherTenant.SaveChangesAsync();
+        }
         var service = Service(db,"TenantAdmin");
         var request = new SaveLiveClassRequestDto { CourseReference = course.PublicId, InstructorReference = employee.PublicId,
             Title = "Cells", StartsAt = now.AddDays(1), EndsAt = now.AddDays(1).AddHours(1), JoinUrl = "https://meet.example.com/room" };
@@ -97,9 +102,14 @@ public sealed class LmsLiveClassServiceTests
     [Fact]
     public async Task Invalid_dates_and_foreign_tenant_references_are_rejected()
     {
-        await using var db = Db();
+        var databaseName = "live-class-" + Guid.NewGuid().ToString("N");
+        await using var db = Db(101, databaseName);
         var foreign = new Course { TenantId = 202, Code = "PRIVATE", Title = "Other tenant" };
-        db.Add(foreign);await db.SaveChangesAsync();
+        await using (var otherTenant = Db(202, databaseName))
+        {
+            otherTenant.Add(foreign);
+            await otherTenant.SaveChangesAsync();
+        }
         var service = Service(db,"TenantAdmin");
         var invalid = new SaveLiveClassRequestDto { CourseReference = foreign.PublicId, Title = "Bad",
             StartsAt = DateTime.UtcNow.AddHours(2), EndsAt = DateTime.UtcNow.AddHours(1) };
@@ -168,7 +178,7 @@ public sealed class LmsLiveClassServiceTests
         Assert.Single(register.Data.Items);
         Assert.Equal(session.PublicId, register.Data.Items[0].Reference);
         Assert.Equal(session.RecordingUrl, register.Data.Items[0].RecordingUrl);
-        Assert.Equal(0, (await service.GetCourseLiveClassesAsync(course.PublicId)).Data!.Count);
+        Assert.Empty((await service.GetCourseLiveClassesAsync(course.PublicId)).Data!);
 
         // A historical course enrollment is not a bypass for a different campus.
         academic.CampusId = 42;
@@ -180,23 +190,29 @@ public sealed class LmsLiveClassServiceTests
     [Fact]
     public async Task Recording_register_validates_pagination_and_does_not_disclose_foreign_courses()
     {
-        await using var db = Db();
+        var databaseName = "live-class-" + Guid.NewGuid().ToString("N");
+        await using var db = Db(101, databaseName);
         var foreign = new Course { TenantId = 202, Code = "OTHER", Title = "Foreign course" };
-        db.Add(foreign);
-        await db.SaveChangesAsync();
+        await using (var otherTenant = Db(202, databaseName))
+        {
+            otherTenant.Add(foreign);
+            await otherTenant.SaveChangesAsync();
+        }
         var service = Service(db, "Student");
         Assert.Equal(400, (await service.GetCourseRecordingsAsync(foreign.PublicId, 0, 20)).StatusCode);
         Assert.Equal(400, (await service.GetCourseRecordingsAsync(foreign.PublicId, 1, 100)).StatusCode);
         Assert.Equal(404, (await service.GetCourseRecordingsAsync(foreign.PublicId, 1, 20)).StatusCode);
     }
 
-    private static EduOSDbContext Db()
+    private static readonly InMemoryDatabaseRoot DatabaseRoot = new();
+
+    private static EduOSDbContext Db(long tenantId = 101, string? databaseName = null)
     {
         var options = new DbContextOptionsBuilder<EduOSDbContext>()
-            .UseInMemoryDatabase("live-class-"+Guid.NewGuid().ToString("N")).Options;
+            .UseInMemoryDatabase(databaseName ?? "live-class-" + Guid.NewGuid().ToString("N"), DatabaseRoot).Options;
         var context = new DefaultHttpContext();
-        context.Items["TenantId"] = 101L;
-        return new EduOSDbContext(options,new HttpContextAccessor { HttpContext = context });
+        context.Items["TenantId"] = tenantId;
+        return new EduOSDbContext(options, new HttpContextAccessor { HttpContext = context });
     }
 
     private static LmsLiveClassService Service(EduOSDbContext db,string role) => new(
