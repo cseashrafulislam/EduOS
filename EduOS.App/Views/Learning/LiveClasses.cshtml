@@ -81,6 +81,16 @@
             <h3 id="liveRecordingsTitle" class="h6 m-0">Historical class recordings</h3>
             <span id="liveRecordingCount" class="small text-muted" aria-live="polite">0 recordings</span>
         </div>
+        <div class="card-body row g-2 align-items-end">
+            <div class="col-md-9"><label class="form-label" for="liveRecordingCourse">Course with accessible recordings</label>
+                <select id="liveRecordingCourse" class="form-select"><option value="">Loading recording courses…</option></select></div>
+            <div class="col-md-3"><button id="liveRecordingCourseRefresh" type="button" class="btn btn-outline-primary w-100">Refresh archive</button></div>
+            <div class="col-12 d-flex align-items-center gap-2">
+                <button id="liveRecordingCoursePrev" type="button" class="btn btn-outline-secondary btn-sm">Previous courses</button>
+                <span id="liveRecordingCoursePage" class="small">Page 1</span>
+                <button id="liveRecordingCourseNext" type="button" class="btn btn-outline-secondary btn-sm">Next courses</button>
+            </div>
+        </div>
         <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
             <thead><tr><th>Class</th><th>Instructor</th><th>Session date</th><th>Recording</th></tr></thead>
             <tbody id="liveRecordingRows"><tr><td colspan="4" class="text-muted text-center p-3">Select a course.</td></tr></tbody>
@@ -93,5 +103,5 @@
         </div>
     </section>
 </section>
-<style media="print">.live-actions,#liveForm,#liveRefresh,#livePrint,#liveExport,#liveCoursePrev,#liveCourseNext,#liveRecordingPrev,#liveRecordingNext,#livePendingPrev,#livePendingNext,#livePublishForm,.btn,nav,.sidebar{display:none!important}#liveClassApp{width:100%!important}</style>
+<style media="print">.live-actions,#liveForm,#liveRefresh,#livePrint,#liveExport,#liveCoursePrev,#liveCourseNext,#liveRecordingPrev,#liveRecordingNext,#liveRecordingCoursePrev,#liveRecordingCourseNext,#liveRecordingCourseRefresh,#livePendingPrev,#livePendingNext,#livePublishForm,.btn,nav,.sidebar{display:none!important}#liveClassApp{width:100%!important}</style>
 @section Scripts { <script src="~/js/learning/live-classes.js" asp-append-version="true"></script> }
