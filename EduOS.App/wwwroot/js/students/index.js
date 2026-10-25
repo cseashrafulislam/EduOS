@@ -85,6 +85,7 @@
             if (!response.ok || !payload?.success || !payload.data) throw new Error('Invalid student');
             renderDetails(payload.data);
             bootstrap.Modal.getOrCreateInstance(document.getElementById('studentModal')).show();
+            document.dispatchEvent(new CustomEvent('student:opened', { detail: { reference: button.dataset.reference } }));
         } catch { showAlert(i18n.detailsFailed); }
     }
 
