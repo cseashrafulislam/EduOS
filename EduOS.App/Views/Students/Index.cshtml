@@ -109,4 +109,8 @@
 
 @section Scripts {
     <script src="~/js/students/index.js" asp-append-version="true"></script>
+    @if (User.IsInRole("TenantAdmin"))
+    {
+        <script src="~/js/students/lifecycle-timeline.js" asp-append-version="true"></script>
+    }
 }
