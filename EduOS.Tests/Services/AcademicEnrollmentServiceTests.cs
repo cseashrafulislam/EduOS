@@ -258,6 +258,64 @@ public sealed class AcademicEnrollmentServiceTests
         workspace.Data.Offerings[0].MissingPrerequisites.Should().ContainSingle(x => x.Contains("MATH"));
     }
 
+    [Fact]
+    public async Task Linked_guardian_can_open_optional_subject_workspace_but_unlinked_parent_cannot()
+    {
+        var options = Options();
+        var seed = await SeedAsync(options, 10);
+        await using (var admin = Context(options, 101, 7, "TenantAdmin"))
+        {
+            var service = Service(admin, new TestUser(101, 7, "TenantAdmin"));
+            (await service.EnrollAsync(new CreateStudentEnrollmentRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), StudentReference = seed.StudentRef,
+                AcademicBatchId = seed.BatchId, AcademicCurriculumId = seed.CurriculumId,
+                RollNo = "01", EnrollmentDate = new DateOnly(2026, 9, 21)
+            })).Success.Should().BeTrue();
+        }
+        await using (var linked = Context(options, 101, 72, "Guardian"))
+        {
+            var result = await SubjectQuery(linked, new TestUser(101, 72, "Guardian")).GetAsync(seed.StudentRef);
+            result.Success.Should().BeTrue();
+            result.Data!.StudentReference.Should().Be(seed.StudentRef);
+            result.Data.Offerings.Should().ContainSingle();
+        }
+        await using (var unlinked = Context(options, 101, 73, "Parent"))
+        {
+            var result = await SubjectQuery(unlinked, new TestUser(101, 73, "Parent")).GetAsync(seed.StudentRef);
+            result.StatusCode.Should().Be(404);
+        }
+    }
+
+    [Fact]
+    public async Task Student_optional_subject_workspace_never_exposes_another_students_enrollment()
+    {
+        var options = Options();
+        var seed = await SeedAsync(options, 10);
+        await using (var admin = Context(options, 101, 7, "TenantAdmin"))
+        {
+            var service = Service(admin, new TestUser(101, 7, "TenantAdmin"));
+            foreach (var (reference, roll) in new[] { (seed.StudentRef, "01"), (seed.OtherStudentRef, "02") })
+                (await service.EnrollAsync(new CreateStudentEnrollmentRequestDto
+                {
+                    ClientRequestId = Guid.NewGuid(), StudentReference = reference,
+                    AcademicBatchId = seed.BatchId, AcademicCurriculumId = seed.CurriculumId,
+                    RollNo = roll, EnrollmentDate = new DateOnly(2026, 9, 21)
+                })).Success.Should().BeTrue();
+        }
+        await using var db = Context(options, 101, 71, "Student");
+        var query = SubjectQuery(db, new TestUser(101, 71, "Student"));
+        (await query.GetAsync(seed.StudentRef)).Success.Should().BeTrue();
+        (await query.GetAsync(seed.OtherStudentRef)).StatusCode.Should().Be(404);
+    }
+
+    private static StudentOptionalSubjectQueryService SubjectQuery(EduOSDbContext db, ICurrentUserService user) => new(
+        new GenericRepository<Student>(db), new GenericRepository<StudentEnrollment>(db),
+        new GenericRepository<SubjectOffering>(db), new GenericRepository<CurriculumSubject>(db),
+        new GenericRepository<Subject>(db), new GenericRepository<StudentSubjectRegistration>(db),
+        new GenericRepository<SubjectPrerequisite>(db), user,
+        new GenericRepository<Guardian>(db), new GenericRepository<StudentGuardian>(db));
+
     private static AcademicEnrollmentService Service(EduOSDbContext db, ICurrentUserService user) => new(
         new GenericRepository<StudentEnrollment>(db), new GenericRepository<StudentSubjectRegistration>(db),
         new GenericRepository<Student>(db), new GenericRepository<Guardian>(db),
