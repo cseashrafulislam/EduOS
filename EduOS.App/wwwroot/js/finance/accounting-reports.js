@@ -296,7 +296,7 @@ if (root) {
         }); });
         $('bankLiquidityCsv').addEventListener('click', () => run(async () => {
             if (!bankLiquidity) return;
-            const rows = [['Bank','Ledger Code','Ledger Name','Opening','External In','External Out','Transfer In','Transfer Out','Closing']];
+            const rows = [['Bank','Ledger Code','Ledger Name','Opening','Non-bank In','Non-bank Out','Transfer In','Transfer Out','Closing']];
             for (const x of bankLiquidity.banks || [])
                 rows.push([x.bankName,x.ledgerCode,x.ledgerName,...fields.map(k => money(x[k]))]);
             rows.push(['INSTITUTION TOTAL','','',...fields.map(k => money(bankLiquidity[k]))]);

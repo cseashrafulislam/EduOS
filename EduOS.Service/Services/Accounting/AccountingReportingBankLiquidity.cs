@@ -9,6 +9,7 @@ public sealed partial class AccountingReportingService
 {
     // Reconciled BDT bank liquidity, NOT an operating/investing/financing cash-flow statement.
     // Only canonical BankAccount mappings identify bank ledgers; no guessed cash-in-hand accounts.
+    // ExternalInflows/Outflows mean non-bank counterparties, not necessarily external to the institution.
     public async Task<ApiResponse<BankLiquidityDto>> GetBankLiquidityAsync(
         DateOnly fromDate, DateOnly toDate, CancellationToken ct = default)
     {

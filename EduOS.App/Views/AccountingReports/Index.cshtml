@@ -83,7 +83,7 @@
             </div>
 
             <div class="tab-pane fade" id="bankLiquidityPanel">
-                <p class="text-muted">Consolidated BDT bank movements, including posted reversals. Internal bank-to-bank transfers are shown separately and cancel in the institution total. This excludes unconfigured cash-in-hand and is NOT a classified cash-flow statement.</p>
+                <p class="text-muted">Consolidated BDT bank movements, including posted reversals. Internal bank-to-bank transfers are shown separately and cancel in the institution total. Non-bank counterparties can include cash-in-hand transfers, not necessarily external institutional cash flow. This excludes unconfigured cash-in-hand and is NOT a classified cash-flow statement.</p>
                 <form id="bankLiquidityForm" class="row g-2 align-items-end mb-3">
                     <div class="col-md-3"><label for="bankLiquidityFrom" class="form-label">From</label><input id="bankLiquidityFrom" type="date" class="form-control" required /></div>
                     <div class="col-md-3"><label for="bankLiquidityTo" class="form-label">To</label><input id="bankLiquidityTo" type="date" class="form-control" required /></div>
@@ -91,7 +91,7 @@
                     <div class="col-md-3"><button id="bankLiquidityCsv" type="button" class="btn btn-outline-secondary" disabled>Export CSV</button></div>
                 </form>
                 <div class="table-responsive"><table class="table table-sm table-striped">
-                    <thead><tr><th>Bank / ledger</th><th class="text-end">Opening</th><th class="text-end">External in</th><th class="text-end">External out</th><th class="text-end">Transfer in</th><th class="text-end">Transfer out</th><th class="text-end">Closing</th></tr></thead>
+                    <thead><tr><th>Bank / ledger</th><th class="text-end">Opening</th><th class="text-end">Non-bank in</th><th class="text-end">Non-bank out</th><th class="text-end">Transfer in</th><th class="text-end">Transfer out</th><th class="text-end">Closing</th></tr></thead>
                     <tbody id="bankLiquidityRows"></tbody>
                     <tfoot><tr><th>Institution total</th><th id="bankLiquidityOpening" class="text-end"></th><th id="bankLiquidityExternalIn" class="text-end"></th><th id="bankLiquidityExternalOut" class="text-end"></th><th id="bankLiquidityTransferIn" class="text-end"></th><th id="bankLiquidityTransferOut" class="text-end"></th><th id="bankLiquidityClosing" class="text-end"></th></tr></tfoot>
                 </table></div>
