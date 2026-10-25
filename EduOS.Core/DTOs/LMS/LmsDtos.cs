@@ -315,6 +315,15 @@ public sealed class LiveClassRecordingDto
     public string RecordingUrl { get; set; } = string.Empty;
 }
 
+/// <summary>Tenant-authorized course discovery for historical recordings, including archived courses.</summary>
+public sealed class LiveClassRecordingCourseDto
+{
+    public Guid Reference { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+    public bool IsArchived { get; set; }
+}
+
 /// <summary>Append-only post-session recording publication.</summary>
 public sealed class PublishLiveClassRecordingRequestDto
 {
