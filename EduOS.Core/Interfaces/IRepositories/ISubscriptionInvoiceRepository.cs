@@ -7,6 +7,7 @@ namespace EduOS.Core.Interfaces.IRepositories;
 public interface ISubscriptionInvoiceRepository : IGenericRepository<SubscriptionInvoice>
 {
     Task<SubscriptionInvoice?> GetByIdForSystemAsync(long id, long tenantId, CancellationToken cancellationToken = default);
+    Task<List<SubscriptionInvoiceLine>> GetLinesForInvoiceAsync(long tenantId, long invoiceId, CancellationToken cancellationToken = default);
     Task<bool> HasFullyPaidInvoiceForSubscriptionAsync(long tenantId, long subscriptionId, CancellationToken cancellationToken = default);
     Task<SubscriptionInvoice?> GetByIdForPlatformAsync(long id, CancellationToken cancellationToken = default);
     Task<SubscriptionInvoice?> GetByInvoiceNumberAsync(string invoiceNumber, long tenantId, CancellationToken cancellationToken = default);
