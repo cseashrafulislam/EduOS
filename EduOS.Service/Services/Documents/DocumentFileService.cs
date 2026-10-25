@@ -98,10 +98,41 @@ public sealed class DocumentFileService(EduOSDbContext db, ICurrentUserService u
         IsVerifiedSafe = asset.IsVerifiedSafe, CreatedAt = asset.CreatedAt
     };
 
-    public async Task<ApiResponse<FileAssetDto>> UploadAsync(Guid clientRequestId,
+    public Task<ApiResponse<FileAssetDto>> UploadAsync(Guid clientRequestId,
         PrivateFileUploadDto upload, CancellationToken ct = default)
     {
-        if (!CanManage) return ApiResponse<FileAssetDto>.ErrorResponse("Tenant administrator required.", 403);
+        if (!CanManage)
+            return Task.FromResult(ApiResponse<FileAssetDto>.ErrorResponse("Tenant administrator required.", 403));
+        return UploadCoreAsync(clientRequestId, upload, ct);
+    }
+
+    // A portal user can only stage a scanned file for an active student they control.
+    // Attachment ownership is checked again in the serializable student-document transaction.
+    public async Task<ApiResponse<FileAssetDto>> UploadPortalAsync(Guid studentReference,
+        Guid clientRequestId, PrivateFileUploadDto upload, CancellationToken ct = default)
+    {
+        var self = user.IsInRole("Student");
+        var guardianRole = user.IsInRole("Guardian") || user.IsInRole("Parent");
+        if (!user.IsAuthenticated || user.TenantId <= 0 || user.UserId <= 0 || (!self && !guardianRole))
+            return ApiResponse<FileAssetDto>.ErrorResponse("Portal account required.", 403);
+        var linkedIds = from link in db.StudentGuardians.AsNoTracking()
+                        join guardian in db.Guardians.AsNoTracking() on link.GuardianId equals guardian.Id
+                        where link.TenantId == user.TenantId && guardian.TenantId == user.TenantId &&
+                            guardian.UserId == user.UserId && guardian.IsActive &&
+                            !guardian.IsDeleted && !link.IsDeleted
+                        select link.StudentId;
+        var allowed = await db.Students.AsNoTracking().AnyAsync(student =>
+            student.TenantId == user.TenantId && student.PublicId == studentReference &&
+            student.StatusCode == "Active" && !student.IsDeleted &&
+            ((self && student.UserId == user.UserId) ||
+             (guardianRole && linkedIds.Contains(student.Id))), ct);
+        if (!allowed) return ApiResponse<FileAssetDto>.ErrorResponse("Student not found.", 404);
+        return await UploadCoreAsync(clientRequestId, upload, ct);
+    }
+
+    private async Task<ApiResponse<FileAssetDto>> UploadCoreAsync(Guid clientRequestId,
+        PrivateFileUploadDto upload, CancellationToken ct)
+    {
         if (clientRequestId == Guid.Empty || upload == null || upload.Content == null ||
             upload.Length is < 1 or > 5242880 || string.IsNullOrWhiteSpace(upload.FileName) ||
             upload.FileName.Length > 255 || string.IsNullOrWhiteSpace(upload.ContentType) ||

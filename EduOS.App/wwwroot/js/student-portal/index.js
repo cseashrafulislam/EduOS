@@ -58,7 +58,11 @@
         const th = document.createElement('th'); th.scope = 'col'; th.textContent = 'Action';
         el('studentPortalHeaders').firstElementChild.append(th);
         const rows = el('studentPortalRows').children;
-        if (!items.length) { rows[0].firstElementChild.colSpan = 5; return; }
+        if (!items.length) {
+            rows[0].firstElementChild.colSpan = 5;
+            document.dispatchEvent(new CustomEvent('portal:documents-loaded', { detail: { student } }));
+            return;
+        }
         items.forEach((item, index) => {
             const td = document.createElement('td');
             const link = document.createElement('a');
@@ -69,6 +73,7 @@
                 '/documents/' + encodeURIComponent(item.reference) + '/download';
             td.append(link); rows[index].append(td);
         });
+        document.dispatchEvent(new CustomEvent('portal:documents-loaded', { detail: { student } }));
     }
     function localDate(value) {
         const d = new Date(value);

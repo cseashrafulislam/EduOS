@@ -22,9 +22,9 @@ namespace EduOS.Service.Services.Students;
 /// Sensitive or verification-required document types remain in the protected
 /// document verification workflow, never the ordinary student download path.
 /// </summary>
-public sealed class StudentDocumentService(
+public sealed partial class StudentDocumentService(
     EduOSDbContext db, ICurrentUserService user, IFileUploadService storage,
-    ILogger<StudentDocumentService> logger) : IStudentDocumentService
+    ILogger<StudentDocumentService> logger, IDocumentFileService fileService) : IStudentDocumentService
 {
     private bool Allowed => user.IsAuthenticated && user.IsTenantAdmin && user.TenantId > 0;
     private bool PortalAllowed => user.IsAuthenticated && user.TenantId > 0 && user.UserId > 0 &&
