@@ -7,6 +7,13 @@ public sealed class CancelSubscriptionRequestDto
     [Required] public string RowVersion { get; set; } = string.Empty;
 }
 
+/// <summary>Idempotent pre-expiry renewal of the current period.</summary>
+public sealed class RenewSubscriptionRequestDto
+{
+    public Guid ClientRequestId { get; set; }
+    [Required] public string RowVersion { get; set; } = string.Empty;
+}
+
 public sealed class UpdateSubscriptionAutoRenewRequestDto
 {
     public bool AutoRenew { get; set; }

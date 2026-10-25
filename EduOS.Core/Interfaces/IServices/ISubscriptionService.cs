@@ -8,6 +8,8 @@ public interface ISubscriptionService
 {
     Task<ApiResponse<TenantSubscriptionDto>> StartAsync(StartSubscriptionRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<SubscriptionLifecycleStatusDto>> GetLifecycleStatusAsync(CancellationToken cancellationToken = default);
+    Task<ApiResponse<TenantSubscriptionDto>> RenewAsync(Guid subscriptionReference, RenewSubscriptionRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<TenantSubscriptionDto?>> GetUpcomingAsync(CancellationToken cancellationToken = default);
     Task<ApiResponse<TenantSubscriptionDto?>> GetCurrentAsync(CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<TenantSubscriptionDto>>> GetHistoryAsync(int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<TenantSubscriptionDto>> CancelAsync(Guid subscriptionReference, CancelSubscriptionRequestDto request, CancellationToken cancellationToken = default);

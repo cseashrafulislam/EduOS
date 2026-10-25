@@ -5,7 +5,7 @@ if(!root)return;
 const status={1:"Trial",2:"Active",3:"Grace",4:"Suspended",5:"Cancelled",6:"Expired",7:"Pending payment"};
 const invoiceStatus={1:"Draft",2:"Issued",3:"Partially paid",4:"Paid",5:"Cancelled",6:"Refunded"};
 const paymentStatus={1:"Initiated",2:"Awaiting verification",3:"Successful",4:"Failed",5:"Cancelled",6:"Refunded"};
-const state={current:null,page:1,pages:1,busy:false,version:0};
+const state={current:null,upcoming:null,page:1,pages:1,busy:false,version:0};
 const token=root.querySelector('input[name="__RequestVerificationToken"]')?.value ||
  document.querySelector('meta[name="request-verification-token"]')?.content || "";
 function message(text,kind="danger"){const e=$("sbAlert");e.textContent=text;e.className="alert alert-"+kind;}
@@ -54,6 +54,43 @@ function renderLifecycle(info){
   actions.append(a);
  }
 }
+function renderUpcoming(){
+ const box=$("sbUpcoming"),actions=$("sbRenewActions"),s=state.current,u=state.upcoming;
+ if(!box||!actions)return;
+ actions.replaceChildren();
+ if(u){
+  box.textContent=(u.state===7?"Renewal invoice awaiting payment. ":u.state===2?"Prepaid renewal scheduled. ":"Renewal scheduled. ")+
+   (u.planName||"Subscription")+" · "+date(u.startsAt)+" to "+date(u.endsAt)+
+   ". Your current period remains effective until its existing end date.";
+  return;
+ }
+ if(!s||![1,2,3].includes(s.state)||s.billingCycleCode==="Lifetime"){
+  box.textContent="No eligible active subscription for early renewal.";return;
+ }
+ const remaining=new Date(s.endsAt).getTime()-Date.now();
+ if(!Number.isFinite(remaining)||remaining<=0||remaining>30*86400000||!s.rowVersion){
+  box.textContent="You can request a renewal invoice during the final 30 days of the current period.";return;
+ }
+ box.textContent="Request the next billing period at the plan's current price. No payment is collected automatically.";
+ const b=button("Generate renewal invoice",async()=>{
+  if(state.busy||!confirm("Create a renewal invoice? The next period begins after your current period. Payment requires separate verification."))return;
+  if(!globalThis.crypto?.randomUUID){message("Secure request IDs are unavailable in this browser.");return;}
+  const key="eduos:renewal:"+s.reference;
+  let requestId=null;
+  try{requestId=sessionStorage.getItem(key);}catch{}
+  if(!requestId){requestId=crypto.randomUUID();try{sessionStorage.setItem(key,requestId);}catch{}}
+  state.busy=true;b.disabled=true;
+  try{
+   await api("/api/subscription/"+encodeURIComponent(s.reference)+"/renew","POST",
+     {clientRequestId:requestId,rowVersion:s.rowVersion});
+   try{sessionStorage.removeItem(key);}catch{}
+   message("Renewal created. Pay the invoice below to activate the next period.","success");
+   await refresh();
+  }catch(e){message(e.message+(e.status===409?" Refresh before retrying.":""));}
+  finally{state.busy=false;b.disabled=false;}
+ });
+ actions.append(b);
+}
 function renderInvoices(items){
  const body=$("sbInvoiceRows");body.replaceChildren();if(!items.length){empty("sbInvoiceRows",8);return;}
  for(const inv of items){
@@ -93,12 +130,12 @@ function renderHistory(result){
 async function refresh(){
  const version=++state.version;
  try{
-  const [current,invoices,history,lifecycle]=await Promise.all([
+  const [current,invoices,history,lifecycle,upcoming]=await Promise.all([
    api("/api/subscription/current"),api("/api/subscription/invoices"),
    api("/api/subscription/history?page="+state.page+"&pageSize=10"),
-   api("/api/subscription/lifecycle-status")]);
+   api("/api/subscription/lifecycle-status"),api("/api/subscription/upcoming")]);
   if(version!==state.version)return;
-  state.current=current;renderCurrent();renderLifecycle(lifecycle);renderInvoices(Array.isArray(invoices)?invoices:[]);renderHistory(history);
+  state.current=current;state.upcoming=upcoming;renderCurrent();renderLifecycle(lifecycle);renderUpcoming();renderInvoices(Array.isArray(invoices)?invoices:[]);renderHistory(history);
  }catch(e){if(version===state.version)message(e.message);}
 }
 $("sbRefresh").addEventListener("click",refresh);

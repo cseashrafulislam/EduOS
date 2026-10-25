@@ -104,6 +104,70 @@ public sealed class SubscriptionServiceTests
         (await setup.Service.StartAsync(Request(plan.Id))).StatusCode.Should().Be(409);
     }
 
+    [Fact]
+    public async Task Renewal_creates_one_future_period_and_one_invoice_without_displacing_current()
+    {
+        await using var setup = await SetupAsync();
+        setup.ActivateRequest();
+        var plan = await AddPlanAsync(setup.Db, 1000m);
+        (await setup.Service.StartAsync(Request(plan.Id))).Success.Should().BeTrue();
+        var current = await setup.Db.TenantSubscriptions.SingleAsync();
+        current.State = SubscriptionState.Active;
+        current.StartsAt = DateTime.UtcNow.AddDays(-20);
+        current.EndsAt = DateTime.UtcNow.AddDays(5);
+        current.RowVersion = new byte[] { 7, 8, 9 };
+        await setup.Db.SaveChangesAsync();
+        var request = new RenewSubscriptionRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(),
+            RowVersion = Convert.ToBase64String(current.RowVersion)
+        };
+        var renewed = await setup.Service.RenewAsync(current.PublicId, request);
+        renewed.Success.Should().BeTrue();
+        renewed.Data!.StartsAt.Should().Be(current.EndsAt);
+        renewed.Data.State.Should().Be(SubscriptionState.PendingPayment);
+        var again = await setup.Service.RenewAsync(current.PublicId, request);
+        again.Success.Should().BeTrue();
+        again.Data!.Id.Should().Be(renewed.Data.Id);
+        (await setup.Db.TenantSubscriptions.CountAsync()).Should().Be(2);
+        (await setup.Db.SubscriptionInvoices.CountAsync()).Should().Be(2);
+        (await setup.Db.SubscriptionInvoiceLines.CountAsync()).Should().Be(2);
+        (await setup.Service.GetCurrentAsync()).Data!.Id.Should().Be(current.Id);
+        (await setup.Service.GetUpcomingAsync()).Data!.Id.Should().Be(renewed.Data.Id);
+        var other = await setup.Service.RenewAsync(current.PublicId, new RenewSubscriptionRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), RowVersion = request.RowVersion
+        });
+        other.StatusCode.Should().Be(409);
+    }
+
+    [Fact]
+    public async Task Renewal_rejects_stale_version_and_requests_too_early()
+    {
+        await using var setup = await SetupAsync();
+        setup.ActivateRequest();
+        var plan = await AddPlanAsync(setup.Db, 800m);
+        (await setup.Service.StartAsync(Request(plan.Id))).Success.Should().BeTrue();
+        var current = await setup.Db.TenantSubscriptions.SingleAsync();
+        current.State = SubscriptionState.Active;
+        current.EndsAt = DateTime.UtcNow.AddDays(10);
+        current.RowVersion = new byte[] { 4, 5, 6 };
+        await setup.Db.SaveChangesAsync();
+        var bad = await setup.Service.RenewAsync(current.PublicId, new RenewSubscriptionRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), RowVersion = Convert.ToBase64String(new byte[] { 1, 2, 3 })
+        });
+        bad.StatusCode.Should().Be(409);
+        current.EndsAt = DateTime.UtcNow.AddDays(31);
+        await setup.Db.SaveChangesAsync();
+        var early = await setup.Service.RenewAsync(current.PublicId, new RenewSubscriptionRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), RowVersion = Convert.ToBase64String(current.RowVersion)
+        });
+        early.StatusCode.Should().Be(409);
+        (await setup.Db.TenantSubscriptions.CountAsync()).Should().Be(1);
+    }
+
     private static StartSubscriptionRequestDto Request(long planId) => new()
     {
         ClientRequestId = Guid.NewGuid(), SubscriptionPlanId = planId,

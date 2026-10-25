@@ -36,6 +36,22 @@ public sealed class SubscriptionController : ControllerBase
         return StatusCode(response.StatusCode, response);
     }
 
+    [HttpGet("upcoming")]
+    public async Task<IActionResult> GetUpcoming(CancellationToken ct)
+    {
+        var response = await _subscriptions.GetUpcomingAsync(ct);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpPost("{subscriptionReference:guid}/renew")]
+    [EnableRateLimiting("ApiPolicy")]
+    public async Task<IActionResult> Renew(Guid subscriptionReference,
+        [FromBody] RenewSubscriptionRequestDto request, CancellationToken ct)
+    {
+        var response = await _subscriptions.RenewAsync(subscriptionReference, request, ct);
+        return StatusCode(response.StatusCode, response);
+    }
+
     [HttpGet("current")]
     public async Task<IActionResult> GetCurrent(CancellationToken ct)
     {

@@ -37,7 +37,8 @@ public class TenantSubscriptionRepository : GenericRepository<TenantSubscription
 
     public Task<TenantSubscription?> GetActiveByTenantAsync(long tenantId, CancellationToken ct = default) =>
         _context.TenantSubscriptions.IgnoreQueryFilters().AsNoTracking()
-            .Where(x => !x.IsDeleted && x.TenantId == tenantId
+            .Where(x => !x.IsDeleted && x.TenantId == tenantId &&
+                x.StartsAt <= DateTime.UtcNow && x.EndsAt > DateTime.UtcNow
                 && (x.State == SubscriptionState.Active || x.State == SubscriptionState.Trial || x.State == SubscriptionState.Grace))
             .OrderByDescending(x => x.StartsAt)
             .FirstOrDefaultAsync(ct);

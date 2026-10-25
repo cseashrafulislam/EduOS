@@ -12,7 +12,7 @@ using System.Security.Cryptography;
 
 namespace EduOS.Service.Services.SaaS;
 
-public sealed class SubscriptionService : ISubscriptionService
+public sealed partial class SubscriptionService : ISubscriptionService
 {
     private readonly ITenantSubscriptionRepository _subscriptions;
     private readonly ISubscriptionPlanRepository _plans;
@@ -157,7 +157,17 @@ public sealed class SubscriptionService : ISubscriptionService
               x.State == SubscriptionState.Grace) && x.EndsAt > now), ct);
         var overdue = latest != null && latest.EndsAt <= now &&
             latest.State is SubscriptionState.Trial or SubscriptionState.Active or SubscriptionState.Grace;
-        var guidance = latest == null
+        var live = await rows.Where(x => x.StartsAt <= now && x.EndsAt > now &&
+                (x.State == SubscriptionState.Active || x.State == SubscriptionState.Trial ||
+                 x.State == SubscriptionState.Grace))
+            .OrderByDescending(x => x.StartsAt).FirstOrDefaultAsync(ct);
+        var hasScheduledRenewal = live != null && latest?.PreviousSubscriptionId == live.Id &&
+            latest.StartsAt >= live.EndsAt;
+        var guidance = hasScheduledRenewal
+            ? latest!.State == SubscriptionState.PendingPayment
+                ? "A renewal invoice awaits verified payment. Your current period remains active until expiry."
+                : "Your prepaid renewal is scheduled to begin when the current period ends."
+            : latest == null
             ? "Choose a subscription plan to get started."
             : latest.State == SubscriptionState.PendingPayment
                 ? "Complete invoice payment and verification before activation."
@@ -184,11 +194,15 @@ public sealed class SubscriptionService : ISubscriptionService
     {
         if (!CanRead()) return Denied<TenantSubscriptionDto?>();
         var now = _clock.GetUtcNow().UtcDateTime;
-        var row = await _subscriptions.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == _user.TenantId && !x.IsDeleted &&
-                (x.State == SubscriptionState.PendingPayment || x.State == SubscriptionState.Suspended ||
-                 x.State == SubscriptionState.Trial || x.State == SubscriptionState.Active ||
+        // A prepaid renewal may be Active, but its future StartsAt cannot displace the live period.
+        var rows = _subscriptions.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == _user.TenantId && !x.IsDeleted);
+        var row = await rows.Where(x => x.StartsAt <= now && x.EndsAt > now &&
+                (x.State == SubscriptionState.Trial || x.State == SubscriptionState.Active ||
                  x.State == SubscriptionState.Grace))
+            .OrderByDescending(x => x.StartsAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+        row ??= await rows.Where(x => (x.State == SubscriptionState.PendingPayment &&
+                x.PreviousSubscriptionId == null) || x.State == SubscriptionState.Suspended)
             .OrderByDescending(x => x.StartsAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
         return ApiResponse<TenantSubscriptionDto?>.SuccessResponse(row == null ? null : await MapAsync(row, ct));
     }
