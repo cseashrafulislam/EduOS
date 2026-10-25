@@ -9,7 +9,7 @@ if (root) {
     const notice = (message, error = false) => { const el = $('reportNotice'); el.textContent = message;
         el.className = 'alert ' + (error ? 'alert-danger' : 'alert-success'); };
     const run = async work => { try { await work(); } catch (error) { notice(error.message || 'Report failed.', true); } };
-    const decimalKeys = /("(?:debitAmount|creditAmount|runningBalance|openingBalance|closingBalance|debitBalance|creditBalance|amount|totalIncome|totalExpenses|netSurplus|totalAssets|totalLiabilities|totalEquity|unclosedNetSurplus|totalLiabilitiesAndEquity)"\s*:\s*)(-?\d+(?:\.\d+)?)/g;
+    const decimalKeys = /("(?:debitAmount|creditAmount|runningBalance|openingBalance|closingBalance|debitBalance|creditBalance|amount|totalIncome|totalExpenses|netSurplus|totalAssets|totalLiabilities|totalEquity|unclosedNetSurplus|totalLiabilitiesAndEquity|totalInflows|totalOutflows)"\s*:\s*)(-?\d+(?:\.\d+)?)/g;
     async function get(url) {
         const response = await fetch(url, { credentials:'same-origin', headers:{Accept:'application/json'} });
         const raw = await response.text();
@@ -203,6 +203,63 @@ if (root) {
             rows.push(['Unclosed Net Surplus','','',money(balanceSheet.unclosedNetSurplus)]);
             rows.push(['Liabilities + Equity + Surplus','','',money(balanceSheet.totalLiabilitiesAndEquity)]);
             downloadCsv('institution-balance-sheet-' + $('balanceAsOf').value + '.csv', rows);
+        }));
+    }
+
+    const bankBookForm = $('bankBookForm');
+    if (bankBookForm) {
+        $('bankBookFrom').value = $('ledgerFrom').value;
+        $('bankBookTo').value = today;
+        let bankBook = null;
+        run(async () => {
+            const banks = await get('/api/finance/accounting/setup/banks');
+            $('bankBookAccount').innerHTML = '<option value="">Select a bank account</option>' +
+                banks.map(x => '<option value="' + esc(x.id) + '">' +
+                    esc(x.bankName + ' — ' + x.accountName + ' (' + x.ledgerAccountName + ')') + '</option>').join('');
+        });
+        bankBookForm.addEventListener('submit', event => { event.preventDefault(); run(async () => {
+            const bankId = $('bankBookAccount').value, from = $('bankBookFrom').value, to = $('bankBookTo').value;
+            if (!/^\d+$/.test(bankId) || BigInt(bankId) <= 0n || !from || !to || from > to)
+                throw new Error('Select a bank and a valid date range.');
+            $('bankBookRun').disabled = true; $('bankBookCsv').disabled = true; bankBook = null;
+            try {
+                const data = await get('/api/finance/accounting/reports/bank-book/' + encodeURIComponent(bankId) + '?' +
+                    new URLSearchParams({fromDate:from, toDate:to}));
+                let running = cents(data.openingBalance), deposits = 0n, withdrawals = 0n;
+                const rows = (data.entries || []).map(x => {
+                    const debit = cents(x.debitAmount), credit = cents(x.creditAmount);
+                    deposits += debit; withdrawals += credit; running += debit - credit;
+                    if (running !== cents(x.runningBalance)) throw new Error('Bank running balance does not reconcile.');
+                    return '<tr><td>' + esc(x.date) + '</td><td>' + esc(x.journalNumber) +
+                        '</td><td>' + esc(x.sourceType) + '</td><td>' + esc(x.referenceNumber) +
+                        '</td><td>' + esc(x.description) + '</td><td class="text-end">' + money(debit) +
+                        '</td><td class="text-end">' + money(credit) + '</td><td class="text-end">' + money(running) + '</td></tr>';
+                });
+                if (deposits !== cents(data.totalInflows) || withdrawals !== cents(data.totalOutflows) ||
+                    running !== cents(data.closingBalance))
+                    throw new Error('Bank book totals do not reconcile.');
+                $('bankBookRows').innerHTML = rows.join('');
+                $('bankBookTitle').textContent = data.bankName + ' — ' + data.ledgerAccountCode + ' / ' +
+                    data.ledgerAccountName + ' | ' + from + ' to ' + to;
+                $('bankBookOpening').textContent = money(data.openingBalance);
+                $('bankBookInflows').textContent = money(deposits);
+                $('bankBookOutflows').textContent = money(withdrawals);
+                $('bankBookClosing').textContent = money(running);
+                bankBook = data; $('bankBookCsv').disabled = false;
+                notice('Institutional bank book loaded and reconciled.');
+            } finally { $('bankBookRun').disabled = false; }
+        }); });
+        $('bankBookCsv').addEventListener('click', () => run(async () => {
+            if (!bankBook) return;
+            const rows = [['Date','Journal','Source','Reference','Description','Deposit','Withdrawal','Balance']];
+            for (const x of bankBook.entries || [])
+                rows.push([x.date,x.journalNumber,x.sourceType,x.referenceNumber,x.description,
+                    money(x.debitAmount),money(x.creditAmount),money(x.runningBalance)]);
+            rows.push(['Opening','','','','','','',money(bankBook.openingBalance)]);
+            rows.push(['Deposits','','','','',money(bankBook.totalInflows),'','']);
+            rows.push(['Withdrawals','','','','','',money(bankBook.totalOutflows),'']);
+            rows.push(['Closing','','','','','','',money(bankBook.closingBalance)]);
+            downloadCsv('institution-bank-book-' + $('bankBookFrom').value + '-' + $('bankBookTo').value + '.csv', rows);
         }));
     }
     run(loadAccounts);

@@ -13,6 +13,7 @@
         {
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#incomePanel">Income Statement</button></li>
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#balancePanel">Balance Sheet</button></li>
+            <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#bankBookPanel">Bank Book</button></li>
         }
     </ul>
     <div class="tab-content">
@@ -76,6 +77,28 @@
                         <tr><th colspan="2">Posted equity</th><th id="balanceEquity" class="text-end"></th></tr>
                         <tr><th colspan="2">Unclosed net surplus / (deficit)</th><th id="balanceSurplus" class="text-end"></th></tr>
                         <tr><th colspan="2">Liabilities + equity + unclosed surplus</th><th id="balanceRight" class="text-end"></th></tr>
+                    </tfoot>
+                </table></div>
+            </div>
+
+            <div class="tab-pane fade" id="bankBookPanel">
+                <p class="text-muted">BDT bank-ledger movements from posted institutional journals, including reversal entries. Bank accounts must have a unique asset-ledger mapping; this is not a classified cash-flow statement.</p>
+                <form id="bankBookForm" class="row g-2 align-items-end mb-3">
+                    <div class="col-md-4"><label class="form-label" for="bankBookAccount">Bank account</label><select id="bankBookAccount" class="form-select" required><option value="">Loading banks...</option></select></div>
+                    <div class="col-md-2"><label class="form-label" for="bankBookFrom">From</label><input id="bankBookFrom" type="date" class="form-control" required /></div>
+                    <div class="col-md-2"><label class="form-label" for="bankBookTo">To</label><input id="bankBookTo" type="date" class="form-control" required /></div>
+                    <div class="col-md-2"><button id="bankBookRun" class="btn btn-primary" type="submit">Run Bank Book</button></div>
+                    <div class="col-md-2"><button id="bankBookCsv" class="btn btn-outline-secondary" type="button" disabled>Export CSV</button></div>
+                </form>
+                <strong id="bankBookTitle"></strong>
+                <div class="table-responsive"><table class="table table-sm table-striped">
+                    <thead><tr><th>Date</th><th>Journal</th><th>Source</th><th>Reference</th><th>Description</th><th class="text-end">Deposit</th><th class="text-end">Withdrawal</th><th class="text-end">Balance</th></tr></thead>
+                    <tbody id="bankBookRows"></tbody>
+                    <tfoot>
+                        <tr><th colspan="7">Opening balance</th><th id="bankBookOpening" class="text-end"></th></tr>
+                        <tr><th colspan="7">Total deposits</th><th id="bankBookInflows" class="text-end"></th></tr>
+                        <tr><th colspan="7">Total withdrawals</th><th id="bankBookOutflows" class="text-end"></th></tr>
+                        <tr><th colspan="7">Closing balance</th><th id="bankBookClosing" class="text-end"></th></tr>
                     </tfoot>
                 </table></div>
             </div>

@@ -218,3 +218,32 @@ public sealed class BalanceSheetDto
     public decimal UnclosedNetSurplus { get; set; }
     public decimal TotalLiabilitiesAndEquity { get; set; }
 }
+
+public sealed class BankBookLineDto
+{
+    public DateOnly Date { get; set; }
+    public string JournalNumber { get; set; } = string.Empty;
+    public string? SourceType { get; set; }
+    public string? ReferenceNumber { get; set; }
+    public string? Description { get; set; }
+    public decimal DebitAmount { get; set; }
+    public decimal CreditAmount { get; set; }
+    public decimal RunningBalance { get; set; }
+}
+
+public sealed class BankBookDto
+{
+    public long BankAccountId { get; set; }
+    public long LedgerAccountId { get; set; }
+    public string BankName { get; set; } = string.Empty;
+    public string LedgerAccountCode { get; set; } = string.Empty;
+    public string LedgerAccountName { get; set; } = string.Empty;
+    public string CurrencyCode { get; set; } = "BDT";
+    public DateOnly FromDate { get; set; }
+    public DateOnly ToDate { get; set; }
+    public decimal OpeningBalance { get; set; }
+    public decimal TotalInflows { get; set; }
+    public decimal TotalOutflows { get; set; }
+    public decimal ClosingBalance { get; set; }
+    public IReadOnlyList<BankBookLineDto> Entries { get; set; } = Array.Empty<BankBookLineDto>();
+}

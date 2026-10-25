@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EduOS.Service.Services.Accounting;
 
-public sealed class AccountingReportingService : IAccountingReportingService
+public sealed partial class AccountingReportingService : IAccountingReportingService
 {
     private readonly EduOSDbContext db;
     private readonly ICurrentUserService user;
