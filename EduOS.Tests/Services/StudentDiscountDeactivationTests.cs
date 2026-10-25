@@ -7,6 +7,7 @@ using EduOS.Service.Services.Finance;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 using Xunit;
 
 namespace EduOS.Tests.Services;
@@ -111,6 +112,9 @@ public sealed class StudentDiscountDeactivationTests
     {
         var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
         accessor.HttpContext.Items["TenantId"] = 41L;
+        // DbContext derives audit actor from the authenticated HTTP principal, not ICurrentUserService.
+        accessor.HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity(
+            new[] { new Claim(ClaimTypes.NameIdentifier, "9"), new Claim(ClaimTypes.Role, "TenantAdmin") }, "Test"));
         return new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase("discount-deactivation-" + Guid.NewGuid().ToString("N")).Options, accessor);
     }
