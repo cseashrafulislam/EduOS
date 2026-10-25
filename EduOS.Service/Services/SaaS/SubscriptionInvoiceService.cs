@@ -48,6 +48,43 @@ namespace EduOS.Service.Services.SaaS
             }
         }
 
+
+        /// <summary>Tenant-scoped invoice history with stable server-side paging and optional state filtering.</summary>
+        public async Task<ApiResponse<PagedResult<SubscriptionInvoiceDto>>> GetPageAsync(
+            int page, int pageSize, InvoiceState? state = null, CancellationToken ct = default)
+        {
+            if (!_currentUser.IsAuthenticated || _currentUser.TenantId <= 0)
+                return ApiResponse<PagedResult<SubscriptionInvoiceDto>>.ErrorResponse("Tenant access required.", 403);
+            if (page < 1 || pageSize < 1 || pageSize > 100 ||
+                (long)(page - 1) * pageSize > int.MaxValue ||
+                (state.HasValue && !Enum.IsDefined(state.Value)))
+                return ApiResponse<PagedResult<SubscriptionInvoiceDto>>.ErrorResponse("Invalid invoice history filters.", 400);
+            try
+            {
+                var tenantId = _currentUser.TenantId;
+                var result = state.HasValue
+                    ? await _invoiceRepo.GetByStateAsync(tenantId, state.Value, page, pageSize, ct)
+                    : await _invoiceRepo.GetByTenantAsync(tenantId, page, pageSize, ct);
+                return ApiResponse<PagedResult<SubscriptionInvoiceDto>>.SuccessResponse(
+                    new PagedResult<SubscriptionInvoiceDto>
+                    {
+                        Items = _mapper.Map<List<SubscriptionInvoiceDto>>(result.Items),
+                        TotalCount = result.TotalCount,
+                        Page = page,
+                        PageSize = pageSize
+                    });
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to load paged subscription invoices");
+                return ApiResponse<PagedResult<SubscriptionInvoiceDto>>.ErrorResponse("Failed to load invoices", 500);
+            }
+        }
+
         public async Task<ApiResponse<SubscriptionInvoiceDto>> GetByIdAsync(long invoiceId)
         {
             try

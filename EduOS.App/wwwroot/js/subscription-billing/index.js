@@ -5,7 +5,7 @@ if(!root)return;
 const status={1:"Trial",2:"Active",3:"Grace",4:"Suspended",5:"Cancelled",6:"Expired",7:"Pending payment"};
 const invoiceStatus={1:"Draft",2:"Issued",3:"Partially paid",4:"Paid",5:"Cancelled",6:"Refunded"};
 const paymentStatus={1:"Initiated",2:"Awaiting verification",3:"Successful",4:"Failed",5:"Cancelled",6:"Refunded"};
-const state={current:null,upcoming:null,page:1,pages:1,busy:false,version:0};
+const state={current:null,upcoming:null,page:1,pages:1,invoicePage:1,invoicePages:1,invoiceState:"",invoiceVersion:0,busy:false,version:0};
 const token=root.querySelector('input[name="__RequestVerificationToken"]')?.value ||
  document.querySelector('meta[name="request-verification-token"]')?.content || "";
 function message(text,kind="danger"){const e=$("sbAlert");e.textContent=text;e.className="alert alert-"+kind;}
@@ -146,17 +146,39 @@ function renderHistory(result){
  $("sbPage").textContent="Page "+state.page+" / "+state.pages;
  $("sbPrev").disabled=state.page<=1;$("sbNext").disabled=state.page>=state.pages;
 }
+
+async function refreshInvoices(){
+ const version=++state.invoiceVersion;
+ try{
+  const filter=state.invoiceState?"&state="+encodeURIComponent(state.invoiceState):"";
+  const result=await api("/api/subscription/invoices/paged?page="+state.invoicePage+"&pageSize=10"+filter);
+  if(version!==state.invoiceVersion)return;
+  const pages=Math.max(1,Math.ceil((Number(result?.totalCount)||0)/(Number(result?.pageSize)||10)));
+  if(state.invoicePage>pages){state.invoicePage=pages;return refreshInvoices();}
+  renderInvoices(Array.isArray(result?.items)?result.items:[]);
+  state.invoicePages=pages;
+  $("sbInvoicePage").textContent="Page "+state.invoicePage+" / "+pages+" · "+(Number(result?.totalCount)||0)+" invoices";
+  $("sbInvoicePrev").disabled=state.invoicePage<=1;
+  $("sbInvoiceNext").disabled=state.invoicePage>=pages;
+ }catch(e){if(version===state.invoiceVersion)message(e.message);}
+}
+
 async function refresh(){
  const version=++state.version;
+ const invoiceTask=refreshInvoices();
  try{
-  const [current,invoices,history,lifecycle,upcoming]=await Promise.all([
-   api("/api/subscription/current"),api("/api/subscription/invoices"),
+  const [current,history,lifecycle,upcoming]=await Promise.all([
+   api("/api/subscription/current"),
    api("/api/subscription/history?page="+state.page+"&pageSize=10"),
    api("/api/subscription/lifecycle-status"),api("/api/subscription/upcoming")]);
   if(version!==state.version)return;
-  state.current=current;state.upcoming=upcoming;renderCurrent();renderLifecycle(lifecycle);renderUpcoming();renderInvoices(Array.isArray(invoices)?invoices:[]);renderHistory(history);
+  state.current=current;state.upcoming=upcoming;renderCurrent();renderLifecycle(lifecycle);renderUpcoming();renderHistory(history);
  }catch(e){if(version===state.version)message(e.message);}
+ await invoiceTask;
 }
+$("sbInvoiceState").addEventListener("change",e=>{state.invoiceState=e.target.value;state.invoicePage=1;refreshInvoices();});
+$("sbInvoicePrev").addEventListener("click",()=>{if(state.invoicePage>1){state.invoicePage--;refreshInvoices();}});
+$("sbInvoiceNext").addEventListener("click",()=>{if(state.invoicePage<state.invoicePages){state.invoicePage++;refreshInvoices();}});
 $("sbRefresh").addEventListener("click",refresh);
 $("sbPrev").addEventListener("click",()=>{if(state.page>1){state.page--;refresh();}});
 $("sbNext").addEventListener("click",()=>{if(state.page<state.pages){state.page++;refresh();}});

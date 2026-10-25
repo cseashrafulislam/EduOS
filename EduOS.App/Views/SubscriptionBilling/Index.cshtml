@@ -26,10 +26,27 @@
     <section class="card mb-3"><div class="card-body">
         <h2 class="h5">Invoices</h2>
         <p class="small text-muted">Outstanding renewal invoices can send an in-app payment reminder to active institution owners. Reminders are limited to once per local day; no email, SMS, or payment is initiated.</p>
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+            <label for="sbInvoiceState" class="small mb-0">Invoice status</label>
+            <select id="sbInvoiceState" class="form-select form-select-sm" style="max-width:190px">
+                <option value="">All statuses</option>
+                <option value="2">Issued</option>
+                <option value="3">Partially paid</option>
+                <option value="4">Paid</option>
+                <option value="1">Draft</option>
+                <option value="5">Cancelled</option>
+                <option value="6">Refunded</option>
+            </select>
+        </div>
         <div class="table-responsive"><table class="table table-sm table-striped">
             <thead><tr><th>Invoice</th><th>Date</th><th>Due date</th><th>Total</th><th>Paid</th><th>Outstanding</th><th>Status</th><th>Action</th></tr></thead>
             <tbody id="sbInvoiceRows"></tbody>
         </table></div>
+        <nav class="d-flex align-items-center gap-2 mb-3" aria-label="Invoice history pages">
+            <button id="sbInvoicePrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous invoices</button>
+            <span id="sbInvoicePage" class="small text-muted" aria-live="polite">Page 1</span>
+            <button id="sbInvoiceNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next invoices</button>
+        </nav>
         <div id="sbPayments" aria-live="polite"></div>
     </div></section>
     <section class="card"><div class="card-body">

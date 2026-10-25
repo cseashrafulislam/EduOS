@@ -1,0 +1,32 @@
+'use strict';
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const root=path.resolve(__dirname,'../..');
+const read=p=>fs.readFileSync(path.join(root,p),'utf8');
+test('invoice history is tenant-scoped, bounded and uses existing invoice repository',()=>{
+ const service=read('EduOS.Service/Services/SaaS/SubscriptionInvoiceService.cs');
+ const iface=read('EduOS.Core/Interfaces/IServices/ISubscriptionInvoiceService.cs');
+ const api=read('EduOS.App/Controllers/Api/SubscriptionController.cs');
+ assert.match(service,/!_currentUser\.IsAuthenticated \|\| _currentUser\.TenantId <= 0/);
+ assert.match(service,/pageSize > 100/);
+ assert.match(service,/GetByTenantAsync\(tenantId, page, pageSize, ct\)/);
+ assert.match(service,/GetByStateAsync\(tenantId, state\.Value, page, pageSize, ct\)/);
+ assert.match(iface,/GetPageAsync\(int page, int pageSize/);
+ assert.match(api,/HttpGet\("invoices\/paged"\)/);
+ assert.match(api,/GetPageAsync\(page, pageSize, state, ct\)/);
+});
+test('invoice history UI supports independent paging and status filters',()=>{
+ const view=read('EduOS.App/Views/SubscriptionBilling/Index.cshtml');
+ const js=read('EduOS.App/wwwroot/js/subscription-billing/index.js');
+ for(const id of ['sbInvoiceState','sbInvoicePrev','sbInvoiceNext','sbInvoicePage'])assert.ok(view.includes(id));
+ assert.match(js,/api\("\/api\/subscription\/invoices\/paged\?page="/);
+ assert.match(js,/invoicePage:1/);
+ assert.match(js,/invoiceVersion:0/);
+ assert.match(js,/invoiceState=e\.target\.value/);
+ assert.match(js,/renderInvoices\(Array\.isArray\(result\?\.items\)/);
+ assert.ok(js.includes('credentials:"same-origin"'));
+ assert.ok(!js.includes('innerHTML'));
+ new Function(js);
+});

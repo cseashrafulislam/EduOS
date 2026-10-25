@@ -1,4 +1,5 @@
 using EduOS.Core.DTOs.SaaS;
+using EduOS.Core.Enums.Domain;
 using EduOS.Service.Services.SaaS;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
@@ -90,6 +91,16 @@ public sealed class SubscriptionController : ControllerBase
     public async Task<IActionResult> GetInvoices()
     {
         var response = await _invoices.GetMyInvoicesAsync();
+        return StatusCode(response.StatusCode, response);
+    }
+
+
+    [HttpGet("invoices/paged")]
+    public async Task<IActionResult> GetInvoicePage(
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 10,
+        [FromQuery] InvoiceState? state = null, CancellationToken ct = default)
+    {
+        var response = await _invoices.GetPageAsync(page, pageSize, state, ct);
         return StatusCode(response.StatusCode, response);
     }
 
