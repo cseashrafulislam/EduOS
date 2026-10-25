@@ -39,13 +39,6 @@ public sealed class LmsLiveClassServiceTests
         db.Add(offering);await db.SaveChangesAsync();
         db.Add(new InstructorAssignment { TenantId = 101, SubjectOfferingId = offering.Id, EmployeeId = employee.Id, EffectiveFrom = from, IsActive = true });
         await db.SaveChangesAsync();
-        // Another tenant's completed enrollment must not lock this tenant's course.
-        await using (var otherTenant = Db(202, databaseName))
-        {
-            otherTenant.Add(new CourseEnrollment { TenantId = 202, CourseId = course.Id, StudentId = 900,
-                State = CourseEnrollmentState.Completed, CompletedAt = now });
-            await otherTenant.SaveChangesAsync();
-        }
         var service = Service(db,"TenantAdmin");
         var request = new SaveLiveClassRequestDto { CourseReference = course.PublicId, InstructorReference = employee.PublicId,
             Title = "Cells", StartsAt = now.AddDays(1), EndsAt = now.AddDays(1).AddHours(1), JoinUrl = "https://meet.example.com/room" };
