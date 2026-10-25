@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EduOS.App.Controllers;
 
-[Authorize(Roles = "TenantAdmin")]
+[Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,Student,Guardian,Parent")]
 [RequireModule("ACADEMIC")]
 public sealed class StudentSubjectsController : Controller
 {
