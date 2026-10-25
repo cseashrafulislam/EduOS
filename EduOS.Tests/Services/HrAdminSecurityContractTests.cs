@@ -13,10 +13,11 @@ namespace EduOS.Tests.Services;
 public sealed class HrAdminSecurityContractTests
 {
     [Fact]
-    public void Hr_service_implements_all_thirteen_canonical_contract_members()
+    public void Hr_service_implements_all_current_canonical_contract_members()
     {
         var contract = typeof(IHrAdminService);
-        contract.GetMethods().Should().HaveCount(13);
+        contract.GetMethods().Should().HaveCount(14);
+        contract.GetMethod(nameof(IHrAdminService.GetCampusAssignmentsAsync)).Should().NotBeNull();
         typeof(HrAdminService).GetInterfaces().Should().Contain(contract);
         contract.GetMethod(nameof(IHrAdminService.SaveBankAccountAsync))!
             .GetParameters()[1].ParameterType.Should().Be(typeof(SaveEmployeeBankAccountRequestDto));
