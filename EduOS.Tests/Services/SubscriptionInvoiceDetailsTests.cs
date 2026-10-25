@@ -57,6 +57,7 @@ public sealed class SubscriptionInvoiceDetailsTests
         Assert.Equal(2m, line.Quantity);
         Assert.Equal(17.50m, line.UnitPrice);
         Assert.Equal(35m, line.Amount);
+        repo.Verify(x => x.GetByIdForSystemAsync(15, 42, It.IsAny<CancellationToken>()), Times.Once);
         repo.Verify(x => x.GetLinesForInvoiceAsync(42, 15, It.IsAny<CancellationToken>()), Times.Once);
         repo.VerifyNoOtherCalls();
     }
@@ -69,6 +70,7 @@ public sealed class SubscriptionInvoiceDetailsTests
             .ReturnsAsync((SubscriptionInvoice?)null);
         var result = await Service(repo, User()).GetByIdAsync(15);
         Assert.Equal(404, result.StatusCode);
+        repo.Verify(x => x.GetByIdForSystemAsync(15, 42, It.IsAny<CancellationToken>()), Times.Once);
         repo.Verify(x => x.GetLinesForInvoiceAsync(It.IsAny<long>(), It.IsAny<long>(),
             It.IsAny<CancellationToken>()), Times.Never);
         repo.VerifyNoOtherCalls();
@@ -88,6 +90,8 @@ public sealed class SubscriptionInvoiceDetailsTests
         var result = await Service(repo, User(0, true), mapper).GetByIdAsync(22);
         Assert.True(result.Success);
         Assert.Empty(result.Data!.Lines);
+        repo.Verify(x => x.GetByIdForPlatformAsync(22, It.IsAny<CancellationToken>()), Times.Once);
+        repo.Verify(x => x.GetLinesForInvoiceAsync(77, 22, It.IsAny<CancellationToken>()), Times.Once);
         repo.VerifyNoOtherCalls();
     }
 
