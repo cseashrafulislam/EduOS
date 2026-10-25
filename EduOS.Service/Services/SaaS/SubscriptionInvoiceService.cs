@@ -85,20 +85,33 @@ namespace EduOS.Service.Services.SaaS
             }
         }
 
+        /// <summary>Read the historical invoice and its tenant-scoped persisted line items without changing amounts.</summary>
         public async Task<ApiResponse<SubscriptionInvoiceDto>> GetByIdAsync(long invoiceId)
         {
+            if (!_currentUser.IsAuthenticated || (!_currentUser.IsSuperAdmin && _currentUser.TenantId <= 0))
+                return ApiResponse<SubscriptionInvoiceDto>.ErrorResponse("Tenant access required.", 403);
+            if (invoiceId <= 0)
+                return ApiResponse<SubscriptionInvoiceDto>.ErrorResponse("Invalid invoice id.", 400);
             try
             {
                 var invoice = _currentUser.IsSuperAdmin
                     ? await _invoiceRepo.GetByIdForPlatformAsync(invoiceId)
-                    : await _invoiceRepo.GetByIdAsync(invoiceId);
-                if (invoice == null ||
-                    (invoice.TenantId != _currentUser.TenantId && !_currentUser.IsSuperAdmin))
-                {
+                    : await _invoiceRepo.GetByIdForSystemAsync(invoiceId, _currentUser.TenantId);
+                if (invoice == null || invoice.IsDeleted ||
+                    (!_currentUser.IsSuperAdmin && invoice.TenantId != _currentUser.TenantId))
                     return ApiResponse<SubscriptionInvoiceDto>.ErrorResponse("Invoice not found", 404);
-                }
 
+                // Always scope child rows to the invoice's persisted tenant, including for platform administrators.
+                var lines = await _invoiceRepo.GetLinesForInvoiceAsync(invoice.TenantId, invoice.Id);
                 var dto = _mapper.Map<SubscriptionInvoiceDto>(invoice);
+                dto.Lines = lines.Select(x => new SubscriptionInvoiceLineDto
+                {
+                    Id = x.Id,
+                    Description = x.Description,
+                    Quantity = x.Quantity,
+                    UnitPrice = x.UnitPrice,
+                    Amount = x.Amount
+                }).ToList();
                 return ApiResponse<SubscriptionInvoiceDto>.SuccessResponse(dto);
             }
             catch (Exception ex)
