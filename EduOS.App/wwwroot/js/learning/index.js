@@ -2,7 +2,7 @@
 'use strict';
 const root=document.getElementById('learningApp');if(!root)return;
 const $=id=>document.getElementById(id),author=root.dataset.author==='true',student=root.dataset.student==='true',manager=root.dataset.manager==='true';
-const state={courses:[],detail:null,programs:[],subjects:[],page:1,pages:1,editingCourse:null,editingLesson:null,editingAssignment:null,loadId:0,reviewPage:1,reviewPages:1,reviewLoadId:0,authoringLocked:true};
+const state={courses:[],detail:null,programs:[],subjects:[],page:1,pages:1,editingCourse:null,editingLesson:null,editingAssignment:null,loadId:0,reviewPage:1,reviewPages:1,reviewLoadId:0,authoringLocked:true,includeArchived:false};
 const opt=(value,label)=>{const x=document.createElement('option');x.value=String(value);x.textContent=label;return x;};
 const cell=value=>{const x=document.createElement('td');x.textContent=value==null?'':String(value);return x;};
 const notice=(type,message)=>{const x=$('learningAlert');x.className='alert alert-'+type;x.textContent=message;x.focus();};
@@ -24,9 +24,9 @@ function select(id,items,placeholder){
 function button(label,fn){const b=document.createElement('button');b.type='button';b.className='btn btn-sm btn-outline-primary';b.textContent=label;b.onclick=fn;return b;}
 async function courses(){
  const old=$('learningCourse').value,request=++state.loadId;
- try{const data=await api('/api/lms/courses?page='+state.page+'&pageSize=20');if(request!==state.loadId)return;
+ try{const data=await api('/api/lms/courses?page='+state.page+'&pageSize=20'+(student&&state.includeArchived?'&includeArchived=true':''));if(request!==state.loadId)return;
   state.courses=data?.items||[];state.pages=Math.max(1,data?.totalPages||1);
-  select('learningCourse',state.courses.map(x=>({id:x.reference,name:x.title+' — '+(x.subjectName||x.code)})),'Select course');
+  select('learningCourse',state.courses.map(x=>({id:x.reference,name:(x.isActive?'':'[Archived] ')+x.title+' — '+(x.subjectName||x.code)})),'Select course');
   if(state.courses.some(x=>x.reference===old))$('learningCourse').value=old;
   $('learningCoursePage').textContent='Page '+state.page+' / '+state.pages;
   $('learningCoursePrev').disabled=state.page<=1;$('learningCourseNext').disabled=state.page>=state.pages;
@@ -89,6 +89,10 @@ async function load(){
  }catch(e){if(request!==state.loadId)return;state.detail=null;render();notice('danger',e.message);}
 }
 function render(){
+ if(student){
+  const archived=!!state.detail?.course&&!state.detail.course.isActive;
+  $('learningHistoricalNotice').classList.toggle('d-none',!archived);
+ }
  const locked=author&&state.authoringLocked;
  if(author){
   const banner=$('learningAuthoringLock');
@@ -104,7 +108,7 @@ function render(){
   if(x.contentUrl){try{const url=new URL(x.contentUrl);if(['http:','https:'].includes(url.protocol)){
    const a=document.createElement('a');a.href=url.href;a.target='_blank';a.rel='noopener noreferrer';a.textContent=' Resource';content.append(a);
   }}catch{}}
-  if(student)action.append(button('Mark completed',()=>complete(x)));
+  if(student&&state.detail?.course?.isActive)action.append(button('Mark completed',()=>complete(x)));
   if(author&&!locked)action.append(button('Edit',()=>editLesson(x)));
   tr.append(cell(x.displayOrder),cell(x.title),content,action);lessons.append(tr);
  }
@@ -214,6 +218,19 @@ async function complete(lesson){
  try{await api('/api/lms/lessons/progress','POST',{lessonReference:lesson.reference,progressPercent:100,isCompleted:true});
   notice('success','Lesson progress saved.');
  }catch(e){notice('danger',e.message);}
+}
+if(student){
+ $('learningIncludeArchived').addEventListener('change',e=>{
+  state.includeArchived=!!e.target.checked;state.page=1;courses();
+ });
+ $('learningHistoricalExport').addEventListener('click',()=>{
+  const rows=[['Code','Title','Program','Subject','Status'],...state.courses.map(x=>[
+   x.code,x.title,x.academicProgramName||'',x.subjectName||'',x.isActive?'Active':'Archived'])];
+  const csv=rows.map(row=>row.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');
+  const url=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
+  const a=document.createElement('a');a.href=url;a.download='my-lms-courses-page-'+state.page+'.csv';
+  a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+ });
 }
 $('learningRefresh').addEventListener('click',()=>courses());
 $('learningCourse').addEventListener('change',()=>load());

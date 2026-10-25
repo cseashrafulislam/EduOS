@@ -99,9 +99,9 @@ public sealed class LmsWorkflowController : ControllerBase
 
     [HttpGet("courses")]
     public async Task<IActionResult> GetMyCourses([FromQuery] int page = 1, [FromQuery] int pageSize = 20,
-        CancellationToken ct = default)
+        [FromQuery] bool includeArchived = false, CancellationToken ct = default)
     {
-        var result = await _service.GetMyCoursesAsync(page, pageSize, ct);
+        var result = await _service.GetMyCoursesAsync(page, pageSize, ct, includeArchived);
         return StatusCode(result.StatusCode, result);
     }
 

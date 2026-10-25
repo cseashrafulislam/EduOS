@@ -15,7 +15,7 @@ public interface ILmsWorkflowService
     Task<ApiResponse<AssignmentDto>> SaveAssignmentAsync(Guid? assignmentReference, SaveAssignmentRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<CourseEnrollmentDto>> EnrollStudentAsync(EnrollCourseRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<AcademicInstructorChoiceDto>>> SearchInstructorsAsync(string search, int take = 20, CancellationToken cancellationToken = default);
-    Task<ApiResponse<PagedResult<CourseDto>>> GetMyCoursesAsync(int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<CourseDto>>> GetMyCoursesAsync(int page, int pageSize, CancellationToken cancellationToken = default, bool includeArchived = false);
     Task<ApiResponse<CourseDetailsDto>> GetCourseDetailsAsync(Guid courseReference, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<MyAssignmentWorkDto>>> GetMyAssignmentWorkAsync(int page, int pageSize, string? search, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<AssignmentSubmissionFileDto>>> GetSubmissionFilesAsync(long submissionId, CancellationToken cancellationToken = default);

@@ -365,13 +365,13 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
     }
 
     public async Task<ApiResponse<PagedResult<CourseDto>>> GetMyCoursesAsync(int page, int pageSize,
-        CancellationToken ct = default)
+        CancellationToken ct = default, bool includeArchived = false)
     {
         if (!Authenticated()) return Error<PagedResult<CourseDto>>("Authentication required.", 403);
         if (page < 1 || pageSize is < 1 or > 100)
             return Error<PagedResult<CourseDto>>("Invalid page or page size.");
         var q = _courses.GetQueryable().AsNoTracking().Where(x =>
-            x.TenantId == _user.TenantId && x.IsActive && !x.IsDeleted);
+            x.TenantId == _user.TenantId && !x.IsDeleted);
         if (!IsManager())
         {
             if (_user.IsInRole("Student"))
@@ -379,19 +379,23 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
                 var studentId = await OwnStudentIdAsync(ct);
                 if (studentId == 0) return ApiResponse<PagedResult<CourseDto>>.SuccessResponse(EmptyPage<CourseDto>(page, pageSize));
                 var ids = _enrollments.GetQueryable().AsNoTracking().Where(x =>
-                    x.TenantId == _user.TenantId && x.StudentId == studentId &&
+                    x.TenantId == _user.TenantId && x.StudentId == studentId && !x.IsDeleted &&
                     (x.State == CourseEnrollmentState.Active || x.State == CourseEnrollmentState.Completed))
                     .Select(x => x.CourseId);
-                q = q.Where(x => ids.Contains(x.Id));
+                var archivedIds = includeArchived
+                    ? await HistoricalCourseIdsAsync(studentId, ct) : Array.Empty<long>();
+                q = q.Where(x => (x.IsActive && ids.Contains(x.Id)) ||
+                    (!x.IsActive && archivedIds.Contains(x.Id)));
             }
             else if (_user.IsInRole("Teacher"))
             {
                 var teacherId = await OwnTeacherIdAsync(ct);
                 if (teacherId == 0) return ApiResponse<PagedResult<CourseDto>>.SuccessResponse(EmptyPage<CourseDto>(page, pageSize));
-                q = q.Where(x => x.PrimaryInstructorEmployeeId == teacherId);
+                q = q.Where(x => x.IsActive && x.PrimaryInstructorEmployeeId == teacherId);
             }
             else return Error<PagedResult<CourseDto>>("LMS permission required.", 403);
         }
+        else q = q.Where(x => x.IsActive);
         var total = await q.CountAsync(ct);
         var skip = (long)(page - 1) * pageSize;
         if (skip > int.MaxValue) return Error<PagedResult<CourseDto>>("Page is outside the allowed range.");
@@ -683,10 +687,14 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
     private async Task<bool> CanViewAsync(Course course, CancellationToken ct)
     {
         if (await CanEditAsync(course, ct)) return true;
-        if (!_user.IsInRole("Student") || !course.IsActive) return false;
+        if (!_user.IsInRole("Student")) return false;
         var id = await OwnStudentIdAsync(ct);
-        return id > 0 && await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x =>
+        if (id <= 0) return false;
+        if (!course.IsActive)
+            return (await HistoricalCourseIdsAsync(id, ct)).Contains(course.Id);
+        return await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x =>
             x.TenantId == _user.TenantId && x.CourseId == course.Id && x.StudentId == id &&
+            !x.IsDeleted &&
             (x.State == CourseEnrollmentState.Active || x.State == CourseEnrollmentState.Completed), ct);
     }
 
