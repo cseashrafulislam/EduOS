@@ -164,6 +164,16 @@
                 <button type="submit" class="btn btn-outline-primary">Search</button>
                 <button id="hostelRoomInventoryCsv" type="button" class="btn btn-outline-secondary" disabled>Export filtered rooms (CSV)</button>
             </form>
+            <form id="hostelRoomRenameForm" class="row g-2 mb-3 border rounded p-3 d-none" aria-labelledby="hostelRoomRenameTitle">
+                <div class="col-12"><h4 id="hostelRoomRenameTitle" class="h6">Correct room number</h4>
+                    <p id="hostelRoomRenameContext" class="small text-muted mb-0"></p>
+                    <p class="small text-muted">Correct the physical room label without moving beds, changing rent, or recreating reservations.</p></div>
+                <div class="col-md-8"><label for="hostelRoomRenameNumber" class="form-label">Room number</label>
+                    <input id="hostelRoomRenameNumber" class="form-control" maxlength="50" required autocomplete="off" /></div>
+                <div class="col-md-4 d-flex gap-2 align-items-end">
+                    <button id="hostelRoomRenameSave" type="submit" class="btn btn-primary">Save number</button>
+                    <button id="hostelRoomRenameCancel" type="button" class="btn btn-outline-secondary">Cancel</button></div>
+            </form>
             <div id="hostelRoomInventoryStatus" role="status" aria-live="polite" class="small text-muted"></div>
             <div class="table-responsive"><table class="table table-sm table-hover">
                 <thead><tr><th>Hostel</th><th>Room</th><th>Capacity</th><th>Active beds</th><th>Occupied today</th><th>Active reservations</th><th>Status</th><th>Action</th></tr></thead>

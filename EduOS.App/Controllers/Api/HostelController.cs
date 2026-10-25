@@ -73,6 +73,11 @@ public sealed class HostelController : ControllerBase
             "text/csv; charset=utf-8", "hostel-room-inventory.csv");
     }
 
+    [HttpPut("rooms/{id:long}/number")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    public async Task<IActionResult> RenameRoom(long id, [FromBody] RenameHostelRoomRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.RenameRoomAsync(id, request, ct));
+
     [HttpPut("rooms/{id:long}/capacity")]
     [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
     public async Task<IActionResult> SetRoomCapacity(long id, [FromBody] SetHostelRoomCapacityRequestDto request, CancellationToken ct) =>

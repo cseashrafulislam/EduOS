@@ -6,6 +6,9 @@
     const prev = byId('hostelRoomInventoryPrev'), next = byId('hostelRoomInventoryNext');
     const search = byId('hostelRoomInventorySearch'), campus = byId('hostelRoomInventoryCampus');
     const exportButton = byId('hostelRoomInventoryCsv');
+    const renameForm = byId('hostelRoomRenameForm'), renameInput = byId('hostelRoomRenameNumber');
+    const renameSave = byId('hostelRoomRenameSave');
+    let pendingRename = null;
     let page = 1, totalPages = 1, generation = 0, busy = false, loadedFilter = null;
     function filters(includePage = true) {
         const params = new URLSearchParams(includePage ? { page: String(page), pageSize: '25' } : {});
@@ -28,6 +31,37 @@
         const result = await response.json().catch(() => null);
         if (!response.ok || !result?.success) throw new Error(result?.message || 'Hostel request failed.');
         return result.data;
+    }
+    function dismissRename() {
+        pendingRename = null;
+        renameForm.classList.add('d-none');
+        renameInput.value = '';
+    }
+    function beginRename(item) {
+        if (busy) return;
+        pendingRename = { id: item.id, rowVersion: item.rowVersion, roomNumber: item.roomNumber };
+        byId('hostelRoomRenameContext').textContent = item.hostelName + ' / ' + item.roomNumber;
+        renameInput.value = item.roomNumber;
+        renameForm.classList.remove('d-none');
+        renameInput.focus();
+    }
+    async function submitRename(event) {
+        event.preventDefault();
+        if (busy || !pendingRename || !renameForm.reportValidity()) return;
+        const roomNumber = renameInput.value.trim();
+        if (!roomNumber || roomNumber.length > 50 || /[\\x00-\\x1f\\x7f]/.test(roomNumber)) {
+            notify('Enter a valid room number (1–50 characters, no control characters).', true); return;
+        }
+        const target = pendingRename;
+        busy = true; renameSave.disabled = true; controls();
+        try {
+            await request('/api/hostel/rooms/' + encodeURIComponent(target.id) + '/number', 'PUT',
+                { roomNumber, rowVersion: target.rowVersion });
+            dismissRename();
+            await load();
+            notify('Room number updated. Existing bed and reservation identities are unchanged.');
+        } catch (error) { notify(error.message, true); }
+        finally { busy = false; renameSave.disabled = false; controls(); }
     }
     function controls() {
         prev.disabled = busy || page <= 1; next.disabled = busy || page >= totalPages;
@@ -58,7 +92,11 @@
                         notify('Room state saved.'); await load();
                     } catch (error) { notify(error.message, true); button.disabled = false; }
                 });
-                action.append(button); tr.append(action); rows.append(tr);
+                const rename = document.createElement('button');
+                rename.type = 'button'; rename.className = 'btn btn-outline-primary btn-sm ms-2';
+                rename.textContent = 'Correct number';
+                rename.addEventListener('click', () => beginRename(item));
+                action.append(button, rename); tr.append(action); rows.append(tr);
             }
             if (!data.items?.length) {
                 const tr = document.createElement('tr'), cell = td('No rooms match the filter.');
@@ -70,6 +108,7 @@
         finally { if (current === generation) { busy = false; controls(); } }
     }
     function invalidate() {
+        dismissRename();
         generation++; busy = false; loadedFilter = null; rows.replaceChildren(); totalPages = 1; page = 1;
         notify('Filters changed. Select Search to load updated results.'); controls();
     }
@@ -85,7 +124,9 @@
             }
         } catch (error) { notify(error.message + ' You can still search permitted campuses.', true); }
     }
-    byId('hostelRoomInventoryFilter').addEventListener('submit', event => { event.preventDefault(); page = 1; load(); });
+    renameForm.addEventListener('submit', submitRename);
+    byId('hostelRoomRenameCancel').addEventListener('click', dismissRename);
+    byId('hostelRoomInventoryFilter').addEventListener('submit', event => { event.preventDefault(); dismissRename(); page = 1; load(); });
     search.addEventListener('input', invalidate);
     campus.addEventListener('change', invalidate);
     prev.addEventListener('click', () => { if (!busy && page > 1) { page--; load(); } });
