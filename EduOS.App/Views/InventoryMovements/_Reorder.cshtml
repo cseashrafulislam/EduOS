@@ -1,0 +1,14 @@
+<div class="card mb-3"><div class="card-body">
+    <h3 class="h5">Reorder alerts by stock location</h3>
+    <p class="text-muted">Shows active stock-tracked items at or below their configured reorder level, including items with zero stock. Balances include posted receipts, issues, transfers and reversals; drafts are excluded. This is an alert, not a purchase order.</p>
+    <form id="reorderForm" class="row g-2 align-items-end mb-3">
+        <div class="col-md-5"><label for="reorderLocation" class="form-label">Accessible stock location</label><select id="reorderLocation" class="form-select" required></select></div>
+        <div class="col-md-3"><button id="reorderRun" class="btn btn-primary" type="submit">Check reorder alerts</button></div>
+        <div class="col-md-3"><button id="reorderCsv" class="btn btn-outline-secondary" type="button" disabled>Export CSV</button></div>
+    </form>
+    <div id="reorderSummary" class="mb-2" aria-live="polite"></div>
+    <div class="table-responsive"><table class="table table-sm table-striped">
+        <thead><tr><th>Item code</th><th>Item</th><th>Unit</th><th class="text-end">On hand</th><th class="text-end">Reorder level</th><th class="text-end">Shortfall to level</th></tr></thead>
+        <tbody id="reorderRows"></tbody>
+    </table></div>
+</div></div>
