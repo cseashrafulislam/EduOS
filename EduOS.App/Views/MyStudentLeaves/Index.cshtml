@@ -18,6 +18,7 @@
                     <div class="col-md-6"><label for="myLeaveFrom" class="form-label">From *</label><input type="date" id="myLeaveFrom" class="form-control" required /></div>
                     <div class="col-md-6"><label for="myLeaveTo" class="form-label">To *</label><input type="date" id="myLeaveTo" class="form-control" required /></div>
                     <div class="col-12"><label for="myLeaveReason" class="form-label">Reason *</label><textarea id="myLeaveReason" class="form-control" rows="3" maxlength="2000" required></textarea></div>
+                    <div class="col-12"><label for="myLeaveFile" class="form-label">Supporting document (optional, max 5 MB)</label><input id="myLeaveFile" type="file" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" /><div class="form-text">Scanned private evidence is accessible only to the linked student/guardian and authorized reviewers.</div></div>
                     <div class="col-12"><button id="myLeaveSubmit" type="submit" class="btn btn-primary" disabled>Submit Leave</button></div>
                 </form>
                 <p class="small text-muted mt-3 mb-0">A submitted application requires institutional approval. Approved leave is shown in attendance without automatically posting a mark.</p>
@@ -27,7 +28,7 @@
             <div class="card"><div class="card-body">
                 <h2 class="h5">Leave History</h2>
                 <div class="table-responsive"><table class="table table-sm align-middle">
-                    <thead><tr><th>From</th><th>To</th><th>Reason</th><th>Status</th><th>Review note</th><th>Action</th></tr></thead>
+                    <thead><tr><th>From</th><th>To</th><th>Reason</th><th>Status</th><th>Review note</th><th>Evidence / Action</th></tr></thead>
                     <tbody id="myLeaveRows"><tr><td colspan="6">Select a student.</td></tr></tbody>
                 </table></div>
                 <div id="myLeavePager" class="small text-muted"></div>
