@@ -216,7 +216,8 @@ public sealed class StudentLeaveServiceTests
             FromDate = new DateOnly(2026, 9, 20), ToDate = new DateOnly(2026, 9, 21),
             Reason = "Another request", AttachmentFileId = asset.Id
         });
-        second.StatusCode.Should().Be(409);
+        // The second request ID cannot claim a file bound to the first request.
+        second.StatusCode.Should().Be(404);
         (await db.StudentLeaveApplications.CountAsync()).Should().Be(1);
     }
 
