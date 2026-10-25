@@ -56,7 +56,7 @@ public sealed class IncomeStatementServiceTests
         await using var db = Database();
         SeedAccounts(db);
         Journal(db, 1, JournalState.Posted, 100m, 0m);
-        db.JournalLines.Single(x => x.JournalId == 1 && x.AccountId == 3).CreditAmount = 99m;
+        db.JournalLines.Local.Single(x => x.JournalId == 1 && x.AccountId == 3).CreditAmount = 99m;
         await db.SaveChangesAsync();
         (await Service(db).GetIncomeStatementAsync(From, To)).StatusCode.Should().Be(409);
     }
@@ -67,7 +67,7 @@ public sealed class IncomeStatementServiceTests
         await using var db = Database();
         SeedAccounts(db);
         Journal(db, 1, JournalState.Posted, 100m, 0m);
-        db.JournalLines.Single(x => x.JournalId == 1 && x.AccountId == 3).AccountId = 404;
+        db.JournalLines.Local.Single(x => x.JournalId == 1 && x.AccountId == 3).AccountId = 404;
         await db.SaveChangesAsync();
         (await Service(db).GetIncomeStatementAsync(From, To)).StatusCode.Should().Be(409);
     }
@@ -78,7 +78,7 @@ public sealed class IncomeStatementServiceTests
         await using var db = Database();
         SeedAccounts(db);
         Journal(db, 1, JournalState.Posted, 100m, 0m);
-        db.Journals.Single().CurrencyCode = "USD";
+        db.Journals.Local.Single().CurrencyCode = "USD";
         await db.SaveChangesAsync();
         (await Service(db).GetIncomeStatementAsync(From, To)).StatusCode.Should().Be(409);
     }
