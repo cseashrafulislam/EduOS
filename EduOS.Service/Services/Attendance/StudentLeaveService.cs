@@ -1,5 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Attendance;
+using EduOS.Core.DTOs.Files;
+using EduOS.Core.Entities.Files;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Attendance;
 using EduOS.Core.Entities.Students;
@@ -7,6 +9,9 @@ using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
+using EduOS.Persistence.Context;
+using EduOS.Service.Helpers.Storage;
+using EduOS.Service.Services.Documents;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Data;
@@ -24,6 +29,9 @@ public sealed class StudentLeaveService : IStudentLeaveService
     private readonly IGenericRepository<Guardian> _guardians;
     private readonly IGenericRepository<AcademicYear> _years;
     private readonly IUnitOfWork _uow;
+    private readonly EduOSDbContext _db;
+    private readonly IDocumentFileService _fileService;
+    private readonly IFileUploadService _storage;
     private readonly ICurrentUserService _user;
     private readonly TimeProvider _clock;
     private readonly ILogger<StudentLeaveService> _logger;
@@ -32,11 +40,13 @@ public sealed class StudentLeaveService : IStudentLeaveService
         IGenericRepository<StudentEnrollment> enrollments, IGenericRepository<Student> students,
         IGenericRepository<StudentGuardian> links, IGenericRepository<Guardian> guardians,
         IGenericRepository<AcademicYear> years, IUnitOfWork uow, ICurrentUserService user,
-        TimeProvider clock, ILogger<StudentLeaveService> logger)
+        TimeProvider clock, ILogger<StudentLeaveService> logger,
+        EduOSDbContext db, IDocumentFileService fileService, IFileUploadService storage)
     {
         _leaves = leaves; _enrollments = enrollments; _students = students;
         _links = links; _guardians = guardians; _years = years;
         _uow = uow; _user = user; _clock = clock; _logger = logger;
+        _db = db; _fileService = fileService; _storage = storage;
     }
 
     public async Task<ApiResponse<PagedResult<StudentLeaveApplicationDto>>> GetApplicationsAsync(
@@ -87,6 +97,65 @@ public sealed class StudentLeaveService : IStudentLeaveService
         });
     }
 
+    /// <summary>Stage a malware-scanned private file for a specific, authorized enrollment.</summary>
+    public async Task<ApiResponse<FileAssetDto>> UploadAttachmentAsync(
+        Guid enrollmentReference, Guid uploadRequestId, PrivateFileUploadDto upload,
+        CancellationToken ct = default)
+    {
+        if (!CanRead()) return Error<FileAssetDto>("Student leave access denied.", 403);
+        if (enrollmentReference == Guid.Empty || uploadRequestId == Guid.Empty || upload == null)
+            return Error<FileAssetDto>("Enrollment, upload request and file are required.");
+        var tenant = _user.TenantId;
+        var enrollment = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.PublicId == enrollmentReference &&
+            x.IsCurrent && x.State == EnrollmentState.Active && !x.IsDeleted, ct);
+        if (enrollment == null || (!CanManage() && !await OwnsEnrollmentAsync(enrollment, ct)))
+            return Error<FileAssetDto>("Active enrollment not found.", 404);
+        if (CanManage()) return await _fileService.UploadForLeaveAsync(uploadRequestId, upload, ct);
+        var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.Id == enrollment.StudentId && !x.IsDeleted, ct);
+        if (student == null) return Error<FileAssetDto>("Student not found.", 404);
+        return await _fileService.UploadPortalAsync(student.PublicId, uploadRequestId, upload, ct);
+    }
+
+    /// <summary>Only a live student/guardian link or authorized reviewer can read this private file.</summary>
+    public async Task<ApiResponse<DocumentFileDownloadDto>> DownloadAttachmentAsync(
+        long applicationId, CancellationToken ct = default)
+    {
+        if (!CanRead()) return Error<DocumentFileDownloadDto>("Student leave access denied.", 403);
+        if (applicationId <= 0) return Error<DocumentFileDownloadDto>("Invalid leave application.");
+        var tenant = _user.TenantId;
+        var leave = await _leaves.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.Id == applicationId && !x.IsDeleted, ct);
+        if (leave?.AttachmentFileId is not long fileId)
+            return Error<DocumentFileDownloadDto>("Attachment not found.", 404);
+        var enrollment = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.Id == leave.StudentEnrollmentId && !x.IsDeleted, ct);
+        if (enrollment == null || (!CanManage() && !await OwnsEnrollmentAsync(enrollment, ct)))
+            return Error<DocumentFileDownloadDto>("Attachment not found.", 404);
+        var file = await _db.FileAssets.AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.Id == fileId && !x.IsDeleted &&
+            x.IsVerifiedSafe && x.MalwareScanStateCode == "Clean" &&
+            x.Visibility == FileVisibility.Private && x.StorageProvider == "LocalPrivate" &&
+            x.SizeBytes > 0 && x.SizeBytes <= 5242880, ct);
+        if (file == null || !DocumentFileService.IsTenantDocumentKey(file.StorageKey, tenant) ||
+            await _db.Documents.AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenant && x.FileAssetId == fileId && !x.IsDeleted, ct) ||
+            await _leaves.GetQueryable().AsNoTracking().CountAsync(x =>
+                x.TenantId == tenant && x.AttachmentFileId == fileId && !x.IsDeleted, ct) != 1)
+            return Error<DocumentFileDownloadDto>("Attachment not found.", 404);
+        var stored = await _storage.GetPrivateFileAsync(file.StorageKey);
+        if (stored == null || stored.Content.LongLength != file.SizeBytes ||
+            !string.Equals(Convert.ToHexString(SHA256.HashData(stored.Content)), file.Sha256,
+                StringComparison.OrdinalIgnoreCase))
+            return Error<DocumentFileDownloadDto>("Attachment integrity check failed.", 409);
+        return ApiResponse<DocumentFileDownloadDto>.SuccessResponse(new DocumentFileDownloadDto
+        {
+            Content = stored.Content, ContentType = file.ContentType,
+            FileName = Path.GetFileName(file.OriginalFileName.Replace('\\', '/'))
+        });
+    }
+
     public async Task<ApiResponse<StudentLeaveApplicationDto>> ApplyAsync(
         CreateStudentLeaveApplicationRequestDto request, CancellationToken ct = default)
     {
@@ -94,8 +163,8 @@ public sealed class StudentLeaveService : IStudentLeaveService
         if (request == null || request.ClientRequestId == Guid.Empty || request.StudentEnrollmentReference == Guid.Empty ||
             request.FromDate == default || request.ToDate < request.FromDate ||
             string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Trim().Length > 2000 ||
-            request.AttachmentFileId.HasValue)
-            return Error<StudentLeaveApplicationDto>("Valid dates, reason and request ID are required. Upload attachments separately.");
+            request.AttachmentFileId is <= 0)
+            return Error<StudentLeaveApplicationDto>("Valid dates, reason, request ID and optional attachment are required.");
         var tenant = _user.TenantId;
         var reason = request.Reason.Trim();
         try
@@ -133,12 +202,29 @@ public sealed class StudentLeaveService : IStudentLeaveService
                     (x.State == LeaveState.Submitted || x.State == LeaveState.Approved) &&
                     x.FromDate <= request.ToDate && x.ToDate >= request.FromDate, token);
                 if (duplicate) return Error<StudentLeaveApplicationDto>("Overlapping pending or approved leave exists.", 409);
+                if (request.AttachmentFileId is long attachmentId)
+                {
+                    // A file can belong to exactly one leave and no other document.
+                    // The caller must be its uploader; a guessed file ID is never sufficient.
+                    var file = await _db.FileAssets.AsNoTracking().FirstOrDefaultAsync(x =>
+                        x.TenantId == tenant && x.Id == attachmentId && !x.IsDeleted &&
+                        x.UploadedByUserId == _user.UserId && x.IsVerifiedSafe &&
+                        x.MalwareScanStateCode == "Clean" && x.Visibility == FileVisibility.Private &&
+                        x.StorageProvider == "LocalPrivate" && x.SizeBytes > 0 && x.SizeBytes <= 5242880, token);
+                    if (file == null || !DocumentFileService.IsTenantDocumentKey(file.StorageKey, tenant))
+                        return Error<StudentLeaveApplicationDto>("Verified private attachment not found.", 404);
+                    if (await _db.Documents.AsNoTracking().AnyAsync(x =>
+                            x.TenantId == tenant && x.FileAssetId == attachmentId && !x.IsDeleted, token) ||
+                        await _leaves.GetQueryable().AsNoTracking().AnyAsync(x =>
+                            x.TenantId == tenant && x.AttachmentFileId == attachmentId && !x.IsDeleted, token))
+                        return Error<StudentLeaveApplicationDto>("Attachment is already in use.", 409);
+                }
                 var now = _clock.GetUtcNow().UtcDateTime;
                 var leave = new StudentLeaveApplication
                 {
                     TenantId = tenant, ClientRequestId = request.ClientRequestId, StudentEnrollmentId = enrollment.Id,
                     FromDate = request.FromDate, ToDate = request.ToDate, Reason = reason,
-                    State = LeaveState.Submitted, CreatedAt = now, CreatedBy = _user.UserId
+                    AttachmentFileId = request.AttachmentFileId, State = LeaveState.Submitted, CreatedAt = now, CreatedBy = _user.UserId
                 };
                 await _leaves.AddAsync(leave);
                 await _uow.SaveChangesAsync(token);
