@@ -135,6 +135,14 @@
                     reschedule.addEventListener('click', () => window.hostelUpcomingStartReschedule?.begin(item));
                     actions.append(reschedule);
                 }
+                if (item.canExtendNoCharge) {
+                    const extend = document.createElement('button');
+                    extend.type = 'button';
+                    extend.className = 'btn btn-outline-success btn-sm ms-2';
+                    extend.textContent = 'Extend no-charge stay';
+                    extend.addEventListener('click', () => window.hostelNoChargeStayExtension?.begin(item));
+                    actions.append(extend);
+                }
                 tr.append(actions); body.append(tr);
             }
             if (!info.items?.length) { const tr = document.createElement('tr'), cell = td('No active allocations.'); cell.colSpan = 6; tr.append(cell); body.append(tr); }
@@ -241,6 +249,9 @@
         el('hostelAllocationSearch').addEventListener('submit', e => { e.preventDefault(); activePage = 1; loadActive(); });
         el('hostelPrev').addEventListener('click', () => { activePage = Math.max(1, activePage - 1); loadActive(); });
         el('hostelNext').addEventListener('click', () => { activePage = Math.min(activePages, activePage + 1); loadActive(); });
+        window.addEventListener('hostel-stay-extended', () => {
+            dismissBedMove(); loadActive(); loadBeds(); loadRooms();
+        });
         window.addEventListener('hostel-start-rescheduled', () => {
             dismissBedMove(); loadActive(); loadBeds(); loadRooms();
         });

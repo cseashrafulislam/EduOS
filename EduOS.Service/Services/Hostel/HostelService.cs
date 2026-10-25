@@ -420,7 +420,8 @@ public sealed partial class HostelService : IHostelService
                         allocation.State == HostelAllocationState.Active &&
                         (!allocation.EndDate.HasValue || allocation.EndDate.Value >= today)
                     select new { allocation.Id, allocation.StudentId, allocation.StudentEnrollmentId, hostel.CampusId,
-                        allocation.StartDate, allocation.EndDate, allocation.RowVersion, student.FullName, student.StudentCode,
+                        allocation.StartDate, allocation.EndDate, allocation.RowVersion, allocation.MonthlyRent,
+                        allocation.SecurityDeposit, allocation.FeeHeadId, student.FullName, student.StudentCode,
                         HostelName = hostel.Name, room.RoomNumber, bed.BedNumber };
         if (!_currentUser.IsTenantAdmin)
         {
@@ -442,6 +443,9 @@ public sealed partial class HostelService : IHostelService
         {
             Id = x.Id, StudentName = x.FullName, HostelName = x.HostelName, RoomNumber = x.RoomNumber,
             BedNumber = x.BedNumber, StartDate = x.StartDate, EndDate = x.EndDate,
+            CanExtendNoCharge = x.MonthlyRent == 0m && x.SecurityDeposit == 0m &&
+                !x.FeeHeadId.HasValue && x.EndDate.HasValue && x.EndDate.Value >= today &&
+                x.EndDate.Value.DayNumber - x.StartDate.DayNumber < 89,
             RowVersion = Convert.ToBase64String(x.RowVersion)
         }).ToList();
         return ApiResponse<PagedResult<HostelAllocationRowDto>>.SuccessResponse(new PagedResult<HostelAllocationRowDto>

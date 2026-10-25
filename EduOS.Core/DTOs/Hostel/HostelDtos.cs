@@ -102,6 +102,7 @@ public class StudentHostelAllocationDto
     public DateOnly? EndDate { get; set; }
     public decimal MonthlyRent { get; set; }
     public HostelAllocationState State { get; set; }
+    public bool CanExtendNoCharge { get; set; }
     public string RowVersion { get; set; } = string.Empty;
 }
 
