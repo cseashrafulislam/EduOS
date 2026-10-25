@@ -5,6 +5,7 @@ using EduOS.Core.Entities.Files;
 using EduOS.Core.Enums.Domain;
 using EduOS.Service.Services.Documents;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using System.Data;
 
 namespace EduOS.Service.Services.Students;
