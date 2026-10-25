@@ -8,10 +8,15 @@ u.renderLinks=items=>{
    const td=document.createElement('td');td.textContent=String(value);tr.append(td);
   }
   const td=document.createElement('td');
-  if(!x.isCancelled && x.isCurrent && x.effectiveFrom>u.today()){
+  if(!x.isCancelled && x.effectiveFrom>u.today()){
    const reschedule=document.createElement('button');reschedule.type='button';
    reschedule.textContent='Reschedule start';reschedule.className='btn btn-outline-primary btn-sm me-1';
    reschedule.addEventListener('click',()=>u.rescheduleUpcomingLink(x));td.append(reschedule);
+  }
+  if(!x.isCancelled && x.effectiveFrom>u.today() && x.effectiveTo){
+   const extend=document.createElement('button');extend.type='button';
+   extend.textContent='Extend scheduled end';extend.className='btn btn-outline-primary btn-sm me-1';
+   extend.addEventListener('click',()=>u.extendUpcomingLink(x));td.append(extend);
   }
   if(!x.isCancelled && x.effectiveFrom>u.today() && Number(x.activeRiders)===0){
    const change=document.createElement('button');change.type='button';
