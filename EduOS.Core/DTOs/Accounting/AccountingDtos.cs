@@ -219,6 +219,35 @@ public sealed class BalanceSheetDto
     public decimal TotalLiabilitiesAndEquity { get; set; }
 }
 
+// Consolidated bank movements, deliberately not an operating/investing/financing cash-flow statement.
+public sealed class BankLiquidityRowDto
+{
+    public long BankAccountId { get; set; }
+    public string BankName { get; set; } = string.Empty;
+    public string LedgerCode { get; set; } = string.Empty;
+    public string LedgerName { get; set; } = string.Empty;
+    public decimal OpeningBalance { get; set; }
+    public decimal ExternalInflows { get; set; }
+    public decimal ExternalOutflows { get; set; }
+    public decimal TransferIn { get; set; }
+    public decimal TransferOut { get; set; }
+    public decimal ClosingBalance { get; set; }
+}
+
+public sealed class BankLiquidityDto
+{
+    public DateOnly FromDate { get; set; }
+    public DateOnly ToDate { get; set; }
+    public string CurrencyCode { get; set; } = "BDT";
+    public IReadOnlyList<BankLiquidityRowDto> Banks { get; set; } = Array.Empty<BankLiquidityRowDto>();
+    public decimal OpeningBalance { get; set; }
+    public decimal ExternalInflows { get; set; }
+    public decimal ExternalOutflows { get; set; }
+    public decimal TransferIn { get; set; }
+    public decimal TransferOut { get; set; }
+    public decimal ClosingBalance { get; set; }
+}
+
 public sealed class BankBookLineDto
 {
     public DateOnly Date { get; set; }

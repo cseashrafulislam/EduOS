@@ -9,7 +9,7 @@ if (root) {
     const notice = (message, error = false) => { const el = $('reportNotice'); el.textContent = message;
         el.className = 'alert ' + (error ? 'alert-danger' : 'alert-success'); };
     const run = async work => { try { await work(); } catch (error) { notice(error.message || 'Report failed.', true); } };
-    const decimalKeys = /("(?:debitAmount|creditAmount|runningBalance|openingBalance|closingBalance|debitBalance|creditBalance|amount|totalIncome|totalExpenses|netSurplus|totalAssets|totalLiabilities|totalEquity|unclosedNetSurplus|totalLiabilitiesAndEquity|totalInflows|totalOutflows)"\s*:\s*)(-?\d+(?:\.\d+)?)/g;
+    const decimalKeys = /("(?:debitAmount|creditAmount|runningBalance|openingBalance|closingBalance|debitBalance|creditBalance|amount|totalIncome|totalExpenses|netSurplus|totalAssets|totalLiabilities|totalEquity|unclosedNetSurplus|totalLiabilitiesAndEquity|totalInflows|totalOutflows|externalInflows|externalOutflows|transferIn|transferOut)"\s*:\s*)(-?\d+(?:\.\d+)?)/g;
     async function get(url) {
         const response = await fetch(url, { credentials:'same-origin', headers:{Accept:'application/json'} });
         const raw = await response.text();
@@ -260,6 +260,48 @@ if (root) {
             rows.push(['Withdrawals','','','','','',money(bankBook.totalOutflows),'']);
             rows.push(['Closing','','','','','','',money(bankBook.closingBalance)]);
             downloadCsv('institution-bank-book-' + $('bankBookFrom').value + '-' + $('bankBookTo').value + '.csv', rows);
+        }));
+    }
+    const bankLiquidityForm = $('bankLiquidityForm');
+    if (bankLiquidityForm) {
+        $('bankLiquidityFrom').value = $('ledgerFrom').value;
+        $('bankLiquidityTo').value = today;
+        let bankLiquidity = null;
+        const fields = ['openingBalance','externalInflows','externalOutflows','transferIn','transferOut','closingBalance'];
+        bankLiquidityForm.addEventListener('submit', event => { event.preventDefault(); run(async () => {
+            const from = $('bankLiquidityFrom').value, to = $('bankLiquidityTo').value;
+            if (!from || !to || from > to) throw new Error('Select a valid bank liquidity period.');
+            $('bankLiquidityRun').disabled = true; $('bankLiquidityCsv').disabled = true; bankLiquidity = null;
+            try {
+                const data = await get('/api/finance/accounting/reports/bank-liquidity?' +
+                    new URLSearchParams({fromDate:from, toDate:to}));
+                const sums = fields.map(() => 0n);
+                const rows = (data.banks || []).map(x => {
+                    const amounts = fields.map(k => cents(x[k]));
+                    if (amounts[0] + amounts[1] - amounts[2] + amounts[3] - amounts[4] !== amounts[5])
+                        throw new Error('A bank liquidity row does not reconcile.');
+                    amounts.forEach((value, index) => { sums[index] += value; });
+                    return '<tr><td>' + esc(x.bankName) + ' — ' + esc(x.ledgerCode) + ' / ' + esc(x.ledgerName) +
+                        '</td>' + amounts.map(v => '<td class="text-end">' + money(v) + '</td>').join('') + '</tr>';
+                });
+                if (fields.some((field, index) => sums[index] !== cents(data[field])) ||
+                    sums[3] !== sums[4] || sums[0] + sums[1] - sums[2] !== sums[5])
+                    throw new Error('Consolidated bank liquidity totals do not reconcile.');
+                $('bankLiquidityRows').innerHTML = rows.join('');
+                ['Opening','ExternalIn','ExternalOut','TransferIn','TransferOut','Closing']
+                    .forEach((name, index) => { $('bankLiquidity' + name).textContent = money(sums[index]); });
+                bankLiquidity = data; $('bankLiquidityCsv').disabled = false;
+                notice('Consolidated bank movements reconciled; this is not a classified cash-flow statement.');
+            } finally { $('bankLiquidityRun').disabled = false; }
+        }); });
+        $('bankLiquidityCsv').addEventListener('click', () => run(async () => {
+            if (!bankLiquidity) return;
+            const rows = [['Bank','Ledger Code','Ledger Name','Opening','External In','External Out','Transfer In','Transfer Out','Closing']];
+            for (const x of bankLiquidity.banks || [])
+                rows.push([x.bankName,x.ledgerCode,x.ledgerName,...fields.map(k => money(x[k]))]);
+            rows.push(['INSTITUTION TOTAL','','',...fields.map(k => money(bankLiquidity[k]))]);
+            downloadCsv('institution-bank-liquidity-' + $('bankLiquidityFrom').value + '-' +
+                $('bankLiquidityTo').value + '.csv', rows);
         }));
     }
     run(loadAccounts);

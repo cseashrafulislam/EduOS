@@ -29,6 +29,10 @@ public sealed class AccountingReportsController : ControllerBase
     [HttpGet("balance-sheet"), Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> BalanceSheet([FromQuery] DateOnly asOfDate, CancellationToken ct)
         => Reply(await service.GetBalanceSheetAsync(asOfDate, ct));
+    [HttpGet("bank-liquidity"), Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> BankLiquidity([FromQuery] DateOnly fromDate,
+        [FromQuery] DateOnly toDate, CancellationToken ct)
+        => Reply(await service.GetBankLiquidityAsync(fromDate, toDate, ct));
     [HttpGet("bank-book/{bankAccountId:long}"), Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> BankBook(long bankAccountId, [FromQuery] DateOnly fromDate,
         [FromQuery] DateOnly toDate, CancellationToken ct)
