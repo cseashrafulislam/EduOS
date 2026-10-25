@@ -22,6 +22,10 @@ public sealed class AccountingReportsController : ControllerBase
     public async Task<IActionResult> Ledger(long accountId, [FromQuery] DateOnly fromDate,
         [FromQuery] DateOnly toDate, CancellationToken ct)
         => Reply(await service.GetLedgerStatementAsync(accountId, fromDate, toDate, ct));
+    [HttpGet("income-statement"), Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> IncomeStatement([FromQuery] DateOnly fromDate,
+        [FromQuery] DateOnly toDate, CancellationToken ct)
+        => Reply(await service.GetIncomeStatementAsync(fromDate, toDate, ct));
     [HttpGet("trial-balance")]
     public async Task<IActionResult> TrialBalance([FromQuery] DateOnly asOfDate, CancellationToken ct)
         => Reply(await service.GetTrialBalanceAsync(asOfDate, ct));

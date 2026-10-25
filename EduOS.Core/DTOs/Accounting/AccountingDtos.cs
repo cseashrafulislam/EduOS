@@ -173,3 +173,24 @@ public class TrialBalanceRowDto
     public decimal DebitBalance { get; set; }
     public decimal CreditBalance { get; set; }
 }
+
+// Signed natural balances preserve contra-income and expense recoveries.
+public sealed class IncomeStatementRowDto
+{
+    public long AccountId { get; set; }
+    public string AccountCode { get; set; } = string.Empty;
+    public string AccountName { get; set; } = string.Empty;
+    public decimal Amount { get; set; }
+}
+
+public sealed class IncomeStatementDto
+{
+    public DateOnly FromDate { get; set; }
+    public DateOnly ToDate { get; set; }
+    public string CurrencyCode { get; set; } = "BDT";
+    public IReadOnlyList<IncomeStatementRowDto> IncomeRows { get; set; } = Array.Empty<IncomeStatementRowDto>();
+    public IReadOnlyList<IncomeStatementRowDto> ExpenseRows { get; set; } = Array.Empty<IncomeStatementRowDto>();
+    public decimal TotalIncome { get; set; }
+    public decimal TotalExpenses { get; set; }
+    public decimal NetSurplus { get; set; }
+}

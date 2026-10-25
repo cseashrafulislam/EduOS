@@ -85,4 +85,65 @@ public sealed class AccountingReportingService : IAccountingReportingService
             return ApiResponse<IReadOnlyList<TrialBalanceRowDto>>.ErrorResponse("Trial balance is not balanced; investigate posted journals.", 409);
         return ApiResponse<IReadOnlyList<TrialBalanceRowDto>>.SuccessResponse(result);
     }
+
+    // Tenant-wide institutional statement. Until campus-scoped accounting reads are formalized,
+    // only TenantAdmin can see the combined result; no SaaS subscription data is queried.
+    public async Task<ApiResponse<IncomeStatementDto>> GetIncomeStatementAsync(DateOnly fromDate, DateOnly toDate, CancellationToken ct = default)
+    {
+        if (!user.IsAuthenticated || user.TenantId <= 0 || !user.IsTenantAdmin)
+            return ApiResponse<IncomeStatementDto>.ErrorResponse("Tenant administrator access required for the institution-wide income statement.", 403);
+        if (!Dates(fromDate, toDate))
+            return ApiResponse<IncomeStatementDto>.ErrorResponse("Valid date range (up to ten years) required.", 400);
+        var journals = Posted.Where(j => j.JournalDate >= fromDate && j.JournalDate <= toDate);
+        if (await journals.AnyAsync(j => j.CurrencyCode != "BDT", ct))
+            return ApiResponse<IncomeStatementDto>.ErrorResponse("Mixed-currency journals cannot be combined without an approved FX policy.", 409);
+        if (await journals.AnyAsync(j => !Lines.Any(l => l.JournalId == j.Id), ct))
+            return ApiResponse<IncomeStatementDto>.ErrorResponse("A posted journal has no lines; reconcile the ledger first.", 409);
+        var entries = from l in Lines
+            join j in journals on l.JournalId equals j.Id
+            select new { j.Id, l.AccountId, l.DebitAmount, l.CreditAmount };
+        var unbalanced = await (from l in entries
+            group l by l.Id into g
+            select new { Debit = g.Sum(x => x.DebitAmount), Credit = g.Sum(x => x.CreditAmount) })
+            .AnyAsync(x => x.Debit != x.Credit, ct);
+        if (unbalanced)
+            return ApiResponse<IncomeStatementDto>.ErrorResponse("An unbalanced posted journal prevents financial reporting.", 409);
+        var balances = await (from l in entries
+            group l by l.AccountId into g
+            select new { AccountId = g.Key, Debit = g.Sum(x => x.DebitAmount), Credit = g.Sum(x => x.CreditAmount) })
+            .ToListAsync(ct);
+        if (balances.Count > 5000)
+            return ApiResponse<IncomeStatementDto>.ErrorResponse("More than 5,000 posting accounts; reporting export integration required.", 422);
+        var accountIds = balances.Select(x => x.AccountId).ToArray();
+        var accounts = await db.Accounts.AsNoTracking()
+            .Where(a => a.TenantId == user.TenantId && !a.IsDeleted && accountIds.Contains(a.Id))
+            .Select(a => new { a.Id, a.Code, a.Name, a.AccountType, a.CurrencyCode }).ToListAsync(ct);
+        if (accounts.Count != balances.Count)
+            return ApiResponse<IncomeStatementDto>.ErrorResponse("Posted ledger contains missing or deleted account references.", 409);
+        if (accounts.Any(a => a.CurrencyCode != "BDT"))
+            return ApiResponse<IncomeStatementDto>.ErrorResponse("A posting account uses a different currency.", 409);
+        var byId = accounts.ToDictionary(a => a.Id);
+        var income = new List<IncomeStatementRowDto>();
+        var expenses = new List<IncomeStatementRowDto>();
+        foreach (var balance in balances.OrderBy(x => byId[x.AccountId].Code).ThenBy(x => x.AccountId))
+        {
+            var account = byId[balance.AccountId];
+            if (account.AccountType != AccountType.Income && account.AccountType != AccountType.Expense) continue;
+            var amount = account.AccountType == AccountType.Income
+                ? balance.Credit - balance.Debit : balance.Debit - balance.Credit;
+            var row = new IncomeStatementRowDto
+            {
+                AccountId = account.Id, AccountCode = account.Code, AccountName = account.Name, Amount = amount
+            };
+            if (account.AccountType == AccountType.Income) income.Add(row);
+            else expenses.Add(row);
+        }
+        var totalIncome = income.Sum(x => x.Amount);
+        var totalExpenses = expenses.Sum(x => x.Amount);
+        return ApiResponse<IncomeStatementDto>.SuccessResponse(new IncomeStatementDto
+        {
+            FromDate = fromDate, ToDate = toDate, IncomeRows = income, ExpenseRows = expenses,
+            TotalIncome = totalIncome, TotalExpenses = totalExpenses, NetSurplus = totalIncome - totalExpenses
+        });
+    }
 }

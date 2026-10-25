@@ -9,7 +9,7 @@ if (root) {
     const notice = (message, error = false) => { const el = $('reportNotice'); el.textContent = message;
         el.className = 'alert ' + (error ? 'alert-danger' : 'alert-success'); };
     const run = async work => { try { await work(); } catch (error) { notice(error.message || 'Report failed.', true); } };
-    const decimalKeys = /("(?:debitAmount|creditAmount|runningBalance|openingBalance|closingBalance|debitBalance|creditBalance)"\s*:\s*)(-?\d+(?:\.\d+)?)/g;
+    const decimalKeys = /("(?:debitAmount|creditAmount|runningBalance|openingBalance|closingBalance|debitBalance|creditBalance|amount|totalIncome|totalExpenses|netSurplus)"\s*:\s*)(-?\d+(?:\.\d+)?)/g;
     async function get(url) {
         const response = await fetch(url, { credentials:'same-origin', headers:{Accept:'application/json'} });
         const raw = await response.text();
@@ -109,5 +109,49 @@ if (root) {
                 ...trial.map(x => [x.accountCode,x.accountName,money(x.debitBalance),money(x.creditBalance)]),
                 ['TOTAL','',$('trialDebit').textContent,$('trialCredit').textContent]]);
     }));
+
+    const incomeForm = $('incomeForm');
+    if (incomeForm) {
+        $('incomeFrom').value = $('ledgerFrom').value;
+        $('incomeTo').value = today;
+        let statement = null;
+        incomeForm.addEventListener('submit', event => { event.preventDefault(); run(async () => {
+            const from = $('incomeFrom').value, to = $('incomeTo').value;
+            if (!from || !to || from > to) throw new Error('Select a valid statement period.');
+            $('incomeRun').disabled = true; $('incomeCsv').disabled = true; statement = null;
+            try {
+                const data = await get('/api/finance/accounting/reports/income-statement?' +
+                    new URLSearchParams({fromDate:from, toDate:to}));
+                let revenue = 0n, expenses = 0n;
+                const section = (label, rows) => '<tr class="table-secondary"><th colspan="3">' + label + '</th></tr>' +
+                    rows.map(x => '<tr><td>' + esc(x.accountCode) + '</td><td>' + esc(x.accountName) +
+                        '</td><td class="text-end">' + money(x.amount) + '</td></tr>').join('');
+                for (const row of data.incomeRows || []) revenue += cents(row.amount);
+                for (const row of data.expenseRows || []) expenses += cents(row.amount);
+                if (revenue !== cents(data.totalIncome) || expenses !== cents(data.totalExpenses) ||
+                    revenue - expenses !== cents(data.netSurplus))
+                    throw new Error('Income statement totals do not reconcile.');
+                $('incomeRows').innerHTML = section('Income', data.incomeRows || []) +
+                    section('Expenses', data.expenseRows || []);
+                $('incomeTotal').textContent = money(revenue);
+                $('expenseTotal').textContent = money(expenses);
+                $('incomeNet').textContent = money(revenue - expenses);
+                statement = data; $('incomeCsv').disabled = false;
+                notice('Institutional income statement loaded and reconciled.');
+            } finally { $('incomeRun').disabled = false; }
+        }); });
+        $('incomeCsv').addEventListener('click', () => run(async () => {
+            if (!statement) return;
+            const rows = [['Section','Account Code','Account Name','Amount BDT']];
+            for (const row of statement.incomeRows || [])
+                rows.push(['Income',row.accountCode,row.accountName,money(row.amount)]);
+            for (const row of statement.expenseRows || [])
+                rows.push(['Expense',row.accountCode,row.accountName,money(row.amount)]);
+            rows.push(['Total Income','','',money(statement.totalIncome)]);
+            rows.push(['Total Expenses','','',money(statement.totalExpenses)]);
+            rows.push(['Net Surplus / Deficit','','',money(statement.netSurplus)]);
+            downloadCsv('institution-income-statement-' + $('incomeFrom').value + '-' + $('incomeTo').value + '.csv', rows);
+        }));
+    }
     run(loadAccounts);
 }

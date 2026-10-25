@@ -9,6 +9,10 @@
     <ul class="nav nav-tabs mb-3">
         <li class="nav-item"><button type="button" class="nav-link active" data-bs-toggle="tab" data-bs-target="#ledgerPanel">General Ledger</button></li>
         <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#trialPanel">Trial Balance</button></li>
+        @if (User.IsInRole("TenantAdmin"))
+        {
+            <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#incomePanel">Income Statement</button></li>
+        }
     </ul>
     <div class="tab-content">
         <div class="tab-pane fade show active" id="ledgerPanel">
@@ -36,6 +40,25 @@
                 <thead><tr><th>Code</th><th>Account</th><th class="text-end">Debit balance</th><th class="text-end">Credit balance</th></tr></thead>
                 <tbody id="trialRows"></tbody><tfoot><tr><th colspan="2">Total</th><th id="trialDebit" class="text-end"></th><th id="trialCredit" class="text-end"></th></tr></tfoot></table></div>
         </div>
+        @if (User.IsInRole("TenantAdmin"))
+        {
+            <div class="tab-pane fade" id="incomePanel">
+                <p class="text-muted">Institution-wide BDT income and expenses from posted institutional journals, including compensating reversals. Contra balances may be negative.</p>
+                <form id="incomeForm" class="row g-2 align-items-end mb-3">
+                    <div class="col-md-3"><label class="form-label" for="incomeFrom">From</label><input id="incomeFrom" type="date" class="form-control" required /></div>
+                    <div class="col-md-3"><label class="form-label" for="incomeTo">To</label><input id="incomeTo" type="date" class="form-control" required /></div>
+                    <div class="col-md-3"><button id="incomeRun" class="btn btn-primary" type="submit">Run Income Statement</button></div>
+                    <div class="col-md-3"><button id="incomeCsv" class="btn btn-outline-secondary" type="button" disabled>Export CSV</button></div>
+                </form>
+                <div class="table-responsive"><table class="table table-sm table-striped">
+                    <thead><tr><th>Account code</th><th>Account name</th><th class="text-end">Amount (BDT)</th></tr></thead>
+                    <tbody id="incomeRows"></tbody>
+                    <tfoot><tr><th colspan="2">Total income</th><th id="incomeTotal" class="text-end"></th></tr>
+                    <tr><th colspan="2">Total expenses</th><th id="expenseTotal" class="text-end"></th></tr>
+                    <tr><th colspan="2">Net surplus / (deficit)</th><th id="incomeNet" class="text-end"></th></tr></tfoot>
+                </table></div>
+            </div>
+        }
     </div>
 </section>
 @section Scripts { <script type="module" src="~/js/finance/accounting-reports.js" asp-append-version="true"></script> }
