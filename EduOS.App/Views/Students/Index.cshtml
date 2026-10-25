@@ -91,6 +91,14 @@
                 <dl id="studentDetails" class="admission-details"></dl>
                 <section aria-labelledby="guardianTitle"><h3 class="h6" id="guardianTitle">@T["GuardianInformation"]</h3><div id="studentGuardians" class="admission-list"></div></section>
                 <section class="mt-4" aria-labelledby="enrollmentTitle"><h3 class="h6" id="enrollmentTitle">@T["EnrollmentHistory"]</h3><div id="studentEnrollments" class="admission-list"></div></section>
+                @if (User.IsInRole("TenantAdmin"))
+                {
+                    <section class="mt-4" aria-labelledby="lifecycleTimelineTitle">
+                        <h3 class="h6" id="lifecycleTimelineTitle">Lifecycle history</h3>
+                        <p class="small text-muted">Historical status, progression and exit events. Visible to institution administrators only.</p>
+                        <div id="studentLifecycleTimeline" aria-live="polite"></div>
+                    </section>
+                }
             </div>
             <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">@T["Close"]</button></div>
         </div>
