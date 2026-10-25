@@ -8,6 +8,7 @@ public interface ILmsLiveClassService
     Task<ApiResponse<LiveClassDto>> SaveLiveClassAsync(Guid? liveClassReference, SaveLiveClassRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<LiveClassDto>> GetLiveClassAsync(Guid liveClassReference, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<LiveClassDto>>> GetCourseLiveClassesAsync(Guid courseReference, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<LiveClassRecordingCourseDto>>> GetRecordingCoursesAsync(int page = 1, int pageSize = 20, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<LiveClassRecordingDto>>> GetCourseRecordingsAsync(Guid courseReference, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<LiveClassDto>>> GetPendingRecordingsAsync(Guid courseReference, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default);
     Task<ApiResponse<LiveClassDto>> PublishRecordingAsync(Guid liveClassReference, PublishLiveClassRecordingRequestDto request, CancellationToken cancellationToken = default);
