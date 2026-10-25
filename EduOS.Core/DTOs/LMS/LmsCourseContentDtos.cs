@@ -5,6 +5,7 @@ public sealed class CourseContentDto
     public Guid CourseReference { get; set; }
     public string CourseTitle { get; set; } = string.Empty;
     public bool CanEdit { get; set; }
+    public bool IsArchived { get; set; }
     public IReadOnlyList<CourseSectionDto> Sections { get; set; } = [];
     public IReadOnlyList<ContentLessonDto> UnsectionedLessons { get; set; } = [];
 }

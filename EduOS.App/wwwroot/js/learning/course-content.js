@@ -1,8 +1,8 @@
 (() => {
 'use strict';
 const root=document.getElementById('contentApp');if(!root)return;
-const el=id=>document.getElementById('content'+id),author=root.dataset.author==='true';
-const state={courses:[],page:1,pages:1,course:null,lessons:[],seq:0};
+const el=id=>document.getElementById('content'+id),author=root.dataset.author==='true',student=root.dataset.student==='true';
+const state={courses:[],page:1,pages:1,course:null,lessons:[],seq:0,includeArchived:false};
 const node=(tag,text)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;return e;};
 const alert=(message,kind='danger')=>{const e=el('Alert');e.className='alert alert-'+kind;e.textContent=message;e.focus();};
 async function api(url,method='GET',body){
@@ -64,6 +64,7 @@ async function removeResource(row){
 function render(){
  const data=state.course,body=el('Rows');body.replaceChildren();
  el('Heading').textContent=data?.courseTitle||'Course content';
+ if(student)el('HistoricalNotice').classList.toggle('d-none',!data?.isArchived);
  if(!data){state.lessons=[];const tr=node('tr'),cell=td('Select a course.');cell.colSpan=5;tr.append(cell);body.append(tr);return;}
  const sections=data.sections||[],unsectioned=data.unsectionedLessons||[];
  state.lessons=allLessons();
@@ -116,11 +117,11 @@ async function loadCourse(){
 async function loadCourses(){
  const old=el('Course').value,seq=++state.seq;
  try{
-  const data=await api('/api/lms/courses?page='+state.page+'&pageSize=20');
+  const data=await api('/api/lms/courses?page='+state.page+'&pageSize=20'+(student&&state.includeArchived?'&includeArchived=true':''));
   if(seq!==state.seq)return;
   state.courses=data?.items||[];
   state.pages=Math.max(1,data?.totalPages||Math.ceil((data?.totalCount||0)/20));
-  fill('Course',state.courses,'Select course',x=>x.title+' — '+x.code);
+  fill('Course',state.courses,'Select course',x=>x.title+' — '+x.code+(x.isActive?'':' [Archived]'));
   if(state.courses.some(x=>x.reference===old))el('Course').value=old;
   else if(state.courses.length)el('Course').value=state.courses[0].reference;
   el('Page').textContent='Page '+state.page+' / '+state.pages;
@@ -163,6 +164,7 @@ if(author){
   resetResource();await loadCourse();alert('Resource saved.','success');
  });};
 }
+if(student)el('IncludeArchived').addEventListener('change',e=>{state.includeArchived=e.target.checked;state.page=1;loadCourses();});
 el('Course').onchange=()=>{if(author){resetSection();resetResource();}loadCourse();};
 el('Refresh').onclick=loadCourses;
 el('Prev').onclick=()=>{if(state.page>1){state.page--;loadCourses();}};

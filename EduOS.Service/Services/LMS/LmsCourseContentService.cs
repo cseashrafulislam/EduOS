@@ -147,11 +147,12 @@ public sealed partial class LmsCourseContentService : ILmsCourseContentService
     private async Task<bool> CanViewAsync(Course course, CancellationToken ct)
     {
         if (await CanEditAsync(course, ct)) return true;
-        if (!Authenticated || !_user.IsInRole("Student") || !course.IsActive) return false;
+        if (!Authenticated || !_user.IsInRole("Student")) return false;
         var studentId = await _students.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == Tenant && x.UserId == _user.UserId &&
             x.StatusCode == "Active" && !x.IsDeleted).Select(x => x.Id).FirstOrDefaultAsync(ct);
         if (studentId == 0) return false;
+        if (!course.IsActive) return await CanViewHistoricalAsync(course, studentId, ct);
         var enrollments = _enrollments.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == Tenant && x.CourseId == course.Id && x.StudentId == studentId &&
             !x.IsDeleted && (x.State == CourseEnrollmentState.Active || x.State == CourseEnrollmentState.Completed));
@@ -229,6 +230,7 @@ public sealed partial class LmsCourseContentService : ILmsCourseContentService
         return ApiResponse<CourseContentDto>.SuccessResponse(new CourseContentDto
         {
             CourseReference = course.PublicId, CourseTitle = course.Title, CanEdit = edit,
+            IsArchived = !course.IsActive,
             Sections = sectionDtos,
             UnsectionedLessons = lessons.Where(x => !x.CourseSectionId.HasValue).Select(x => lessonMap[x.Id]).ToList()
         });

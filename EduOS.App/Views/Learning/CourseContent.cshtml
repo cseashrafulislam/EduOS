@@ -1,13 +1,19 @@
 @{
     ViewData["Title"] = "LMS Course Content";
     var author = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("Teacher");
+    var student = User.IsInRole("Student");
 }
-<section id="contentApp" class="container-fluid py-3" data-author="@author.ToString().ToLowerInvariant()">
+<section id="contentApp" class="container-fluid py-3" data-author="@author.ToString().ToLowerInvariant()" data-student="@student.ToString().ToLowerInvariant()">
     <header class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
         <div><h2 class="h4 mb-1">Course Sections &amp; Lesson Resources</h2><p class="text-muted mb-0">Organize existing lessons into sections and attach verified resources.</p></div>
         <div><a class="btn btn-outline-secondary" asp-controller="Learning" asp-action="Index">Learning</a> <button id="contentPrint" type="button" class="btn btn-outline-primary">Print</button> <button id="contentCsv" type="button" class="btn btn-outline-success">Export CSV</button></div>
     </header>
     <div id="contentAlert" class="d-none" role="alert" aria-live="polite" tabindex="-1"></div>
+    @if (student)
+    {
+        <div class="form-check mb-2"><input id="contentIncludeArchived" type="checkbox" class="form-check-input" /><label for="contentIncludeArchived" class="form-check-label">Include my archived completed courses</label></div>
+        <div id="contentHistoricalNotice" class="alert alert-info d-none" role="status">Archived course: published sections, lessons and verified resources are available for historical reading only. Editing and new submissions remain disabled.</div>
+    }
     <section class="card mb-3"><div class="card-body row g-2 align-items-end">
         <div class="col-md-8"><label for="contentCourse" class="form-label">Course</label><select id="contentCourse" class="form-select"><option value="">Loading courses…</option></select></div>
         <div class="col-md-4"><button id="contentRefresh" type="button" class="btn btn-outline-primary w-100">Refresh</button></div>
