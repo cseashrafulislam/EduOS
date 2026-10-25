@@ -6,6 +6,7 @@ namespace EduOS.Core.Interfaces.IServices;
 
 public interface ISubscriptionPaymentService
 {
+    Task<ApiResponse<SubscriptionPaymentReceiptDto>> GetReceiptAsync(long paymentId, CancellationToken cancellationToken = default);
     /// <summary>
     /// Initiate online payment via AamarPay - returns redirect URL
     /// </summary>

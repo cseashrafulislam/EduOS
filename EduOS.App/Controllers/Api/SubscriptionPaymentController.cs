@@ -160,6 +160,16 @@ namespace EduOS.App.Controllers.Api
             return StatusCode(result.StatusCode, result);
         }
 
+        // Verified tenant payment receipt. Never issued for pending or failed attempts.
+        [Authorize(Roles = "TenantAdmin")]
+        [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+        [HttpGet("receipts/{paymentId:long}")]
+        public async Task<IActionResult> GetReceipt(long paymentId, CancellationToken ct)
+        {
+            var result = await _paymentService.GetReceiptAsync(paymentId, ct);
+            return StatusCode(result.StatusCode, result);
+        }
+
         // ============================================================
         // SUPERADMIN: VERIFY MANUAL PAYMENTS
         // ============================================================

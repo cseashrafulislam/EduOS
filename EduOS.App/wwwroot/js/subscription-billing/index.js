@@ -195,7 +195,20 @@ async function showPayments(id){
   if(!Array.isArray(data)||!data.length){const p=document.createElement("p");p.textContent="No payments found.";box.append(p);return;}
   const table=document.createElement("table");table.className="table table-sm";
   const body=document.createElement("tbody");
-  for(const pay of data){const tr=document.createElement("tr");td(tr,pay.transactionId);td(tr,money(pay.amount,pay.currencyCode));td(tr,paymentStatus[pay.state]||"Unknown");td(tr,date(pay.initiatedAt));body.append(tr);}
+  for(const pay of data){
+   const tr=document.createElement("tr");
+   td(tr,pay.transactionId);td(tr,money(pay.amount,pay.currencyCode));
+   td(tr,paymentStatus[pay.state]||"Unknown");td(tr,date(pay.initiatedAt));
+   const action=td(tr,"");
+   if(Number(pay.state)===3 && pay.completedAt && Number(pay.id)>0){
+    const link=document.createElement("a");
+    link.href="/SubscriptionBilling/Receipt/"+encodeURIComponent(pay.id);
+    link.target="_blank";link.rel="noopener noreferrer";
+    link.className="btn btn-outline-primary btn-sm";link.textContent="View receipt";
+    action.append(link);
+   }
+   body.append(tr);
+  }
   table.append(body);box.append(table);
  }catch(e){box.textContent=e.message;}
 }

@@ -1,0 +1,47 @@
+@model EduOS.Core.DTOs.SaaS.SubscriptionPaymentReceiptDto
+@{
+    ViewData["Title"] = "Confirmed Payment Receipt";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<style>
+    .receipt-sheet { max-width: 760px; margin: 2rem auto; }
+    .receipt-sheet dt { color: #596273; font-weight: 500; }
+    .receipt-sheet dd { overflow-wrap: anywhere; font-weight: 600; }
+    @@media print {
+        header, aside, nav, footer, .receipt-actions { display: none !important; }
+        .receipt-sheet { max-width: none; margin: 0; border: none !important; box-shadow: none !important; }
+    }
+</style>
+<article class="receipt-sheet card shadow-sm" aria-labelledby="receiptTitle">
+    <div class="card-body p-4 p-md-5">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4">
+            <div>
+                <p class="text-muted mb-1">EduOS · Subscription Billing</p>
+                <h1 id="receiptTitle" class="h3">Confirmed Payment Receipt</h1>
+                <p class="text-muted mb-0">This confirms a recorded successful payment, not necessarily full invoice settlement.</p>
+            </div>
+            <span class="badge text-bg-success">Payment confirmed</span>
+        </div>
+        <dl class="row gy-2">
+            <dt class="col-sm-4">Receipt number</dt><dd class="col-sm-8">@Model.ReceiptNumber</dd>
+            <dt class="col-sm-4">Institution</dt><dd class="col-sm-8">@Model.InstitutionName</dd>
+            <dt class="col-sm-4">Invoice</dt><dd class="col-sm-8">@Model.InvoiceNumber</dd>
+            <dt class="col-sm-4">Transaction</dt><dd class="col-sm-8">@Model.TransactionId</dd>
+            <dt class="col-sm-4">Payment method</dt><dd class="col-sm-8">@Model.PaymentMethod</dd>
+            <dt class="col-sm-4">Confirmed at (UTC)</dt><dd class="col-sm-8">@Model.CompletedAtUtc.ToString("yyyy-MM-dd HH:mm") UTC</dd>
+            @if (!string.IsNullOrWhiteSpace(Model.ProviderTransactionId))
+            {
+                <dt class="col-sm-4">Provider reference</dt><dd class="col-sm-8">@Model.ProviderTransactionId</dd>
+            }
+        </dl>
+        <div class="border-top pt-3 mt-3 d-flex justify-content-between align-items-center">
+            <strong>Confirmed amount</strong>
+            <strong class="fs-4">@Model.Amount.ToString("N2", System.Globalization.CultureInfo.InvariantCulture) @Model.CurrencyCode</strong>
+        </div>
+        <p class="text-muted small mt-4 mb-0">Generated from EduOS payment records. Payment status is checked when this receipt is opened.</p>
+        <div class="receipt-actions mt-4">
+            <a class="btn btn-outline-primary" asp-controller="SubscriptionBilling" asp-action="Index">Back to billing</a>
+            <span class="small text-muted ms-2">Use your browser's Print command to print or save as PDF.</span>
+        </div>
+    </div>
+</article>
