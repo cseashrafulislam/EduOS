@@ -30,6 +30,11 @@ function renderRow(item){
    catch(error){u.notify(error.message);}finally{button.disabled=false;}
   };
   action.append(button);
+  const reschedule=document.createElement('button');
+  reschedule.type='button';reschedule.className='btn btn-outline-primary btn-sm ms-1';
+  reschedule.textContent='Reschedule start';
+  reschedule.onclick=()=>u.rescheduleUpcomingDriver(item);
+  action.append(reschedule);
  }else if(item.isCurrent&&(!item.effectiveTo||item.effectiveTo>=u.today())){
   const date=document.createElement('input');date.type='date';date.className='form-control form-control-sm';
   date.setAttribute('aria-label','End date for '+item.vehicleNumber);
