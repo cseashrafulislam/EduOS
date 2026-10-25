@@ -46,6 +46,8 @@ public sealed class StudentGuardianRelationshipWorkspaceContractTests
             .And.Contain("IsEmergencyContact = x.IsEmergencyContact")
             .And.Contain("IsFinancialContact = request.IsFinancialContact")
             .And.Contain("IsEmergencyContact = request.IsEmergencyContact")
+            .And.Contain("existingLink.IsFinancialContact != request.IsFinancialContact")
+            .And.Contain("existingLink.IsEmergencyContact != request.IsEmergencyContact")
             .And.Contain("link.IsFinancialContact = request.IsFinancialContact")
             .And.Contain("link.IsEmergencyContact = request.IsEmergencyContact")
             .And.Contain("VersionMatches(link.RowVersion, request.RowVersion)")

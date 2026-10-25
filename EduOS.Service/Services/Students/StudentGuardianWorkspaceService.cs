@@ -113,11 +113,16 @@ public sealed class StudentGuardianWorkspaceService : IStudentGuardianWorkspaceS
                 x.TenantId == tenant && x.PublicId == request.ClientRequestId && !x.IsDeleted, token);
             if (replay != null)
             {
-                var existing = await _links.GetQueryable().AsNoTracking().AnyAsync(x =>
+                var existingLink = await _links.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.StudentId == student.Id && x.GuardianId == replay.Id &&
                     !x.IsDeleted && x.RelationCode == request.RelationCode.Trim(), token);
-                if (!existing || replay.FullName != request.FullName.Trim() ||
-                    replay.Phone != Clean(request.Phone) || replay.Email != Clean(request.Email))
+                if (existingLink == null || replay.FullName != request.FullName.Trim() ||
+                    replay.Phone != Clean(request.Phone) || replay.Email != Clean(request.Email) ||
+                    existingLink.CanReceiveSms != request.CanReceiveSms ||
+                    existingLink.CanReceiveEmail != request.CanReceiveEmail ||
+                    existingLink.IsAuthorizedPickup != request.IsAuthorizedPickup ||
+                    existingLink.IsFinancialContact != request.IsFinancialContact ||
+                    existingLink.IsEmergencyContact != request.IsEmergencyContact)
                     return Fail<StudentGuardianWorkspaceDto>("Request ID already belongs to different guardian details.", 409);
                 return await LoadAsync(request.StudentReference, token);
             }
