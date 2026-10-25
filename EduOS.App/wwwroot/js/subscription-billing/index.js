@@ -108,6 +108,19 @@ function renderInvoices(items){
   body.append(tr);
  }
 }
+async function remindOwner(id){
+ if(state.busy)return;
+ state.busy=true;
+ try{
+  const status=await api("/api/subscription/invoices/"+encodeURIComponent(id)+"/reminder-status");
+  if(!status.hasActiveOwner){message("No active institution owner can receive the reminder.");return;}
+  if(!status.canSendToday){message("Today's reminder was already delivered, or this invoice is no longer payable.","info");return;}
+  if(!confirm("Send an in-app renewal payment reminder to institution owner(s)? No email, SMS or payment will be initiated."))return;
+  await api("/api/subscription/invoices/"+encodeURIComponent(id)+"/remind","POST",{});
+  message("In-app renewal reminder processed.","success");
+ }catch(e){message(e.message);}
+ finally{state.busy=false;}
+}
 async function showPayments(id){
  const box=$("sbPayments");box.textContent="Loading payment history…";
  try{

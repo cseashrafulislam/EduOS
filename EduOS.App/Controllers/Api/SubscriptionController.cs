@@ -92,6 +92,23 @@ public sealed class SubscriptionController : ControllerBase
         return StatusCode(response.StatusCode, response);
     }
 
+    [HttpGet("invoices/{id:long}/reminder-status")]
+    public async Task<IActionResult> RenewalReminderStatus(long id,
+        [FromServices] SubscriptionRenewalReminderService reminders, CancellationToken ct)
+    {
+        var result = await reminders.GetStatusAsync(id, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("invoices/{id:long}/remind")]
+    [EnableRateLimiting("ApiPolicy")]
+    public async Task<IActionResult> SendRenewalReminder(long id,
+        [FromServices] SubscriptionRenewalReminderService reminders, CancellationToken ct)
+    {
+        var result = await reminders.SendManualAsync(id, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet("invoices/unpaid")]
     public async Task<IActionResult> GetUnpaidInvoices()
     {
