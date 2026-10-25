@@ -37,7 +37,7 @@ public sealed partial class FeeBillingService
             x.FeeHeadId.HasValue && heads.TryGetValue(x.FeeHeadId.Value, out var name) ? name : null)).ToArray();
         return ApiResponse<PagedResult<DiscountRuleDto>>.SuccessResponse(
             new PagedResult<DiscountRuleDto>
-            { Page = page, PageSize = pageSize, TotalCount = total, Items = items });
+            { Page = page, PageSize = pageSize, TotalCount = total, Items = items.ToList() });
     }
 
     public Task<ApiResponse<DiscountRuleDto>> SaveDiscountRuleAsync(
