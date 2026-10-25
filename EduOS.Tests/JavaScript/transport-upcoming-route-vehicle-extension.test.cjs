@@ -39,3 +39,14 @@ test('does not submit when confirmation is cancelled',async()=>{
  const h=harness('2026-12-15',false);await h.u.extendUpcomingLink(row);
  assert.equal(h.calls.length,0);
 });
+
+const rescheduleSource=fs.readFileSync(path.join(__dirname,
+ '../../EduOS.App/wwwroot/js/transport-operations/route-vehicle-reschedule.js'),'utf8');
+test('future link rescheduling works with read-model isCurrent=false',async()=>{
+ const h=harness('2026-12-15');
+ vm.runInNewContext(rescheduleSource,{window:{transportLink:h.u,prompt:()=> '2026-11-04'},
+  Date,Number,encodeURIComponent});
+ await h.u.rescheduleUpcomingLink(row);
+ assert.equal(h.calls[0][0],'/api/transport/route-vehicle-links/19/reschedule-start');
+ assert.equal(h.calls[0][2].effectiveFrom,'2026-11-04');
+});

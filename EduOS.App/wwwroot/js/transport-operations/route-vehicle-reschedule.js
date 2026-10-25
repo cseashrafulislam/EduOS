@@ -3,7 +3,7 @@
 const u = window.transportLink;
 if (!u) return;
 u.rescheduleUpcomingLink = async item => {
-    if (!item || item.isCancelled || !item.isCurrent || item.effectiveFrom <= u.today()) return;
+    if (!item || item.isCancelled || item.effectiveFrom <= u.today()) return;
     const start = window.prompt('New first effective date (YYYY-MM-DD)', item.effectiveFrom);
     if (start === null) return;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || Number.isNaN(Date.parse(start + 'T00:00:00Z')) ||
