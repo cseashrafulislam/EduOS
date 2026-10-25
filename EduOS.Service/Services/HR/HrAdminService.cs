@@ -378,7 +378,7 @@ public sealed class HrAdminService : IHrAdminService
             new PagedResult<EmployeeShiftAssignmentDto>
             {
                 Page = page, PageSize = pageSize, TotalCount = total,
-                Items = rows.Select(x => MapShift(x.assignment, employee, x.shift)).ToArray()
+                Items = rows.Select(x => MapShift(x.assignment, employee, x.shift)).ToList()
             });
     }
 
