@@ -70,9 +70,8 @@ public sealed class StudentPhotoService(
         var before = await db.Students.AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == user.TenantId && x.PublicId == studentReference && !x.IsDeleted, ct);
         if (before == null) return Fail<StudentPhotoDto>("Student not found.", 404);
-        if (!VersionMatches(before.RowVersion, rowVersion))
-            return Fail<StudentPhotoDto>("Student changed. Reload the profile.", 409);
-
+        // Do not reject a stale token yet: an identical request-id replay must first
+        // resolve its verified asset, then compare it to the already-saved photo.
         await using var buffer = new MemoryStream();
         try
         {
