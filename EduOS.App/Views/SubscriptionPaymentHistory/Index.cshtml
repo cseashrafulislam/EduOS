@@ -1,0 +1,48 @@
+@{
+    ViewData["Title"] = "Payment Reconciliation History";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<div class="container-fluid py-4" id="paymentReconciliationApp">
+    <header class="mb-4">
+        <h1 class="h4 fw-bold">Subscription Payment Reconciliation</h1>
+        <p class="text-muted mb-0">Read-only verification history. A paid invoice does not necessarily mean a future subscription period has started.</p>
+    </header>
+    <div class="card border-0 shadow-sm">
+        <div class="card-body">
+            <form id="reconciliationFilters" class="row g-2 align-items-end">
+                <div class="col-md-6">
+                    <label class="form-label" for="reconciliationSearch">Institution, invoice or transaction</label>
+                    <input class="form-control" id="reconciliationSearch" type="search" maxlength="100" autocomplete="off" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="reconciliationOutcome">Verification decision</label>
+                    <select class="form-select" id="reconciliationOutcome">
+                        <option value="All">All</option>
+                        <option value="Approved">Approved</option>
+                        <option value="Rejected">Rejected</option>
+                    </select>
+                </div>
+                <div class="col-md-3"><button type="submit" class="btn btn-primary w-100">Apply filters</button></div>
+            </form>
+            <div id="reconciliationStatus" class="small text-muted my-3" role="status" aria-live="polite"></div>
+            <div class="table-responsive">
+                <table class="table table-hover table-sm align-middle">
+                    <thead><tr>
+                        <th>Institution / Invoice</th><th>Decision / Verified</th><th>Payment</th>
+                        <th>Invoice reconciliation</th><th>Subscription period</th><th>Review note</th>
+                    </tr></thead>
+                    <tbody id="reconciliationRows"></tbody>
+                </table>
+            </div>
+            <div class="d-flex justify-content-between align-items-center gap-2">
+                <button id="reconciliationPrevious" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+                <span id="reconciliationPage" class="small text-muted"></span>
+                <button id="reconciliationNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+            </div>
+        </div>
+    </div>
+    <a class="btn btn-link mt-3" href="/Account/PaymentVerification">Review pending bank transfers</a>
+</div>
+@section Scripts {
+    <script src="~/js/platform/payment-reconciliation-history.js" asp-append-version="true"></script>
+}

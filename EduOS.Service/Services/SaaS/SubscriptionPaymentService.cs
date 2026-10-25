@@ -21,7 +21,7 @@ using System.Transactions;
 
 namespace EduOS.Service.Services.SaaS;
 
-public sealed class SubscriptionPaymentService : ISubscriptionPaymentService
+public sealed partial class SubscriptionPaymentService : ISubscriptionPaymentService
 {
     private readonly ISubscriptionPaymentRepository _payments;
     private readonly ISubscriptionInvoiceRepository _invoices;

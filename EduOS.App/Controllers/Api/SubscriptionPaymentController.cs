@@ -186,6 +186,19 @@ namespace EduOS.App.Controllers.Api
         }
 
         [Authorize(Roles = "SuperAdmin")]
+        [EnableRateLimiting("ApiPolicy")]
+        [HttpGet("admin/reconciliation-history")]
+        public async Task<IActionResult> GetReconciliationHistory(
+            [FromQuery] int page = 1, [FromQuery] int pageSize = 25,
+            [FromQuery] string? search = null, [FromQuery] string? outcome = null,
+            CancellationToken ct = default)
+        {
+            var result = await _paymentService.GetManualPaymentReconciliationHistoryAsync(
+                page, pageSize, search, outcome, ct);
+            return StatusCode(result.StatusCode, result);
+        }
+
+        [Authorize(Roles = "SuperAdmin")]
         [HttpPost("admin/payments/{paymentId:long}/scan-receipt")]
         public async Task<IActionResult> ScanReceipt(long paymentId)
         {
