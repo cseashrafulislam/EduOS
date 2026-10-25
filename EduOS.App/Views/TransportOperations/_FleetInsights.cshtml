@@ -6,7 +6,7 @@
         {
             <a href="/OperationsInsights/Index" class="btn btn-outline-secondary btn-sm">Combined insights</a>
         }
-        <button id="transportFleetInsightsRefresh" class="btn btn-outline-primary btn-sm" type="button">Refresh</button>
+        <div class="d-flex gap-2"><button id="transportFleetInsightsExport" class="btn btn-outline-success btn-sm" type="button" disabled>Export CSV</button><button id="transportFleetInsightsRefresh" class="btn btn-outline-primary btn-sm" type="button">Refresh</button></div>
     </div>
     <div id="transportFleetInsightsStatus" role="status" aria-live="polite" class="small text-muted mt-2">Loading…</div>
     <div id="transportFleetInsightsMetrics" class="row row-cols-2 row-cols-md-4 g-2 mt-1" aria-label="Fleet metrics"></div>

@@ -330,6 +330,21 @@ public sealed class TransportController : ControllerBase
         [FromQuery] string? search = null, CancellationToken cancellationToken = default) =>
         ToAction(await _service.GetFleetInsightsAsync(campusId, search, cancellationToken));
 
+    [HttpGet("fleet-insights/export")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> FleetInsightsExport([FromQuery] long? campusId = null,
+        [FromQuery] string? search = null, CancellationToken cancellationToken = default)
+    {
+        var result = await _service.ExportFleetInsightsCsvAsync(campusId, search, cancellationToken);
+        if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
+        Response.Headers["Cache-Control"] = "no-store";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(System.Text.Encoding.UTF8.GetPreamble().Concat(
+            System.Text.Encoding.UTF8.GetBytes(result.Data)).ToArray(),
+            "text/csv; charset=utf-8", "transport-fleet-insights.csv");
+    }
+
     [HttpGet("capacity-report/export")]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
     public async Task<IActionResult> CapacityExport([FromQuery] long? campusId = null,
