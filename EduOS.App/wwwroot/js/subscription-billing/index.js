@@ -5,7 +5,7 @@ if(!root)return;
 const status={1:"Trial",2:"Active",3:"Grace",4:"Suspended",5:"Cancelled",6:"Expired",7:"Pending payment"};
 const invoiceStatus={1:"Draft",2:"Issued",3:"Partially paid",4:"Paid",5:"Cancelled",6:"Refunded"};
 const paymentStatus={1:"Initiated",2:"Awaiting verification",3:"Successful",4:"Failed",5:"Cancelled",6:"Refunded"};
-const state={current:null,upcoming:null,page:1,pages:1,invoicePage:1,invoicePages:1,invoiceState:"",invoiceVersion:0,busy:false,version:0};
+const state={current:null,upcoming:null,page:1,pages:1,invoicePage:1,invoicePages:1,invoiceState:"",invoiceVersion:0,invoiceDetailVersion:0,busy:false,version:0};
 const token=root.querySelector('input[name="__RequestVerificationToken"]')?.value ||
  document.querySelector('meta[name="request-verification-token"]')?.content || "";
 function message(text,kind="danger"){const e=$("sbAlert");e.textContent=text;e.className="alert alert-"+kind;}
@@ -100,7 +100,8 @@ function renderInvoices(items){
   td(tr,inv.invoiceNumber);td(tr,inv.invoiceDate);td(tr,inv.dueDate);
   td(tr,money(inv.totalAmount,inv.currencyCode));td(tr,money(inv.paidAmount,inv.currencyCode));
   td(tr,money(inv.dueAmount,inv.currencyCode));td(tr,invoiceStatus[inv.state]||"Unknown");
-  const actions=td(tr,"");actions.append(button("Payments",()=>showPayments(inv.id)));
+  const actions=td(tr,"");actions.append(button("Details",()=>showInvoiceDetails(inv.id)));
+  actions.append(button("Payments",()=>showPayments(inv.id)));
   if(Number(inv.dueAmount)>0&&[2,3].includes(inv.state)&&
      typeof inv.invoiceNumber==="string"&&inv.invoiceNumber.startsWith("REN-")){
    actions.append(button("Remind owner",()=>remindOwner(inv.id)));
@@ -111,6 +112,44 @@ function renderInvoices(items){
   }
   body.append(tr);
  }
+}
+async function showInvoiceDetails(id){
+ const version=++state.invoiceDetailVersion,box=$("sbInvoiceDetails");
+ box.textContent="Loading invoice details…";
+ try{
+  const inv=await api("/api/subscription/invoices/"+encodeURIComponent(id));
+  if(version!==state.invoiceDetailVersion)return;
+  box.replaceChildren();
+  const heading=document.createElement("h3");heading.className="h6";
+  heading.textContent="Invoice "+(inv.invoiceNumber||id);box.append(heading);
+  const summary=document.createElement("p");summary.className="small";
+  summary.textContent="Issued "+date(inv.invoiceDate)+" · Due "+date(inv.dueDate)+
+   " · Status "+(invoiceStatus[inv.state]||"Unknown")+
+   " · Subtotal "+money(inv.subtotal,inv.currencyCode)+
+   " · Tax "+money(inv.taxAmount,inv.currencyCode)+
+   " · Total "+money(inv.totalAmount,inv.currencyCode)+
+   " · Paid "+money(inv.paidAmount,inv.currencyCode)+
+   " · Outstanding "+money(inv.dueAmount,inv.currencyCode);
+  box.append(summary);
+  const lines=Array.isArray(inv.lines)?inv.lines:[];
+  if(!lines.length){const p=document.createElement("p");p.className="small text-muted";
+   p.textContent="No line items recorded for this invoice.";box.append(p);return;}
+  const table=document.createElement("table");table.className="table table-sm table-bordered";
+  const thead=document.createElement("thead"),header=document.createElement("tr");
+  for(const name of ["Description","Quantity","Unit price","Amount"]){
+   const th=document.createElement("th");th.scope="col";th.textContent=name;header.append(th);
+  }
+  thead.append(header);table.append(thead);
+  const tbody=document.createElement("tbody");
+  for(const line of lines){
+   const tr=document.createElement("tr");td(tr,line.description);
+   const qty=Number(line.quantity);td(tr,Number.isFinite(qty)?String(qty):"—");
+   td(tr,money(line.unitPrice,inv.currencyCode));td(tr,money(line.amount,inv.currencyCode));
+   tbody.append(tr);
+  }
+  table.append(tbody);const wrapper=document.createElement("div");
+  wrapper.className="table-responsive";wrapper.append(table);box.append(wrapper);
+ }catch(e){if(version===state.invoiceDetailVersion)box.textContent=e.message;}
 }
 async function remindOwner(id){
  if(state.busy)return;
@@ -149,6 +188,7 @@ function renderHistory(result){
 
 async function refreshInvoices(){
  const version=++state.invoiceVersion;
+ ++state.invoiceDetailVersion;$("sbInvoiceDetails").replaceChildren();
  try{
   const filter=state.invoiceState?"&state="+encodeURIComponent(state.invoiceState):"";
   const result=await api("/api/subscription/invoices/paged?page="+state.invoicePage+"&pageSize=10"+filter);
