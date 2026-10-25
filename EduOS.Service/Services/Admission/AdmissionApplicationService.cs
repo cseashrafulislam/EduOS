@@ -86,7 +86,8 @@ public sealed class AdmissionApplicationService : IAdmissionApplicationService
             AcademicLevelId = x.AcademicLevelId, OpensAtUtc = x.OpensAt ?? DateTime.MinValue,
             ClosesAtUtc = x.ClosesAt ?? DateTime.MaxValue, ApplicationFee = x.ApplicationFee,
             Currency = x.CurrencyCode,
-            Fields = fieldsByForm.GetValueOrDefault(x.Id) ?? new List<AdmissionFormFieldDto>()
+            Fields = fieldsByForm.GetValueOrDefault(x.Id) ?? new List<AdmissionFormFieldDto>(),
+            DocumentRequirements = AdmissionIntakeRules.ReadRequirements(x.DocumentRequirementsJson)
         }).ToList();
         return ApiResponse<AdmissionApplicationOptionsDto>.SuccessResponse(new AdmissionApplicationOptionsDto
         { AcademicYears = years, AcademicTerms = terms, Campuses = campuses, AcademicLevels = levels, OpenForms = openForms });
@@ -302,6 +303,22 @@ public sealed class AdmissionApplicationService : IAdmissionApplicationService
                     !applicantDocuments.Any(y => y.DocumentTypeCode == x.DocumentTypeCode &&
                         y.VersionNo > x.VersionNo), ct))
                 return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Unverified documents must be reviewed before qualification.", 409);
+            if (request.State == AdmissionApplicantState.Qualified)
+            {
+                var policyJson = await _forms.GetQueryable().AsNoTracking().Where(x =>
+                    x.TenantId == tenant && x.Id == app.AdmissionIntakeFormId)
+                    .Select(x => x.DocumentRequirementsJson).FirstOrDefaultAsync(ct);
+                if (policyJson == null)
+                    return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Admission form is unavailable.", 409);
+                foreach (var required in AdmissionIntakeRules.ReadRequirements(policyJson).Where(x => x.IsRequired))
+                {
+                    var verifiedLatest = await applicantDocuments.AnyAsync(x =>
+                        x.DocumentTypeCode == required.DocumentType && x.IsVerified &&
+                        !applicantDocuments.Any(y => y.DocumentTypeCode == x.DocumentTypeCode && y.VersionNo > x.VersionNo), ct);
+                    if (!verifiedLatest)
+                        return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("A required document is missing or awaiting verification.", 409);
+                }
+            }
             var now = _clock.GetUtcNow().UtcDateTime;
             app.State = request.State;
             app.ReviewedAt = now; app.ReviewedByUserId = _user.UserId;

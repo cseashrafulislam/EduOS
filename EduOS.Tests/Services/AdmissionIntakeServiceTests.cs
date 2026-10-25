@@ -148,6 +148,30 @@ public sealed class AdmissionIntakeServiceTests
         result.StatusCode.Should().Be(409);
     }
 
+    [Fact]
+    public async Task Document_requirements_must_use_active_tenant_types_and_survive_form_roundtrip()
+    {
+        await using var db = Context(Options(), 101);
+        var scope = await SeedReferencesAsync(db, 101);
+        var service = Service(db, new TestUser(101));
+        var request = FormRequest(scope);
+        request.DocumentRequirements = [new AdmissionDocumentRequirementDto
+        {
+            DocumentType = "BIRTH_CERTIFICATE", Label = "Birth certificate", IsRequired = true,
+            MaxFileSizeMb = 2, AllowedExtensions = [".pdf", ".jpg"]
+        }];
+        (await service.CreateFormAsync(request)).StatusCode.Should().Be(409);
+        db.DocumentTypeDefinitions.Add(new DocumentTypeDefinition
+        { TenantId = 101, Code = "BIRTH_CERTIFICATE", Name = "Birth certificate", IsActive = true });
+        await db.SaveChangesAsync();
+        var saved = await service.CreateFormAsync(request);
+        saved.StatusCode.Should().Be(201);
+        saved.Data!.DocumentRequirements.Should().ContainSingle(x => x.DocumentType == "BIRTH_CERTIFICATE" && x.IsRequired);
+        var forms = await service.GetFormsAsync();
+        forms.Data!.Single().DocumentRequirements.Should().ContainSingle(x => x.MaxFileSizeMb == 2);
+        (await db.AdmissionIntakeForms.SingleAsync()).DocumentRequirementsJson.Should().Contain("BIRTH_CERTIFICATE");
+    }
+
     private static AdmissionIntakeService Service(EduOSDbContext db, ICurrentUserService user,
         IFileUploadService? storage = null) => new(
         new GenericRepository<AdmissionIntakeForm>(db),
@@ -155,6 +179,7 @@ public sealed class AdmissionIntakeServiceTests
         new GenericRepository<AdmissionApplicant>(db),
         new GenericRepository<AdmissionApplicantDocument>(db),
         new GenericRepository<FileAsset>(db),
+        new GenericRepository<DocumentTypeDefinition>(db),
         new GenericRepository<AcademicYear>(db),
         new GenericRepository<AcademicTerm>(db),
         new GenericRepository<Campus>(db),

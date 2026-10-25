@@ -24,6 +24,7 @@ public sealed class AdmissionIntakeService : IAdmissionIntakeService
     private readonly IGenericRepository<AdmissionApplicant> _applicants;
     private readonly IGenericRepository<AdmissionApplicantDocument> _documents;
     private readonly IGenericRepository<FileAsset> _fileAssets;
+    private readonly IGenericRepository<DocumentTypeDefinition> _documentTypes;
     private readonly IGenericRepository<AcademicYear> _years;
     private readonly IGenericRepository<AcademicTerm> _terms;
     private readonly IGenericRepository<Campus> _campuses;
@@ -38,14 +39,14 @@ public sealed class AdmissionIntakeService : IAdmissionIntakeService
         IGenericRepository<AdmissionFormField> fields,
         IGenericRepository<AdmissionApplicant> applicants,
         IGenericRepository<AdmissionApplicantDocument> documents,
-        IGenericRepository<FileAsset> fileAssets,
+        IGenericRepository<FileAsset> fileAssets, IGenericRepository<DocumentTypeDefinition> documentTypes,
         IGenericRepository<AcademicYear> years, IGenericRepository<AcademicTerm> terms,
         IGenericRepository<Campus> campuses, IGenericRepository<AcademicLevel> levels,
         IUnitOfWork unitOfWork, ICurrentUserService currentUser, IFileUploadService storage,
         TimeProvider clock, ILogger<AdmissionIntakeService> logger)
     {
         _forms = forms; _fields = fields; _applicants = applicants;
-        _documents = documents; _fileAssets = fileAssets; _years = years;
+        _documents = documents; _fileAssets = fileAssets; _documentTypes = documentTypes; _years = years;
         _terms = terms; _campuses = campuses; _levels = levels;
         _uow = unitOfWork; _user = currentUser; _storage = storage;
         _clock = clock; _logger = logger;
@@ -85,6 +86,8 @@ public sealed class AdmissionIntakeService : IAdmissionIntakeService
                 return Error<AdmissionIntakeFormDto>("Admission form code already exists; choose a unique code.", 409);
             var level = await ValidateReferencesAsync(request, ct);
             if (level == null) return Error<AdmissionIntakeFormDto>("Invalid year, campus, term or academic level.", 409);
+            var documentError = await ValidateDocumentTypesAsync(request.DocumentRequirements, ct);
+            if (documentError != null) return Error<AdmissionIntakeFormDto>(documentError, 409);
             var now = _clock.GetUtcNow().UtcDateTime;
             var form = new AdmissionIntakeForm
             {
@@ -95,6 +98,7 @@ public sealed class AdmissionIntakeService : IAdmissionIntakeService
                 OpensAt = AdmissionIntakeRules.Utc(request.OpensAtUtc),
                 ClosesAt = AdmissionIntakeRules.Utc(request.ClosesAtUtc),
                 ApplicationFee = request.ApplicationFee, CurrencyCode = request.Currency.Trim().ToUpperInvariant(),
+                DocumentRequirementsJson = AdmissionIntakeRules.SerializeRequirements(request.DocumentRequirements),
                 State = AdmissionFormState.Draft, CreatedAt = now, CreatedBy = _user.UserId
             };
             await _forms.AddAsync(form);
@@ -130,6 +134,8 @@ public sealed class AdmissionIntakeService : IAdmissionIntakeService
             if (await _forms.GetQueryable().AsNoTracking().AnyAsync(x =>
                 x.TenantId == tenant && x.Id != id && x.Code == code, ct))
                 return Error<AdmissionIntakeFormDto>("Admission form code already exists.", 409);
+            var documentError = await ValidateDocumentTypesAsync(request.DocumentRequirements, ct);
+            if (documentError != null) return Error<AdmissionIntakeFormDto>(documentError, 409);
             var now = _clock.GetUtcNow().UtcDateTime;
             form.Code = code; form.Title = request.Title.Trim();
             form.CampusId = request.CampusId; form.AcademicYearId = request.AcademicYearId;
@@ -139,6 +145,7 @@ public sealed class AdmissionIntakeService : IAdmissionIntakeService
             form.ClosesAt = AdmissionIntakeRules.Utc(request.ClosesAtUtc);
             form.ApplicationFee = request.ApplicationFee;
             form.CurrencyCode = request.Currency.Trim().ToUpperInvariant();
+            form.DocumentRequirementsJson = AdmissionIntakeRules.SerializeRequirements(request.DocumentRequirements);
             form.UpdatedAt = now; form.UpdatedBy = _user.UserId;
             var previous = await _fields.GetQueryable().Where(x => x.TenantId == tenant &&
                 x.AdmissionIntakeFormId == id).ToListAsync(ct);
@@ -322,9 +329,20 @@ public sealed class AdmissionIntakeService : IAdmissionIntakeService
         if (error != null) return error;
         if (!string.IsNullOrWhiteSpace(request.Description))
             return "Description is not supported by the canonical admission form model.";
-        if (request.DocumentRequirements.Count > 0)
-            return "Document requirements require a dedicated persisted policy; none were saved. Configure requirements in the supported document module.";
+        if (request.DocumentRequirements.Any(x => string.Equals(x.DocumentType.Trim(), "OFFER_ACCEPTANCE", StringComparison.OrdinalIgnoreCase)))
+            return "Offer acceptance evidence uses its own protected workflow and cannot be an intake requirement.";
         return null;
+    }
+
+    private async Task<string?> ValidateDocumentTypesAsync(IReadOnlyList<AdmissionDocumentRequirementDto> requirements, CancellationToken ct)
+    {
+        if (requirements.Count == 0) return null;
+        var codes = requirements.Select(x => x.DocumentType.Trim().ToUpperInvariant()).ToArray();
+        var configured = await _documentTypes.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == _user.TenantId && x.IsActive && codes.Contains(x.Code))
+            .Select(x => x.Code).ToListAsync(ct);
+        return codes.Except(configured, StringComparer.OrdinalIgnoreCase).Any()
+            ? "Every required document type must first be active in the institution document setup." : null;
     }
 
     private AdmissionFormField BuildField(long formId, AdmissionFormFieldDto input, DateTime now)
@@ -354,6 +372,7 @@ public sealed class AdmissionIntakeService : IAdmissionIntakeService
         AcademicProgramId = form.AcademicProgramId, AcademicLevelId = form.AcademicLevelId,
         VersionNo = form.VersionNo, State = form.State, OpensAt = form.OpensAt, ClosesAt = form.ClosesAt,
         ApplicationFee = form.ApplicationFee, CurrencyCode = form.CurrencyCode, Fields = fields,
+        DocumentRequirements = AdmissionIntakeRules.ReadRequirements(form.DocumentRequirementsJson),
         RowVersion = Convert.ToBase64String(form.RowVersion)
     };
     private static AdmissionFormFieldDto MapField(AdmissionFormField field) => new()

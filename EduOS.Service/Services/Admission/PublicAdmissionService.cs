@@ -313,6 +313,18 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
         var applicant = await _applicants.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == tenant.Id && x.PublicId == reference && x.Phone == mobile, ct);
         if (applicant == null) return Error<AdmissionApplicantDocumentDto>("Applicant could not be verified.", 404);
+        var intake = await _forms.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant.Id && x.Id == applicant.AdmissionIntakeFormId, ct);
+        if (intake == null) return Error<AdmissionApplicantDocumentDto>("Admission form is unavailable.", 404);
+        var requirements = AdmissionIntakeRules.ReadRequirements(intake.DocumentRequirementsJson);
+        if (!isAcceptanceProof && requirements.Count > 0)
+        {
+            var policy = requirements.FirstOrDefault(x => string.Equals(x.DocumentType, kind, StringComparison.OrdinalIgnoreCase));
+            if (policy == null) return Error<AdmissionApplicantDocumentDto>("Document type is not allowed for this admission form.", 409);
+            if (file.Length > policy.MaxFileSizeMb * 1024L * 1024L ||
+                !policy.AllowedExtensions.Contains(Path.GetExtension(file.FileName), StringComparer.OrdinalIgnoreCase))
+                return Error<AdmissionApplicantDocumentDto>("Document exceeds the form size or extension policy.", 409);
+        }
         if (isAcceptanceProof)
         {
             if (applicant.State != AdmissionApplicantState.Qualified ||
@@ -506,7 +518,8 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
         CampusId = form.CampusId, AcademicLevelId = form.AcademicLevelId,
         OpensAtUtc = form.OpensAt ?? DateTime.MinValue, ClosesAtUtc = form.ClosesAt ?? DateTime.MaxValue,
         ApplicationFee = form.ApplicationFee, Currency = form.CurrencyCode,
-        Fields = fields.Select(MapField).ToList()
+        Fields = fields.Select(MapField).ToList(),
+        DocumentRequirements = AdmissionIntakeRules.ReadRequirements(form.DocumentRequirementsJson)
     };
     private static AdmissionFormFieldDto MapField(AdmissionFormField f) => new()
     {
