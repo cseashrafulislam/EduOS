@@ -66,7 +66,10 @@ public class AdmissionApplicationContractTests
         script.Should().Contain("documentItem.documentTypeCode");
         script.Should().Contain("documentItem.isVerified");
         script.Should().Contain("documentItem.verificationNote");
-        script.Should().NotContain("documentActionButton('Reject'");
+        // Rejection is now a persisted decision with a mandatory reason and versioned replacement.
+        script.Should().Contain("documentActionButton('Reject', 3");
+        script.Should().Contain("Enter a rejection reason");
+        typeof(EduOS.Core.DTOs.Admission.AdmissionApplicantDocumentDto).GetProperty("VerificationStatus").Should().NotBeNull();
         typeof(EduOS.Core.DTOs.Admission.AdmissionApplicantDocumentDto).GetProperty("RowVersion").Should().NotBeNull();
         typeof(EduOS.Core.DTOs.Admission.AdmissionApplicantDocumentDto).GetProperty("OriginalFileName").Should().NotBeNull();
         view.Should().Contain("id=\"intakeFormEditor\"");
