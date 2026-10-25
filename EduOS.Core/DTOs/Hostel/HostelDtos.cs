@@ -58,6 +58,8 @@ public sealed class HostelBedInventoryDto
     public bool IsActive { get; set; }
     public bool IsOccupied { get; set; }
     public bool HasActiveReservations { get; set; }
+    /// <summary>Includes closed, cancelled and soft-deleted allocations; blocks physical relocation.</summary>
+    public bool HasAllocationHistory { get; set; }
     public string RowVersion { get; set; } = string.Empty;
 }
 public sealed class SetHostelBedStateRequestDto

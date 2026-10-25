@@ -69,7 +69,9 @@ public sealed partial class HostelService : IHostelService
                     a.StartDate <= today && (!a.EndDate.HasValue || a.EndDate.Value >= today)),
                 HasActiveReservations = _allocations.GetQueryable().Any(a => a.TenantId == tenant &&
                     a.HostelBedId == bed.Id && a.State == HostelAllocationState.Active &&
-                    (!a.EndDate.HasValue || a.EndDate.Value >= today))
+                    (!a.EndDate.HasValue || a.EndDate.Value >= today)),
+                HasAllocationHistory = _allocations.GetQueryable().IgnoreQueryFilters().Any(a =>
+                    a.TenantId == tenant && a.HostelBedId == bed.Id)
             };
         if (!_currentUser.IsTenantAdmin)
         {
@@ -93,6 +95,7 @@ public sealed partial class HostelService : IHostelService
                 RoomNumber = x.RoomNumber, BedNumber = x.BedNumber,
                 IsActive = x.IsActive, IsOccupied = x.IsOccupied,
                 HasActiveReservations = x.HasActiveReservations,
+                HasAllocationHistory = x.HasAllocationHistory,
                 RowVersion = Convert.ToBase64String(x.RowVersion)
             }).ToList()
         });

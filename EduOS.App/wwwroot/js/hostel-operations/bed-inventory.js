@@ -80,7 +80,16 @@
                         notify('Bed state saved.'); await load();
                     } catch (error) { notify(error.message, true); button.disabled = false; }
                 });
-                action.append(button); tr.append(action); tbody.append(tr);
+                action.append(button);
+                const move = document.createElement('button');
+                move.type = 'button'; move.className = 'btn btn-outline-primary btn-sm ms-1';
+                move.textContent = 'Move unused bed';
+                move.disabled = !item.isActive || item.hasAllocationHistory;
+                move.title = item.hasAllocationHistory
+                    ? 'Beds with any allocation history cannot move.' : 'Move to another room in the same hostel';
+                move.addEventListener('click', () => document.dispatchEvent(
+                    new CustomEvent('hostel:relocate-bed', { detail: item })));
+                action.append(move); tr.append(action); tbody.append(tr);
             }
             if (!data.items?.length) {
                 const tr = document.createElement('tr'), cell = td('No beds match the filter.');

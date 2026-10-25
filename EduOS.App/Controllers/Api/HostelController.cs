@@ -93,6 +93,19 @@ public sealed class HostelController : ControllerBase
     public async Task<IActionResult> CreateBed([FromBody] CreateHostelBedRequestDto request, CancellationToken ct) =>
         ToAction(await _service.CreateBedAsync(request, ct));
 
+    [HttpGet("beds/{id:long}/relocation-rooms")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> BedRelocationRooms(long id, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25, [FromQuery] string? search = null, CancellationToken ct = default) =>
+        ToAction(await _service.GetBedRelocationRoomsAsync(id, page, pageSize, search, ct));
+
+    [HttpPut("beds/{id:long}/relocate")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    public async Task<IActionResult> RelocateUnusedBed(long id,
+        [FromBody] RelocateUnusedHostelBedRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.RelocateUnusedBedAsync(id, request, ct));
+
     [HttpGet("bed-availability")]
     [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]

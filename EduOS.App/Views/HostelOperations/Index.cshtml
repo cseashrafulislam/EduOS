@@ -230,6 +230,10 @@
     }
     @if (canManage)
     {
+        @await Html.PartialAsync("_BedRelocation")
+    }
+    @if (canManage)
+    {
         <section id="hostelFacilityPanel" class="card mb-3"><div class="card-body">
             <h3 class="h5">Hostel facilities and controlled closure</h3>
             <p class="small text-muted">Create campus-authorized facilities. Deactivation requires every room and allocation to be closed. No financial settings are changed.</p>
@@ -281,6 +285,7 @@
         <script src="~/js/hostel-operations/turnover-report.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/bed-create.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/bed-inventory.js" asp-append-version="true"></script>
+        <script src="~/js/hostel-operations/bed-relocation.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/room-inventory.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/room-capacity.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/room-create.js" asp-append-version="true"></script>
