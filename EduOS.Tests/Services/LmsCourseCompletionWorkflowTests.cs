@@ -78,6 +78,44 @@ public sealed class LmsCourseCompletionWorkflowTests
             new CompleteCourseEnrollmentRequestDto { RowVersion = "AQID" })).StatusCode);
     }
 
+    [Fact]
+    public async Task Completed_enrollment_blocks_course_lesson_and_assignment_authoring()
+    {
+        await using var db = Db();
+        var (course, _, enrollment, _) = await Seed(db);
+        course.RowVersion = [1, 2, 3];
+        enrollment.State = EduOS.Core.Enums.Domain.CourseEnrollmentState.Completed;
+        enrollment.CompletedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+        var service = Service(db);
+        var status = await service.GetCourseAuthoringLockAsync(course.PublicId);
+        Assert.True(status.Success, status.Message);
+        Assert.True(status.Data!.IsLocked);
+        Assert.Equal(409, (await service.SaveCourseAsync(course.PublicId, new SaveCourseRequestDto
+        { Code = course.Code, Title = "Changed", RowVersion = Convert.ToBase64String(course.RowVersion) })).StatusCode);
+        Assert.Equal(409, (await service.SaveLessonAsync(null, new SaveLessonRequestDto
+        { CourseReference = course.PublicId, Title = "New lesson", DisplayOrder = 2 })).StatusCode);
+        Assert.Equal(409, (await service.SaveAssignmentAsync(null, new SaveAssignmentRequestDto
+        { CourseReference = course.PublicId, Title = "New assignment", MaxMarks = 100 })).StatusCode);
+        Assert.Single(await db.Set<Lesson>().ToListAsync());
+        Assert.Empty(await db.Set<Assignment>().ToListAsync());
+    }
+
+    [Fact]
+    public async Task Foreign_tenant_completion_does_not_lock_local_course()
+    {
+        await using var db = Db();
+        var (course, _, _, _) = await Seed(db);
+        db.Add(new CourseEnrollment { TenantId = 202, CourseId = course.Id,
+            StudentId = 999, State = EduOS.Core.Enums.Domain.CourseEnrollmentState.Completed });
+        await db.SaveChangesAsync();
+        var service = Service(db);
+        var status = await service.GetCourseAuthoringLockAsync(course.PublicId);
+        Assert.True(status.Success, status.Message);
+        Assert.False(status.Data!.IsLocked);
+        Assert.Equal(403, (await Service(db, "Student").GetCourseAuthoringLockAsync(course.PublicId)).StatusCode);
+    }
+
     private static async Task<(Course Course, Student Student, CourseEnrollment Enrollment, Lesson Lesson)> Seed(EduOSDbContext db)
     {
         var course = new Course { TenantId = 101, Code = "LMS-COMP", Title = "Completion", IsActive = true };

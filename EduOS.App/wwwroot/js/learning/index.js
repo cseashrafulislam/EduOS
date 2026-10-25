@@ -2,7 +2,7 @@
 'use strict';
 const root=document.getElementById('learningApp');if(!root)return;
 const $=id=>document.getElementById(id),author=root.dataset.author==='true',student=root.dataset.student==='true',manager=root.dataset.manager==='true';
-const state={courses:[],detail:null,programs:[],subjects:[],page:1,pages:1,editingCourse:null,editingLesson:null,editingAssignment:null,loadId:0,reviewPage:1,reviewPages:1,reviewLoadId:0};
+const state={courses:[],detail:null,programs:[],subjects:[],page:1,pages:1,editingCourse:null,editingLesson:null,editingAssignment:null,loadId:0,reviewPage:1,reviewPages:1,reviewLoadId:0,authoringLocked:true};
 const opt=(value,label)=>{const x=document.createElement('option');x.value=String(value);x.textContent=label;return x;};
 const cell=value=>{const x=document.createElement('td');x.textContent=value==null?'':String(value);return x;};
 const notice=(type,message)=>{const x=$('learningAlert');x.className='alert alert-'+type;x.textContent=message;x.focus();};
@@ -31,7 +31,7 @@ async function courses(){
   $('learningCoursePage').textContent='Page '+state.page+' / '+state.pages;
   $('learningCoursePrev').disabled=state.page<=1;$('learningCourseNext').disabled=state.page>=state.pages;
   if($('learningCourse').value)await load();
-  else{state.detail=null;render();}
+  else{state.detail=null;state.authoringLocked=true;render();}
  }catch(e){notice('danger',e.message);}
 }
 async function catalog(){
@@ -62,6 +62,7 @@ function editCourse(){
 async function saveCourse(e){
  e.preventDefault();if(!e.currentTarget.reportValidity())return;
  const x=state.editingCourse;
+ if(x&&state.authoringLocked)return notice('warning','Completed enrollments lock course changes.');
  const body={academicProgramId:Number($('learningProgram').value)||null,subjectId:Number($('learningSubject').value)||null,
   primaryInstructorReference:manager?$('learningInstructor').value||null:null,code:$('learningCode').value.trim(),
   title:$('learningTitle').value.trim(),description:$('learningDescription').value.trim()||null,
@@ -74,13 +75,29 @@ async function saveCourse(e){
  }catch(err){notice('danger',err.message);}finally{$('learningSaveCourse').disabled=false;}
 }
 async function load(){
- const x=chosen();if(!x){state.detail=null;render();return;}
+ const x=chosen();if(!x){state.detail=null;state.authoringLocked=true;render();return;}
  const request=++state.loadId;
- try{const d=await api('/api/lms/courses/'+encodeURIComponent(x.reference));if(request!==state.loadId)return;
+ try{
+  if(author){
+   state.authoringLocked=true;
+   const status=await api('/api/lms/courses/'+encodeURIComponent(x.reference)+'/authoring-lock');
+   if(request!==state.loadId)return;
+   state.authoringLocked=!!status.isLocked;
+  }
+  const d=await api('/api/lms/courses/'+encodeURIComponent(x.reference));if(request!==state.loadId)return;
   state.detail=d;$('learningProgress').textContent=(d.lessons||[]).length+' lessons';render();
  }catch(e){if(request!==state.loadId)return;state.detail=null;render();notice('danger',e.message);}
 }
 function render(){
+ const locked=author&&state.authoringLocked;
+ if(author){
+  const banner=$('learningAuthoringLock');
+  banner.classList.toggle('d-none',!locked||!chosen());
+  banner.textContent=locked&&chosen()?'Completed enrollments lock this course. Create a new course version for changes.':'';
+  $('learningEditCourse').disabled=locked||!chosen();
+  $('learningSaveLesson').disabled=locked;
+  $('learningSaveAssignment').disabled=locked;
+ }
  const lessons=$('learningLessons'),assignments=$('learningAssignments');lessons.replaceChildren();assignments.replaceChildren();
  for(const x of state.detail?.lessons||[]){
   const tr=document.createElement('tr'),content=cell((x.content||'').slice(0,180)),action=document.createElement('td');
@@ -88,12 +105,12 @@ function render(){
    const a=document.createElement('a');a.href=url.href;a.target='_blank';a.rel='noopener noreferrer';a.textContent=' Resource';content.append(a);
   }}catch{}}
   if(student)action.append(button('Mark completed',()=>complete(x)));
-  if(author)action.append(button('Edit',()=>editLesson(x)));
+  if(author&&!locked)action.append(button('Edit',()=>editLesson(x)));
   tr.append(cell(x.displayOrder),cell(x.title),content,action);lessons.append(tr);
  }
  for(const x of state.detail?.assignments||[]){
   const tr=document.createElement('tr'),action=document.createElement('td');
-  if(author)action.append(button('Edit',()=>editAssignment(x)));
+  if(author&&!locked)action.append(button('Edit',()=>editAssignment(x)));
   tr.append(cell(x.title),cell(x.dueAt?String(x.dueAt).slice(0,16):'—'),cell(x.maxMarks),cell(x.isPublished?'Published':'Draft'),action);
   assignments.append(tr);
  }
@@ -109,6 +126,7 @@ function editLesson(x){
 }
 async function saveLesson(e){
  e.preventDefault();if(!e.currentTarget.reportValidity()||!chosen())return;
+ if(state.authoringLocked)return notice('warning','Completed enrollments lock lesson changes.');
  const x=state.editingLesson,body={courseReference:chosen().reference,title:$('learningLessonTitle').value.trim(),
   content:$('learningContent').value.trim()||null,contentUrl:$('learningVideo').value.trim()||null,
   displayOrder:Number($('learningOrder').value),isPublished:$('learningLessonPublished').checked,rowVersion:x?.rowVersion||null};
@@ -125,6 +143,7 @@ function editAssignment(x){
 }
 async function saveAssignment(e){
  e.preventDefault();if(!e.currentTarget.reportValidity()||!chosen())return;
+ if(state.authoringLocked)return notice('warning','Completed enrollments lock assignment changes.');
  const x=state.editingAssignment,raw=$('learningDue').value,dt=raw?new Date(raw):null;
  if(dt&&!Number.isFinite(dt.getTime()))return notice('danger','Invalid due date.');
  const body={courseReference:chosen().reference,title:$('learningAssignmentTitle').value.trim(),

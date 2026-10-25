@@ -36,6 +36,9 @@ public sealed partial class LmsAssessmentService
         {
             return await _uow.ExecuteInTransactionAsync(async token =>
             {
+                if (await CourseCompletionPublicationGuard.IsLockedAsync(
+                    _enrollments, _user.TenantId, course.Id, token))
+                    return Fail<QuizDto>(CourseCompletionPublicationGuard.Message, 409);
                 var quiz = reference.HasValue ? await _quizzes.GetQueryable().FirstOrDefaultAsync(x =>
                     x.TenantId == _user.TenantId && x.PublicId == reference.Value &&
                     x.CourseId == course.Id && !x.IsDeleted, token) : null;

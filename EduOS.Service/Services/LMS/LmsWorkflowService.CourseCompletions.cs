@@ -11,6 +11,22 @@ namespace EduOS.Service.Services.LMS;
 
 public sealed partial class LmsWorkflowService
 {
+    public async Task<ApiResponse<CourseAuthoringLockDto>> GetCourseAuthoringLockAsync(
+        Guid courseReference, CancellationToken ct = default)
+    {
+        if (!CanTeach()) return Error<CourseAuthoringLockDto>("Authoring permission required.", 403);
+        if (courseReference == Guid.Empty) return Error<CourseAuthoringLockDto>("Invalid course reference.");
+        var course = await EditableCourseAsync(courseReference, ct);
+        if (course == null) return Error<CourseAuthoringLockDto>("Course not found or access denied.", 404);
+        var locked = await CourseCompletionPublicationGuard.IsLockedAsync(
+            _enrollments, _user.TenantId, course.Id, ct);
+        return ApiResponse<CourseAuthoringLockDto>.SuccessResponse(new CourseAuthoringLockDto
+        {
+            CourseReference = course.PublicId, IsLocked = locked,
+            Reason = locked ? CourseCompletionPublicationGuard.Message : null
+        });
+    }
+
     public async Task<ApiResponse<PagedResult<CourseCompletionRegisterRowDto>>> GetCourseCompletionRegisterAsync(
         Guid courseReference, int page, int pageSize, string? search, CancellationToken ct = default)
     {

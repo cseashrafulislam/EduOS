@@ -150,6 +150,26 @@ public sealed class LmsCourseContentServiceTests
         Assert.True((await service.SaveSectionAsync(null, request)).Success);
     }
 
+    [Fact]
+    public async Task Completed_enrollment_blocks_section_and_resource_authoring()
+    {
+        await using var db = Db();
+        var course = new Course { TenantId = 101, Code = "LOCKED", Title = "Locked" };
+        db.Add(course); await db.SaveChangesAsync();
+        var lesson = new Lesson { TenantId = 101, CourseId = course.Id, Title = "Lesson" };
+        var enrollment = new CourseEnrollment { TenantId = 101, CourseId = course.Id,
+            StudentId = 123, State = CourseEnrollmentState.Completed, CompletedAt = DateTime.UtcNow };
+        db.AddRange(lesson, enrollment); await db.SaveChangesAsync();
+        var service = Service(db, "TenantAdmin");
+        Assert.Equal(409, (await service.SaveSectionAsync(null, new SaveCourseSectionRequestDto
+        { CourseReference = course.PublicId, Title = "New section", DisplayOrder = 1 })).StatusCode);
+        Assert.Equal(409, (await service.SaveResourceAsync(null, new SaveLessonResourceRequestDto
+        { LessonReference = lesson.PublicId, Title = "Resource", DisplayOrder = 1,
+          ExternalUrl = "https://example.com/lesson" })).StatusCode);
+        Assert.Empty(await db.Set<CourseSection>().ToListAsync());
+        Assert.Empty(await db.Set<LessonResource>().ToListAsync());
+    }
+
     private static EduOSDbContext Db()
     {
         var options = new DbContextOptionsBuilder<EduOSDbContext>()

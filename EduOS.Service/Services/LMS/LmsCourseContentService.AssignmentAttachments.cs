@@ -74,6 +74,8 @@ public sealed partial class LmsCourseContentService
                 if (current.IsPublished && (!currentCourse.IsActive ||
                     !await HasOfferingAsync(currentCourse, null, null, token)))
                     return Fail<AssignmentAttachmentDto>("Active curriculum offering required for published assignments.", 409);
+                if (await CourseCompletionPublicationGuard.IsLockedAsync(_enrollments, Tenant, course.Id, token))
+                    return Fail<AssignmentAttachmentDto>(CourseCompletionPublicationGuard.Message, 409);
                 var file = await _files.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == Tenant && x.PublicId == request.FileAssetReference &&
                     x.IsVerifiedSafe && !x.IsDeleted && x.UploadedByUserId == _user.UserId, token);
@@ -143,6 +145,8 @@ public sealed partial class LmsCourseContentService
                 if (row == null || course == null) return Fail<bool>("Attachment not found.", 404);
                 if (!await CanEditAsync(course, token)) return Fail<bool>("Course author access denied.", 403);
                 if (row.IsDeleted) return ApiResponse<bool>.SuccessResponse(true, "Attachment already removed.");
+                if (await CourseCompletionPublicationGuard.IsLockedAsync(_enrollments, Tenant, course.Id, token))
+                    return Fail<bool>(CourseCompletionPublicationGuard.Message, 409);
                 if (!Version(row.RowVersion, rowVersion))
                     return Fail<bool>("Attachment changed. Reload before removing.", 409);
                 row.IsDeleted = true; row.DeletedAt = Now; row.DeletedBy = _user.UserId;

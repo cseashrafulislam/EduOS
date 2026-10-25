@@ -61,6 +61,14 @@ public sealed class LmsWorkflowController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("courses/{reference:guid}/authoring-lock")]
+    [Authorize(Roles = "TenantAdmin,Principal,Teacher")]
+    public async Task<IActionResult> AuthoringLock(Guid reference, CancellationToken ct)
+    {
+        var result = await _service.GetCourseAuthoringLockAsync(reference, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet("courses/{reference:guid}/completion-register")]
     [Authorize(Roles = "TenantAdmin,Principal,Teacher")]
     public async Task<IActionResult> CompletionRegister(Guid reference, [FromQuery] int page = 1,

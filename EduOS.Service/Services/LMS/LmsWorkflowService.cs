@@ -12,6 +12,7 @@ using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Data;
 using System.Security.Cryptography;
 
 namespace EduOS.Service.Services.LMS;
@@ -114,6 +115,9 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
                 if (courseReference.HasValue && row == null) return Error<CourseDto>("Course not found.", 404);
                 if (row != null && (!await CanEditAsync(row, token) || !Matches(row.RowVersion, request.RowVersion)))
                     return Error<CourseDto>("Course access denied or row version changed.", 409);
+                if (row != null && await CourseCompletionPublicationGuard.IsLockedAsync(
+                    _enrollments, tenant, row.Id, token))
+                    return Error<CourseDto>(CourseCompletionPublicationGuard.Message, 409);
                 var code = request.Code.Trim();
                 if (await _courses.GetQueryable().AsNoTracking().AnyAsync(x =>
                     x.TenantId == tenant && x.Code == code && !x.IsDeleted && (row == null || x.Id != row.Id), token))
@@ -139,7 +143,7 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
                 row.IsSelfPaced = request.IsSelfPaced; row.IsActive = request.IsActive;
                 await _uow.SaveChangesAsync(token);
                 return ApiResponse<CourseDto>.SuccessResponse(await MapCourseAsync(row, token), "Course saved.");
-            }, ct);
+            }, IsolationLevel.Serializable, ct);
         }
         catch (DbUpdateConcurrencyException) { return Error<CourseDto>("Course changed concurrently.", 409); }
         catch (DbUpdateException ex)
@@ -163,6 +167,9 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
         {
             return await _uow.ExecuteInTransactionAsync(async token =>
             {
+                if (await CourseCompletionPublicationGuard.IsLockedAsync(
+                    _enrollments, _user.TenantId, course.Id, token))
+                    return Error<LessonDto>(CourseCompletionPublicationGuard.Message, 409);
                 var row = lessonReference.HasValue ? await _lessons.GetQueryable().FirstOrDefaultAsync(x =>
                     x.TenantId == _user.TenantId && x.PublicId == lessonReference.Value &&
                     x.CourseId == course.Id && !x.IsDeleted, token) : null;
@@ -188,7 +195,7 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
                 row.IsPublished = request.IsPublished;
                 await _uow.SaveChangesAsync(token);
                 return ApiResponse<LessonDto>.SuccessResponse(MapLesson(row, course.PublicId), "Lesson saved.");
-            }, ct);
+            }, IsolationLevel.Serializable, ct);
         }
         catch (DbUpdateConcurrencyException) { return Error<LessonDto>("Lesson changed concurrently.", 409); }
         catch (DbUpdateException) { return Error<LessonDto>("Lesson update conflicts with existing data.", 409); }
@@ -209,6 +216,9 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
         {
             return await _uow.ExecuteInTransactionAsync(async token =>
             {
+                if (await CourseCompletionPublicationGuard.IsLockedAsync(
+                    _enrollments, _user.TenantId, course.Id, token))
+                    return Error<AssignmentDto>(CourseCompletionPublicationGuard.Message, 409);
                 var row = assignmentReference.HasValue ? await _assignments.GetQueryable().FirstOrDefaultAsync(x =>
                     x.TenantId == _user.TenantId && x.PublicId == assignmentReference.Value &&
                     x.CourseId == course.Id && !x.IsDeleted, token) : null;
@@ -235,7 +245,7 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
                 row.IsPublished = request.IsPublished;
                 await _uow.SaveChangesAsync(token);
                 return ApiResponse<AssignmentDto>.SuccessResponse(MapAssignment(row, course.PublicId), "Assignment saved.");
-            }, ct);
+            }, IsolationLevel.Serializable, ct);
         }
         catch (DbUpdateConcurrencyException) { return Error<AssignmentDto>("Assignment changed concurrently.", 409); }
         catch (DbUpdateException) { return Error<AssignmentDto>("Assignment conflicts with existing data.", 409); }

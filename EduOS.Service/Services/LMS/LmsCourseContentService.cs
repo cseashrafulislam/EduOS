@@ -253,6 +253,8 @@ public sealed partial class LmsCourseContentService : ILmsCourseContentService
             {
                 if (request.IsPublished && (!course.IsActive || !await HasOfferingAsync(course, null, null, token)))
                     return Fail<CourseSectionDto>("Active academic offering required before publication.", 409);
+                if (await CourseCompletionPublicationGuard.IsLockedAsync(_enrollments, Tenant, course.Id, token))
+                    return Fail<CourseSectionDto>(CourseCompletionPublicationGuard.Message, 409);
                 var row = sectionId.HasValue ? await _sections.GetQueryable().FirstOrDefaultAsync(x =>
                     x.TenantId == Tenant && x.Id == sectionId && x.CourseId == course.Id && !x.IsDeleted, token) : null;
                 if (sectionId.HasValue && row == null) return Fail<CourseSectionDto>("Section not found.", 404);
@@ -311,6 +313,8 @@ public sealed partial class LmsCourseContentService : ILmsCourseContentService
         }
         if (row.CourseSectionId == request.CourseSectionId)
             return ApiResponse<ContentLessonDto>.SuccessResponse(LessonRow(row), "Lesson already assigned.");
+        if (await CourseCompletionPublicationGuard.IsLockedAsync(_enrollments, Tenant, course.Id, ct))
+            return Fail<ContentLessonDto>(CourseCompletionPublicationGuard.Message, 409);
         if (!Version(row.RowVersion, request.RowVersion))
             return Fail<ContentLessonDto>("Lesson changed. Reload before assigning.", 409);
         row.CourseSectionId = request.CourseSectionId; row.UpdatedAt = Now; row.UpdatedBy = _user.UserId;
@@ -357,6 +361,8 @@ public sealed partial class LmsCourseContentService : ILmsCourseContentService
                         x.IsVerifiedSafe && !x.IsDeleted, token);
                     if (file == null) return Fail<LessonResourceDto>("Verified safe file not found.", 409);
                 }
+                if (await CourseCompletionPublicationGuard.IsLockedAsync(_enrollments, Tenant, course.Id, token))
+                    return Fail<LessonResourceDto>(CourseCompletionPublicationGuard.Message, 409);
                 var row = resourceId.HasValue ? await _resources.GetQueryable().FirstOrDefaultAsync(x =>
                     x.TenantId == Tenant && x.Id == resourceId && x.LessonId == lesson.Id && !x.IsDeleted, token) : null;
                 if (resourceId.HasValue && row == null) return Fail<LessonResourceDto>("Resource not found.", 404);
@@ -408,6 +414,8 @@ public sealed partial class LmsCourseContentService : ILmsCourseContentService
             x.TenantId == Tenant && x.Id == lesson.CourseId && !x.IsDeleted, ct);
         if (course == null || !await CanEditAsync(course, ct)) return Fail<bool>("Course author access denied.", 403);
         if (row.IsDeleted) return ApiResponse<bool>.SuccessResponse(true, "Resource already removed.");
+        if (await CourseCompletionPublicationGuard.IsLockedAsync(_enrollments, Tenant, course.Id, ct))
+            return Fail<bool>(CourseCompletionPublicationGuard.Message, 409);
         if (!Version(row.RowVersion, rowVersion)) return Fail<bool>("Resource changed. Reload before removing.", 409);
         row.IsDeleted = true; row.DeletedAt = Now; row.DeletedBy = _user.UserId;
         row.UpdatedAt = Now; row.UpdatedBy = _user.UserId; _resources.Update(row);
