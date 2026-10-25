@@ -207,7 +207,7 @@ public sealed class StudentLeaveService : IStudentLeaveService
                     // A file can belong to exactly one leave and no other document.
                     // The caller must be its uploader; a guessed file ID is never sufficient.
                     var file = await _db.FileAssets.AsNoTracking().FirstOrDefaultAsync(x =>
-                        x.TenantId == tenant && x.Id == attachmentId && !x.IsDeleted &&
+                        x.TenantId == tenant && x.Id == attachmentId && x.PublicId == request.ClientRequestId && !x.IsDeleted &&
                         x.UploadedByUserId == _user.UserId && x.IsVerifiedSafe &&
                         x.MalwareScanStateCode == "Clean" && x.Visibility == FileVisibility.Private &&
                         x.StorageProvider == "LocalPrivate" && x.SizeBytes > 0 && x.SizeBytes <= 5242880, token);
