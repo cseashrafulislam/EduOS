@@ -131,7 +131,7 @@
             if (file && !state.attachmentId) {
                 if (file.size < 1 || file.size > 5242880)
                     throw new Error('Supporting file must be between 1 byte and 5 MB.');
-                if (!state.uploadId) state.uploadId = newId();
+                if (!state.uploadId) state.uploadId = state.requestId;
                 const form = new FormData();
                 form.append('enrollmentReference', enrollmentRef);
                 form.append('requestId', state.uploadId);
