@@ -65,6 +65,13 @@ public sealed class LibraryController : ControllerBase
     [Authorize(Roles="TenantAdmin,Principal,Librarian")]
     public async Task<IActionResult> ArchiveBook(Guid reference,[FromQuery]string rowVersion,CancellationToken ct)=>ToAction(await _service.ArchiveBookAsync(reference,rowVersion,ct));
 
+    [HttpGet("circulation")]
+    [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
+    public async Task<IActionResult> Circulation([FromQuery] string? search = null,
+        [FromQuery] string? status = "issued", [FromQuery] long? campusId = null,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken ct = default) =>
+        ToAction(await _service.GetCirculationRegisterAsync(search, status, campusId, page, pageSize, ct));
+
     [HttpGet("my-issues")]
     public async Task<IActionResult> MyIssues([FromQuery]int page=1,[FromQuery]int pageSize=20,CancellationToken ct=default)=>ToAction(await _service.GetMyIssuesAsync(page,pageSize,ct));
 

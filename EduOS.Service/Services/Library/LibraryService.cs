@@ -13,7 +13,7 @@ using System.Transactions;
 
 namespace EduOS.Service.Services.Library;
 
-public sealed class LibraryService : ILibraryService
+public sealed partial class LibraryService : ILibraryService
 {
     private readonly IGenericRepository<Book> _books;
     private readonly IGenericRepository<BookCopy> _copies;
@@ -391,6 +391,16 @@ public sealed class LibraryService : ILibraryService
                 return Error("The selected copy is not available.", 409);
             if (!await _books.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.Id == copy.BookId && x.IsActive, ct))
                 return Error("Book is archived or unavailable.", 409);
+            if (copy.LibraryBranchId.HasValue)
+            {
+                var branch = _branches == null ? null : await _branches.GetQueryable().AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.TenantId == tenant && x.Id == copy.LibraryBranchId.Value &&
+                        x.IsActive && !x.IsDeleted, ct);
+                if (branch == null || !await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.StudentId == student.Id && x.IsCurrent &&
+                    x.State == EnrollmentState.Active && x.CampusId == branch.CampusId && !x.IsDeleted, ct))
+                    return Error("Copy branch and active student enrollment campus do not match.", 409);
+            }
             if (await _issues.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
                 x.BookCopyId == copy.Id && x.State == BookIssueState.Issued, ct))
                 return Error("The selected copy has an outstanding issue.", 409);

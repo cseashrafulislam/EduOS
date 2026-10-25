@@ -16,4 +16,6 @@ public interface ILibraryService
     Task<ApiResponse<BookIssueDto>> IssueAsync(IssueBookRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<BookIssueDto>> CloseAsync(Guid issueReference, ReturnBookRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<BookIssueDto>>> GetMyIssuesAsync(int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<LibraryCirculationRowDto>>> GetCirculationRegisterAsync(
+        string? search, string? status, long? campusId, int page, int pageSize, CancellationToken cancellationToken = default);
 }

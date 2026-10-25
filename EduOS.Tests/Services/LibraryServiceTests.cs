@@ -269,6 +269,84 @@ public sealed class LibraryServiceTests
         (await service.SaveBookCopyAsync(copy.Id, request)).StatusCode.Should().Be(409);
     }
 
+    [Fact]
+    public async Task Circulation_register_is_tenant_scoped_searchable_and_overdue_only_when_issued()
+    {
+        var options = Options();
+        await using (var db = Context(options, 101))
+        {
+            var book = new Book { TenantId = 101, Title = "Physics Handbook" };
+            var student = new Student { TenantId = 101, PersonId = 1, StudentCode = "S101", FullName = "Learner One" };
+            db.AddRange(book, student); await db.SaveChangesAsync();
+            var copy = new BookCopy { TenantId = 101, BookId = book.Id, AccessionNumber = "PHY-1" };
+            db.BookCopies.Add(copy); await db.SaveChangesAsync();
+            var yesterday = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1);
+            db.BookIssues.AddRange(
+                new BookIssue { TenantId = 101, BookCopyId = copy.Id, StudentId = student.Id,
+                    ClientRequestId = Guid.NewGuid(), IssueDate = yesterday.AddDays(-10), DueDate = yesterday,
+                    State = BookIssueState.Issued },
+                new BookIssue { TenantId = 101, BookCopyId = copy.Id, StudentId = student.Id,
+                    ClientRequestId = Guid.NewGuid(), IssueDate = yesterday.AddDays(-10), DueDate = yesterday,
+                    State = BookIssueState.Returned, ReturnDate = yesterday });
+            await db.SaveChangesAsync();
+        }
+        await using (var db = Context(options, 202))
+        {
+            var book = new Book { TenantId = 202, Title = "Secret" };
+            var student = new Student { TenantId = 202, PersonId = 2, StudentCode = "S202", FullName = "Other" };
+            db.AddRange(book, student); await db.SaveChangesAsync();
+            var copy = new BookCopy { TenantId = 202, BookId = book.Id, AccessionNumber = "SECRET" };
+            db.BookCopies.Add(copy); await db.SaveChangesAsync();
+            db.BookIssues.Add(new BookIssue { TenantId = 202, BookCopyId = copy.Id, StudentId = student.Id,
+                ClientRequestId = Guid.NewGuid(), IssueDate = new DateOnly(2026, 1, 1),
+                DueDate = new DateOnly(2026, 1, 2), State = BookIssueState.Issued });
+            await db.SaveChangesAsync();
+        }
+        await using var reader = Context(options, 101);
+        var service = Service(reader, 101);
+        var overdue = await service.GetCirculationRegisterAsync("PHY", "overdue", null, 1, 20);
+        overdue.Success.Should().BeTrue();
+        overdue.Data!.TotalCount.Should().Be(1);
+        overdue.Data.Items.Single().DaysOverdue.Should().BeGreaterThan(0);
+        overdue.Data.Items.Single().Issue.BookTitle.Should().Be("Physics Handbook");
+        (await service.GetCirculationRegisterAsync(null, "all", null, 1, 20)).Data!.TotalCount.Should().Be(2);
+        (await service.GetCirculationRegisterAsync("Secret", "all", null, 1, 20)).Data!.Items.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Circulation_register_rejects_students_and_invalid_filters()
+    {
+        var options = Options();
+        await using var db = Context(options, 101);
+        (await Service(db, 101, "Student").GetCirculationRegisterAsync(null, "all", null, 1, 20))
+            .StatusCode.Should().Be(403);
+        (await Service(db, 101).GetCirculationRegisterAsync(null, "unexpected", null, 1, 20))
+            .StatusCode.Should().Be(400);
+        (await Service(db, 101).GetCirculationRegisterAsync(null, "issued", 0, 1, 20))
+            .StatusCode.Should().Be(400);
+    }
+
+    [Fact]
+    public async Task Circulation_campus_filter_and_cross_campus_issue_are_guarded()
+    {
+        var options = Options();
+        await using var db = Context(options, 101);
+        var (student, copy) = await SeedBorrower(db, 101, true);
+        var branch = new LibraryBranch { TenantId = 101, CampusId = 44, Name = "North", Code = "N" };
+        db.Add(branch); await db.SaveChangesAsync();
+        copy.LibraryBranchId = branch.Id;
+        var academic = await db.StudentEnrollments.SingleAsync();
+        academic.CampusId = 55;
+        await db.SaveChangesAsync();
+        var service = Service(db, 101);
+        (await service.IssueAsync(Request(student, copy, Guid.NewGuid()))).StatusCode.Should().Be(409);
+        academic.CampusId = 44;await db.SaveChangesAsync();
+        var issued = await service.IssueAsync(Request(student, copy, Guid.NewGuid()));
+        issued.Success.Should().BeTrue(issued.Message);
+        (await service.GetCirculationRegisterAsync(null, "issued", 44, 1, 20)).Data!.TotalCount.Should().Be(1);
+        (await service.GetCirculationRegisterAsync(null, "issued", 55, 1, 20)).Data!.TotalCount.Should().Be(0);
+    }
+
     private static IssueBookRequestDto Request(Student student, BookCopy copy, Guid key) => new()
     {
         ClientRequestId = key, BookCopyId = copy.Id, StudentReference = student.PublicId,
@@ -295,7 +373,8 @@ public sealed class LibraryServiceTests
         new GenericRepository<Book>(db), new GenericRepository<BookCopy>(db),
         new GenericRepository<BookIssue>(db), new GenericRepository<BookCategory>(db),
         new GenericRepository<Student>(db), new GenericRepository<StudentEnrollment>(db),
-        db, new TestUser(tenant, role), TimeProvider.System, NullLogger<LibraryService>.Instance);
+        db, new TestUser(tenant, role), TimeProvider.System, NullLogger<LibraryService>.Instance,
+        new GenericRepository<LibraryBranch>(db));
 
     private static DbContextOptions<EduOSDbContext> Options() => new DbContextOptionsBuilder<EduOSDbContext>()
         .UseInMemoryDatabase("library-" + Guid.NewGuid().ToString("N")).Options;

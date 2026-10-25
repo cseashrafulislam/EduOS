@@ -1,0 +1,43 @@
+@{
+    ViewData["Title"] = "Library Circulation Register";
+}
+<section id="libraryCirculationApp" class="container-fluid py-3">
+    <header class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div><h2 class="h4 mb-1">Library Circulation Register</h2>
+            <p class="text-muted mb-0">Find issued and overdue copies, review history, and record returns. Returns update copy availability atomically.</p></div>
+        <a asp-controller="Library" asp-action="Index" class="btn btn-outline-secondary">Back to catalog</a>
+    </header>
+    <div id="circulationAlert" class="d-none" role="alert" tabindex="-1" aria-live="polite"></div>
+    <form id="circulationFilters" class="card card-body row g-2 align-items-end mb-3">
+        <div class="col-lg-4"><label for="circulationSearch" class="form-label">Student name/code, book or accession</label>
+            <input id="circulationSearch" class="form-control" maxlength="100" autocomplete="off" /></div>
+        <div class="col-lg-2"><label for="circulationStatus" class="form-label">Status</label>
+            <select id="circulationStatus" class="form-select">
+                <option value="issued">Issued</option><option value="overdue">Overdue</option>
+                <option value="returned">Returned</option><option value="all">All</option>
+            </select></div>
+        <div class="col-lg-2"><label for="circulationCampus" class="form-label">Campus ID (optional)</label>
+            <input id="circulationCampus" class="form-control" type="number" min="1" step="1" placeholder="All campuses" /></div>
+        <div class="col-lg-2"><label for="circulationReturnDate" class="form-label">Return date (optional)</label>
+            <input id="circulationReturnDate" class="form-control" type="date" />
+            <small class="text-muted">Blank uses server UTC date.</small></div>
+        <div class="col-lg-2"><button type="submit" class="btn btn-primary w-100">Search</button></div>
+    </form>
+    <div class="card">
+        <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <strong>Circulation records <span id="circulationCount" class="small text-muted"></span></strong>
+            <div class="d-flex gap-2"><button id="circulationCsv" type="button" class="btn btn-sm btn-outline-secondary">CSV (current page)</button>
+                <button id="circulationPrint" type="button" class="btn btn-sm btn-outline-secondary">Print</button></div>
+        </div>
+        <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
+            <thead><tr><th>Student</th><th>Book</th><th>Accession</th><th>Campus</th><th>Issued</th><th>Due</th><th>Returned</th><th>Status</th><th>Overdue days</th><th>Action</th></tr></thead>
+            <tbody id="circulationRows"><tr><td colspan="10">Loading…</td></tr></tbody>
+        </table></div>
+        <div class="card-footer d-flex justify-content-end align-items-center gap-2">
+            <button id="circulationPrevious" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+            <span id="circulationPage" class="small text-muted"></span>
+            <button id="circulationNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+        </div>
+    </div>
+</section>
+@section Scripts { <script src="~/js/library/circulation.js" asp-append-version="true"></script> }
