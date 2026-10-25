@@ -236,6 +236,7 @@
         ]);
         Object.assign(state, { years, terms, campuses, catalog });
         selectLists(); render();
+        window.dispatchEvent(new Event('eduos:academic-reloaded'));
     }
     window.eduosAcademicManagement = { state, el, field, idOf, enabled, find, findYear,
         notice, api, reload, options, checked };

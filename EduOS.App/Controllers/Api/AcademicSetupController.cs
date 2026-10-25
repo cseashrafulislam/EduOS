@@ -86,6 +86,24 @@ public sealed class AcademicSetupController : ControllerBase
     public async Task<IActionResult> CreateBatch([FromBody] SaveAcademicBatchRequestDto request, CancellationToken cancellationToken) =>
         ToAction(await _service.CreateBatchAsync(request, cancellationToken));
 
+    [HttpGet("batches/{academicBatchId:long}/offerings")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> Offerings(long academicBatchId, [FromQuery] string? search,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetSubjectOfferingsAsync(academicBatchId, search, page, pageSize, cancellationToken));
+
+    [HttpPost("offerings")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> CreateOffering([FromBody] SaveSubjectOfferingRequestDto request,
+        CancellationToken cancellationToken) =>
+        ToAction(await _service.CreateSubjectOfferingAsync(request, cancellationToken));
+
+    [HttpPut("offerings/{reference:guid}")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> UpdateOffering(Guid reference, [FromBody] UpdateSubjectOfferingRequestDto request,
+        CancellationToken cancellationToken) =>
+        ToAction(await _service.UpdateSubjectOfferingAsync(reference, request, cancellationToken));
+
     [HttpPost("rooms")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
     public async Task<IActionResult> CreateRoom([FromBody] SaveRoomRequestDto request, CancellationToken cancellationToken) =>

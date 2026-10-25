@@ -36,11 +36,11 @@ public sealed class AcademicSetupWorkflowContractTests
     }
 
     [Fact]
-    public void Setup_service_implements_canonical_twelve_method_contract()
+    public void Setup_service_implements_canonical_fifteen_method_contract()
     {
         var iface = typeof(IAcademicSetupService);
         var implementation = typeof(AcademicSetupService);
-        iface.GetMethods().Should().HaveCount(12);
+        iface.GetMethods().Should().HaveCount(15);
         implementation.GetInterfaces().Should().Contain(iface);
         iface.GetMethod(nameof(IAcademicSetupService.CreateProgramAsync))!
             .GetParameters()[0].ParameterType.Should().Be(typeof(SaveAcademicProgramRequestDto));

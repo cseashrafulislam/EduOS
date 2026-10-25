@@ -302,6 +302,8 @@ public sealed class AcademicSetupServiceTests
         new GenericRepository<AcademicTrack>(db),
         new GenericRepository<Medium>(db),
         new GenericRepository<Shift>(db),
+        new GenericRepository<SubjectOffering>(db),
+        new GenericRepository<StudentSubjectRegistration>(db),
         db, user, NullLogger<AcademicSetupService>.Instance);
 
     private static async Task<Seed> SeedAsync(DbContextOptions<EduOSDbContext> options, long tenant)

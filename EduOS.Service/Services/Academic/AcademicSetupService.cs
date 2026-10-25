@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging;
 
 namespace EduOS.Service.Services.Academic;
 
-public sealed class AcademicSetupService : IAcademicSetupService
+public sealed partial class AcademicSetupService : IAcademicSetupService
 {
     private readonly IGenericRepository<AcademicProgram> _programs;
     private readonly IGenericRepository<AcademicLevel> _levels;
@@ -28,6 +28,8 @@ public sealed class AcademicSetupService : IAcademicSetupService
     private readonly IGenericRepository<AcademicTrack> _tracks;
     private readonly IGenericRepository<Medium> _mediums;
     private readonly IGenericRepository<Shift> _shifts;
+    private readonly IGenericRepository<SubjectOffering> _offerings;
+    private readonly IGenericRepository<StudentSubjectRegistration> _registrations;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUser;
     private readonly ILogger<AcademicSetupService> _logger;
@@ -48,6 +50,8 @@ public sealed class AcademicSetupService : IAcademicSetupService
         IGenericRepository<AcademicTrack> tracks,
         IGenericRepository<Medium> mediums,
         IGenericRepository<Shift> shifts,
+        IGenericRepository<SubjectOffering> offerings,
+        IGenericRepository<StudentSubjectRegistration> registrations,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUser,
         ILogger<AcademicSetupService> logger)
@@ -67,6 +71,8 @@ public sealed class AcademicSetupService : IAcademicSetupService
         _tracks = tracks;
         _mediums = mediums;
         _shifts = shifts;
+        _offerings = offerings;
+        _registrations = registrations;
         _unitOfWork = unitOfWork;
         _currentUser = currentUser;
         _logger = logger;
