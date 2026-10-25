@@ -84,6 +84,9 @@ public class AdmissionApplicantDocument : BaseTenantEntity
     [Required, MaxLength(100)] public string DocumentTypeCode { get; set; } = string.Empty;
     public int VersionNo { get; set; } = 1;
     public bool IsVerified { get; set; }
+    // Explicit review decision; old verified rows are backfilled in the migration.
+    public EduOS.Core.Enums.AdmissionDocumentVerificationStatus VerificationStatus { get; set; } =
+        EduOS.Core.Enums.AdmissionDocumentVerificationStatus.Pending;
     public long? VerifiedByUserId { get; set; }
     public DateTime? VerifiedAt { get; set; }
     [MaxLength(1000)] public string? VerificationNote { get; set; }

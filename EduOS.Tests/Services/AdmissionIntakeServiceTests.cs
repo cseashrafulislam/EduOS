@@ -95,6 +95,59 @@ public sealed class AdmissionIntakeServiceTests
         download.Data.FileName.Should().Be("birth.pdf");
     }
 
+    [Fact]
+    public async Task Rejection_requires_reason_and_persists_a_final_review_decision()
+    {
+        await using var db = Context(Options(), 101);
+        var scope = await SeedReferencesAsync(db, 101);
+        var form = await SeedPublishedFormAsync(db, 101, scope);
+        var applicant = await SeedApplicantAsync(db, 101, form);
+        var doc = await SeedDocumentAsync(db, 101, applicant, true);
+        doc.RowVersion = [1, 2, 3, 4, 5, 6, 7, 8];
+        await db.SaveChangesAsync();
+        var service = Service(db, new TestUser(101));
+        var version = Convert.ToBase64String(doc.RowVersion);
+        (await service.ReviewDocumentAsync(applicant.PublicId, doc.Id, new ReviewAdmissionDocumentDto
+        { Status = AdmissionDocumentVerificationStatus.Rejected, RowVersion = version })).StatusCode.Should().Be(400);
+        var rejected = await service.ReviewDocumentAsync(applicant.PublicId, doc.Id,
+            new ReviewAdmissionDocumentDto { Status = AdmissionDocumentVerificationStatus.Rejected,
+                Note = "Name mismatch", RowVersion = version });
+        rejected.Success.Should().BeTrue(rejected.Message);
+        rejected.Data!.VerificationStatus.Should().Be(AdmissionDocumentVerificationStatus.Rejected);
+        rejected.Data.IsVerified.Should().BeFalse();
+        doc.VerificationNote.Should().Be("Name mismatch");
+        (await service.ReviewDocumentAsync(applicant.PublicId, doc.Id,
+            new ReviewAdmissionDocumentDto { Status = AdmissionDocumentVerificationStatus.Verified,
+                RowVersion = version })).StatusCode.Should().Be(409);
+        var retry = await service.ReviewDocumentAsync(applicant.PublicId, doc.Id,
+            new ReviewAdmissionDocumentDto { Status = AdmissionDocumentVerificationStatus.Rejected,
+                Note = "Name mismatch", RowVersion = version });
+        retry.Success.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Superseded_document_version_cannot_be_reviewed()
+    {
+        await using var db = Context(Options(), 101);
+        var scope = await SeedReferencesAsync(db, 101);
+        var form = await SeedPublishedFormAsync(db, 101, scope);
+        var applicant = await SeedApplicantAsync(db, 101, form);
+        var old = await SeedDocumentAsync(db, 101, applicant, true);
+        old.RowVersion = [1, 2, 3, 4, 5, 6, 7, 8];
+        db.AdmissionApplicantDocuments.Add(new AdmissionApplicantDocument
+        {
+            TenantId = 101, AdmissionApplicantId = applicant.Id,
+            FileAssetId = old.FileAssetId, DocumentTypeCode = old.DocumentTypeCode,
+            VersionNo = 2, VerificationStatus = AdmissionDocumentVerificationStatus.Pending
+        });
+        await db.SaveChangesAsync();
+        var service = Service(db, new TestUser(101));
+        var result = await service.ReviewDocumentAsync(applicant.PublicId, old.Id,
+            new ReviewAdmissionDocumentDto { Status = AdmissionDocumentVerificationStatus.Verified,
+                RowVersion = Convert.ToBase64String(old.RowVersion) });
+        result.StatusCode.Should().Be(409);
+    }
+
     private static AdmissionIntakeService Service(EduOSDbContext db, ICurrentUserService user,
         IFileUploadService? storage = null) => new(
         new GenericRepository<AdmissionIntakeForm>(db),

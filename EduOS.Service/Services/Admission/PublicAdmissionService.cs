@@ -366,6 +366,16 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
                 await _storage.DeletePrivateAsync(uploaded.FileUrl);
                 return Error<AdmissionApplicantDocumentDto>("Document upload is no longer permitted.", 409);
             }
+            // Recheck under the serializable transaction: no replacement may supersede a
+            // newly verified document or reuse a version selected before upload.
+            var latestVersion = await _documents.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == tenant.Id && x.AdmissionApplicantId == applicant.Id &&
+                x.DocumentTypeCode == kind).OrderByDescending(x => x.VersionNo).FirstOrDefaultAsync(ct);
+            if (latestVersion?.VersionNo != prior?.VersionNo || latestVersion?.IsVerified == true)
+            {
+                await _storage.DeletePrivateAsync(uploaded.FileUrl);
+                return Error<AdmissionApplicantDocumentDto>("Document changed while uploading. Refresh and retry.", 409);
+            }
             var asset = new FileAsset
             {
                 TenantId = tenant.Id, PublicId = request.ClientRequestId,
@@ -380,7 +390,8 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
             {
                 TenantId = tenant.Id, AdmissionApplicantId = applicant.Id, FileAssetId = asset.Id,
                 DocumentTypeCode = kind, VersionNo = (prior?.VersionNo ?? 0) + 1,
-                IsVerified = false, CreatedAt = now
+                IsVerified = false, VerificationStatus = EduOS.Core.Enums.AdmissionDocumentVerificationStatus.Pending,
+                CreatedAt = now
             };
             await _documents.AddAsync(row);
             await _uow.SaveChangesAsync(ct);
@@ -506,7 +517,8 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
     private static AdmissionApplicantDocumentDto MapDocument(AdmissionApplicantDocument row) => new()
     {
         Id = row.Id, FileAssetId = row.FileAssetId, DocumentTypeCode = row.DocumentTypeCode,
-        VersionNo = row.VersionNo, IsVerified = row.IsVerified, VerifiedByUserId = row.VerifiedByUserId,
+        VersionNo = row.VersionNo, IsVerified = row.IsVerified,
+        VerificationStatus = row.VerificationStatus, VerifiedByUserId = row.VerifiedByUserId,
         VerifiedAt = row.VerifiedAt, VerificationNote = row.VerificationNote
     };
     private static AdmissionApplicationCreatedDto MapCreated(AdmissionApplicant a) => new()

@@ -663,7 +663,9 @@
                 const title = document.createElement('strong');
                 title.textContent = documentItem.documentTypeCode || '';
                 const detail = document.createElement('span');
-                detail.textContent = `${documentItem.originalFileName || 'Private document'} · ${formatFileSize(documentItem.fileSizeBytes)} · ${documentItem.isVerified ? 'Verified' : 'Pending'}`;
+                const decision = Number(documentItem.verificationStatus);
+                const label = decision === 3 ? 'Rejected' : decision === 2 ? 'Verified' : 'Pending';
+                detail.textContent = `${documentItem.originalFileName || 'Private document'} · v${documentItem.versionNo} · ${formatFileSize(documentItem.fileSizeBytes)} · ${label}`;
                 summary.append(title, detail);
                 if (documentItem.verificationNote) {
                     const note = document.createElement('span');
@@ -677,8 +679,15 @@
                 download.href = `/api/admission-intake/applications/${encodeURIComponent(reference)}/documents/${encodeURIComponent(documentItem.id)}/content`;
                 download.textContent = 'View / Download';
                 controls.append(download);
-                if (!documentItem.isVerified) {
-                    controls.append(documentActionButton('Verify', 2, documentItem));
+                if (decision === 1 && !documentItem.isVerified) {
+                    const reason = document.createElement('textarea');
+                    reason.className = 'form-control form-control-sm';
+                    reason.maxLength = 1000;
+                    reason.rows = 2;
+                    reason.placeholder = 'Reason required to reject this document';
+                    reason.setAttribute('aria-label', 'Document rejection reason');
+                    controls.append(documentActionButton('Verify', 2, documentItem), reason,
+                        documentActionButton('Reject', 3, documentItem));
                 }
                 card.append(summary, controls);
                 return card;
@@ -703,9 +712,15 @@
         const button = event.target.closest('button[data-document-id]');
         if (!button || !state.currentApplication?.reference) return;
         const status = Number(button.dataset.documentStatus);
-        // The canonical document record supports verified/pending only; rejection is not persisted.
-        if (status !== 2) return;
-        const note = null;
+        if (status !== 2 && status !== 3) return;
+        const note = status === 3
+            ? button.parentElement?.querySelector('textarea')?.value.trim()
+            : null;
+        if (status === 3 && !note) {
+            showAlert('danger', 'Enter a rejection reason before rejecting this document.');
+            button.parentElement?.querySelector('textarea')?.focus();
+            return;
+        }
         button.disabled = true;
         try {
             const response = await fetch(`/api/admission-intake/applications/${encodeURIComponent(state.currentApplication.reference)}/documents/${encodeURIComponent(button.dataset.documentId)}/review`, apiOptions('POST', {

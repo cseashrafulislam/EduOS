@@ -232,9 +232,12 @@ public sealed class AdmissionIntakeService : IAdmissionIntakeService
             request.Status is not (AdmissionDocumentVerificationStatus.Verified or AdmissionDocumentVerificationStatus.Rejected) ||
             !TryVersion(request.RowVersion, out var version))
             return Task.FromResult(Error<AdmissionApplicantDocumentDto>("Valid document review request and row version required."));
-        if (request.Status == AdmissionDocumentVerificationStatus.Rejected)
-            return Task.FromResult(Error<AdmissionApplicantDocumentDto>("Rejection requires an explicit status field in the canonical document model. No rejection was recorded.", 409));
-        return ExecuteWriteAsync("verify applicant document", async () =>
+        if (request.Status == AdmissionDocumentVerificationStatus.Rejected &&
+            string.IsNullOrWhiteSpace(request.Note))
+            return Task.FromResult(Error<AdmissionApplicantDocumentDto>("A rejection reason is required."));
+        if (request.Note?.Length > 1000)
+            return Task.FromResult(Error<AdmissionApplicantDocumentDto>("Review note is too long."));
+        return ExecuteWriteAsync("review applicant document", async () =>
         {
             var tenant = _user.TenantId;
             var applicant = await _applicants.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
@@ -243,17 +246,35 @@ public sealed class AdmissionIntakeService : IAdmissionIntakeService
             var doc = await _documents.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenant &&
                 x.Id == documentId && x.AdmissionApplicantId == applicant.Id, ct);
             if (doc == null) return Error<AdmissionApplicantDocumentDto>("Document not found.", 404);
+            if (applicant.State is AdmissionApplicantState.Admitted or AdmissionApplicantState.Rejected or
+                AdmissionApplicantState.Withdrawn ||
+                applicant.State == AdmissionApplicantState.Qualified && doc.DocumentTypeCode != "OFFER_ACCEPTANCE")
+                return Error<AdmissionApplicantDocumentDto>("Documents cannot be reviewed after the final decision.", 409);
+            if (await _documents.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
+                x.AdmissionApplicantId == applicant.Id && x.DocumentTypeCode == doc.DocumentTypeCode &&
+                x.VersionNo > doc.VersionNo, ct))
+                return Error<AdmissionApplicantDocumentDto>("A newer document version must be reviewed.", 409);
+            var note = Trim(request.Note);
+            // An identical retry by the original reviewer must not rewrite the audit history.
+            if (doc.VerificationStatus == request.Status && doc.VerifiedByUserId == _user.UserId &&
+                doc.VerificationNote == note)
+                return ApiResponse<AdmissionApplicantDocumentDto>.SuccessResponse(MapDocument(doc),
+                    "Document decision already recorded.");
             if (!VersionsMatch(doc.RowVersion, version)) return Stale<AdmissionApplicantDocumentDto>();
+            if (doc.VerificationStatus != AdmissionDocumentVerificationStatus.Pending || doc.IsVerified)
+                return Error<AdmissionApplicantDocumentDto>("Document decision is final; upload a replacement version.", 409);
             var asset = await _fileAssets.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Id == doc.FileAssetId, ct);
             if (asset == null || !asset.IsVerifiedSafe)
                 return Error<AdmissionApplicantDocumentDto>("File is not cleared by upload security checks.", 409);
-            doc.IsVerified = true; doc.VerifiedAt = _clock.GetUtcNow().UtcDateTime;
-            doc.VerifiedByUserId = _user.UserId; doc.VerificationNote = Trim(request.Note);
-            doc.UpdatedAt = _clock.GetUtcNow().UtcDateTime; doc.UpdatedBy = _user.UserId;
+            var now = _clock.GetUtcNow().UtcDateTime;
+            doc.VerificationStatus = request.Status;
+            doc.IsVerified = request.Status == AdmissionDocumentVerificationStatus.Verified;
+            doc.VerifiedAt = now; doc.VerifiedByUserId = _user.UserId;
+            doc.VerificationNote = note; doc.UpdatedAt = now; doc.UpdatedBy = _user.UserId;
             await _uow.SaveChangesAsync(ct);
             return ApiResponse<AdmissionApplicantDocumentDto>.SuccessResponse(MapDocument(doc, asset),
-                "Applicant document verified.");
+                doc.IsVerified ? "Applicant document verified." : "Document rejected; applicant may upload a replacement.");
         });
     }
 
@@ -346,7 +367,8 @@ public sealed class AdmissionIntakeService : IAdmissionIntakeService
     internal static AdmissionApplicantDocumentDto MapDocument(AdmissionApplicantDocument doc, FileAsset? asset) => new()
     {
         Id = doc.Id, FileAssetId = doc.FileAssetId, DocumentTypeCode = doc.DocumentTypeCode,
-        VersionNo = doc.VersionNo, IsVerified = doc.IsVerified, VerifiedByUserId = doc.VerifiedByUserId,
+        VersionNo = doc.VersionNo, IsVerified = doc.IsVerified,
+        VerificationStatus = doc.VerificationStatus, VerifiedByUserId = doc.VerifiedByUserId,
         VerifiedAt = doc.VerifiedAt, VerificationNote = doc.VerificationNote,
         OriginalFileName = asset?.OriginalFileName, FileSizeBytes = asset?.SizeBytes,
         RowVersion = Convert.ToBase64String(doc.RowVersion)

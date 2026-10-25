@@ -251,7 +251,68 @@
         }
     });
 
+    const resubmissionPanel = document.createElement('section');
+    resubmissionPanel.id = 'rejectedDocumentResubmission';
+    resubmissionPanel.setAttribute('aria-label', 'Rejected document replacement');
+    resubmissionPanel.hidden = true;
+    statusMessage.after(resubmissionPanel);
+
+    function showRejectedDocuments(data, reference, mobile) {
+        resubmissionPanel.replaceChildren();
+        const finalState = [6, 7, 8, 9].includes(Number(data.state));
+        const latest = new Map();
+        for (const doc of data.documents || []) {
+            const previous = latest.get(doc.documentTypeCode);
+            if (!previous || Number(doc.versionNo) > Number(previous.versionNo))
+                latest.set(doc.documentTypeCode, doc);
+        }
+        const rejected = [...latest.values()].filter(doc => Number(doc.verificationStatus) === 3 &&
+            (!finalState || Number(data.state) === 6 && doc.documentTypeCode === 'OFFER_ACCEPTANCE'));
+        resubmissionPanel.hidden = rejected.length === 0;
+        for (const doc of rejected) {
+            const row = document.createElement('div');
+            row.className = 'field';
+            const label = document.createElement('label');
+            label.textContent = `Replace rejected ${doc.documentTypeCode} (version ${doc.versionNo})`;
+            const reason = document.createElement('p');
+            reason.className = 'muted';
+            reason.textContent = doc.verificationNote || 'Please upload a corrected document.';
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.setAttribute('aria-label', `Replacement for ${doc.documentTypeCode}`);
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = 'Upload replacement';
+            button.disabled = true;
+            input.addEventListener('change', () => {
+                button.disabled = !input.files?.length;
+                button.dataset.requestId = createRequestId();
+            });
+            button.addEventListener('click', async () => {
+                if (!input.files?.length) return;
+                button.disabled = true;
+                try {
+                    const payload = new FormData();
+                    payload.append('clientRequestId', button.dataset.requestId);
+                    payload.append('mobile', mobile);
+                    payload.append('documentType', doc.documentTypeCode);
+                    payload.append('file', input.files[0]);
+                    await readResponse(await fetch(`${apiBase}/applications/${encodeURIComponent(reference)}/documents`,
+                        { method: 'POST', body: payload, headers: { Accept: 'application/json' } }));
+                    setMessage(statusMessage, 'Replacement uploaded for verification.', true);
+                    resubmissionPanel.hidden = true;
+                } catch (error) {
+                    setMessage(statusMessage, error.message);
+                    button.disabled = false;
+                }
+            });
+            row.append(label, reason, input, button);
+            resubmissionPanel.append(row);
+        }
+    }
+
     statusButton.addEventListener('click', async () => {
+        resubmissionPanel.hidden = true;
         clearMessage(statusMessage);
         document.getElementById('offerAcceptancePanel').hidden = true;
         const reference = value('statusReference');
@@ -269,10 +330,11 @@
                 ? ` — ${assessment.testName}: ${assessment.resultStatus} (${assessment.obtainedMarks}/${assessment.totalMarks}${merit})`
                 : '';
             const documentText = (data.documents || []).length
-                ? ` — Documents: ${(data.documents || []).map(x => `${x.documentTypeCode} (${x.isVerified ? 'Verified' : 'Pending'})`).join(', ')}`
+                ? ` — Documents: ${(data.documents || []).map(x => `${x.documentTypeCode} v${x.versionNo} (${Number(x.verificationStatus) === 3 ? 'Rejected' : x.isVerified ? 'Verified' : 'Pending'})`).join(', ')}`
                 : '';
             setMessage(statusMessage, `${data.applicationNumber}: ${status}${note}${assessmentText}${documentText}`, true);
             document.getElementById('offerAcceptancePanel').hidden = !data.canUploadOfferAcceptance;
+            showRejectedDocuments(data, reference, mobile);
         } catch (error) {
             setMessage(statusMessage, error.message);
         } finally {
