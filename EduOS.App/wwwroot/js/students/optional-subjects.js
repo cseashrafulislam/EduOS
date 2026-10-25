@@ -1,6 +1,7 @@
 (() => {
 'use strict';
 const root=document.getElementById('studentOptionalSubjects'); if(!root)return;
+const canManage=root.dataset.canManage==='true';
 const el=id=>document.getElementById(id), token=root.querySelector('input[name="__RequestVerificationToken"]').value;
 let student=null, workspace=null, requestId=null, busy=false;
 const val=id=>el(id).value.trim();
@@ -40,7 +41,7 @@ async function load(ref){
    const td=document.createElement('td');td.textContent=v;row.append(td);
   }
   const td=document.createElement('td');
-  if(item.state===1||item.state==='Pending')for(const [label,decision] of [['Approve',2],['Reject',3]]){
+  if(canManage&&(item.state===1||item.state==='Pending'))for(const [label,decision] of [['Approve',2],['Reject',3]]){
    const btn=document.createElement('button');btn.type='button';btn.className='btn btn-sm btn-outline-primary me-1';btn.textContent=label;
    btn.addEventListener('click',()=>decide(item,decision));td.append(btn);
   }
@@ -49,7 +50,28 @@ async function load(ref){
  if(!table.children.length)table.textContent='No registrations.';
  refresh();
 }
-async function choose(item){student=item;workspace=null;requestId=null;refresh();try{await load(item.reference);}catch(e){notice(e.message,true);}}
+async function choose(item){
+ student=item;workspace=null;requestId=null;
+ el('subjectsStudent').classList.add('d-none');
+ el('subjectsOffering').replaceChildren(new Option('Loading electives…',''));
+ el('subjectsRegistrations').textContent='Loading registrations…';
+ refresh();try{await load(item.reference);}catch(e){notice(e.message,true);}
+}
+async function loadLinkedStudents(){
+ const menu=el('subjectsLinkedStudents');
+ try{
+  const linked=await api('/api/portal/students');
+  menu.replaceChildren(new Option('Choose linked student',''));
+  for(const item of linked||[]){
+   if(!item.reference)continue;
+   menu.add(new Option((item.name||'Student')+' · '+(item.studentCode||''),item.reference));
+  }
+  const requested=new URLSearchParams(location.search).get('studentReference');
+  const match=(linked||[]).find(x=>x.reference===requested)||(linked||[])[0];
+  if(match?.reference){menu.value=match.reference;await choose(match);}
+  else notice('No student is linked to your account.',true);
+ }catch(e){notice(e.message,true);}
+}
 async function search(e){
  e.preventDefault();if(val('subjectsSearch').length<2)return notice('Enter at least two characters.',true);
  const box=el('subjectsMatches');box.textContent='Searching...';
@@ -71,16 +93,22 @@ async function submit(e){
  }catch(err){notice(err.message,true);}finally{busy=false;refresh();}
 }
 async function decide(item,decision){
+ if(!canManage)return;
  if(busy||!confirm('Confirm subject decision?'))return;busy=true;refresh();
  try{
   await api('/api/academic-enrollments/subjects/'+item.id+'/decision',{state:decision,rowVersion:item.rowVersion});
   await load(student.reference);notice('Decision saved.');
  }catch(err){notice(err.message,true);}finally{busy=false;refresh();}
 }
-el('subjectsSearchForm').addEventListener('submit',search);
+if(canManage)el('subjectsSearchForm').addEventListener('submit',search);
+else el('subjectsLinkedStudents').addEventListener('change',e=>{
+ const ref=e.target.value;if(ref)choose({reference:ref});
+ else {student=null;workspace=null;el('subjectsStudent').classList.add('d-none');refresh();}
+});
 el('subjectsRequestForm').addEventListener('submit',submit);
 el('subjectsOffering').addEventListener('change',()=>{requestId=null;refresh();});
 el('subjectsRemarks').addEventListener('input',()=>{requestId=null;});
 const ref=new URLSearchParams(location.search).get('studentReference');
-if(ref&&/^[0-9a-f-]{36}$/i.test(ref))choose({reference:ref});
+if(canManage&&ref&&/^[0-9a-f-]{36}$/i.test(ref))choose({reference:ref});
+if(!canManage)loadLinkedStudents();
 })();
