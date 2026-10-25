@@ -57,6 +57,7 @@ public class StudentDirectoryDetailsDto : StudentDirectoryListItemDto
 {
     /// <summary>Opaque optimistic concurrency token for privileged lifecycle transitions.</summary>
     public string RowVersion { get; set; } = string.Empty;
+    public string? PhotoUrl { get; set; }
     public DateOnly? DateOfBirth { get; set; }
     public string Gender { get; set; } = string.Empty;
     public string? Phone { get; set; }

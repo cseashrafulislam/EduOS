@@ -228,6 +228,8 @@ public sealed class StudentDirectoryService : IStudentDirectoryService
             Address = student.Address,
             PreferredLanguage = student.PreferredLanguage,
             AdmissionDate = student.AdmissionDate,
+            PhotoUrl = student.PhotoUrl != null && student.PhotoUrl.StartsWith("/api/students/" + student.PublicId.ToString("D") + "/photo/", StringComparison.Ordinal)
+                ? student.PhotoUrl : null,
             Guardians = guardianLinks
                 .Where(x => guardians.ContainsKey(x.GuardianId))
                 .Select(x =>
