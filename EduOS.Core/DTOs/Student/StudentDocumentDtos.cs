@@ -30,3 +30,12 @@ public sealed class DeactivateStudentDocumentDto
 {
     [Required] public string RowVersion { get; set; } = string.Empty;
 }
+
+public sealed class PortalStudentDocumentDto
+{
+    public Guid Reference { get; set; }
+    public string DocumentTypeCode { get; set; } = string.Empty;
+    public string? Title { get; set; }
+    public string FileName { get; set; } = string.Empty;
+    public DateTime? ExpiresAt { get; set; }
+}

@@ -27,6 +27,27 @@ public sealed class StudentDocumentService(
     ILogger<StudentDocumentService> logger) : IStudentDocumentService
 {
     private bool Allowed => user.IsAuthenticated && user.IsTenantAdmin && user.TenantId > 0;
+    private bool PortalAllowed => user.IsAuthenticated && user.TenantId > 0 && user.UserId > 0 &&
+        (user.IsInRole("Student") || user.IsInRole("Guardian") || user.IsInRole("Parent"));
+
+    // The portal never trusts a student reference without checking the signed-in user's
+    // student identity or a live, tenant-owned guardian relationship.
+    private Task<Student?> PortalStudentAsync(Guid reference, CancellationToken ct)
+    {
+        var self = user.IsInRole("Student");
+        var guardianRole = user.IsInRole("Guardian") || user.IsInRole("Parent");
+        var linkedIds = from link in db.StudentGuardians.AsNoTracking()
+                        join guardian in db.Guardians.AsNoTracking() on link.GuardianId equals guardian.Id
+                        where link.TenantId == user.TenantId && guardian.TenantId == user.TenantId &&
+                            guardian.UserId == user.UserId && guardian.IsActive &&
+                            !guardian.IsDeleted && !link.IsDeleted
+                        select link.StudentId;
+        return db.Students.AsNoTracking().FirstOrDefaultAsync(student =>
+            student.TenantId == user.TenantId && student.PublicId == reference &&
+            student.StatusCode == "Active" && !student.IsDeleted &&
+            ((self && student.UserId == user.UserId) ||
+             (guardianRole && linkedIds.Contains(student.Id))), ct);
+    }
     private static ApiResponse<T> Fail<T>(string message, int status = 400) =>
         ApiResponse<T>.ErrorResponse(message, status);
     private Task<Student?> StudentAsync(Guid reference, CancellationToken ct) =>
@@ -49,6 +70,59 @@ public sealed class StudentDocumentService(
         FileName = file.OriginalFileName, ExpiresAt = document.ExpiresAt,
         IsActive = document.IsActive, RowVersion = Convert.ToBase64String(document.RowVersion)
     };
+    private static PortalStudentDocumentDto MapPortal(Document document, FileAsset file) => new()
+    {
+        Reference = document.PublicId, DocumentTypeCode = document.DocumentTypeCode,
+        Title = document.Title, FileName = Path.GetFileName(file.OriginalFileName.Replace('\\', '/')),
+        ExpiresAt = document.ExpiresAt
+    };
+
+    // Read-only student/guardian projection: no document versions, storage keys or
+    // sensitive/verification-required files are returned to the learner portal.
+    public async Task<ApiResponse<IReadOnlyList<PortalStudentDocumentDto>>> GetPortalAsync(
+        Guid studentReference, CancellationToken ct = default)
+    {
+        if (!PortalAllowed) return Fail<IReadOnlyList<PortalStudentDocumentDto>>("Portal account required.", 403);
+        if (studentReference == Guid.Empty) return Fail<IReadOnlyList<PortalStudentDocumentDto>>("Student reference required.");
+        var student = await PortalStudentAsync(studentReference, ct);
+        if (student == null) return Fail<IReadOnlyList<PortalStudentDocumentDto>>("Student not found.", 404);
+        var now = DateTime.UtcNow;
+        var rows = await (from document in db.Documents.AsNoTracking()
+            join file in db.FileAssets.AsNoTracking() on document.FileAssetId equals file.Id
+            join type in db.DocumentTypeDefinitions.AsNoTracking()
+                on new { document.TenantId, Code = document.DocumentTypeCode }
+                equals new { type.TenantId, type.Code }
+            where document.TenantId == user.TenantId && file.TenantId == user.TenantId &&
+                type.TenantId == user.TenantId && document.EntityType == "Student" &&
+                document.EntityId == student.Id && !document.IsDeleted && document.IsActive &&
+                !file.IsDeleted && !type.IsDeleted && type.IsActive &&
+                !type.IsSensitive && !type.RequiresVerification &&
+                (!document.ExpiresAt.HasValue || document.ExpiresAt > now) &&
+                file.IsVerifiedSafe && file.MalwareScanStateCode == "Clean" &&
+                file.Visibility == FileVisibility.Private && file.StorageProvider == "LocalPrivate" &&
+                db.Documents.Count(other => other.TenantId == user.TenantId &&
+                    other.FileAssetId == file.Id && !other.IsDeleted) == 1
+            orderby document.CreatedAt descending, document.Id descending
+            select new { Document = document, File = file }).Take(101).ToListAsync(ct);
+        if (rows.Count > 100)
+            return Fail<IReadOnlyList<PortalStudentDocumentDto>>("Document list exceeds portal limit.", 409);
+        IReadOnlyList<PortalStudentDocumentDto> result = rows
+            .Where(x => DocumentFileService.IsTenantDocumentKey(x.File.StorageKey, user.TenantId))
+            .Select(x => MapPortal(x.Document, x.File)).ToList();
+        return ApiResponse<IReadOnlyList<PortalStudentDocumentDto>>.SuccessResponse(result);
+    }
+
+    public async Task<ApiResponse<DocumentFileDownloadDto>> DownloadPortalAsync(
+        Guid studentReference, Guid documentReference, CancellationToken ct = default)
+    {
+        if (!PortalAllowed) return Fail<DocumentFileDownloadDto>("Portal account required.", 403);
+        if (studentReference == Guid.Empty || documentReference == Guid.Empty)
+            return Fail<DocumentFileDownloadDto>("Invalid student or document reference.");
+        var student = await PortalStudentAsync(studentReference, ct);
+        if (student == null) return Fail<DocumentFileDownloadDto>("Student not found.", 404);
+        return await DownloadForStudentAsync(student, documentReference, ct);
+    }
+
     private AuditLog Audit(string action, Document document) => new()
     {
         TenantId = user.TenantId, UserId = user.UserId, Action = action,
@@ -201,6 +275,12 @@ public sealed class StudentDocumentService(
             return Fail<DocumentFileDownloadDto>("Invalid student or document reference.");
         var student = await StudentAsync(studentReference, ct);
         if (student == null) return Fail<DocumentFileDownloadDto>("Student not found.", 404);
+        return await DownloadForStudentAsync(student, documentReference, ct);
+    }
+
+    private async Task<ApiResponse<DocumentFileDownloadDto>> DownloadForStudentAsync(
+        Student student, Guid documentReference, CancellationToken ct)
+    {
         var row = await (from document in db.Documents.AsNoTracking()
             join file in db.FileAssets.AsNoTracking() on document.FileAssetId equals file.Id
             join type in db.DocumentTypeDefinitions.AsNoTracking()

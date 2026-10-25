@@ -14,7 +14,12 @@ namespace EduOS.App.Controllers.Api;
 public sealed class SelfServicePortalController : ControllerBase
 {
     private readonly ISelfServicePortalService _service;
-    public SelfServicePortalController(ISelfServicePortalService service) => _service = service;
+    private readonly IStudentDocumentService _documents;
+    public SelfServicePortalController(ISelfServicePortalService service, IStudentDocumentService documents)
+    {
+        _service = service;
+        _documents = documents;
+    }
 
     [HttpGet("students")]
     public async Task<IActionResult> Students(CancellationToken ct) =>
@@ -72,6 +77,23 @@ public sealed class SelfServicePortalController : ControllerBase
     public async Task<IActionResult> Assignments(Guid reference, [FromQuery] int page = 1,
         [FromQuery] int pageSize = 25, CancellationToken ct = default) =>
         Result(await _service.GetAssignmentsAsync(reference, page, pageSize, ct));
+
+    [HttpGet("students/{reference:guid}/documents")]
+    [RequireModule("STUDENT")]
+    public async Task<IActionResult> Documents(Guid reference, CancellationToken ct) =>
+        Result(await _documents.GetPortalAsync(reference, ct));
+
+    [HttpGet("students/{reference:guid}/documents/{documentReference:guid}/download")]
+    [RequireModule("STUDENT")]
+    public async Task<IActionResult> DownloadDocument(Guid reference, Guid documentReference, CancellationToken ct)
+    {
+        var result = await _documents.DownloadPortalAsync(reference, documentReference, ct);
+        if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
+        Response.Headers.CacheControl = "no-store, private";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        Response.Headers["Referrer-Policy"] = "no-referrer";
+        return File(result.Data.Content, result.Data.ContentType, result.Data.FileName);
+    }
 
     private IActionResult Result<T>(EduOS.Core.Common.ApiResponse<T> response) =>
         StatusCode(response.StatusCode, response);

@@ -11,7 +11,8 @@
         transport: [['routeName','Route'],['vehicleNo','Vehicle'],['pickupPoint','Pickup'],['startDate','Start'],['monthlyFare','Monthly fare'],['isActive','Active']],
         homework: [['subjectName','Subject'],['title','Title'],['assignedDate','Assigned'],['dueDate','Due'],['description','Description']],
         assignments: [['courseTitle','Course'],['title','Assignment'],['totalMark','Full marks'],['dueDate','Due'],['description','Instructions']],
-        fees: [['invoiceNo','Invoice'],['billedAmount','Billed'],['paidAmount','Paid'],['dueAmount','Due'],['dueDate','Due date'],['status','Status']]
+        fees: [['invoiceNo','Invoice'],['billedAmount','Billed'],['paidAmount','Paid'],['dueAmount','Due'],['dueDate','Due date'],['status','Status']],
+        documents: [['documentTypeCode','Type'],['title','Title'],['fileName','File'],['expiresAt','Expires']]
     };
     function notify(message, kind = 'danger') {
         const box = el('studentPortalAlert'); box.className = 'alert alert-' + kind; box.textContent = message; box.focus();
@@ -32,7 +33,7 @@
     }
     function display(value, key) {
         if (value === null || value === undefined) return '—';
-        if (['date', 'startDate', 'dueDate', 'assignedDate'].includes(key)) return String(value).slice(0,10);
+        if (['date', 'startDate', 'dueDate', 'assignedDate', 'expiresAt'].includes(key)) return String(value).slice(0,10);
         if (['startTime', 'endTime', 'inTime', 'outTime'].includes(key)) return String(value).slice(0,5);
         return value;
     }
@@ -51,6 +52,23 @@
             mapping.forEach(([key]) => tr.append(cell(display(item[key], key))));
             body.append(tr);
         }
+    }
+    function renderDocuments(items, student) {
+        render(items, columns.documents, 'No available student documents.');
+        const th = document.createElement('th'); th.scope = 'col'; th.textContent = 'Action';
+        el('studentPortalHeaders').firstElementChild.append(th);
+        const rows = el('studentPortalRows').children;
+        if (!items.length) { rows[0].firstElementChild.colSpan = 5; return; }
+        items.forEach((item, index) => {
+            const td = document.createElement('td');
+            const link = document.createElement('a');
+            link.className = 'btn btn-sm btn-outline-primary';
+            link.textContent = 'Download';
+            link.rel = 'noreferrer';
+            link.href = '/api/portal/students/' + encodeURIComponent(student) +
+                '/documents/' + encodeURIComponent(item.reference) + '/download';
+            td.append(link); rows[index].append(td);
+        });
     }
     function localDate(value) {
         const d = new Date(value);
@@ -101,6 +119,11 @@
                     const li = document.createElement('li'); li.className = 'list-group-item text-muted'; li.textContent = 'No payments recorded.'; list.append(li);
                 }
                 extra.append(list);
+            } else if (section === 'documents') {
+                renderDocuments(data || [], student);
+                el('studentPortalSummary').textContent =
+                    'Available non-sensitive documents: ' + (data?.length || 0) +
+                    '. Verification-required files are handled by the institution.';
             } else render(data || [], columns[section]);
         } catch (error) {
             if (token !== latestRequest) return;
