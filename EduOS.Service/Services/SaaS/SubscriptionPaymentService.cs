@@ -3,6 +3,7 @@ using EduOS.Core.DTOs.SaaS;
 using EduOS.Core.DTOs.Files;
 using EduOS.Core.Entities.Files;
 using EduOS.Core.Entities.SaaS;
+using EduOS.Core.Entities.System;
 using EduOS.Core.Enums;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
@@ -35,18 +36,21 @@ public sealed partial class SubscriptionPaymentService : ISubscriptionPaymentSer
     private readonly AamarPaySettings _gatewaySettings;
     private readonly ManualPaymentSettings _manualSettings;
     private readonly ILogger<SubscriptionPaymentService> _logger;
+    private readonly IGenericRepository<AuditLog>? _gatewayEvidenceAudit;
 
     public SubscriptionPaymentService(ISubscriptionPaymentRepository paymentRepo,
         ISubscriptionInvoiceRepository invoiceRepo, IGenericRepository<Tenant> tenantRepo,
         IGenericRepository<FileAsset> fileRepo, IUnitOfWork unitOfWork,
         ICurrentUserService currentUser, IAamarPayClient aamarPay, IFileUploadService fileStorage,
         IGenericRepository<TenantSubscription> subscriptionRows, IOptions<AamarPaySettings> aamarPaySettings,
-        IOptions<ManualPaymentSettings> manualSettings, ILogger<SubscriptionPaymentService> logger)
+        IOptions<ManualPaymentSettings> manualSettings, ILogger<SubscriptionPaymentService> logger,
+        IGenericRepository<AuditLog>? gatewayEvidenceAudit = null)
     {
         _payments = paymentRepo; _invoices = invoiceRepo; _tenants = tenantRepo; _files = fileRepo;
         _uow = unitOfWork; _user = currentUser; _gateway = aamarPay; _storage = fileStorage;
         _subscriptionRows = subscriptionRows; _gatewaySettings = aamarPaySettings.Value;
         _manualSettings = manualSettings.Value; _logger = logger;
+        _gatewayEvidenceAudit = gatewayEvidenceAudit;
     }
 
     public async Task<ApiResponse<InitiatePaymentResponseDto>> InitiateAamarPayAsync(InitiatePaymentRequestDto dto)

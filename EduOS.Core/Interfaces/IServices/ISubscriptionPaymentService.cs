@@ -46,6 +46,8 @@ public interface ISubscriptionPaymentService
     Task<ApiResponse<PagedGatewayPaymentRecoveryDto>> GetPendingGatewayRecoveryAsync(
         int page, int pageSize, string? search, CancellationToken ct = default);
     Task<ApiResponse<bool>> ReconcileGatewayPaymentAsync(long paymentId, string rowVersion);
+    Task<ApiResponse<GatewayProviderInspectionDto>> InspectGatewayProviderAsync(
+        long paymentId, string rowVersion, CancellationToken ct = default);
     Task<ApiResponse<PagedGatewayPaymentRecoveryDto>> GetGatewayExceptionQueueAsync(
         int page, int pageSize, string? search, string? category, CancellationToken ct = default);
 

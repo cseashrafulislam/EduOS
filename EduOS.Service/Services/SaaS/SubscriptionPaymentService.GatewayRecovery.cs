@@ -135,4 +135,110 @@ public sealed partial class SubscriptionPaymentService
             _user.UserId, payment.Id, payment.TenantId);
         return await HandleAamarPayCallbackAsync(new AamarPayCallbackDto { MerTxnid = payment.TransactionId });
     }
+
+    /// <summary>
+    /// Independently inspect a provider outcome even when the invoice is blocked.
+    /// This is an evidence/audit operation only: it NEVER settles a payment, changes
+    /// an invoice, or activates a subscription. The raw gateway response is not
+    /// exposed or copied into the audit log; its SHA-256 fingerprint is retained.
+    /// </summary>
+    public async Task<ApiResponse<GatewayProviderInspectionDto>> InspectGatewayProviderAsync(
+        long paymentId, string rowVersion, CancellationToken ct = default)
+    {
+        if (!_user.IsSuperAdmin)
+            return ApiResponse<GatewayProviderInspectionDto>.ErrorResponse("Platform administrator access required.", 403);
+        if (paymentId <= 0 || string.IsNullOrWhiteSpace(rowVersion))
+            return ApiResponse<GatewayProviderInspectionDto>.ErrorResponse("Payment and row version are required.", 400);
+        if (_gatewayEvidenceAudit == null)
+            return ApiResponse<GatewayProviderInspectionDto>.ErrorResponse("Gateway investigation audit is unavailable.", 503);
+        byte[] expected;
+        try { expected = Convert.FromBase64String(rowVersion); }
+        catch (FormatException)
+        {
+            return ApiResponse<GatewayProviderInspectionDto>.ErrorResponse("Invalid row version.", 400);
+        }
+        if (expected.Length is < 1 or > 32)
+            return ApiResponse<GatewayProviderInspectionDto>.ErrorResponse("Invalid row version.", 400);
+
+        var payment = await _payments.GetByIdForPlatformAsync(paymentId, ct);
+        if (payment == null || payment.PaymentMethod != PaymentMethodType.Gateway ||
+            payment.GatewayCode != "AamarPay")
+            return ApiResponse<GatewayProviderInspectionDto>.ErrorResponse("Gateway payment not found.", 404);
+        if (payment.State != PaymentState.Initiated ||
+            payment.InitiatedAt > DateTime.UtcNow.Subtract(GatewayRecoveryDelay))
+            return ApiResponse<GatewayProviderInspectionDto>.ErrorResponse("Payment is no longer eligible for investigation.", 409);
+        if (payment.RowVersion.Length != expected.Length ||
+            !CryptographicOperations.FixedTimeEquals(payment.RowVersion, expected))
+            return ApiResponse<GatewayProviderInspectionDto>.ErrorResponse("Payment changed. Reload and retry.", 409);
+
+        // The payment, invoice and subscription must belong to the same tenant.
+        var invoice = await _invoices.GetByIdForSystemAsync(payment.SubscriptionInvoiceId, payment.TenantId, ct);
+        if (invoice == null || !await _subscriptionRows.GetQueryable().IgnoreQueryFilters().AsNoTracking()
+            .AnyAsync(x => x.Id == invoice.TenantSubscriptionId &&
+                x.TenantId == payment.TenantId && !x.IsDeleted, ct))
+            return ApiResponse<GatewayProviderInspectionDto>.ErrorResponse("Tenant-scoped invoice or subscription not found.", 409);
+
+        var closed = invoice.State is InvoiceState.Paid or InvoiceState.Cancelled or InvoiceState.Refunded;
+        var balanceBlocked = payment.Amount <= 0 || invoice.DueAmount < payment.Amount;
+        var invoiceCurrencyMatches = string.Equals(invoice.CurrencyCode, payment.CurrencyCode,
+            StringComparison.OrdinalIgnoreCase);
+        var blocked = closed || balanceBlocked || !invoiceCurrencyMatches;
+        try
+        {
+            // Network request occurs before any audit database write and cannot settle funds.
+            var evidence = await _gateway.VerifyTransactionAsync(payment.TransactionId, ct);
+            var amountMatches = decimal.TryParse(evidence.Amount, System.Globalization.NumberStyles.Number,
+                System.Globalization.CultureInfo.InvariantCulture, out var providerAmount) &&
+                providerAmount == payment.Amount;
+            // A missing provider currency is not affirmative evidence for an investigation.
+            var currencyMatches = !string.IsNullOrWhiteSpace(evidence.Currency) &&
+                string.Equals(evidence.Currency, payment.CurrencyCode, StringComparison.OrdinalIgnoreCase) &&
+                invoiceCurrencyMatches;
+            var confirmed = evidence.IsSuccess;
+            var needsReview = confirmed && (blocked || !amountMatches || !currencyMatches);
+            var fingerprint = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes(evidence.RawResponse ?? string.Empty)));
+            var finding = needsReview
+                ? "Provider reports success, but invoice/amount/currency requires manual finance investigation. No funds were applied."
+                : confirmed
+                    ? "Provider reports success and values match. Use the existing verified reconciliation action to apply payment."
+                    : "Provider success was not confirmed. Do not credit the invoice.";
+            var observedAt = DateTime.UtcNow;
+            var audit = new EduOS.Core.Entities.System.AuditLog
+            {
+                TenantId = payment.TenantId, UserId = _user.UserId,
+                Action = needsReview ? "GatewayProviderEscalation" : "GatewayProviderInspection",
+                EntityName = "SubscriptionPayment", EntityId = payment.Id,
+                IsSuccess = confirmed, OccurredAt = observedAt,
+                NewValue = System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    Status = confirmed ? "Successful" : "Unconfirmed",
+                    AmountMatches = amountMatches, CurrencyMatches = currencyMatches,
+                    InvoiceBlocked = blocked, RequiresManualReview = needsReview,
+                    EvidenceSha256 = fingerprint
+                })
+            };
+            await _gatewayEvidenceAudit.AddAsync(audit);
+            await _uow.SaveChangesAsync(ct);
+            _logger.LogInformation(
+                "Gateway provider inspection recorded: payment {PaymentId}, tenant {TenantId}, audit {AuditId}, escalation {Escalation}",
+                payment.Id, payment.TenantId, audit.Id, needsReview);
+            return ApiResponse<GatewayProviderInspectionDto>.SuccessResponse(new GatewayProviderInspectionDto
+            {
+                PaymentId = payment.Id, TenantId = payment.TenantId,
+                InspectedAtUtc = observedAt, ProviderStatus = confirmed ? "Successful" : "Unconfirmed",
+                ProviderConfirmed = confirmed, AmountMatches = amountMatches,
+                CurrencyMatches = currencyMatches, InvoiceBlocked = blocked,
+                RequiresManualReview = needsReview, Finding = finding,
+                EvidenceSha256 = fingerprint, AuditId = audit.Id
+            });
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Gateway provider inspection failed for payment {PaymentId}", paymentId);
+            return ApiResponse<GatewayProviderInspectionDto>.ErrorResponse(
+                "Provider inspection or its audit could not be completed. No payment was applied.", 503);
+        }
+    }
 }

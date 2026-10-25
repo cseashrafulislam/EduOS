@@ -32,3 +32,21 @@ public sealed class GatewayRecoveryRequestDto
 {
     [Required, MaxLength(200)] public string RowVersion { get; set; } = string.Empty;
 }
+
+
+// Read-only, provider-authoritative investigation. Never supplies an instruction to settle funds.
+public sealed class GatewayProviderInspectionDto
+{
+    public long PaymentId { get; set; }
+    public long TenantId { get; set; }
+    public DateTime InspectedAtUtc { get; set; }
+    public string ProviderStatus { get; set; } = "Unconfirmed";
+    public bool ProviderConfirmed { get; set; }
+    public bool AmountMatches { get; set; }
+    public bool CurrencyMatches { get; set; }
+    public bool InvoiceBlocked { get; set; }
+    public bool RequiresManualReview { get; set; }
+    public string Finding { get; set; } = string.Empty;
+    public string EvidenceSha256 { get; set; } = string.Empty;
+    public long AuditId { get; set; }
+}

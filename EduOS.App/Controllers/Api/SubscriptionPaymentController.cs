@@ -221,6 +221,18 @@ namespace EduOS.App.Controllers.Api
             return StatusCode(result.StatusCode, result);
         }
 
+        // Inspect blocked provider payments without changing financial state.
+        [Authorize(Roles = "SuperAdmin")]
+        [EnableRateLimiting("ApiPolicy")]
+        [HttpPost("admin/gateway-payments/{paymentId:long}/inspect-provider")]
+        public async Task<IActionResult> InspectGatewayProvider(
+            long paymentId, [FromBody] GatewayRecoveryRequestDto request, CancellationToken ct)
+        {
+            var result = await _paymentService.InspectGatewayProviderAsync(
+                paymentId, request?.RowVersion ?? string.Empty, ct);
+            return StatusCode(result.StatusCode, result);
+        }
+
         [Authorize(Roles = "SuperAdmin")]
         [EnableRateLimiting("ApiPolicy")]
         [HttpPost("admin/gateway-payments/{paymentId:long}/reconcile")]

@@ -1,0 +1,12 @@
+'use strict';
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const script = fs.readFileSync(path.join(__dirname, 'payment-reconciliation-history.js'), 'utf8');
+assert.match(script, /gateway-payments\/'\s*\+\s*encodeURIComponent\(String\(paymentId\)\)\s*\+\s*'\/inspect-provider'/);
+assert.match(script, /RequestVerificationToken/);
+assert.match(script, /result\.requiresManualReview/);
+assert.match(script, /result\.evidenceSha256/);
+assert.match(script, /gatewayInspectionResult\.append\(p\)/);
+assert.doesNotMatch(script, /gatewayInspectionResult\.innerHTML/);
+console.log('Gateway provider inspection JS contract PASS');

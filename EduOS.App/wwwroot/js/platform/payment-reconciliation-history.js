@@ -117,6 +117,7 @@
     let gatewayTotal = 0;
     let gatewayRequestId = 0;
     let gatewayBusy = false;
+    const gatewayInspectionResult = get('gatewayInspectionResult');
 
     function gatewayRender(items) {
         gatewayRows.replaceChildren();
@@ -139,6 +140,13 @@
                 button.title = 'Invoice cannot accept settlement; investigate the blocked exception.';
             button.addEventListener('click', () => gatewayReconcile(item.paymentId, item.rowVersion));
             td.append(button);
+            const inspect = document.createElement('button');
+            inspect.type = 'button';
+            inspect.className = 'btn btn-outline-warning btn-sm ms-1';
+            inspect.textContent = 'Inspect provider';
+            inspect.disabled = gatewayBusy;
+            inspect.addEventListener('click', () => gatewayInspect(item.paymentId, item.rowVersion));
+            td.append(inspect);
             tr.append(td);
             gatewayRows.append(tr);
         }
@@ -159,6 +167,8 @@
     async function gatewayLoad() {
         const current = ++gatewayRequestId;
         gatewayStatus.textContent = 'Loading pending gateway transactions…';
+        gatewayInspectionResult.classList.add('d-none');
+        gatewayInspectionResult.replaceChildren();
         gatewayStatus.className = 'small text-muted my-3';
         gatewayPrevious.disabled = true;
         gatewayNext.disabled = true;
@@ -192,6 +202,61 @@
             gatewayStatus.className = 'small text-danger my-3';
         }
     }
+    async function gatewayInspect(paymentId, rowVersion) {
+        if (gatewayBusy || !rowVersion) return;
+        gatewayBusy = true;
+        gatewayRows.querySelectorAll('button').forEach(button => { button.disabled = true; });
+        gatewayInspectionResult.classList.add('d-none');
+        gatewayInspectionResult.replaceChildren();
+        gatewayStatus.className = 'small text-muted my-3';
+        gatewayStatus.textContent = 'Inspecting provider status without settling funds…';
+        try {
+            const token = get('gatewayRecoveryAntiforgery')
+                .querySelector('input[name="__RequestVerificationToken"]')?.value;
+            if (!token) throw new Error('Security token unavailable. Reload the page.');
+            const response = await fetch('/api/subscription-payment/admin/gateway-payments/' +
+                encodeURIComponent(String(paymentId)) + '/inspect-provider', {
+                method: 'POST', credentials: 'same-origin', cache: 'no-store',
+                headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+                body: JSON.stringify({ rowVersion })
+            });
+            const payload = await response.json().catch(() => null);
+            if (!response.ok || payload?.success !== true)
+                throw new Error(payload?.message || 'Provider inspection failed.');
+            const result = payload.data || {};
+            const lines = [
+                result.finding || 'No provider conclusion available.',
+                'Provider: ' + (result.providerStatus || 'Unconfirmed') +
+                    ' · Amount match: ' + (result.amountMatches === true ? 'Yes' : 'No') +
+                    ' · Currency match: ' + (result.currencyMatches === true ? 'Yes' : 'No'),
+                'Audit #' + (result.auditId ?? '—') +
+                    ' · Evidence SHA-256: ' + (result.evidenceSha256 || '—')
+            ];
+            const heading = document.createElement('strong');
+            heading.textContent = result.requiresManualReview === true
+                ? 'Manual finance investigation required. ' : 'Provider inspection recorded. ';
+            gatewayInspectionResult.append(heading);
+            for (const line of lines) {
+                const p = document.createElement('p');
+                p.className = 'mb-1';
+                p.textContent = line;
+                gatewayInspectionResult.append(p);
+            }
+            gatewayInspectionResult.classList.remove('d-none');
+            gatewayStatus.textContent = 'Inspection audited; payment and invoice unchanged.';
+        } catch (error) {
+            gatewayStatus.textContent = error.message || 'Provider inspection failed.';
+            gatewayStatus.className = 'small text-danger my-3';
+        } finally {
+            gatewayBusy = false;
+            gatewayRows.querySelectorAll('button').forEach(button => {
+                button.disabled = button.dataset.blocked === 'true';
+            });
+            gatewayPrevious.disabled = gatewayPage <= 1;
+            gatewayNext.disabled = gatewayPage >= Math.max(1, Math.ceil(gatewayTotal / pageSize));
+        }
+    }
+
     async function gatewayReconcile(paymentId, rowVersion) {
         if (gatewayBusy || !rowVersion) return;
         gatewayBusy = true;
