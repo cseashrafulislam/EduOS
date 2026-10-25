@@ -9,6 +9,8 @@ public interface ITransportService
     Task<ApiResponse<string>> ExportSeatForecastCsvAsync(long? campusId, DateOnly fromDate, DateOnly toDate, string? search, CancellationToken cancellationToken = default);
     Task<ApiResponse<RouteVehicleAssignmentDto>> RescheduleUpcomingRouteVehicleStartAsync(long assignmentId, RescheduleUpcomingRouteVehicleRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<VehicleDriverAssignmentDto>> ReplaceActiveDriverAsync(long assignmentId, ReplaceActiveVehicleDriverRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<UpcomingVehicleDriverChoiceDto>>> GetUpcomingDriverChoicesAsync(long assignmentId, int page, int pageSize, string? search, CancellationToken cancellationToken = default);
+    Task<ApiResponse<VehicleDriverAssignmentDto>> ChangeUpcomingDriverAsync(long assignmentId, ChangeUpcomingVehicleDriverRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<VehicleDriverAssignmentDto>> RescheduleUpcomingDriverStartAsync(long assignmentId, RescheduleUpcomingVehicleDriverRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<VehicleDriverAssignmentDto>> ExtendOperatingDriverAsync(long assignmentId, ExtendOperatingVehicleDriverRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<TransportRiderReadinessRowDto>>> GetRiderReadinessAsync(long? campusId, int page, int pageSize, string? search, bool attentionOnly, CancellationToken cancellationToken = default);

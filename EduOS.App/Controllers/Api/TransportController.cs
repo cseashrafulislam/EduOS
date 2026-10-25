@@ -393,6 +393,20 @@ public sealed class TransportController : ControllerBase
         [FromBody] ReplaceActiveVehicleDriverRequestDto request, CancellationToken ct) =>
         ToAction(await _service.ReplaceActiveDriverAsync(id, request, ct));
 
+    [HttpGet("vehicle-driver-links/{id:long}/replacement-drivers")]
+    [Authorize(Roles = "TenantAdmin")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> UpcomingDriverChoices(long id, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, [FromQuery] string? search = null,
+        CancellationToken ct = default) =>
+        ToAction(await _service.GetUpcomingDriverChoicesAsync(id, page, pageSize, search, ct));
+
+    [HttpPost("vehicle-driver-links/{id:long}/change-upcoming-driver")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> ChangeUpcomingDriver(long id,
+        [FromBody] ChangeUpcomingVehicleDriverRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.ChangeUpcomingDriverAsync(id, request, ct));
+
     [HttpPost("vehicle-driver-links/{id:long}/reschedule-start")]
     [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> RescheduleUpcomingVehicleDriverStart(long id,

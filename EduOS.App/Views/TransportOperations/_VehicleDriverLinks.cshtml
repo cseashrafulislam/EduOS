@@ -24,6 +24,29 @@
             <div class="col-md-2 d-flex align-items-end"><button type="submit" class="btn btn-outline-primary w-100">Replace driver</button></div>
         </form>
     </section>
+    <section id="transportUpcomingDriverChangePanel" class="border rounded p-3 mb-3" hidden aria-labelledby="transportUpcomingDriverChangeTitle">
+        <h4 id="transportUpcomingDriverChangeTitle" class="h6">Change scheduled driver</h4>
+        <p id="transportUpcomingDriverChangeContext" class="small text-muted"></p>
+        <p class="small text-muted">Future reservations only. Vehicle, effective dates and rider coverage remain unchanged. Choose an active, unassigned driver licensed for the entire reservation.</p>
+        <form id="transportUpcomingDriverChangeSearchForm" class="row g-2 mb-2">
+            <div class="col-md-9"><label for="transportUpcomingDriverChangeSearch" class="form-label">Find eligible driver</label>
+                <input id="transportUpcomingDriverChangeSearch" class="form-control" maxlength="100" placeholder="Driver name" /></div>
+            <div class="col-md-3 d-flex align-items-end"><button type="submit" class="btn btn-outline-secondary w-100">Search</button></div>
+        </form>
+        <form id="transportUpcomingDriverChangeForm" class="row g-2">
+            <div class="col-md-8"><label for="transportUpcomingDriverChangeChoice" class="form-label">Replacement driver</label>
+                <select id="transportUpcomingDriverChangeChoice" class="form-select" required></select></div>
+            <div class="col-md-4 d-flex align-items-end gap-2">
+                <button id="transportUpcomingDriverChangeSave" type="submit" class="btn btn-primary" disabled>Save</button>
+                <button id="transportUpcomingDriverChangeCancel" type="button" class="btn btn-outline-secondary">Cancel</button>
+            </div>
+        </form>
+        <div class="d-flex justify-content-between align-items-center gap-2 mt-2">
+            <button id="transportUpcomingDriverChangePrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+            <span id="transportUpcomingDriverChangePageInfo" class="small text-muted"></span>
+            <button id="transportUpcomingDriverChangeNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+        </div>
+    </section>
     <h4 class="h6">Vehicle–driver assignment history</h4>
     <form id="transportVehicleDriverSearchForm" class="row g-2 mb-2">
         <div class="col-md-4"><label for="transportVehicleDriverCampus" class="visually-hidden">Campus</label><select id="transportVehicleDriverCampus" class="form-select"><option value="">All campuses</option></select></div>
