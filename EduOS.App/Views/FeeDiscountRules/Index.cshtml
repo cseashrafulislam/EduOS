@@ -1,0 +1,38 @@
+@{ ViewData["Title"] = "Fee Discount Rule Administration"; }
+<section id="discountRulesApp" class="container-fluid py-3">
+    <header class="mb-3">
+        <h2 class="h4 mb-1">Fee Discount Rules</h2>
+        <p class="text-muted mb-2">Configure tenant-wide tuition discounts before assigning them to students. Existing issued invoices are never recalculated.</p>
+        <a class="btn btn-outline-secondary btn-sm" href="/FeeOperations/Index">Back to Fees &amp; Billing</a>
+    </header>
+    <div id="discountRuleAlert" class="d-none" role="alert" tabindex="-1" aria-live="polite"></div>
+    <div class="row g-3">
+        <div class="col-xl-4">
+            <section class="card">
+                <div class="card-header"><h3 id="discountRuleFormTitle" class="h6 mb-0">New discount rule</h3></div>
+                <form id="discountRuleForm" class="card-body row g-3">
+                    <div class="col-12"><label class="form-label" for="discountRuleName">Rule name</label><input class="form-control" id="discountRuleName" maxlength="150" required /></div>
+                    <div class="col-12"><label class="form-label" for="discountRuleHead">Fee head</label><select class="form-select" id="discountRuleHead"><option value="">All fee heads</option></select></div>
+                    <div class="col-md-6"><label class="form-label" for="discountRuleType">Calculation</label><select class="form-select" id="discountRuleType"><option value="percentage">Percentage (%)</option><option value="fixed">Fixed amount (BDT)</option></select></div>
+                    <div class="col-md-6"><label class="form-label" for="discountRuleValue">Value</label><input class="form-control" id="discountRuleValue" type="number" min="0.0001" max="100" step="0.0001" required /></div>
+                    <div class="col-md-6"><label class="form-label" for="discountRuleFrom">Effective from</label><input class="form-control" id="discountRuleFrom" type="date" /></div>
+                    <div class="col-md-6"><label class="form-label" for="discountRuleTo">Effective to</label><input class="form-control" id="discountRuleTo" type="date" /></div>
+                    <div class="col-12"><div class="form-check"><input class="form-check-input" id="discountRuleActive" type="checkbox" checked /><label class="form-check-label" for="discountRuleActive">Active for future billing</label></div></div>
+                    <div class="col-12 d-flex gap-2"><button id="discountRuleSave" class="btn btn-primary" type="submit">Save rule</button><button id="discountRuleReset" class="btn btn-outline-secondary" type="button">New / Reset</button></div>
+                    <p class="small text-muted mb-0">Assigned rule terms cannot be changed. Deactivation prevents future application; it does not reverse existing invoices.</p>
+                </form>
+            </section>
+        </div>
+        <div class="col-xl-8">
+            <section class="card">
+                <div class="card-header d-flex justify-content-between align-items-center"><h3 class="h6 mb-0">Discount rule register</h3><button id="discountRuleRefresh" class="btn btn-outline-primary btn-sm" type="button">Refresh</button></div>
+                <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
+                    <thead><tr><th>Name</th><th>Fee head</th><th>Type</th><th>Value</th><th>Effective dates</th><th>Status</th><th>Action</th></tr></thead>
+                    <tbody id="discountRuleRows"><tr><td colspan="7" class="text-center text-muted p-3">Loading…</td></tr></tbody>
+                </table></div>
+                <div class="card-footer d-flex gap-2 align-items-center"><button id="discountRulePrev" class="btn btn-outline-secondary btn-sm" type="button">Previous</button><span id="discountRulePage" class="small text-muted">—</span><button id="discountRuleNext" class="btn btn-outline-secondary btn-sm" type="button">Next</button></div>
+            </section>
+        </div>
+    </div>
+</section>
+@section Scripts { <script src="~/js/finance/discount-rules.js" asp-append-version="true"></script> }

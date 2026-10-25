@@ -15,7 +15,7 @@ using System.Text;
 
 namespace EduOS.Service.Services.Finance;
 
-public sealed class FeeBillingService : IFeeBillingService
+public sealed partial class FeeBillingService : IFeeBillingService
 {
     private readonly IGenericRepository<FeeStructure> _structures;
     private readonly IGenericRepository<FeeStructureLine> _structureLines;

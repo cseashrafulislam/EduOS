@@ -19,6 +19,19 @@ public sealed class FeeBillingController : ControllerBase
     private readonly IFeeBillingService _service;
     public FeeBillingController(IFeeBillingService service) => _service = service;
 
+    [HttpGet("discount-rules")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> DiscountRules([FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25, CancellationToken ct = default) =>
+        Result(await _service.GetDiscountRulesAsync(page, pageSize, ct));
+
+    [HttpPost("discount-rules")]
+    [HttpPut("discount-rules/{id:long}")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> SaveDiscountRule(long? id,
+        [FromBody] SaveDiscountRuleRequestDto request, CancellationToken ct) =>
+        Result(await _service.SaveDiscountRuleAsync(id, request, ct));
+
     [HttpGet("options")]
     [Authorize(Roles = "TenantAdmin,Principal,Accountant")]
     public async Task<IActionResult> Options(CancellationToken ct) =>

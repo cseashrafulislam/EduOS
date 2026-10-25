@@ -341,6 +341,7 @@
                     </a>
                     @if (User?.IsInRole("TenantAdmin") == true)
                     {
+                        <a class="nav-link @ActiveFor("/FeeDiscountRules")" href="/FeeDiscountRules/Index">Discount Rules</a>
                         <a class="nav-link @ActiveFor("/AdmissionCashReceipts")" href="/AdmissionCashReceipts/Index">
                             <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
                             <span>Admission Cash Receipts</span>
