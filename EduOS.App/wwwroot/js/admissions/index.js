@@ -656,6 +656,12 @@
                 list.replaceChildren(statusMessage('No applicant documents have been uploaded.'));
                 return;
             }
+            const latestVersions = new Map();
+            for (const item of payload.data) {
+                const previous = latestVersions.get(item.documentTypeCode);
+                if (!previous || Number(item.versionNo) > Number(previous.versionNo))
+                    latestVersions.set(item.documentTypeCode, item);
+            }
             list.replaceChildren(...payload.data.map(documentItem => {
                 const card = document.createElement('article');
                 card.className = 'applicant-document-card';
@@ -679,7 +685,8 @@
                 download.href = `/api/admission-intake/applications/${encodeURIComponent(reference)}/documents/${encodeURIComponent(documentItem.id)}/content`;
                 download.textContent = 'View / Download';
                 controls.append(download);
-                if (decision === 1 && !documentItem.isVerified) {
+                if (decision === 1 && !documentItem.isVerified &&
+                    latestVersions.get(documentItem.documentTypeCode)?.id === documentItem.id) {
                     const reason = document.createElement('textarea');
                     reason.className = 'form-control form-control-sm';
                     reason.maxLength = 1000;

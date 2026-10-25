@@ -295,12 +295,12 @@ public sealed class AdmissionApplicationService : IAdmissionApplicationService
                 return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Decision note is too long.");
             if (request.State == AdmissionApplicantState.Withdrawn)
                 return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Applicant withdrawal requires a verified applicant request.", 403);
+            var applicantDocuments = _documents.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == tenant && x.AdmissionApplicantId == app.Id);
             if (request.State == AdmissionApplicantState.Qualified &&
-                await _documents.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
-                    x.AdmissionApplicantId == app.Id && !x.IsVerified &&
-                    !_documents.GetQueryable().AsNoTracking().Any(y => y.TenantId == tenant &&
-                        y.AdmissionApplicantId == x.AdmissionApplicantId &&
-                        y.DocumentTypeCode == x.DocumentTypeCode && y.VersionNo > x.VersionNo), ct))
+                await applicantDocuments.AnyAsync(x => !x.IsVerified &&
+                    !applicantDocuments.Any(y => y.DocumentTypeCode == x.DocumentTypeCode &&
+                        y.VersionNo > x.VersionNo), ct))
                 return ApiResponse<AdmissionApplicationDetailsDto>.ErrorResponse("Unverified documents must be reviewed before qualification.", 409);
             var now = _clock.GetUtcNow().UtcDateTime;
             app.State = request.State;
