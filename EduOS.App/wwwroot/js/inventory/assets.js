@@ -6,6 +6,7 @@ import { selectAsset } from './assets-custody.js';
 import { bindAssignmentForm } from './assets-assignment-form.js';
 import { bindMaintenanceForm } from './assets-maintenance-form.js';
 import { bindMaintenanceHistory } from './assets-maintenance-history.js';
+import { bindMaintenanceDue } from './assets-maintenance-due.js';
 if (root) {
     let categories = [], page = 1, pages = 1;
     async function loadCategories() {
@@ -40,6 +41,6 @@ if (root) {
     el('assetPrev').addEventListener('click', () => { if (page > 1) { page--; loadAssets(); } });
     el('assetNext').addEventListener('click', () => { if (page < pages) { page++; loadAssets(); } });
     bindCategories(loadCategories); bindAssetForm(loadAssets);
-    bindAssignmentForm(loadAssets); bindMaintenanceForm(); bindMaintenanceHistory();
+    bindAssignmentForm(loadAssets); bindMaintenanceForm(); bindMaintenanceHistory(); bindMaintenanceDue();
     Promise.all([loadCategories(), loadReferenceCatalogs()]).then(loadAssets).catch(error => notice(error.message));
 }

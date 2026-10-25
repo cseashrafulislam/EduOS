@@ -7,6 +7,7 @@
     <header class="mb-3"><h2>Fixed Assets &amp; Custody</h2><p class="text-muted">Asset register, assignment, return and maintenance history. Institutional assets are separate from SaaS billing.</p></header>
     <div id="assetAlert" class="d-none" role="alert"></div>
     @await Html.PartialAsync("_Catalog")
+    @await Html.PartialAsync("_MaintenanceDue")
     @await Html.PartialAsync("_Custody")
 </section>
 @section Scripts {

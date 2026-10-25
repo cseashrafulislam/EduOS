@@ -14,4 +14,5 @@ public interface IAssetLifecycleService
     Task<ApiResponse<AssetMaintenanceDto>> RecordMaintenanceAsync(RecordAssetMaintenanceRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<AssetAssignmentDto>>> GetAssignmentHistoryAsync(Guid assetReference, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<AssetMaintenanceDto>>> GetMaintenanceHistoryAsync(Guid assetReference, int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<AssetMaintenanceDueDto>>> GetMaintenanceDueAsync(DateOnly? dueBy, int page, int pageSize, CancellationToken cancellationToken = default);
 }

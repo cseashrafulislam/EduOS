@@ -1,0 +1,17 @@
+<div class="card mb-3"><div class="card-body">
+    <h3 class="h5">Maintenance due register</h3>
+    <p class="text-muted small">Latest scheduled service per accessible active asset. Assigned assets must be returned before maintenance can be recorded. This register does not post depreciation or GL entries.</p>
+    <form id="assetDueFilter" class="row g-2 mb-3">
+        <div class="col-sm-4 col-md-3"><label for="assetDueBy" class="form-label">Due on or before</label><input id="assetDueBy" type="date" class="form-control" required /></div>
+        <div class="col-sm-4 col-md-3 d-flex align-items-end"><button class="btn btn-outline-primary" type="submit">Load due assets</button></div>
+    </form>
+    <div class="table-responsive"><table class="table table-sm table-striped">
+        <thead><tr><th>Asset</th><th>Campus</th><th>State</th><th>Last serviced</th><th>Next due</th><th>Days overdue</th><th>Action</th></tr></thead>
+        <tbody id="assetDueRows"><tr><td colspan="7">Loading scheduled maintenance…</td></tr></tbody>
+    </table></div>
+    <div class="d-flex gap-2 align-items-center">
+        <button id="assetDuePrev" type="button" class="btn btn-sm btn-outline-secondary" disabled>Previous</button>
+        <span id="assetDuePage" class="small" aria-live="polite"></span>
+        <button id="assetDueNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>Next</button>
+    </div>
+</div></div>

@@ -1,6 +1,7 @@
 import { api, el, canManage, notice, requestKey, clearKey, dateToday, money } from './assets-api.js';
 import { selected } from './assets-custody.js';
 import { loadMaintenanceHistory } from './assets-maintenance-history.js';
+import { loadMaintenanceDue } from './assets-maintenance-due.js';
 export function bindMaintenanceForm() {
     if (!canManage) return;
     el('assetMaintenanceDate').value = dateToday();
@@ -19,7 +20,7 @@ export function bindMaintenanceForm() {
             await api('/maintenance', 'POST', body);
             clearKey('maintenance'); el('assetMaintenanceForm').reset();
             el('assetMaintenanceDate').value = dateToday(); notice('Maintenance recorded.', true);
-            await loadMaintenanceHistory(body.assetReference, true);
+            await Promise.all([loadMaintenanceHistory(body.assetReference, true), loadMaintenanceDue()]);
         } catch (error) { notice(error.message); }
     });
 }
