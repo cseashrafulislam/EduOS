@@ -27,7 +27,8 @@
  }
  @if(learner){
  <div class="card"><div class="card-header">Take quiz</div><div class="card-body">
-  <button id="quizStart" type="button" class="btn btn-primary">Start attempt</button> <span id="quizTimer" aria-live="polite"></span>
+  <p id="quizAttemptStatus" class="small text-muted mb-2" role="status" aria-live="polite">Choose an active course to check quiz availability. Completed-course results remain in the history below.</p>
+  <button id="quizStart" type="button" class="btn btn-primary" disabled>Start attempt</button> <span id="quizTimer" aria-live="polite"></span>
   <form id="quizAnswerForm" class="d-none mt-3"><div id="quizCandidateQuestions" class="d-grid gap-3 mb-3"></div><button id="quizSubmit" class="btn btn-success" type="submit">Submit</button></form>
   <div id="quizResult" class="mt-2" aria-live="polite"></div><p class="small text-muted">Submitted answers and awarded marks can be reviewed after grading. Answer keys are never shown.</p>
  </div></div>

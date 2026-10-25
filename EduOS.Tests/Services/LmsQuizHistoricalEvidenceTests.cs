@@ -71,6 +71,64 @@ public sealed class LmsQuizHistoricalEvidenceTests
         Assert.Equal(403, (await Service(db, 77, false).GetMyAttemptReviewAsync(seed.Attempt.Id)).StatusCode);
     }
 
+    [Fact]
+    public async Task Completed_enrollment_is_read_only_even_when_course_remains_active()
+    {
+        await using var db = Db();
+        var seed = await Seed(db);
+        seed.Course.IsActive = true;
+        await db.SaveChangesAsync();
+        var service = Service(db);
+        var access = await service.GetMyQuizAttemptEligibilityAsync(seed.Course.PublicId);
+        Assert.True(access.Success, access.Message);
+        Assert.False(access.Data!.CanAttempt);
+        Assert.Equal(0L, access.Data.CourseEnrollmentId);
+        Assert.Equal(403, (await service.GetAvailableQuizzesAsync(seed.Course.PublicId)).StatusCode);
+        Assert.Equal(403, (await service.GetQuizForLearnerAsync(seed.Quiz.PublicId)).StatusCode);
+        Assert.Equal(403, (await service.GetMyCourseEnrollmentIdAsync(seed.Course.PublicId)).StatusCode);
+        Assert.True((await service.GetMyQuizHistoryAsync(seed.Course.PublicId)).Success);
+    }
+
+    [Fact]
+    public async Task Active_enrollment_can_list_quizzes_and_resolve_candidate_access()
+    {
+        await using var db = Db();
+        var seed = await Seed(db);
+        seed.Course.IsActive = true;
+        seed.Enrollment.State = CourseEnrollmentState.Active;
+        seed.Enrollment.CompletedAt = null;
+        seed.Academic.State = EnrollmentState.Active;
+        await db.SaveChangesAsync();
+        var service = Service(db);
+        var access = await service.GetMyQuizAttemptEligibilityAsync(seed.Course.PublicId);
+        Assert.True(access.Success, access.Message);
+        Assert.True(access.Data!.CanAttempt);
+        Assert.Equal(seed.Enrollment.Id, access.Data.CourseEnrollmentId);
+        var available = await service.GetAvailableQuizzesAsync(seed.Course.PublicId);
+        Assert.True(available.Success, available.Message);
+        Assert.Single(available.Data!);
+        Assert.True((await service.GetQuizForLearnerAsync(seed.Quiz.PublicId)).Success);
+        Assert.Equal(seed.Enrollment.Id,
+            (await service.GetMyCourseEnrollmentIdAsync(seed.Course.PublicId)).Data);
+    }
+
+    [Fact]
+    public async Task Archived_quiz_eligibility_requires_original_campus_and_curriculum()
+    {
+        await using var db = Db();
+        var seed = await Seed(db);
+        var service = Service(db);
+        var access = await service.GetMyQuizAttemptEligibilityAsync(seed.Course.PublicId);
+        Assert.True(access.Success, access.Message);
+        Assert.False(access.Data!.CanAttempt);
+        seed.Academic.CampusId = 99;
+        await db.SaveChangesAsync();
+        Assert.Equal(403,
+            (await service.GetMyQuizAttemptEligibilityAsync(seed.Course.PublicId)).StatusCode);
+        Assert.Equal(403,
+            (await Service(db, 999).GetMyQuizAttemptEligibilityAsync(seed.Course.PublicId)).StatusCode);
+    }
+
     private static async Task<(Course Course, Quiz Quiz, CourseEnrollment Enrollment,
         StudentEnrollment Academic, QuizAttempt Attempt)> Seed(EduOSDbContext db)
     {

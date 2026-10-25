@@ -42,8 +42,7 @@ public sealed partial class LmsAssessmentService
         var studentId = await StudentIdAsync(ct);
         if (course == null || studentId == 0 || !await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x =>
             x.TenantId == _user.TenantId && x.CourseId == course.Id && x.StudentId == studentId &&
-            !x.IsDeleted && (x.State == CourseEnrollmentState.Active ||
-            x.State == CourseEnrollmentState.Completed), ct))
+            !x.IsDeleted && x.State == CourseEnrollmentState.Active, ct))
             return Fail<QuizCandidateDto>("Course enrollment required.", 403);
         if ((quiz.OpensAt.HasValue && Now < quiz.OpensAt) ||
             (quiz.ClosesAt.HasValue && Now > quiz.ClosesAt))
@@ -77,8 +76,7 @@ public sealed partial class LmsAssessmentService
         var studentId = await StudentIdAsync(ct);
         if (course == null || studentId == 0 || !await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x =>
             x.TenantId == _user.TenantId && x.CourseId == course.Id && x.StudentId == studentId &&
-            !x.IsDeleted && (x.State == CourseEnrollmentState.Active ||
-            x.State == CourseEnrollmentState.Completed), ct))
+            !x.IsDeleted && x.State == CourseEnrollmentState.Active, ct))
             return Fail<IReadOnlyList<QuizCandidateDto>>("Course enrollment required.", 403);
         var now = Now;
         var rows = await _quizzes.GetQueryable().AsNoTracking().Where(x =>
