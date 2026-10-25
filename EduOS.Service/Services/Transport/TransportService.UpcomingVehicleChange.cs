@@ -3,191 +3,168 @@ using EduOS.Core.DTOs.Transport;
 using EduOS.Core.Enums.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using System.Transactions;
 
 namespace EduOS.Service.Services.Transport;
 
 public sealed partial class TransportService
 {
-    public static bool CanChangeUpcomingRouteVehicleVehicleDates(
-        DateOnly start, DateOnly? end, DateOnly today) =>
-        start > today && (!end.HasValue || end.Value >= start);
-
-    /// <summary>Eligible same-campus vehicles for a future route assignment, excluding
-    /// overlapping vehicle reservations and active rider commitments. No student data is returned.</summary>
-    public async Task<ApiResponse<PagedResult<UpcomingRouteVehicleChoiceDto>>> GetUpcomingRouteVehicleChoicesAsync(
-        long assignmentId, int page, int pageSize, string? search, CancellationToken ct = default)
+    /// <summary>Return only same-route, same-campus vehicles linked for the entire reservation period; no rider identities.</summary>
+    public async Task<ApiResponse<PagedResult<UpcomingTransportVehicleOptionDto>>> GetUpcomingVehicleOptionsAsync(
+        Guid reference, int page, int pageSize, CancellationToken ct = default)
     {
-        if (!CanManage()) return Denied<PagedResult<UpcomingRouteVehicleChoiceDto>>();
-        if (assignmentId <= 0 || page < 1 || pageSize is < 1 or > 100 ||
-            (long)(page - 1) * pageSize > int.MaxValue || search?.Trim().Length > 100)
-            return ApiResponse<PagedResult<UpcomingRouteVehicleChoiceDto>>.ErrorResponse("Invalid vehicle search.");
+        if (!CanManage()) return Denied<PagedResult<UpcomingTransportVehicleOptionDto>>();
+        if (reference == Guid.Empty || page < 1 || pageSize is < 1 or > 100 ||
+            (long)(page - 1) * pageSize > int.MaxValue)
+            return ApiResponse<PagedResult<UpcomingTransportVehicleOptionDto>>.ErrorResponse("Invalid assignment or paging.");
         var tenant = _currentUser.TenantId;
+        var assignment = await _assignments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && !x.IsDeleted && x.PublicId == reference, ct);
+        if (assignment == null) return ApiResponse<PagedResult<UpcomingTransportVehicleOptionDto>>.ErrorResponse("Assignment not found.", 404);
+        var enrollment = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && !x.IsDeleted && x.Id == assignment.StudentEnrollmentId &&
+            x.StudentId == assignment.StudentId && x.IsCurrent && x.State == EnrollmentState.Active, ct);
+        if (enrollment == null || !await _campuses.GetQueryable().AsNoTracking().AnyAsync(x =>
+            x.TenantId == tenant && !x.IsDeleted && x.Id == enrollment.CampusId && x.IsActive, ct))
+            return ApiResponse<PagedResult<UpcomingTransportVehicleOptionDto>>.ErrorResponse("Enrollment campus unavailable.", 409);
+        if (!await CanManageCampusAsync(enrollment.CampusId, tenant, ct))
+            return Denied<PagedResult<UpcomingTransportVehicleOptionDto>>();
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
-        var link = await _vehicleRoutes.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-            x.TenantId == tenant && x.Id == assignmentId && !x.IsDeleted, ct);
-        if (link == null)
-            return ApiResponse<PagedResult<UpcomingRouteVehicleChoiceDto>>.ErrorResponse("Assignment not found.", 404);
+        if (assignment.State != TransportAssignmentState.Active || assignment.StartDate <= today ||
+            (assignment.EndDate.HasValue && assignment.EndDate.Value < assignment.StartDate))
+            return ApiResponse<PagedResult<UpcomingTransportVehicleOptionDto>>.ErrorResponse("Only upcoming active assignments can change vehicles.", 409);
         var route = await _routes.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-            x.TenantId == tenant && x.Id == link.RouteId && !x.IsDeleted && x.IsActive, ct);
-        if (route?.CampusId == null ||
-            !await _campuses.GetQueryable().AsNoTracking().AnyAsync(x =>
-                x.TenantId == tenant && x.Id == route.CampusId.Value && !x.IsDeleted && x.IsActive, ct))
-            return ApiResponse<PagedResult<UpcomingRouteVehicleChoiceDto>>.ErrorResponse("Route campus unavailable.", 409);
-        if (!await CanManageCampusAsync(route.CampusId.Value, tenant, ct))
-            return Denied<PagedResult<UpcomingRouteVehicleChoiceDto>>();
-        if (!link.IsCurrent || !CanChangeUpcomingRouteVehicleVehicleDates(
-            link.EffectiveFrom, link.EffectiveTo, today))
-            return ApiResponse<PagedResult<UpcomingRouteVehicleChoiceDto>>.ErrorResponse(
-                "Only upcoming route/vehicle assignments can change vehicles.", 409);
-        var end = link.EffectiveTo ?? DateOnly.MaxValue;
-        // Do not change a canonical link already referenced by any historical or scheduled rider.
-        if (await _assignments.GetQueryable().AsNoTracking().AnyAsync(x =>
-                x.TenantId == tenant && x.RouteVehicleAssignmentId == link.Id, ct) ||
-            await _assignments.GetQueryable().AsNoTracking().AnyAsync(x =>
-                x.TenantId == tenant && !x.IsDeleted &&
-                x.State == TransportAssignmentState.Active &&
-                x.RouteVehicleAssignmentId == null && x.RouteId == link.RouteId &&
-                x.VehicleId == link.VehicleId && x.StartDate <= end &&
-                (!x.EndDate.HasValue || x.EndDate.Value >= link.EffectiveFrom), ct))
-            return ApiResponse<PagedResult<UpcomingRouteVehicleChoiceDto>>.ErrorResponse(
-                "Riders reference this route/vehicle reservation. Move riders first.", 409);
-        var query = _vehicles.GetQueryable().AsNoTracking().Where(x =>
-            x.TenantId == tenant && !x.IsDeleted && x.IsActive &&
-            x.CampusId == route.CampusId && x.Capacity > 0 && x.Id != link.VehicleId &&
-            !_vehicleRoutes.GetQueryable().Any(a =>
-                a.TenantId == tenant && !a.IsDeleted && a.IsCurrent && a.VehicleId == x.Id &&
-                a.EffectiveFrom <= end &&
-                (!a.EffectiveTo.HasValue || a.EffectiveTo.Value >= link.EffectiveFrom)) &&
-            !_assignments.GetQueryable().Any(a =>
-                a.TenantId == tenant && !a.IsDeleted &&
-                a.State == TransportAssignmentState.Active && a.VehicleId == x.Id &&
-                a.StartDate <= end &&
-                (!a.EndDate.HasValue || a.EndDate.Value >= link.EffectiveFrom)));
-        var term = search?.Trim();
-        if (!string.IsNullOrWhiteSpace(term))
-            query = query.Where(x => x.VehicleNumber.Contains(term) ||
-                (x.VehicleType != null && x.VehicleType.Contains(term)));
-        var count = await query.CountAsync(ct);
-        var vehicles = await query.OrderBy(x => x.VehicleNumber).ThenBy(x => x.Id)
-            .Skip((page - 1) * pageSize).Take(pageSize)
-            .Select(x => new { x.Id, x.VehicleNumber, x.Capacity, x.RowVersion }).ToListAsync(ct);
-        return ApiResponse<PagedResult<UpcomingRouteVehicleChoiceDto>>.SuccessResponse(
-            new PagedResult<UpcomingRouteVehicleChoiceDto>
+            x.TenantId == tenant && !x.IsDeleted && x.Id == assignment.RouteId && x.IsActive &&
+            x.CampusId == enrollment.CampusId, ct);
+        if (route == null)
+            return ApiResponse<PagedResult<UpcomingTransportVehicleOptionDto>>.ErrorResponse("Route is unavailable for this campus.", 409);
+        var options = from link in _vehicleRoutes.GetQueryable().AsNoTracking()
+            join vehicle in _vehicles.GetQueryable().AsNoTracking() on link.VehicleId equals vehicle.Id
+            where link.TenantId == tenant && !link.IsDeleted && link.IsCurrent &&
+                link.RouteId == route.Id && link.EffectiveFrom <= assignment.StartDate &&
+                (!link.EffectiveTo.HasValue || (assignment.EndDate.HasValue && link.EffectiveTo.Value >= assignment.EndDate.Value)) &&
+                vehicle.TenantId == tenant && !vehicle.IsDeleted && vehicle.IsActive &&
+                vehicle.CampusId == enrollment.CampusId && vehicle.Capacity > 0
+            select new { LinkId = link.Id, vehicle.PublicId, VehicleId = vehicle.Id, vehicle.VehicleNumber, vehicle.Capacity };
+        var total = await options.CountAsync(ct);
+        var rows = await options.OrderBy(x => x.VehicleNumber).ThenBy(x => x.LinkId)
+            .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        var vehicleIds = rows.Select(x => x.VehicleId).Distinct().ToArray();
+        // Seat demand is the peak simultaneous occupancy within the requested interval,
+        // not the number of reservations ever recorded against the vehicle.
+        var requestedEnd = assignment.EndDate ?? DateOnly.MaxValue;
+        var overlapping = await _assignments.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && !x.IsDeleted &&
+                x.State == TransportAssignmentState.Active && x.Id != assignment.Id &&
+                vehicleIds.Contains(x.VehicleId) && x.StartDate <= requestedEnd &&
+                (!x.EndDate.HasValue || x.EndDate.Value >= assignment.StartDate))
+            .Select(x => new { x.VehicleId, x.StartDate, x.EndDate })
+            .Take(10001).ToListAsync(ct);
+        if (overlapping.Count > 10000)
+            return ApiResponse<PagedResult<UpcomingTransportVehicleOptionDto>>.ErrorResponse(
+                "Too many overlapping reservations. Narrow the vehicle selection.", 413);
+        var counts = overlapping.GroupBy(x => x.VehicleId)
+            .ToDictionary(g => g.Key, g => PeakReservedSeats(
+                g.Select(x => (x.StartDate, x.EndDate)), assignment.StartDate, requestedEnd).Peak);
+        return ApiResponse<PagedResult<UpcomingTransportVehicleOptionDto>>.SuccessResponse(
+            new PagedResult<UpcomingTransportVehicleOptionDto>
             {
-                Items = vehicles.Select(x => new UpcomingRouteVehicleChoiceDto
+                Items = rows.Select(x => new UpcomingTransportVehicleOptionDto
                 {
-                    VehicleId = x.Id, VehicleNumber = x.VehicleNumber, Capacity = x.Capacity,
-                    RowVersion = Convert.ToBase64String(x.RowVersion)
+                    VehicleReference = x.PublicId, VehicleNumber = x.VehicleNumber,
+                    Capacity = x.Capacity, ReservedSeats = counts.GetValueOrDefault(x.VehicleId),
+                    IsCurrent = x.VehicleId == assignment.VehicleId,
+                    Available = x.VehicleId == assignment.VehicleId || counts.GetValueOrDefault(x.VehicleId) < x.Capacity
                 }).ToList(),
-                TotalCount = count, Page = page, PageSize = pageSize
+                TotalCount = total, Page = page, PageSize = pageSize
             });
     }
 
-    /// <summary>Change the planned vehicle on the existing canonical route/vehicle link.
-    /// Existing rider references are immutable. Exact-state replay is supported;
-    /// durable request-key idempotency requires Platform persistence.</summary>
-    public async Task<ApiResponse<RouteVehicleAssignmentDto>> ChangeUpcomingRouteVehicleAsync(
-        long assignmentId, ChangeUpcomingRouteVehicleRequestDto request, CancellationToken ct = default)
+    /// <summary>Move a pre-start rider to another vehicle on the SAME route without touching fares.</summary>
+    public async Task<ApiResponse<StudentTransportDto>> ChangeUpcomingVehicleAsync(
+        Guid reference, ChangeUpcomingTransportVehicleRequestDto request, CancellationToken ct = default)
     {
-        if (!CanManage()) return Denied<RouteVehicleAssignmentDto>();
-        if (assignmentId <= 0 || request == null || request.NewVehicleId <= 0 ||
-            !TryDecodeVersion(request.AssignmentRowVersion, out var assignmentVersion) ||
-            !TryDecodeVersion(request.VehicleRowVersion, out var vehicleVersion))
-            return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse(
-                "Assignment, replacement vehicle and both row versions are required.");
+        if (!CanManage()) return Denied<StudentTransportDto>();
+        if (reference == Guid.Empty || request == null || request.VehicleReference == Guid.Empty ||
+            !TryDecodeVersion(request.RowVersion, out var version))
+            return Error("Assignment, vehicle and row version are required.");
         var tenant = _currentUser.TenantId;
-        var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
         try
         {
             return await _unitOfWork.ExecuteInTransactionAsync(async token =>
             {
-                var link = await _vehicleRoutes.GetQueryable().FirstOrDefaultAsync(x =>
-                    x.TenantId == tenant && x.Id == assignmentId && !x.IsDeleted, token);
-                if (link == null)
-                    return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse("Assignment not found.", 404);
+                var assignment = await _assignments.GetQueryable().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && !x.IsDeleted && x.PublicId == reference, token);
+                if (assignment == null) return Error("Assignment not found.", 404);
+                var enrollment = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && !x.IsDeleted && x.Id == assignment.StudentEnrollmentId &&
+                    x.StudentId == assignment.StudentId && x.IsCurrent && x.State == EnrollmentState.Active, token);
+                if (enrollment == null || !await _campuses.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && !x.IsDeleted && x.Id == enrollment.CampusId && x.IsActive, token))
+                    return Error("Active enrollment campus unavailable.", 409);
+                if (!await CanManageCampusAsync(enrollment.CampusId, tenant, token))
+                    return Denied<StudentTransportDto>();
+                var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+                if (assignment.State != TransportAssignmentState.Active || assignment.StartDate <= today ||
+                    (assignment.EndDate.HasValue && assignment.EndDate.Value < assignment.StartDate))
+                    return Error("Only upcoming active assignments can change vehicles.", 409);
                 var route = await _routes.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                    x.TenantId == tenant && x.Id == link.RouteId && !x.IsDeleted && x.IsActive, token);
-                if (route?.CampusId == null ||
-                    !await _campuses.GetQueryable().AsNoTracking().AnyAsync(x =>
-                        x.TenantId == tenant && x.Id == route.CampusId.Value &&
-                        !x.IsDeleted && x.IsActive, token))
-                    return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse("Route campus unavailable.", 409);
-                if (!await CanManageCampusAsync(route.CampusId.Value, tenant, token))
-                    return Denied<RouteVehicleAssignmentDto>();
-                if (!link.IsCurrent || !CanChangeUpcomingRouteVehicleVehicleDates(
-                    link.EffectiveFrom, link.EffectiveTo, today))
-                    return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse(
-                        "Only upcoming route/vehicle assignments can change vehicles.", 409);
+                    x.TenantId == tenant && !x.IsDeleted && x.Id == assignment.RouteId && x.IsActive &&
+                    x.CampusId == enrollment.CampusId, token);
                 var vehicle = await _vehicles.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                    x.TenantId == tenant && x.Id == request.NewVehicleId &&
-                    !x.IsDeleted && x.IsActive && x.Capacity > 0, token);
-                if (vehicle?.CampusId != route.CampusId)
-                    return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse(
-                        "Replacement vehicle must be active and in the same campus.", 409);
-                if (link.VehicleId == vehicle.Id)
-                    return ApiResponse<RouteVehicleAssignmentDto>.SuccessResponse(
-                        MapRouteVehicleLink(link), "This vehicle is already assigned.");
-                if (!link.RowVersion.AsSpan().SequenceEqual(assignmentVersion) ||
-                    !vehicle.RowVersion.AsSpan().SequenceEqual(vehicleVersion))
-                    return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse(
-                        "Assignment or vehicle changed. Reload and retry.", 409);
-                var end = link.EffectiveTo ?? DateOnly.MaxValue;
-                // Include deleted/historical linked riders: changing the vehicle would rewrite their provenance.
-                if (await _assignments.GetQueryable().AsNoTracking().AnyAsync(x =>
-                        x.TenantId == tenant && x.RouteVehicleAssignmentId == link.Id, token) ||
-                    await _assignments.GetQueryable().AsNoTracking().AnyAsync(x =>
-                        x.TenantId == tenant && !x.IsDeleted &&
-                        x.State == TransportAssignmentState.Active &&
-                        x.RouteVehicleAssignmentId == null && x.RouteId == link.RouteId &&
-                        x.VehicleId == link.VehicleId && x.StartDate <= end &&
-                        (!x.EndDate.HasValue || x.EndDate.Value >= link.EffectiveFrom), token))
-                    return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse(
-                        "Riders reference this assignment. Move riders first.", 409);
-                if (await _vehicleRoutes.GetQueryable().AsNoTracking().AnyAsync(x =>
-                    x.TenantId == tenant && !x.IsDeleted && x.IsCurrent &&
-                    x.Id != link.Id && x.VehicleId == vehicle.Id &&
-                    x.EffectiveFrom <= end &&
-                    (!x.EffectiveTo.HasValue || x.EffectiveTo.Value >= link.EffectiveFrom), token))
-                    return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse(
-                        "Replacement vehicle is reserved on another route.", 409);
-                if (await _assignments.GetQueryable().AsNoTracking().AnyAsync(x =>
-                    x.TenantId == tenant && !x.IsDeleted &&
-                    x.State == TransportAssignmentState.Active && x.VehicleId == vehicle.Id &&
-                    x.StartDate <= end &&
-                    (!x.EndDate.HasValue || x.EndDate.Value >= link.EffectiveFrom), token))
-                    return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse(
-                        "Replacement vehicle has existing rider reservations.", 409);
-                var oldVehicleId = link.VehicleId;
-                link.VehicleId = vehicle.Id;
-                link.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
-                link.UpdatedBy = _currentUser.UserId;
+                    x.TenantId == tenant && !x.IsDeleted && x.PublicId == request.VehicleReference &&
+                    x.IsActive && x.CampusId == enrollment.CampusId && x.Capacity > 0, token);
+                if (route == null || vehicle == null)
+                    return Error("Active route/vehicle is unavailable in this campus.", 409);
+                var pairing = await _vehicleRoutes.GetQueryable().AsNoTracking()
+                    .Where(x => x.TenantId == tenant && !x.IsDeleted && x.IsCurrent &&
+                        x.RouteId == route.Id && x.VehicleId == vehicle.Id &&
+                        x.EffectiveFrom <= assignment.StartDate &&
+                        (!x.EffectiveTo.HasValue || (assignment.EndDate.HasValue && x.EffectiveTo.Value >= assignment.EndDate.Value)))
+                    .OrderByDescending(x => x.EffectiveFrom).FirstOrDefaultAsync(token);
+                if (pairing == null) return Error("Vehicle is not assigned to this route for the reservation period.", 409);
+                // A retry after a successful update is a no-op, even if its old concurrency token is stale.
+                if (assignment.VehicleId == vehicle.Id && assignment.RouteVehicleAssignmentId == pairing.Id)
+                    return ApiResponse<StudentTransportDto>.SuccessResponse(
+                        await MapAsync(assignment, token), "Vehicle already matches this reservation.");
+                if (!assignment.RowVersion.AsSpan().SequenceEqual(version))
+                    return Error("Assignment changed. Reload and retry.", 409);
+                // Recheck under the serializable write transaction: disjoint bookings
+                // do not occupy a seat simultaneously, but inclusive overlaps do.
+                var requestedEnd = assignment.EndDate ?? DateOnly.MaxValue;
+                var overlapping = await _assignments.GetQueryable().AsNoTracking()
+                    .Where(x => x.TenantId == tenant && !x.IsDeleted && x.Id != assignment.Id &&
+                        x.VehicleId == vehicle.Id && x.State == TransportAssignmentState.Active &&
+                        x.StartDate <= requestedEnd &&
+                        (!x.EndDate.HasValue || x.EndDate.Value >= assignment.StartDate))
+                    .Select(x => new { x.StartDate, x.EndDate })
+                    .Take(10001).ToListAsync(token);
+                if (overlapping.Count > 10000)
+                    return Error("Too many overlapping reservations to validate capacity.", 413);
+                var reserved = PeakReservedSeats(
+                    overlapping.Select(x => (x.StartDate, x.EndDate)),
+                    assignment.StartDate, requestedEnd).Peak;
+                if (reserved >= vehicle.Capacity)
+                    return Error("Destination vehicle has no available seats.", 409);
+                assignment.VehicleId = vehicle.Id;
+                assignment.RouteVehicleAssignmentId = pairing.Id;
+                assignment.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
+                assignment.UpdatedBy = _currentUser.UserId;
                 await _unitOfWork.SaveChangesAsync(token);
-                _logger.LogInformation(
-                    "Upcoming route vehicle changed tenant {TenantId} campus {CampusId} link {LinkId} old {OldVehicle} new {NewVehicle}",
-                    tenant, route.CampusId.Value, link.Id, oldVehicleId, vehicle.Id);
-                return ApiResponse<RouteVehicleAssignmentDto>.SuccessResponse(
-                    MapRouteVehicleLink(link), "Upcoming route/vehicle assignment updated.");
+                _logger.LogInformation("Transport pre-start vehicle changed: tenant {TenantId}, assignment {AssignmentId}", tenant, assignment.Id);
+                return ApiResponse<StudentTransportDto>.SuccessResponse(
+                    await MapAsync(assignment, token), "Upcoming transport vehicle changed.");
             }, System.Data.IsolationLevel.Serializable, ct);
         }
-        catch (DbUpdateConcurrencyException)
-        {
-            return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse("Assignment changed. Reload.", 409);
-        }
+        catch (DbUpdateConcurrencyException) { return Error("Assignment changed. Reload and retry.", 409); }
         catch (DbUpdateException ex)
         {
-            _logger.LogWarning(ex, "Route vehicle change conflict tenant {TenantId}", tenant);
-            return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse("Concurrent vehicle reservation conflict.", 409);
-        }
-        catch (TransactionAbortedException ex)
-        {
-            _logger.LogWarning(ex, "Route vehicle change aborted tenant {TenantId}", tenant);
-            return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse("Concurrent vehicle reservation conflict.", 409);
+            _logger.LogWarning(ex, "Upcoming vehicle reassignment conflict for tenant {TenantId}", tenant);
+            return Error("Vehicle reassignment conflicts with another update.", 409);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogError(ex, "Route vehicle change failed tenant {TenantId}", tenant);
-            return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse("Vehicle change failed.", 500);
+            _logger.LogError(ex, "Upcoming vehicle reassignment failed for tenant {TenantId}", tenant);
+            return Error("Transport vehicle could not be changed.", 500);
         }
     }
 }

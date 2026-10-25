@@ -5,7 +5,7 @@ const path=require('node:path');
 const root=path.resolve(__dirname,'../..');
 const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 test('route vehicle change reuses canonical link with tenant/campus, rider protection and concurrency',()=>{
- const service=read('EduOS.Service/Services/Transport/TransportService.UpcomingVehicleChange.cs');
+ const service=read('EduOS.Service/Services/Transport/TransportService.UpcomingRouteVehicleChange.cs');
  const api=read('EduOS.App/Controllers/Api/TransportController.cs');
  const ui=read('EduOS.App/wwwroot/js/transport-operations/route-vehicle-upcoming-change.js');
  const view=read('EduOS.App/Views/TransportOperations/_RouteVehicleLinks.cshtml');
