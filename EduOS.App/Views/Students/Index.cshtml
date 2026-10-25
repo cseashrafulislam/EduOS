@@ -89,6 +89,20 @@
             </div>
             <div class="modal-body">
                 <dl id="studentDetails" class="admission-details"></dl>
+                @if (User.IsInRole("TenantAdmin"))
+                {
+                    <section class="border rounded p-3 mb-3" aria-labelledby="studentPhotoTitle">
+                        <h3 id="studentPhotoTitle" class="h6">Student profile photo</h3>
+                        <img id="studentPhotoPreview" alt="Student profile photo" width="120" height="120" class="d-none rounded border mb-2" style="object-fit:cover" />
+                        <form id="studentPhotoForm" enctype="multipart/form-data">
+                            @Html.AntiForgeryToken()
+                            <label class="form-label" for="studentPhotoFile">Choose a JPG, PNG or WebP image (maximum 2 MB)</label>
+                            <input id="studentPhotoFile" class="form-control" type="file" accept=".jpg,.jpeg,.png,.webp" required />
+                            <button id="studentPhotoSubmit" class="btn btn-outline-primary btn-sm mt-2" type="submit">Save photo</button>
+                            <div id="studentPhotoStatus" role="status" aria-live="polite" class="small mt-2"></div>
+                        </form>
+                    </section>
+                }
                 <section aria-labelledby="guardianTitle"><h3 class="h6" id="guardianTitle">@T["GuardianInformation"]</h3><div id="studentGuardians" class="admission-list"></div></section>
                 <section class="mt-4" aria-labelledby="enrollmentTitle"><h3 class="h6" id="enrollmentTitle">@T["EnrollmentHistory"]</h3><div id="studentEnrollments" class="admission-list"></div></section>
                 @if (User.IsInRole("TenantAdmin"))
