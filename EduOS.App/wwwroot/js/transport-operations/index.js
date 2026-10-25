@@ -127,6 +127,15 @@
                         new CustomEvent('transport:reschedule-upcoming', { detail: item })));
                     actions.append(reschedule);
                     actions.append(changeVehicle);
+                    if (item.endDate && item.endDate >= item.startDate) {
+                        const extendUpcoming = document.createElement('button');
+                        extendUpcoming.type = 'button';
+                        extendUpcoming.className = 'btn btn-outline-success btn-sm me-2';
+                        extendUpcoming.textContent = 'Extend scheduled end';
+                        extendUpcoming.addEventListener('click', () => window.dispatchEvent(
+                            new CustomEvent('transport:extend-upcoming-rider', { detail: item })));
+                        actions.append(extendUpcoming);
+                    }
                 }
                 if (item.startDate <= localDate() && (!item.endDate || item.endDate >= localDate())) {
                     const transfer = document.createElement('button');

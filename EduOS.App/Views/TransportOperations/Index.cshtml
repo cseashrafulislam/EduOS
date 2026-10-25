@@ -99,6 +99,19 @@
             </form>
             <p class="small text-muted mt-2 mb-0">Pre-start reservations only. Existing route, vehicle, stops, end date and fare remain unchanged. Availability and capacity are checked again.</p>
         </div></section>
+        <section id="transportUpcomingRiderExtensionPanel" class="card mt-3" hidden><div class="card-body">
+            <h3 class="h5">Extend scheduled rider reservation</h3>
+            <p id="transportUpcomingRiderExtensionDetails" class="text-muted small"></p>
+            <form id="transportUpcomingRiderExtensionForm" class="row g-2">
+                <div class="col-md-6"><label for="transportUpcomingRiderExtensionDate" class="form-label">New reservation end date</label>
+                    <input id="transportUpcomingRiderExtensionDate" type="date" class="form-control" required /></div>
+                <div class="col-md-6 d-flex align-items-end gap-2">
+                    <button id="transportUpcomingRiderExtensionSave" type="submit" class="btn btn-primary">Extend scheduled end</button>
+                    <button id="transportUpcomingRiderExtensionCancel" type="button" class="btn btn-outline-secondary">Cancel</button>
+                </div>
+            </form>
+            <p class="small text-muted mt-2 mb-0">Future, finite reservations only. Route, vehicle, stops and monthly fare stay unchanged; campus, route pairing, enrollment and seat capacity are revalidated.</p>
+        </div></section>
         <section id="transportRiderExtensionPanel" class="card mt-3" hidden><div class="card-body">
             <h3 class="h5">Extend operating rider reservation</h3>
             <p id="transportRiderExtensionDetails" class="text-muted small"></p>
@@ -186,6 +199,7 @@
     @if (canManage) { <script src="~/js/transport-operations/upcoming-cancellation.js" asp-append-version="true"></script> }
     @if (canManage) { <script src="~/js/transport-operations/upcoming-vehicle-change.js" asp-append-version="true"></script> }
     @if (canManage) { <script src="~/js/transport-operations/upcoming-start-reschedule.js" asp-append-version="true"></script> }
+    @if (canManage) { <script src="~/js/transport-operations/upcoming-rider-extension.js" asp-append-version="true"></script> }
     @if (canManage) { <script src="~/js/transport-operations/operating-vehicle-transfer.js" asp-append-version="true"></script> }
     @if (canManage) { <script src="~/js/transport-operations/assignment-history.js" asp-append-version="true"></script> }
     @if (canManage) { <script src="~/js/transport-operations/rider-turnover.js" asp-append-version="true"></script> }
