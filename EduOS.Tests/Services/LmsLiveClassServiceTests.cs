@@ -159,6 +159,9 @@ public sealed class LmsLiveClassServiceTests
             RecordingUrl = "https://videos.example.com/old" };
         db.Add(session);
         await db.SaveChangesAsync();
+        // Archived courses remain discoverable through the original completed enrollment.
+        course.IsActive = false;
+        await db.SaveChangesAsync();
 
         var service = Service(db, "Student");
         var detail = await service.GetLiveClassAsync(session.PublicId);
@@ -171,6 +174,13 @@ public sealed class LmsLiveClassServiceTests
         Assert.Single(register.Data.Items);
         Assert.Equal(session.PublicId, register.Data.Items[0].Reference);
         Assert.Equal(session.RecordingUrl, register.Data.Items[0].RecordingUrl);
+        var recordingCourses = await service.GetRecordingCoursesAsync();
+        Assert.True(recordingCourses.Success, recordingCourses.Message);
+        Assert.Equal(1, recordingCourses.Data!.TotalCount);
+        Assert.Single(recordingCourses.Data.Items);
+        Assert.Equal(course.PublicId, recordingCourses.Data.Items[0].Reference);
+        Assert.True(recordingCourses.Data.Items[0].IsArchived);
+        Assert.Empty((await service.GetRecordingCoursesAsync(2, 1)).Data!.Items);
         Assert.Empty((await service.GetCourseLiveClassesAsync(course.PublicId)).Data!);
 
         // A historical course enrollment is not a bypass for a different campus.
@@ -178,6 +188,7 @@ public sealed class LmsLiveClassServiceTests
         await db.SaveChangesAsync();
         Assert.Equal(404, (await service.GetLiveClassAsync(session.PublicId)).StatusCode);
         Assert.Equal(0, (await service.GetCourseRecordingsAsync(course.PublicId)).Data!.TotalCount);
+        Assert.Empty((await service.GetRecordingCoursesAsync()).Data!.Items);
     }
 
     [Fact]
@@ -195,6 +206,8 @@ public sealed class LmsLiveClassServiceTests
         Assert.Equal(400, (await service.GetCourseRecordingsAsync(foreign.PublicId, 0, 20)).StatusCode);
         Assert.Equal(400, (await service.GetCourseRecordingsAsync(foreign.PublicId, 1, 100)).StatusCode);
         Assert.Equal(404, (await service.GetCourseRecordingsAsync(foreign.PublicId, 1, 20)).StatusCode);
+        Assert.Equal(400, (await service.GetRecordingCoursesAsync(0)).StatusCode);
+        Assert.Empty((await service.GetRecordingCoursesAsync()).Data!.Items);
     }
 
 
