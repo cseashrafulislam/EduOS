@@ -151,6 +151,42 @@ public sealed class AdmissionApplicationServiceTests
     }
 
     [Fact]
+    public async Task Qualification_requires_the_latest_verified_document_for_its_intake_policy()
+    {
+        await using var db = Context(Options(), 101);
+        var scope = await SeedAsync(db, 101);
+        var form = await db.AdmissionIntakeForms.SingleAsync();
+        form.DocumentRequirementsJson = "[{\"documentType\":\"BIRTH_CERTIFICATE\",\"label\":\"Birth certificate\",\"isRequired\":true,\"maxFileSizeMb\":5,\"allowedExtensions\":[\".pdf\"]}]";
+        await db.SaveChangesAsync();
+        var service = Service(db, new User(101));
+        var created = await service.CreateAsync(Request(scope));
+        var version = await SetTestRowVersionAsync(db);
+        var decision = new ReviewAdmissionApplicationDto
+        { State = AdmissionApplicantState.Qualified, RowVersion = version };
+        (await service.ReviewAsync(created.Data!.Reference, decision)).StatusCode.Should().Be(409);
+
+        var applicant = await db.AdmissionApplicants.SingleAsync();
+        var asset = new FileAsset
+        {
+            TenantId = 101, StorageProvider = "PrivateFileSystem",
+            StorageKey = "tenant-101/admissions/birth.pdf", OriginalFileName = "birth.pdf",
+            ContentType = "application/pdf", SizeBytes = 100, IsVerifiedSafe = true
+        };
+        db.FileAssets.Add(asset);
+        await db.SaveChangesAsync();
+        db.AdmissionApplicantDocuments.Add(new AdmissionApplicantDocument
+        {
+            TenantId = 101, AdmissionApplicantId = applicant.Id,
+            FileAssetId = asset.Id, DocumentTypeCode = "BIRTH_CERTIFICATE",
+            VersionNo = 1, IsVerified = true,
+            VerificationStatus = AdmissionDocumentVerificationStatus.Verified
+        });
+        await db.SaveChangesAsync();
+        var qualified = await service.ReviewAsync(created.Data.Reference, decision);
+        qualified.Success.Should().BeTrue(qualified.Message);
+    }
+
+    [Fact]
     public async Task Teacher_role_cannot_access_admissions()
     {
         await using var db = Context(Options(), 101);
