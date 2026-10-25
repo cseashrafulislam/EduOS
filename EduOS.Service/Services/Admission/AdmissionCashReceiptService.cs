@@ -184,11 +184,11 @@ public sealed class AdmissionCashReceiptService : IAdmissionCashReceiptService
                     return Error<AdmissionCashReceiptDto>("Request key belongs to another receipt.", 409);
                 var prior = await ReadReceiptAsync(previous, ct);
                 if (prior == null) return Error<AdmissionCashReceiptDto>("Existing receipt requires reconciliation.", 409);
-                var journal = await db.Journals.AsNoTracking().FirstAsync(x => x.TenantId == tenant &&
+                var priorJournal = await db.Journals.AsNoTracking().FirstAsync(x => x.TenantId == tenant &&
                     x.Id == previous.JournalId, ct);
                 var lines = await db.JournalLines.AsNoTracking().Where(x => x.TenantId == tenant &&
-                    x.JournalId == journal.Id && !x.IsDeleted).ToListAsync(ct);
-                if (journal.AccountingPeriodId != request.AccountingPeriodId ||
+                    x.JournalId == priorJournal.Id && !x.IsDeleted).ToListAsync(ct);
+                if (priorJournal.AccountingPeriodId != request.AccountingPeriodId ||
                     !lines.Any(x => x.AccountId == request.CashAccountId && x.DebitAmount == previous.Amount) ||
                     !lines.Any(x => x.AccountId == request.IncomeAccountId && x.CreditAmount == previous.Amount))
                     return Error<AdmissionCashReceiptDto>("Request key belongs to different posting accounts.", 409);
