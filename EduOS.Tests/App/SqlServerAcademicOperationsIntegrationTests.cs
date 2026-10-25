@@ -193,7 +193,7 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
         new GenericRepository<StudentEnrollment>(db), new GenericRepository<Student>(db),
         new GenericRepository<StudentGuardian>(db), new GenericRepository<Guardian>(db),
         new GenericRepository<AcademicYear>(db), db, user, TimeProvider.System,
-        NullLogger<StudentLeaveService>.Instance);
+        NullLogger<StudentLeaveService>.Instance, db, null!, null!);
     private static StudentAttendanceService AttendanceService(EduOSDbContext db, ICurrentUserService user) => new(
         new GenericRepository<StudentAttendance>(db),
         new GenericRepository<StudentAttendanceAdjustment>(db),
