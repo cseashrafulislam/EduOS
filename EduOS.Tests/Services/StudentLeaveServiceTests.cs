@@ -1,6 +1,7 @@
 using EduOS.Core.DTOs.Attendance;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Attendance;
+using EduOS.Core.Entities.Files;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
@@ -182,6 +183,75 @@ public sealed class StudentLeaveServiceTests
             .CancelAsync(row.Id, request)).StatusCode.Should().Be(404);
     }
 
+    [Fact]
+    public async Task Verified_private_file_is_attached_once_and_idempotent_leave_retry_preserves_it()
+    {
+        var options = Options();
+        var (mine, _) = await Seed(options);
+        await using var db = Context(options, 101);
+        var asset = new FileAsset
+        {
+            TenantId = 101, PublicId = Guid.NewGuid(), UploadedByUserId = 11,
+            OriginalFileName = "evidence.pdf", ContentType = "application/pdf",
+            StorageProvider = "LocalPrivate", StorageKey = "tenant-101/documents/evidence.pdf",
+            SizeBytes = 4, Sha256 = new string('A', 64), IsVerifiedSafe = true,
+            MalwareScanStateCode = "Clean", Visibility = FileVisibility.Private
+        };
+        db.FileAssets.Add(asset);
+        await db.SaveChangesAsync();
+        var service = Service(db, new Actor(101, 11, "Student"));
+        var request = new CreateStudentLeaveApplicationRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), StudentEnrollmentReference = mine,
+            FromDate = From, ToDate = To, Reason = "Medical evidence",
+            AttachmentFileId = asset.Id
+        };
+        var first = await service.ApplyAsync(request);
+        first.Success.Should().BeTrue(first.Message);
+        first.Data!.AttachmentFileId.Should().Be(asset.Id);
+        (await service.ApplyAsync(request)).Data!.Id.Should().Be(first.Data.Id);
+        var second = await service.ApplyAsync(new CreateStudentLeaveApplicationRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), StudentEnrollmentReference = mine,
+            FromDate = new DateOnly(2026, 9, 20), ToDate = new DateOnly(2026, 9, 21),
+            Reason = "Another request", AttachmentFileId = asset.Id
+        });
+        second.StatusCode.Should().Be(409);
+        (await db.StudentLeaveApplications.CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Unscanned_foreign_uploader_and_cross_tenant_file_references_are_denied()
+    {
+        var options = Options();
+        var (mine, _) = await Seed(options);
+        await using var db = Context(options, 101);
+        var file = new FileAsset
+        {
+            TenantId = 101, UploadedByUserId = 12, OriginalFileName = "note.pdf",
+            ContentType = "application/pdf", StorageProvider = "LocalPrivate",
+            StorageKey = "tenant-101/documents/note.pdf", SizeBytes = 3,
+            Sha256 = new string('B', 64), IsVerifiedSafe = true,
+            MalwareScanStateCode = "Clean", Visibility = FileVisibility.Private
+        };
+        db.FileAssets.Add(file);
+        await db.SaveChangesAsync();
+        var service = Service(db, new Actor(101, 11, "Student"));
+        var request = new CreateStudentLeaveApplicationRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), StudentEnrollmentReference = mine,
+            FromDate = From, ToDate = To, Reason = "Leave", AttachmentFileId = file.Id
+        };
+        (await service.ApplyAsync(request)).StatusCode.Should().Be(404);
+        file.UploadedByUserId = 11; file.IsVerifiedSafe = false;
+        await db.SaveChangesAsync();
+        (await service.ApplyAsync(request)).StatusCode.Should().Be(404);
+        file.IsVerifiedSafe = true; file.TenantId = 202;
+        await db.SaveChangesAsync();
+        (await service.ApplyAsync(request)).StatusCode.Should().Be(404);
+        (await db.StudentLeaveApplications.CountAsync()).Should().Be(0);
+    }
+
     private static StudentLeaveService Service(EduOSDbContext db, ICurrentUserService user) => new(
         new GenericRepository<StudentLeaveApplication>(db),
         new GenericRepository<StudentEnrollment>(db),
@@ -189,7 +259,8 @@ public sealed class StudentLeaveServiceTests
         new GenericRepository<StudentGuardian>(db),
         new GenericRepository<Guardian>(db),
         new GenericRepository<AcademicYear>(db),
-        db, user, TimeProvider.System, NullLogger<StudentLeaveService>.Instance);
+        db, user, TimeProvider.System, NullLogger<StudentLeaveService>.Instance,
+        db, null!, null!);
 
     private static async Task<(Guid Mine, Guid Other)> Seed(DbContextOptions<EduOSDbContext> options)
     {
