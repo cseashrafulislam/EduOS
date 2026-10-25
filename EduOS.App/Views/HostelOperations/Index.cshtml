@@ -49,6 +49,17 @@
                     <button id="hostelNoChargeExtensionCancel" type="button" class="btn btn-outline-secondary btn-sm">Cancel</button>
                 </div>
             </section>
+            <section id="hostelNoChargeShorteningPanel" class="border rounded p-3 mt-3 d-none" aria-labelledby="hostelNoChargeShorteningTitle">
+                <h4 id="hostelNoChargeShorteningTitle" class="h6">Shorten a future no-charge reservation</h4>
+                <p id="hostelNoChargeShorteningContext" class="small text-muted"></p>
+                <p class="small text-muted">Only future, zero-rent, zero-deposit reservations without a fee head are eligible. This releases unused reserved days without changing student, bed or financial records.</p>
+                <label for="hostelNoChargeShorteningEnd" class="form-label">Earlier checkout date</label>
+                <input id="hostelNoChargeShorteningEnd" type="date" class="form-control mb-2" required />
+                <div class="d-flex gap-2">
+                    <button id="hostelNoChargeShorteningSave" type="button" class="btn btn-primary btn-sm">Shorten checkout</button>
+                    <button id="hostelNoChargeShorteningCancel" type="button" class="btn btn-outline-secondary btn-sm">Cancel</button>
+                </div>
+            </section>
             <section id="hostelStartReschedulePanel" class="border rounded p-3 mt-3 d-none" aria-labelledby="hostelRescheduleTitle">
                 <h4 id="hostelRescheduleTitle" class="h6">Reschedule upcoming arrival</h4>
                 <p id="hostelRescheduleContext" class="small text-muted"></p>
@@ -306,6 +317,7 @@
         <script src="~/js/hostel-operations/upcoming-room-change.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/upcoming-start-reschedule.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/no-charge-stay-extension.js" asp-append-version="true"></script>
+        <script src="~/js/hostel-operations/upcoming-no-charge-shortening.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/capacity.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/occupancy-insights.js" asp-append-version="true"></script>
         <script src="~/js/hostel-operations/turnover-report.js" asp-append-version="true"></script>

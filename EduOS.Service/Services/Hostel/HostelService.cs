@@ -446,6 +446,9 @@ public sealed partial class HostelService : IHostelService
             CanExtendNoCharge = x.MonthlyRent == 0m && x.SecurityDeposit == 0m &&
                 !x.FeeHeadId.HasValue && x.EndDate.HasValue && x.EndDate.Value >= today &&
                 x.EndDate.Value.DayNumber - x.StartDate.DayNumber < 89,
+            CanShortenNoCharge = x.MonthlyRent == 0m && x.SecurityDeposit == 0m &&
+                !x.FeeHeadId.HasValue && x.StartDate > today && x.EndDate.HasValue &&
+                x.EndDate.Value > x.StartDate,
             RowVersion = Convert.ToBase64String(x.RowVersion)
         }).ToList();
         return ApiResponse<PagedResult<HostelAllocationRowDto>>.SuccessResponse(new PagedResult<HostelAllocationRowDto>

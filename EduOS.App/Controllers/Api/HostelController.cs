@@ -338,6 +338,12 @@ public sealed class HostelController : ControllerBase
         [FromBody] ExtendNoChargeHostelStayRequestDto request, CancellationToken ct) =>
         ToAction(await _service.ExtendNoChargeStayAsync(id, request, ct));
 
+    [HttpPost("allocations/{id:long}/shorten-upcoming-no-charge")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    public async Task<IActionResult> ShortenUpcomingNoChargeStay(long id,
+        [FromBody] ShortenUpcomingNoChargeHostelStayRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.ShortenUpcomingNoChargeStayAsync(id, request, ct));
+
     [HttpPost("allocations/{id:long}/reschedule-start")]
     [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
     public async Task<IActionResult> RescheduleUpcomingAllocationStart(long id,

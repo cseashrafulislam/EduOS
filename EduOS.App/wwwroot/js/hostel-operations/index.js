@@ -135,6 +135,14 @@
                     reschedule.addEventListener('click', () => window.hostelUpcomingStartReschedule?.begin(item));
                     actions.append(reschedule);
                 }
+                if (future && item.canShortenNoCharge) {
+                    const shorten = document.createElement('button');
+                    shorten.type = 'button';
+                    shorten.className = 'btn btn-outline-info btn-sm ms-2';
+                    shorten.textContent = 'Shorten no-charge checkout';
+                    shorten.addEventListener('click', () => window.hostelUpcomingNoChargeShortening?.begin(item));
+                    actions.append(shorten);
+                }
                 if (item.canExtendNoCharge) {
                     const extend = document.createElement('button');
                     extend.type = 'button';
@@ -249,6 +257,9 @@
         el('hostelAllocationSearch').addEventListener('submit', e => { e.preventDefault(); activePage = 1; loadActive(); });
         el('hostelPrev').addEventListener('click', () => { activePage = Math.max(1, activePage - 1); loadActive(); });
         el('hostelNext').addEventListener('click', () => { activePage = Math.min(activePages, activePage + 1); loadActive(); });
+        window.addEventListener('hostel-stay-shortened', () => {
+            dismissBedMove(); loadActive(); loadBeds(); loadRooms();
+        });
         window.addEventListener('hostel-stay-extended', () => {
             dismissBedMove(); loadActive(); loadBeds(); loadRooms();
         });

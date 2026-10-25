@@ -149,5 +149,6 @@ public sealed class HostelAllocationRowDto
     public DateOnly StartDate { get; set; }
     public DateOnly? EndDate { get; set; }
     public bool CanExtendNoCharge { get; set; }
+    public bool CanShortenNoCharge { get; set; }
     public string RowVersion { get; set; } = string.Empty;
 }
