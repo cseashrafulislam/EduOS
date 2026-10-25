@@ -147,6 +147,9 @@ public sealed partial class SubscriptionPaymentService : ISubscriptionPaymentSer
                 tx.Complete();
                 return ApiResponse<bool>.SuccessResponse(true, "Payment was already applied.");
             }
+            // Never resurrect a cancelled, failed or refunded gateway attempt.
+            if (payment.State != PaymentState.Initiated)
+                return ApiResponse<bool>.ErrorResponse("Payment is not awaiting gateway settlement.", 409);
             var invoice = await _invoices.GetByIdForSystemAsync(payment.SubscriptionInvoiceId, payment.TenantId);
             if (invoice == null) return ApiResponse<bool>.ErrorResponse("Invoice not found.", 404);
             if (!verified.IsSuccess || !matchedAmount || amount != payment.Amount ||

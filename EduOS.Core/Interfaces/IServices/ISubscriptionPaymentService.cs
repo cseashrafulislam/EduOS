@@ -43,6 +43,10 @@ public interface ISubscriptionPaymentService
     /// </summary>
     Task<ApiResponse<PagedManualPaymentsDto>> GetPendingManualVerificationsAsync(int page, int pageSize, string? search);
     Task<ApiResponse<bool>> ScanDepositSlipAsync(long paymentId);
+    Task<ApiResponse<PagedGatewayPaymentRecoveryDto>> GetPendingGatewayRecoveryAsync(
+        int page, int pageSize, string? search, CancellationToken ct = default);
+    Task<ApiResponse<bool>> ReconcileGatewayPaymentAsync(long paymentId, string rowVersion);
+
     Task<ApiResponse<PagedManualPaymentReconciliationDto>> GetManualPaymentReconciliationHistoryAsync(
         int page, int pageSize, string? search, string? outcome, CancellationToken ct = default);
 }

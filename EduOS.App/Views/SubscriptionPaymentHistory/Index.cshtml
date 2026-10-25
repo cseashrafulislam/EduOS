@@ -41,6 +41,32 @@
             </div>
         </div>
     </div>
+    <section class="card border-0 shadow-sm mt-4" aria-labelledby="gatewayRecoveryHeading">
+        <div class="card-body">
+            <h2 class="h5" id="gatewayRecoveryHeading">Unreconciled AamarPay transactions</h2>
+            <p class="text-muted small">Only gateway payments initiated at least 10 minutes ago are shown. Recovery independently verifies the transaction with AamarPay; it never approves a payment from browser input.</p>
+            <form id="gatewayRecoveryFilters" class="row g-2 align-items-end">
+                <div class="col-md-9">
+                    <label class="form-label" for="gatewayRecoverySearch">Institution, invoice or transaction</label>
+                    <input class="form-control" id="gatewayRecoverySearch" type="search" maxlength="100" autocomplete="off" />
+                </div>
+                <div class="col-md-3"><button type="submit" class="btn btn-outline-primary w-100">Find pending payments</button></div>
+            </form>
+            <form id="gatewayRecoveryAntiforgery" method="post" class="d-none">@Html.AntiForgeryToken()</form>
+            <div id="gatewayRecoveryStatus" class="small text-muted my-3" role="status" aria-live="polite"></div>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle">
+                    <thead><tr><th>Institution / Invoice</th><th>Transaction</th><th>Amount / Due</th><th>Initiated</th><th>Action</th></tr></thead>
+                    <tbody id="gatewayRecoveryRows"></tbody>
+                </table>
+            </div>
+            <div class="d-flex justify-content-between align-items-center gap-2">
+                <button id="gatewayRecoveryPrevious" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+                <span id="gatewayRecoveryPage" class="small text-muted"></span>
+                <button id="gatewayRecoveryNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+            </div>
+        </div>
+    </section>
     <a class="btn btn-link mt-3" href="/Account/PaymentVerification">Review pending bank transfers</a>
 </div>
 @section Scripts {

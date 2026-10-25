@@ -199,6 +199,28 @@ namespace EduOS.App.Controllers.Api
         }
 
         [Authorize(Roles = "SuperAdmin")]
+        [EnableRateLimiting("ApiPolicy")]
+        [HttpGet("admin/gateway-pending")]
+        public async Task<IActionResult> GetPendingGatewayRecovery(
+            [FromQuery] int page = 1, [FromQuery] int pageSize = 25,
+            [FromQuery] string? search = null, CancellationToken ct = default)
+        {
+            var result = await _paymentService.GetPendingGatewayRecoveryAsync(page, pageSize, search, ct);
+            return StatusCode(result.StatusCode, result);
+        }
+
+        [Authorize(Roles = "SuperAdmin")]
+        [EnableRateLimiting("ApiPolicy")]
+        [HttpPost("admin/gateway-payments/{paymentId:long}/reconcile")]
+        public async Task<IActionResult> ReconcileGatewayPayment(
+            long paymentId, [FromBody] GatewayRecoveryRequestDto request)
+        {
+            var result = await _paymentService.ReconcileGatewayPaymentAsync(
+                paymentId, request?.RowVersion ?? string.Empty);
+            return StatusCode(result.StatusCode, result);
+        }
+
+        [Authorize(Roles = "SuperAdmin")]
         [HttpPost("admin/payments/{paymentId:long}/scan-receipt")]
         public async Task<IActionResult> ScanReceipt(long paymentId)
         {

@@ -105,4 +105,126 @@
         if (page < Math.ceil(total / pageSize)) { page++; load(); }
     });
     load();
+
+    // Recovery is intentionally a separate, SuperAdmin-only panel. Never trust
+    // client-provided payment outcomes; the server verifies AamarPay itself.
+    const gatewayRows = get('gatewayRecoveryRows');
+    const gatewayStatus = get('gatewayRecoveryStatus');
+    const gatewayPageLabel = get('gatewayRecoveryPage');
+    const gatewayPrevious = get('gatewayRecoveryPrevious');
+    const gatewayNext = get('gatewayRecoveryNext');
+    let gatewayPage = 1;
+    let gatewayTotal = 0;
+    let gatewayRequestId = 0;
+    let gatewayBusy = false;
+
+    function gatewayRender(items) {
+        gatewayRows.replaceChildren();
+        for (const item of items) {
+            const tr = document.createElement('tr');
+            cell(tr, item.institutionName, item.institutionCode + ' · ' + item.invoiceNumber);
+            cell(tr, item.transactionId, 'Payment ID: ' + item.paymentId);
+            cell(tr, money(item.amount, item.currencyCode), 'Invoice due: ' + money(item.invoiceDueAmount, item.currencyCode));
+            cell(tr, date(item.initiatedAt), 'Gateway: AamarPay');
+            const td = document.createElement('td');
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'btn btn-outline-primary btn-sm';
+            button.textContent = 'Verify with gateway';
+            button.disabled = gatewayBusy;
+            button.addEventListener('click', () => gatewayReconcile(item.paymentId, item.rowVersion));
+            td.append(button);
+            tr.append(td);
+            gatewayRows.append(tr);
+        }
+        if (!items.length) {
+            const tr = document.createElement('tr');
+            const td = document.createElement('td');
+            td.colSpan = 5;
+            td.className = 'text-center text-muted py-3';
+            td.textContent = 'No eligible unreconciled gateway payments.';
+            tr.append(td);
+            gatewayRows.append(tr);
+        }
+        const pages = Math.max(1, Math.ceil(gatewayTotal / pageSize));
+        gatewayPageLabel.textContent = 'Page ' + gatewayPage + ' of ' + pages + ' · ' + gatewayTotal + ' pending';
+        gatewayPrevious.disabled = gatewayBusy || gatewayPage <= 1;
+        gatewayNext.disabled = gatewayBusy || gatewayPage >= pages;
+    }
+    async function gatewayLoad() {
+        const current = ++gatewayRequestId;
+        gatewayStatus.textContent = 'Loading pending gateway transactions…';
+        gatewayStatus.className = 'small text-muted my-3';
+        gatewayPrevious.disabled = true;
+        gatewayNext.disabled = true;
+        const query = new URLSearchParams({
+            page: String(gatewayPage), pageSize: String(pageSize),
+            search: get('gatewayRecoverySearch').value.trim()
+        });
+        try {
+            const response = await fetch('/api/subscription-payment/admin/gateway-pending?' + query, {
+                credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' }
+            });
+            const payload = await response.json().catch(() => null);
+            if (current !== gatewayRequestId) return;
+            if (!response.ok || payload?.success !== true)
+                throw new Error(payload?.message || 'Unable to load gateway payments.');
+            gatewayTotal = Number(payload.data?.totalCount || 0);
+            const pages = Math.max(1, Math.ceil(gatewayTotal / pageSize));
+            if (gatewayPage > pages) { gatewayPage = pages; await gatewayLoad(); return; }
+            gatewayRender(Array.isArray(payload.data?.items) ? payload.data.items : []);
+            gatewayStatus.textContent = 'Verification is performed directly against the payment provider.';
+        } catch (error) {
+            if (current !== gatewayRequestId) return;
+            gatewayTotal = 0;
+            gatewayRender([]);
+            gatewayStatus.textContent = error.message || 'Unable to load gateway payments.';
+            gatewayStatus.className = 'small text-danger my-3';
+        }
+    }
+    async function gatewayReconcile(paymentId, rowVersion) {
+        if (gatewayBusy || !rowVersion) return;
+        gatewayBusy = true;
+        gatewayRows.querySelectorAll('button').forEach(button => { button.disabled = true; });
+        gatewayPrevious.disabled = true;
+        gatewayNext.disabled = true;
+        gatewayStatus.className = 'small text-muted my-3';
+        gatewayStatus.textContent = 'Checking transaction with AamarPay…';
+        try {
+            const token = get('gatewayRecoveryAntiforgery')
+                .querySelector('input[name="__RequestVerificationToken"]')?.value;
+            if (!token) throw new Error('Security token unavailable. Reload the page.');
+            const response = await fetch('/api/subscription-payment/admin/gateway-payments/' +
+                encodeURIComponent(String(paymentId)) + '/reconcile', {
+                method: 'POST', credentials: 'same-origin', cache: 'no-store',
+                headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+                body: JSON.stringify({ rowVersion })
+            });
+            const payload = await response.json().catch(() => null);
+            if (!response.ok || payload?.success !== true)
+                throw new Error(payload?.message || 'Gateway verification did not confirm payment.');
+            gatewayStatus.textContent = 'Provider-confirmed payment reconciled. Reloading…';
+            gatewayBusy = false;
+            await gatewayLoad();
+            await load();
+        } catch (error) {
+            gatewayStatus.textContent = error.message || 'Gateway reconciliation failed.';
+            gatewayStatus.className = 'small text-danger my-3';
+        } finally {
+            gatewayBusy = false;
+            gatewayRows.querySelectorAll('button').forEach(button => { button.disabled = false; });
+        }
+    }
+    get('gatewayRecoveryFilters').addEventListener('submit', event => {
+        event.preventDefault(); gatewayPage = 1; gatewayLoad();
+    });
+    gatewayPrevious.addEventListener('click', () => {
+        if (!gatewayBusy && gatewayPage > 1) { gatewayPage--; gatewayLoad(); }
+    });
+    gatewayNext.addEventListener('click', () => {
+        if (!gatewayBusy && gatewayPage < Math.ceil(gatewayTotal / pageSize)) {
+            gatewayPage++; gatewayLoad();
+        }
+    });
+    gatewayLoad();
 })();
