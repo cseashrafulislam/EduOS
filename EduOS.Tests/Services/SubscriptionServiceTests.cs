@@ -184,13 +184,14 @@ public sealed class SubscriptionServiceTests
         // System job uses a trusted tenant scope; request credentials must not be
         // reused to invoke host-level automatic renewal.
         setup.Accessor.HttpContext = null;
+        var systemService = setup.SystemService();
         using (setup.Db.BeginSystemTenantScope(setup.Tenant.Id))
         {
-            var created = await setup.Service.ScheduleAutomaticRenewalAsync(setup.Tenant.Id, current.Id);
+            var created = await systemService.ScheduleAutomaticRenewalAsync(setup.Tenant.Id, current.Id);
             created.Success.Should().BeTrue();
             created.Data!.State.Should().Be(SubscriptionState.PendingPayment);
             created.Data.StartsAt.Should().Be(current.EndsAt);
-            (await setup.Service.ScheduleAutomaticRenewalAsync(setup.Tenant.Id, current.Id))
+            (await systemService.ScheduleAutomaticRenewalAsync(setup.Tenant.Id, current.Id))
                 .Data!.Id.Should().Be(created.Data.Id);
         }
         (await setup.Db.TenantSubscriptions.CountAsync()).Should().Be(2);
@@ -215,9 +216,10 @@ public sealed class SubscriptionServiceTests
         current.EndsAt = DateTime.UtcNow.AddDays(5);
         await setup.Db.SaveChangesAsync();
         setup.Accessor.HttpContext = null;
+        var systemService = setup.SystemService();
         using (setup.Db.BeginSystemTenantScope(setup.Tenant.Id))
         {
-            var result = await setup.Service.ScheduleAutomaticRenewalAsync(setup.Tenant.Id, current.Id);
+            var result = await systemService.ScheduleAutomaticRenewalAsync(setup.Tenant.Id, current.Id);
             result.StatusCode.Should().Be(409);
         }
         (await setup.Db.TenantSubscriptions.CountAsync()).Should().Be(1);
@@ -285,20 +287,28 @@ public sealed class SubscriptionServiceTests
         // AsyncLocal changes inside SetupAsync do not flow back into the awaiting
         // test method. Establish the intended request scope explicitly there.
         public void ActivateRequest() => Accessor.HttpContext = RequestContext;
+        public SubscriptionService SystemService() => new(
+            new TenantSubscriptionRepository(Db),
+            new SubscriptionPlanRepository(Db),
+            new SubscriptionInvoiceRepository(Db),
+            new GenericRepository<SubscriptionInvoiceLine>(Db),
+            new GenericRepository<Tenant>(Db),
+            Db, new TestUser(Tenant.Id, false), TimeProvider.System,
+            NullLogger<SubscriptionService>.Instance);
         public ValueTask DisposeAsync() => Db.DisposeAsync();
     }
 
-    private sealed class TestUser(long tenant) : ICurrentUserService
+    private sealed class TestUser(long tenant, bool authenticated = true) : ICurrentUserService
     {
-        public bool IsAuthenticated => true;
+        public bool IsAuthenticated => authenticated;
         public long TenantId => tenant;
         public long UserId => 91;
         public string? FullName => "Tenant Admin";
         public string? Email => "admin@example.test";
         public bool IsSuperAdmin => false;
-        public bool IsTenantAdmin => true;
+        public bool IsTenantAdmin => authenticated;
         public IReadOnlyList<string> Roles => new[] { "TenantAdmin" };
-        public bool IsInRole(string role) => role == "TenantAdmin";
+        public bool IsInRole(string role) => authenticated && role == "TenantAdmin";
         public string? IpAddress => "127.0.0.1";
         public string? UserAgent => "Tests";
     }
