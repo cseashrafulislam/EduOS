@@ -21,6 +21,8 @@ public sealed class StudentOptionalSubjectQueryService : IStudentOptionalSubject
     private readonly IGenericRepository<StudentSubjectRegistration> _registrations;
     private readonly IGenericRepository<SubjectPrerequisite> _prerequisites;
     private readonly ICurrentUserService _user;
+    private readonly IGenericRepository<Guardian>? _guardians;
+    private readonly IGenericRepository<StudentGuardian>? _studentGuardians;
 
     public StudentOptionalSubjectQueryService(IGenericRepository<Student> students,
         IGenericRepository<StudentEnrollment> enrollments,
@@ -28,17 +30,22 @@ public sealed class StudentOptionalSubjectQueryService : IStudentOptionalSubject
         IGenericRepository<CurriculumSubject> curriculumSubjects,
         IGenericRepository<Subject> subjects,
         IGenericRepository<StudentSubjectRegistration> registrations,
-        IGenericRepository<SubjectPrerequisite> prerequisites, ICurrentUserService user)
+        IGenericRepository<SubjectPrerequisite> prerequisites, ICurrentUserService user,
+        IGenericRepository<Guardian>? guardians = null,
+        IGenericRepository<StudentGuardian>? studentGuardians = null)
     {
         _students = students; _enrollments = enrollments; _offerings = offerings;
         _curriculumSubjects = curriculumSubjects; _subjects = subjects;
         _registrations = registrations; _prerequisites = prerequisites; _user = user;
+        _guardians = guardians; _studentGuardians = studentGuardians;
     }
 
     public async Task<ApiResponse<StudentOptionalSubjectWorkspaceDto>> GetAsync(
         Guid studentReference, CancellationToken ct = default)
     {
-        if (!_user.IsAuthenticated || !_user.IsTenantAdmin || _user.TenantId <= 0)
+        var canManage = _user.IsTenantAdmin || _user.IsInRole("Principal") || _user.IsInRole("VicePrincipal");
+        var canSelfServe = _user.IsInRole("Student") || _user.IsInRole("Guardian") || _user.IsInRole("Parent");
+        if (!_user.IsAuthenticated || _user.TenantId <= 0 || (!canManage && !canSelfServe))
             return ApiResponse<StudentOptionalSubjectWorkspaceDto>.ErrorResponse("Permission denied.", 403);
         if (studentReference == Guid.Empty)
             return ApiResponse<StudentOptionalSubjectWorkspaceDto>.ErrorResponse("Student not found.", 404);
@@ -48,6 +55,20 @@ public sealed class StudentOptionalSubjectQueryService : IStudentOptionalSubject
             x.StatusCode == "Active" && !x.IsDeleted, ct);
         if (student == null)
             return ApiResponse<StudentOptionalSubjectWorkspaceDto>.ErrorResponse("Student not found.", 404);
+        // Self-service callers may see only their own student or a tenant-linked ward.
+        // Return 404 for unlinked students to avoid revealing directory membership.
+        if (!canManage && student.UserId != _user.UserId)
+        {
+            if (_guardians == null || _studentGuardians == null ||
+                !await (from link in _studentGuardians.GetQueryable().AsNoTracking()
+                    join guardian in _guardians.GetQueryable().AsNoTracking()
+                        on link.GuardianId equals guardian.Id
+                    where link.TenantId == tenant && guardian.TenantId == tenant &&
+                        !link.IsDeleted && !guardian.IsDeleted && guardian.IsActive &&
+                        link.StudentId == student.Id && guardian.UserId == _user.UserId
+                    select link.Id).AnyAsync(ct))
+                return ApiResponse<StudentOptionalSubjectWorkspaceDto>.ErrorResponse("Student not found.", 404);
+        }
         var enrollment = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == tenant && x.StudentId == student.Id && x.IsCurrent &&
             x.State == EnrollmentState.Active && !x.IsDeleted, ct);
