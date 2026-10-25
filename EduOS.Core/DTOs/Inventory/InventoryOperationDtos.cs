@@ -179,6 +179,7 @@ public sealed class AssetMaintenanceDto
     public DateOnly MaintenanceDate { get; set; }
     public string WorkDescription { get; set; } = string.Empty;
     public decimal Cost { get; set; }
+    public string? ServiceProvider { get; set; }
     public DateOnly? NextMaintenanceDate { get; set; }
 }
 public sealed class RecordAssetMaintenanceRequestDto

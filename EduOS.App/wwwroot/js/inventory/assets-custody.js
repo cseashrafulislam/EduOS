@@ -1,9 +1,10 @@
 import { api, el, td, empty, canManage, notice, addButton, dateToday } from './assets-api.js';
+import { loadMaintenanceHistory } from './assets-maintenance-history.js';
 export let selected = null;
 export async function selectAsset(row) {
     selected = row;
     el('assetSelected').textContent = row.assetTag + ' — ' + row.name + ' (' + row.stateCode + ')';
-    await loadHistory();
+    await Promise.all([loadHistory(), loadMaintenanceHistory(row.reference, true)]);
 }
 export async function loadHistory() {
     if (!selected) return;

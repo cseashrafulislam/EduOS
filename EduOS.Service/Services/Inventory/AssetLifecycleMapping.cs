@@ -34,6 +34,7 @@ public sealed partial class AssetLifecycleService
     private static AssetMaintenanceDto Map(AssetMaintenance x, Guid assetRef) => new()
     {
         Id = x.Id, AssetReference = assetRef, MaintenanceDate = x.MaintenanceDate,
-        WorkDescription = x.WorkDescription, Cost = x.Cost, NextMaintenanceDate = x.NextMaintenanceDate
+        WorkDescription = x.WorkDescription, Cost = x.Cost, ServiceProvider = x.ServiceProvider,
+        NextMaintenanceDate = x.NextMaintenanceDate
     };
 }
