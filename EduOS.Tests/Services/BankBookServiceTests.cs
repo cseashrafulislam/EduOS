@@ -78,10 +78,16 @@ public sealed class BankBookServiceTests
     [Fact]
     public async Task Other_tenant_bank_cannot_be_read()
     {
-        await using var db = Database();
-        Seed(db);
-        db.BankAccounts.Local.Single().TenantId = 99;
-        await db.SaveChangesAsync();
+        var databaseName = "bank-book-foreign-" + Guid.NewGuid().ToString("N");
+        await using (var foreign = Database(databaseName, 99))
+        {
+            foreign.Accounts.Add(new Account { Id=1, TenantId=99, Code="BANK",
+                Name="Foreign bank ledger", AccountType=AccountType.Asset });
+            foreign.BankAccounts.Add(new BankAccount { Id=1, TenantId=99, AccountId=1,
+                BankName="Foreign Bank", AccountName="Foreign", AccountNumber="999", CurrencyCode="BDT" });
+            await foreign.SaveChangesAsync();
+        }
+        await using var db = Database(databaseName, 41);
         (await Service(db).GetBankBookAsync(1, Start, End)).StatusCode.Should().Be(404);
     }
 
@@ -123,12 +129,12 @@ public sealed class BankBookServiceTests
     }
     private static AccountingReportingService Service(EduOSDbContext db, string role="TenantAdmin") =>
         new(db, new TestUser(role));
-    private static EduOSDbContext Database()
+    private static EduOSDbContext Database(string? name = null, long tenantId = 41)
     {
         var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
-        accessor.HttpContext.Items["TenantId"] = 41L;
+        accessor.HttpContext.Items["TenantId"] = tenantId;
         return new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
-            .UseInMemoryDatabase("bank-book-" + Guid.NewGuid().ToString("N")).Options, accessor);
+            .UseInMemoryDatabase(name ?? "bank-book-" + Guid.NewGuid().ToString("N")).Options, accessor);
     }
     private sealed class TestUser(string role) : ICurrentUserService
     {
