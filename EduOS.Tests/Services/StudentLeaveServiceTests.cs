@@ -202,7 +202,7 @@ public sealed class StudentLeaveServiceTests
         var service = Service(db, new Actor(101, 11, "Student"));
         var request = new CreateStudentLeaveApplicationRequestDto
         {
-            ClientRequestId = Guid.NewGuid(), StudentEnrollmentReference = mine,
+            ClientRequestId = asset.PublicId, StudentEnrollmentReference = mine,
             FromDate = From, ToDate = To, Reason = "Medical evidence",
             AttachmentFileId = asset.Id
         };
@@ -239,7 +239,7 @@ public sealed class StudentLeaveServiceTests
         var service = Service(db, new Actor(101, 11, "Student"));
         var request = new CreateStudentLeaveApplicationRequestDto
         {
-            ClientRequestId = Guid.NewGuid(), StudentEnrollmentReference = mine,
+            ClientRequestId = file.PublicId, StudentEnrollmentReference = mine,
             FromDate = From, ToDate = To, Reason = "Leave", AttachmentFileId = file.Id
         };
         (await service.ApplyAsync(request)).StatusCode.Should().Be(404);
