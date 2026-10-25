@@ -40,6 +40,13 @@ function renderRow(item){
   change.textContent='Change scheduled driver';
   change.onclick=()=>u.changeUpcomingDriver?.(item);
   action.append(change);
+  if(item.effectiveTo&&item.licenseExpiresOn&&item.licenseExpiresOn>item.effectiveTo){
+   const extend=document.createElement('button');extend.type='button';
+   extend.className='btn btn-outline-primary btn-sm ms-1';
+   extend.textContent='Extend scheduled end';
+   extend.onclick=()=>u.extendUpcomingDriver?.(item);
+   action.append(extend);
+  }
  }else if(item.isCurrent&&(!item.effectiveTo||item.effectiveTo>=u.today())){
   const date=document.createElement('input');date.type='date';date.className='form-control form-control-sm';
   date.setAttribute('aria-label','End date for '+item.vehicleNumber);
