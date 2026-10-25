@@ -30,7 +30,10 @@ public sealed class AcademicSetupWorkflowContractTests
             var authorize = method.GetCustomAttributes(typeof(AuthorizeAttribute), true)
                 .Cast<AuthorizeAttribute>().Single();
             authorize.Roles.Should().Contain("TenantAdmin");
-            authorize.Roles.Should().Contain("Principal");
+            if (method.Name == nameof(AcademicSetupController.CreateOffering))
+                authorize.Roles.Should().Be("TenantAdmin");
+            else
+                authorize.Roles.Should().Contain("Principal");
             method.GetCustomAttributes(typeof(AllowAnonymousAttribute), true).Should().BeEmpty();
         }
     }
