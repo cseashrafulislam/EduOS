@@ -205,6 +205,15 @@
                         <span>Learner Data Consent</span>
                     </a>
                 }
+                @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
+                     User?.IsInRole("VicePrincipal") == true || User?.IsInRole("Student") == true ||
+                     User?.IsInRole("Guardian") == true || User?.IsInRole("Parent") == true)
+                {
+                    <a class="nav-link @ActiveFor("/StudentSubjects")" href="/StudentSubjects/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
+                        <span>Optional Subject Requests</span>
+                    </a>
+                }
                 <a class="nav-link @ActiveFor("/Admissions")" href="/Admissions/Index">
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#institution" /></svg>
                     <span>@T["AdmissionApplications"]</span>
