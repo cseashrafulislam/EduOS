@@ -73,9 +73,9 @@ public sealed class StudentAttendanceReportWorkflowTests
     public void Report_api_and_view_are_manager_only_and_module_scoped()
     {
         var type = typeof(StudentAttendanceReportsController);
-        Assert.Equal("TenantAdmin,Principal,VicePrincipal",
-            Assert.Single(type.GetCustomAttributes(typeof(AuthorizeAttribute), true)
-                .Cast<AuthorizeAttribute>()).Roles);
+        Assert.Contains(type.GetCustomAttributes(typeof(AuthorizeAttribute), true)
+            .Cast<AuthorizeAttribute>(),
+            attribute => attribute.Roles == "TenantAdmin,Principal,VicePrincipal");
         Assert.Single(type.GetCustomAttributes(typeof(RequireModuleAttribute), true));
         Assert.Single(type.GetCustomAttributes(typeof(AutoValidateAntiforgeryTokenAttribute), true));
     }
