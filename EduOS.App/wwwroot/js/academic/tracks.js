@@ -104,7 +104,8 @@
     });
     el('trackCreateForm').addEventListener('submit', async e => {
         e.preventDefault();
-        const button = e.currentTarget.querySelector('button[type="submit"]');
+        const form = e.currentTarget;
+        const button = form.querySelector('button[type="submit"]');
         const order = Number(value('trackCreateOrder'));
         if (!Number.isInteger(order) || order < 0) { notice('Invalid display order.', true); return; }
         button.disabled = true;
@@ -115,7 +116,7 @@
                 description: value('trackCreateDescription') || null,
                 isDefault: el('trackCreateDefault').checked, isActive: true, displayOrder: order
             }) });
-            e.currentTarget.reset();
+            form.reset();
             await reload(); page = 1; await load();
             notice('Academic track created.');
         } catch (error) { notice(error.message, true); }
