@@ -83,11 +83,23 @@
             const response = await fetch(`/api/students/${encodeURIComponent(button.dataset.reference)}`, apiOptions());
             const payload = await response.json().catch(() => null);
             if (!response.ok || !payload?.success || !payload.data) throw new Error('Invalid student');
+            state.currentReference = button.dataset.reference;
             renderDetails(payload.data);
             bootstrap.Modal.getOrCreateInstance(document.getElementById('studentModal')).show();
             document.dispatchEvent(new CustomEvent('student:opened', { detail: { reference: button.dataset.reference, rowVersion: payload.data.rowVersion, photoUrl: payload.data.photoUrl } }));
         } catch { showAlert(i18n.detailsFailed); }
     }
+
+    document.addEventListener('student:contact-updated', async event => {
+        const reference = event.detail?.reference;
+        if (!reference || state.currentReference !== reference) return;
+        try {
+            const response = await fetch('/api/students/' + encodeURIComponent(reference), apiOptions());
+            const payload = await response.json().catch(() => null);
+            if (response.ok && payload?.success && payload.data && state.currentReference === reference)
+                renderDetails(payload.data);
+        } catch { /* Contact form already reports its own save status. */ }
+    });
 
     function renderDetails(item) {
         const rows = [
