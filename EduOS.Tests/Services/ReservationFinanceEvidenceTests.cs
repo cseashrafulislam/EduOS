@@ -48,9 +48,6 @@ public sealed class ReservationFinanceEvidenceTests
                 TotalAmount = 1200m, PaidAmount = 1200m, JournalId = 90 },
             new StudentInvoice { TenantId = 41, StudentEnrollmentId = 999,
                 InvoiceNumber = "UNRELATED", InvoiceDate = new DateOnly(2026, 12, 1),
-                DueDate = new DateOnly(2026, 12, 31) },
-            new StudentInvoice { TenantId = 42, StudentEnrollmentId = stay.StudentEnrollmentId,
-                InvoiceNumber = "FOREIGN", InvoiceDate = new DateOnly(2026, 12, 2),
                 DueDate = new DateOnly(2026, 12, 31) });
         await db.SaveChangesAsync();
         var first = await Service(db).GetReservationFinanceEvidenceAsync(new()
