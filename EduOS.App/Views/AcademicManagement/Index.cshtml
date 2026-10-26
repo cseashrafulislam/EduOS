@@ -18,6 +18,7 @@
         <li class="nav-item"><button data-panel="terms" class="nav-link" type="button">Terms</button></li>
         <li class="nav-item"><button data-panel="classes" class="nav-link" type="button">Classes / Grades</button></li>
         <li class="nav-item"><button data-panel="sections" class="nav-link" type="button">Sections</button></li>
+        <li class="nav-item"><button data-panel="rooms" class="nav-link" type="button">Rooms</button></li>
         <li class="nav-item"><button data-panel="subjects" class="nav-link" type="button">Subjects</button></li>
         <li class="nav-item"><button data-panel="curricula" class="nav-link" type="button">Curriculum</button></li>
         <li class="nav-item"><button data-panel="offerings" class="nav-link" type="button">Subject Offerings</button></li>
@@ -161,6 +162,35 @@
             <div class="table-responsive"><table class="table table-hover"><thead><tr><th>Class / Grade</th><th>Code</th><th>Programme</th><th>Level</th></tr></thead><tbody id="levelRows"></tbody></table></div>
         </div>
     </section>
+    <section data-section="rooms" class="card border-0 shadow-sm d-none">
+        <div class="card-body">
+            <h2 class="h5">Academic rooms</h2>
+            <p class="text-muted small">Campus-scoped timetable rooms. Codes and campuses are immutable. Capacity decreases and deactivation require timetable reconciliation and are not available here.</p>
+            <form id="roomSearchForm" class="row g-2 mb-3">
+                <div class="col-md-5"><label for="roomSearch" class="form-label">Room name/code prefix</label><input id="roomSearch" class="form-control" maxlength="80" /></div>
+                <div class="col-md-4"><label for="roomCampusFilter" class="form-label">Campus</label><select id="roomCampusFilter" class="form-select"></select></div>
+                <div class="col-md-3 d-flex align-items-end gap-2"><button type="submit" class="btn btn-outline-primary">Search</button><button id="roomCsv" type="button" class="btn btn-outline-secondary">Export CSV</button></div>
+            </form>
+            <form id="roomCreateForm" class="row g-2 align-items-end mb-3">
+                <div class="col-md-2"><label for="roomCreateCampus" class="form-label">Campus *</label><select id="roomCreateCampus" class="form-select" required></select></div>
+                <div class="col-md-3"><label for="roomCreateName" class="form-label">Name *</label><input id="roomCreateName" class="form-control" maxlength="100" required /></div>
+                <div class="col-md-2"><label for="roomCreateCode" class="form-label">Code *</label><input id="roomCreateCode" class="form-control" maxlength="50" required /></div>
+                <div class="col-md-2"><label for="roomCreateCapacity" class="form-label">Capacity</label><input id="roomCreateCapacity" type="number" class="form-control" min="0" max="100000" value="40" required /></div>
+                <div class="col-md-2"><label for="roomCreateType" class="form-label">Type</label><input id="roomCreateType" class="form-control" maxlength="100" /></div>
+                <div class="col-md-1"><button type="submit" class="btn btn-primary">Add</button></div>
+            </form>
+            <div class="table-responsive"><table class="table table-hover"><thead><tr><th>Name</th><th>Code</th><th>Campus</th><th>Type</th><th>Capacity</th><th>Status</th><th>Action</th></tr></thead><tbody id="roomRows"></tbody></table></div>
+            <div class="d-flex gap-2 align-items-center mb-3"><button id="roomPrev" type="button" class="btn btn-sm btn-outline-secondary">Previous</button><span id="roomPage" class="small text-muted"></span><button id="roomNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button></div>
+            <form id="roomEditForm" class="row g-2 align-items-end border rounded p-3 d-none">
+                <input id="roomEditId" type="hidden" /><input id="roomEditVersion" type="hidden" />
+                <div class="col-md-3"><span id="roomEditContext" class="small text-muted"></span></div>
+                <div class="col-md-3"><label for="roomEditName" class="form-label">Name *</label><input id="roomEditName" class="form-control" maxlength="100" required /></div>
+                <div class="col-md-2"><label for="roomEditCapacity" class="form-label">Capacity</label><input id="roomEditCapacity" type="number" class="form-control" min="0" max="100000" required /></div>
+                <div class="col-md-2"><label for="roomEditType" class="form-label">Type</label><input id="roomEditType" class="form-control" maxlength="100" /></div>
+                <div class="col-md-2 d-flex gap-2"><button type="submit" class="btn btn-primary">Save</button><button id="roomCancel" type="button" class="btn btn-outline-secondary">Cancel</button></div>
+            </form>
+        </div>
+    </section>
     <section data-section="sections" class="card border-0 shadow-sm d-none">
         <div class="card-body">
             <h2 class="h5">Sections / Cohorts</h2>
@@ -278,4 +308,5 @@
     <script src="~/js/academic/departments.js" asp-append-version="true"></script>
     <script src="~/js/academic/programmes.js" asp-append-version="true"></script>
     <script src="~/js/academic/batches.js" asp-append-version="true"></script>
+    <script src="~/js/academic/rooms.js" asp-append-version="true"></script>
 }

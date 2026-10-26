@@ -30,4 +30,7 @@ public interface IAcademicSetupService
     Task<ApiResponse<SubjectOfferingDto>> CreateSubjectOfferingAsync(SaveSubjectOfferingRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<SubjectOfferingDto>> UpdateSubjectOfferingAsync(Guid reference, UpdateSubjectOfferingRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<RoomDto>> CreateRoomAsync(SaveRoomRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<RoomDto>>> GetRoomsAsync(string? search, long? campusId, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default);
+    Task<ApiResponse<RoomDto>> GetRoomAsync(long id, CancellationToken cancellationToken = default);
+    Task<ApiResponse<RoomDto>> UpdateRoomAsync(long id, UpdateAcademicRoomRequestDto request, CancellationToken cancellationToken = default);
 }

@@ -162,5 +162,22 @@ public sealed class AcademicSetupController : ControllerBase
     public async Task<IActionResult> CreateRoom([FromBody] SaveRoomRequestDto request, CancellationToken cancellationToken) =>
         ToAction(await _service.CreateRoomAsync(request, cancellationToken));
 
+    [HttpGet("rooms")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> Rooms([FromQuery] string? search, [FromQuery] long? campusId,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetRoomsAsync(search, campusId, page, pageSize, cancellationToken));
+
+    [HttpGet("rooms/{id:long}")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> Room(long id, CancellationToken cancellationToken) =>
+        ToAction(await _service.GetRoomAsync(id, cancellationToken));
+
+    [HttpPut("rooms/{id:long}")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> UpdateRoom(long id, [FromBody] UpdateAcademicRoomRequestDto request,
+        CancellationToken cancellationToken) =>
+        ToAction(await _service.UpdateRoomAsync(id, request, cancellationToken));
+
     private IActionResult ToAction<T>(ApiResponse<T> response) => StatusCode(response.StatusCode, response);
 }

@@ -44,7 +44,7 @@ public sealed class AcademicSetupWorkflowContractTests
     {
         var iface = typeof(IAcademicSetupService);
         var implementation = typeof(AcademicSetupService);
-        iface.GetMethods().Should().HaveCount(24);
+        iface.GetMethods().Should().HaveCount(27);
         implementation.GetInterfaces().Should().Contain(iface);
         iface.GetMethod(nameof(IAcademicSetupService.GetDepartmentsAsync)).Should().NotBeNull();
         iface.GetMethod(nameof(IAcademicSetupService.CreateDepartmentAsync))!
