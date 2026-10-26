@@ -30,6 +30,8 @@ public interface IHostelService
     Task<ApiResponse<string>> ExportTurnoverReportCsvAsync(long? campusId, DateOnly? fromMonth, DateOnly? toMonth, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<HostelOccupancyForecastRowDto>>> GetOccupancyForecastAsync(DateOnly operatingDate, long? campusId, int page, int pageSize, string? search, bool attentionOnly, CancellationToken cancellationToken = default);
     Task<ApiResponse<string>> ExportOccupancyForecastCsvAsync(DateOnly operatingDate, long? campusId, string? search, bool attentionOnly, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<HostelPeakOccupancyForecastRowDto>>> GetPeakOccupancyForecastAsync(DateOnly fromDate, DateOnly toDate, long? campusId, int page, int pageSize, string? search, bool attentionOnly, CancellationToken cancellationToken = default);
+    Task<ApiResponse<string>> ExportPeakOccupancyForecastCsvAsync(DateOnly fromDate, DateOnly toDate, long? campusId, string? search, bool attentionOnly, CancellationToken cancellationToken = default);
     Task<ApiResponse<HostelOccupancyInsightsDto>> GetOccupancyInsightsAsync(long? campusId, string? search, CancellationToken cancellationToken = default);
     Task<ApiResponse<string>> ExportOccupancyInsightsCsvAsync(long? campusId, string? search, CancellationToken cancellationToken = default);
     Task<ApiResponse<HostelBedInventoryDto>> CreateBedAsync(CreateHostelBedRequestDto request, CancellationToken ct = default);
