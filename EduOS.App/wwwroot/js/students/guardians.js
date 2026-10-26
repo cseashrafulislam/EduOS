@@ -5,6 +5,7 @@ import { renderGuardianLinks } from './guardian-link-edit.js';
 import { renderRevokedGuardianLinks } from './guardian-reactivation.js';
 import { setupRevokedGuardianPaging } from './guardian-revoked-paging.js';
 import { setupGuardianHistory } from './guardian-history.js';
+import { setupGuardianContact } from './guardian-contact-profile.js';
 
 const $ = id => document.getElementById(id);
 const root = $('guardianWorkspace');
@@ -34,7 +35,10 @@ if (root) {
     const guardianHistory = setupGuardianHistory({ $, api, state });
     const revokedPaging = setupRevokedGuardianPaging({ $, api, state, renderRevokedGuardianLinks, notice, render: student => render(student) });
     function render(student) {
+        const previousReference = state.student?.studentReference;
         state.student = student;
+        if (previousReference !== student.studentReference)
+            document.dispatchEvent(new CustomEvent('guardian:student-selected', { detail: { studentReference: student.studentReference } }));
         $('guardianSelected').textContent = student.studentName + ' (' + student.studentCode + ')';
         $('guardianCreate').disabled = state.busy;
         $('guardianReuse').disabled = state.busy;
@@ -54,6 +58,7 @@ if (root) {
     setupGuardianSearch({ $, api, state, render, notice });
     setupGuardianSave({ $, api, state, render, notice });
     setupGuardianReuse({ $, api, state, render, notice });
+    setupGuardianContact({ $, api, state, render, notice });
     const reference = new URLSearchParams(location.search).get('studentReference');
     if (reference && /^[0-9a-f-]{36}$/i.test(reference)) {
         api('/api/student-guardians/students/' + encodeURIComponent(reference))

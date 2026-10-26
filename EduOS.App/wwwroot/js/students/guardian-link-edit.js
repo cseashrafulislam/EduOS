@@ -46,7 +46,17 @@ export function renderGuardianLinks({ $, api, state, render, notice }) {
         unlink.disabled = state.busy;
         const headingActions = document.createElement('div');
         headingActions.className = 'd-flex gap-2';
-        headingActions.append(edit, unlink);
+        const editContact = document.createElement('button');
+        editContact.type = 'button'; editContact.className = 'btn btn-sm btn-outline-secondary';
+        editContact.textContent = 'Edit contact details';
+        editContact.disabled = state.busy;
+        editContact.addEventListener('click', () => {
+            document.dispatchEvent(new CustomEvent('guardian:contact-selected', {
+                detail: { guardianReference: guardian.guardianReference }
+            }));
+            document.getElementById('guardianContactHeading')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+        headingActions.append(edit, editContact, unlink);
         heading.append(summary, headingActions);
         const permissions = document.createElement('div');
         permissions.className = 'small mt-2';
