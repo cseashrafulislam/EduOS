@@ -21,6 +21,9 @@ public interface IAcademicSetupService
     Task<ApiResponse<AcademicLevelDto>> GetLevelAsync(long id, CancellationToken cancellationToken = default);
     Task<ApiResponse<AcademicLevelDto>> UpdateLevelAsync(long id, UpdateAcademicLevelRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<AcademicTrackDto>> CreateTrackAsync(SaveAcademicTrackRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<AcademicTrackDto>>> GetTracksAsync(string? search, long? academicProgramId, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default);
+    Task<ApiResponse<AcademicTrackDto>> GetTrackAsync(long id, CancellationToken cancellationToken = default);
+    Task<ApiResponse<AcademicTrackDto>> UpdateTrackAsync(long id, UpdateAcademicTrackRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<SubjectDto>> CreateSubjectAsync(SaveSubjectRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<AcademicCurriculumDto>> CreateCurriculumAsync(SaveAcademicCurriculumRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<AcademicCurriculumDto>> ActivateCurriculumAsync(long curriculumId, string rowVersion, CancellationToken cancellationToken = default);

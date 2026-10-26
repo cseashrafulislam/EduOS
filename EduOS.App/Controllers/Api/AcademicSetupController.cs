@@ -112,6 +112,23 @@ public sealed class AcademicSetupController : ControllerBase
     public async Task<IActionResult> CreateTrack([FromBody] SaveAcademicTrackRequestDto request, CancellationToken cancellationToken) =>
         ToAction(await _service.CreateTrackAsync(request, cancellationToken));
 
+    [HttpGet("tracks")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> Tracks([FromQuery] string? search, [FromQuery] long? academicProgramId,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetTracksAsync(search, academicProgramId, page, pageSize, cancellationToken));
+
+    [HttpGet("tracks/{id:long}")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> Track(long id, CancellationToken cancellationToken) =>
+        ToAction(await _service.GetTrackAsync(id, cancellationToken));
+
+    [HttpPut("tracks/{id:long}")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> UpdateTrack(long id, [FromBody] UpdateAcademicTrackRequestDto request,
+        CancellationToken cancellationToken) =>
+        ToAction(await _service.UpdateTrackAsync(id, request, cancellationToken));
+
     [HttpPost("subjects")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
     public async Task<IActionResult> CreateSubject([FromBody] SaveSubjectRequestDto request, CancellationToken cancellationToken) =>

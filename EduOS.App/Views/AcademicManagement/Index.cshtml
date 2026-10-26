@@ -179,6 +179,37 @@
                     <div class="col-md-2 d-flex gap-2"><button type="submit" class="btn btn-primary">Save</button><button id="levelEditCancel" type="button" class="btn btn-outline-secondary">Cancel</button></div>
                 </form>
             </div>
+            <div class="border rounded p-3 mt-4" id="trackWorkspace">
+                <h3 class="h6">Academic tracks / streams</h3>
+                <p class="small text-muted">Programme-specific or institution-wide streams. Track code and programme scope remain immutable. Existing batches and curricula prevent deactivation.</p>
+                <form id="trackSearchForm" class="row g-2 mb-3">
+                    <div class="col-md-4"><label for="trackSearch" class="form-label">Name / code prefix</label><input id="trackSearch" class="form-control" maxlength="80" /></div>
+                    <div class="col-md-4"><label for="trackProgramFilter" class="form-label">Programme</label><select id="trackProgramFilter" class="form-select"></select></div>
+                    <div class="col-md-4 d-flex align-items-end gap-2"><button type="submit" class="btn btn-outline-primary">Search</button><button id="trackCsv" type="button" class="btn btn-outline-secondary">Export visible CSV</button></div>
+                </form>
+                <form id="trackCreateForm" class="row g-2 align-items-end mb-3">
+                    <div class="col-md-3"><label for="trackCreateProgram" class="form-label">Programme</label><select id="trackCreateProgram" class="form-select"></select></div>
+                    <div class="col-md-3"><label for="trackCreateName" class="form-label">Track name *</label><input id="trackCreateName" class="form-control" maxlength="150" required /></div>
+                    <div class="col-md-2"><label for="trackCreateCode" class="form-label">Code *</label><input id="trackCreateCode" class="form-control" maxlength="50" required /></div>
+                    <div class="col-md-2"><label for="trackCreateOrder" class="form-label">Order</label><input id="trackCreateOrder" type="number" class="form-control" min="0" value="0" required /></div>
+                    <div class="col-md-2"><label class="form-check"><input id="trackCreateDefault" type="checkbox" class="form-check-input" /><span class="form-check-label">Default</span></label><button type="submit" class="btn btn-primary mt-1">Add track</button></div>
+                    <div class="col-12"><label for="trackCreateDescription" class="form-label">Description</label><input id="trackCreateDescription" class="form-control" maxlength="500" /></div>
+                </form>
+                <div class="row g-2 mb-2">
+                    <div class="col-md-5"><label for="trackProgrammeLookup" class="form-label">Find programmes by prefix (for large catalogs)</label><input id="trackProgrammeLookup" class="form-control" maxlength="80" /></div>
+                    <div class="col-md-2 d-flex align-items-end"><button id="trackProgrammeLookupButton" type="button" class="btn btn-sm btn-outline-secondary">Find programmes</button></div>
+                </div>
+                <div class="table-responsive"><table class="table table-hover align-middle"><thead><tr><th>Track</th><th>Code</th><th>Programme</th><th>Default</th><th>Status</th><th>Action</th></tr></thead><tbody id="trackRows"></tbody></table></div>
+                <div class="d-flex align-items-center gap-2 mb-3"><button id="trackPrev" type="button" class="btn btn-sm btn-outline-secondary">Previous</button><span id="trackPage" class="small text-muted"></span><button id="trackNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button></div>
+                <form id="trackEditForm" class="row g-2 align-items-end border rounded p-3 d-none">
+                    <input id="trackEditId" type="hidden" /><input id="trackEditVersion" type="hidden" />
+                    <div class="col-md-3"><span id="trackEditContext" class="small text-muted"></span><label for="trackEditName" class="form-label d-block">Name *</label><input id="trackEditName" class="form-control" maxlength="150" required /></div>
+                    <div class="col-md-4"><label for="trackEditDescription" class="form-label">Description</label><input id="trackEditDescription" class="form-control" maxlength="500" /></div>
+                    <div class="col-md-2"><label for="trackEditOrder" class="form-label">Display order</label><input id="trackEditOrder" type="number" min="0" class="form-control" required /></div>
+                    <div class="col-md-3"><label class="form-check"><input id="trackEditDefault" type="checkbox" class="form-check-input" /><span class="form-check-label">Default</span></label><label class="form-check"><input id="trackEditActive" type="checkbox" class="form-check-input" /><span class="form-check-label">Active</span></label></div>
+                    <div class="col-12 d-flex gap-2"><button type="submit" class="btn btn-primary">Save track</button><button id="trackEditCancel" type="button" class="btn btn-outline-secondary">Cancel</button></div>
+                </form>
+            </div>
         </div>
     </section>
     <section data-section="rooms" class="card border-0 shadow-sm d-none">
@@ -329,4 +360,5 @@
     <script src="~/js/academic/batches.js" asp-append-version="true"></script>
     <script src="~/js/academic/rooms.js" asp-append-version="true"></script>
     <script src="~/js/academic/levels.js" asp-append-version="true"></script>
+    <script src="~/js/academic/tracks.js" asp-append-version="true"></script>
 }

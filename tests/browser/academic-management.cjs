@@ -38,6 +38,32 @@ async function main() {
             if (!url.pathname.startsWith('/api/'))
                 return route.fulfill({ status: 200, contentType: 'text/html', body: html });
             if (request.method() === 'GET') {
+                if (url.pathname === '/api/academic-setup/tracks') {
+                    let items = catalog.tracks.filter(x =>
+                        !url.searchParams.get('academicProgramId') ||
+                        x.academicProgramId === Number(url.searchParams.get('academicProgramId')));
+                    const prefix = (url.searchParams.get('search') || '').toLowerCase();
+                    if (prefix) items = items.filter(x => x.name.toLowerCase().startsWith(prefix) ||
+                        x.code.toLowerCase().startsWith(prefix));
+                    const p = Number(url.searchParams.get('page') || 1);
+                    const size = Number(url.searchParams.get('pageSize') || 20);
+                    const data = { items: items.slice((p - 1) * size, p * size),
+                        totalCount: items.length, page: p, pageSize: size };
+                    return route.fulfill({ status: 200, contentType: 'application/json',
+                        body: JSON.stringify({ success: true, data }) });
+                }
+                if (/^\/api\/academic-setup\/tracks\/\d+$/.test(url.pathname)) {
+                    const data = catalog.tracks.find(x => x.id === Number(url.pathname.split('/').at(-1)));
+                    return route.fulfill({ status: data ? 200 : 404, contentType: 'application/json',
+                        body: JSON.stringify({ success: !!data, data }) });
+                }
+                if (url.pathname === '/api/academic-setup/programmes') {
+                    const prefix = (url.searchParams.get('search') || '').toLowerCase();
+                    const items = catalog.programs.filter(x => !prefix ||
+                        x.name.toLowerCase().startsWith(prefix) || x.code.toLowerCase().startsWith(prefix));
+                    return route.fulfill({ status: 200, contentType: 'application/json',
+                        body: JSON.stringify({ success: true, data: { items, totalCount: items.length, page: 1, pageSize: 100 } }) });
+                }
                 if (url.pathname === '/api/academic-setup/levels') {
                     let items = catalog.levels.filter(x =>
                         !url.searchParams.get('academicProgramId') ||
@@ -70,6 +96,11 @@ async function main() {
             const data = request.postDataJSON() || {};
             mutations.push({ path: url.pathname, method: request.method(), data });
             if (request.method() === 'PUT' &&
+                /^\/api\/academic-setup\/tracks\/\d+$/.test(url.pathname)) {
+                const row = catalog.tracks.find(x => x.id === Number(url.pathname.split('/').at(-1)));
+                if (row) Object.assign(row, data);
+            }
+            if (request.method() === 'PUT' &&
                 /^\/api\/academic-setup\/levels\/\d+$/.test(url.pathname)) {
                 const row = catalog.levels.find(x => x.id === Number(url.pathname.split('/').at(-1)));
                 if (row) Object.assign(row, data);
@@ -89,6 +120,8 @@ async function main() {
                 catalog.programs.push({ ...data, id: 401, rowVersion: 'AQIDBAUGBwg=' });
             if (url.pathname.endsWith('/levels'))
                 catalog.levels.push({ ...data, id: 501, rowVersion: 'AQIDBAUGBwg=' });
+            if (url.pathname === '/api/academic-setup/tracks')
+                catalog.tracks.push({ ...data, id: 551, rowVersion: 'AQIDBAUGBwg=' });
             if (url.pathname === '/api/academic-setup/subjects')
                 catalog.subjects.push({ ...data, id: 601, rowVersion: 'AQIDBAUGBwg=' });
             if (url.pathname.endsWith('/curricula'))
@@ -104,6 +137,7 @@ async function main() {
         await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/academic/management.js') });
         await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/academic/management-forms.js') });
         await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/academic/levels.js') });
+        await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/academic/tracks.js') });
         await page.waitForSelector('#yearRows tr');
         assert.match(await page.locator('#yearRows').innerText(), /Academic 2026/);
 
@@ -126,6 +160,18 @@ async function main() {
         await page.waitForFunction(() => document.querySelector('#levelRows')?.textContent.includes('Grade Nine Updated'));
         assert(mutations.some(x => x.path === '/api/academic-setup/levels/501' && x.method === 'PUT'));
         await page.locator('#levelCsv').click();
+
+        await page.locator('#trackCreateName').fill('Science');
+        await page.locator('#trackCreateCode').fill('SCI');
+        await page.locator('#trackCreateForm button[type="submit"]').click();
+        await page.waitForFunction(() => document.querySelector('#trackRows')?.textContent.includes('Science'));
+        await page.locator('#trackRows button').first().click();
+        await page.waitForFunction(() => !document.querySelector('#trackEditForm')?.classList.contains('d-none'));
+        await page.locator('#trackEditName').fill('Science Updated');
+        await page.locator('#trackEditForm button[type="submit"]').click();
+        await page.waitForFunction(() => document.querySelector('#trackRows')?.textContent.includes('Science Updated'));
+        assert(mutations.some(x => x.path === '/api/academic-setup/tracks/551' && x.method === 'PUT'));
+        await page.locator('#trackCsv').click();
 
         await page.locator('[data-panel="subjects"]').click();
         await page.locator('#subjectName').fill('Mathematics');
