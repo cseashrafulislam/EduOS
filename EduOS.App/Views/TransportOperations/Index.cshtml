@@ -112,6 +112,19 @@
             </form>
             <p class="small text-muted mt-2 mb-0">Future, finite reservations only. Route, vehicle, stops and monthly fare stay unchanged; campus, route pairing, enrollment and seat capacity are revalidated.</p>
         </div></section>
+        <section id="transportNoChargeShorteningPanel" class="card mt-3" hidden><div class="card-body">
+            <h3 class="h5">Shorten scheduled no-charge rider reservation</h3>
+            <p id="transportNoChargeShorteningDetails" class="text-muted small"></p>
+            <form id="transportNoChargeShorteningForm" class="row g-2">
+                <div class="col-md-6"><label for="transportNoChargeShorteningDate" class="form-label">New reservation end date</label>
+                    <input id="transportNoChargeShorteningDate" type="date" class="form-control" required /></div>
+                <div class="col-md-6 d-flex align-items-end gap-2">
+                    <button id="transportNoChargeShorteningSave" type="submit" class="btn btn-primary">Shorten scheduled end</button>
+                    <button id="transportNoChargeShorteningCancel" type="button" class="btn btn-outline-secondary">Cancel</button>
+                </div>
+            </form>
+            <p class="small text-muted mt-2 mb-0">Future, zero-fare, finite reservations only. Shortening releases seat-days. Charged changes require Finance approval.</p>
+        </div></section>
         <section id="transportRiderExtensionPanel" class="card mt-3" hidden><div class="card-body">
             <h3 class="h5">Extend operating rider reservation</h3>
             <p id="transportRiderExtensionDetails" class="text-muted small"></p>
@@ -200,6 +213,7 @@
     @if (canManage) { <script src="~/js/transport-operations/upcoming-vehicle-change.js" asp-append-version="true"></script> }
     @if (canManage) { <script src="~/js/transport-operations/upcoming-start-reschedule.js" asp-append-version="true"></script> }
     @if (canManage) { <script src="~/js/transport-operations/upcoming-rider-extension.js" asp-append-version="true"></script> }
+    @if (canManage) { <script src="~/js/transport-operations/upcoming-no-charge-shortening.js" asp-append-version="true"></script> }
     @if (canManage) { <script src="~/js/transport-operations/operating-vehicle-transfer.js" asp-append-version="true"></script> }
     @if (canManage) { <script src="~/js/transport-operations/assignment-history.js" asp-append-version="true"></script> }
     @if (canManage) { <script src="~/js/transport-operations/rider-turnover.js" asp-append-version="true"></script> }

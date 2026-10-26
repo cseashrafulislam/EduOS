@@ -175,7 +175,7 @@ public sealed partial class TransportService : ITransportService
                           assignment.State == TransportAssignmentState.Active &&
                           (!assignment.EndDate.HasValue || assignment.EndDate.Value >= today)
                     select new { assignment.PublicId, assignment.StartDate, assignment.EndDate, assignment.RowVersion,
-                        assignment.PickupStopId, assignment.DropStopId, RouteReference = route.PublicId, VehicleReference = vehicle.PublicId,
+                        assignment.MonthlyFare, assignment.PickupStopId, assignment.DropStopId, RouteReference = route.PublicId, VehicleReference = vehicle.PublicId,
                         enrollment.CampusId, student.FullName, student.StudentCode, RouteName = route.Name, vehicle.VehicleNumber };
         if (!_currentUser.IsTenantAdmin)
         {
@@ -194,6 +194,7 @@ public sealed partial class TransportService : ITransportService
         var items = records.Select(x => new TransportAssignmentRowDto
         {
             Reference = x.PublicId, RouteReference = x.RouteReference, VehicleReference = x.VehicleReference,
+            CanShortenNoCharge = IsNoChargeRiderFare(x.MonthlyFare),
             PickupStopId = x.PickupStopId, DropStopId = x.DropStopId,
             StartDate = x.StartDate, EndDate = x.EndDate, RowVersion = Convert.ToBase64String(x.RowVersion),
             StudentName = x.FullName, RouteName = x.RouteName, VehicleNumber = x.VehicleNumber

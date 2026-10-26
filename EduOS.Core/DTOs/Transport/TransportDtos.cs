@@ -136,6 +136,7 @@ public sealed class TransportStudentOptionDto
 
 public sealed class TransportAssignmentRowDto
 {
+    public bool CanShortenNoCharge { get; set; }
     public Guid Reference { get; set; }
     public Guid VehicleReference { get; set; }
     public Guid RouteReference { get; set; }

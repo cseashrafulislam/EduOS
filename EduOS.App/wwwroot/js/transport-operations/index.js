@@ -135,6 +135,15 @@
                         extendUpcoming.addEventListener('click', () => window.dispatchEvent(
                             new CustomEvent('transport:extend-upcoming-rider', { detail: item })));
                         actions.append(extendUpcoming);
+                        if (item.canShortenNoCharge && item.endDate > item.startDate) {
+                            const shorten = document.createElement('button');
+                            shorten.type = 'button';
+                            shorten.className = 'btn btn-outline-secondary btn-sm me-2';
+                            shorten.textContent = 'Shorten no-charge end';
+                            shorten.addEventListener('click', () => window.dispatchEvent(
+                                new CustomEvent('transport:shorten-upcoming-no-charge', { detail: item })));
+                            actions.append(shorten);
+                        }
                     }
                 }
                 if (item.startDate <= localDate() && (!item.endDate || item.endDate >= localDate())) {
