@@ -64,7 +64,10 @@ async function main() {
                             subjectName: 'Advanced Mathematics' })) : [];
                     return route.fulfill({ status: data ? 200 : 404, contentType: 'application/json',
                         body: JSON.stringify({ success: !!data, data: data && {
-                            ...data, subjects, subjectCount: subjects.length
+                            ...data, subjects, subjectCount: subjects.length,
+                            subjectOfferingCount: data.subjectOfferingCount || 0,
+                            isSubjectMappingLocked: !!data.isSubjectMappingLocked,
+                            subjectMappingLockReason: data.subjectMappingLockReason || null
                         } }) });
                 }
                 if (url.pathname === '/api/academic-setup/subjects') {
@@ -271,6 +274,18 @@ async function main() {
         assert.equal(catalog.curriculumSubjects.length, 1);
         await page.locator('#curriculumRows button').first().click();
         await page.waitForFunction(() => document.querySelector('#curriculumDetails')?.textContent.includes('Advanced Mathematics'));
+        catalog.curricula[0].isSubjectMappingLocked = true;
+        catalog.curricula[0].subjectOfferingCount = 1;
+        catalog.curricula[0].subjectMappingLockReason =
+            'Subject offerings already reference this curriculum; create a new version.';
+        await page.locator('#curriculumSelection').dispatchEvent('change');
+        await page.waitForFunction(() =>
+            document.querySelector('#curriculumMappingSubmit')?.disabled &&
+            document.querySelector('#curriculumMappingNotice')?.textContent.includes('Subject offerings'));
+        assert.equal(await page.locator('#curriculumMappingSubmit').isDisabled(), true);
+        await page.locator('#curriculumRows button').first().click();
+        await page.waitForFunction(() =>
+            document.querySelector('#curriculumDetails')?.textContent.includes('Mapping locked'));
         await page.locator('#curriculumCsv').click();
         await page.locator('#curriculumRows button').filter({ hasText: 'Activate' }).first().click();
         await page.waitForFunction(() => document.querySelector('#curriculumRows')?.textContent.includes('Current'));
