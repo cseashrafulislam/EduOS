@@ -68,10 +68,16 @@ public sealed class ReservationFinancePreflightTests
     [Fact]
     public async Task Other_tenant_reservation_is_not_disclosed()
     {
-        await using var db = Database();
-        var stay = await SeedHostel(db, 42, 7);
+        var options = new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("reservation-cross-tenant-" + Guid.NewGuid().ToString("N")).Options;
+        long foreignId;
+        await using (var foreign = Database(42, options))
+        {
+            foreignId = (await SeedHostel(foreign, 42, 7)).Id;
+        }
+        await using var db = Database(41, options);
         var response = await new FinanceAdjustmentService(db, new TestUser(true), TimeProvider.System)
-            .GetReservationFinancePreflightAsync("hostel", stay.Id);
+            .GetReservationFinancePreflightAsync("hostel", foreignId);
         response.StatusCode.Should().Be(404);
     }
 
@@ -138,13 +144,14 @@ public sealed class ReservationFinancePreflightTests
         return stay;
     }
 
-    private static EduOSDbContext Database()
+    private static EduOSDbContext Database(long tenant = 41,
+        DbContextOptions<EduOSDbContext>? options = null)
     {
         var http = new DefaultHttpContext();
-        http.Items["TenantId"] = 41L;
-        return new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
-            .UseInMemoryDatabase("reservation-preflight-" + Guid.NewGuid().ToString("N")).Options,
-            new HttpContextAccessor { HttpContext = http });
+        http.Items["TenantId"] = tenant;
+        options ??= new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("reservation-preflight-" + Guid.NewGuid().ToString("N")).Options;
+        return new EduOSDbContext(options, new HttpContextAccessor { HttpContext = http });
     }
 
     private sealed class TestUser(bool admin) : ICurrentUserService
