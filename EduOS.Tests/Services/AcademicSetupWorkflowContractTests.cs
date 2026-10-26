@@ -30,7 +30,8 @@ public sealed class AcademicSetupWorkflowContractTests
             var authorize = method.GetCustomAttributes(typeof(AuthorizeAttribute), true)
                 .Cast<AuthorizeAttribute>().Single();
             authorize.Roles.Should().Contain("TenantAdmin");
-            if (method.Name == nameof(AcademicSetupController.CreateOffering))
+            if (method.Name == nameof(AcademicSetupController.CreateOffering) ||
+                method.Name == nameof(AcademicSetupController.CreateDepartment))
                 authorize.Roles.Should().Be("TenantAdmin");
             else
                 authorize.Roles.Should().Contain("Principal");
@@ -39,12 +40,17 @@ public sealed class AcademicSetupWorkflowContractTests
     }
 
     [Fact]
-    public void Setup_service_implements_canonical_fifteen_method_contract()
+    public void Setup_service_implements_canonical_eighteen_method_contract()
     {
         var iface = typeof(IAcademicSetupService);
         var implementation = typeof(AcademicSetupService);
-        iface.GetMethods().Should().HaveCount(15);
+        iface.GetMethods().Should().HaveCount(18);
         implementation.GetInterfaces().Should().Contain(iface);
+        iface.GetMethod(nameof(IAcademicSetupService.GetDepartmentsAsync)).Should().NotBeNull();
+        iface.GetMethod(nameof(IAcademicSetupService.CreateDepartmentAsync))!
+            .GetParameters()[0].ParameterType.Should().Be(typeof(SaveAcademicDepartmentRequestDto));
+        iface.GetMethod(nameof(IAcademicSetupService.UpdateDepartmentAsync))!
+            .GetParameters()[1].ParameterType.Should().Be(typeof(SaveAcademicDepartmentRequestDto));
         iface.GetMethod(nameof(IAcademicSetupService.CreateProgramAsync))!
             .GetParameters()[0].ParameterType.Should().Be(typeof(SaveAcademicProgramRequestDto));
         iface.GetMethod(nameof(IAcademicSetupService.GetProgramCampusAllocationAsync))!
