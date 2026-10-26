@@ -287,6 +287,77 @@ public class LearnerIdentityServiceTests
             .WithMessage("*append-only*");
     }
 
+    [Fact]
+    public async Task Tenant_admin_can_page_and_filter_only_own_identity_access_events()
+    {
+        var options = CreateOptions();
+        Guid localStudentReference;
+        await using (var firstTenant = CreateContext(options, 101))
+        {
+            var student = await AddStudentAsync(firstTenant, 101, "First Student");
+            localStudentReference = student.PublicId;
+            var service = CreateService(firstTenant, new TestCurrentUser(101), LookupKey);
+            var request = Request(student.Id, PersonIdentifierType.NationalId, "1234567890");
+            (await service.RegisterOrRequestAsync(request)).Success.Should().BeTrue();
+            (await service.RegisterOrRequestAsync(request)).Success.Should().BeTrue();
+        }
+        await using (var otherTenant = CreateContext(options, 202))
+        {
+            var student = await AddStudentAsync(otherTenant, 202, "Private Student");
+            var service = CreateService(otherTenant, new TestCurrentUser(202), LookupKey);
+            (await service.RegisterOrRequestAsync(Request(student.Id, PersonIdentifierType.NationalId, "9876543210")))
+                .Success.Should().BeTrue();
+        }
+        await using var context = CreateContext(options, 101);
+        var auditService = CreateService(context, new TestCurrentUser(101), LookupKey);
+        var firstPage = await auditService.GetAccessHistoryAsync(new LearnerIdentityAccessLogFilterDto
+        {
+            StudentReference = localStudentReference, Page = 1, PageSize = 1
+        });
+
+        firstPage.Success.Should().BeTrue();
+        firstPage.Data!.TotalCount.Should().Be(2);
+        firstPage.Data.TotalPages.Should().Be(2);
+        firstPage.Data.Items.Should().ContainSingle();
+        firstPage.Data.Items[0].UserId.Should().Be(7);
+
+        var filtered = await auditService.GetAccessHistoryAsync(new LearnerIdentityAccessLogFilterDto
+        {
+            OutcomeCode = "Reused", Action = "RegisterOrLink"
+        });
+        filtered.Data!.TotalCount.Should().Be(1);
+        filtered.Data.Items[0].ReasonCode.Should().Be("IDENTITY_ALREADY_LINKED");
+    }
+
+    [Fact]
+    public async Task Identity_access_history_denies_other_tenant_student_reference_and_non_admin()
+    {
+        var options = CreateOptions();
+        Guid otherStudentReference;
+        await using (var otherTenant = CreateContext(options, 202))
+            otherStudentReference = (await AddStudentAsync(otherTenant, 202, "Private Student")).PublicId;
+
+        await using var tenant = CreateContext(options, 101);
+        var administrator = CreateService(tenant, new TestCurrentUser(101), LookupKey);
+        var missing = await administrator.GetAccessHistoryAsync(new LearnerIdentityAccessLogFilterDto
+        {
+            StudentReference = otherStudentReference
+        });
+        missing.StatusCode.Should().Be(404);
+        missing.Message.Should().NotContain("Private Student");
+
+        var invalid = await administrator.GetAccessHistoryAsync(new LearnerIdentityAccessLogFilterDto
+        {
+            Page = 0, PageSize = 500
+        });
+        invalid.StatusCode.Should().Be(400);
+
+        var nonAdmin = CreateService(tenant, new ReadOnlyCurrentUser(101), LookupKey);
+        var denied = await nonAdmin.GetAccessHistoryAsync(new LearnerIdentityAccessLogFilterDto());
+        denied.StatusCode.Should().Be(403);
+        denied.Data.Should().BeNull();
+    }
+
     private static RegisterLearnerIdentityRequestDto Request(
         long studentId,
         PersonIdentifierType identifierType,

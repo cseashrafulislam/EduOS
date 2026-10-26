@@ -59,6 +59,64 @@ public sealed class LearnerIdentityService : ILearnerIdentityService
         _logger = logger;
     }
 
+    public async Task<ApiResponse<PagedResult<LearnerIdentityAccessLogDto>>> GetAccessHistoryAsync(
+        LearnerIdentityAccessLogFilterDto filter,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_currentUser.IsAuthenticated || !_currentUser.IsTenantAdmin || _currentUser.TenantId <= 0)
+            return ApiResponse<PagedResult<LearnerIdentityAccessLogDto>>.ErrorResponse("Tenant administrator access is required.", 403);
+        if (filter == null || filter.Page < 1 || filter.PageSize is < 1 or > 100 ||
+            filter.UserId is <= 0 || filter.StudentReference == Guid.Empty ||
+            filter.Action?.Length > 100 || filter.OutcomeCode?.Length > 100 ||
+            (filter.FromUtc.HasValue && filter.FromUtc.Value.Kind != DateTimeKind.Utc) ||
+            (filter.ToUtc.HasValue && filter.ToUtc.Value.Kind != DateTimeKind.Utc) ||
+            (filter.FromUtc.HasValue && filter.ToUtc.HasValue && filter.FromUtc > filter.ToUtc))
+            return ApiResponse<PagedResult<LearnerIdentityAccessLogDto>>.ErrorResponse("Invalid learner identity audit filter.");
+
+        try
+        {
+            var query = _accessLogs.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == _currentUser.TenantId);
+            if (filter.StudentReference.HasValue)
+            {
+                var studentId = await _students.GetQueryable().AsNoTracking()
+                    .Where(x => x.TenantId == _currentUser.TenantId && x.PublicId == filter.StudentReference.Value)
+                    .Select(x => x.Id).SingleOrDefaultAsync(cancellationToken);
+                if (studentId <= 0)
+                    return ApiResponse<PagedResult<LearnerIdentityAccessLogDto>>.ErrorResponse("Student not found.", 404);
+                query = query.Where(x => x.StudentId == studentId);
+            }
+            if (filter.UserId.HasValue) query = query.Where(x => x.UserId == filter.UserId.Value);
+            if (!string.IsNullOrWhiteSpace(filter.Action)) query = query.Where(x => x.Action == filter.Action.Trim());
+            if (!string.IsNullOrWhiteSpace(filter.OutcomeCode)) query = query.Where(x => x.OutcomeCode == filter.OutcomeCode.Trim());
+            if (filter.FromUtc.HasValue) query = query.Where(x => x.AccessedAt >= filter.FromUtc.Value);
+            if (filter.ToUtc.HasValue) query = query.Where(x => x.AccessedAt <= filter.ToUtc.Value);
+
+            var count = await query.CountAsync(cancellationToken);
+            var offset = ((long)filter.Page - 1) * filter.PageSize;
+            var items = offset > int.MaxValue ? new List<LearnerIdentityAccessLogDto>() : await query
+                .OrderByDescending(x => x.AccessedAt).ThenByDescending(x => x.Id)
+                .Skip((int)offset).Take(filter.PageSize)
+                .Select(x => new LearnerIdentityAccessLogDto
+                {
+                    Id = x.Id, PersonId = x.PersonId, StudentId = x.StudentId,
+                    UserId = x.UserId, LearnerConsentRequestId = x.LearnerConsentRequestId,
+                    Action = x.Action, OutcomeCode = x.OutcomeCode, ReasonCode = x.ReasonCode,
+                    Purpose = x.Purpose, AccessedAt = x.AccessedAt, IpAddress = x.IpAddress
+                }).ToListAsync(cancellationToken);
+            return ApiResponse<PagedResult<LearnerIdentityAccessLogDto>>.SuccessResponse(new PagedResult<LearnerIdentityAccessLogDto>
+            {
+                Items = items, TotalCount = count, Page = filter.Page, PageSize = filter.PageSize
+            });
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Learner identity audit query failed for tenant {TenantId}", _currentUser.TenantId);
+            return ApiResponse<PagedResult<LearnerIdentityAccessLogDto>>.ErrorResponse("Could not load learner identity audit history.", 500);
+        }
+    }
+
     public async Task<ApiResponse<LearnerIdentityResultDto>> RegisterOrRequestByReferenceAsync(
         RegisterLearnerIdentityByReferenceRequestDto request,
         CancellationToken cancellationToken = default)

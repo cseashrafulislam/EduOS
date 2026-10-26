@@ -1,0 +1,22 @@
+'use strict';
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.resolve(__dirname, '../../');
+const read = file => fs.readFileSync(path.join(root, file), 'utf8');
+const api = read('EduOS.App/Controllers/Api/LearnerIdentitiesApiController.cs');
+const page = read('EduOS.App/Controllers/LearnerIdentitiesController.cs');
+const view = read('EduOS.App/Views/LearnerIdentities/AccessHistory.cshtml');
+const script = read('EduOS.App/wwwroot/js/learners/identity-access-history.js');
+const service = read('EduOS.Service/Services/Learners/LearnerIdentityService.cs');
+
+assert.match(api, /\[HttpGet\("access-history"\)\]/);
+assert.match(api, /\[Authorize\(Roles = "TenantAdmin"\)\]/);
+assert.match(page, /IActionResult AccessHistory\(\) => View\(\)/);
+assert.match(view, /identity-access-history\.js/);
+assert.match(script, /\/api\/learner-identities\/access-history/);
+assert.match(script, /textContent =/);
+assert.doesNotMatch(script, /innerHTML\s*=/);
+assert.match(service, /x\.TenantId == _currentUser\.TenantId/);
+assert.match(service, /OrderByDescending\(x => x\.AccessedAt\)/);
+assert.match(service, /Take\(filter\.PageSize\)/);

@@ -23,6 +23,18 @@ public sealed class LearnerIdentitiesApiController : ControllerBase
         _service = service;
     }
 
+    [HttpGet("access-history")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> GetAccessHistory(
+        [FromQuery] LearnerIdentityAccessLogFilterDto filter,
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(new { success = false, message = "Invalid learner identity audit filter." });
+        var result = await _service.GetAccessHistoryAsync(filter, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     /// <summary>
     /// Creates an identity for an institution student, reuses the student's own
     /// existing identity, or creates a consent request without returning matched PII.

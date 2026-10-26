@@ -229,6 +229,10 @@
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
                         <span>Learner Identity Registration</span>
                     </a>
+                    @if (User?.IsInRole("TenantAdmin") == true)
+                    {
+                        <a class="nav-link @ActiveFor("/LearnerIdentities/AccessHistory")" href="/LearnerIdentities/AccessHistory">Identity Access History</a>
+                    }
                 }
 
 

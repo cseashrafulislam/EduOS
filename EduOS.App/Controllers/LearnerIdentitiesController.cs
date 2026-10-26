@@ -11,4 +11,9 @@ public sealed class LearnerIdentitiesController : Controller
     [HttpGet]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult Index() => View();
+
+    [HttpGet]
+    [Authorize(Roles = "TenantAdmin")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult AccessHistory() => View();
 }

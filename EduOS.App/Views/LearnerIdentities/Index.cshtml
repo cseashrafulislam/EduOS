@@ -9,7 +9,13 @@
             <h2 id="learnerIdentityTitle">Register or Request Learner Identity</h2>
             <p>Register an institution learner, link their existing identity, or request consent when an identity belongs to another institution.</p>
         </div>
-        <a class="btn btn-outline-secondary" asp-controller="Students" asp-action="Index">Student Directory</a>
+        <div class="d-flex flex-wrap gap-2">
+            <a class="btn btn-outline-secondary" asp-controller="Students" asp-action="Index">Student Directory</a>
+            @if (User?.IsInRole("TenantAdmin") == true)
+            {
+                <a class="btn btn-outline-primary" asp-controller="LearnerIdentities" asp-action="AccessHistory">Identity Access History</a>
+            }
+        </div>
     </header>
 
     <section class="content-card" aria-labelledby="identityFormTitle">

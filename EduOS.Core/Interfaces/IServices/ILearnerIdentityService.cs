@@ -6,6 +6,10 @@ namespace EduOS.Core.Interfaces.IServices;
 
 public interface ILearnerIdentityService
 {
+    Task<ApiResponse<PagedResult<LearnerIdentityAccessLogDto>>> GetAccessHistoryAsync(
+        LearnerIdentityAccessLogFilterDto filter,
+        CancellationToken cancellationToken = default);
+
     Task<ApiResponse<LearnerIdentityResultDto>> RegisterOrRequestByReferenceAsync(
         RegisterLearnerIdentityByReferenceRequestDto request,
         CancellationToken cancellationToken = default);

@@ -111,12 +111,26 @@ public class LearnerDataGrantDto
 public class LearnerIdentityAccessLogDto
 {
     public long Id { get; set; }
-    public long PersonId { get; set; }
+    public long? PersonId { get; set; }
     public long StudentId { get; set; }
     public long UserId { get; set; }
     public long? LearnerConsentRequestId { get; set; }
     public string Action { get; set; } = string.Empty;
+    public string? OutcomeCode { get; set; }
+    public string? ReasonCode { get; set; }
     public string? Purpose { get; set; }
     public DateTime AccessedAt { get; set; }
     public string? IpAddress { get; set; }
+}
+
+public sealed class LearnerIdentityAccessLogFilterDto
+{
+    [Range(1, int.MaxValue)] public int Page { get; set; } = 1;
+    [Range(1, 100)] public int PageSize { get; set; } = 25;
+    public Guid? StudentReference { get; set; }
+    public long? UserId { get; set; }
+    [MaxLength(100)] public string? Action { get; set; }
+    [MaxLength(100)] public string? OutcomeCode { get; set; }
+    public DateTime? FromUtc { get; set; }
+    public DateTime? ToUtc { get; set; }
 }
