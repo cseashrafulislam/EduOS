@@ -97,6 +97,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<IAcademicCalendarService, AcademicCalendarService>();
             s.AddScoped<IAcademicInstructionService, AcademicInstructionService>();
             s.AddScoped<IStudentAttendanceService, StudentAttendanceService>();
+            s.AddScoped<IStudentAttendanceReportService, StudentAttendanceReportService>();
             s.AddScoped<IStudentLeaveService, StudentLeaveService>();
             s.AddScoped<IAssessmentAdministrationService, AssessmentAdministrationService>();
             s.AddScoped<IFeeBillingService, FeeBillingService>();

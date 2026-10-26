@@ -50,6 +50,34 @@
 
 @if (User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal"))
 {
+    <section class="content-card mt-3" aria-labelledby="attendanceReportTitle">
+        <div class="content-card-heading"><h3 id="attendanceReportTitle">Finalized attendance report</h3></div>
+        <form id="attendanceReportFilters" class="row g-3 align-items-end">
+            <div class="col-md-4"><label for="attendanceReportBatch" class="form-label">Academic batch</label>
+                <select id="attendanceReportBatch" class="form-select" required><option value="">Loading batches…</option></select></div>
+            <div class="col-md-3"><label for="attendanceReportFrom" class="form-label">From</label>
+                <input id="attendanceReportFrom" class="form-control" type="date" required /></div>
+            <div class="col-md-3"><label for="attendanceReportTo" class="form-label">To</label>
+                <input id="attendanceReportTo" class="form-control" type="date" required /></div>
+            <div class="col-md-2"><button type="submit" class="btn btn-primary w-100">Load report</button></div>
+        </form>
+        <p id="attendanceReportStatus" class="small text-muted mt-3" role="status" aria-live="polite">Select filters to load the report.</p>
+        <div class="table-responsive">
+            <table class="table table-sm table-striped">
+                <thead><tr><th>Roll</th><th>Student code</th><th>Name</th><th>Marked</th><th>Present</th><th>Absent</th><th>Late</th><th>Leave</th><th>Excused</th><th>Attendance %</th></tr></thead>
+                <tbody id="attendanceReportRows"></tbody>
+            </table>
+        </div>
+        <div class="d-flex justify-content-between align-items-center">
+            <button id="attendanceReportPrevious" type="button" class="btn btn-sm btn-outline-secondary" disabled>Previous</button>
+            <span id="attendanceReportPage" class="small"></span>
+            <button id="attendanceReportNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>Next</button>
+        </div>
+    </section>
+}
+
+@if (User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal"))
+{
     <div class="modal fade" id="attendanceCorrectionHistoryModal" tabindex="-1"
          aria-labelledby="attendanceCorrectionHistoryTitle" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-scrollable">
@@ -83,5 +111,6 @@
     @if (User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal"))
     {
         <script src="~/js/attendance/correction-history.js" asp-append-version="true"></script>
+        <script src="~/js/attendance/report.js" asp-append-version="true"></script>
     }
 }
