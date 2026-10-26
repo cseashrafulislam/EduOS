@@ -1,0 +1,23 @@
+<section class="card mb-3" id="stockPositionRoot" aria-labelledby="stockPositionHeading"><div class="card-body">
+    <h3 class="h5" id="stockPositionHeading">Stock position by location</h3>
+    <p class="text-muted">Shows stock-tracked catalog items, including inactive items with historical stock. Quantities and recorded movement costs come only from posted receipts, issues, transfers and reversals, using posting time. Drafts are excluded. Recorded cost is <strong>not</strong> an approved FIFO/weighted-average financial valuation.</p>
+    <form id="stockPositionForm" class="row g-2 align-items-end mb-3">
+        <div class="col-md-3"><label for="stockPositionLocation" class="form-label">Accessible location</label><select id="stockPositionLocation" class="form-select" required></select></div>
+        <div class="col-md-3"><label for="stockPositionSearch" class="form-label">Item code/name</label><input id="stockPositionSearch" class="form-control" maxlength="100" /></div>
+        <div class="col-md-3"><label for="stockPositionAsOf" class="form-label">As of (local time, optional)</label><input id="stockPositionAsOf" type="datetime-local" class="form-control" /></div>
+        <div class="col-md-3"><div class="form-check"><input id="stockPositionIncludeZero" type="checkbox" class="form-check-input" checked /><label for="stockPositionIncludeZero" class="form-check-label">Include zero stock</label></div></div>
+        <div class="col-md-3"><button id="stockPositionRun" class="btn btn-primary" type="submit">Load stock position</button></div>
+        <div class="col-md-3"><button id="stockPositionCsv" class="btn btn-outline-secondary" type="button" disabled>Export displayed page CSV</button></div>
+    </form>
+    <div id="stockPositionSummary" class="mb-2" aria-live="polite"></div>
+    <div class="table-responsive"><table class="table table-sm table-striped">
+        <thead><tr><th>Code</th><th>Item</th><th>Unit</th><th class="text-end">On hand</th><th class="text-end">Reorder level</th><th class="text-end">Recorded cost balance</th><th class="text-end">Active lots</th><th>Status</th></tr></thead>
+        <tbody id="stockPositionRows"></tbody>
+    </table></div>
+    <div class="d-flex gap-2 align-items-center">
+        <button id="stockPositionPrev" class="btn btn-sm btn-outline-secondary" type="button" disabled>Previous</button>
+        <span id="stockPositionPage" aria-live="polite">Page 1</span>
+        <button id="stockPositionNext" class="btn btn-sm btn-outline-secondary" type="button" disabled>Next</button>
+    </div>
+    <p class="small text-muted mt-2">Amounts reflect net posted movement-line costs, without an accounting currency or valuation-policy assertion. Quantity totals are not combined across different units. CSV contains the displayed page only.</p>
+</div></section>

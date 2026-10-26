@@ -10,5 +10,6 @@
     @if (canCreate) { @await Html.PartialAsync("_Create") }
     @await Html.PartialAsync("_Ledger")
     @await Html.PartialAsync("_Reorder")
+    @await Html.PartialAsync("_StockPosition")
 </section>
 @section Scripts { <script type="module" src="~/js/inventory/movements.js" asp-append-version="true"></script> }
