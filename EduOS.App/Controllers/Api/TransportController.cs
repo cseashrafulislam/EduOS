@@ -260,6 +260,12 @@ public sealed class TransportController : ControllerBase
         [FromBody] ExtendUpcomingRouteVehicleRequestDto request, CancellationToken ct) =>
         ToAction(await _service.ExtendUpcomingRouteVehicleAsync(id, request, ct));
 
+    [HttpPost("route-vehicle-links/{id:long}/shorten-upcoming")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    public async Task<IActionResult> ShortenUpcomingRouteVehicle(long id,
+        [FromBody] ShortenUpcomingRouteVehicleRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.ShortenUpcomingRouteVehicleAsync(id, request, ct));
+
     [HttpPost("route-vehicle-links/{id:long}/extend")]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
     public async Task<IActionResult> ExtendOperatingRouteVehicle(long id,

@@ -41,6 +41,7 @@ public interface ITransportService
     Task<ApiResponse<PagedResult<TransportRouteVehicleLinkRowDto>>> GetRouteVehicleLinksAsync(long? campusId, int page, int pageSize, string? search, CancellationToken cancellationToken = default);
     Task<ApiResponse<RouteVehicleAssignmentDto>> AssignRouteVehicleAsync(CreateTransportRouteVehicleLinkRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<RouteVehicleAssignmentDto>> ExtendUpcomingRouteVehicleAsync(long assignmentId, ExtendUpcomingRouteVehicleRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<RouteVehicleAssignmentDto>> ShortenUpcomingRouteVehicleAsync(long assignmentId, ShortenUpcomingRouteVehicleRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<RouteVehicleAssignmentDto>> ExtendOperatingRouteVehicleAsync(long assignmentId, ExtendOperatingRouteVehicleRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<RouteVehicleAssignmentDto>> CloseRouteVehicleAssignmentAsync(long assignmentId, CloseTransportAssignmentRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<RouteVehicleAssignmentDto>> CancelUpcomingRouteVehicleAssignmentAsync(long assignmentId, CancelUpcomingRouteVehicleLinkRequestDto request, CancellationToken cancellationToken = default);

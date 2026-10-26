@@ -17,6 +17,9 @@ u.renderLinks=items=>{
    const extend=document.createElement('button');extend.type='button';
    extend.textContent='Extend scheduled end';extend.className='btn btn-outline-primary btn-sm me-1';
    extend.addEventListener('click',()=>u.extendUpcomingLink(x));td.append(extend);
+   const shorten=document.createElement('button');shorten.type='button';
+   shorten.textContent='Shorten scheduled end';shorten.className='btn btn-outline-secondary btn-sm me-1';
+   shorten.addEventListener('click',()=>u.shortenUpcomingLink(x));td.append(shorten);
   }
   if(!x.isCancelled && x.effectiveFrom>u.today() && Number(x.activeRiders)===0){
    const change=document.createElement('button');change.type='button';
