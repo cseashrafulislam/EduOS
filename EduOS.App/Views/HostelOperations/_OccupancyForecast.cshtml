@@ -1,0 +1,22 @@
+<section class="card mb-3" id="hostelOccupancyForecastPanel"><div class="card-body">
+    <h3 class="h5">Future room occupancy and capacity risk</h3>
+    <p class="small text-muted">Advisory snapshot of canonical beds and reservations on the selected date. No student identities, rent, deposits or payment details. Recheck capacity before allocating.</p>
+    <form id="hostelOccupancyForecastFilters" class="row g-2 mb-2">
+        <div class="col-md-2"><label for="hostelOccupancyForecastDate" class="form-label">Operating date</label><input id="hostelOccupancyForecastDate" type="date" class="form-control" required /></div>
+        <div class="col-md-3"><label for="hostelOccupancyForecastCampus" class="form-label">Campus</label><select id="hostelOccupancyForecastCampus" class="form-select"><option value="">All permitted campuses</option></select></div>
+        <div class="col-md-3"><label for="hostelOccupancyForecastSearch" class="form-label">Campus, hostel or room</label><input id="hostelOccupancyForecastSearch" class="form-control" maxlength="100" type="search" /></div>
+        <div class="col-md-2 d-flex align-items-center"><div class="form-check"><input id="hostelOccupancyForecastAttention" class="form-check-input" type="checkbox" checked /><label for="hostelOccupancyForecastAttention" class="form-check-label">Needs attention</label></div></div>
+        <div class="col-md-2 d-flex align-items-end"><button type="submit" class="btn btn-outline-primary w-100">Forecast</button></div>
+    </form>
+    <button id="hostelOccupancyForecastExport" class="btn btn-outline-success btn-sm mb-2" type="button" disabled>Export filtered CSV</button>
+    <div id="hostelOccupancyForecastStatus" role="status" aria-live="polite" class="small text-muted mb-2"></div>
+    <div class="table-responsive"><table class="table table-sm table-hover align-middle">
+        <thead><tr><th>Campus</th><th>Hostel</th><th>Room</th><th>Capacity</th><th>Active beds</th><th>Reserved</th><th>Available</th><th>Inactive reserved</th><th>Duplicate bookings</th><th>Status</th></tr></thead>
+        <tbody id="hostelOccupancyForecastRows"></tbody>
+    </table></div>
+    <div class="d-flex align-items-center justify-content-between gap-2">
+        <button id="hostelOccupancyForecastPrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous</button>
+        <span id="hostelOccupancyForecastPage" class="small text-muted"></span>
+        <button id="hostelOccupancyForecastNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next</button>
+    </div>
+</div></section>
