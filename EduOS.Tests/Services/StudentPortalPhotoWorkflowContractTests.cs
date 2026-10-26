@@ -36,7 +36,7 @@ public sealed class StudentPortalPhotoWorkflowContractTests
         var source = Read("EduOS.Service", "Services", "Students", "StudentPhotoService.cs");
         source.Should().Contain("PortalPhotoPath").And.Contain("PhotoPath(studentReference, assetReference)");
         source.Should().Contain("DocumentFileService.IsTenantDocumentKey");
-        source.Should().Contain("file.IsVerifiedSafe").And.Contain("file.MalwareScanStateCode");
+        source.Should().Contain("x.IsVerifiedSafe").And.Contain("x.MalwareScanStateCode");
         source.Should().Contain("SHA256.HashData");
         var api = Read("EduOS.App", "Controllers", "Api", "SelfServicePortalController.cs");
         api.Should().Contain("[Authorize(Roles = \"Student,Guardian,Parent\")]");
