@@ -114,7 +114,7 @@ public sealed class SubjectOfferingSetupTests
         await db.SaveChangesAsync();
         var result = await sut.GetSubjectOfferingsAsync(ids.Batch, null);
         result.Success.Should().BeTrue();
-        var offering = result.Data!.Items.Should().ContainSingle().Subject;
+        var offering = result.Data!.Items.Should().ContainSingle().Which;
         offering.PendingSeats.Should().Be(1);
         offering.AllocatedSeats.Should().Be(2);
         offering.ReservedSeats.Should().Be(3);
@@ -151,7 +151,7 @@ public sealed class SubjectOfferingSetupTests
             await foreignDb.SaveChangesAsync();
         }
         var result = await sut.GetSubjectOfferingsAsync(ids.Batch, null);
-        var offering = result.Data!.Items.Should().ContainSingle().Subject;
+        var offering = result.Data!.Items.Should().ContainSingle().Which;
         offering.ReservedSeats.Should().Be(41);
         offering.PendingSeats.Should().Be(0);
         offering.AllocatedSeats.Should().Be(41);
