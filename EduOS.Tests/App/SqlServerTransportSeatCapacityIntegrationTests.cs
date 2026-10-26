@@ -16,7 +16,8 @@ using EduOS.Service.Services.Platform;
 using EduOS.Service.Services.Transport;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
 using System.Security.Claims;
 using Xunit;
 using TransportRoute = EduOS.Core.Entities.Transport.Route;
@@ -31,6 +32,7 @@ namespace EduOS.Tests.App;
 [Collection("SqlServerIntegration")]
 public sealed class SqlServerTransportSeatCapacityIntegrationTests
 {
+    private static readonly ConcurrentQueue<string> Diagnostics = new();
     [Fact]
     public async Task Two_concurrent_future_riders_cannot_reserve_the_same_last_seat()
     {
@@ -42,6 +44,7 @@ public sealed class SqlServerTransportSeatCapacityIntegrationTests
 
         // Separate contexts and connections: EF InMemory cannot establish this guarantee.
         var responses = await Task.WhenAll(AssignAsync(fixture, first), AssignAsync(fixture, second));
+        Assert.True(responses.Any(x => x.Success), "No reservation succeeded. " + string.Join("\n", Diagnostics));
         var accepted = Assert.Single(responses, x => x.Success);
         Assert.Single(responses, x => !x.Success && x.StatusCode == 409);
 
@@ -74,10 +77,10 @@ public sealed class SqlServerTransportSeatCapacityIntegrationTests
         var fixture = await SeedAsync(connection);
         var first = await AssignAsync(fixture, Request(fixture, 0,
             fixture.Start, fixture.Start.AddDays(4)));
-        Assert.True(first.Success, first.Message);
+        Assert.True(first.Success, first.Message + "\n" + string.Join("\n", Diagnostics));
         var second = await AssignAsync(fixture, Request(fixture, 1,
             fixture.Start.AddDays(5), fixture.Start.AddDays(9)));
-        Assert.True(second.Success, second.Message);
+        Assert.True(second.Success, second.Message + "\n" + string.Join("\n", Diagnostics));
 
         await using var verify = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
         Assert.Equal(2, await verify.StudentTransports.CountAsync(x =>
@@ -117,7 +120,7 @@ public sealed class SqlServerTransportSeatCapacityIntegrationTests
         db,
         new TenantAdmin(tenant, user),
         TimeProvider.System,
-        NullLogger<TransportService>.Instance,
+        new CaptureLogger(),
         new ReservationFinancePolicy(db),
         new ReservationCommandReceiptStore(db, TimeProvider.System));
 
@@ -254,6 +257,17 @@ public sealed class SqlServerTransportSeatCapacityIntegrationTests
         };
         http.Items["TenantId"] = tenant;
         return new EduOSDbContext(options, new HttpContextAccessor { HttpContext = http });
+    }
+
+    private sealed class CaptureLogger : ILogger<TransportService>
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state,
+            Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (exception != null) Diagnostics.Enqueue(exception.ToString());
+        }
     }
 
     private sealed record Fixture(DbContextOptions<EduOSDbContext> Options,
