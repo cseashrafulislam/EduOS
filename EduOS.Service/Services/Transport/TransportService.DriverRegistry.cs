@@ -33,6 +33,60 @@ public sealed partial class TransportService
         });
     }
 
+    /// <summary>Read-only impact preview; never grants permission to skip save-time checks.
+    /// Counts current and future canonical assignments without exposing vehicle/driver PII.</summary>
+    public async Task<ApiResponse<TransportDriverLicenseImpactDto>> PreviewDriverLicenseImpactAsync(
+        long driverId, DateOnly? proposedExpiry, bool proposedActive, string? rowVersion,
+        CancellationToken ct = default)
+    {
+        if (!CanManageDriverRegistry()) return Denied<TransportDriverLicenseImpactDto>();
+        if (driverId <= 0 || !TryDecodeVersion(rowVersion, out var version))
+            return ApiResponse<TransportDriverLicenseImpactDto>.ErrorResponse(
+                "Driver and current row version are required.");
+        var tenant = _currentUser.TenantId;
+        var driver = await _drivers.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && !x.IsDeleted && x.Id == driverId, ct);
+        if (driver == null)
+            return ApiResponse<TransportDriverLicenseImpactDto>.ErrorResponse("Driver not found.", 404);
+        if (!driver.RowVersion.AsSpan().SequenceEqual(version))
+            return ApiResponse<TransportDriverLicenseImpactDto>.ErrorResponse(
+                "Driver changed. Reload before checking assignment impact.", 409);
+
+        var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+        var links = _driverLinks.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && !x.IsDeleted && x.TransportDriverId == driver.Id &&
+            x.IsCurrent && (!x.EffectiveTo.HasValue || x.EffectiveTo.Value >= today));
+        // Database-side aggregates; never materialize the assignment list or return identities.
+        var total = await links.CountAsync(ct);
+        var scheduled = await links.CountAsync(x => x.EffectiveFrom > today, ct);
+        var openEnded = await links.CountAsync(x => !x.EffectiveTo.HasValue, ct);
+        var latestEnd = await links.Where(x => x.EffectiveTo.HasValue)
+            .Select(x => x.EffectiveTo).MaxAsync(ct);
+        var blocking = !proposedActive || !proposedExpiry.HasValue
+            ? total
+            : await links.CountAsync(x => !x.EffectiveTo.HasValue ||
+                x.EffectiveTo.Value > proposedExpiry.Value, ct);
+        var allowed = CanApplyDriverLicenseChange(proposedActive, proposedExpiry, today, blocking);
+        return ApiResponse<TransportDriverLicenseImpactDto>.SuccessResponse(
+            new TransportDriverLicenseImpactDto
+            {
+                DriverId = driver.Id, ProposedExpiry = proposedExpiry, ProposedActive = proposedActive,
+                ActiveOrScheduledAssignments = total, ScheduledAssignments = scheduled,
+                OpenEndedAssignments = openEnded, BlockingAssignments = blocking,
+                LatestFiniteAssignmentEnd = latestEnd, CanApply = allowed,
+                Explanation = allowed
+                    ? "No current or scheduled assignment conflicts with the proposed change."
+                    : blocking > 0
+                        ? "Close or shorten affected driver assignments before changing status or license expiry."
+                        : "An active driver requires a license valid on or after today."
+            });
+    }
+
+    public static bool CanApplyDriverLicenseChange(bool proposedActive, DateOnly? proposedExpiry,
+        DateOnly today, int blockingAssignments) =>
+        blockingAssignments == 0 && (!proposedActive ||
+            (proposedExpiry.HasValue && proposedExpiry.Value >= today));
+
     public async Task<ApiResponse<TransportDriverDto>> SaveDriverAsync(
         long? driverId, SaveTransportDriverRequestDto request, CancellationToken ct = default)
     {
@@ -94,13 +148,13 @@ public sealed partial class TransportService
                 if (!TryDecodeVersion(request.RowVersion, out var version) ||
                     !existing.RowVersion.AsSpan().SequenceEqual(version))
                     return ApiResponse<TransportDriverDto>.ErrorResponse("Driver changed. Reload and retry.", 409);
-                if (!request.IsActive && existing.IsActive &&
+                if (!request.IsActive &&
                     await _driverLinks.GetQueryable().AsNoTracking().AnyAsync(x =>
                         x.TenantId == tenant && !x.IsDeleted && x.TransportDriverId == existing.Id &&
                         x.IsCurrent && (!x.EffectiveTo.HasValue || x.EffectiveTo.Value >= today), token))
                     return ApiResponse<TransportDriverDto>.ErrorResponse(
                         "Close all current vehicle assignments before deactivating the driver.", 409);
-                if (existing.LicenseExpiresOn != request.LicenseExpiresOn)
+                if (existing.LicenseExpiresOn != request.LicenseExpiresOn || request.IsActive)
                 {
                     var requestedExpiry = request.LicenseExpiresOn;
                     if (await _driverLinks.GetQueryable().AsNoTracking().AnyAsync(x =>

@@ -5,7 +5,15 @@
     if (!form) return;
     const token = form.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
     const endpoint = '/api/transport/driver-registry';
-    let page = 1, totalPages = 1, editing = null, sequence = 0;
+    let page = 1, totalPages = 1, editing = null, sequence = 0, impactSequence = 0;
+    const impactButton = byId('transportDriverLicenseImpactCheck');
+    const impactBox = byId('transportDriverLicenseImpact');
+    function clearImpact() {
+        ++impactSequence;
+        impactBox.className = 'small text-muted mt-2';
+        impactBox.textContent = 'Check the impact of the proposed license expiry/status before saving.';
+        impactButton.disabled = !editing;
+    }
     const message = (value, ok = false) => {
         const box = byId('transportDriverRegistryAlert');
         box.className = 'alert alert-' + (ok ? 'success' : 'danger');
@@ -33,9 +41,11 @@
     function reset() {
         editing = null; form.reset();
         byId('transportDriverSave').textContent = 'Register driver';
+        clearImpact();
     }
     function edit(item) {
         editing = item;
+        clearImpact();
         byId('transportDriverName').value = item.fullName || '';
         byId('transportDriverPhone').value = item.phone || '';
         byId('transportDriverLicense').value = item.licenseNumber || '';
@@ -75,6 +85,37 @@
         byId('transportDriverPrev').disabled = page <= 1;
         byId('transportDriverNext').disabled = page >= totalPages;
     }
+    ['transportDriverExpiry', 'transportDriverActive'].forEach(id =>
+        byId(id).addEventListener('change', clearImpact));
+    impactButton.addEventListener('click', async () => {
+        if (!editing) return;
+        const current = ++impactSequence;
+        impactButton.disabled = true;
+        impactBox.textContent = 'Checking current and scheduled assignments…';
+        const query = new URLSearchParams({
+            proposedActive: byId('transportDriverActive').value,
+            rowVersion: editing.rowVersion
+        });
+        const expiry = byId('transportDriverExpiry').value;
+        if (expiry) query.set('proposedExpiry', expiry);
+        try {
+            const impact = await api(endpoint + '/' + encodeURIComponent(editing.id) +
+                '/license-impact?' + query.toString());
+            if (current !== impactSequence) return;
+            impactBox.className = 'small mt-2 ' + (impact.canApply ? 'text-success' : 'text-danger');
+            impactBox.textContent = (impact.canApply ? 'Eligible. ' : 'Blocked. ') +
+                impact.explanation + ' Current/scheduled: ' + impact.activeOrScheduledAssignments +
+                ', future: ' + impact.scheduledAssignments +
+                ', open-ended: ' + impact.openEndedAssignments +
+                ', conflicting: ' + impact.blockingAssignments + '.';
+        } catch (error) {
+            if (current !== impactSequence) return;
+            impactBox.className = 'small text-danger mt-2';
+            impactBox.textContent = error.message;
+        } finally {
+            if (current === impactSequence) impactButton.disabled = false;
+        }
+    });
     form.addEventListener('submit', async event => {
         event.preventDefault(); if (!form.reportValidity()) return;
         const active = byId('transportDriverActive').value === 'true';

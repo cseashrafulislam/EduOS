@@ -10,6 +10,10 @@
         <div class="col-md-4"><label class="form-label" for="transportDriverExpiry">License expiry</label><input id="transportDriverExpiry" type="date" class="form-control" required /></div>
         <div class="col-md-4"><label class="form-label" for="transportDriverActive">Status</label><select id="transportDriverActive" class="form-select"><option value="true">Active</option><option value="false">Inactive</option></select></div>
         <div class="col-md-4 d-flex align-items-end gap-2"><button id="transportDriverSave" class="btn btn-primary" type="submit">Register driver</button><button id="transportDriverCancel" class="btn btn-outline-secondary" type="button">Clear</button></div>
+        <div class="col-12">
+            <button id="transportDriverLicenseImpactCheck" type="button" class="btn btn-outline-secondary btn-sm" disabled>Check license/assignment impact</button>
+            <div id="transportDriverLicenseImpact" class="small text-muted mt-2" role="status" aria-live="polite">Select an existing driver to check active and scheduled assignment impact before saving.</div>
+        </div>
     </form>
     <hr />
     <form id="transportDriverRegistrySearchForm" class="d-flex gap-2 mb-2"><label class="visually-hidden" for="transportDriverSearch">Search drivers</label><input id="transportDriverSearch" class="form-control" maxlength="100" placeholder="Search name or license" /><button class="btn btn-outline-primary" type="submit">Search</button></form>

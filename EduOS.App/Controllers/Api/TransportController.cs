@@ -393,6 +393,15 @@ public sealed class TransportController : ControllerBase
     public async Task<IActionResult> RegisterDriver([FromBody] SaveTransportDriverRequestDto request,
         CancellationToken ct) => ToAction(await _service.SaveDriverAsync(null, request, ct));
 
+    [HttpGet("driver-registry/{driverId:long}/license-impact")]
+    [Authorize(Roles = "TenantAdmin")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> DriverLicenseImpact(long driverId,
+        [FromQuery] DateOnly? proposedExpiry, [FromQuery] bool proposedActive,
+        [FromQuery] string? rowVersion, CancellationToken ct) =>
+        ToAction(await _service.PreviewDriverLicenseImpactAsync(
+            driverId, proposedExpiry, proposedActive, rowVersion, ct));
+
     [HttpPut("driver-registry/{driverId:long}")]
     [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> UpdateDriver(long driverId,
