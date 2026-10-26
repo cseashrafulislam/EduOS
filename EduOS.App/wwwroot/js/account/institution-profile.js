@@ -8,7 +8,7 @@
     document.addEventListener('DOMContentLoaded', async () => {
         const form = document.getElementById('profileForm');
         const submitButton = document.getElementById('saveProfileBtn');
-        const institutionType = document.getElementById('institutionType');
+        const institutionType = document.getElementById('institutionTypeDefinitionId');
         if (!form || !submitButton || !institutionType) return;
 
         const [profile, institutionTypes] = await Promise.all([
@@ -19,8 +19,9 @@
             profileRowVersion = profile.rowVersion || '';
             populateProfile(profile);
         }
-        if (profile?.institutionType && institutionTypes) {
-            institutionType.value = profile.institutionType;
+        if (profile?.institutionTypeDefinitionId && institutionTypes) {
+            institutionType.value = String(profile.institutionTypeDefinitionId);
+            institutionType.disabled = true;
         }
 
         form.addEventListener('submit', async event => {
@@ -29,15 +30,19 @@
 
             const data = {
                 rowVersion: profileRowVersion,
-                institutionName: valueOf('institutionName'),
-                institutionType: valueOf('institutionType'),
+                name: valueOf('name'),
+                institutionTypeDefinitionId: valueOf('institutionTypeDefinitionId'),
+                legalName: valueOf('legalName'),
+                registrationNumber: valueOf('registrationNumber'),
                 ownerName: valueOf('ownerName'),
                 ownerPhone: normalizeBanglaDigits(valueOf('ownerPhone')),
                 ownerEmail: valueOf('ownerEmail'),
                 ownerDesignation: valueOf('ownerDesignation'),
                 phone: normalizeBanglaDigits(valueOf('phone')),
+                email: valueOf('email'),
                 website: valueOf('website'),
                 address: valueOf('address'),
+                countryCode: valueOf('countryCode').toUpperCase(),
                 city: valueOf('city'),
                 state: valueOf('state'),
                 country: valueOf('country'),
@@ -45,8 +50,8 @@
             };
 
             let valid = true;
-            if (!data.institutionName) valid = showError('institutionName', i18n.institutionRequired);
-            if (!data.institutionType) valid = showError('institutionType', i18n.institutionTypeRequired);
+            if (!data.name) valid = showError('name', i18n.institutionRequired);
+            if (!data.institutionTypeDefinitionId) valid = showError('institutionTypeDefinitionId', i18n.institutionTypeRequired);
             if (!data.ownerName) valid = showError('ownerName', i18n.ownerRequired);
             if (data.ownerEmail && !isValidEmail(data.ownerEmail)) valid = showError('ownerEmail', i18n.invalidEmail);
             if (data.website && !isValidHttpUrl(data.website)) valid = showError('website', i18n.invalidWebsite);
@@ -54,7 +59,7 @@
 
             setLoading(submitButton, true);
             try {
-                const response = await fetch('/api/institution-onboarding/institution-profile', {
+                const response = await fetch('/api/institution-onboarding/tenant-profile', {
                     method: 'POST',
                     cache: 'no-store',
                     credentials: 'same-origin',
@@ -91,7 +96,7 @@
 
     async function loadProfile() {
         try {
-            const response = await fetch('/api/institution-onboarding/institution-profile', {
+            const response = await fetch('/api/institution-onboarding/tenant-profile', {
                 cache: 'no-store',
                 credentials: 'same-origin',
                 headers: { 'Accept': 'application/json' }
@@ -124,7 +129,7 @@
             placeholder.textContent = i18n.selectType || '';
             const options = payload.data.map(type => {
                 const option = document.createElement('option');
-                option.value = String(type.code || '');
+                option.value = String(type.id || '');
                 option.textContent = i18n.useBangla && type.nameBangla
                     ? type.nameBangla
                     : type.name || type.code || '';
@@ -149,9 +154,10 @@
 
     function populateProfile(profile) {
         const fields = [
-            'institutionName', 'ownerName', 'ownerPhone', 'ownerEmail',
-            'ownerDesignation', 'phone', 'website', 'address', 'city',
-            'state', 'country', 'postalCode'
+            'name', 'legalName', 'registrationNumber', 'code', 'subdomain',
+            'ownerName', 'ownerPhone', 'ownerEmail', 'ownerDesignation',
+            'phone', 'email', 'website', 'address', 'countryCode',
+            'city', 'state', 'country', 'postalCode'
         ];
         fields.forEach(id => setValue(id, profile[id]));
     }

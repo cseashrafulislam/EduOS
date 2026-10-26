@@ -23,7 +23,7 @@ public sealed class InstitutionRegistrationServiceTests
     [Fact]
     public void Campus_wizard_accepts_blank_code_but_canonical_request_still_requires_it()
     {
-        var wizard = new InstitutionCampusWizardRequestDto { Name = "Dhaka Campus" };
+        var wizard = new CampusOnboardingRequestDto { Name = "Dhaka Campus" };
         var errors = new List<ValidationResult>();
         Validator.TryValidateObject(wizard, new ValidationContext(wizard), errors, true).Should().BeTrue();
         var canonical = new SaveCampusRequestDto { Name = "Dhaka Campus", Code = string.Empty };
@@ -167,7 +167,7 @@ public sealed class InstitutionRegistrationServiceTests
             .Should().BeTrue();
         typeof(IInstitutionFoundationService).IsAssignableFrom(typeof(InstitutionFoundationService))
             .Should().BeTrue();
-        typeof(IInstitutionProfileWizardService).IsAssignableFrom(typeof(InstitutionProfileWizardService))
+        typeof(ITenantOnboardingProfileService).IsAssignableFrom(typeof(TenantOnboardingProfileService))
             .Should().BeTrue();
         typeof(IInstitutionFoundationService).GetMethods().Should().HaveCount(12);
     }

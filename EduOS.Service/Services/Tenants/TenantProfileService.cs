@@ -64,6 +64,7 @@ public sealed class TenantProfileService : ITenantProfileService
     {
         if (!CanManage()) return ApiResponse<TenantDto>.ErrorResponse("Tenant administrator access is required.", 403);
         if (request == null || string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 200 ||
+            request.LegalName?.Length > 250 || request.RegistrationNumber?.Length > 100 ||
             string.IsNullOrWhiteSpace(request.Email) || request.CountryCode.Length is < 2 or > 10)
             return ApiResponse<TenantDto>.ErrorResponse("Profile data is invalid.");
         try
@@ -77,6 +78,8 @@ public sealed class TenantProfileService : ITenantProfileService
             if (tenant.InstitutionTypeDefinitionId != request.InstitutionTypeDefinitionId)
                 return ApiResponse<TenantDto>.ErrorResponse("Changing institution type requires a controlled onboarding workflow.", 409);
             tenant.Name = request.Name.Trim();
+            if (request.LegalName != null) tenant.LegalName = Trim(request.LegalName);
+            if (request.RegistrationNumber != null) tenant.RegistrationNumber = Trim(request.RegistrationNumber);
             tenant.Phone = Trim(request.Phone);
             tenant.Address = Trim(request.Address);
             tenant.CountryCode = request.CountryCode.Trim().ToUpperInvariant();
@@ -283,7 +286,8 @@ public sealed class TenantProfileService : ITenantProfileService
         {
             Id = tenant.Id, Reference = tenant.PublicId,
             InstitutionTypeDefinitionId = tenant.InstitutionTypeDefinitionId,
-            InstitutionTypeName = name, Name = tenant.Name, Code = tenant.Code,
+            InstitutionTypeName = name, Name = tenant.Name, LegalName = tenant.LegalName,
+            RegistrationNumber = tenant.RegistrationNumber, Code = tenant.Code,
             Subdomain = tenant.Subdomain, PrimaryDomainHostName = domain,
             Email = tenant.Email, Phone = tenant.Phone, Address = tenant.Address,
             CountryCode = tenant.CountryCode, LogoUrl = tenant.LogoUrl, FaviconUrl = tenant.FaviconUrl,

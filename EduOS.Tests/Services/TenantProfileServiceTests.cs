@@ -20,6 +20,32 @@ namespace EduOS.Tests.Services;
 public sealed class TenantProfileServiceTests
 {
     [Fact]
+    public async Task Canonical_legal_name_and_registration_number_round_trip_without_erasing_omitted_fields()
+    {
+        await using var setup = await CreateSetupAsync();
+        var changed = await setup.Service.UpdateProfileAsync(new UpdateTenantProfileRequestDto
+        {
+            Name = "Green School and College", Email = setup.Tenant.Email, CountryCode = "BD",
+            LegalName = "Green School Limited", RegistrationNumber = "REG-2026-100",
+            RowVersion = Convert.ToBase64String(setup.Tenant.RowVersion)
+        });
+        changed.Success.Should().BeTrue(changed.Message);
+        changed.Data!.LegalName.Should().Be("Green School Limited");
+        changed.Data.RegistrationNumber.Should().Be("REG-2026-100");
+        setup.Tenant.LegalName.Should().Be("Green School Limited");
+        setup.Tenant.RegistrationNumber.Should().Be("REG-2026-100");
+
+        var next = await setup.Service.UpdateProfileAsync(new UpdateTenantProfileRequestDto
+        {
+            Name = "Green School and College", Email = setup.Tenant.Email, CountryCode = "BD",
+            RowVersion = Convert.ToBase64String(setup.Tenant.RowVersion)
+        });
+        next.Success.Should().BeTrue(next.Message);
+        setup.Tenant.LegalName.Should().Be("Green School Limited");
+        setup.Tenant.RegistrationNumber.Should().Be("REG-2026-100");
+    }
+
+    [Fact]
     public async Task Subdomain_validation_rejects_reserved_and_existing_values()
     {
         await using var setup = await CreateSetupAsync();

@@ -1,6 +1,5 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.SaaS;
-using EduOS.Core.DTOs.Tenants;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Interfaces;
@@ -12,65 +11,64 @@ using Microsoft.Extensions.Logging;
 
 namespace EduOS.Service.Services.Tenants;
 
-public sealed class InstitutionProfileWizardService : IInstitutionProfileWizardService
+public sealed class TenantOnboardingProfileService : ITenantOnboardingProfileService
 {
     private readonly ITenantProfileService _profile;
-    private readonly IGenericRepository<Tenant> _tenants;
     private readonly IGenericRepository<TenantMembership> _memberships;
     private readonly IGenericRepository<TenantSetting> _settings;
-    private readonly IGenericRepository<InstitutionTypeDefinition> _types;
     private readonly UserManager<ApplicationUser> _users;
     private readonly IUnitOfWork _uow;
     private readonly ICurrentUserService _user;
-    private readonly ILogger<InstitutionProfileWizardService> _logger;
+    private readonly ILogger<TenantOnboardingProfileService> _logger;
 
-    public InstitutionProfileWizardService(ITenantProfileService profile,
-        IGenericRepository<Tenant> tenants, IGenericRepository<TenantMembership> memberships,
-        IGenericRepository<TenantSetting> settings,
-        IGenericRepository<InstitutionTypeDefinition> types, UserManager<ApplicationUser> users,
-        IUnitOfWork uow, ICurrentUserService user, ILogger<InstitutionProfileWizardService> logger)
+    public TenantOnboardingProfileService(ITenantProfileService profile,
+        IGenericRepository<TenantMembership> memberships, IGenericRepository<TenantSetting> settings,
+        UserManager<ApplicationUser> users, IUnitOfWork uow, ICurrentUserService user,
+        ILogger<TenantOnboardingProfileService> logger)
     {
-        _profile = profile; _tenants = tenants; _memberships = memberships;
-        _settings = settings; _types = types; _users = users; _uow = uow;
+        _profile = profile; _memberships = memberships;
+        _settings = settings; _users = users; _uow = uow;
         _user = user; _logger = logger;
     }
 
-    public async Task<ApiResponse<InstitutionProfileWizardDto>> GetAsync(CancellationToken ct = default)
+    public async Task<ApiResponse<TenantOnboardingProfileDto>> GetAsync(CancellationToken ct = default)
     {
-        if (!CanManage()) return Error<InstitutionProfileWizardDto>("Tenant administrator required.", 403);
+        if (!CanManage()) return Error<TenantOnboardingProfileDto>("Tenant administrator required.", 403);
         var p = await _profile.GetProfileAsync(ct);
         if (!p.Success || p.Data == null)
-            return Error<InstitutionProfileWizardDto>(p.Message ?? "Profile is unavailable.", p.StatusCode);
+            return Error<TenantOnboardingProfileDto>(p.Message ?? "Profile is unavailable.", p.StatusCode);
         var owner = await OwnerAsync(ct);
-        if (owner == null) return Error<InstitutionProfileWizardDto>("Tenant owner not found.", 409);
-        var type = p.Data.InstitutionTypeDefinitionId.HasValue
-            ? await _types.GetQueryable().AsNoTracking().Where(x =>
-                x.Id == p.Data.InstitutionTypeDefinitionId.Value)
-                .Select(x => x.Code).FirstOrDefaultAsync(ct) : null;
+        if (owner == null) return Error<TenantOnboardingProfileDto>("Tenant owner not found.", 409);
         var setting = await _settings.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == _user.TenantId && x.Category == "Profile" && !x.IsDeleted)
             .ToDictionaryAsync(x => x.Key, x => x.Value, ct);
-        return ApiResponse<InstitutionProfileWizardDto>.SuccessResponse(new InstitutionProfileWizardDto
+        return ApiResponse<TenantOnboardingProfileDto>.SuccessResponse(new TenantOnboardingProfileDto
         {
-            InstitutionName = p.Data.Name, InstitutionType = type ?? "",
+            Name = p.Data.Name, InstitutionTypeDefinitionId = p.Data.InstitutionTypeDefinitionId,
+            LegalName = p.Data.LegalName, RegistrationNumber = p.Data.RegistrationNumber,
+            Code = p.Data.Code, Subdomain = p.Data.Subdomain,
             OwnerName = owner.FullName, OwnerEmail = owner.Email,
             OwnerPhone = Find(setting, "Profile.OwnerPhone"),
             OwnerDesignation = Find(setting, "Profile.OwnerDesignation"),
             Phone = p.Data.Phone, Email = p.Data.Email, Address = p.Data.Address,
+            CountryCode = p.Data.CountryCode,
             Website = Find(setting, "Profile.Website"), City = Find(setting, "Profile.City"),
             State = Find(setting, "Profile.State"), Country = Find(setting, "Profile.Country"),
             PostalCode = Find(setting, "Profile.PostalCode"), RowVersion = p.Data.RowVersion
         });
     }
 
-    public async Task<ApiResponse<bool>> SaveAsync(InstitutionProfileWizardDto request, CancellationToken ct = default)
+    public async Task<ApiResponse<bool>> SaveAsync(TenantOnboardingProfileDto request, CancellationToken ct = default)
     {
         if (!CanManage()) return Error<bool>("Tenant administrator required.", 403);
-        if (request == null || string.IsNullOrWhiteSpace(request.InstitutionName) ||
-            request.InstitutionName.Trim().Length > 200 ||
+        if (request == null || string.IsNullOrWhiteSpace(request.Name) ||
+            request.Name.Trim().Length > 200 ||
             string.IsNullOrWhiteSpace(request.OwnerName) || request.OwnerName.Trim().Length > 200 ||
-            string.IsNullOrWhiteSpace(request.InstitutionType) ||
+            request.InstitutionTypeDefinitionId is null or <= 0 ||
+            string.IsNullOrWhiteSpace(request.Email) || request.Email.Length > 200 ||
+            string.IsNullOrWhiteSpace(request.CountryCode) || request.CountryCode.Trim().Length is < 2 or > 10 ||
             string.IsNullOrWhiteSpace(request.RowVersion) ||
+            request.LegalName?.Length > 250 || request.RegistrationNumber?.Length > 100 ||
             request.OwnerEmail?.Length > 200 || request.OwnerPhone?.Length > 30 ||
             request.OwnerDesignation?.Length > 150 || request.Website?.Length > 250 ||
             request.City?.Length > 150 || request.State?.Length > 150 ||
@@ -79,13 +77,9 @@ public sealed class InstitutionProfileWizardService : IInstitutionProfileWizardS
         var before = await _profile.GetProfileAsync(ct);
         if (!before.Success || before.Data == null)
             return Error<bool>(before.Message ?? "Profile not found.", before.StatusCode);
-        var type = await _types.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-            x.Code == request.InstitutionType.Trim().ToUpperInvariant() && x.IsActive && !x.IsDeleted, ct);
-        if (type == null || type.Id != before.Data.InstitutionTypeDefinitionId)
+        if (request.InstitutionTypeDefinitionId != before.Data.InstitutionTypeDefinitionId)
             return Error<bool>("Institution type changes require a controlled migration.", 409);
-        if (!string.Equals(request.OwnerEmail ?? before.Data.Email, before.Data.Email,
-            StringComparison.OrdinalIgnoreCase) ||
-            !string.Equals(request.Email ?? before.Data.Email, before.Data.Email,
+        if (!string.Equals(request.Email, before.Data.Email,
             StringComparison.OrdinalIgnoreCase))
             return Error<bool>("Email changes require a separate verification workflow.", 409);
         if (request.Website != null && request.Website.Length > 0 &&
@@ -98,12 +92,16 @@ public sealed class InstitutionProfileWizardService : IInstitutionProfileWizardS
             {
                 var owner = await OwnerAsync(token);
                 if (owner == null) return Error<bool>("Owner account not found.", 409);
+                if (request.OwnerEmail != null && !string.Equals(request.OwnerEmail, owner.Email,
+                    StringComparison.OrdinalIgnoreCase))
+                    return Error<bool>("Owner email changes require a separate verification workflow.", 409);
                 var p = await _profile.UpdateProfileAsync(new UpdateTenantProfileRequestDto
                 {
-                    Name = request.InstitutionName.Trim(), Email = before.Data.Email,
-                    InstitutionTypeDefinitionId = type.Id,
+                    Name = request.Name.Trim(), Email = before.Data.Email,
+                    LegalName = request.LegalName, RegistrationNumber = request.RegistrationNumber,
+                    InstitutionTypeDefinitionId = request.InstitutionTypeDefinitionId,
                     Phone = Trim(request.Phone), Address = Trim(request.Address),
-                    CountryCode = before.Data.CountryCode, RowVersion = request.RowVersion
+                    CountryCode = request.CountryCode.Trim(), RowVersion = request.RowVersion
                 }, token);
                 if (!p.Success) return Error<bool>(p.Message ?? "Profile changed.", p.StatusCode);
                 if (owner.FullName != request.OwnerName.Trim())

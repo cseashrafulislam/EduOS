@@ -7,6 +7,8 @@ public class TenantDto
     public long? InstitutionTypeDefinitionId { get; set; }
     public string? InstitutionTypeName { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string? LegalName { get; set; }
+    public string? RegistrationNumber { get; set; }
     public string Code { get; set; } = string.Empty;
     public string? Subdomain { get; set; }
     public string? PrimaryDomainHostName { get; set; }
@@ -30,6 +32,8 @@ public class TenantDto
 public class UpdateTenantProfileRequestDto
 {
     [Required, MaxLength(200)] public string Name { get; set; } = string.Empty;
+    [MaxLength(250)] public string? LegalName { get; set; }
+    [MaxLength(100)] public string? RegistrationNumber { get; set; }
     public long? InstitutionTypeDefinitionId { get; set; }
     [Required, EmailAddress, MaxLength(200)] public string Email { get; set; } = string.Empty;
     [MaxLength(30)] public string? Phone { get; set; }

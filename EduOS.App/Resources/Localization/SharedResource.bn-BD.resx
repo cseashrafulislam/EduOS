@@ -134,6 +134,11 @@
   <data name="SignupTitle" xml:space="preserve"><value>আপনার প্রতিষ্ঠান তৈরি করুন</value></data>
   <data name="SignupSubtitle" xml:space="preserve"><value>বাংলাদেশ-উপযোগী preset দিয়ে শুরু করে প্রতিষ্ঠানের মতো সাজিয়ে নিন</value></data>
   <data name="InstitutionName" xml:space="preserve"><value>প্রতিষ্ঠানের নাম</value></data>
+  <data name="TenantLegalName" xml:space="preserve"><value>আইনগত নাম</value></data>
+  <data name="TenantRegistrationNumber" xml:space="preserve"><value>নিবন্ধন নম্বর</value></data>
+  <data name="TenantCode" xml:space="preserve"><value>প্রতিষ্ঠানের কোড</value></data>
+  <data name="TenantEmail" xml:space="preserve"><value>প্রতিষ্ঠানের ইমেইল (যাচাইকৃত)</value></data>
+  <data name="TenantCountryCode" xml:space="preserve"><value>দেশের ISO কোড</value></data>
   <data name="InstitutionNameExample" xml:space="preserve"><value>উদাহরণ: গ্রিন ফিল্ড স্কুল</value></data>
   <data name="InstitutionType" xml:space="preserve"><value>প্রতিষ্ঠানের ধরন</value></data>
   <data name="LoadingInstitutionTypes" xml:space="preserve"><value>প্রতিষ্ঠানের ধরন লোড হচ্ছে…</value></data>

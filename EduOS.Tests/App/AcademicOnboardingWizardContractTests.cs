@@ -18,7 +18,7 @@ public sealed class AcademicOnboardingWizardContractTests
     {
         // The canonical Foundation API requires Code, but the onboarding form does not request one.
         const string json = "{\"name\":\"2026-2027\",\"startDate\":\"2026-07-01\",\"endDate\":\"2027-06-30\",\"isCurrent\":true}";
-        var request = JsonSerializer.Deserialize<InstitutionAcademicYearWizardRequestDto>(
+        var request = JsonSerializer.Deserialize<AcademicYearOnboardingRequestDto>(
             json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
         var errors = new List<ValidationResult>();
         Assert.True(Validator.TryValidateObject(request, new ValidationContext(request), errors, true));
@@ -52,7 +52,7 @@ public sealed class AcademicOnboardingWizardContractTests
         foundation.Setup(x => x.SaveAcademicTermAsync(null, It.IsAny<SaveAcademicTermRequestDto>(),
             It.IsAny<CancellationToken>())).ReturnsAsync(
             ApiResponse<AcademicTermDto>.SuccessResponse(new AcademicTermDto { Id = 12 }));
-        var request = new InstitutionAcademicTermWizardRequestDto
+        var request = new AcademicTermOnboardingRequestDto
         {
             AcademicYearId = 10, Name = "Term 1", StartDate = new DateOnly(2026, 7, 1),
             EndDate = new DateOnly(2026, 12, 31)
@@ -81,5 +81,5 @@ public sealed class AcademicOnboardingWizardContractTests
 
     private static InstitutionOnboardingController Controller(IInstitutionFoundationService foundation) => new(
         Mock.Of<IInstitutionRegistrationService>(), foundation,
-        Mock.Of<IInstitutionProfileWizardService>(), Mock.Of<IOnboardingService>());
+        Mock.Of<ITenantOnboardingProfileService>(), Mock.Of<IOnboardingService>());
 }

@@ -45,38 +45,56 @@
             </div>
             <div class="row g-3">
                 <div class="col-md-6">
-                    <label for="institutionName" class="form-label">@T["InstitutionName"] <span class="required-mark" aria-hidden="true">*</span></label>
-                    <input type="text" id="institutionName" name="institutionName" class="form-control"
+                    <label for="name" class="form-label">@T["InstitutionName"] <span class="required-mark" aria-hidden="true">*</span></label>
+                    <input type="text" id="name" name="name" class="form-control"
                            maxlength="200" autocomplete="organization" required aria-required="true" />
                     <div class="invalid-feedback"></div>
                 </div>
                 <div class="col-md-6">
-                    <label for="institutionType" class="form-label">@T["InstitutionType"] <span class="required-mark" aria-hidden="true">*</span></label>
-                    <select id="institutionType" name="institutionType" class="form-select" disabled required aria-required="true">
+                    <label for="institutionTypeDefinitionId" class="form-label">@T["InstitutionType"] <span class="required-mark" aria-hidden="true">*</span></label>
+                    <select id="institutionTypeDefinitionId" name="institutionTypeDefinitionId" class="form-select" disabled required aria-required="true">
                         <option value="">@T["LoadingInstitutionTypes"]</option>
                     </select>
                     <div class="invalid-feedback"></div>
                 </div>
                 <div class="col-md-6">
+                    <label for="legalName" class="form-label">@T["TenantLegalName"]</label>
+                    <input type="text" id="legalName" name="legalName" class="form-control" maxlength="250" autocomplete="organization" />
+                    <div class="invalid-feedback"></div>
+                </div>
+                <div class="col-md-6">
+                    <label for="registrationNumber" class="form-label">@T["TenantRegistrationNumber"]</label>
+                    <input type="text" id="registrationNumber" name="registrationNumber" class="form-control" maxlength="100" />
+                    <div class="invalid-feedback"></div>
+                </div>
+                <div class="col-md-6">
+                    <label for="code" class="form-label">@T["TenantCode"]</label>
+                    <input type="text" id="code" class="form-control" readonly aria-readonly="true" />
+                </div>
+                <div class="col-md-6">
+                    <label for="subdomain" class="form-label">@T["PortalSubdomain"]</label>
+                    <input type="text" id="subdomain" class="form-control" readonly aria-readonly="true" />
+                </div>
+                <div class="col-md-6">
                     <label for="ownerName" class="form-label">@T["OwnerAdminName"] <span class="required-mark" aria-hidden="true">*</span></label>
                     <input type="text" id="ownerName" name="ownerName" class="form-control"
-                           maxlength="150" autocomplete="name" required aria-required="true" />
+                           maxlength="200" autocomplete="name" required aria-required="true" />
                     <div class="invalid-feedback"></div>
                 </div>
                 <div class="col-md-6">
                     <label for="ownerDesignation" class="form-label">@T["OwnerDesignation"]</label>
-                    <input type="text" id="ownerDesignation" name="ownerDesignation" class="form-control" maxlength="100" />
+                    <input type="text" id="ownerDesignation" name="ownerDesignation" class="form-control" maxlength="150" />
                     <div class="invalid-feedback"></div>
                 </div>
                 <div class="col-md-6">
                     <label for="ownerPhone" class="form-label">@T["OwnerPhone"]</label>
-                    <input type="tel" id="ownerPhone" name="ownerPhone" class="form-control" maxlength="20"
+                    <input type="tel" id="ownerPhone" name="ownerPhone" class="form-control" maxlength="30"
                            inputmode="tel" autocomplete="tel" placeholder="01700000000" />
                     <div class="invalid-feedback"></div>
                 </div>
                 <div class="col-md-6">
                     <label for="ownerEmail" class="form-label">@T["OwnerEmail"]</label>
-                    <input type="email" id="ownerEmail" name="ownerEmail" class="form-control" maxlength="150" autocomplete="email" />
+                    <input type="email" id="ownerEmail" name="ownerEmail" class="form-control" maxlength="200" autocomplete="email" readonly aria-readonly="true" />
                     <div class="invalid-feedback"></div>
                 </div>
             </div>
@@ -90,14 +108,18 @@
             <div class="row g-3">
                 <div class="col-md-6">
                     <label for="phone" class="form-label">@T["InstitutionPhone"]</label>
-                    <input type="tel" id="phone" name="phone" class="form-control" maxlength="20" inputmode="tel" autocomplete="tel" />
+                    <input type="tel" id="phone" name="phone" class="form-control" maxlength="30" inputmode="tel" autocomplete="tel" />
                     <div class="invalid-feedback"></div>
                 </div>
                 <div class="col-md-6">
                     <label for="website" class="form-label">@T["Website"]</label>
-                    <input type="url" id="website" name="website" class="form-control" maxlength="200"
+                    <input type="url" id="website" name="website" class="form-control" maxlength="250"
                            inputmode="url" autocomplete="url" placeholder="https://example.edu.bd" />
                     <div class="invalid-feedback"></div>
+                </div>
+                <div class="col-md-6">
+                    <label for="email" class="form-label">@T["TenantEmail"]</label>
+                    <input type="email" id="email" name="email" class="form-control" maxlength="200" readonly aria-readonly="true" />
                 </div>
                 <div class="col-12">
                     <label for="address" class="form-label">@T["Address"]</label>
@@ -115,22 +137,27 @@
             <div class="row g-3">
                 <div class="col-md-6">
                     <label for="city" class="form-label">@T["CityDistrict"]</label>
-                    <input type="text" id="city" name="city" class="form-control" maxlength="100" autocomplete="address-level2" />
+                    <input type="text" id="city" name="city" class="form-control" maxlength="150" autocomplete="address-level2" />
                     <div class="invalid-feedback"></div>
                 </div>
                 <div class="col-md-6">
                     <label for="state" class="form-label">@T["Division"]</label>
-                    <input type="text" id="state" name="state" class="form-control" maxlength="100" autocomplete="address-level1" />
+                    <input type="text" id="state" name="state" class="form-control" maxlength="150" autocomplete="address-level1" />
                     <div class="invalid-feedback"></div>
                 </div>
                 <div class="col-md-6">
                     <label for="country" class="form-label">@T["Country"]</label>
-                    <input type="text" id="country" name="country" class="form-control" maxlength="100" value="Bangladesh" autocomplete="country-name" />
+                    <input type="text" id="country" name="country" class="form-control" maxlength="150" value="Bangladesh" autocomplete="country-name" />
                     <div class="invalid-feedback"></div>
                 </div>
                 <div class="col-md-6">
                     <label for="postalCode" class="form-label">@T["PostalCode"]</label>
-                    <input type="text" id="postalCode" name="postalCode" class="form-control" maxlength="20" inputmode="numeric" autocomplete="postal-code" />
+                    <input type="text" id="postalCode" name="postalCode" class="form-control" maxlength="50" inputmode="numeric" autocomplete="postal-code" />
+                    <div class="invalid-feedback"></div>
+                </div>
+                <div class="col-md-6">
+                    <label for="countryCode" class="form-label">@T["TenantCountryCode"]</label>
+                    <input type="text" id="countryCode" name="countryCode" class="form-control" maxlength="10" value="BD" required aria-required="true" />
                     <div class="invalid-feedback"></div>
                 </div>
             </div>

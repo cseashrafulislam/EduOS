@@ -1,6 +1,5 @@
 using EduOS.Core.DTOs.SaaS;
 using EduOS.Core.DTOs.Academic;
-using EduOS.Core.DTOs.Tenants;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -18,11 +17,11 @@ public sealed class InstitutionOnboardingController : ControllerBase
 {
     private readonly IInstitutionRegistrationService _registration;
     private readonly IInstitutionFoundationService _foundation;
-    private readonly IInstitutionProfileWizardService _profile;
+    private readonly ITenantOnboardingProfileService _profile;
     private readonly IOnboardingService _onboarding;
 
     public InstitutionOnboardingController(IInstitutionRegistrationService registration,
-        IInstitutionFoundationService foundation, IInstitutionProfileWizardService profile,
+        IInstitutionFoundationService foundation, ITenantOnboardingProfileService profile,
         IOnboardingService onboarding)
     {
         _registration = registration; _foundation = foundation;
@@ -45,13 +44,13 @@ public sealed class InstitutionOnboardingController : ControllerBase
             ? "/Account/VerifyEmailSuccess" : "/Account/VerifyFailed");
     }
 
-    [HttpGet("institution-profile")]
+    [HttpGet("tenant-profile")]
     public async Task<IActionResult> Profile(CancellationToken ct) =>
         Result(await _profile.GetAsync(ct));
 
-    [HttpPost("institution-profile")]
+    [HttpPost("tenant-profile")]
     [Consumes("multipart/form-data")]
-    public async Task<IActionResult> SaveProfile([FromForm] InstitutionProfileWizardDto request,
+    public async Task<IActionResult> SaveProfile([FromForm] TenantOnboardingProfileDto request,
         CancellationToken ct) => Result(await _profile.SaveAsync(request, ct));
 
     [HttpGet("campus-list")]
@@ -63,7 +62,7 @@ public sealed class InstitutionOnboardingController : ControllerBase
         Result(await _foundation.GetCampusAsync(id, ct));
 
     [HttpPost("campus")]
-    public async Task<IActionResult> SaveCampus([FromBody] InstitutionCampusWizardRequestDto request,
+    public async Task<IActionResult> SaveCampus([FromBody] CampusOnboardingRequestDto request,
         CancellationToken ct)
     {
         if (request == null) return BadRequest("Campus details are required.");
@@ -98,7 +97,7 @@ public sealed class InstitutionOnboardingController : ControllerBase
 
     [HttpPost("academic-year")]
     public async Task<IActionResult> SaveAcademicYear(
-        [FromBody] InstitutionAcademicYearWizardRequestDto request, CancellationToken ct)
+        [FromBody] AcademicYearOnboardingRequestDto request, CancellationToken ct)
     {
         if (request == null) return BadRequest("Academic year is required.");
         var code = request.Code;
@@ -132,7 +131,7 @@ public sealed class InstitutionOnboardingController : ControllerBase
 
     [HttpPost("academic-term")]
     public async Task<IActionResult> SaveAcademicTerm(
-        [FromBody] InstitutionAcademicTermWizardRequestDto request, CancellationToken ct)
+        [FromBody] AcademicTermOnboardingRequestDto request, CancellationToken ct)
     {
         if (request == null) return BadRequest("Academic term is required.");
         return Result(await _foundation.SaveAcademicTermAsync(request.Id, new SaveAcademicTermRequestDto

@@ -134,6 +134,11 @@
   <data name="SignupTitle" xml:space="preserve"><value>Create your institution</value></data>
   <data name="SignupSubtitle" xml:space="preserve"><value>Start with a Bangladesh-ready preset and configure it for your institution</value></data>
   <data name="InstitutionName" xml:space="preserve"><value>Institution name</value></data>
+  <data name="TenantLegalName" xml:space="preserve"><value>Legal name</value></data>
+  <data name="TenantRegistrationNumber" xml:space="preserve"><value>Registration number</value></data>
+  <data name="TenantCode" xml:space="preserve"><value>Institution code</value></data>
+  <data name="TenantEmail" xml:space="preserve"><value>Institution email (verified)</value></data>
+  <data name="TenantCountryCode" xml:space="preserve"><value>Country ISO code</value></data>
   <data name="InstitutionNameExample" xml:space="preserve"><value>Example: Green Field School</value></data>
   <data name="InstitutionType" xml:space="preserve"><value>Institution type</value></data>
   <data name="LoadingInstitutionTypes" xml:space="preserve"><value>Loading institution types…</value></data>
