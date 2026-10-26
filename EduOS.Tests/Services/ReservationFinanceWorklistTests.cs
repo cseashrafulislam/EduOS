@@ -95,11 +95,9 @@ public sealed class ReservationFinanceWorklistTests
     }
 
     [Fact]
-    public async Task Tenant_and_campus_filters_prevent_cross_scope_disclosure()
+    public async Task Campus_filter_limits_results_to_enrollment_campus()
     {
-        var options = new DbContextOptionsBuilder<EduOSDbContext>()
-            .UseInMemoryDatabase("reservation-finance-cross-scope-" + Guid.NewGuid().ToString("N")).Options;
-        await using var db = Database(41, options);
+        await using var db = Database();
         var own = await Enrollment(db, 41, 10, 7);
         var otherCampus = await Enrollment(db, 41, 11, 8);
         db.StudentHostelAllocations.AddRange(
@@ -108,6 +106,18 @@ public sealed class ReservationFinanceWorklistTests
             new StudentHostelAllocation { TenantId = 41, StudentId = 11, StudentEnrollmentId = otherCampus.Id,
                 HostelBedId = 2, StartDate = new DateOnly(2026, 11, 1), MonthlyRent = 20m });
         await db.SaveChangesAsync();
+        var result = await new FinanceAdjustmentService(db, new User(true), TimeProvider.System)
+            .GetReservationFinanceWorklistAsync(new() { Kind = "hostel", CampusId = 7 });
+        result.Success.Should().BeTrue();
+        result.Data!.Reservations.TotalCount.Should().Be(1);
+        result.Data.Reservations.Items.Single().StudentId.Should().Be(10);
+    }
+
+    [Fact]
+    public async Task Other_tenant_reservations_are_not_listed()
+    {
+        var options = new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("reservation-finance-cross-tenant-" + Guid.NewGuid().ToString("N")).Options;
         await using (var foreignDb = Database(42, options))
         {
             var foreign = await Enrollment(foreignDb, 42, 12, 7);
@@ -117,11 +127,11 @@ public sealed class ReservationFinanceWorklistTests
             });
             await foreignDb.SaveChangesAsync();
         }
+        await using var db = Database(41, options);
         var result = await new FinanceAdjustmentService(db, new User(true), TimeProvider.System)
             .GetReservationFinanceWorklistAsync(new() { Kind = "hostel", CampusId = 7 });
         result.Success.Should().BeTrue();
-        result.Data!.Reservations.TotalCount.Should().Be(1);
-        result.Data.Reservations.Items.Single().StudentId.Should().Be(10);
+        result.Data!.Reservations.TotalCount.Should().Be(0);
     }
 
     [Fact]
