@@ -5,6 +5,7 @@ namespace EduOS.Core.Interfaces.IServices;
 
 public interface IFinanceAdjustmentService
 {
+    Task<ApiResponse<ReservationFinanceChangeReviewDto>> ReviewReservationChangeAsync(ReservationFinanceChangeReviewRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<ReservationFinanceWorklistDto>> GetReservationFinanceWorklistAsync(ReservationFinanceWorklistQueryDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<ReservationFinanceEvidenceDto>> GetReservationFinanceEvidenceAsync(ReservationFinanceEvidenceQueryDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<ReservationFinancePreflightDto>> GetReservationFinancePreflightAsync(string kind, long id, CancellationToken cancellationToken = default);

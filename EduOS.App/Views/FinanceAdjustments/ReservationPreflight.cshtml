@@ -39,6 +39,30 @@
             <div class="col-md-4"><button class="btn btn-primary w-100" type="submit">Check Finance exposure</button></div>
         </div>
     </form>
+    <section class="card mb-3" aria-label="Proposed reservation date review">
+        <div class="card-body">
+            <h3 class="h5">Review proposed start or end date</h3>
+            <p class="small text-muted">First inspect the canonical reservation above. Finance evaluates proposed date boundaries against current invoice/payment exposure. No approval, proration or posting is performed.</p>
+            <form id="reservationFinanceChangeReviewForm" class="row g-2 align-items-end">
+                <div class="col-md-4"><label for="reservationFinanceChangeReviewAction" class="form-label">Proposed change</label>
+                    <select id="reservationFinanceChangeReviewAction" class="form-select">
+                        <option value="reschedule-start">Reschedule start</option>
+                        <option value="extend-end">Extend finite end</option>
+                        <option value="shorten-end">Shorten finite end</option>
+                    </select>
+                </div>
+                <div class="col-md-3"><label for="reservationFinanceChangeReviewStart" class="form-label">New start date</label>
+                    <input type="date" id="reservationFinanceChangeReviewStart" class="form-control" />
+                </div>
+                <div class="col-md-3"><label for="reservationFinanceChangeReviewEnd" class="form-label">New inclusive end date</label>
+                    <input type="date" id="reservationFinanceChangeReviewEnd" class="form-control" disabled />
+                </div>
+                <div class="col-md-2"><button type="submit" class="btn btn-outline-primary w-100" disabled>Review only</button></div>
+            </form>
+            <div id="reservationFinanceChangeReviewAlert" class="alert d-none mt-3" role="status" aria-live="polite"></div>
+            <dl id="reservationFinanceChangeReviewDetails" class="row mt-3 mb-0"></dl>
+        </div>
+    </section>
     <div id="reservationFinanceAlert" class="alert d-none" role="status" aria-live="polite"></div>
     <section id="reservationFinanceResult" class="card d-none" aria-label="Finance exposure">
         <div class="card-body">
@@ -72,4 +96,5 @@
     <script src="~/js/finance/reservation-finance-preflight.js" asp-append-version="true"></script>
     <script src="~/js/finance/reservation-finance-worklist.js" asp-append-version="true"></script>
     <script src="~/js/finance/reservation-finance-evidence.js" asp-append-version="true"></script>
+    <script src="~/js/finance/reservation-finance-change-review.js" asp-append-version="true"></script>
 }

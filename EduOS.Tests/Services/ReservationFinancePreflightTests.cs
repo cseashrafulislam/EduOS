@@ -172,6 +172,94 @@ public sealed class ReservationFinancePreflightTests
         response.Data.FinancialMutationApproved.Should().BeFalse();
     }
 
+    [Fact]
+    public async Task Proposed_change_requires_admin_and_canonical_tenant_scope()
+    {
+        await using var db = Database();
+        var stay = await SeedHostel(db, 41, 7);
+        var request = new ReservationFinanceChangeReviewRequestDto {
+            Kind = "hostel", ReservationId = stay.Id, Change = "reschedule-start",
+            ProposedStartDate = new DateOnly(2026, 11, 2)
+        };
+        (await new FinanceAdjustmentService(db, new TestUser(false), TimeProvider.System)
+            .ReviewReservationChangeAsync(request)).StatusCode.Should().Be(403);
+        (await new FinanceAdjustmentService(db, new TestUser(true), TimeProvider.System)
+            .ReviewReservationChangeAsync(new() { Kind = "hostel", ReservationId = stay.Id + 999,
+                Change = "reschedule-start", ProposedStartDate = new DateOnly(2026, 11, 2) }))
+            .StatusCode.Should().Be(404);
+    }
+
+    [Fact]
+    public async Task Proposed_date_change_with_posted_invoice_is_blocked_without_ledger_mutation()
+    {
+        await using var db = Database();
+        var stay = await SeedHostel(db, 41, 7);
+        db.StudentInvoices.Add(new StudentInvoice {
+            TenantId = 41, StudentEnrollmentId = stay.StudentEnrollmentId,
+            InvoiceNumber = "PROPOSAL-POST", InvoiceDate = new DateOnly(2026, 10, 1),
+            DueDate = new DateOnly(2026, 10, 31), JournalId = 77
+        });
+        await db.SaveChangesAsync();
+        var response = await new FinanceAdjustmentService(db, new TestUser(true), TimeProvider.System)
+            .ReviewReservationChangeAsync(new() { Kind = "hostel", ReservationId = stay.Id,
+                Change = "reschedule-start", ProposedStartDate = new DateOnly(2026, 11, 2) });
+        response.Success.Should().BeTrue();
+        response.Data!.Status.Should().Be("BLOCKED_POSTED_ACTIVITY");
+        response.Data.RequiresApprovedFinanceAdjustment.Should().BeTrue();
+        response.Data.FinancialMutationApproved.Should().BeFalse();
+        (await db.StudentHostelAllocations.SingleAsync()).StartDate.Should().Be(new DateOnly(2026, 11, 1));
+        db.Journals.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Proposed_change_of_chargeable_stay_is_blocked_without_inventing_proration()
+    {
+        await using var db = Database();
+        var stay = await SeedHostel(db, 41, 7);
+        stay.MonthlyRent = 1200m;
+        stay.EndDate = new DateOnly(2026, 11, 30);
+        await db.SaveChangesAsync();
+        var response = await new FinanceAdjustmentService(db, new TestUser(true), TimeProvider.System)
+            .ReviewReservationChangeAsync(new() { Kind = "hostel", ReservationId = stay.Id,
+                Change = "shorten-end", ProposedEndDate = new DateOnly(2026, 11, 20) });
+        response.Success.Should().BeTrue();
+        response.Data!.Status.Should().Be("BLOCKED_CHARGED_TERMS");
+        response.Data.MonthlyCharge.Should().Be(1200m);
+        response.Data.FinancialMutationApproved.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task No_charge_proposal_is_informational_and_never_grants_approval()
+    {
+        await using var db = Database();
+        var stay = await SeedHostel(db, 41, 7);
+        var response = await new FinanceAdjustmentService(db, new TestUser(true), TimeProvider.System)
+            .ReviewReservationChangeAsync(new() { Kind = "hostel", ReservationId = stay.Id,
+                Change = "reschedule-start", ProposedStartDate = new DateOnly(2026, 11, 2) });
+        response.Success.Should().BeTrue();
+        response.Data!.Status.Should().Be("NO_KNOWN_EXPOSURE_NOT_APPROVED");
+        response.Data.FinanceExposureBlocksChange.Should().BeFalse();
+        response.Data.FinancialMutationApproved.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Invalid_end_dates_and_unsupported_transfer_proposals_are_rejected()
+    {
+        await using var db = Database();
+        var stay = await SeedHostel(db, 41, 7);
+        stay.EndDate = new DateOnly(2026, 11, 30);
+        await db.SaveChangesAsync();
+        var service = new FinanceAdjustmentService(db, new TestUser(true), TimeProvider.System);
+        (await service.ReviewReservationChangeAsync(new() { Kind = "hostel", ReservationId = stay.Id,
+            Change = "extend-end", ProposedEndDate = new DateOnly(2027, 3, 1) }))
+            .StatusCode.Should().Be(400);
+        (await service.ReviewReservationChangeAsync(new() { Kind = "hostel", ReservationId = stay.Id,
+            Change = "shorten-end", ProposedEndDate = new DateOnly(2026, 10, 30) }))
+            .StatusCode.Should().Be(400);
+        (await service.ReviewReservationChangeAsync(new() { Kind = "hostel", ReservationId = stay.Id,
+            Change = "occupied-transfer" })).StatusCode.Should().Be(400);
+    }
+
     private static async Task<StudentHostelAllocation> SeedHostel(EduOSDbContext db, long tenant, long hostelCampus)
     {
         var enrollment = new StudentEnrollment { TenantId = tenant, StudentId = 10, CampusId = 7, RollNo = "H-10" };

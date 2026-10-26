@@ -22,6 +22,10 @@ public sealed class FinanceAdjustmentsController : ControllerBase
     private readonly IFinanceAdjustmentService service;
     public FinanceAdjustmentsController(IFinanceAdjustmentService implementation) => service = implementation;
     private IActionResult Reply<T>(EduOS.Core.Common.ApiResponse<T> result) => StatusCode(result.StatusCode,result);
+    [HttpGet("reservations/change-review")]
+    public async Task<IActionResult> ReservationChangeReview([FromQuery] ReservationFinanceChangeReviewRequestDto request, CancellationToken ct)
+        => Reply(await service.ReviewReservationChangeAsync(request, ct));
+
     [HttpGet("reservations/worklist")]
     public async Task<IActionResult> ReservationWorklist([FromQuery] ReservationFinanceWorklistQueryDto request, CancellationToken ct)
         => Reply(await service.GetReservationFinanceWorklistAsync(request, ct));
