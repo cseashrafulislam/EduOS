@@ -46,7 +46,7 @@ for (const cmd of commands) {
         assert.match(dto, /public Guid ClientRequestId \{ get; set; \}/);
         assert.ok(service.includes(cmd.operation));
         for (const marker of ['CanManageCampusAsync', 'IsolationLevel.Serializable',
-            'CommandFingerprint(', 'LegacyRouteVehicleCommandRequestId(',
+            'CommandFingerprint(', 'DeriveRouteVehicleCommandRequestId(',
             'ReplayAsync<RouteVehicleAssignmentDto>', 'if (replay.Conflict)', 'if (replay.Found)',
             '_commandReceipts.RecordAsync']) {
             assert.ok(service.includes(marker), `${cmd.name} lacks ${marker}`);

@@ -18,7 +18,7 @@ public sealed partial class TransportService
         const string operation = "transport.route-vehicle-cancel-upcoming";
         var requestHash = CommandFingerprint(operation, assignmentId, Convert.ToBase64String(version));
         var requestId = request.ClientRequestId == Guid.Empty
-            ? LegacyRouteVehicleCommandRequestId(tenant, _currentUser.UserId, operation, assignmentId, requestHash)
+            ? DeriveRouteVehicleCommandRequestId(tenant, _currentUser.UserId, operation, assignmentId, requestHash)
             : request.ClientRequestId;
         try
         {

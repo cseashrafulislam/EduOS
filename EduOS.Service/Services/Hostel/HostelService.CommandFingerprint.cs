@@ -13,7 +13,7 @@ public sealed partial class HostelService
     // Compatibility with clients deployed before ClientRequestId was available.
     // The original row version is included in the fingerprint, so retries cannot
     // alias another correction made to the same allocation in the future.
-    private static Guid LegacyHostelCommandRequestId(long tenantId, long actorId,
+    private static Guid DeriveHostelCommandRequestId(long tenantId, long actorId,
         string operation, long allocationId, string requestHash)
     {
         var digest = SHA256.HashData(Encoding.UTF8.GetBytes(

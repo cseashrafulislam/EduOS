@@ -14,7 +14,7 @@ public sealed partial class TransportService
     // is part of the fingerprint, so retries derive the same receipt without giving
     // unrelated later updates the same key. The hash domain below must stay unchanged:
     // receipts from the previously deployed extension endpoints depend on it.
-    private static Guid LegacyDriverCommandRequestId(long tenantId, long actorId, string operation,
+    private static Guid DeriveDriverCommandRequestId(long tenantId, long actorId, string operation,
         long assignmentId, string requestHash)
     {
         var digest = SHA256.HashData(Encoding.UTF8.GetBytes(
@@ -24,7 +24,7 @@ public sealed partial class TransportService
 
     // Older route/vehicle UIs did not send a key. Preserve their request contract
     // while binding each retry to the original row version and exact payload.
-    private static Guid LegacyRouteVehicleCommandRequestId(long tenantId, long actorId,
+    private static Guid DeriveRouteVehicleCommandRequestId(long tenantId, long actorId,
         string operation, long assignmentId, string requestHash)
     {
         var digest = SHA256.HashData(Encoding.UTF8.GetBytes(

@@ -20,7 +20,7 @@ public sealed partial class TransportService
         const string operation = "transport.upcoming-driver-cancellation";
         var requestHash = CommandFingerprint(operation, assignmentId, Convert.ToBase64String(version));
         var commandId = request.ClientRequestId != Guid.Empty ? request.ClientRequestId :
-            LegacyDriverCommandRequestId(tenant, _currentUser.UserId, operation, assignmentId, requestHash);
+            DeriveDriverCommandRequestId(tenant, _currentUser.UserId, operation, assignmentId, requestHash);
         try
         {
             return await _unitOfWork.ExecuteInTransactionAsync(async token =>

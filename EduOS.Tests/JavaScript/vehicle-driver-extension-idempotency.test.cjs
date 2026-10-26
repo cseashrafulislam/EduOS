@@ -32,7 +32,7 @@ for (const variant of variants) {
         assert.match(service, /CanManageDriverRegistry\(\)/);
         assert.match(service, /CanManageCampusAsync/);
         assert.ok(service.includes(variant.scope));
-        assert.match(service, /LegacyDriverCommandRequestId\(tenant, _currentUser\.UserId, operation, assignmentId, requestHash\)/);
+        assert.match(service, /DeriveDriverCommandRequestId\(tenant, _currentUser\.UserId, operation, assignmentId, requestHash\)/);
         assert.match(service, /_commandReceipts\.ReplayAsync<VehicleDriverAssignmentDto>/);
         assert.match(service, /_commandReceipts\.RecordAsync/g);
         assert.match(service, /if \(replay\.Conflict\)/);

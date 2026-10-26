@@ -52,7 +52,7 @@ public sealed partial class HostelService
         var requestHash = HostelCommandFingerprint(operation, id,
             request.StartDate.ToString("yyyy-MM-dd"), Convert.ToBase64String(version));
         var requestId = request.ClientRequestId == Guid.Empty
-            ? LegacyHostelCommandRequestId(tenant, _currentUser.UserId, operation, id, requestHash)
+            ? DeriveHostelCommandRequestId(tenant, _currentUser.UserId, operation, id, requestHash)
             : request.ClientRequestId;
         try
         {

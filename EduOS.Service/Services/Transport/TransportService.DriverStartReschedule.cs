@@ -34,7 +34,7 @@ public sealed partial class TransportService
         var requestHash = CommandFingerprint(operation, assignmentId,
             request.EffectiveFrom.ToString("yyyy-MM-dd"), Convert.ToBase64String(version));
         var commandId = request.ClientRequestId != Guid.Empty ? request.ClientRequestId :
-            LegacyDriverCommandRequestId(tenant, _currentUser.UserId, operation, assignmentId, requestHash);
+            DeriveDriverCommandRequestId(tenant, _currentUser.UserId, operation, assignmentId, requestHash);
         try
         {
             return await _unitOfWork.ExecuteInTransactionAsync(async token =>

@@ -30,7 +30,7 @@ public sealed partial class TransportService
         var requestHash = CommandFingerprint(operation, assignmentId,
             request.EffectiveTo.ToString("yyyy-MM-dd"), Convert.ToBase64String(version));
         var requestId = request.ClientRequestId == Guid.Empty
-            ? LegacyRouteVehicleCommandRequestId(tenant, _currentUser.UserId, operation, assignmentId, requestHash)
+            ? DeriveRouteVehicleCommandRequestId(tenant, _currentUser.UserId, operation, assignmentId, requestHash)
             : request.ClientRequestId;
         try
         {
