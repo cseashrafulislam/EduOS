@@ -20,10 +20,7 @@ public sealed class StudentTransferRequestsController : ControllerBase
 {
     private readonly IStudentTransferRequestService _service;
 
-    // Platform owns the global DI module. Resolve the fully constructor-injected
-    // service from this request scope until its standard interface registration is added.
-    public StudentTransferRequestsController(IServiceProvider services) =>
-        _service = ActivatorUtilities.CreateInstance<StudentTransferRequestService>(services);
+    public StudentTransferRequestsController(IStudentTransferRequestService implementation) => _service = implementation;
 
     [HttpGet("students/{studentReference:guid}/eligibility")]
     public async Task<IActionResult> Eligibility(Guid studentReference, CancellationToken ct)

@@ -17,9 +17,7 @@ namespace EduOS.App.Controllers.Api;
 public sealed class LibraryReservationsController : ControllerBase
 {
     private readonly ILibraryReservationService _service;
-    // Platform owns global DI; activate from the existing generic repository registrations.
-    public LibraryReservationsController(IServiceProvider provider) =>
-        _service = ActivatorUtilities.CreateInstance<LibraryReservationService>(provider);
+    public LibraryReservationsController(ILibraryReservationService implementation) => _service = implementation;
 
     [HttpGet("mine")]
     public async Task<IActionResult> Mine([FromQuery] int page = 1, [FromQuery] int pageSize = 20,

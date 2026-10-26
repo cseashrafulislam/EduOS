@@ -19,8 +19,7 @@ namespace EduOS.App.Controllers.Api;
 public sealed class FeeReceivablesAgingController : ControllerBase
 {
     private readonly IFeeReceivablesAgingService _service;
-    public FeeReceivablesAgingController(EduOSDbContext db, ICurrentUserService user)
-        => _service = new FeeReceivablesAgingService(db, user);
+    public FeeReceivablesAgingController(IFeeReceivablesAgingService implementation) => _service = implementation;
 
     [HttpGet]
     public async Task<IActionResult> Get([FromQuery] FeeReceivablesAgingQueryDto request, CancellationToken ct)

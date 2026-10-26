@@ -6,6 +6,8 @@ using EduOS.Core.Interfaces.Jobs;
 using EduOS.Core.Settings;
 using EduOS.Service.Helpers;
 using EduOS.Service.Services;
+using EduOS.Service.Services.Accounting;
+using EduOS.Service.Services.Inventory;
 using EduOS.Service.Helpers.Payment;
 using EduOS.Service.Helpers.Storage;using EduOS.Service.Mappings;using EduOS.Service.Services.Academic;using EduOS.Service.Services.Auth;using EduOS.Service.Services.Admission;using EduOS.Service.Services.Attendance;using EduOS.Service.Services.AssessmentAdministration;using EduOS.Service.Services.Finance;using EduOS.Service.Services.HR;using EduOS.Service.Services.Hostel;using EduOS.Service.Services.Library;using EduOS.Service.Services.Learners;using EduOS.Service.Services.LMS;using EduOS.Service.Services.Portals;using EduOS.Service.Services.SaaS;using EduOS.Service.Services.Students;using EduOS.Service.Services.Tenants;using EduOS.Service.Services.Communication;using EduOS.Service.Services.Platform;using EduOS.Service.Services.Transport;using EduOS.Service.Services.Documents;using Microsoft.Extensions.Configuration;using Microsoft.Extensions.DependencyInjection;using Microsoft.AspNetCore.Authorization;
 namespace EduOS.App.Extensions
@@ -27,6 +29,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<IDocumentService, DocumentService>();
             s.AddScoped<IDocumentFileService, DocumentFileService>();
             s.AddScoped<IDocumentVerificationService, DocumentVerificationService>();
+            s.AddScoped<ILegalAcceptanceService, LegalAcceptanceService>();
             s.AddScoped<ILearnerIdentifierProtector, LearnerIdentifierProtector>();
             s.AddSingleton(TimeProvider.System);
             s.AddSingleton<IMfaChallengeService, MfaChallengeService>();
@@ -104,6 +107,39 @@ namespace EduOS.App.Extensions
             s.AddScoped<ILibraryService, LibraryService>();
             s.AddScoped<ITransportService, TransportService>();
             s.AddScoped<IHostelService, HostelService>();
+
+            // Canonical API service registrations: controllers receive interfaces from
+            // the request scope instead of constructing concrete services themselves.
+            s.AddScoped<IAccountingPostingService, AccountingPostingService>();
+            s.AddScoped<IAccountingReportingService, AccountingReportingService>();
+            s.AddScoped<IAccountingSetupService, AccountingSetupService>();
+            s.AddScoped<IAssetLifecycleService, AssetLifecycleService>();
+            s.AddScoped<IEmployeeAttendanceService, EmployeeAttendanceService>();
+            s.AddScoped<IFeeHeadAccountingService, FeeHeadAccountingService>();
+            s.AddScoped<IFeeReceivablesAgingService, FeeReceivablesAgingService>();
+            s.AddScoped<IFinanceAdjustmentService, FinanceAdjustmentService>();
+            s.AddScoped<IGuardianCommunicationPreferenceService, GuardianCommunicationPreferenceService>();
+            s.AddScoped<IHrSetupService, HrSetupService>();
+            s.AddScoped<IInventoryCatalogService, InventoryCatalogService>();
+            s.AddScoped<IInventoryMovementService, InventoryMovementService>();
+            s.AddScoped<ILeaveEntitlementService, LeaveEntitlementService>();
+            s.AddScoped<ILibraryBranchService, LibraryBranchService>();
+            s.AddScoped<ILibraryReservationService, LibraryReservationService>();
+            s.AddScoped<ILmsAssessmentService, LmsAssessmentService>();
+            s.AddScoped<ILmsCourseContentService, LmsCourseContentService>();
+            s.AddScoped<ILmsLiveClassService, LmsLiveClassService>();
+            s.AddScoped<ILoanDisbursementService, LoanDisbursementService>();
+            s.AddScoped<ILoanRecoveryService, LoanRecoveryService>();
+            s.AddScoped<IPayrollJournalPostingService, PayrollJournalPostingService>();
+            s.AddScoped<IPayrollPaymentPostingService, PayrollPaymentPostingService>();
+            s.AddScoped<IStudentGuardianWorkspaceService, StudentGuardianWorkspaceService>();
+            s.AddScoped<IStudentInvoicePostingService, StudentInvoicePostingService>();
+            s.AddScoped<IStudentOptionalSubjectQueryService, StudentOptionalSubjectQueryService>();
+            s.AddScoped<IStudentPaymentPostingService, StudentPaymentPostingService>();
+            s.AddScoped<IStudentTransferRequestService, StudentTransferRequestService>();
+            s.AddScoped<ISubjectPrerequisiteService, SubjectPrerequisiteService>();
+            s.AddScoped<ITenantFeatureAuditService, TenantFeatureAuditService>();
+            s.AddScoped<ITenantFeatureRestrictionService, TenantFeatureRestrictionService>();
 
             return s;
         }

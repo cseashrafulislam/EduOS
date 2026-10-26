@@ -17,9 +17,7 @@ namespace EduOS.App.Controllers.Api;
 public sealed class LoanRecoveryController : ControllerBase
 {
     private readonly ILoanRecoveryService service;
-    // Platform owns central DI; independently compose the institutional Finance service.
-    public LoanRecoveryController(EduOSDbContext db, ICurrentUserService user, TimeProvider clock)
-        => service = new LoanRecoveryService(db, user, clock);
+    public LoanRecoveryController(ILoanRecoveryService implementation) => service = implementation;
     private IActionResult Reply<T>(EduOS.Core.Common.ApiResponse<T> result) =>
         StatusCode(result.StatusCode, result);
 

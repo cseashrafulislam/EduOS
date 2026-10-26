@@ -17,9 +17,7 @@ namespace EduOS.App.Controllers.Api;
 public sealed class LibraryBranchesController : ControllerBase
 {
     private readonly ILibraryBranchService _service;
-    // Activate from registered generic repositories without editing Platform-owned global DI.
-    public LibraryBranchesController(IServiceProvider provider) =>
-        _service = ActivatorUtilities.CreateInstance<LibraryBranchService>(provider);
+    public LibraryBranchesController(ILibraryBranchService implementation) => _service = implementation;
 
     [HttpGet]
     public async Task<IActionResult> List([FromQuery] long? campusId, CancellationToken ct) =>

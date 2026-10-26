@@ -17,9 +17,7 @@ namespace EduOS.App.Controllers.Api;
 public sealed class LoanDisbursementController : ControllerBase
 {
     private readonly ILoanDisbursementService service;
-    // Central DI belongs to Platform. Keep the institutional Finance composition independent.
-    public LoanDisbursementController(EduOSDbContext db, ICurrentUserService user, TimeProvider clock)
-        => service = new LoanDisbursementService(db, user, clock);
+    public LoanDisbursementController(ILoanDisbursementService implementation) => service = implementation;
     private IActionResult Reply<T>(EduOS.Core.Common.ApiResponse<T> response) =>
         StatusCode(response.StatusCode, response);
     [HttpGet]

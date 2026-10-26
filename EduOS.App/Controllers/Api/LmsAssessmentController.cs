@@ -18,9 +18,7 @@ namespace EduOS.App.Controllers.Api;
 public sealed class LmsAssessmentController : ControllerBase
 {
     private readonly ILmsAssessmentService _service;
-    // Platform owns shared DI; instantiate with already registered repositories.
-    public LmsAssessmentController(IServiceProvider provider) =>
-        _service = ActivatorUtilities.CreateInstance<LmsAssessmentService>(provider);
+    public LmsAssessmentController(ILmsAssessmentService implementation) => _service = implementation;
     private IActionResult Reply<T>(ApiResponse<T> result) => StatusCode(result.StatusCode, result);
 
     [HttpGet("course/{courseReference:guid}/author")]

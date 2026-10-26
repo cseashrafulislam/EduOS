@@ -14,10 +14,8 @@ namespace EduOS.App.Controllers.Api;
 [AutoValidateAntiforgeryToken]
 [EnableRateLimiting("ApiPolicy")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-public sealed class TenantFeaturesApiController(IServiceProvider services) : ControllerBase
+public sealed class TenantFeaturesApiController(ITenantFeatureRestrictionService service) : ControllerBase
 {
-    private readonly ITenantFeatureRestrictionService service =
-        ActivatorUtilities.CreateInstance<TenantFeatureRestrictionService>(services);
 
     [HttpGet]
     public async Task<IActionResult> Index([FromQuery] int page = 1, [FromQuery] int pageSize = 20,

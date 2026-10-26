@@ -15,8 +15,7 @@ namespace EduOS.App.Controllers.Api;
 public sealed class AccountingReportsController : ControllerBase
 {
     private readonly IAccountingReportingService service;
-    public AccountingReportsController(EduOSDbContext db, ICurrentUserService user)
-        => service = new AccountingReportingService(db, user);
+    public AccountingReportsController(IAccountingReportingService implementation) => service = implementation;
     private IActionResult Reply<T>(ApiResponse<T> result) => StatusCode(result.StatusCode, result);
     [HttpGet("ledger/{accountId:long}")]
     public async Task<IActionResult> Ledger(long accountId, [FromQuery] DateOnly fromDate,

@@ -13,10 +13,8 @@ namespace EduOS.App.Controllers.Api;
 [AutoValidateAntiforgeryToken]
 [EnableRateLimiting("ApiPolicy")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-public sealed class TenantFeatureAuditApiController(IServiceProvider services) : ControllerBase
+public sealed class TenantFeatureAuditApiController(ITenantFeatureAuditService service) : ControllerBase
 {
-    private readonly ITenantFeatureAuditService service =
-        ActivatorUtilities.CreateInstance<TenantFeatureAuditService>(services);
 
     [HttpGet("export")]
     public async Task<IActionResult> Export(CancellationToken cancellationToken)

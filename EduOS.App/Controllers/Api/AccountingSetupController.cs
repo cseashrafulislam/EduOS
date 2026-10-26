@@ -12,7 +12,7 @@ namespace EduOS.App.Controllers.Api;
 public sealed class AccountingSetupController : ControllerBase
 {
     private readonly IAccountingSetupService service;
-    public AccountingSetupController(EduOSDbContext db, ICurrentUserService user, TimeProvider clock) => service = new AccountingSetupService(db,user,clock);
+    public AccountingSetupController(IAccountingSetupService implementation) => service = implementation;
     private IActionResult Reply<T>(EduOS.Core.Common.ApiResponse<T> r) => StatusCode(r.StatusCode,r);
     [HttpGet("accounts")] public async Task<IActionResult> Accounts(int page=1,int pageSize=25,string? search=null,CancellationToken ct=default) => Reply(await service.GetAccountsAsync(page,pageSize,search,ct));
     [HttpGet("accounts/{id:long}")] public async Task<IActionResult> Account(long id,CancellationToken ct) => Reply(await service.GetAccountAsync(id,ct));

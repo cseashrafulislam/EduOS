@@ -21,10 +21,7 @@ public sealed class LmsLiveClassesController : ControllerBase
 {
     private readonly ILmsLiveClassService _service;
 
-    // Platform owns shared service registrations. Resolve through the registered repositories.
-    public LmsLiveClassesController(IServiceProvider provider) =>
-        _service = provider.GetService<ILmsLiveClassService>() ??
-            ActivatorUtilities.CreateInstance<LmsLiveClassService>(provider);
+    public LmsLiveClassesController(ILmsLiveClassService implementation) => _service = implementation;
 
     private IActionResult Reply<T>(ApiResponse<T> result) => StatusCode(result.StatusCode, result);
 

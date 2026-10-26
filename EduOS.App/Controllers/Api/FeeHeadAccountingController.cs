@@ -17,8 +17,7 @@ namespace EduOS.App.Controllers.Api;
 public sealed class FeeHeadAccountingController : ControllerBase
 {
     private readonly IFeeHeadAccountingService service;
-    public FeeHeadAccountingController(EduOSDbContext db, ICurrentUserService user, TimeProvider clock)
-        => service = new FeeHeadAccountingService(db, user, clock);
+    public FeeHeadAccountingController(IFeeHeadAccountingService implementation) => service = implementation;
     private IActionResult Reply<T>(EduOS.Core.Common.ApiResponse<T> result) => StatusCode(result.StatusCode, result);
 
     [HttpGet]

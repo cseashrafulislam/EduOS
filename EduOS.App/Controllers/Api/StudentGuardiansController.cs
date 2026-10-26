@@ -20,9 +20,7 @@ public sealed class StudentGuardiansController : ControllerBase
 {
     private readonly IStudentGuardianWorkspaceService _service;
 
-    // Platform owns the global DI module; scoped construction until interface registration.
-    public StudentGuardiansController(IServiceProvider services) =>
-        _service = ActivatorUtilities.CreateInstance<StudentGuardianWorkspaceService>(services);
+    public StudentGuardiansController(IStudentGuardianWorkspaceService implementation) => _service = implementation;
 
     [HttpGet("students/{studentReference:guid}")]
     public async Task<IActionResult> Get(Guid studentReference, CancellationToken ct)

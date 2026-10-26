@@ -19,9 +19,7 @@ public sealed class StudentOptionalSubjectsController : ControllerBase
 {
     private readonly IStudentOptionalSubjectQueryService _query;
 
-    // Platform owns global DI. Use scoped construction until it registers the interface.
-    public StudentOptionalSubjectsController(IServiceProvider services) =>
-        _query = ActivatorUtilities.CreateInstance<StudentOptionalSubjectQueryService>(services);
+    public StudentOptionalSubjectsController(IStudentOptionalSubjectQueryService implementation) => _query = implementation;
 
     [HttpGet("students/{studentReference:guid}")]
     public async Task<IActionResult> Get(Guid studentReference, CancellationToken ct)

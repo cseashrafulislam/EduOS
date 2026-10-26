@@ -20,9 +20,7 @@ public sealed class GuardianCommunicationPreferencesController : ControllerBase
 {
     private readonly IGuardianCommunicationPreferenceService _service;
 
-    // Platform owns the global DI registrations; construct this scoped service from its dependencies.
-    public GuardianCommunicationPreferencesController(IServiceProvider services) =>
-        _service = ActivatorUtilities.CreateInstance<GuardianCommunicationPreferenceService>(services);
+    public GuardianCommunicationPreferencesController(IGuardianCommunicationPreferenceService implementation) => _service = implementation;
 
     [HttpGet]
     public async Task<IActionResult> Mine(CancellationToken ct)

@@ -14,7 +14,6 @@ namespace EduOS.App.Controllers.Api;
 public sealed partial class InventoryMovementsController : ControllerBase
 {
     private readonly IInventoryMovementService service;
-    public InventoryMovementsController(EduOSDbContext db, ICurrentUserService user, TimeProvider clock, ILogger<InventoryMovementService> logger)
-        => service = new InventoryMovementService(db, user, clock, logger);
+    public InventoryMovementsController(IInventoryMovementService implementation) => service = implementation;
     private IActionResult Reply<T>(ApiResponse<T> result) => StatusCode(result.StatusCode, result);
 }

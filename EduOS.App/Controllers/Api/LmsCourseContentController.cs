@@ -20,10 +20,7 @@ namespace EduOS.App.Controllers.Api;
 public sealed class LmsCourseContentController : ControllerBase
 {
     private readonly ILmsCourseContentService _service;
-    // Shared DI is Platform-owned; construct with registered canonical repositories until Platform registers the service.
-    public LmsCourseContentController(IServiceProvider provider) =>
-        _service = provider.GetService<ILmsCourseContentService>() ??
-            ActivatorUtilities.CreateInstance<LmsCourseContentService>(provider);
+    public LmsCourseContentController(ILmsCourseContentService implementation) => _service = implementation;
 
     private IActionResult Reply<T>(ApiResponse<T> response) => StatusCode(response.StatusCode, response);
 

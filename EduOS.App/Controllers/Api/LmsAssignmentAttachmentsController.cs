@@ -19,9 +19,7 @@ namespace EduOS.App.Controllers.Api;
 public sealed class LmsAssignmentAttachmentsController : ControllerBase
 {
     private readonly ILmsCourseContentService _service;
-    public LmsAssignmentAttachmentsController(IServiceProvider provider) =>
-        _service = provider.GetService<ILmsCourseContentService>() ??
-            ActivatorUtilities.CreateInstance<LmsCourseContentService>(provider);
+    public LmsAssignmentAttachmentsController(ILmsCourseContentService implementation) => _service = implementation;
 
     [HttpGet("{assignmentReference:guid}")]
     public async Task<IActionResult> List(Guid assignmentReference, CancellationToken ct)

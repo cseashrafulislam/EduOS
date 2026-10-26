@@ -15,8 +15,7 @@ namespace EduOS.App.Controllers.Api;
 public sealed class StudentInvoicePostingController : ControllerBase
 {
     private readonly IStudentInvoicePostingService service;
-    public StudentInvoicePostingController(EduOSDbContext db, ICurrentUserService user, TimeProvider clock)
-        => service = new StudentInvoicePostingService(db, user, clock);
+    public StudentInvoicePostingController(IStudentInvoicePostingService implementation) => service = implementation;
     private IActionResult Reply<T>(EduOS.Core.Common.ApiResponse<T> result) => StatusCode(result.StatusCode, result);
     [HttpGet]
     public async Task<IActionResult> Register([FromQuery] long? campusId, [FromQuery] string? search,

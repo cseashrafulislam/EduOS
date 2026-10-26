@@ -20,9 +20,7 @@ namespace EduOS.App.Controllers.Api;
 public sealed class LeaveEntitlementsController : ControllerBase
 {
     private readonly ILeaveEntitlementService service;
-    // Central DI is Platform-owned; use the same explicit construction as HR Setup.
-    public LeaveEntitlementsController(EduOSDbContext db, ICurrentUserService user, TimeProvider clock)
-        => service = new LeaveEntitlementService(db, user, clock);
+    public LeaveEntitlementsController(ILeaveEntitlementService implementation) => service = implementation;
     private IActionResult Reply<T>(EduOS.Core.Common.ApiResponse<T> response) => StatusCode(response.StatusCode, response);
     [HttpGet("types")]
     public async Task<IActionResult> Types(CancellationToken ct) => Reply(await service.GetLeaveTypesAsync(ct));

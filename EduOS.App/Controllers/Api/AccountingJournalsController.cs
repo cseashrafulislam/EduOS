@@ -17,9 +17,7 @@ namespace EduOS.App.Controllers.Api;
 public sealed class AccountingJournalsController : ControllerBase
 {
     private readonly IAccountingPostingService service;
-    // Explicit construction matches existing accounting endpoints until Platform owns central DI registration.
-    public AccountingJournalsController(EduOSDbContext db, ICurrentUserService user, TimeProvider clock)
-        => service = new AccountingPostingService(db, user, clock);
+    public AccountingJournalsController(IAccountingPostingService implementation) => service = implementation;
     private IActionResult Reply<T>(ApiResponse<T> response) => StatusCode(response.StatusCode, response);
 
     [HttpGet]

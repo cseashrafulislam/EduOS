@@ -20,9 +20,7 @@ namespace EduOS.App.Controllers.Api;
 public sealed class EmployeeAttendanceController : ControllerBase
 {
     private readonly IEmployeeAttendanceService service;
-    // Central service DI is Platform-owned; follow the existing HrSetup construction pattern.
-    public EmployeeAttendanceController(EduOSDbContext db, ICurrentUserService user, TimeProvider clock)
-        => service = new EmployeeAttendanceService(db, user, clock);
+    public EmployeeAttendanceController(IEmployeeAttendanceService implementation) => service = implementation;
     private IActionResult Reply<T>(EduOS.Core.Common.ApiResponse<T> result) => StatusCode(result.StatusCode, result);
     [HttpGet]
     public async Task<IActionResult> List([FromQuery] Guid? employeeReference, [FromQuery] DateOnly fromDate,

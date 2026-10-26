@@ -19,9 +19,7 @@ namespace EduOS.App.Controllers.Api;
 public sealed class SubjectPrerequisitesController : ControllerBase
 {
     private readonly ISubjectPrerequisiteService _service;
-    public SubjectPrerequisitesController(IServiceProvider provider) =>
-        _service = provider.GetService<ISubjectPrerequisiteService>() ??
-            ActivatorUtilities.CreateInstance<SubjectPrerequisiteService>(provider);
+    public SubjectPrerequisitesController(ISubjectPrerequisiteService implementation) => _service = implementation;
 
     [HttpGet("options")]
     public async Task<IActionResult> Options([FromQuery] long curriculumId, CancellationToken ct)

@@ -17,9 +17,7 @@ namespace EduOS.App.Controllers.Api;
 public sealed class StudentPaymentPostingController : ControllerBase
 {
     private readonly IStudentPaymentPostingService service;
-    // Matches the existing invoice posting controller; central DI is Platform-owned.
-    public StudentPaymentPostingController(EduOSDbContext db, ICurrentUserService user, TimeProvider clock)
-        => service = new StudentPaymentPostingService(db, user, clock);
+    public StudentPaymentPostingController(IStudentPaymentPostingService implementation) => service = implementation;
     private IActionResult Reply<T>(EduOS.Core.Common.ApiResponse<T> result) => StatusCode(result.StatusCode, result);
     [HttpGet]
     public async Task<IActionResult> Register([FromQuery] long? campusId, [FromQuery] string? search,

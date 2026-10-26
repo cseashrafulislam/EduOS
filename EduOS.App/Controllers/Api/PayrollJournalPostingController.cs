@@ -17,9 +17,7 @@ namespace EduOS.App.Controllers.Api;
 public sealed class PayrollJournalPostingController : ControllerBase
 {
     private readonly IPayrollJournalPostingService service;
-    // Platform owns central DI registration; use the established finance-controller composition pattern.
-    public PayrollJournalPostingController(EduOSDbContext db, ICurrentUserService user, TimeProvider clock)
-        => service = new PayrollJournalPostingService(db, user, clock);
+    public PayrollJournalPostingController(IPayrollJournalPostingService implementation) => service = implementation;
     private IActionResult Reply<T>(EduOS.Core.Common.ApiResponse<T> response) => StatusCode(response.StatusCode, response);
     [HttpGet]
     public async Task<IActionResult> Register([FromQuery] bool unpostedOnly = true,

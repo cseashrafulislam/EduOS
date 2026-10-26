@@ -14,8 +14,7 @@ namespace EduOS.App.Controllers.Api;
 public sealed class InventoryCatalogController : ControllerBase
 {
     private readonly IInventoryCatalogService service;
-    public InventoryCatalogController(EduOSDbContext db, ICurrentUserService user, TimeProvider clock, ILogger<InventoryCatalogService> logger)
-        => service = new InventoryCatalogService(db, user, clock, logger);
+    public InventoryCatalogController(IInventoryCatalogService implementation) => service = implementation;
     [HttpGet("items"), Authorize(Roles="TenantAdmin,Principal,InventoryManager,StoreKeeper,Accountant")]
     public async Task<IActionResult> Items(int page=1,int pageSize=25,string? search=null,CancellationToken ct=default)
         => Reply(await service.GetItemsAsync(page,pageSize,search,ct));

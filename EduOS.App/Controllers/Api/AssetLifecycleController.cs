@@ -15,8 +15,7 @@ namespace EduOS.App.Controllers.Api;
 public sealed partial class AssetLifecycleController : ControllerBase
 {
     private readonly IAssetLifecycleService service;
-    public AssetLifecycleController(EduOSDbContext db, ICurrentUserService user, TimeProvider clock, ILogger<AssetLifecycleService> logger)
-        => service = new AssetLifecycleService(db, user, clock, logger);
+    public AssetLifecycleController(IAssetLifecycleService implementation) => service = implementation;
     private IActionResult Reply<T>(ApiResponse<T> response) => StatusCode(response.StatusCode, response);
     [HttpGet("categories"), Authorize(Roles="TenantAdmin,Principal,InventoryManager,StoreKeeper,Accountant")]
     public async Task<IActionResult> Categories(CancellationToken ct) => Reply(await service.GetCategoriesAsync(ct));

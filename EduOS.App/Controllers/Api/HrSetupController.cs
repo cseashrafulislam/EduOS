@@ -20,9 +20,7 @@ namespace EduOS.App.Controllers.Api;
 public sealed class HrSetupController : ControllerBase
 {
     private readonly IHrSetupService service;
-    // Direct construction matches existing AccountingSetup; central DI remains Platform-owned.
-    public HrSetupController(EduOSDbContext db, ICurrentUserService user, TimeProvider clock)
-        => service = new HrSetupService(db, user, clock);
+    public HrSetupController(IHrSetupService implementation) => service = implementation;
     private IActionResult Reply<T>(EduOS.Core.Common.ApiResponse<T> response) => StatusCode(response.StatusCode, response);
     [HttpGet("departments")]
     public async Task<IActionResult> Departments([FromQuery] int page = 1, [FromQuery] int pageSize = 50, CancellationToken ct = default)

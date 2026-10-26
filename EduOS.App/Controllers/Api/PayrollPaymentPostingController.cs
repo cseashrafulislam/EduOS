@@ -17,9 +17,7 @@ namespace EduOS.App.Controllers.Api;
 public sealed class PayrollPaymentPostingController : ControllerBase
 {
     private readonly IPayrollPaymentPostingService service;
-    // Platform owns central DI. Match the existing institutional finance composition pattern.
-    public PayrollPaymentPostingController(EduOSDbContext db, ICurrentUserService user, TimeProvider clock)
-        => service = new PayrollPaymentPostingService(db, user, clock);
+    public PayrollPaymentPostingController(IPayrollPaymentPostingService implementation) => service = implementation;
     private IActionResult Reply<T>(EduOS.Core.Common.ApiResponse<T> response) => StatusCode(response.StatusCode, response);
     [HttpGet]
     public async Task<IActionResult> Register([FromQuery] bool pendingOnly = true,

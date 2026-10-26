@@ -1,6 +1,7 @@
 using EduOS.App.Authorization;
 using EduOS.Core.DTOs.Finance;
 using EduOS.Core.Interfaces;
+using EduOS.Core.Interfaces.IServices;
 using EduOS.Persistence.Context;
 using EduOS.Service.Services.Finance;
 using Microsoft.AspNetCore.Authorization;
@@ -18,9 +19,8 @@ namespace EduOS.App.Controllers.Api;
 [ResponseCache(NoStore=true,Location=ResponseCacheLocation.None)]
 public sealed class FinanceAdjustmentsController : ControllerBase
 {
-    private readonly FinanceAdjustmentService service;
-    public FinanceAdjustmentsController(EduOSDbContext db, ICurrentUserService user, TimeProvider clock)
-        => service=new FinanceAdjustmentService(db,user,clock);
+    private readonly IFinanceAdjustmentService service;
+    public FinanceAdjustmentsController(IFinanceAdjustmentService implementation) => service = implementation;
     private IActionResult Reply<T>(EduOS.Core.Common.ApiResponse<T> result) => StatusCode(result.StatusCode,result);
     [HttpGet("discount-rules")]
     public async Task<IActionResult> DiscountRules(CancellationToken ct) => Reply(await service.GetDiscountRulesAsync(ct));
