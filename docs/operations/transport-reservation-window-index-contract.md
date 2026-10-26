@@ -37,3 +37,21 @@ Use distinct operation scopes (e.g. `transport.route-vehicle-change`, `transport
 ## Verification / remaining acceptance
 
 Platform test `TransportReservationWindowIndexTests` asserts EF model metadata and, when `EDUOS_SQL_AUTH_TEST_CONNECTION` is set, checks five SQL Server indexes after migration. Existing `SqlServerTransportIdentityIntegrationTests` covers real rowversion, normalized uniqueness, filtered current links and concurrent request-key uniqueness. Remaining: two-DbContext competing **service command** races for vehicle capacity/deactivation, overlapping route/driver scheduling, rider extension and durable request replay; Operations owns these command tests and integration. Finance owns paid-period billing and #45 transfer charges. Do not mark Issues #36/#37/#50/#51 fully closed from this persistence-only change.
+
+## Concurrent SQL Server constraint regression (2026-10-27)
+
+`SqlServerTransportConcurrentUniquenessTests` uses two independent tenant-scoped
+`EduOSDbContext` instances per competing write against the disposable SQL Server
+database. It checks that **exactly one** of two concurrent writers can insert:
+(a) case/whitespace-equivalent vehicle numbers, (b) case/whitespace-equivalent
+driver licenses, (c) current route links for one vehicle, and (d) current driver
+links for one driver. Only SQL Server unique-index violations (2601/2627)
+count as expected conflicts; unrelated database failures fail the tests.
+A separate test verifies stale driver `rowversion` updates are rejected.
+
+These tests are included in `sqlserver-migration.yml` and require
+`EDUOS_SQL_AUTH_TEST_CONNECTION`. They validate deployed constraints,
+**not** Operations service-level capacity/deactivation races, overlap
+rechecks, cancellation-vs-extension races or HTTP 409 mapping. Those remain
+separate two-command integration requirements for Issues #36/#37/#50/#51.
+No new migration, duplicate receipt table, or schema backfill is introduced.
