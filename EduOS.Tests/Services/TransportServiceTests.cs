@@ -26,6 +26,78 @@ namespace EduOS.Tests.Services;
 public class TransportServiceTests
 {
     [Fact]
+    public async Task Upcoming_route_vehicle_change_persists_outcome_and_rejects_key_reuse()
+    {
+        await using var db = CreateContext(CreateOptions(), 101);
+        var preexistingRider = await SeedAssignmentAsync(db, 101, true, [1,2,3,4,5,6,7,8]);
+        // This fixture uses a placeholder link ID; the rider must not reference
+        // the planned link created by this test.
+        preexistingRider.RouteVehicleAssignmentId = null;
+        await db.SaveChangesAsync();
+        var route = await db.Routes.SingleAsync();
+        var campus = await db.Campuses.SingleAsync();
+        route.CampusId = campus.Id;
+        var oldVehicle = new Vehicle { TenantId = 101, CampusId = campus.Id,
+            VehicleNumber = "TEST-OLD", Capacity = 30, RowVersion = [1,1,1,1,1,1,1,1] };
+        var nextVehicle = new Vehicle { TenantId = 101, CampusId = campus.Id,
+            VehicleNumber = "TEST-NEW", Capacity = 30, RowVersion = [2,2,2,2,2,2,2,2] };
+        db.Vehicles.AddRange(oldVehicle, nextVehicle);
+        await db.SaveChangesAsync();
+        var link = new RouteVehicleAssignment { TenantId = 101, RouteId = route.Id,
+            VehicleId = oldVehicle.Id, EffectiveFrom = DateOnly.FromDateTime(DateTime.Today.AddDays(10)),
+            EffectiveTo = DateOnly.FromDateTime(DateTime.Today.AddDays(20)), IsCurrent = true,
+            RowVersion = [3,3,3,3,3,3,3,3] };
+        db.RouteVehicleAssignments.Add(link);
+        await db.SaveChangesAsync();
+        var key = Guid.NewGuid();
+        var request = new ChangeUpcomingRouteVehicleRequestDto { ClientRequestId = key,
+            NewVehicleId = nextVehicle.Id, AssignmentRowVersion = Convert.ToBase64String(link.RowVersion),
+            VehicleRowVersion = Convert.ToBase64String(nextVehicle.RowVersion) };
+        var service = CreateService(db, 101);
+
+        var first = await service.ChangeUpcomingRouteVehicleAsync(link.Id, request);
+        first.Success.Should().BeTrue(first.Message);
+        var updatedAt = link.UpdatedAt;
+        var second = await service.ChangeUpcomingRouteVehicleAsync(link.Id, request);
+        second.Success.Should().BeTrue(second.Message);
+        second.Message.Should().Be(first.Message);
+        second.Data!.VehicleId.Should().Be(nextVehicle.Id);
+        link.UpdatedAt.Should().Be(updatedAt);
+        (await db.IdempotencyRecords.CountAsync(x => x.Scope == "transport.route-vehicle-change"))
+            .Should().Be(1);
+        var wrong = await service.ChangeUpcomingRouteVehicleAsync(link.Id,
+            new ChangeUpcomingRouteVehicleRequestDto { ClientRequestId = key,
+                NewVehicleId = oldVehicle.Id, AssignmentRowVersion = request.AssignmentRowVersion,
+                VehicleRowVersion = request.VehicleRowVersion });
+        wrong.StatusCode.Should().Be(409);
+        link.VehicleId.Should().Be(nextVehicle.Id);
+    }
+
+    [Fact]
+    public async Task Upcoming_charged_transport_extension_requires_finance_billing_contract()
+    {
+        await using var db = CreateContext(CreateOptions(), 101);
+        var rider = await SeedAssignmentAsync(db, 101, true, [1,2,3,4,5,6,7,8]);
+        rider.StartDate = DateOnly.FromDateTime(DateTime.Today.AddDays(10));
+        rider.EndDate = rider.StartDate.AddDays(10);
+        await db.SaveChangesAsync();
+        var previousEnd = rider.EndDate;
+
+        var response = await CreateService(db, 101).ExtendUpcomingRiderAsync(rider.PublicId,
+            new ExtendUpcomingTransportAssignmentRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(),
+                EndDate = previousEnd!.Value.AddDays(10),
+                RowVersion = Convert.ToBase64String(rider.RowVersion)
+            });
+
+        response.Success.Should().BeFalse();
+        response.StatusCode.Should().Be(409);
+        rider.EndDate.Should().Be(previousEnd);
+        (await db.IdempotencyRecords.CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
     public async Task Posted_enrollment_invoice_blocks_transport_closure_without_mutating_reservation()
     {
         await using var db = CreateContext(CreateOptions(), 101);
@@ -350,7 +422,8 @@ public class TransportServiceTests
         new GenericRepository<Campus>(context),
         new TestUnitOfWork(context),
         new TestCurrentUser(tenant, canManage, role), TimeProvider.System,
-        NullLogger<TransportService>.Instance, new ReservationFinancePolicy(context));
+        NullLogger<TransportService>.Instance, new ReservationFinancePolicy(context),
+        new EduOS.Service.Services.Platform.ReservationCommandReceiptStore(context, TimeProvider.System));
 
     private static async Task<StudentTransport> SeedAssignmentAsync(EduOSDbContext context, long tenant, bool active, byte[] rowVersion)
     {

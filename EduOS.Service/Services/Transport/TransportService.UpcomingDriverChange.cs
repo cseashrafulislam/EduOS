@@ -63,20 +63,24 @@ public sealed partial class TransportService
     }
 
     /// <summary>Change only the planned driver on a not-yet-started canonical assignment.
-    /// Exact-state retries are supported; durable request-key idempotency needs Platform persistence.
+    /// Exact-state retries and durable request-key outcomes are supported.
     /// The existing filtered unique index permits only one current assignment per driver.
     /// </summary>
     public async Task<ApiResponse<VehicleDriverAssignmentDto>> ChangeUpcomingDriverAsync(
         long assignmentId, ChangeUpcomingVehicleDriverRequestDto request, CancellationToken ct = default)
     {
         if (!CanManageDriverRegistry()) return Denied<VehicleDriverAssignmentDto>();
-        if (assignmentId <= 0 || request == null || request.NewDriverId <= 0 ||
+        if (assignmentId <= 0 || request == null || request.ClientRequestId == Guid.Empty ||
+            request.NewDriverId <= 0 ||
             !TryDecodeVersion(request.AssignmentRowVersion, out var assignmentVersion) ||
             !TryDecodeVersion(request.DriverRowVersion, out var driverVersion))
             return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse(
                 "Assignment, replacement driver and both row versions are required.");
         var tenant = _currentUser.TenantId;
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+        const string operation = "transport.upcoming-driver-change";
+        var requestHash = CommandFingerprint(operation, assignmentId, request.NewDriverId,
+            Convert.ToBase64String(assignmentVersion), Convert.ToBase64String(driverVersion));
         try
         {
             return await _unitOfWork.ExecuteInTransactionAsync(async token =>
@@ -93,6 +97,12 @@ public sealed partial class TransportService
                     return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse("Vehicle campus unavailable.", 409);
                 if (!await CanManageCampusAsync(vehicle.CampusId.Value, tenant, token))
                     return Denied<VehicleDriverAssignmentDto>();
+                var replay = await _commandReceipts.ReplayAsync<VehicleDriverAssignmentDto>(tenant,
+                    _currentUser.UserId, operation, request.ClientRequestId, assignmentId, requestHash, token);
+                if (replay.Conflict)
+                    return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse(
+                        "Request key was already used with different command details.", 409);
+                if (replay.Found) return replay.Response!;
                 if (!link.IsCurrent || !link.EffectiveTo.HasValue || link.EffectiveFrom <= today)
                     return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse(
                         "Only future driver reservations can change drivers.", 409);
@@ -104,8 +114,14 @@ public sealed partial class TransportService
                     return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse(
                         "Replacement driver needs a valid license through the reservation end.", 409);
                 if (link.TransportDriverId == driver.Id)
-                    return ApiResponse<VehicleDriverAssignmentDto>.SuccessResponse(
+                {
+                    var same = ApiResponse<VehicleDriverAssignmentDto>.SuccessResponse(
                         MapVehicleDriverLink(link), "This driver is already assigned.");
+                    await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
+                        request.ClientRequestId, assignmentId, requestHash, same, token);
+                    await _unitOfWork.SaveChangesAsync(token);
+                    return same;
+                }
                 if (!link.RowVersion.AsSpan().SequenceEqual(assignmentVersion) ||
                     !driver.RowVersion.AsSpan().SequenceEqual(driverVersion))
                     return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse(
@@ -123,8 +139,12 @@ public sealed partial class TransportService
                 _logger.LogInformation(
                     "Upcoming driver changed tenant {TenantId} campus {CampusId} assignment {AssignmentId} old {OldDriver} new {NewDriver}",
                     tenant, vehicle.CampusId.Value, link.Id, oldDriver, driver.Id);
-                return ApiResponse<VehicleDriverAssignmentDto>.SuccessResponse(
+                var success = ApiResponse<VehicleDriverAssignmentDto>.SuccessResponse(
                     MapVehicleDriverLink(link), "Upcoming driver reservation updated.");
+                await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
+                    request.ClientRequestId, assignmentId, requestHash, success, token);
+                await _unitOfWork.SaveChangesAsync(token);
+                return success;
             }, System.Data.IsolationLevel.Serializable, ct);
         }
         catch (DbUpdateConcurrencyException)

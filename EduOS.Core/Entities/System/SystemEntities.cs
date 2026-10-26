@@ -134,5 +134,9 @@ public class IdempotencyRecord : BaseTenantEntity
     public Guid RequestId { get; set; }
     [MaxLength(128)] public string? RequestHash { get; set; }
     [MaxLength(128)] public string? ResultHash { get; set; }
+    public long? TargetId { get; set; }
+    public long? CompletedByUserId { get; set; }
+    public DateTime? CompletedAt { get; set; }
+    [MaxLength(4000)] public string? ResultJson { get; set; }
     public DateTime ExpiresAt { get; set; }
 }

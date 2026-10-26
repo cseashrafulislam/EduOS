@@ -85,19 +85,23 @@ public sealed partial class TransportService
     }
 
     /// <summary>Change the planned vehicle on the existing canonical route/vehicle link.
-    /// Existing rider references are immutable. Exact-state replay is supported;
-    /// durable request-key idempotency requires Platform persistence.</summary>
+    /// Existing rider references are immutable. Durable request-key replay stores
+    /// its outcome atomically with the canonical vehicle change.</summary>
     public async Task<ApiResponse<RouteVehicleAssignmentDto>> ChangeUpcomingRouteVehicleAsync(
         long assignmentId, ChangeUpcomingRouteVehicleRequestDto request, CancellationToken ct = default)
     {
         if (!CanManage()) return Denied<RouteVehicleAssignmentDto>();
-        if (assignmentId <= 0 || request == null || request.NewVehicleId <= 0 ||
+        if (assignmentId <= 0 || request == null || request.ClientRequestId == Guid.Empty ||
+            request.NewVehicleId <= 0 ||
             !TryDecodeVersion(request.AssignmentRowVersion, out var assignmentVersion) ||
             !TryDecodeVersion(request.VehicleRowVersion, out var vehicleVersion))
             return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse(
                 "Assignment, replacement vehicle and both row versions are required.");
         var tenant = _currentUser.TenantId;
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+        const string operation = "transport.route-vehicle-change";
+        var requestHash = CommandFingerprint(operation, assignmentId, request.NewVehicleId,
+            Convert.ToBase64String(assignmentVersion), Convert.ToBase64String(vehicleVersion));
         try
         {
             return await _unitOfWork.ExecuteInTransactionAsync(async token =>
@@ -115,6 +119,12 @@ public sealed partial class TransportService
                     return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse("Route campus unavailable.", 409);
                 if (!await CanManageCampusAsync(route.CampusId.Value, tenant, token))
                     return Denied<RouteVehicleAssignmentDto>();
+                var replay = await _commandReceipts.ReplayAsync<RouteVehicleAssignmentDto>(tenant,
+                    _currentUser.UserId, operation, request.ClientRequestId, assignmentId, requestHash, token);
+                if (replay.Conflict)
+                    return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse(
+                        "Request key was already used with different command details.", 409);
+                if (replay.Found) return replay.Response!;
                 if (!link.IsCurrent || !CanChangeUpcomingRouteVehicleVehicleDates(
                     link.EffectiveFrom, link.EffectiveTo, today))
                     return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse(
@@ -126,8 +136,14 @@ public sealed partial class TransportService
                     return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse(
                         "Replacement vehicle must be active and in the same campus.", 409);
                 if (link.VehicleId == vehicle.Id)
-                    return ApiResponse<RouteVehicleAssignmentDto>.SuccessResponse(
+                {
+                    var same = ApiResponse<RouteVehicleAssignmentDto>.SuccessResponse(
                         MapRouteVehicleLink(link), "This vehicle is already assigned.");
+                    await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
+                        request.ClientRequestId, assignmentId, requestHash, same, token);
+                    await _unitOfWork.SaveChangesAsync(token);
+                    return same;
+                }
                 if (!link.RowVersion.AsSpan().SequenceEqual(assignmentVersion) ||
                     !vehicle.RowVersion.AsSpan().SequenceEqual(vehicleVersion))
                     return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse(
@@ -166,8 +182,12 @@ public sealed partial class TransportService
                 _logger.LogInformation(
                     "Upcoming route vehicle changed tenant {TenantId} campus {CampusId} link {LinkId} old {OldVehicle} new {NewVehicle}",
                     tenant, route.CampusId.Value, link.Id, oldVehicleId, vehicle.Id);
-                return ApiResponse<RouteVehicleAssignmentDto>.SuccessResponse(
+                var success = ApiResponse<RouteVehicleAssignmentDto>.SuccessResponse(
                     MapRouteVehicleLink(link), "Upcoming route/vehicle assignment updated.");
+                await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
+                    request.ClientRequestId, assignmentId, requestHash, success, token);
+                await _unitOfWork.SaveChangesAsync(token);
+                return success;
             }, System.Data.IsolationLevel.Serializable, ct);
         }
         catch (DbUpdateConcurrencyException)

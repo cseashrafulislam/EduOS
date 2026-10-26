@@ -68,7 +68,7 @@ public sealed partial class TransportService
         if (!CanManageDriverRegistry()) return Denied<VehicleDriverAssignmentDto>();
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
         if (request == null || request.ClientRequestId == Guid.Empty || request.VehicleId <= 0 ||
-            request.TransportDriverId <= 0 || request.EffectiveFrom < today ||
+            request.TransportDriverId <= 0 ||
             request.EffectiveFrom == default ||
             (request.EffectiveTo.HasValue && request.EffectiveTo.Value < request.EffectiveFrom) ||
             !TryDecodeVersion(request.VehicleRowVersion, out var vehicleVersion) ||
@@ -76,15 +76,20 @@ public sealed partial class TransportService
             return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse(
                 "Driver, vehicle, request ID, row versions and valid dates are required.");
         var tenant = _currentUser.TenantId;
+        const string operation = "transport.vehicle-driver-assign";
+        var requestHash = CommandFingerprint(operation, request.VehicleId,
+            request.TransportDriverId, request.EffectiveFrom.ToString("yyyy-MM-dd"),
+            request.EffectiveTo?.ToString("yyyy-MM-dd"),
+            Convert.ToBase64String(vehicleVersion), Convert.ToBase64String(driverVersion));
         try
         {
             return await _unitOfWork.ExecuteInTransactionAsync(async token =>
             {
                 var vehicle = await _vehicles.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                    x.TenantId == tenant && x.Id == request.VehicleId && !x.IsDeleted && x.IsActive, token);
+                    x.TenantId == tenant && x.Id == request.VehicleId && !x.IsDeleted, token);
                 var driver = await _drivers.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                    x.TenantId == tenant && x.Id == request.TransportDriverId && !x.IsDeleted && x.IsActive, token);
-                if (vehicle == null || driver == null || vehicle.Capacity < 1)
+                    x.TenantId == tenant && x.Id == request.TransportDriverId && !x.IsDeleted, token);
+                if (vehicle == null || driver == null)
                     return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse("Active vehicle or driver not found.", 404);
                 if (!vehicle.CampusId.HasValue)
                     return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse("Vehicle must have an explicit campus.", 409);
@@ -93,6 +98,16 @@ public sealed partial class TransportService
                 if (campus == null) return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse("Campus unavailable.", 409);
                 if (!await CanManageCampusAsync(campus.Id, tenant, token))
                     return Denied<VehicleDriverAssignmentDto>();
+                var replay = await _commandReceipts.ReplayAsync<VehicleDriverAssignmentDto>(tenant,
+                    _currentUser.UserId, operation, request.ClientRequestId, vehicle.Id, requestHash, token);
+                if (replay.Conflict)
+                    return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse(
+                        "Request key was already used with different command details.", 409);
+                if (replay.Found) return replay.Response!;
+                if (!vehicle.IsActive || !driver.IsActive || vehicle.Capacity < 1)
+                    return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse("Active vehicle or driver not found.", 404);
+                if (request.EffectiveFrom < today)
+                    return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse("Assignment start date has passed.", 409);
                 if (!vehicle.RowVersion.AsSpan().SequenceEqual(vehicleVersion) ||
                     !driver.RowVersion.AsSpan().SequenceEqual(driverVersion))
                     return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse("Vehicle or driver changed. Reload.", 409);
@@ -109,8 +124,14 @@ public sealed partial class TransportService
                     x.TransportDriverId == driver.Id && x.EffectiveFrom == request.EffectiveFrom &&
                     x.EffectiveTo == end);
                 if (exact != null)
-                    return ApiResponse<VehicleDriverAssignmentDto>.SuccessResponse(
+                {
+                    var same = ApiResponse<VehicleDriverAssignmentDto>.SuccessResponse(
                         MapVehicleDriverLink(exact), "Identical assignment already exists.");
+                    await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
+                        request.ClientRequestId, vehicle.Id, requestHash, same, token);
+                    await _unitOfWork.SaveChangesAsync(token);
+                    return same;
+                }
                 if (related.Any(x => x.IsCurrent && x.EffectiveFrom <= end &&
                     (!x.EffectiveTo.HasValue || x.EffectiveTo.Value >= request.EffectiveFrom)))
                     return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse("Vehicle or driver has an overlapping assignment.", 409);
@@ -136,11 +157,15 @@ public sealed partial class TransportService
                 };
                 await _driverLinks.AddAsync(entity);
                 await _unitOfWork.SaveChangesAsync(token);
-                return new ApiResponse<VehicleDriverAssignmentDto>
+                var success = new ApiResponse<VehicleDriverAssignmentDto>
                 {
                     Success = true, StatusCode = 201, Message = "Driver assigned to vehicle.",
                     Data = MapVehicleDriverLink(entity)
                 };
+                await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
+                    request.ClientRequestId, vehicle.Id, requestHash, success, token);
+                await _unitOfWork.SaveChangesAsync(token);
+                return success;
             }, System.Data.IsolationLevel.Serializable, ct);
         }
         catch (DbUpdateConcurrencyException)

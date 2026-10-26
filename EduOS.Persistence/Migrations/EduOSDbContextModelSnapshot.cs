@@ -15923,6 +15923,12 @@ namespace EduOS.Persistence.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CompletedByUserId")
+                        .HasColumnType("bigint");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -15952,6 +15958,10 @@ namespace EduOS.Persistence.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
+                    b.Property<string>("ResultJson")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
                         .IsRequired()
@@ -15962,6 +15972,9 @@ namespace EduOS.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<long?>("TargetId")
+                        .HasColumnType("bigint");
 
                     b.Property<long>("TenantId")
                         .HasColumnType("bigint");

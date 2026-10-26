@@ -20,11 +20,15 @@ public sealed partial class TransportService
         CancellationToken cancellationToken = default)
     {
         if (!CanManage()) return Denied<StudentTransportDto>();
-        if (reference == Guid.Empty || request == null || request.EndDate == default ||
+        if (reference == Guid.Empty || request == null || request.ClientRequestId == Guid.Empty ||
+            request.EndDate == default ||
             !TryDecodeVersion(request.RowVersion, out var version))
             return Error("Assignment, extension end date and row version are required.");
         var tenant = _currentUser.TenantId;
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+        const string operation = "transport.rider-extend-upcoming";
+        var requestHash = CommandFingerprint(operation, 0, reference,
+            request.EndDate.ToString("yyyy-MM-dd"), Convert.ToBase64String(version));
         try
         {
             return await _unitOfWork.ExecuteInTransactionAsync(async ct =>
@@ -41,6 +45,10 @@ public sealed partial class TransportService
                     return Error("Active enrollment campus unavailable.", 409);
                 if (!await CanManageCampusAsync(enrollment.CampusId, tenant, ct))
                     return Denied<StudentTransportDto>();
+                var replay = await _commandReceipts.ReplayAsync<StudentTransportDto>(tenant,
+                    _currentUser.UserId, operation, request.ClientRequestId, assignment.Id, requestHash, ct);
+                if (replay.Conflict) return Error("Request key was already used with different command details.", 409);
+                if (replay.Found) return replay.Response!;
                 var route = await _routes.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && !x.IsDeleted && x.Id == assignment.RouteId && x.IsActive, ct);
                 var vehicle = await _vehicles.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
@@ -52,13 +60,23 @@ public sealed partial class TransportService
                 // Exact-state retry may use a stale row version; never change audit or fare.
                 if (assignment.State == TransportAssignmentState.Active &&
                     assignment.StartDate > today && assignment.EndDate == request.EndDate)
-                    return ApiResponse<StudentTransportDto>.SuccessResponse(
+                {
+                    var same = ApiResponse<StudentTransportDto>.SuccessResponse(
                         await MapAsync(assignment, ct), "Reservation already extended to this date.");
+                    await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
+                        request.ClientRequestId, assignment.Id, requestHash, same, ct);
+                    await _unitOfWork.SaveChangesAsync(ct);
+                    return same;
+                }
                 if (!assignment.RowVersion.AsSpan().SequenceEqual(version))
                     return Error("Assignment changed. Reload and retry.", 409);
                 if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
                     assignment.StudentId, assignment.StudentEnrollmentId, ct))
                     return Error("Posted finance activity requires an approved Finance adjustment before extension.", 409);
+                // There is no finance-owned recurring transport billing/adjustment contract yet.
+                // Never extend a chargeable period without reconciling its monetary obligation.
+                if (assignment.MonthlyFare != 0m)
+                    return Error("Charged reservation extension requires the Finance billing and adjustment workflow.", 409);
                 if (assignment.State != TransportAssignmentState.Active ||
                     !CanExtendUpcomingRiderDates(assignment.StartDate, assignment.EndDate,
                         request.EndDate, today))
@@ -109,8 +127,12 @@ public sealed partial class TransportService
                 _logger.LogInformation(
                     "Transport upcoming rider reservation extended: tenant {TenantId}, campus {CampusId}, assignment {AssignmentId}, end {EndDate}",
                     tenant, enrollment.CampusId, assignment.Id, assignment.EndDate);
-                return ApiResponse<StudentTransportDto>.SuccessResponse(
+                var success = ApiResponse<StudentTransportDto>.SuccessResponse(
                     await MapAsync(assignment, ct), "Upcoming rider reservation extended.");
+                await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
+                    request.ClientRequestId, assignment.Id, requestHash, success, ct);
+                await _unitOfWork.SaveChangesAsync(ct);
+                return success;
             }, System.Data.IsolationLevel.Serializable, cancellationToken);
         }
         catch (DbUpdateConcurrencyException)

@@ -29,6 +29,7 @@ public sealed partial class TransportService : ITransportService
     private readonly IGenericRepository<Campus> _campuses;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IReservationFinancePolicy _reservationFinancePolicy;
+    private readonly IReservationCommandReceiptStore _commandReceipts;
     private readonly ICurrentUserService _currentUser;
     private readonly TimeProvider _clock;
     private readonly ILogger<TransportService> _logger;
@@ -39,7 +40,8 @@ public sealed partial class TransportService : ITransportService
         IGenericRepository<Student> students, IGenericRepository<UserCampusAccess> campusAccesses,
         IGenericRepository<Campus> campuses, IUnitOfWork unitOfWork, ICurrentUserService currentUser,
         TimeProvider clock, ILogger<TransportService> logger,
-        IReservationFinancePolicy reservationFinancePolicy)
+        IReservationFinancePolicy reservationFinancePolicy,
+        IReservationCommandReceiptStore commandReceipts)
     {
         _routes = routes;
         _stops = stops;
@@ -55,6 +57,7 @@ public sealed partial class TransportService : ITransportService
         _clock = clock;
         _logger = logger;
         _reservationFinancePolicy = reservationFinancePolicy;
+        _commandReceipts = commandReceipts;
     }
 
     public async Task<ApiResponse<IReadOnlyList<RouteDto>>> GetRoutesAsync(CancellationToken cancellationToken = default)

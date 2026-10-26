@@ -95,6 +95,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<IAssessmentAdministrationService, AssessmentAdministrationService>();
             s.AddScoped<IFeeBillingService, FeeBillingService>();
             s.AddScoped<IReservationFinancePolicy, ReservationFinancePolicy>();
+            s.AddScoped<IReservationCommandReceiptStore, ReservationCommandReceiptStore>();
             s.AddScoped<ISelfServicePortalService, SelfServicePortalService>();
             s.AddScoped<IEmployeeSelfServiceService, EmployeeSelfServiceService>();
             s.AddScoped<ILmsWorkflowService, LmsWorkflowService>();

@@ -3,7 +3,7 @@
     const el = id => document.getElementById(id);
     const panel = el('transportNoChargeShorteningPanel');
     if (!panel) return;
-    let pending = null, busy = false;
+    let pending = null, busy = false, requestKey = null, requestSignature = null;
     function localDate() {
         const d = new Date();
         return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'),
@@ -24,13 +24,13 @@
         node.className = 'alert alert-' + (success ? 'success' : 'danger');
         node.textContent = message; node.focus();
     }
-    function dismiss() { pending = null; panel.hidden = true; }
+    function dismiss() { pending = null; panel.hidden = true; requestKey = null; requestSignature = null; }
     function begin(item) {
         if (!item || !item.canShortenNoCharge || !item.endDate ||
             item.startDate <= localDate() || item.endDate <= item.startDate) {
             notify('Only future finite no-charge reservations can be shortened.'); return;
         }
-        pending = item;
+        pending = item; requestKey = null; requestSignature = null;
         el('transportNoChargeShorteningDetails').textContent =
             item.studentName + ' · ' + item.routeName + ' · current end ' + item.endDate;
         const input = el('transportNoChargeShorteningDate');
@@ -46,6 +46,9 @@
             notify('Choose a date from start through the day before the current end.'); return;
         }
         if (!window.confirm('Release seat-days after ' + endDate + ' for ' + pending.studentName + '?')) return;
+        if (!window.crypto?.randomUUID) { notify('Secure browser context required.'); return; }
+        const signature = [pending.reference, endDate, pending.rowVersion].join('|');
+        if (signature !== requestSignature) { requestSignature = signature; requestKey = window.crypto.randomUUID(); }
         const button = el('transportNoChargeShorteningSave');
         busy = true; button.disabled = true;
         try {
@@ -56,7 +59,7 @@
                 method: 'POST', credentials: 'same-origin', cache: 'no-store',
                 headers: { Accept: 'application/json', 'Content-Type': 'application/json',
                     RequestVerificationToken: token },
-                body: JSON.stringify({ endDate, rowVersion: pending.rowVersion })
+                body: JSON.stringify({ clientRequestId: requestKey, endDate, rowVersion: pending.rowVersion })
             });
             const result = await response.json().catch(() => null);
             if (!response.ok || !result?.success)

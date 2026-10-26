@@ -22,10 +22,14 @@ public sealed partial class TransportService
         CancellationToken cancellationToken = default)
     {
         if (!CanManage()) return Denied<StudentTransportDto>();
-        if (reference == Guid.Empty || request == null || request.EndDate == default ||
+        if (reference == Guid.Empty || request == null || request.ClientRequestId == Guid.Empty ||
+            request.EndDate == default ||
             !TryDecodeVersion(request.RowVersion, out var version))
             return Error("Assignment, end date and row version are required.");
         var tenant = _currentUser.TenantId;
+        const string operation = "transport.rider-shorten-upcoming";
+        var requestHash = CommandFingerprint(operation, 0, reference,
+            request.EndDate.ToString("yyyy-MM-dd"), Convert.ToBase64String(version));
         try
         {
             return await _unitOfWork.ExecuteInTransactionAsync(async ct =>
@@ -42,6 +46,10 @@ public sealed partial class TransportService
                     return Error("Active enrollment campus unavailable.", 409);
                 if (!await CanManageCampusAsync(enrollment.CampusId, tenant, ct))
                     return Denied<StudentTransportDto>();
+                var replay = await _commandReceipts.ReplayAsync<StudentTransportDto>(tenant,
+                    _currentUser.UserId, operation, request.ClientRequestId, assignment.Id, requestHash, ct);
+                if (replay.Conflict) return Error("Request key was already used with different command details.", 409);
+                if (replay.Found) return replay.Response!;
                 if (assignment.State != TransportAssignmentState.Active || !assignment.EndDate.HasValue)
                     return Error("Only active fixed-term reservations can be shortened.", 409);
                 if (!IsNoChargeRiderFare(assignment.MonthlyFare))
@@ -51,8 +59,14 @@ public sealed partial class TransportService
                     return Error("Only valid unstarted reservations can be shortened.", 409);
                 // Exact-state replay is harmless even if the caller holds the old token.
                 if (request.EndDate == assignment.EndDate.Value)
-                    return ApiResponse<StudentTransportDto>.SuccessResponse(
+                {
+                    var same = ApiResponse<StudentTransportDto>.SuccessResponse(
                         await MapAsync(assignment, ct), "Reservation end date already matches.");
+                    await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
+                        request.ClientRequestId, assignment.Id, requestHash, same, ct);
+                    await _unitOfWork.SaveChangesAsync(ct);
+                    return same;
+                }
                 if (!assignment.RowVersion.AsSpan().SequenceEqual(version))
                     return Error("Assignment changed. Reload and retry.", 409);
                 if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
@@ -90,8 +104,12 @@ public sealed partial class TransportService
                 _logger.LogInformation(
                     "Upcoming no-charge transport reservation shortened: tenant {TenantId}, campus {CampusId}, assignment {AssignmentId}, {OldEnd} to {NewEnd}",
                     tenant, enrollment.CampusId, assignment.Id, oldEnd, request.EndDate);
-                return ApiResponse<StudentTransportDto>.SuccessResponse(
+                var success = ApiResponse<StudentTransportDto>.SuccessResponse(
                     await MapAsync(assignment, ct), "Upcoming no-charge reservation shortened.");
+                await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
+                    request.ClientRequestId, assignment.Id, requestHash, success, ct);
+                await _unitOfWork.SaveChangesAsync(ct);
+                return success;
             }, System.Data.IsolationLevel.Serializable, cancellationToken);
         }
         catch (DbUpdateConcurrencyException) { return Error("Assignment changed. Reload and retry.", 409); }

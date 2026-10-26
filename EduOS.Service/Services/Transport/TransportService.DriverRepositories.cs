@@ -25,9 +25,10 @@ public sealed partial class TransportService
         IGenericRepository<Campus> campuses, IUnitOfWork unitOfWork, ICurrentUserService currentUser,
         TimeProvider clock, ILogger<TransportService> logger,
         IGenericRepository<TransportDriver> drivers, IGenericRepository<VehicleDriverAssignment> driverLinks,
-        IReservationFinancePolicy reservationFinancePolicy)
+        IReservationFinancePolicy reservationFinancePolicy,
+        IReservationCommandReceiptStore commandReceipts)
         : this(routes, stops, vehicles, vehicleRoutes, assignments, enrollments, students,
-            campusAccesses, campuses, unitOfWork, currentUser, clock, logger, reservationFinancePolicy)
+            campusAccesses, campuses, unitOfWork, currentUser, clock, logger, reservationFinancePolicy, commandReceipts)
     {
         _drivers = drivers;
         _driverLinks = driverLinks;

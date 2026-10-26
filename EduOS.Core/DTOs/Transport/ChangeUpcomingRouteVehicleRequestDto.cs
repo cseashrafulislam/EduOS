@@ -4,6 +4,7 @@ namespace EduOS.Core.DTOs.Transport;
 
 public sealed class ChangeUpcomingRouteVehicleRequestDto
 {
+    public Guid ClientRequestId { get; set; }
     [Range(1, long.MaxValue)] public long NewVehicleId { get; set; }
     [Required] public string AssignmentRowVersion { get; set; } = string.Empty;
     [Required] public string VehicleRowVersion { get; set; } = string.Empty;

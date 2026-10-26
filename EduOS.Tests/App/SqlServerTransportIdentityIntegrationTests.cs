@@ -1,4 +1,5 @@
 using EduOS.Core.Entities.SaaS;
+using EduOS.Core.Entities.System;
 using EduOS.Core.Entities.Transport;
 using EduOS.Core.Enums.Domain;
 using EduOS.Persistence.Context;
@@ -10,6 +11,87 @@ namespace EduOS.Tests.App;
 
 public sealed class SqlServerTransportIdentityIntegrationTests
 {
+    [Fact]
+    public async Task Parallel_identical_transport_command_keys_can_commit_only_one_receipt_on_sql_server()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
+        var suffix = Guid.NewGuid().ToString("N")[..12];
+        long tenantId;
+        await using (var seed = new EduOSDbContext(options))
+        {
+            var tenant = new Tenant { Code = "CI-IK-" + suffix, Name = "Parallel receipt CI",
+                Email = "ik-" + suffix + "@example.test", State = TenantState.Active };
+            seed.Tenants.Add(tenant);
+            await seed.SaveChangesAsync();
+            tenantId = tenant.Id;
+        }
+        var key = Guid.NewGuid();
+        async Task<bool> InsertAsync()
+        {
+            await using var db = ScopedContext(options, tenantId);
+            db.IdempotencyRecords.Add(new IdempotencyRecord
+            {
+                TenantId = tenantId, Scope = "transport.upcoming-driver-change",
+                RequestId = key, TargetId = 77, CompletedByUserId = 7,
+                RequestHash = new string('a', 64), ResultHash = new string('b', 64),
+                ResultJson = "{}", CompletedAt = DateTime.UtcNow,
+                ExpiresAt = DateTime.MaxValue
+            });
+            try { await db.SaveChangesAsync(); return true; }
+            catch (DbUpdateException) { return false; }
+        }
+
+        var results = await Task.WhenAll(InsertAsync(), InsertAsync());
+        Assert.Single(results, committed => committed);
+        await using var verify = ScopedContext(options, tenantId);
+        Assert.Equal(1, await verify.IdempotencyRecords.CountAsync(x =>
+            x.Scope == "transport.upcoming-driver-change" && x.RequestId == key));
+    }
+
+    [Fact]
+    public async Task Command_receipt_key_is_unique_per_tenant_and_scope_on_sql_server()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
+        var suffix = Guid.NewGuid().ToString("N")[..12];
+        long tenantId;
+        await using (var seed = new EduOSDbContext(options))
+        {
+            var tenant = new Tenant { Code = "CI-ID-" + suffix, Name = "Request-key CI",
+                Email = "id-" + suffix + "@example.test", State = TenantState.Active };
+            seed.Tenants.Add(tenant);
+            await seed.SaveChangesAsync();
+            tenantId = tenant.Id;
+        }
+        var requestId = Guid.NewGuid();
+        var first = new IdempotencyRecord { TenantId = tenantId,
+            Scope = "transport.route-vehicle-change", RequestId = requestId,
+            RequestHash = new string('a', 64), ResultHash = new string('b', 64),
+            TargetId = 123, CompletedByUserId = 456, CompletedAt = DateTime.UtcNow,
+            ResultJson = "{\"Success\":true}", ExpiresAt = DateTime.MaxValue };
+        await using (var db = ScopedContext(options, tenantId))
+        {
+            db.IdempotencyRecords.Add(first);
+            await db.SaveChangesAsync();
+        }
+        await using (var db = ScopedContext(options, tenantId))
+        {
+            db.IdempotencyRecords.Add(new IdempotencyRecord { TenantId = tenantId,
+                Scope = first.Scope, RequestId = requestId, ExpiresAt = DateTime.MaxValue });
+            await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+        }
+        await using (var db = ScopedContext(options, tenantId))
+        {
+            var persisted = await db.IdempotencyRecords.SingleAsync(x => x.RequestId == requestId);
+            Assert.Equal(123, persisted.TargetId);
+            Assert.Equal(456, persisted.CompletedByUserId);
+            Assert.Equal(first.ResultJson, persisted.ResultJson);
+        }
+    }
+
     [Fact]
     public async Task Normalized_vehicle_and_license_uniqueness_respects_tenant_and_soft_deletion()
     {

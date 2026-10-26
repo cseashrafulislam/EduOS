@@ -14,7 +14,8 @@ test('route vehicle change reuses canonical link with tenant/campus, rider prote
  for(const part of ['CanManageCampusAsync','System.Data.IsolationLevel.Serializable',
   'link.VehicleId = vehicle.Id','link.RowVersion.AsSpan().SequenceEqual',
   'vehicle.RowVersion.AsSpan().SequenceEqual','x.TenantId == tenant',
-  'RouteVehicleAssignmentId == link.Id','link.UpdatedBy = _currentUser.UserId'])
+  'RouteVehicleAssignmentId == link.Id','link.UpdatedBy = _currentUser.UserId',
+  '_commandReceipts.ReplayAsync','_commandReceipts.RecordAsync'])
   assert.ok(service.includes(part),part);
  assert.ok(!service.includes('MonthlyFare')&&!service.includes('DefaultFare'));
  for(const route of ['replacement-vehicles','change-upcoming-vehicle'])
@@ -23,4 +24,5 @@ test('route vehicle change reuses canonical link with tenant/campus, rider prote
  assert.ok(index.includes('route-vehicle-upcoming-change.js'));
  assert.ok(render.includes('u.changeUpcomingRouteVehicle'));
  assert.ok(ui.includes('assignmentRowVersion:source.rowVersion')&&ui.includes('vehicleRowVersion:chosen.rowVersion'));
+ assert.ok(ui.includes('clientRequestId:pendingKey')&&ui.includes('pendingSignature'));
 });

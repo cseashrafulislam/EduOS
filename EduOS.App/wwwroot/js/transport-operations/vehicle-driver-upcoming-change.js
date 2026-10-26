@@ -2,9 +2,9 @@
 'use strict';
 const u=window.vehicleDriverUI;if(!u)return;
 const el=u.el,panel=el('transportUpcomingDriverChangePanel');if(!panel)return;
-let source=null,page=1,pages=1,lookup=0;
+let source=null,page=1,pages=1,lookup=0,requestKey=null,requestSignature=null;
 function dismiss(){
- source=null;++lookup;panel.hidden=true;
+ source=null;++lookup;panel.hidden=true;requestKey=null;requestSignature=null;
  el('transportUpcomingDriverChangeChoice').replaceChildren();
  el('transportUpcomingDriverChangeSave').disabled=true;
 }
@@ -34,7 +34,7 @@ async function loadChoices(){
 }
 u.changeUpcomingDriver=async item=>{
  if(!item?.isScheduled||item.isCancelled||!item.rowVersion||item.effectiveFrom<=u.today())return;
- source=item;page=1;el('transportUpcomingDriverChangeSearch').value='';
+ source=item;page=1;el('transportUpcomingDriverChangeSearch').value='';requestKey=null;requestSignature=null;
  el('transportUpcomingDriverChangeContext').textContent=
   item.vehicleNumber+' · '+item.driverName+' · '+item.effectiveFrom+' through '+item.effectiveTo;
  panel.hidden=false;await loadChoices();
@@ -52,10 +52,13 @@ el('transportUpcomingDriverChangeForm').onsubmit=async e=>{
  if(!Number.isSafeInteger(newDriverId)||newDriverId<=0||!driverRowVersion)
   return u.notify('Select an eligible replacement driver.');
  if(!confirm('Change scheduled driver for '+source.vehicleNumber+'? Vehicle and dates remain unchanged.'))return;
+ if(!window.crypto?.randomUUID)return u.notify('Secure browser context required.');
+ const signature=[source.id,newDriverId,source.rowVersion,driverRowVersion].join('|');
+ if(signature!==requestSignature){requestSignature=signature;requestKey=window.crypto.randomUUID();}
  const button=el('transportUpcomingDriverChangeSave');button.disabled=true;
  try{
   await u.api(u.endpoint+'/'+encodeURIComponent(source.id)+'/change-upcoming-driver','POST',{
-   newDriverId,assignmentRowVersion:source.rowVersion,driverRowVersion
+   clientRequestId:requestKey,newDriverId,assignmentRowVersion:source.rowVersion,driverRowVersion
   });
   dismiss();u.notify('Upcoming driver reservation updated.',true);await u.loadLinks();
  }catch(error){u.notify(error.message);}
