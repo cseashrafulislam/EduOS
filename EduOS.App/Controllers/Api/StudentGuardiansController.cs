@@ -29,6 +29,14 @@ public sealed class StudentGuardiansController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("students/{studentReference:guid}/revoked")]
+    public async Task<IActionResult> Revoked(Guid studentReference, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, CancellationToken ct = default)
+    {
+        var result = await _service.GetRevokedAsync(studentReference, page, pageSize, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet("students/{studentReference:guid}/history")]
     public async Task<IActionResult> History(Guid studentReference, [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20, CancellationToken ct = default)

@@ -3,6 +3,7 @@ import { setupGuardianSave } from './guardian-save.js';
 import { setupGuardianReuse } from './guardian-reuse.js';
 import { renderGuardianLinks } from './guardian-link-edit.js';
 import { renderRevokedGuardianLinks } from './guardian-reactivation.js';
+import { setupRevokedGuardianPaging } from './guardian-revoked-paging.js';
 import { setupGuardianHistory } from './guardian-history.js';
 
 const $ = id => document.getElementById(id);
@@ -31,6 +32,7 @@ if (root) {
         return json.data;
     }
     const guardianHistory = setupGuardianHistory({ $, api, state });
+    const revokedPaging = setupRevokedGuardianPaging({ $, api, state, renderRevokedGuardianLinks, notice, render: student => render(student) });
     function render(student) {
         state.student = student;
         $('guardianSelected').textContent = student.studentName + ' (' + student.studentCode + ')';
@@ -38,7 +40,7 @@ if (root) {
         $('guardianReuse').disabled = state.busy;
         $('guardianRefresh').disabled = state.busy;
         renderGuardianLinks({ $, api, state, render, notice });
-        renderRevokedGuardianLinks({ $, api, state, render, notice });
+        revokedPaging.refresh(student.studentReference);
         guardianHistory.refresh();
     }
     $('guardianRefresh').addEventListener('click', async () => {

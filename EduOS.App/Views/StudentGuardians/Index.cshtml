@@ -92,6 +92,11 @@
                 <h2 class="h6">Revoked guardian relationships</h2>
                 <p class="small text-muted">Reactivation preserves the original relationship and audit history. Explicitly re-authorize contact permissions and enter a reason; previous access is never restored automatically.</p>
                 <div id="guardianRevokedLinks" aria-live="polite"><p class="text-muted">Select a student to view revoked relationships.</p></div>
+                <nav class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-2" aria-label="Revoked guardian pages">
+                    <button id="guardianRevokedPrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous</button>
+                    <span id="guardianRevokedPage" class="small text-muted" aria-live="polite"></span>
+                    <button id="guardianRevokedNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next</button>
+                </nav>
             </div></section>
             <section class="card shadow-sm border-0 mt-3" aria-labelledby="guardianHistoryTitle">
                 <div class="card-body">

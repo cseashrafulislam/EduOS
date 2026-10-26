@@ -65,6 +65,63 @@ public sealed class StudentGuardianWorkspaceService : IStudentGuardianWorkspaceS
         }
     }
 
+
+    /// <summary>Page historical revoked links so older guardians remain reviewable and restorable.
+    /// Tenant and student predicates are mandatory because this query bypasses soft-delete filters.</summary>
+    public async Task<ApiResponse<PagedResult<StudentGuardianWorkspaceLinkDto>>> GetRevokedAsync(
+        Guid studentReference, int page = 1, int pageSize = 20, CancellationToken ct = default)
+    {
+        if (!Allowed)
+            return Fail<PagedResult<StudentGuardianWorkspaceLinkDto>>("Tenant administrator permission required.", 403);
+        if (studentReference == Guid.Empty || page < 1 || pageSize is < 1 or > 100)
+            return Fail<PagedResult<StudentGuardianWorkspaceLinkDto>>("Valid student reference and paging required.");
+        try
+        {
+            var tenant = _user.TenantId;
+            var studentId = await _students.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenant && x.PublicId == studentReference && !x.IsDeleted)
+                .Select(x => x.Id).SingleOrDefaultAsync(ct);
+            if (studentId <= 0)
+                return Fail<PagedResult<StudentGuardianWorkspaceLinkDto>>("Student not found.", 404);
+
+            var query = from link in _links.GetQueryable().IgnoreQueryFilters().AsNoTracking()
+                        join guardian in _guardians.GetQueryable().AsNoTracking()
+                            on link.GuardianId equals guardian.Id
+                        where link.TenantId == tenant && link.StudentId == studentId && link.IsDeleted &&
+                              guardian.TenantId == tenant && !guardian.IsDeleted && guardian.IsActive
+                        select new { Link = link, Guardian = guardian };
+            var total = await query.CountAsync(ct);
+            var offset = ((long)page - 1) * pageSize;
+            var rows = offset > int.MaxValue
+                ? new List<StudentGuardianWorkspaceLinkDto>()
+                : await query.OrderByDescending(x => x.Link.DeletedAt).ThenByDescending(x => x.Link.Id)
+                    .Skip((int)offset).Take(pageSize)
+                    .Select(x => new StudentGuardianWorkspaceLinkDto
+                    {
+                        LinkId = x.Link.Id, GuardianReference = x.Guardian.PublicId,
+                        FullName = x.Guardian.FullName, RelationCode = x.Link.RelationCode,
+                        IsPrimary = x.Link.IsPrimary, CanReceiveSms = x.Link.CanReceiveSms,
+                        CanReceiveEmail = x.Link.CanReceiveEmail,
+                        IsAuthorizedPickup = x.Link.IsAuthorizedPickup,
+                        IsFinancialContact = x.Link.IsFinancialContact,
+                        IsEmergencyContact = x.Link.IsEmergencyContact,
+                        RowVersion = Convert.ToBase64String(x.Link.RowVersion),
+                        RevokedAt = x.Link.DeletedAt
+                    }).ToListAsync(ct);
+            return ApiResponse<PagedResult<StudentGuardianWorkspaceLinkDto>>.SuccessResponse(
+                new PagedResult<StudentGuardianWorkspaceLinkDto>
+                {
+                    Items = rows, TotalCount = total, Page = page, PageSize = pageSize
+                });
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Revoked guardian paging failed for tenant {TenantId}", _user.TenantId);
+            return Fail<PagedResult<StudentGuardianWorkspaceLinkDto>>("Revoked guardians could not be loaded.", 500);
+        }
+    }
+
     public async Task<ApiResponse<PagedResult<StudentGuardianRelationshipHistoryDto>>> GetHistoryAsync(
         Guid studentReference, int page = 1, int pageSize = 20, CancellationToken ct = default)
     {
