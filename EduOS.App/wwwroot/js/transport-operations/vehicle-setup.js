@@ -90,6 +90,12 @@
             if (!Number.isInteger(value) || value < 1 || value > 1000) {
                 alertUser('Capacity must be 1–1000.'); return;
             }
+            // Preserve immediate client-side peak/assignment protection; the server
+            // preflight and transactional save independently enforce the full policy.
+            if (value < item.peakReservedSeats || (!active &&
+                (item.assignedStudents > 0 || item.currentRouteAssignments > 0))) {
+                alertUser('Capacity is below peak simultaneous reservations, or deactivation conflicts with existing assignments.'); return;
+            }
             button.disabled = true;
             previewButton.disabled = true;
             try {
