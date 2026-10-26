@@ -73,14 +73,29 @@ public sealed class StudentPersonAddressWorkflowTests
     [Fact]
     public async Task Shared_global_person_is_not_editable_even_from_a_valid_local_student()
     {
-        await using var db = CreateDb(101);
+        var options = new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("shared-person-" + Guid.NewGuid().ToString("N")).Options;
+        await using var db = CreateDb(101, options);
         var student = await SeedAsync(db, 101);
-        db.StudentPersonLinks.Add(new StudentPersonLink
+        await using (var otherTenant = CreateDb(202, options))
         {
-            TenantId = 202, StudentId = student.Id, PersonId = student.PersonId,
-            LinkedAt = DateTime.UtcNow, IsPrimary = true
-        });
-        await db.SaveChangesAsync();
+            var secondStudent = new Student
+            {
+                TenantId = 202, PersonId = student.PersonId,
+                StudentCode = "S-" + Guid.NewGuid().ToString("N")[..10],
+                FullName = "Other Tenant Learner",
+                AdmissionDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                StatusCode = "Active"
+            };
+            otherTenant.Students.Add(secondStudent);
+            await otherTenant.SaveChangesAsync();
+            otherTenant.StudentPersonLinks.Add(new StudentPersonLink
+            {
+                TenantId = 202, StudentId = secondStudent.Id, PersonId = student.PersonId,
+                LinkedAt = DateTime.UtcNow, IsPrimary = true
+            });
+            await otherTenant.SaveChangesAsync();
+        }
         var service = CreateService(db, new CurrentUser(101));
         (await service.GetAsync(student.PublicId)).StatusCode.Should().Be(404);
         (await service.SaveAsync(student.PublicId, "Current", Request())).StatusCode.Should().Be(404);
@@ -106,9 +121,9 @@ public sealed class StudentPersonAddressWorkflowTests
         City = "Dhaka", CountryCode = "BD"
     };
 
-    private static EduOSDbContext CreateDb(long tenant)
+    private static EduOSDbContext CreateDb(long tenant, DbContextOptions<EduOSDbContext>? sharedOptions = null)
     {
-        var options = new DbContextOptionsBuilder<EduOSDbContext>()
+        var options = sharedOptions ?? new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase("person-address-" + Guid.NewGuid().ToString("N")).Options;
         var context = new DefaultHttpContext
         {
