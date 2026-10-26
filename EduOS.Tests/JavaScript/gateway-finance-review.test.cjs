@@ -24,3 +24,12 @@ test('finance review requires provider escalation evidence and antiforgery', () 
     assert.match(js, /evidenceAuditId: financeEvidenceAuditId/);
     assert.doesNotMatch(js, /body:\s*JSON\.stringify\(\{[^}]*providerStatus/);
 });
+
+test('external finance case closure requires a reference and cannot settle payments', () => {
+    assert.match(view, /value="ExternalCaseClosed"/);
+    assert.match(view, /gatewayFinanceExternalCaseReference/);
+    assert.match(js, /financeCaseClosed/);
+    assert.match(js, /externalCaseReference/);
+    assert.match(js, /financeSave\.disabled = !financeEvidenceAuditId \|\| financeCaseClosed/);
+    assert.doesNotMatch(js, /finance-review[^]*?body:\s*JSON\.stringify\(\{[^}]*paymentState/);
+});

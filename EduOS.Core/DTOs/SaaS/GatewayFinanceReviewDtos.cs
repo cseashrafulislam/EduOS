@@ -10,6 +10,7 @@ public sealed class GatewayFinanceReviewRequestDto
     [Range(1, long.MaxValue)] public long EvidenceAuditId { get; set; }
     [Required, MaxLength(40)] public string Decision { get; set; } = string.Empty;
     [Required, MinLength(10), MaxLength(500)] public string Note { get; set; } = string.Empty;
+    [MaxLength(100)] public string? ExternalCaseReference { get; set; }
 }
 
 public sealed class GatewayFinanceHistoryItemDto
@@ -25,4 +26,6 @@ public sealed class GatewayFinanceHistoryItemDto
     public string? EvidenceSha256 { get; set; }
     public bool ProviderConfirmed { get; set; }
     public bool RequiresManualReview { get; set; }
+    public bool CaseClosed { get; set; }
+    public string? ExternalCaseReference { get; set; }
 }

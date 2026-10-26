@@ -74,7 +74,7 @@
     <section id="gatewayFinancePanel" class="card border-0 shadow-sm mt-4 d-none" aria-labelledby="gatewayFinanceHeading">
         <div class="card-body">
             <h2 class="h5" id="gatewayFinanceHeading">Gateway finance review trail</h2>
-            <p class="text-muted small">Append-only investigation notes linked to independently verified AamarPay escalation evidence. Recording a review does not settle, refund, cancel, or adjust any payment or invoice. Do not enter bank account numbers or personal information in notes.</p>
+            <p class="text-muted small">Append-only investigation notes linked to independently verified AamarPay escalation evidence. External case closure requires a prior review, fresh provider evidence and an external case reference. It closes only administrative follow-up: it does not prove settlement, refund, cancel, or adjust any payment or invoice. Do not enter bank account numbers or personal information in notes.</p>
             <div id="gatewayFinancePayment" class="fw-semibold mb-2"></div>
             <div id="gatewayFinanceStatus" class="small text-muted mb-3" role="status" aria-live="polite"></div>
             <div class="table-responsive">
@@ -96,11 +96,18 @@
                         <option value="ProviderDisputeOpened">Provider dispute opened</option>
                         <option value="FinanceEscalated">Escalated to finance</option>
                         <option value="AwaitingRefundInstructions">Awaiting refund instructions</option>
+                        <option value="ExternalCaseClosed">Close external follow-up (no financial adjustment)</option>
                     </select>
                 </div>
                 <div class="col-md-8">
                     <label for="gatewayFinanceNote" class="form-label">Investigation note (10–500 characters)</label>
                     <textarea id="gatewayFinanceNote" class="form-control" rows="2" minlength="10" maxlength="500" required></textarea>
+                </div>
+                <div id="gatewayFinanceExternalCaseGroup" class="col-md-4 d-none">
+                    <label for="gatewayFinanceExternalCaseReference" class="form-label">External provider / finance case reference</label>
+                    <input id="gatewayFinanceExternalCaseReference" class="form-control" type="text"
+                           minlength="6" maxlength="100" autocomplete="off" pattern="[A-Za-z0-9._/-]{6,100}" />
+                    <small class="text-muted">Reference only; never enter payment credentials or personal data.</small>
                 </div>
                 <div class="col-12"><button id="gatewayFinanceSave" type="submit" class="btn btn-outline-warning btn-sm" disabled>Record finance review</button></div>
             </form>

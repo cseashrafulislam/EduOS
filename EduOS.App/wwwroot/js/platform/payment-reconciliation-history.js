@@ -323,6 +323,8 @@
     const financeSave = get('gatewayFinanceSave');
     const financeDecision = get('gatewayFinanceDecision');
     const financeNote = get('gatewayFinanceNote');
+    const financeExternalCaseGroup = get('gatewayFinanceExternalCaseGroup');
+    const financeExternalCaseReference = get('gatewayFinanceExternalCaseReference');
     let financePaymentId = 0;
     let financeRowVersion = '';
     let financeEvidenceAuditId = 0;
@@ -331,17 +333,28 @@
     let financeRequestSeq = 0;
     let financeBusy = false;
     let financeRequestId = null;
+    let financeCaseClosed = false;
     const financePageSize = 10;
-    financeDecision.addEventListener('change', () => { financeRequestId = null; });
+    function financeToggleClosure() {
+        const closing = financeDecision.value === 'ExternalCaseClosed';
+        financeExternalCaseGroup.classList.toggle('d-none', !closing);
+        financeExternalCaseReference.required = closing;
+        if (!closing) financeExternalCaseReference.value = '';
+    }
+    financeDecision.addEventListener('change', () => { financeRequestId = null; financeToggleClosure(); });
     financeNote.addEventListener('input', () => { financeRequestId = null; });
+    financeExternalCaseReference.addEventListener('input', () => { financeRequestId = null; });
+    financeToggleClosure();
 
     async function gatewayFinanceLoad(paymentId, rowVersion, targetPage) {
         if (financeBusy) return;
         if (financePaymentId !== paymentId) {
             financePaymentId = paymentId;
             financeEvidenceAuditId = 0;
+            financeCaseClosed = false;
             financeRequestId = null;
             financeNote.value = '';
+            financeExternalCaseReference.value = '';
         }
         financeRowVersion = rowVersion;
         financePage = targetPage;
@@ -375,7 +388,8 @@
                     item.action === 'GatewayProviderEscalation' ? 'Provider escalation' : 'Provider inspection',
                     item.decision || '');
                 cell(tr, item.reviewerUserId ?? '—');
-                cell(tr, item.note || (item.requiresManualReview ? 'Manual review required' : 'Inspection recorded'));
+                cell(tr, item.note || (item.requiresManualReview ? 'Manual review required' : 'Inspection recorded'),
+                    item.caseClosed ? 'Administrative case closed · ' + (item.externalCaseReference || '—') : '');
                 cell(tr, item.evidenceSha256 || '—', item.evidenceAuditId ? 'Linked audit #' + item.evidenceAuditId : '');
                 financeRows.append(tr);
             }
@@ -389,6 +403,7 @@
                 financeRows.append(tr);
             }
             if (financePage === 1) {
+                financeCaseClosed = items.some(x => x.action === 'GatewayFinanceReview' && x.caseClosed === true);
                 const escalation = items.find(x => x.action === 'GatewayProviderEscalation' &&
                     x.providerConfirmed === true && x.requiresManualReview === true);
                 financeEvidenceAuditId = Number(escalation?.auditId || 0);
@@ -397,8 +412,10 @@
                 ' · ' + financeTotal + ' audit records';
             financePrevious.disabled = financePage <= 1;
             financeNext.disabled = financePage >= pages;
-            financeSave.disabled = !financeEvidenceAuditId;
-            financeStatus.textContent = financeEvidenceAuditId
+            financeSave.disabled = !financeEvidenceAuditId || financeCaseClosed;
+            financeStatus.textContent = financeCaseClosed
+                ? 'External finance follow-up is closed. No financial settlement or refund was performed.'
+                : financeEvidenceAuditId
                 ? 'Escalation evidence #' + financeEvidenceAuditId +
                     ' selected. Notes are auditable and do not change financial balances.'
                 : 'No provider-confirmed escalation evidence. Inspect the provider before recording a review.';
@@ -412,8 +429,14 @@
     }
     financeForm.addEventListener('submit', async event => {
         event.preventDefault();
-        if (financeBusy || !financePaymentId || !financeEvidenceAuditId || !financeRowVersion) return;
+        if (financeBusy || financeCaseClosed || !financePaymentId || !financeEvidenceAuditId || !financeRowVersion) return;
         const note = financeNote.value.trim();
+        const closing = financeDecision.value === 'ExternalCaseClosed';
+        const externalCaseReference = closing ? financeExternalCaseReference.value.trim() : null;
+        if (closing && (!externalCaseReference || !/^[A-Za-z0-9._/-]{6,100}$/.test(externalCaseReference))) {
+            financeStatus.textContent = 'Enter a valid external case reference (6–100 characters).';
+            return;
+        }
         if (note.length < 10 || note.length > 500) {
             financeStatus.textContent = 'Enter a note between 10 and 500 characters.';
             return;
@@ -436,7 +459,8 @@
                 headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
                 body: JSON.stringify({
                     requestId: financeRequestId, rowVersion: financeRowVersion,
-                    evidenceAuditId: financeEvidenceAuditId, decision: financeDecision.value, note
+                    evidenceAuditId: financeEvidenceAuditId, decision: financeDecision.value, note,
+                    externalCaseReference
                 })
             });
             const payload = await response.json().catch(() => null);
@@ -444,6 +468,7 @@
                 throw new Error(payload?.message || 'Finance review could not be recorded.');
             financeRequestId = null;
             financeNote.value = '';
+            financeExternalCaseReference.value = '';
             financeBusy = false;
             await gatewayFinanceLoad(financePaymentId, financeRowVersion, 1);
         } catch (error) {
@@ -451,7 +476,7 @@
             financeStatus.className = 'small text-danger mb-3';
         } finally {
             financeBusy = false;
-            financeSave.disabled = !financeEvidenceAuditId;
+            financeSave.disabled = !financeEvidenceAuditId || financeCaseClosed;
         }
     });
     financePrevious.addEventListener('click', () => {

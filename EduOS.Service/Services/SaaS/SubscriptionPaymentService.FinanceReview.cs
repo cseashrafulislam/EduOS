@@ -13,7 +13,7 @@ namespace EduOS.Service.Services.SaaS;
 public sealed partial class SubscriptionPaymentService
 {
     private static readonly string[] FinanceTriageDecisions =
-        ["Investigating", "ProviderDisputeOpened", "FinanceEscalated", "AwaitingRefundInstructions"];
+        ["Investigating", "ProviderDisputeOpened", "FinanceEscalated", "AwaitingRefundInstructions", "ExternalCaseClosed"];
 
     private static string? AuditString(JsonElement root, string name) =>
         root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
@@ -44,6 +44,8 @@ public sealed partial class SubscriptionPaymentService
             dto.Note = row.Action == "GatewayFinanceReview" ? AuditString(data, "Note") : null;
             dto.EvidenceAuditId = AuditLong(data, "EvidenceAuditId");
             dto.EvidenceSha256 = AuditString(data, "EvidenceSha256");
+            dto.CaseClosed = AuditBool(data, "CaseClosed") && row.Action == "GatewayFinanceReview";
+            dto.ExternalCaseReference = dto.CaseClosed ? AuditString(data, "ExternalCaseReference") : null;
             dto.RequiresManualReview = AuditBool(data, "RequiresManualReview") ||
                 row.Action == "GatewayFinanceReview";
         }
@@ -109,9 +111,18 @@ public sealed partial class SubscriptionPaymentService
             return ApiResponse<GatewayFinanceHistoryItemDto>.ErrorResponse("Invalid row version.", 400);
 
         var note = request.Note.Trim();
+        var closing = request.Decision == "ExternalCaseClosed";
+        var externalCaseReference = request.ExternalCaseReference?.Trim();
+        if ((closing && (string.IsNullOrWhiteSpace(externalCaseReference) ||
+                externalCaseReference.Length is < 6 or > 100 ||
+                !externalCaseReference.All(c => char.IsLetterOrDigit(c) || c is '-' or '_' or '.' or '/'))) ||
+            (!closing && !string.IsNullOrWhiteSpace(externalCaseReference)))
+            return ApiResponse<GatewayFinanceHistoryItemDto>.ErrorResponse("A valid external case reference is required only for case closure.", 400);
         var idempotencyKey = request.RequestId.ToString("N");
-        var requestFingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
-            string.Join("\n", paymentId, request.EvidenceAuditId, request.Decision, note, request.RowVersion))));
+        // Preserve the existing fingerprint for non-closing reviews and retries.
+        var fingerprintInput = string.Join("\n", paymentId, request.EvidenceAuditId, request.Decision, note, request.RowVersion);
+        if (closing) fingerprintInput += "\n" + externalCaseReference;
+        var requestFingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(fingerprintInput)));
         try
         {
             using var tx = SerializableScope();
@@ -134,6 +145,26 @@ public sealed partial class SubscriptionPaymentService
                     return ApiResponse<GatewayFinanceHistoryItemDto>.ErrorResponse("Request ID already used for a different review.", 409);
                 tx.Complete();
                 return ApiResponse<GatewayFinanceHistoryItemDto>.SuccessResponse(MapFinanceAudit(previous));
+            }
+            // A case can be closed once, after at least one recorded investigation.
+            // Audit is the existing durable owner of finance follow-up; no payment state is changed.
+            var latestReview = await audits.AsNoTracking()
+                .Where(a => a.TenantId == payment.TenantId && a.EntityName == "SubscriptionPayment" &&
+                    a.EntityId == payment.Id && !a.IsDeleted && a.Action == "GatewayFinanceReview")
+                .OrderByDescending(a => a.OccurredAt).ThenByDescending(a => a.Id)
+                .Select(a => a.NewValue).FirstOrDefaultAsync(ct);
+            if (closing && latestReview == null)
+                return ApiResponse<GatewayFinanceHistoryItemDto>.ErrorResponse("Record an investigation before closing the external case.", 409);
+            if (!string.IsNullOrWhiteSpace(latestReview))
+            {
+                try
+                {
+                    using var last = JsonDocument.Parse(latestReview);
+                    if (last.RootElement.ValueKind == JsonValueKind.Object &&
+                        AuditBool(last.RootElement, "CaseClosed"))
+                        return ApiResponse<GatewayFinanceHistoryItemDto>.ErrorResponse("External finance case is already closed.", 409);
+                }
+                catch (JsonException) { /* Old audit payloads cannot authorize closure. */ }
             }
             if (payment.State != PaymentState.Initiated ||
                 payment.InitiatedAt > DateTime.UtcNow.Subtract(GatewayRecoveryDelay))
@@ -175,7 +206,8 @@ public sealed partial class SubscriptionPaymentService
                 NewValue = JsonSerializer.Serialize(new
                 {
                     request.Decision, Note = note, request.EvidenceAuditId,
-                    EvidenceSha256 = fingerprint, RequiresManualReview = true
+                    EvidenceSha256 = fingerprint, RequiresManualReview = true,
+                    CaseClosed = closing, ExternalCaseReference = closing ? externalCaseReference : null
                 })
             };
             await _gatewayEvidenceAudit.AddAsync(row);

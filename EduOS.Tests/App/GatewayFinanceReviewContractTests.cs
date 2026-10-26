@@ -45,7 +45,7 @@ public sealed class GatewayFinanceReviewContractTests
     public void Finance_review_input_never_accepts_provider_or_settlement_values()
     {
         var names = typeof(GatewayFinanceReviewRequestDto).GetProperties().Select(p => p.Name).OrderBy(x => x).ToArray();
-        Assert.Equal(new[] { "Decision", "EvidenceAuditId", "Note", "RequestId", "RowVersion" }, names);
+        Assert.Equal(new[] { "Decision", "EvidenceAuditId", "ExternalCaseReference", "Note", "RequestId", "RowVersion" }, names);
         Assert.DoesNotContain(typeof(GatewayFinanceHistoryItemDto).GetProperties(),
             x => x.Name is "RawResponse" or "PayerAccountNumber" or "SettlementAmount");
     }
@@ -85,6 +85,22 @@ public sealed class GatewayFinanceReviewContractTests
         Assert.Equal("Investigating", item.Decision);
         Assert.Equal("Provider contacted", item.Note);
         Assert.Equal(22L, item.EvidenceAuditId);
+    }
+
+    [Fact]
+    public void Administrative_closure_is_visible_but_never_provider_confirmation()
+    {
+        var item = Map(new AuditLog
+        {
+            Action = "GatewayFinanceReview", IsSuccess = true,
+            NewValue = "{\"Decision\":\"ExternalCaseClosed\",\"Note\":\"Provider investigation closed externally\",\"CaseClosed\":true,\"ExternalCaseReference\":\"AMAR-123456\",\"EvidenceSha256\":\"ABCDEF\"}"
+        });
+        Assert.True(item.CaseClosed);
+        Assert.Equal("ExternalCaseClosed", item.Decision);
+        Assert.Equal("AMAR-123456", item.ExternalCaseReference);
+        Assert.False(item.ProviderConfirmed);
+        Assert.Null(Map(new AuditLog { Action = "GatewayProviderInspection",
+            NewValue = "{\"CaseClosed\":true,\"ExternalCaseReference\":\"FAKE123\"}" }).ExternalCaseReference);
     }
 
     [Fact]
