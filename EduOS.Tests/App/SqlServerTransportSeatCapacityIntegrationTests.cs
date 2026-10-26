@@ -46,7 +46,9 @@ public sealed class SqlServerTransportSeatCapacityIntegrationTests
         var responses = await Task.WhenAll(AssignAsync(fixture, first), AssignAsync(fixture, second));
         Assert.True(responses.Any(x => x.Success), "No reservation succeeded. " + string.Join("\n", Diagnostics));
         var accepted = Assert.Single(responses, x => x.Success);
-        Assert.Single(responses, x => !x.Success && x.StatusCode == 409);
+        Assert.True(responses.Count(x => !x.Success && x.StatusCode == 409) == 1,
+            "Expected a conflict response. Actual: " + string.Join("; ", responses.Select(x => x.StatusCode + ": " + x.Message)) +
+            "\n" + string.Join("\n", Diagnostics));
 
         await using (var verify = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
         {
