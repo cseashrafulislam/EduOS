@@ -87,8 +87,8 @@
             const names = member.roleIds.map(id => state.roles.find(role => role.id === id)?.name)
                 .filter(Boolean).join(', ');
             const roleCell = textNode('td', member.isOwner ? 'TenantAdmin (owner)' + (names ? ', ' + names : '') : names || 'No assigned role');
-            if (member.legacyGlobalRoleNames?.length) roleCell.append(textNode('div',
-                'Legacy global grants: ' + member.legacyGlobalRoleNames.join(', '), 'small text-warning'));
+            if (member.unscopedIdentityRoleNames?.length) roleCell.append(textNode('div',
+                'Global Identity role grants (not institution-scoped): ' + member.unscopedIdentityRoleNames.join(', '), 'small text-warning'));
             tr.append(roleCell);
             const actions = document.createElement('td');
             const button = textNode('button', 'Manage', 'btn btn-outline-primary btn-sm');
@@ -108,14 +108,14 @@
         if (!member) { $('memberEditor').classList.add('d-none'); return; }
         $('memberEditor').classList.remove('d-none');
         $('memberEditorTitle').textContent = member.fullName + ' — institution roles';
-        const hasLegacy = Boolean(member.legacyGlobalRoleNames?.length);
-        const notice = $('memberLegacyRoleNotice');
-        notice.classList.toggle('d-none', !hasLegacy);
-        notice.textContent = !hasLegacy ? '' : member.canRemoveLegacyGlobalRoles
-            ? 'Legacy global grants: ' + member.legacyGlobalRoleNames.join(', ') + '. Saving institution roles will remove these grants after your explicit approval. Compare access before applying.'
-            : 'Legacy global grants: ' + member.legacyGlobalRoleNames.join(', ') + '. This user has other institution memberships. Global grants cannot be removed here; refer to Platform security review.';
-        $('memberLegacyRoleApprovalLabel').classList.toggle('d-none', !hasLegacy || !member.canRemoveLegacyGlobalRoles);
-        $('memberLegacyRoleApproval').checked = false;
+        const hasUnscopedIdentityRoles = Boolean(member.unscopedIdentityRoleNames?.length);
+        const notice = $('memberUnscopedIdentityRoleNotice');
+        notice.classList.toggle('d-none', !hasUnscopedIdentityRoles);
+        notice.textContent = !hasUnscopedIdentityRoles ? '' : member.canRemoveUnscopedIdentityRoles
+            ? 'Global Identity role grants (not institution-scoped): ' + member.unscopedIdentityRoleNames.join(', ') + '. Saving institution roles will remove these grants after your explicit approval. Compare access before applying.'
+            : 'Global Identity role grants (not institution-scoped): ' + member.unscopedIdentityRoleNames.join(', ') + '. This user has other institution memberships. Global grants cannot be removed here; refer to Platform security review.';
+        $('memberUnscopedIdentityRoleApprovalLabel').classList.toggle('d-none', !hasUnscopedIdentityRoles || !member.canRemoveUnscopedIdentityRoles);
+        $('memberUnscopedIdentityRoleApproval').checked = false;
         const options = $('memberRoleOptions');
         options.replaceChildren();
         state.roles.filter(x => x.isActive).forEach(role => {
@@ -228,13 +228,13 @@
         if (!state.selected) return;
         await submit(e.submitter, async () => {
             const roleIds = [...$('memberRoleOptions').querySelectorAll('input:checked')].map(x => Number(x.value));
-            const confirmLegacyGlobalRoleRemoval = Boolean(state.selected.canRemoveLegacyGlobalRoles &&
-                state.selected.legacyGlobalRoleNames?.length && $('memberLegacyRoleApproval').checked);
-            if (state.selected.canRemoveLegacyGlobalRoles && state.selected.legacyGlobalRoleNames?.length &&
-                !confirmLegacyGlobalRoleRemoval) throw new Error('Review and approve removal of legacy global grants before saving.');
+            const confirmUnscopedIdentityRoleRemoval = Boolean(state.selected.canRemoveUnscopedIdentityRoles &&
+                state.selected.unscopedIdentityRoleNames?.length && $('memberUnscopedIdentityRoleApproval').checked);
+            if (state.selected.canRemoveUnscopedIdentityRoles && state.selected.unscopedIdentityRoleNames?.length &&
+                !confirmUnscopedIdentityRoleRemoval) throw new Error('Review and approve removal of unscoped global Identity grants before saving.');
             await request('/' + state.selected.membershipId + '/roles', {
                 method: 'PUT', body: JSON.stringify({ roleIds, rowVersion: state.selected.rowVersion,
-                    confirmLegacyGlobalRoleRemoval })
+                    confirmUnscopedIdentityRoleRemoval })
             });
             state.selected = null; $('memberEditor').classList.add('d-none');
             await loadMembers(); message('Roles saved. The user must sign in again.');

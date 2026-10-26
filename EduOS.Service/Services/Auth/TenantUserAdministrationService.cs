@@ -85,8 +85,8 @@ public sealed partial class TenantUserAdministrationService : ITenantUserAdminis
                                   where userIds.Contains(link.UserId) && role.TenantId == null &&
                                       !role.IsSystemRole
                                   select new { link.UserId, role.Name }).ToListAsync(ct);
-        var legacyByUser = globalGrants.GroupBy(x => x.UserId)
-            .ToDictionary(x => x.Key, x => (IReadOnlyList<string>)x.Select(r => r.Name ?? "(unnamed legacy role)")
+        var unscopedByUser = globalGrants.GroupBy(x => x.UserId)
+            .ToDictionary(x => x.Key, x => (IReadOnlyList<string>)x.Select(r => r.Name ?? "(unnamed global Identity role)")
                 .Distinct().OrderBy(name => name).ToArray());
         var membershipCounts = await _db.TenantMemberships.IgnoreQueryFilters().AsNoTracking()
             .Where(x => userIds.Contains(x.UserId) && !x.IsDeleted && x.Status != MembershipStatus.Left)
@@ -104,9 +104,9 @@ public sealed partial class TenantUserAdministrationService : ITenantUserAdminis
                 IsOwner = x.IsOwner, Status = x.Status, IsActive = x.IsActive,
                 RowVersion = Convert.ToBase64String(x.RowVersion ?? Array.Empty<byte>()),
                 RoleIds = rolesByUser.TryGetValue(x.UserId, out var ids) ? ids : Array.Empty<long>(),
-                LegacyGlobalRoleNames = legacyByUser.TryGetValue(x.UserId, out var oldRoles)
-                    ? oldRoles : Array.Empty<string>(),
-                CanRemoveLegacyGlobalRoles = soleUsers.Contains(x.UserId)
+                UnscopedIdentityRoleNames = unscopedByUser.TryGetValue(x.UserId, out var identityRoles)
+                    ? identityRoles : Array.Empty<string>(),
+                CanRemoveUnscopedIdentityRoles = soleUsers.Contains(x.UserId)
             }).ToList()
         };
         return ApiResponse<PagedResult<TenantUserListItemDto>>.SuccessResponse(result);
@@ -263,14 +263,14 @@ public sealed partial class TenantUserAdministrationService : ITenantUserAdminis
                     .Select(x => x.TenantId).Distinct().Take(2).ToListAsync(token);
                 var soleInstitution = activeMemberships.Count == 1 &&
                     activeMemberships[0] == TenantId;
-                var hasLegacyGlobalGrants = soleInstitution && await (from link in _db.UserRoles
+                var hasUnscopedIdentityGrants = soleInstitution && await (from link in _db.UserRoles
                     join role in _db.Roles.IgnoreQueryFilters() on link.RoleId equals role.Id
                     where link.UserId == member.UserId && role.TenantId == null &&
                         !role.IsSystemRole
                     select link.RoleId).AnyAsync(token);
-                if (hasLegacyGlobalGrants && !request.ConfirmLegacyGlobalRoleRemoval)
+                if (hasUnscopedIdentityGrants && !request.ConfirmUnscopedIdentityRoleRemoval)
                     throw new AdminRejectException(
-                        "Review the legacy global roles and explicitly approve their removal before saving.", 409);
+                        "Review the global Identity roles and explicitly approve their removal before saving.", 409);
                 var oldRoleIds = await (from link in _db.UserRoles
                                         join role in _db.Roles.IgnoreQueryFilters()
                                             on link.RoleId equals role.Id

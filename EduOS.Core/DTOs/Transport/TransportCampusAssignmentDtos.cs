@@ -1,6 +1,6 @@
 namespace EduOS.Core.DTOs.Transport;
 
-public sealed class TransportCampusRepairRowDto
+public sealed class TransportCampusAssignmentRowDto
 {
     public string Kind { get; set; } = "";
     public Guid Reference { get; set; }
@@ -10,13 +10,13 @@ public sealed class TransportCampusRepairRowDto
     public bool CanApply => LinkedRecords == 0;
 }
 
-public sealed class TransportCampusRepairReviewDto
+public sealed class TransportCampusAssignmentReviewDto
 {
-    public IReadOnlyList<TransportCampusRepairRowDto> Rows { get; set; } = Array.Empty<TransportCampusRepairRowDto>();
+    public IReadOnlyList<TransportCampusAssignmentRowDto> Rows { get; set; } = Array.Empty<TransportCampusAssignmentRowDto>();
     public bool HasMore { get; set; }
 }
 
-public sealed class ApplyTransportCampusRepairDto
+public sealed class ApplyTransportCampusAssignmentDto
 {
     public long CampusId { get; set; }
     public string RowVersion { get; set; } = "";

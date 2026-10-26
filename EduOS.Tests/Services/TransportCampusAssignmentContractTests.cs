@@ -4,14 +4,14 @@ using Xunit;
 
 namespace EduOS.Tests.Services;
 
-public sealed class TransportLegacyCampusRepairContractTests
+public sealed class TransportCampusAssignmentContractTests
 {
     [Fact]
     public void Admin_review_and_apply_are_integrated_across_api_service_and_view()
     {
         var controller = typeof(TransportController);
-        foreach (var action in new[] { nameof(TransportController.LegacyCampusReview),
-            nameof(TransportController.ApplyLegacyCampusRepair) })
+        foreach (var action in new[] { nameof(TransportController.CampusAssignmentReview),
+            nameof(TransportController.ApplyCampusAssignment) })
         {
             var method = controller.GetMethod(action)!;
             Assert.Contains(method.GetCustomAttributes(typeof(AuthorizeAttribute), true)
@@ -19,12 +19,12 @@ public sealed class TransportLegacyCampusRepairContractTests
         }
         var api = Read("EduOS.App", "Controllers", "Api", "TransportController.cs");
         var contract = Read("EduOS.Core", "Interfaces", "IServices", "ITransportService.cs");
-        var service = Read("EduOS.Service", "Services", "Transport", "TransportService.LegacyCampusRepair.cs");
+        var service = Read("EduOS.Service", "Services", "Transport", "TransportService.CampusAssignmentReview.cs");
         var page = Read("EduOS.App", "Views", "TransportOperations", "Index.cshtml");
-        var script = Read("EduOS.App", "wwwroot", "js", "transport-operations", "legacy-campus-review.js");
-        Assert.Contains("HttpPost(\"legacy-campus-review/{kind}/{reference:guid}/apply\")", api);
-        Assert.Contains("GetLegacyCampusRepairReviewAsync", contract);
-        Assert.Contains("ApplyLegacyCampusRepairAsync", contract);
+        var script = Read("EduOS.App", "wwwroot", "js", "transport-operations", "campus-assignment-review.js");
+        Assert.Contains("HttpPost(\"campus-assignment-review/{kind}/{reference:guid}/apply\")", api);
+        Assert.Contains("GetCampusAssignmentReviewAsync", contract);
+        Assert.Contains("ApplyCampusAssignmentAsync", contract);
         Assert.Contains("_currentUser.IsTenantAdmin", service);
         Assert.Contains("request.ConfirmHistoricalCampusReview", service);
         Assert.Contains("IsolationLevel.Serializable", service);
@@ -34,8 +34,8 @@ public sealed class TransportLegacyCampusRepairContractTests
         Assert.Contains("_vehicleRoutes.GetQueryable().IgnoreQueryFilters().AnyAsync", service);
         Assert.Contains("_driverLinks.GetQueryable().IgnoreQueryFilters().AnyAsync", service);
         Assert.Contains("_unitOfWork.SaveChangesAsync(ct)", service);
-        Assert.Contains("<partial name=\"_LegacyCampusReview\" />", page);
-        Assert.Contains("legacy-campus-review.js", page);
+        Assert.Contains("<partial name=\"_CampusAssignmentReview\" />", page);
+        Assert.Contains("campus-assignment-review.js", page);
         Assert.Contains("RequestVerificationToken", script);
         Assert.Contains("confirmHistoricalCampusReview: true", script);
         Assert.Contains("textContent", script);

@@ -21,7 +21,7 @@ public sealed partial class TransportService
             x.TenantId == tenant && !x.IsDeleted && x.IsActive && x.PublicId == reference, ct);
         if (route == null) return ApiResponse<TransportRouteStopsEditorDto>.ErrorResponse("Active route not found.", 404);
         if (!route.CampusId.HasValue)
-            return ApiResponse<TransportRouteStopsEditorDto>.ErrorResponse("Legacy route needs campus assignment by Platform.", 409);
+            return ApiResponse<TransportRouteStopsEditorDto>.ErrorResponse("Route has no assigned campus. Platform review is required.", 409);
         var campus = await _campuses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == tenant && x.Id == route.CampusId.Value && !x.IsDeleted && x.IsActive, ct);
         if (campus == null) return ApiResponse<TransportRouteStopsEditorDto>.ErrorResponse("Active campus not found.", 409);
@@ -54,7 +54,7 @@ public sealed partial class TransportService
                     x.TenantId == tenant && !x.IsDeleted && x.IsActive && x.PublicId == reference, token);
                 if (route == null) return ApiResponse<TransportRouteStopsEditorDto>.ErrorResponse("Active route not found.", 404);
                 if (!route.CampusId.HasValue)
-                    return ApiResponse<TransportRouteStopsEditorDto>.ErrorResponse("Legacy route needs campus assignment by Platform.", 409);
+                    return ApiResponse<TransportRouteStopsEditorDto>.ErrorResponse("Route has no assigned campus. Platform review is required.", 409);
                 var campus = await _campuses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == route.CampusId.Value && !x.IsDeleted && x.IsActive, token);
                 if (campus == null) return ApiResponse<TransportRouteStopsEditorDto>.ErrorResponse("Active campus not found.", 409);

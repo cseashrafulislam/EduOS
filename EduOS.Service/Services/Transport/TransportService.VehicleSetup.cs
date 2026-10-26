@@ -170,7 +170,7 @@ public sealed partial class TransportService
                     x.TenantId == tenant && x.PublicId == reference && !x.IsDeleted, token);
                 if (vehicle == null) return ApiResponse<TransportVehicleSetupRowDto>.ErrorResponse("Vehicle not found.", 404);
                 if (!vehicle.CampusId.HasValue)
-                    return ApiResponse<TransportVehicleSetupRowDto>.ErrorResponse("Legacy vehicle must be assigned to a campus by Platform.", 409);
+                    return ApiResponse<TransportVehicleSetupRowDto>.ErrorResponse("Vehicle has no assigned campus. Platform review is required.", 409);
                 var campus = await _campuses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == vehicle.CampusId.Value && !x.IsDeleted && x.IsActive, token);
                 if (campus == null) return ApiResponse<TransportVehicleSetupRowDto>.ErrorResponse("Active campus not found.", 404);

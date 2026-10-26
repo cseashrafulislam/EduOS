@@ -176,7 +176,7 @@ namespace EduOS.Service.Services.SaaS
                 var partial = await _invoiceRepo.GetByStateAsync(_currentUser.TenantId, InvoiceState.PartiallyPaid, 1, 100);
                 if (issued.TotalCount > 100 || partial.TotalCount > 100)
                     return ApiResponse<List<SubscriptionInvoiceDto>>.ErrorResponse(
-                        "Unpaid invoices exceed legacy list size. Use paged subscription invoices.", 409);
+                        "Unpaid invoices exceed the unpaged list limit. Use paged subscription invoices.", 409);
                 var invoices = issued.Items.Concat(partial.Items).OrderByDescending(x => x.InvoiceDate).ToList();
                 var dtos = _mapper.Map<List<SubscriptionInvoiceDto>>(invoices);
                 return ApiResponse<List<SubscriptionInvoiceDto>>.SuccessResponse(dtos);

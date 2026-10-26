@@ -12,13 +12,13 @@ namespace EduOS.Service.Services.Transport;
 /// </summary>
 public sealed partial class TransportService
 {
-    public async Task<ApiResponse<TransportCampusRepairReviewDto>> GetLegacyCampusRepairReviewAsync(
+    public async Task<ApiResponse<TransportCampusAssignmentReviewDto>> GetCampusAssignmentReviewAsync(
         CancellationToken cancellationToken = default)
     {
         if (!_currentUser.IsAuthenticated || !_currentUser.IsTenantAdmin || _currentUser.TenantId <= 0)
-            return Denied<TransportCampusRepairReviewDto>();
+            return Denied<TransportCampusAssignmentReviewDto>();
         if (_driverLinks == null)
-            return ApiResponse<TransportCampusRepairReviewDto>.ErrorResponse("Driver history is unavailable for safe campus review.", 503);
+            return ApiResponse<TransportCampusAssignmentReviewDto>.ErrorResponse("Driver history is unavailable for safe campus review.", 503);
         var tenant = _currentUser.TenantId;
         const int limit = 100;
         var routes = await _routes.GetQueryable().AsNoTracking()
@@ -53,26 +53,26 @@ public sealed partial class TransportService
                 .Where(x => x.TenantId == tenant && vehicleIds.Contains(x.VehicleId))
                 .GroupBy(x => x.VehicleId).Select(g => new { Id = g.Key, Count = g.Count() })
                 .ToDictionaryAsync(x => x.Id, x => x.Count, cancellationToken);
-        var rows = routes.Take(limit).Select(x => new TransportCampusRepairRowDto
+        var rows = routes.Take(limit).Select(x => new TransportCampusAssignmentRowDto
         {
             Kind = "route", Reference = x.PublicId, Label = x.Code + " — " + x.Name,
             RowVersion = Convert.ToBase64String(x.RowVersion),
             LinkedRecords = riderRoutes.GetValueOrDefault(x.Id) + routeLinks.GetValueOrDefault(x.Id)
-        }).Concat(vehicles.Take(limit).Select(x => new TransportCampusRepairRowDto
+        }).Concat(vehicles.Take(limit).Select(x => new TransportCampusAssignmentRowDto
         {
             Kind = "vehicle", Reference = x.PublicId, Label = x.VehicleNumber,
             RowVersion = Convert.ToBase64String(x.RowVersion),
             LinkedRecords = riderVehicles.GetValueOrDefault(x.Id) + vehicleLinks.GetValueOrDefault(x.Id) +
                 driverLinks.GetValueOrDefault(x.Id)
         })).ToArray();
-        return ApiResponse<TransportCampusRepairReviewDto>.SuccessResponse(new()
+        return ApiResponse<TransportCampusAssignmentReviewDto>.SuccessResponse(new()
         {
             Rows = rows, HasMore = routes.Count > limit || vehicles.Count > limit
         });
     }
 
-    public async Task<ApiResponse<bool>> ApplyLegacyCampusRepairAsync(string kind, Guid reference,
-        ApplyTransportCampusRepairDto request, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<bool>> ApplyCampusAssignmentAsync(string kind, Guid reference,
+        ApplyTransportCampusAssignmentDto request, CancellationToken cancellationToken = default)
     {
         if (!_currentUser.IsAuthenticated || !_currentUser.IsTenantAdmin || _currentUser.TenantId <= 0)
             return Denied<bool>();

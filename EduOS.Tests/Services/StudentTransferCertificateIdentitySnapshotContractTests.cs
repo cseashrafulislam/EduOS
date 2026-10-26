@@ -30,7 +30,7 @@ public sealed class StudentTransferCertificateIdentitySnapshotContractTests
     }
 
     [Fact]
-    public void Certificate_print_uses_issued_identity_and_marks_legacy_fallback()
+    public void Certificate_print_uses_issued_identity_and_marks_missing_snapshot_fallback()
     {
         var service = Read("EduOS.Service", "Services", "Students", "StudentExitService.Certificate.cs");
         var dto = Read("EduOS.Core", "DTOs", "Students", "StudentTransferCertificateDto.cs");
@@ -40,7 +40,7 @@ public sealed class StudentTransferCertificateIdentitySnapshotContractTests
         service.Should().Contain("IdentityFromIssueSnapshot");
         dto.Should().Contain("IdentityFromIssueSnapshot");
         view.Should().Contain("Model.IdentityFromIssueSnapshot");
-        view.Should().Contain("Legacy certificate:");
+        view.Should().Contain("Issue-time identity snapshot unavailable:");
         service.Should().NotContain("IgnoreQueryFilters");
     }
 

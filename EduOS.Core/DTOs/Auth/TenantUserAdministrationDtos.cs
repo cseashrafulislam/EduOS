@@ -15,8 +15,8 @@ public sealed class TenantUserListItemDto
     public bool IsActive { get; set; }
     public string RowVersion { get; set; } = "";
     public IReadOnlyList<long> RoleIds { get; set; } = Array.Empty<long>();
-    public IReadOnlyList<string> LegacyGlobalRoleNames { get; set; } = Array.Empty<string>();
-    public bool CanRemoveLegacyGlobalRoles { get; set; }
+    public IReadOnlyList<string> UnscopedIdentityRoleNames { get; set; } = Array.Empty<string>();
+    public bool CanRemoveUnscopedIdentityRoles { get; set; }
 }
 
 public sealed class TenantRoleDto
@@ -61,7 +61,7 @@ public sealed class TenantMemberRolesRequestDto
 {
     [Required] public string RowVersion { get; set; } = "";
     [Required] public IReadOnlyList<long> RoleIds { get; set; } = Array.Empty<long>();
-    public bool ConfirmLegacyGlobalRoleRemoval { get; set; }
+    public bool ConfirmUnscopedIdentityRoleRemoval { get; set; }
 }
 
 public sealed class TenantMemberStatusRequestDto

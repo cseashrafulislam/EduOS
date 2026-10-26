@@ -24,7 +24,7 @@ public sealed partial class TransportService
                     x.TenantId == tenant && !x.IsDeleted && x.PublicId == reference, token);
                 if (route == null) return ApiResponse<TransportRouteSetupRowDto>.ErrorResponse("Route not found.", 404);
                 if (!route.CampusId.HasValue)
-                    return ApiResponse<TransportRouteSetupRowDto>.ErrorResponse("Legacy route requires campus assignment.", 409);
+                    return ApiResponse<TransportRouteSetupRowDto>.ErrorResponse("Route has no assigned campus. Complete campus review first.", 409);
                 var campus = await _campuses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == route.CampusId.Value && !x.IsDeleted && x.IsActive, token);
                 if (campus == null) return ApiResponse<TransportRouteSetupRowDto>.ErrorResponse("Active campus not found.", 409);

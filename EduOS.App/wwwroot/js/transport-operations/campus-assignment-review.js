@@ -1,13 +1,13 @@
 (() => {
     'use strict';
-    const root = document.getElementById('transportLegacyCampusPanel');
+    const root = document.getElementById('transportCampusAssignmentPanel');
     if (!root) return;
     const el = id => document.getElementById(id);
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
-    const base = '/api/transport/legacy-campus-review';
+    const base = '/api/transport/campus-assignment-review';
     const node = (tag, value) => { const result = document.createElement(tag); result.textContent = String(value ?? ''); return result; };
     function message(value, ok) {
-        const panel = el('transportLegacyCampusAlert');
+        const panel = el('transportCampusAssignmentAlert');
         panel.className = 'alert alert-' + (ok ? 'success' : 'danger');
         panel.textContent = value;
     }
@@ -22,13 +22,13 @@
     }
     async function loadCampuses() {
         const campuses = await api('/api/transport/route-setup/campuses');
-        const select = el('transportLegacyTargetCampus');
+        const select = el('transportCampusAssignmentTargetCampus');
         select.replaceChildren(new Option('Select a reviewed campus', ''));
         (campuses || []).forEach(item => select.append(new Option(item.name, String(item.id))));
     }
     async function load() {
         const data = await api(base);
-        const tbody = el('transportLegacyRows'); tbody.replaceChildren();
+        const tbody = el('transportCampusAssignmentRows'); tbody.replaceChildren();
         (data.rows || []).forEach(item => {
             const tr = document.createElement('tr');
             tr.append(node('td', item.kind === 'route' ? 'Route' : 'Vehicle'));
@@ -41,8 +41,8 @@
                 const button = node('button', 'Review & apply');
                 button.type = 'button'; button.className = 'btn btn-outline-primary btn-sm';
                 button.addEventListener('click', async () => {
-                    const campusId = Number(el('transportLegacyTargetCampus').value);
-                    const campusText = el('transportLegacyTargetCampus').selectedOptions[0]?.textContent || '';
+                    const campusId = Number(el('transportCampusAssignmentTargetCampus').value);
+                    const campusText = el('transportCampusAssignmentTargetCampus').selectedOptions[0]?.textContent || '';
                     if (!Number.isSafeInteger(campusId) || campusId <= 0) {
                         message('Choose and verify the target campus first.', false); return;
                     }
@@ -67,10 +67,10 @@
         });
         if (!data.rows?.length) { const td = node('td', 'No historical campus gaps found.');
             td.colSpan = 4; const tr = document.createElement('tr'); tr.append(td); tbody.append(tr); }
-        el('transportLegacyLimitNote').textContent = data.hasMore
+        el('transportCampusAssignmentLimitNote').textContent = data.hasMore
             ? 'Showing the earliest 100 routes and 100 vehicles. Apply reviewed records, then refresh to load the next group.'
             : 'Every listed record requires a separate verification before approval.';
     }
-    el('transportLegacyRefresh').addEventListener('click', () => load().catch(e => message(e.message, false)));
+    el('transportCampusAssignmentRefresh').addEventListener('click', () => load().catch(e => message(e.message, false)));
     Promise.all([loadCampuses(), load()]).catch(e => message(e.message, false));
 })();

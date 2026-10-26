@@ -136,8 +136,8 @@ public sealed class TenantUserAdministrationTests
         var list = await service.GetMembersAsync(1, 20, null);
         Assert.True(list.Success);
         var member = Assert.Single(list.Data!.Items);
-        Assert.Equal(new[] { "LegacyStaff" }, member.LegacyGlobalRoleNames);
-        Assert.True(member.CanRemoveLegacyGlobalRoles);
+        Assert.Equal(new[] { "LegacyStaff" }, member.UnscopedIdentityRoleNames);
+        Assert.True(member.CanRemoveUnscopedIdentityRoles);
 
         var attempt = await service.SetMemberRolesAsync(member.MembershipId,
             new TenantMemberRolesRequestDto { RowVersion = member.RowVersion, RoleIds = Array.Empty<long>() });
@@ -177,8 +177,8 @@ public sealed class TenantUserAdministrationTests
         db.ChangeTracker.Clear();
         var list = await Service(db, access.User, access.Email).GetMembersAsync(1, 20, null);
         var member = Assert.Single(list.Data!.Items);
-        Assert.Equal(new[] { "OldTeacher" }, member.LegacyGlobalRoleNames);
-        Assert.False(member.CanRemoveLegacyGlobalRoles);
+        Assert.Equal(new[] { "OldTeacher" }, member.UnscopedIdentityRoleNames);
+        Assert.False(member.CanRemoveUnscopedIdentityRoles);
     }
 
     [Theory]

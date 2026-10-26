@@ -21,6 +21,12 @@ Target branch: `Ashraful`. Canonical entity declarations under `EduOS.Core/Entit
 - Completed the `IFinanceAdjustmentService` contract with its two existing enrollment search/register operations, previously available on the implementation and controller but missing from the interface.
 - Added architecture regression tests verifying these 31 controllers inject a single interface, each contract has exactly one scoped implementation, and all API controller constructor dependencies in the service-contract namespace are registered. These tests verify composition, not data-dependent correctness or comprehensive UI coverage.
 
+## Historical-data workflow naming cleanup
+
+- Renamed the Transport historical campus-assignment review contract, Service operation, API actions, DTOs, Razor partial and JavaScript to `CampusAssignmentReview` / `CampusAssignment`. The new endpoints are `GET /api/transport/campus-assignment-review` and `POST /api/transport/campus-assignment-review/{kind}/{reference}/apply`. The previous `legacy-campus-review` route was retired; callers must update together with the UI. TenantAdmin authorization, antiforgery, historical-link blocks, row-version checks, serializable transaction and audit are unchanged.
+- Renamed tenant-user review fields from `LegacyGlobalRoleNames` / `CanRemoveLegacyGlobalRoles` / `ConfirmLegacyGlobalRoleRemoval` to `UnscopedIdentityRoleNames` / `CanRemoveUnscopedIdentityRoles` / `ConfirmUnscopedIdentityRoleRemoval`, including their camel-case JSON and JavaScript bindings. The old JSON names are retired; external clients must update. Explicit approval and multi-institution permission protections still apply.
+- Renaming did **not** remove or authorize mutations of historical Transport records, global Identity grants, older certificate identity fallbacks, existing LMS single-choice persisted answers or historical SQL migration schemas. These are data/security release gates, not disposable naming aliases.
+
 ## Remaining live compatibility and migration items
 
 | Area | Verified dependency | Required migration before removal |

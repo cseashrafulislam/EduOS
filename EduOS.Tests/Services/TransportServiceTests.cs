@@ -34,26 +34,26 @@ public class TransportServiceTests
         db.AddRange(campus, route);
         await db.SaveChangesAsync();
         var service = CreateService(db, 101);
-        var review = await service.GetLegacyCampusRepairReviewAsync();
+        var review = await service.GetCampusAssignmentReviewAsync();
         review.Success.Should().BeTrue();
         var row = review.Data!.Rows.Single(x => x.Reference == route.PublicId);
         row.CanApply.Should().BeTrue();
-        var request = new ApplyTransportCampusRepairDto
+        var request = new ApplyTransportCampusAssignmentDto
         {
             CampusId = campus.Id, RowVersion = row.RowVersion
         };
-        var premature = await service.ApplyLegacyCampusRepairAsync("route", route.PublicId, request);
+        var premature = await service.ApplyCampusAssignmentAsync("route", route.PublicId, request);
         premature.StatusCode.Should().Be(400);
         route.CampusId.Should().BeNull();
         request.ConfirmHistoricalCampusReview = true;
-        var success = await service.ApplyLegacyCampusRepairAsync("route", route.PublicId, request);
+        var success = await service.ApplyCampusAssignmentAsync("route", route.PublicId, request);
         success.Success.Should().BeTrue(success.Message);
         route.CampusId.Should().Be(campus.Id);
         var auditTrail = await db.AuditLogs.IgnoreQueryFilters().ToListAsync();
         auditTrail.Any(x => x.TenantId == 101 && x.EntityName == "Route" && x.Action == "Update" &&
             x.EntityId == route.Id).Should().BeTrue(string.Join(";", auditTrail.Select(x =>
                 $"{x.TenantId}/{x.EntityName}/{x.EntityId}/{x.Action}")));
-        (await service.GetLegacyCampusRepairReviewAsync()).Data!.Rows.Should().BeEmpty();
+        (await service.GetCampusAssignmentReviewAsync()).Data!.Rows.Should().BeEmpty();
     }
 
     [Fact]
@@ -74,20 +74,20 @@ public class TransportServiceTests
         });
         await db.SaveChangesAsync();
         var service = CreateService(db, 101);
-        var review = await service.GetLegacyCampusRepairReviewAsync();
+        var review = await service.GetCampusAssignmentReviewAsync();
         review.Success.Should().BeTrue();
         review.Data!.Rows.Should().HaveCount(2);
         review.Data.Rows.Should().OnlyContain(x => !x.CanApply && x.LinkedRecords > 0);
-        var linked = await service.ApplyLegacyCampusRepairAsync("vehicle", vehicle.PublicId,
-            new ApplyTransportCampusRepairDto { CampusId = campus.Id,
+        var linked = await service.ApplyCampusAssignmentAsync("vehicle", vehicle.PublicId,
+            new ApplyTransportCampusAssignmentDto { CampusId = campus.Id,
                 RowVersion = Convert.ToBase64String(vehicle.RowVersion), ConfirmHistoricalCampusReview = true });
         linked.StatusCode.Should().Be(409);
         vehicle.CampusId.Should().BeNull();
-        var stale = await service.ApplyLegacyCampusRepairAsync("route", route.PublicId,
-            new ApplyTransportCampusRepairDto { CampusId = campus.Id, RowVersion = Convert.ToBase64String([9,9,9,9,9,9,9,9]),
+        var stale = await service.ApplyCampusAssignmentAsync("route", route.PublicId,
+            new ApplyTransportCampusAssignmentDto { CampusId = campus.Id, RowVersion = Convert.ToBase64String([9,9,9,9,9,9,9,9]),
                 ConfirmHistoricalCampusReview = true });
         stale.StatusCode.Should().Be(409);
-        var unauthorised = await CreateService(db, 101, false).GetLegacyCampusRepairReviewAsync();
+        var unauthorised = await CreateService(db, 101, false).GetCampusAssignmentReviewAsync();
         unauthorised.StatusCode.Should().Be(403);
     }
 

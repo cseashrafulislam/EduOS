@@ -19,17 +19,17 @@ public sealed class TransportController : ControllerBase
     private readonly ITransportService _service;
     public TransportController(ITransportService service) => _service = service;
 
-    [HttpGet("legacy-campus-review")]
+    [HttpGet("campus-assignment-review")]
     [Authorize(Roles = "TenantAdmin")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-    public async Task<IActionResult> LegacyCampusReview(CancellationToken ct) =>
-        ToAction(await _service.GetLegacyCampusRepairReviewAsync(ct));
+    public async Task<IActionResult> CampusAssignmentReview(CancellationToken ct) =>
+        ToAction(await _service.GetCampusAssignmentReviewAsync(ct));
 
-    [HttpPost("legacy-campus-review/{kind}/{reference:guid}/apply")]
+    [HttpPost("campus-assignment-review/{kind}/{reference:guid}/apply")]
     [Authorize(Roles = "TenantAdmin")]
-    public async Task<IActionResult> ApplyLegacyCampusRepair(string kind, Guid reference,
-        [FromBody] ApplyTransportCampusRepairDto request, CancellationToken ct) =>
-        ToAction(await _service.ApplyLegacyCampusRepairAsync(kind, reference, request, ct));
+    public async Task<IActionResult> ApplyCampusAssignment(string kind, Guid reference,
+        [FromBody] ApplyTransportCampusAssignmentDto request, CancellationToken ct) =>
+        ToAction(await _service.ApplyCampusAssignmentAsync(kind, reference, request, ct));
 
     [HttpGet("routes")]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
