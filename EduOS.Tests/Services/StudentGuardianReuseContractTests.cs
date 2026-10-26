@@ -29,6 +29,7 @@ public sealed class StudentGuardianReuseContractTests
             .And.Contain("System.Data.IsolationLevel.Serializable")
             .And.Contain("existing.IsEmergencyContact == request.IsEmergencyContact")
             .And.Contain("existing.IsFinancialContact == request.IsFinancialContact")
+            .And.Contain("existing.IsPrimary && !request.IsPrimary")
             .And.Contain("Guardian is already linked or was previously removed");
         entity.Should().Contain("public long GuardianId { get; set; }");
         var context = Read("EduOS.Persistence", "Context", "EduOSDbContext.cs");

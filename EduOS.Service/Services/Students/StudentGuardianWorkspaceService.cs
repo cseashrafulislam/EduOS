@@ -194,7 +194,11 @@ public sealed class StudentGuardianWorkspaceService : IStudentGuardianWorkspaceS
             if (existing != null)
             {
                 if (!existing.IsDeleted && existing.RelationCode == request.RelationCode.Trim() &&
-                    existing.IsPrimary == request.IsPrimary &&
+                    (existing.IsPrimary == request.IsPrimary ||
+                    (existing.IsPrimary && !request.IsPrimary &&
+                     !await _links.GetQueryable().AsNoTracking().AnyAsync(x =>
+                         x.TenantId == tenant && x.StudentId == student.Id &&
+                         x.Id != existing.Id && !x.IsDeleted, token))) &&
                     existing.CanReceiveSms == request.CanReceiveSms &&
                     existing.CanReceiveEmail == request.CanReceiveEmail &&
                     existing.IsAuthorizedPickup == request.IsAuthorizedPickup &&
