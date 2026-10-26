@@ -64,7 +64,7 @@ public sealed partial class TransportService
                 var oldEnd = link.EffectiveTo.Value;
                 // Explicit FK references are historical evidence even when cancelled or soft-deleted.
                 // Unlinked active riders using the same route/vehicle are also protected.
-                var affectedRiders = await _assignments.GetQueryable().AsNoTracking().AnyAsync(x =>
+                var affectedRiders = await _assignments.GetQueryable().IgnoreQueryFilters().AsNoTracking().AnyAsync(x =>
                     x.TenantId == tenant &&
                     (x.RouteVehicleAssignmentId == link.Id ||
                      (!x.IsDeleted && x.State == TransportAssignmentState.Active &&
