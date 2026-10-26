@@ -1372,6 +1372,10 @@ public class EduOSDbContext :
         UniqueTenant<StudentTransport>(modelBuilder, nameof(StudentTransport.ClientRequestId));
         modelBuilder.Entity<StudentTransport>().HasIndex(x => new { x.TenantId, x.StudentId })
             .IsUnique().HasFilter("[EndDate] IS NULL AND [IsDeleted] = 0");
+        // Retain the deployed two-column vehicle lookup index explicitly. EF's convention
+        // drops it when the covering date-window index is added, but the existing migration
+        // and snapshot already include it; preserving it avoids destructive index churn.
+        modelBuilder.Entity<StudentTransport>().HasIndex(x => new { x.TenantId, x.VehicleId });
         // Non-unique date-window indexes support SERIALIZABLE overlap and peak-seat
         // queries across both current and historical rows. They are not exclusion
         // constraints; service transactions must still recheck every intersecting period.

@@ -15,6 +15,11 @@ public sealed class TransportReservationWindowIndexTests
             .UseSqlServer("Server=localhost;Database=EduOS_Model_Inspection;TrustServerCertificate=True;Integrated Security=True")
             .Options;
         using var db = new EduOSDbContext(options);
+        // The legacy tenant/vehicle lookup index is deployed and must remain in the
+        // canonical model alongside the new date-window index (no EF snapshot drift).
+        Assert.Contains(db.Model.FindEntityType(typeof(StudentTransport))!.GetIndexes(), i =>
+            i.Properties.Select(p => p.Name).SequenceEqual(new[] { "TenantId", "VehicleId" }) &&
+            !i.IsUnique);
         AssertWindow(db, typeof(StudentTransport), "StudentId", "StartDate", "EndDate");
         AssertWindow(db, typeof(StudentTransport), "VehicleId", "StartDate", "EndDate");
         AssertWindow(db, typeof(RouteVehicleAssignment), "VehicleId", "EffectiveFrom", "EffectiveTo");
