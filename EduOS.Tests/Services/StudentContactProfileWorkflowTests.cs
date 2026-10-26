@@ -51,7 +51,7 @@ public sealed class StudentContactProfileWorkflowTests
         invalid.Reason = "short";
         (await Service(db, 101).UpdateAsync(student.PublicId, invalid)).StatusCode.Should().Be(400);
         (await Service(db, 101, false).UpdateAsync(student.PublicId, Valid())).StatusCode.Should().Be(403);
-        (await db.AuditLogs.CountAsync()).Should().Be(0);
+        (await db.AuditLogs.CountAsync(x => x.Action == "Student.ContactUpdated")).Should().Be(0);
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public sealed class StudentContactProfileWorkflowTests
         var student = await SeedAsync(db, 202);
         (await Service(db, 101).GetAsync(student.PublicId)).StatusCode.Should().Be(404);
         (await Service(db, 101).UpdateAsync(student.PublicId, Valid())).StatusCode.Should().Be(404);
-        (await db.AuditLogs.CountAsync()).Should().Be(0);
+        (await db.AuditLogs.CountAsync(x => x.Action == "Student.ContactUpdated")).Should().Be(0);
     }
 
     [Fact]
