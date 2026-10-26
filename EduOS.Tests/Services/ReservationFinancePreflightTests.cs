@@ -88,8 +88,14 @@ public sealed class ReservationFinancePreflightTests
         var enrollment = new StudentEnrollment { TenantId = 41, StudentId = 10, CampusId = 7, RollNo = "T-10" };
         db.StudentEnrollments.Add(enrollment);
         await db.SaveChangesAsync();
+        var route = new Route { TenantId = 41, CampusId = 7, Name = "Main", Code = "R1" };
+        var vehicle = new Vehicle { TenantId = 41, CampusId = 7, VehicleNumber = "T-1", Capacity = 20 };
+        db.Routes.Add(route);
+        db.Vehicles.Add(vehicle);
+        await db.SaveChangesAsync();
         var ride = new StudentTransport {
             TenantId = 41, StudentId = 10, StudentEnrollmentId = enrollment.Id,
+            RouteId = route.Id, VehicleId = vehicle.Id,
             StartDate = new DateOnly(2026,11,1), EndDate = new DateOnly(2026,11,30),
             MonthlyFare = 1250m
         };
@@ -106,7 +112,51 @@ public sealed class ReservationFinancePreflightTests
         response.Data!.HasPostedPaymentActivity.Should().BeTrue();
         response.Data.RequiresBillingPolicy.Should().BeTrue();
         response.Data.MonthlyCharge.Should().Be(1250m);
+        response.Data.TransportRouteId.Should().Be(route.Id);
+        response.Data.TransportVehicleId.Should().Be(vehicle.Id);
         response.Data.FinancialMutationApproved.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(8, 7)]
+    [InlineData(7, 8)]
+    public async Task Transport_route_or_vehicle_campus_mismatch_fails_closed(long routeCampus, long vehicleCampus)
+    {
+        await using var db = Database();
+        var enrollment = new StudentEnrollment { TenantId = 41, StudentId = 10, CampusId = 7, RollNo = "T-CAMPUS" };
+        db.StudentEnrollments.Add(enrollment);
+        var route = new Route { TenantId = 41, CampusId = routeCampus, Name = "Other campus", Code = "R-C" };
+        var vehicle = new Vehicle { TenantId = 41, CampusId = vehicleCampus, VehicleNumber = "T-C", Capacity = 20 };
+        db.Routes.Add(route);
+        db.Vehicles.Add(vehicle);
+        await db.SaveChangesAsync();
+        var ride = new StudentTransport {
+            TenantId = 41, StudentId = 10, StudentEnrollmentId = enrollment.Id,
+            RouteId = route.Id, VehicleId = vehicle.Id, StartDate = new DateOnly(2026,11,1)
+        };
+        db.StudentTransports.Add(ride);
+        await db.SaveChangesAsync();
+        var response = await new FinanceAdjustmentService(db, new TestUser(true), TimeProvider.System)
+            .GetReservationFinancePreflightAsync("transport", ride.Id);
+        response.StatusCode.Should().Be(409);
+    }
+
+    [Fact]
+    public async Task Transport_missing_route_fails_closed()
+    {
+        await using var db = Database();
+        var enrollment = new StudentEnrollment { TenantId = 41, StudentId = 10, CampusId = 7, RollNo = "T-ORPHAN" };
+        db.StudentEnrollments.Add(enrollment);
+        await db.SaveChangesAsync();
+        var ride = new StudentTransport {
+            TenantId = 41, StudentId = 10, StudentEnrollmentId = enrollment.Id,
+            RouteId = 999, VehicleId = 999, StartDate = new DateOnly(2026,11,1)
+        };
+        db.StudentTransports.Add(ride);
+        await db.SaveChangesAsync();
+        var response = await new FinanceAdjustmentService(db, new TestUser(true), TimeProvider.System)
+            .GetReservationFinancePreflightAsync("transport", ride.Id);
+        response.StatusCode.Should().Be(409);
     }
 
     [Fact]

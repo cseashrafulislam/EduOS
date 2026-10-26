@@ -26,3 +26,7 @@ Scope: institutional Finance only; no Platform SaaS billing. Issues #45, #47, #4
 5. SQL Server integration tests for cross-campus/tenant, posted and unpaid-issued invoices, replay, mismatched key, concurrency, double-entry balance and reversal.
 
 Finance preflight: `GET /api/finance/adjustments/reservations/preflight?kind=hostel&id=<canonical-id>` (or `transport`). TenantAdmin + FINANCE permission required. The response always has `financialMutationApproved=false`.
+
+## Finance preflight transport campus integrity
+
+The read-only Transport preflight now requires a tenant-owned, non-deleted route and vehicle and checks each explicit campus against the reservation enrollment campus. Legacy institution-wide route/vehicle campus NULL is accepted, but mismatched explicit campuses, missing links and a mismatched optional route-vehicle assignment fail closed with HTTP 409. The response exposes canonical route/vehicle IDs for Finance reconciliation. This check does not authorize or post a reservation change; Operations remains responsible for enforcing the same invariant inside its write transaction. No schema/DI change is required.

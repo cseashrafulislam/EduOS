@@ -9,6 +9,8 @@ public sealed class ReservationFinancePreflightDto
     public string Kind { get; set; } = string.Empty;
     public long ReservationId { get; set; }
     public long CampusId { get; set; }
+    public long? TransportRouteId { get; set; }
+    public long? TransportVehicleId { get; set; }
     public long StudentId { get; set; }
     public long StudentEnrollmentId { get; set; }
     public DateOnly StartDate { get; set; }

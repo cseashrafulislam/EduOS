@@ -15,7 +15,9 @@ function render(data) {
     details.replaceChildren();
     const fields = [
         ['Type', data.kind], ['Reservation ID', data.reservationId],
-        ['Campus ID', data.campusId], ['Student ID', data.studentId],
+        ['Campus ID', data.campusId],
+        ...(data.kind === 'Transport' ? [['Route ID', data.transportRouteId], ['Vehicle ID', data.transportVehicleId]] : []),
+        ['Student ID', data.studentId],
         ['Enrollment ID', data.studentEnrollmentId], ['Start date', data.startDate],
         ['Inclusive end date', data.endDate || 'Open-ended'],
         ['Monthly charge (BDT)', data.monthlyCharge],

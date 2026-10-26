@@ -31,6 +31,7 @@ public sealed partial class FinanceAdjustmentService
         DateOnly? end;
         decimal charge, deposit = 0m;
         bool hasFeeHead = false;
+        long? routeId = null, vehicleId = null, routeVehicleAssignmentId = null;
 
         if (type == "hostel")
         {
@@ -64,6 +65,9 @@ public sealed partial class FinanceAdjustmentService
             start = ride.StartDate;
             end = ride.EndDate;
             charge = ride.MonthlyFare;
+            routeId = ride.RouteId;
+            vehicleId = ride.VehicleId;
+            routeVehicleAssignmentId = ride.RouteVehicleAssignmentId;
         }
 
         var enrollment = await db.StudentEnrollments.AsNoTracking()
@@ -72,6 +76,31 @@ public sealed partial class FinanceAdjustmentService
             .Select(x => new { x.CampusId }).FirstOrDefaultAsync(ct);
         if (enrollment == null || (type == "hostel" && reservationCampus != enrollment.CampusId))
             return Error<ReservationFinancePreflightDto>("Reservation enrollment or campus linkage is invalid.", 409);
+
+        // A transport reservation must still belong to the enrollment's campus.
+        // Nullable campus on legacy routes/vehicles means institution-wide, not a
+        // license to accept a conflicting explicitly assigned campus.
+        if (type == "transport")
+        {
+            if (routeId is null or <= 0 || vehicleId is null or <= 0)
+                return Error<ReservationFinancePreflightDto>("Transport route or vehicle linkage is invalid.", 409);
+            var route = await db.Routes.AsNoTracking()
+                .Where(x => x.TenantId == tenant && !x.IsDeleted && x.Id == routeId.Value)
+                .Select(x => new { x.CampusId }).FirstOrDefaultAsync(ct);
+            var vehicle = await db.Vehicles.AsNoTracking()
+                .Where(x => x.TenantId == tenant && !x.IsDeleted && x.Id == vehicleId.Value)
+                .Select(x => new { x.CampusId }).FirstOrDefaultAsync(ct);
+            if (route == null || vehicle == null ||
+                (route.CampusId.HasValue && route.CampusId.Value != enrollment.CampusId) ||
+                (vehicle.CampusId.HasValue && vehicle.CampusId.Value != enrollment.CampusId))
+                return Error<ReservationFinancePreflightDto>("Transport reservation campus linkage is invalid.", 409);
+            if (routeVehicleAssignmentId.HasValue &&
+                !await db.RouteVehicleAssignments.AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && !x.IsDeleted &&
+                    x.Id == routeVehicleAssignmentId.Value &&
+                    x.RouteId == routeId.Value && x.VehicleId == vehicleId.Value, ct))
+                return Error<ReservationFinancePreflightDto>("Transport route/vehicle assignment linkage is invalid.", 409);
+        }
 
         // No canonical reservation-to-invoice source FK exists. Conservatively include
         // ALL posted activity for the enrollment, and ALL successful student payments.
@@ -102,6 +131,8 @@ public sealed partial class FinanceAdjustmentService
             Kind = type == "hostel" ? "Hostel" : "Transport",
             ReservationId = id,
             CampusId = enrollment.CampusId,
+            TransportRouteId = routeId,
+            TransportVehicleId = vehicleId,
             StudentId = studentId,
             StudentEnrollmentId = enrollmentId,
             StartDate = start,
