@@ -43,9 +43,11 @@
             const body = el('hostelHistoryRows');
             for (const item of records) {
                 const tr = document.createElement('tr');
+                const lineage = [item.isTransferSuccessor ? 'Transferred in' : '',
+                    item.hasTransferSuccessor ? 'Transferred onward' : ''].filter(Boolean).join(' / ') || '—';
                 for (const value of [item.campusName,item.studentName,item.studentCode,item.hostelName,
                     (item.roomNumber || '') + ' / ' + (item.bedNumber || ''),item.startDate,item.endDate || '—',
-                    stateName(item.state)]) {
+                    stateName(item.state),lineage]) {
                     const cell = document.createElement('td');
                     cell.textContent = String(value ?? '—'); tr.append(cell);
                 }
@@ -53,7 +55,7 @@
             }
             if (!records.length) {
                 const tr = document.createElement('tr'), cell = document.createElement('td');
-                cell.colSpan = 8; cell.textContent = 'No matching allocation history.';
+                cell.colSpan = 9; cell.textContent = 'No matching allocation history.';
                 tr.append(cell); body.append(tr);
             }
             el('hostelHistoryPage').textContent = 'Page ' + requestedPage + ' of ' + pages +

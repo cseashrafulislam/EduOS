@@ -1,6 +1,6 @@
 <section id="hostelHistoryPanel" class="card mb-3" aria-labelledby="hostelHistoryTitle"><div class="card-body">
     <h3 id="hostelHistoryTitle" class="h5">Hostel allocation history</h3>
-    <p class="small text-muted">Active, closed and cancelled records; start-date filters. Campus-authorized operational data only. No payments, rent, deposits or contact information.</p>
+    <p class="small text-muted">Active, closed and cancelled records; start-date filters. Transfer lineage is shown without exposing predecessor IDs or other campuses. No payments, rent, deposits or contact information.</p>
     <form id="hostelHistoryFilter" class="row g-2 mb-3">
         <div class="col-lg-2 col-md-4"><label for="hostelHistoryCampus" class="form-label">Campus</label>
             <select id="hostelHistoryCampus" class="form-select"><option value="">All permitted campuses</option></select></div>
@@ -17,7 +17,7 @@
     <div class="d-flex justify-content-end mb-2"><button id="hostelHistoryExport" type="button" class="btn btn-outline-secondary btn-sm" disabled>Export filtered history (CSV)</button></div>
     <div id="hostelHistoryStatus" class="small text-muted mb-2" role="status" aria-live="polite"></div>
     <div class="table-responsive"><table class="table table-sm table-hover">
-        <thead><tr><th>Campus</th><th>Student</th><th>Code</th><th>Hostel</th><th>Room / bed</th><th>Start</th><th>End</th><th>Status</th></tr></thead>
+        <thead><tr><th>Campus</th><th>Student</th><th>Code</th><th>Hostel</th><th>Room / bed</th><th>Start</th><th>End</th><th>Status</th><th>Transfer lineage</th></tr></thead>
         <tbody id="hostelHistoryRows"></tbody>
     </table></div>
     <div class="d-flex justify-content-between align-items-center">

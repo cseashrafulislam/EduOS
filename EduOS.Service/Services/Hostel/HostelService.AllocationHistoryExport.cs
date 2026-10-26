@@ -33,7 +33,7 @@ public sealed partial class HostelService
         if (rows.Count != first.Data.TotalCount || rows.Any(row => !ids.Add(row.Id)))
             return ApiResponse<string>.ErrorResponse("History changed during export. Retry.", 409);
 
-        var csv = new StringBuilder("Campus,Student Code,Hostel,Room,Bed,Start Date,End Date,Status\r\n");
+        var csv = new StringBuilder("Campus,Student Code,Hostel,Room,Bed,Start Date,End Date,Status,Transferred In,Transferred Onward\r\n");
         foreach (var row in rows)
         {
             var label = row.State switch
@@ -50,7 +50,10 @@ public sealed partial class HostelService
                 .Append(CsvCell(row.BedNumber)).Append(',')
                 .Append(row.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)).Append(',')
                 .Append(row.EndDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty)
-                .Append(',').Append(label).Append("\r\n");
+                .Append(',').Append(label)
+                .Append(',').Append(row.IsTransferSuccessor ? "Yes" : "No")
+                .Append(',').Append(row.HasTransferSuccessor ? "Yes" : "No")
+                .Append("\r\n");
         }
         return ApiResponse<string>.SuccessResponse(csv.ToString());
     }

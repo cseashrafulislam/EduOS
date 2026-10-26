@@ -40,6 +40,7 @@ public sealed partial class HostelService
             select new
             {
                 allocation.Id, allocation.StartDate, allocation.EndDate, allocation.State,
+                allocation.PreviousAllocationId,
                 CampusId = campus.Id, CampusName = campus.Name, StudentName = student.FullName,
                 student.StudentCode, HostelName = hostel.Name, room.RoomNumber, bed.BedNumber
             };
@@ -59,6 +60,25 @@ public sealed partial class HostelService
         var total = await query.CountAsync(cancellationToken);
         var rows = await query.OrderByDescending(x => x.StartDate).ThenByDescending(x => x.Id)
             .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
+        // Resolve only this page's successor markers. Historical (even soft-deleted)
+        // successors are retained for audit, but a different-campus successor is
+        // never disclosed to a viewer of the source campus.
+        var pageIds = rows.Select(x => x.Id).ToArray();
+        var successors = await (
+            from successor in _allocations.GetQueryable().IgnoreQueryFilters().AsNoTracking()
+            join successorBed in _beds.GetQueryable().IgnoreQueryFilters().AsNoTracking()
+                on successor.HostelBedId equals successorBed.Id
+            join successorRoom in _rooms.GetQueryable().IgnoreQueryFilters().AsNoTracking()
+                on successorBed.HostelRoomId equals successorRoom.Id
+            join successorHostel in _hostels.GetQueryable().IgnoreQueryFilters().AsNoTracking()
+                on successorRoom.HostelId equals successorHostel.Id
+            where successor.TenantId == tenant && successorBed.TenantId == tenant &&
+                successorRoom.TenantId == tenant && successorHostel.TenantId == tenant &&
+                successor.PreviousAllocationId.HasValue &&
+                pageIds.Contains(successor.PreviousAllocationId.Value)
+            select new { PreviousId = successor.PreviousAllocationId.Value, successorHostel.CampusId }
+        ).Distinct().ToListAsync(cancellationToken);
+        var successorCampusLookup = successors.ToLookup(x => x.PreviousId, x => x.CampusId);
         return ApiResponse<PagedResult<HostelAllocationHistoryRowDto>>.SuccessResponse(
             new PagedResult<HostelAllocationHistoryRowDto>
             {
@@ -68,7 +88,9 @@ public sealed partial class HostelService
                     Id = x.Id, CampusId = x.CampusId, CampusName = x.CampusName,
                     StudentName = x.StudentName, StudentCode = x.StudentCode,
                     HostelName = x.HostelName, RoomNumber = x.RoomNumber, BedNumber = x.BedNumber,
-                    StartDate = x.StartDate, EndDate = x.EndDate, State = x.State
+                    StartDate = x.StartDate, EndDate = x.EndDate, State = x.State,
+                    IsTransferSuccessor = x.PreviousAllocationId.HasValue,
+                    HasTransferSuccessor = successorCampusLookup[x.Id].Contains(x.CampusId)
                 }).ToList()
             });
     }

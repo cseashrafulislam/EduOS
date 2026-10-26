@@ -13,5 +13,8 @@ public sealed class HostelAllocationHistoryRowDto
     public string BedNumber { get; set; } = string.Empty;
     public DateOnly StartDate { get; set; }
     public DateOnly? EndDate { get; set; }
+    /// <summary>Lineage markers only; no predecessor identity or financial data is exposed.</summary>
+    public bool IsTransferSuccessor { get; set; }
+    public bool HasTransferSuccessor { get; set; }
     public HostelAllocationState State { get; set; }
 }
