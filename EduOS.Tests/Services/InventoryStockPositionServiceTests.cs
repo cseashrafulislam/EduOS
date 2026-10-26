@@ -40,8 +40,8 @@ public sealed class InventoryStockPositionServiceTests
         public string? IpAddress => null;
         public string? UserAgent => null;
     }
-    private static InventoryMovementService Service(EduOSDbContext db, string role = "TenantAdmin") =>
-        new(db, new User(101, role), TimeProvider.System, NullLogger<InventoryMovementService>.Instance);
+    private static InventoryMovementService Service(EduOSDbContext db, string role = "TenantAdmin", long tenant = 101) =>
+        new(db, new User(tenant, role), TimeProvider.System, NullLogger<InventoryMovementService>.Instance);
 
     [Fact]
     public async Task Position_includes_zero_and_inactive_items_but_only_posted_costed_movements()
@@ -95,15 +95,14 @@ public sealed class InventoryStockPositionServiceTests
         db.Campuses.AddRange(a, b); await db.SaveChangesAsync();
         var own = new InventoryLocation { TenantId = 101, CampusId = a.Id, Code = "A1", Name = "Store A" };
         var blocked = new InventoryLocation { TenantId = 101, CampusId = b.Id, Code = "B1", Name = "Store B" };
-        var foreign = new InventoryLocation { TenantId = 102, Code = "X1", Name = "Foreign" };
-        db.InventoryLocations.AddRange(own, blocked, foreign);
+        db.InventoryLocations.AddRange(own, blocked);
         db.UserCampusAccesses.Add(new UserCampusAccess { TenantId = 101, UserId = 7, CampusId = a.Id, IsActive = true });
         await db.SaveChangesAsync();
         (await Service(db, "StoreKeeper").GetStockPositionAsync(own.Id, null, null, true, 1, 25))
             .StatusCode.Should().Be(200);
         (await Service(db, "StoreKeeper").GetStockPositionAsync(blocked.Id, null, null, true, 1, 25))
             .StatusCode.Should().Be(403);
-        (await Service(db).GetStockPositionAsync(foreign.Id, null, null, true, 1, 25))
+        (await Service(db, "TenantAdmin", 102).GetStockPositionAsync(own.Id, null, null, true, 1, 25))
             .StatusCode.Should().Be(403);
         (await Service(db, "Student").GetStockPositionAsync(own.Id, null, null, true, 1, 25))
             .StatusCode.Should().Be(403);
