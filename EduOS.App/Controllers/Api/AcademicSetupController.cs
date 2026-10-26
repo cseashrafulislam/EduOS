@@ -121,6 +121,24 @@ public sealed class AcademicSetupController : ControllerBase
     public async Task<IActionResult> CreateBatch([FromBody] SaveAcademicBatchRequestDto request, CancellationToken cancellationToken) =>
         ToAction(await _service.CreateBatchAsync(request, cancellationToken));
 
+    [HttpGet("batches")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> Batches([FromQuery] string? search, [FromQuery] long? campusId,
+        [FromQuery] long? academicYearId, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetBatchesAsync(search, campusId, academicYearId, page, pageSize, cancellationToken));
+
+    [HttpGet("batches/{id:long}")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> Batch(long id, CancellationToken cancellationToken) =>
+        ToAction(await _service.GetBatchAsync(id, cancellationToken));
+
+    [HttpPut("batches/{id:long}")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> UpdateBatch(long id, [FromBody] UpdateAcademicBatchRequestDto request,
+        CancellationToken cancellationToken) =>
+        ToAction(await _service.UpdateBatchAsync(id, request, cancellationToken));
+
     [HttpGet("batches/{academicBatchId:long}/offerings")]
     [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> Offerings(long academicBatchId, [FromQuery] string? search,

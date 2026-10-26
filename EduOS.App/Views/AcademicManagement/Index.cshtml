@@ -179,6 +179,33 @@
                 <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Add Section</button></div>
             </form>
             <div class="table-responsive"><table class="table table-hover"><thead><tr><th>Section</th><th>Code</th><th>Campus</th><th>Year</th><th>Class</th><th>Capacity</th></tr></thead><tbody id="sectionRows"></tbody></table></div>
+            <hr />
+            <h3 class="h6">All sections — administration register</h3>
+            <p class="small text-muted">Search across active and inactive sections. Campus, year, programme, class, dates and code are immutable here. Capacity can only increase; reductions and closure require a separate enrollment-safe reconciliation.</p>
+            <form id="batchSearchForm" class="row g-2 align-items-end mb-3">
+                <div class="col-md-4"><label for="batchSearch" class="form-label">Name / code prefix</label><input id="batchSearch" maxlength="80" class="form-control" /></div>
+                <div class="col-md-3"><label for="batchCampusFilter" class="form-label">Campus</label><select id="batchCampusFilter" class="form-select"><option value="">All campuses</option></select></div>
+                <div class="col-md-3"><label for="batchYearFilter" class="form-label">Academic year</label><select id="batchYearFilter" class="form-select"><option value="">All years</option></select></div>
+                <div class="col-md-2"><button type="submit" class="btn btn-outline-primary w-100">Search</button></div>
+            </form>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span id="batchPageStatus" class="small text-muted" aria-live="polite"></span>
+                <button id="batchExport" type="button" class="btn btn-sm btn-outline-secondary">Export visible CSV</button>
+            </div>
+            <div class="table-responsive"><table class="table table-striped table-hover"><thead><tr><th>Section</th><th>Campus</th><th>Year</th><th>Programme / Class</th><th>Capacity</th><th>Status</th><th>Action</th></tr></thead><tbody id="batchRegisterRows"></tbody></table></div>
+            <div class="d-flex gap-2 mb-3">
+                <button id="batchPrevious" type="button" class="btn btn-sm btn-outline-secondary">Previous</button>
+                <button id="batchNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button>
+            </div>
+            <form id="batchEditForm" class="row g-2 align-items-end border rounded p-3 d-none" aria-label="Edit section metadata">
+                <input id="batchEditId" type="hidden" /><input id="batchEditVersion" type="hidden" />
+                <div class="col-12"><strong id="batchEditContext"></strong></div>
+                <div class="col-md-5"><label for="batchEditName" class="form-label">Section name *</label><input id="batchEditName" class="form-control" maxlength="150" required /></div>
+                <div class="col-md-2"><label for="batchEditCapacity" class="form-label">Capacity *</label><input id="batchEditCapacity" class="form-control" type="number" min="0" max="100000" required /></div>
+                <div class="col-md-2"><label for="batchEditOrder" class="form-label">Display order</label><input id="batchEditOrder" class="form-control" type="number" min="0" required /></div>
+                <div class="col-md-3"><button type="submit" class="btn btn-primary w-100">Save section</button></div>
+                <div class="col-12"><button id="batchEditCancel" type="button" class="btn btn-link">Cancel</button></div>
+            </form>
         </div>
     </section>
     <section data-section="subjects" class="card border-0 shadow-sm d-none">
@@ -250,4 +277,5 @@
     <script src="~/js/academic/subject-offerings.js" asp-append-version="true"></script>
     <script src="~/js/academic/departments.js" asp-append-version="true"></script>
     <script src="~/js/academic/programmes.js" asp-append-version="true"></script>
+    <script src="~/js/academic/batches.js" asp-append-version="true"></script>
 }
