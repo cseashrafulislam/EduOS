@@ -205,8 +205,6 @@
             x => findYear(x.academicYearId)?.name || '',
             x => find('levels', x.academicLevelId)?.name || '', x => x.capacity
         ]);
-        table('subjectRows', catalog.subjects,
-            [x => x.name, x => x.code, x => x.defaultCreditHours]);
         table('curriculumRows', catalog.curricula, [
             x => x.name + ' (' + x.code + ')',
             x => find('programs', x.academicProgramId)?.name || '',

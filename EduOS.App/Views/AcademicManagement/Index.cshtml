@@ -291,13 +291,34 @@
     <section data-section="subjects" class="card border-0 shadow-sm d-none">
         <div class="card-body">
             <h2 class="h5">Subjects</h2>
+            <p class="small text-muted">Manage tenant-wide subjects. Codes are immutable; linked curriculum history prevents deactivation. Existing curriculum credits and marks are not changed by editing defaults.</p>
+            <form id="subjectSearchForm" class="row g-2 align-items-end mb-3">
+                <div class="col-md-6"><label for="subjectSearch" class="form-label">Search subject name / code prefix</label><input id="subjectSearch" maxlength="80" class="form-control" /></div>
+                <div class="col-md-3"><button type="submit" class="btn btn-outline-primary">Search</button></div>
+            </form>
             <form id="subjectForm" class="row g-2 align-items-end mb-3">
                 <div class="col-md-4"><label for="subjectName" class="form-label">Subject name *</label><input id="subjectName" required maxlength="200" class="form-control" /></div>
                 <div class="col-md-3"><label for="subjectCode" class="form-label">Code *</label><input id="subjectCode" required maxlength="50" class="form-control" /></div>
                 <div class="col-md-3"><label for="subjectCredits" class="form-label">Default credits</label><input id="subjectCredits" type="number" min="0" max="1000" step="0.01" value="0" class="form-control" /></div>
                 <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Add Subject</button></div>
             </form>
-            <div class="table-responsive"><table class="table table-hover"><thead><tr><th>Subject</th><th>Code</th><th>Credit hours</th></tr></thead><tbody id="subjectRows"></tbody></table></div>
+            <div class="table-responsive"><table class="table table-hover"><thead><tr><th>Subject</th><th>Code</th><th>Default credits</th><th>Status</th><th>Action</th></tr></thead><tbody id="subjectRows"></tbody></table></div>
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <button id="subjectPrevious" type="button" class="btn btn-sm btn-outline-secondary">Previous</button>
+                <span id="subjectPage" class="small text-muted" aria-live="polite"></span>
+                <button id="subjectNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button>
+                <button id="subjectCsv" type="button" class="btn btn-sm btn-outline-primary ms-auto">Export visible CSV</button>
+            </div>
+            <form id="subjectEditForm" class="row g-2 align-items-end border rounded p-3 d-none" aria-label="Edit subject metadata">
+                <input id="subjectEditId" type="hidden" /><input id="subjectEditVersion" type="hidden" />
+                <div class="col-12"><strong>Editing subject: <span id="subjectEditCode"></span></strong></div>
+                <div class="col-md-4"><label for="subjectEditName" class="form-label">Name *</label><input id="subjectEditName" maxlength="200" required class="form-control" /></div>
+                <div class="col-md-3"><label for="subjectEditShortName" class="form-label">Short name</label><input id="subjectEditShortName" maxlength="50" class="form-control" /></div>
+                <div class="col-md-2"><label for="subjectEditCredits" class="form-label">Default credits</label><input id="subjectEditCredits" type="number" min="0" max="1000" step="0.01" required class="form-control" /></div>
+                <div class="col-md-2"><label class="form-check"><input id="subjectEditActive" type="checkbox" class="form-check-input" /><span class="form-check-label">Active</span></label></div>
+                <div class="col-md-3"><button type="submit" class="btn btn-primary w-100">Save subject</button></div>
+                <div class="col-md-2"><button id="subjectEditCancel" type="button" class="btn btn-outline-secondary w-100">Cancel</button></div>
+            </form>
         </div>
     </section>
     <section data-section="curricula" class="card border-0 shadow-sm d-none">
@@ -361,4 +382,5 @@
     <script src="~/js/academic/rooms.js" asp-append-version="true"></script>
     <script src="~/js/academic/levels.js" asp-append-version="true"></script>
     <script src="~/js/academic/tracks.js" asp-append-version="true"></script>
+    <script src="~/js/academic/subjects.js" asp-append-version="true"></script>
 }
