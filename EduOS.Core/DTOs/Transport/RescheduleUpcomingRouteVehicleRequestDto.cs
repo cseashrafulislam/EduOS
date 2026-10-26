@@ -5,6 +5,7 @@ namespace EduOS.Core.DTOs.Transport;
 /// <summary>Move the first effective day of an existing future route/vehicle link.</summary>
 public sealed class RescheduleUpcomingRouteVehicleRequestDto
 {
+    public Guid ClientRequestId { get; set; }
     public DateOnly EffectiveFrom { get; set; }
     [Required] public string RowVersion { get; set; } = string.Empty;
 }

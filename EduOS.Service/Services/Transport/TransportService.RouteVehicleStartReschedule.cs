@@ -28,6 +28,12 @@ public sealed partial class TransportService
                 "Assignment, new effective start and row version are required.");
         var tenant = _currentUser.TenantId;
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+        const string operation = "transport.route-vehicle-start-reschedule";
+        var requestHash = CommandFingerprint(operation, assignmentId,
+            request.EffectiveFrom.ToString("yyyy-MM-dd"), Convert.ToBase64String(version));
+        var requestId = request.ClientRequestId == Guid.Empty
+            ? LegacyRouteVehicleCommandRequestId(tenant, _currentUser.UserId, operation, assignmentId, requestHash)
+            : request.ClientRequestId;
         try
         {
             return await _unitOfWork.ExecuteInTransactionAsync(async token =>
@@ -49,14 +55,26 @@ public sealed partial class TransportService
                         "Active route, vehicle or campus is unavailable.", 409);
                 if (!await CanManageCampusAsync(route.CampusId.Value, tenant, token))
                     return Denied<RouteVehicleAssignmentDto>();
+                var replay = await _commandReceipts.ReplayAsync<RouteVehicleAssignmentDto>(tenant,
+                    _currentUser.UserId, operation, requestId, assignmentId, requestHash, token);
+                if (replay.Conflict)
+                    return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse(
+                        "Request key was already used with different command details.", 409);
+                if (replay.Found) return replay.Response!;
                 if (!link.IsCurrent || !CanRescheduleUpcomingRouteVehicleDates(
                     link.EffectiveFrom, link.EffectiveTo, request.EffectiveFrom, today))
                     return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse(
                         "Only a future assignment can be rescheduled within its existing end date.", 409);
                 // Exact-state replay succeeds without overwriting a newer row version.
                 if (link.EffectiveFrom == request.EffectiveFrom)
-                    return ApiResponse<RouteVehicleAssignmentDto>.SuccessResponse(
+                {
+                    var same = ApiResponse<RouteVehicleAssignmentDto>.SuccessResponse(
                         MapRouteVehicleLink(link), "Assignment already starts on this date.");
+                    await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
+                        requestId, assignmentId, requestHash, same, token);
+                    await _unitOfWork.SaveChangesAsync(token);
+                    return same;
+                }
                 if (!link.RowVersion.AsSpan().SequenceEqual(version))
                     return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse(
                         "Assignment changed. Reload and retry.", 409);
@@ -101,8 +119,12 @@ public sealed partial class TransportService
                 _logger.LogInformation(
                     "Upcoming route/vehicle start rescheduled: tenant {TenantId}, campus {CampusId}, link {LinkId}, from {OldStart} to {NewStart}",
                     tenant, route.CampusId.Value, link.Id, oldStart, link.EffectiveFrom);
-                return ApiResponse<RouteVehicleAssignmentDto>.SuccessResponse(
+                var success = ApiResponse<RouteVehicleAssignmentDto>.SuccessResponse(
                     MapRouteVehicleLink(link), "Upcoming route/vehicle assignment rescheduled.");
+                await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
+                    requestId, assignmentId, requestHash, success, token);
+                await _unitOfWork.SaveChangesAsync(token);
+                return success;
             }, System.Data.IsolationLevel.Serializable, ct);
         }
         catch (DbUpdateConcurrencyException)

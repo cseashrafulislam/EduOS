@@ -9,7 +9,8 @@ function harness(answer,confirmation=true){
  const calls=[],messages=[];
  const u={today:()=> '2026-10-26',api:async(...args)=>{calls.push(args);return{};},
   notify:(...args)=>messages.push(args),load:async()=>{calls.push(['reload']);}};
- vm.runInNewContext(source,{window:{transportLink:u,prompt:()=>answer,confirm:()=>confirmation},
+ vm.runInNewContext(source,{window:{transportLink:u,prompt:()=>answer,confirm:()=>confirmation,
+  crypto:{randomUUID:()=> '12345678-1234-4234-8234-123456789abc'}},
   Date,Number,encodeURIComponent});
  return {u,calls,messages};
 }
@@ -21,6 +22,7 @@ test('extends canonical future route/vehicle reservation and refreshes',async()=
  assert.equal(h.calls[0][1],'POST');
  assert.equal(h.calls[0][2].effectiveTo,'2026-12-15');
  assert.equal(h.calls[0][2].rowVersion,'version');
+ assert.equal(h.calls[0][2].clientRequestId,'12345678-1234-4234-8234-123456789abc');
  assert.deepEqual(h.calls[1],['reload']);
 });
 test('rejects invalid and nonextension dates',async()=>{
@@ -44,7 +46,8 @@ const rescheduleSource=fs.readFileSync(path.join(__dirname,
  '../../EduOS.App/wwwroot/js/transport-operations/route-vehicle-reschedule.js'),'utf8');
 test('future link rescheduling works with read-model isCurrent=false',async()=>{
  const h=harness('2026-12-15');
- vm.runInNewContext(rescheduleSource,{window:{transportLink:h.u,prompt:()=> '2026-11-04'},
+ vm.runInNewContext(rescheduleSource,{window:{transportLink:h.u,prompt:()=> '2026-11-04',
+  crypto:{randomUUID:()=> '12345678-1234-4234-8234-123456789abc'}},
   Date,Number,encodeURIComponent});
  await h.u.rescheduleUpcomingLink(row);
  assert.equal(h.calls[0][0],'/api/transport/route-vehicle-links/19/reschedule-start');

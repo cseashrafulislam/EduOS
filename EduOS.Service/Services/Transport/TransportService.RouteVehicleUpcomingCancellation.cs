@@ -15,6 +15,11 @@ public sealed partial class TransportService
             return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse("Invalid cancellation request.");
         var tenant = _currentUser.TenantId;
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+        const string operation = "transport.route-vehicle-cancel-upcoming";
+        var requestHash = CommandFingerprint(operation, assignmentId, Convert.ToBase64String(version));
+        var requestId = request.ClientRequestId == Guid.Empty
+            ? LegacyRouteVehicleCommandRequestId(tenant, _currentUser.UserId, operation, assignmentId, requestHash)
+            : request.ClientRequestId;
         try
         {
             return await _unitOfWork.ExecuteInTransactionAsync(async token =>
@@ -32,10 +37,22 @@ public sealed partial class TransportService
                 return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse("Campus unavailable.", 409);
             if (!await CanManageCampusAsync(route.CampusId.Value, tenant, token))
                 return Denied<RouteVehicleAssignmentDto>();
+            var replay = await _commandReceipts.ReplayAsync<RouteVehicleAssignmentDto>(tenant,
+                _currentUser.UserId, operation, requestId, assignmentId, requestHash, token);
+            if (replay.Conflict)
+                return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse(
+                    "Request key was already used with different command details.", 409);
+            if (replay.Found) return replay.Response!;
             if (link.EffectiveFrom <= today)
                 return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse("Already started.", 409);
             if (!link.IsCurrent)
-                return ApiResponse<RouteVehicleAssignmentDto>.SuccessResponse(MapRouteVehicleLink(link), "Already cancelled.");
+            {
+                var same = ApiResponse<RouteVehicleAssignmentDto>.SuccessResponse(MapRouteVehicleLink(link), "Already cancelled.");
+                await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
+                    requestId, assignmentId, requestHash, same, token);
+                await _unitOfWork.SaveChangesAsync(token);
+                return same;
+            }
             if (!link.RowVersion.AsSpan().SequenceEqual(version))
                 return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse("Changed.", 409);
             var end = link.EffectiveTo ?? DateOnly.MaxValue;
@@ -48,7 +65,11 @@ public sealed partial class TransportService
             link.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
             link.UpdatedBy = _currentUser.UserId;
             await _unitOfWork.SaveChangesAsync(token);
-            return ApiResponse<RouteVehicleAssignmentDto>.SuccessResponse(MapRouteVehicleLink(link), "Cancelled.");
+            var success = ApiResponse<RouteVehicleAssignmentDto>.SuccessResponse(MapRouteVehicleLink(link), "Cancelled.");
+            await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
+                requestId, assignmentId, requestHash, success, token);
+            await _unitOfWork.SaveChangesAsync(token);
+            return success;
             }, System.Data.IsolationLevel.Serializable, ct);
         }
         catch (DbUpdateConcurrencyException)

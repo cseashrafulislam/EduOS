@@ -15,7 +15,7 @@ public sealed partial class TransportService
         requestedEnd >= start && requestedEnd < currentEnd.Value;
 
     // Shortening releases reserved vehicle days without altering existing rider history.
-    // Exact-state retries are safe; durable request-key idempotency is Platform-owned.
+    // Persist request outcome in the same transaction as the canonical link update.
     public async Task<ApiResponse<RouteVehicleAssignmentDto>> ShortenUpcomingRouteVehicleAsync(
         long assignmentId, ShortenUpcomingRouteVehicleRequestDto request, CancellationToken ct = default)
     {
@@ -26,6 +26,12 @@ public sealed partial class TransportService
                 "Assignment, new end date and row version are required.");
         var tenant = _currentUser.TenantId;
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+        const string operation = "transport.route-vehicle-shorten-upcoming";
+        var requestHash = CommandFingerprint(operation, assignmentId,
+            request.EffectiveTo.ToString("yyyy-MM-dd"), Convert.ToBase64String(version));
+        var requestId = request.ClientRequestId == Guid.Empty
+            ? LegacyRouteVehicleCommandRequestId(tenant, _currentUser.UserId, operation, assignmentId, requestHash)
+            : request.ClientRequestId;
         try
         {
             return await _unitOfWork.ExecuteInTransactionAsync(async token =>
@@ -47,12 +53,24 @@ public sealed partial class TransportService
                         "Active route, vehicle or campus is unavailable.", 409);
                 if (!await CanManageCampusAsync(route.CampusId.Value, tenant, token))
                     return Denied<RouteVehicleAssignmentDto>();
+                var replay = await _commandReceipts.ReplayAsync<RouteVehicleAssignmentDto>(tenant,
+                    _currentUser.UserId, operation, requestId, assignmentId, requestHash, token);
+                if (replay.Conflict)
+                    return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse(
+                        "Request key was already used with different command details.", 409);
+                if (replay.Found) return replay.Response!;
                 if (!link.IsCurrent || link.EffectiveFrom <= today || !link.EffectiveTo.HasValue)
                     return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse(
                         "Only a future finite current route/vehicle reservation can be shortened.", 409);
                 if (link.EffectiveTo.Value == request.EffectiveTo)
-                    return ApiResponse<RouteVehicleAssignmentDto>.SuccessResponse(
+                {
+                    var same = ApiResponse<RouteVehicleAssignmentDto>.SuccessResponse(
                         MapRouteVehicleLink(link), "Route/vehicle reservation already ends on this date.");
+                    await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
+                        requestId, assignmentId, requestHash, same, token);
+                    await _unitOfWork.SaveChangesAsync(token);
+                    return same;
+                }
                 if (!link.RowVersion.AsSpan().SequenceEqual(version))
                     return ApiResponse<RouteVehicleAssignmentDto>.ErrorResponse(
                         "Assignment changed. Reload and retry.", 409);
@@ -82,8 +100,12 @@ public sealed partial class TransportService
                 _logger.LogInformation(
                     "Upcoming route/vehicle reservation shortened: tenant {TenantId}, campus {CampusId}, assignment {AssignmentId}, old end {OldEnd}, new end {NewEnd}",
                     tenant, route.CampusId.Value, link.Id, oldEnd, link.EffectiveTo);
-                return ApiResponse<RouteVehicleAssignmentDto>.SuccessResponse(
+                var success = ApiResponse<RouteVehicleAssignmentDto>.SuccessResponse(
                     MapRouteVehicleLink(link), "Upcoming route/vehicle reservation shortened.");
+                await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
+                    requestId, assignmentId, requestHash, success, token);
+                await _unitOfWork.SaveChangesAsync(token);
+                return success;
             }, System.Data.IsolationLevel.Serializable, ct);
         }
         catch (DbUpdateConcurrencyException)

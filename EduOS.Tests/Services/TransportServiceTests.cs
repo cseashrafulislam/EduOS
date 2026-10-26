@@ -140,6 +140,74 @@ public class TransportServiceTests
     }
 
     [Theory]
+    [InlineData("reschedule")]
+    [InlineData("extend")]
+    [InlineData("shorten")]
+    [InlineData("cancel")]
+    public async Task Upcoming_route_vehicle_mutations_replay_original_outcome_and_support_legacy_keys(string command)
+    {
+        await using var db = CreateContext(CreateOptions(), 101);
+        var today = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
+        var campus = new Campus { TenantId = 101, Name = "Planned route campus",
+            Code = "RVC", IsActive = true };
+        db.Campuses.Add(campus);
+        await db.SaveChangesAsync();
+        var route = new TransportRoute { TenantId = 101, CampusId = campus.Id,
+            Name = "Planned route", Code = "RVC-R", IsActive = true };
+        var vehicle = new Vehicle { TenantId = 101, CampusId = campus.Id,
+            VehicleNumber = "RVC-BUS", Capacity = 25, IsActive = true };
+        db.AddRange(route, vehicle);
+        await db.SaveChangesAsync();
+        var link = new RouteVehicleAssignment { TenantId = 101, RouteId = route.Id,
+            VehicleId = vehicle.Id, EffectiveFrom = today.AddDays(10),
+            EffectiveTo = today.AddDays(30), IsCurrent = true,
+            RowVersion = [1, 3, 5, 7, 2, 4, 6, 8] };
+        db.RouteVehicleAssignments.Add(link);
+        await db.SaveChangesAsync();
+        var version = Convert.ToBase64String(link.RowVersion);
+        var service = CreateService(db, 101);
+        async Task<EduOS.Core.Common.ApiResponse<RouteVehicleAssignmentDto>> Execute(Guid key, int variation = 0) =>
+            command switch
+            {
+                "reschedule" => await service.RescheduleUpcomingRouteVehicleStartAsync(link.Id,
+                    new RescheduleUpcomingRouteVehicleRequestDto { ClientRequestId = key,
+                        EffectiveFrom = today.AddDays(15 + variation), RowVersion = version }),
+                "extend" => await service.ExtendUpcomingRouteVehicleAsync(link.Id,
+                    new ExtendUpcomingRouteVehicleRequestDto { ClientRequestId = key,
+                        EffectiveTo = today.AddDays(40 + variation), RowVersion = version }),
+                "shorten" => await service.ShortenUpcomingRouteVehicleAsync(link.Id,
+                    new ShortenUpcomingRouteVehicleRequestDto { ClientRequestId = key,
+                        EffectiveTo = today.AddDays(20 - variation), RowVersion = version }),
+                _ => await service.CancelUpcomingRouteVehicleAssignmentAsync(link.Id,
+                    new CancelUpcomingRouteVehicleLinkRequestDto { ClientRequestId = key,
+                        RowVersion = variation == 0 ? version : Convert.ToBase64String([9, 9, 9, 9, 9, 9, 9, 9]) })
+            };
+        var key = Guid.NewGuid();
+        var first = await Execute(key);
+        first.Success.Should().BeTrue(first.Message);
+        var updatedAt = link.UpdatedAt;
+        var replay = await Execute(key);
+        replay.Success.Should().BeTrue(replay.Message);
+        replay.Message.Should().Be(first.Message);
+        link.UpdatedAt.Should().Be(updatedAt);
+        var scope = command switch
+        {
+            "reschedule" => "transport.route-vehicle-start-reschedule",
+            "extend" => "transport.route-vehicle-extend-upcoming",
+            "shorten" => "transport.route-vehicle-shorten-upcoming",
+            _ => "transport.route-vehicle-cancel-upcoming"
+        };
+        (await db.IdempotencyRecords.CountAsync(x => x.Scope == scope)).Should().Be(1);
+        (await Execute(key, 1)).StatusCode.Should().Be(409);
+        var legacy = await Execute(Guid.Empty, command == "cancel" ? 0 : 2);
+        legacy.Success.Should().BeTrue(legacy.Message);
+        var legacyReplay = await Execute(Guid.Empty, command == "cancel" ? 0 : 2);
+        legacyReplay.Success.Should().BeTrue(legacyReplay.Message);
+        legacyReplay.Message.Should().Be(legacy.Message);
+        (await db.IdempotencyRecords.CountAsync(x => x.Scope == scope)).Should().Be(2);
+    }
+
+    [Theory]
     [InlineData(true)]
     [InlineData(false)]
     public async Task Driver_extension_records_original_outcome_and_keeps_legacy_retries_safe(bool upcoming)

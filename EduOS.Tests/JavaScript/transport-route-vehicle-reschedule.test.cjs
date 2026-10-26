@@ -13,7 +13,8 @@ function harness(answer) {
         notify: (...args) => messages.push(args),
         load: async () => { calls.push(['reload']); }
     };
-    const context = { window: { transportLink: u, prompt: () => answer }, Date, Number, encodeURIComponent };
+    const context = { window: { transportLink: u, prompt: () => answer,
+        crypto: { randomUUID: () => '12345678-1234-4234-8234-123456789abc' } }, Date, Number, encodeURIComponent };
     vm.runInNewContext(source, context);
     return { u, calls, messages };
 }
@@ -26,6 +27,7 @@ test('submits future reschedule with row version and refreshes', async () => {
     assert.equal(h.calls[0][1], 'POST');
     assert.equal(h.calls[0][2].effectiveFrom, '2026-11-08');
     assert.equal(h.calls[0][2].rowVersion, 'abc');
+    assert.equal(h.calls[0][2].clientRequestId, '12345678-1234-4234-8234-123456789abc');
     assert.deepEqual(h.calls[1], ['reload']);
 });
 

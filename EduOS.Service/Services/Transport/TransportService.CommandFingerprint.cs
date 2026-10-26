@@ -21,4 +21,14 @@ public sealed partial class TransportService
             $"eduos:driver-extension:v1:{tenantId}:{actorId}:{operation}:{assignmentId}:{requestHash}"));
         return new Guid(digest.AsSpan(0, 16));
     }
+
+    // Older route/vehicle UIs did not send a key. Preserve their request contract
+    // while binding each retry to the original row version and exact payload.
+    private static Guid LegacyRouteVehicleCommandRequestId(long tenantId, long actorId,
+        string operation, long assignmentId, string requestHash)
+    {
+        var digest = SHA256.HashData(Encoding.UTF8.GetBytes(
+            $"eduos:route-vehicle-command:v1:{tenantId}:{actorId}:{operation}:{assignmentId}:{requestHash}"));
+        return new Guid(digest.AsSpan(0, 16));
+    }
 }

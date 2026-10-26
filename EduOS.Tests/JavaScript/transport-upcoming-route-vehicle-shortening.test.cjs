@@ -9,7 +9,8 @@ function harness(answer,confirmation=true){
  const calls=[],messages=[];
  const u={today:()=> '2026-10-26',api:async(...args)=>{calls.push(args);return{};},
   notify:(...args)=>messages.push(args),load:async()=>{calls.push(['reload']);}};
- vm.runInNewContext(source,{window:{transportLink:u,prompt:()=>answer,confirm:()=>confirmation},
+ vm.runInNewContext(source,{window:{transportLink:u,prompt:()=>answer,confirm:()=>confirmation,
+  crypto:{randomUUID:()=> '12345678-1234-4234-8234-123456789abc'}},
   Date,Number,encodeURIComponent});
  return {u,calls,messages};
 }
@@ -21,6 +22,7 @@ test('shortens canonical future link and refreshes list',async()=>{
  assert.equal(h.calls[0][1],'POST');
  assert.equal(h.calls[0][2].effectiveTo,'2026-11-15');
  assert.equal(h.calls[0][2].rowVersion,'version');
+ assert.equal(h.calls[0][2].clientRequestId,'12345678-1234-4234-8234-123456789abc');
  assert.deepEqual(h.calls[1],['reload']);
 });
 test('rejects impossible and out-of-range dates',async()=>{
