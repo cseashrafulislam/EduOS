@@ -54,7 +54,8 @@ public sealed class AcademicCurriculumRegisterTests
     [Fact]
     public async Task Detail_returns_only_own_tenant_subject_mappings_and_names()
     {
-        await using var db = Context(Options(), 501);
+        var options = Options();
+        await using var db = Context(options, 501);
         var row = new AcademicCurriculum { TenantId = 501, AcademicProgramId = 1,
             Name = "Science", Code = "SCI", VersionNo = 1,
             EffectiveFrom = new DateOnly(2025, 1, 1), RowVersion = Version.ToArray() };
@@ -65,9 +66,14 @@ public sealed class AcademicCurriculumRegisterTests
         await db.SaveChangesAsync();
         db.Add(new CurriculumSubject { TenantId = 501, AcademicCurriculumId = row.Id,
             AcademicLevelId = level.Id, SubjectId = subject.Id, FullMarks = 100, PassMarks = 40 });
-        db.Add(new CurriculumSubject { TenantId = 502, AcademicCurriculumId = row.Id,
-            AcademicLevelId = level.Id, SubjectId = subject.Id });
         await db.SaveChangesAsync();
+        // The tenant boundary must be respected even when preparing test fixtures.
+        await using (var foreign = Context(options, 502))
+        {
+            foreign.Add(new CurriculumSubject { TenantId = 502, AcademicCurriculumId = row.Id,
+                AcademicLevelId = level.Id, SubjectId = subject.Id });
+            await foreign.SaveChangesAsync();
+        }
         var detail = await Service(db).GetCurriculumAsync(row.Id);
         detail.Success.Should().BeTrue();
         detail.Data!.SubjectCount.Should().Be(1);
