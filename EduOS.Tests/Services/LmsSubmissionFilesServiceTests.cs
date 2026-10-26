@@ -54,7 +54,7 @@ public sealed class LmsSubmissionFilesServiceTests
         await using var db = Database();
         var (assignment, enrollment) = await Seed(db);
         var file = File(tenant, uploader, safe);
-        db.Add(file); await db.SaveChangesAsync();
+        db.Add(file); await TestTenantSeeder.SaveAsync(db);
         var result = await Service(db).SubmitAssignmentAsync(new SubmitAssignmentRequestDto
         {
             ClientRequestId = Guid.NewGuid(), AssignmentReference = assignment.PublicId,

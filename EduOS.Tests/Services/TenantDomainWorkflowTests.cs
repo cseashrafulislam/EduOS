@@ -35,7 +35,7 @@ public sealed class TenantDomainWorkflowTests
         db.TenantDomains.AddRange(
             new TenantDomain { TenantId = 101, HostName = "alpha.example.org", IsActive = false },
             new TenantDomain { TenantId = 202, HostName = "beta.example.org", IsActive = false });
-        await db.SaveChangesAsync();
+        await TestTenantSeeder.SaveAsync(db);
         var service = new TenantDomainService(db, db, new TestUser(101, true),
             new FakeLookup(), TimeProvider.System, NullLogger<TenantDomainService>.Instance);
         var response = await service.GetDomainsAsync();

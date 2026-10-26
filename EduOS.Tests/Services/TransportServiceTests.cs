@@ -339,12 +339,23 @@ public class TransportServiceTests
             StudentCode = "STU-" + Guid.NewGuid().ToString("N"), FullName = "Transport Student",
             StatusCode = "Active", AdmissionDate = DateOnly.FromDateTime(DateTime.Today)
         };
-        context.AddRange(route, vehicle, student);
+        var campus = new Campus { TenantId = tenant, Name = "Transport Campus", Code = "TRANSPORT", IsActive = true };
+        context.AddRange(route, vehicle, student, campus);
+        await context.SaveChangesAsync();
+        var enrollment = new StudentEnrollment
+        {
+            TenantId = tenant, PublicId = Guid.NewGuid(), ClientRequestId = Guid.NewGuid(),
+            StudentId = student.Id, CampusId = campus.Id, AcademicYearId = 1,
+            AcademicProgramId = 1, AcademicLevelId = 1, AcademicBatchId = 1,
+            AcademicCurriculumId = 1, RollNo = "7", IsCurrent = true,
+            State = EnrollmentState.Active, EnrollmentDate = DateOnly.FromDateTime(DateTime.Today)
+        };
+        context.Add(enrollment);
         await context.SaveChangesAsync();
         var assignment = new StudentTransport
         {
             TenantId = tenant, PublicId = Guid.NewGuid(), ClientRequestId = Guid.NewGuid(),
-            StudentId = student.Id, StudentEnrollmentId = 1, VehicleId = vehicle.Id,
+            StudentId = student.Id, StudentEnrollmentId = enrollment.Id, VehicleId = vehicle.Id,
             RouteId = route.Id, RouteVehicleAssignmentId = 1,
             StartDate = DateOnly.FromDateTime(DateTime.Today.AddDays(-10)),
             EndDate = active ? null : DateOnly.FromDateTime(DateTime.Today.AddDays(-1)),

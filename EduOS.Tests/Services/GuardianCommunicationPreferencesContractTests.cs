@@ -26,13 +26,13 @@ public sealed class GuardianCommunicationPreferencesContractTests
         source.Should().Contain("link.TenantId == user.TenantId");
         source.Should().Contain("student.TenantId == user.TenantId");
         source.Should().Contain("!link.IsDeleted && !student.IsDeleted");
-        source.Should().Contain("VersionMatches(row.Link.RowVersion, request.RowVersion)");
+        source.Should().Contain("VersionMatches(link.RowVersion, request.RowVersion)");
         source.Should().Contain("IsolationLevel.Serializable");
         source.Should().Contain("db.AuditLogs.Add");
-        source.Should().Contain("row.Link.CanReceiveSms = request.CanReceiveSms");
-        source.Should().Contain("row.Link.CanReceiveEmail = request.CanReceiveEmail");
-        source.Should().NotContain("row.Link.IsPrimary =");
-        source.Should().NotContain("row.Link.IsAuthorizedPickup =");
+        source.Should().Contain("link.CanReceiveSms = request.CanReceiveSms");
+        source.Should().Contain("link.CanReceiveEmail = request.CanReceiveEmail");
+        source.Should().NotContain("link.IsPrimary =");
+        source.Should().NotContain("link.IsAuthorizedPickup =");
     }
 
     [Fact]

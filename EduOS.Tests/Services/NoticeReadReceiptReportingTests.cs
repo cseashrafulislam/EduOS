@@ -53,7 +53,7 @@ public sealed class NoticeReadReceiptReportingTests
             new NoticeReadReceipt { TenantId = 101, NoticeId = 900, UserId = 10 },
             new NoticeReadReceipt { TenantId = 202, NoticeId = 900, UserId = 20 },
             new NoticeReadReceipt { TenantId = 101, NoticeId = 900, UserId = 30 });
-        await db.SaveChangesAsync();
+        await TestTenantSeeder.SaveAsync(db);
 
         Assert.Equal(403, (await Service(db, false).GetNoticeReadReceiptsAsync(notice.PublicId, 1, 20)).StatusCode);
         Assert.Equal(404, (await Service(db, true).GetNoticeReadReceiptsAsync(other.PublicId, 1, 20)).StatusCode);

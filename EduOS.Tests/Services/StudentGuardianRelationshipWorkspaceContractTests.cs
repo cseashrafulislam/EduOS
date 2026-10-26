@@ -40,8 +40,9 @@ public sealed class StudentGuardianRelationshipWorkspaceContractTests
         var save = Read("EduOS.App", "wwwroot", "js", "students", "guardian-save.js");
         var edit = Read("EduOS.App", "wwwroot", "js", "students", "guardian-link-edit.js");
         entity.Should().Contain("IsFinancialContact").And.Contain("IsEmergencyContact");
-        dto.Split("public bool IsFinancialContact").Length.Should().Be(4);
-        dto.Split("public bool IsEmergencyContact").Length.Should().Be(4);
+        // Listing, create, update and reactivation DTOs preserve both designations.
+        dto.Split("public bool IsFinancialContact").Length.Should().Be(5);
+        dto.Split("public bool IsEmergencyContact").Length.Should().Be(5);
         service.Should().Contain("IsFinancialContact = x.IsFinancialContact")
             .And.Contain("IsEmergencyContact = x.IsEmergencyContact")
             .And.Contain("IsFinancialContact = request.IsFinancialContact")

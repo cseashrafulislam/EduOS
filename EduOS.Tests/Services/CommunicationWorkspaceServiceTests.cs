@@ -74,7 +74,7 @@ public sealed class CommunicationWorkspaceServiceTests
             new NotificationPreference { TenantId = 101, UserId = 10, Channel = NotificationChannelType.Email, EventCode = "EXAM.RESULT", IsEnabled = false },
             new NotificationPreference { TenantId = 101, UserId = 11, Channel = NotificationChannelType.Email, EventCode = "OTHER.USER", IsEnabled = true },
             new NotificationPreference { TenantId = 202, UserId = 10, Channel = NotificationChannelType.Push, EventCode = "OTHER.TENANT", IsEnabled = true });
-        await db.SaveChangesAsync();
+        await TestTenantSeeder.SaveAsync(db);
         var result = await Service(db, false).GetMyPreferencesAsync();
         result.Success.Should().BeTrue(result.Message);
         result.Data!.Select(x => x.EventCode).Should().Equal("EXAM.RESULT");

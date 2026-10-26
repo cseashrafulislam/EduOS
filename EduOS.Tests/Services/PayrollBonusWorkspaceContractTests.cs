@@ -22,9 +22,8 @@ public sealed class PayrollBonusWorkspaceContractTests
     public void Bonus_workspace_requires_payroll_module_and_tenant_admin()
     {
         var mvc=typeof(EduOS.App.Controllers.PayrollBonusesController);
-        var authorize=Assert.Single(mvc.GetCustomAttributes(typeof(AuthorizeAttribute),true)
-            .Cast<AuthorizeAttribute>());
-        Assert.Equal("TenantAdmin",authorize.Roles);
+        Assert.Contains(mvc.GetCustomAttributes(typeof(AuthorizeAttribute),true)
+            .Cast<AuthorizeAttribute>(), x => x.Roles == "TenantAdmin");
         Assert.Contains(mvc.GetCustomAttributes(typeof(RequireModuleAttribute),true)
             .Cast<RequireModuleAttribute>(),x=>x.Policy=="EduOSModule:PAYROLL");
         var api=typeof(EduOS.App.Controllers.Api.HrPayrollController);

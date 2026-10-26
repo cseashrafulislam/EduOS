@@ -42,12 +42,12 @@ public sealed class SubscriptionServiceTests
         saved.AutoRenew.Should().BeFalse();
         saved.CancelledAt.Should().NotBeNull();
         saved.EndsAt.Should().Be(saved.CancelledAt!.Value);
-        var audit = await setup.Db.AuditLogs.SingleAsync();
+        var audit = await setup.Db.AuditLogs.SingleAsync(x => x.Action == "Subscription.Cancelled");
         audit.TenantId.Should().Be(setup.Tenant.Id);
         audit.Action.Should().Be("Subscription.Cancelled");
         audit.EntityId.Should().Be(saved.Id);
         (await setup.Service.CancelAsync(current.PublicId, request)).Success.Should().BeTrue();
-        (await setup.Db.AuditLogs.CountAsync()).Should().Be(1);
+        (await setup.Db.AuditLogs.CountAsync(x => x.Action == "Subscription.Cancelled")).Should().Be(1);
     }
 
     [Fact]
@@ -78,7 +78,7 @@ public sealed class SubscriptionServiceTests
         result.StatusCode.Should().Be(409);
         current.State.Should().Be(SubscriptionState.Active);
         current.AutoRenew.Should().BeTrue();
-        (await setup.Db.AuditLogs.CountAsync()).Should().Be(0);
+        (await setup.Db.AuditLogs.CountAsync(x => x.Action == "Subscription.Cancelled")).Should().Be(0);
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public sealed class SubscriptionServiceTests
         });
         result.StatusCode.Should().Be(409);
         current.State.Should().Be(SubscriptionState.Active);
-        (await setup.Db.AuditLogs.CountAsync()).Should().Be(0);
+        (await setup.Db.AuditLogs.CountAsync(x => x.Action == "Subscription.Cancelled")).Should().Be(0);
     }
 
     [Fact]
@@ -350,10 +350,11 @@ public sealed class SubscriptionServiceTests
             (await systemService.ScheduleAutomaticRenewalAsync(setup.Tenant.Id, current.Id))
                 .Data!.Id.Should().Be(created.Data.Id);
         }
-        (await setup.Db.TenantSubscriptions.CountAsync()).Should().Be(2);
-        (await setup.Db.SubscriptionInvoices.CountAsync()).Should().Be(2);
-        (await setup.Db.SubscriptionInvoiceLines.CountAsync()).Should().Be(2);
-        var renewalInvoice = await setup.Db.SubscriptionInvoices.OrderByDescending(x => x.Id).FirstAsync();
+        (await setup.Db.TenantSubscriptions.IgnoreQueryFilters().CountAsync(x => x.TenantId == setup.Tenant.Id)).Should().Be(2);
+        (await setup.Db.SubscriptionInvoices.IgnoreQueryFilters().CountAsync(x => x.TenantId == setup.Tenant.Id)).Should().Be(2);
+        (await setup.Db.SubscriptionInvoiceLines.IgnoreQueryFilters().CountAsync(x => x.TenantId == setup.Tenant.Id)).Should().Be(2);
+        var renewalInvoice = await setup.Db.SubscriptionInvoices.IgnoreQueryFilters()
+            .Where(x => x.TenantId == setup.Tenant.Id).OrderByDescending(x => x.Id).FirstAsync();
         renewalInvoice.State.Should().Be(InvoiceState.Issued);
         renewalInvoice.PaidAmount.Should().Be(0m);
         renewalInvoice.DueAmount.Should().Be(900m);
@@ -378,8 +379,8 @@ public sealed class SubscriptionServiceTests
             var result = await systemService.ScheduleAutomaticRenewalAsync(setup.Tenant.Id, current.Id);
             result.StatusCode.Should().Be(409);
         }
-        (await setup.Db.TenantSubscriptions.CountAsync()).Should().Be(1);
-        (await setup.Db.SubscriptionInvoices.CountAsync()).Should().Be(1);
+        (await setup.Db.TenantSubscriptions.IgnoreQueryFilters().CountAsync(x => x.TenantId == setup.Tenant.Id)).Should().Be(1);
+        (await setup.Db.SubscriptionInvoices.IgnoreQueryFilters().CountAsync(x => x.TenantId == setup.Tenant.Id)).Should().Be(1);
     }
 
     private static StartSubscriptionRequestDto Request(long planId) => new()

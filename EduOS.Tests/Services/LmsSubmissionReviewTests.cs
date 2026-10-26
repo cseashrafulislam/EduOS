@@ -44,9 +44,9 @@ public sealed class LmsSubmissionReviewTests
     {
         await using var db = Db();
         var course = new Course { TenantId = 202, Code = "PRIVATE", Title = "Private" };
-        db.Add(course); await db.SaveChangesAsync();
+        db.Add(course); await TestTenantSeeder.SaveAsync(db);
         var assignment = new Assignment { TenantId = 202, CourseId = course.Id, Title = "Hidden" };
-        db.Add(assignment); await db.SaveChangesAsync();
+        db.Add(assignment); await TestTenantSeeder.SaveAsync(db);
         Assert.Equal(404, (await Service(db, "TenantAdmin").GetAssignmentSubmissionsAsync(assignment.PublicId)).StatusCode);
     }
 

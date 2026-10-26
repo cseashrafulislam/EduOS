@@ -21,7 +21,7 @@ public sealed class NoticeArchiveBehaviorTests
         var own = new Notice { TenantId = 101, Title = "Own", Body = "Body", RowVersion = [1, 2, 3] };
         var foreign = new Notice { TenantId = 202, Title = "Other", Body = "Body", RowVersion = [4, 5, 6] };
         db.Notices.AddRange(own, foreign);
-        await db.SaveChangesAsync();
+        await TestTenantSeeder.SaveAsync(db);
         db.NoticeAudiences.Add(new NoticeAudience { TenantId = 101, NoticeId = own.Id, AudienceTypeCode = "All" });
         db.NoticeReadReceipts.Add(new NoticeReadReceipt { TenantId = 101, NoticeId = own.Id, UserId = 10 });
         await db.SaveChangesAsync();

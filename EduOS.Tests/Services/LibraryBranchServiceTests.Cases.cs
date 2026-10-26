@@ -11,7 +11,7 @@ public sealed partial class LibraryBranchServiceTests
     {
         await using var db = Context(101);
         var campus = new Campus { TenantId = 202, Name = "Other", Code = "OTH" };
-        db.Campuses.Add(campus); await db.SaveChangesAsync();
+        db.Campuses.Add(campus); await TestTenantSeeder.SaveAsync(db);
         var request = new SaveLibraryBranchRequestDto { CampusId = campus.Id, Name = "Central", Code = "LIB" };
         (await Service(db, 101, "Student").SaveBranchAsync(null, request)).StatusCode.Should().Be(403);
         (await Service(db, 101).SaveBranchAsync(null, request)).StatusCode.Should().Be(404);

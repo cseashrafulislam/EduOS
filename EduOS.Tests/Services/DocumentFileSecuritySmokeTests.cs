@@ -6,6 +6,7 @@ using EduOS.Core.DTOs.Files;
 using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
 using EduOS.Service.Services.Documents;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -53,7 +54,10 @@ public sealed class DocumentFileSecuritySmokeTests
     [InlineData(99L, 0, 404)]
     public async Task ProtectedDownloadDelegatesOnlyWithinOwnTenant(long assetTenantId, int expectedCalls, int expectedStatus)
     {
-        await using var db = Context();
+        var http = new DefaultHttpContext();
+        await using var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("document-tenant-" + Guid.NewGuid().ToString("N")).Options,
+            new HttpContextAccessor { HttpContext = http });
         var fileReference = Guid.NewGuid();
         var documentReference = Guid.NewGuid();
         db.FileAssets.Add(new FileAsset
@@ -76,6 +80,7 @@ public sealed class DocumentFileSecuritySmokeTests
             IsActive = true, VerificationStatusCode = "Approved"
         });
         await db.SaveChangesAsync();
+        http.Items["TenantId"] = 42L;
         var verification = new VerificationStub();
         var service = new DocumentFileService(db, new User(true), null!,
             NullLogger<DocumentFileService>.Instance, verification);

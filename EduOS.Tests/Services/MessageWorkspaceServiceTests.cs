@@ -28,7 +28,7 @@ public sealed class MessageWorkspaceServiceTests
             new TenantMembership { TenantId = 101, UserId = 11, Status = MembershipStatus.Active },
             new TenantMembership { TenantId = 102, UserId = 12, Status = MembershipStatus.Active },
             new TenantMembership { TenantId = 101, UserId = 13, Status = MembershipStatus.Active });
-        await db.SaveChangesAsync();
+        await TestTenantSeeder.SaveAsync(db);
         var result = await Service(db).SearchRecipientsAsync("Mary");
         result.Success.Should().BeTrue(result.Message);
         result.Data!.Select(x => x.UserId).Should().Equal(11L);

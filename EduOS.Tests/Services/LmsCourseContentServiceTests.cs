@@ -45,7 +45,7 @@ public sealed class LmsCourseContentServiceTests
         await using var db = Db();
         var course = new Course { TenantId = 202, Code = "PRIVATE", Title = "Other tenant" };
         var local = new Course { TenantId = 101, Code = "LOCAL", Title = "Local" };
-        db.AddRange(course, local); await db.SaveChangesAsync();
+        db.AddRange(course, local); await TestTenantSeeder.SaveAsync(db);
         Assert.Equal(404, (await Service(db, "TenantAdmin").GetCourseContentAsync(course.PublicId)).StatusCode);
         Assert.Equal(403, (await Service(db, "Student").SaveSectionAsync(null,
             new SaveCourseSectionRequestDto { CourseReference = local.PublicId, Title = "Unauthorized" })).StatusCode);

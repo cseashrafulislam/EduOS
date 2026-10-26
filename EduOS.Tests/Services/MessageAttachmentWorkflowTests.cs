@@ -36,7 +36,7 @@ public sealed class MessageAttachmentWorkflowTests
             ContentType = "application/pdf", SizeBytes = bytes.Length, Sha256 = Convert.ToHexString(SHA256.HashData(bytes)),
             IsVerifiedSafe = true, MalwareScanStateCode = "Clean", Visibility = FileVisibility.Private });
         db.MessageAttachments.Add(new MessageAttachment { TenantId = 101, MessageId = 1000, FileAssetId = 1 });
-        await db.SaveChangesAsync();
+        await TestTenantSeeder.SaveAsync(db);
         var storage = new Mock<IFileUploadService>();
         storage.Setup(x => x.GetPrivateFileAsync(It.IsAny<string>())).ReturnsAsync(new FileDownloadResult { Content = bytes });
         var service = Service(db, storage);

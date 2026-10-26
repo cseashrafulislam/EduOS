@@ -174,9 +174,27 @@ public sealed class HostelCanonicalEligibilityTests
             .UseInMemoryDatabase("hostel-close-" + Guid.NewGuid().ToString("N")).Options;
         await using var db = Context(101, options);
         var closedOn = new DateOnly(2026, 10, 8);
+        var campus = new Campus { TenantId = 101, Name = "Checkout Campus", Code = "CHECK", IsActive = true };
+        var student = Student(101, "Active", "checkout");
+        db.AddRange(campus, student);
+        await db.SaveChangesAsync();
+        var enrollment = Enrollment(student, true);
+        enrollment.CampusId = campus.Id;
+        var hostel = new EduOS.Core.Entities.Hostel.Hostel
+        { TenantId = 101, CampusId = campus.Id, Name = "Checkout Hostel", Code = "CHECK" };
+        db.AddRange(enrollment, hostel);
+        await db.SaveChangesAsync();
+        var room = new HostelRoom
+        { TenantId = 101, HostelId = hostel.Id, RoomNumber = "101", Capacity = 1, IsActive = true };
+        db.Add(room);
+        await db.SaveChangesAsync();
+        var bed = new HostelBed
+        { TenantId = 101, HostelRoomId = room.Id, BedNumber = "A", IsActive = true };
+        db.Add(bed);
+        await db.SaveChangesAsync();
         var allocation = new StudentHostelAllocation
         {
-            TenantId = 101, StudentId = 99, StudentEnrollmentId = 99, HostelBedId = 99,
+            TenantId = 101, StudentId = student.Id, StudentEnrollmentId = enrollment.Id, HostelBedId = bed.Id,
             ClientRequestId = Guid.NewGuid(), StartDate = closedOn.AddDays(-10),
             EndDate = state == HostelAllocationState.Closed ? closedOn : null,
             State = state, RowVersion = [1,2,3,4,5,6,7,8]

@@ -140,6 +140,7 @@ public sealed class SubjectOfferingSetupTests
         await db.SaveChangesAsync();
         // Seed the foreign-tenant row through its own tenant context: the DbContext
         // correctly rejects cross-tenant writes from the current tenant.
+        var originalRequest = new HttpContextAccessor().HttpContext;
         await using (var foreignDb = Context(options, 302))
         {
             foreignDb.Add(new StudentSubjectRegistration
@@ -150,7 +151,9 @@ public sealed class SubjectOfferingSetupTests
             });
             await foreignDb.SaveChangesAsync();
         }
+        new HttpContextAccessor().HttpContext = originalRequest;
         var result = await sut.GetSubjectOfferingsAsync(ids.Batch, null);
+        result.Success.Should().BeTrue(result.Message);
         var offering = result.Data!.Items.Should().ContainSingle().Which;
         offering.ReservedSeats.Should().Be(41);
         offering.PendingSeats.Should().Be(0);

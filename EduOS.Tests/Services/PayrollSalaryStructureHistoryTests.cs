@@ -60,7 +60,7 @@ public sealed class PayrollSalaryStructureHistoryTests
         await using var db=Database();
         var reference=Guid.NewGuid();
         Seed(db,reference);
-        db.SalaryComponents.RemoveRange(db.SalaryComponents);
+        foreach (var component in db.SalaryComponents) component.IsDeleted = true;
         await db.SaveChangesAsync();
         var response=await Service(db,"TenantAdmin").GetSalaryStructuresAsync(reference,1,10);
         Assert.Equal(409,response.StatusCode);

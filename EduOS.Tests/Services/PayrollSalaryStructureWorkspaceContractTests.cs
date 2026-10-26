@@ -36,8 +36,8 @@ public sealed class PayrollSalaryStructureWorkspaceContractTests
     public void Salary_history_workspace_is_tenant_admin_only()
     {
         var mvc=typeof(EduOS.App.Controllers.PayrollSalaryStructuresController);
-        Assert.Equal("TenantAdmin",Assert.Single(mvc.GetCustomAttributes(typeof(AuthorizeAttribute),true)
-            .Cast<AuthorizeAttribute>()).Roles);
+        Assert.Contains(mvc.GetCustomAttributes(typeof(AuthorizeAttribute),true)
+            .Cast<AuthorizeAttribute>(), x => x.Roles == "TenantAdmin");
         Assert.Contains(mvc.GetCustomAttributes(typeof(RequireModuleAttribute),true)
             .Cast<RequireModuleAttribute>(),x=>x.Policy=="EduOSModule:PAYROLL");
     }

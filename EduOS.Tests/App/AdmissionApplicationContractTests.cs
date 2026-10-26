@@ -45,7 +45,8 @@ public class AdmissionApplicationContractTests
         script.Should().Contain("optionsJson: [7, 8].includes(type)");
         script.Should().Contain("item.currencyCode");
         script.Should().NotContain("Number(item.status)");
-        view.Should().Contain("Add document (not available)");
+        view.Should().Contain("id=\"addDocumentRequirementButton\"");
+        script.Should().Contain("addDocumentRequirementRow()");
         typeof(EduOS.Core.DTOs.Admission.AdmissionIntakeFormDto).GetProperty("AcademicTermId").Should().NotBeNull();
         script.Should().Contain("customResponses: collectAdmissionResponses()");
         script.Should().Contain("state: status");

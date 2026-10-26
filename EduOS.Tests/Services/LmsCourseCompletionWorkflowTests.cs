@@ -108,7 +108,7 @@ public sealed class LmsCourseCompletionWorkflowTests
         var (course, _, _, _) = await Seed(db);
         db.Add(new CourseEnrollment { TenantId = 202, CourseId = course.Id,
             StudentId = 999, State = EduOS.Core.Enums.Domain.CourseEnrollmentState.Completed });
-        await db.SaveChangesAsync();
+        await TestTenantSeeder.SaveAsync(db);
         var service = Service(db);
         var status = await service.GetCourseAuthoringLockAsync(course.PublicId);
         Assert.True(status.Success, status.Message);

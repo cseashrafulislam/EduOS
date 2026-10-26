@@ -23,10 +23,11 @@ public class HostelWorkflowContractTests
         source.Should().Contain("IsolationLevel = IsolationLevel.Serializable");
         source.Should().Contain("TransactionScopeAsyncFlowOption.Enabled");
         source.Should().Contain("x.TenantId == tenant &&");
-        source.Should().Contain("roomBedIds.Contains(x.HostelBedId)");
-        source.Should().Contain("if (occupied >= selection.Room.Capacity)");
+        source.Should().Contain("Hostel room would exceed capacity during the requested stay.");
+        source.Should().Contain("selection.Room.Capacity <= 0");
         source.Should().Contain("scope.Complete();");
-        source.Should().Contain("x.StudentId == student.Id && x.State == HostelAllocationState.Active");
+        source.Should().Contain("x.StudentId == student.Id && x.State != HostelAllocationState.Cancelled");
+        source.Should().Contain("PeakConcurrentStays(start, request.EndDate,");
         source.Should().Contain("Client request ID was reused for different allocation data.");
         source.Should().Contain("catch (TransactionAbortedException ex)");
     }

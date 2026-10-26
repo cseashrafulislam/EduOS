@@ -20,12 +20,12 @@ public sealed class WebhookDeliveryExportDataTests
         var own = new WebhookEndpoint { TenantId = 101, Name = "Own", Url = "https://hooks.example.org/one" };
         var other = new WebhookEndpoint { TenantId = 202, Name = "Other", Url = "https://hooks.example.org/two" };
         db.WebhookEndpoints.AddRange(own, other);
-        await db.SaveChangesAsync();
+        await TestTenantSeeder.SaveAsync(db);
         db.WebhookDeliveries.AddRange(
             new WebhookDelivery { TenantId = 101, WebhookEndpointId = own.Id, EventId = Guid.NewGuid(), EventCode = "=1+1", PayloadJson = "{}" },
             new WebhookDelivery { TenantId = 202, WebhookEndpointId = own.Id, EventId = Guid.NewGuid(), EventCode = "OTHER_TENANT", PayloadJson = "{}" },
             new WebhookDelivery { TenantId = 202, WebhookEndpointId = other.Id, EventId = Guid.NewGuid(), EventCode = "OTHER_ENDPOINT", PayloadJson = "{}" });
-        await db.SaveChangesAsync();
+        await TestTenantSeeder.SaveAsync(db);
         var service = Service(db);
         var response = await service.ExportWebhookDeliveriesCsvAsync(own.Id);
         Assert.True(response.Success);

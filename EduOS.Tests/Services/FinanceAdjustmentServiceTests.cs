@@ -22,7 +22,7 @@ public sealed class FinanceAdjustmentServiceTests
         db.DiscountRules.AddRange(
             new DiscountRule{TenantId=11,Name="Own",Value=10m,IsPercentage=true},
             new DiscountRule{TenantId=12,Name="Foreign",Value=15m,IsPercentage=true});
-        await db.SaveChangesAsync();
+        await TestTenantSeeder.SaveAsync(db);
         var result=await new FinanceAdjustmentService(db,new TestUser(11,true),TimeProvider.System).GetDiscountRulesAsync();
         result.Success.Should().BeTrue();
         result.Data.Should().ContainSingle().Which.Name.Should().Be("Own");

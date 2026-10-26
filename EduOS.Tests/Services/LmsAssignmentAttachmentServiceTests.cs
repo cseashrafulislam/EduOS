@@ -66,7 +66,7 @@ public sealed class LmsAssignmentAttachmentServiceTests
         db.Add(course); await db.SaveChangesAsync();
         var assignment = new Assignment { TenantId = 101, CourseId = course.Id, Title = "Homework" };
         var foreign = File(202, true); var local = File(101, true);
-        db.AddRange(assignment, foreign, local); await db.SaveChangesAsync();
+        db.AddRange(assignment, foreign, local); await TestTenantSeeder.SaveAsync(db);
         var service = Service(db, "TenantAdmin");
         Assert.Equal(409, (await service.SaveAssignmentAttachmentAsync(null, new SaveAssignmentAttachmentRequestDto
         { AssignmentReference = assignment.PublicId, FileAssetReference = foreign.PublicId })).StatusCode);
@@ -77,8 +77,10 @@ public sealed class LmsAssignmentAttachmentServiceTests
         { AssignmentReference = assignment.PublicId, FileAssetReference = local.PublicId,
           RowVersion = Convert.ToBase64String(new byte[] { 4, 5, 6 }) })).StatusCode);
         var version = Convert.ToBase64String(row.RowVersion);
-        Assert.True((await service.RemoveAssignmentAttachmentAsync(row.Id, version)).Success);
-        Assert.True((await service.RemoveAssignmentAttachmentAsync(row.Id, version)).Success);
+        var removed = await service.RemoveAssignmentAttachmentAsync(row.Id, version);
+        Assert.True(removed.Success, removed.Message);
+        // Soft-deleted rows are hidden by the tenant query filter on later requests.
+        Assert.Equal(404, (await service.RemoveAssignmentAttachmentAsync(row.Id, version)).StatusCode);
     }
 
     private static FileAsset File(long tenant, bool safe) => new()

@@ -28,7 +28,7 @@ public sealed class LeaveEntitlementServiceTests
             PersonId = 3, DesignationId = 1, JoiningDate = new DateOnly(2025, 1, 1) };
         var type = new LeaveType { TenantId = 10, Name = "Casual", Code = "CAS", MaxDaysPerYear = 10, IsActive = true };
         db.Employees.AddRange(own, other, foreign); db.LeaveTypes.Add(type);
-        await db.SaveChangesAsync();
+        await TestTenantSeeder.SaveAsync(db);
         db.EmployeeLeaveEntitlements.Add(new EmployeeLeaveEntitlement { TenantId = 10, EmployeeId = own.Id,
             LeaveTypeId = type.Id, Year = 2026, EntitledDays = 12, CarriedForwardDays = 1 });
         db.EmployeeLeaveAdjustments.Add(new EmployeeLeaveAdjustment { TenantId = 10, EmployeeId = own.Id,
@@ -38,7 +38,7 @@ public sealed class LeaveEntitlementServiceTests
             Leave(10, own.Id, type.Id, 2026, 2, LeaveState.Submitted),
             Leave(10, other.Id, type.Id, 2026, 5, LeaveState.Approved),
             Leave(20, foreign.Id, type.Id, 2026, 6, LeaveState.Approved));
-        await db.SaveChangesAsync();
+        await TestTenantSeeder.SaveAsync(db);
         var service = new LeaveEntitlementService(db, new TestUser(10, true), TimeProvider.System);
         var response = await service.GetBalancesAsync(own.PublicId, 2026);
         response.Success.Should().BeTrue();

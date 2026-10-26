@@ -45,12 +45,16 @@ public sealed class InstitutionOnboardingServiceTests
         created.Success.Should().BeTrue();
         created.Data!.IsOnlineCampus.Should().BeTrue();
         created.Data.TimeZoneId.Should().Be("Asia/Dhaka");
+        // EF InMemory does not generate SQL Server rowversion values.
+        var savedCampus = await db.Campuses.SingleAsync(x => x.Id == created.Data.Id);
+        savedCampus.RowVersion = [1, 2, 3, 4];
+        await db.SaveChangesAsync();
         var legacy = await service.SaveCampusAsync(created.Data.Id, new SaveCampusRequestDto
         {
             Name = "Online Campus Updated", Code = "ONL", IsHeadOffice = true,
-            RowVersion = created.Data.RowVersion
+            RowVersion = Convert.ToBase64String(savedCampus.RowVersion)
         });
-        legacy.Success.Should().BeTrue();
+        legacy.Success.Should().BeTrue(legacy.Message);
         legacy.Data!.IsOnlineCampus.Should().BeTrue();
         legacy.Data.TimeZoneId.Should().Be("Asia/Dhaka");
         var cleared = await service.SaveCampusAsync(legacy.Data.Id, new SaveCampusRequestDto
