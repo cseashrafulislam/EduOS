@@ -78,6 +78,8 @@
             const body = await response.json().catch(() => null);
             if (!response.ok || !body?.success || !body.data)
                 throw new Error(body?.message || 'Could not save contact details.');
+            // Another student may have been opened while this request was in flight.
+            if (state.reference !== reference) return;
             state.version = body.data.rowVersion || '';
             state.requestId = '';
             fields.reason.value = '';
