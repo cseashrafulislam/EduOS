@@ -16,11 +16,6 @@ public sealed partial class LmsAssessmentService
                 (question.QuestionType != "SingleChoice" && question.QuestionType != "MultipleChoice"))
                 return null;
             var ids = input.SelectedOptionIds?.ToArray() ?? Array.Empty<long>();
-            if (input.SelectedOptionId.HasValue)
-            {
-                if (ids.Length != 0) return null;
-                ids = [input.SelectedOptionId.Value];
-            }
             if (ids.Length > 10 || (question.QuestionType == "SingleChoice" && ids.Length > 1) ||
                 ids.Any(x => x <= 0) || ids.Distinct().Count() != ids.Length ||
                 ids.Any(x => !options.Any(o => o.Id == x && o.QuizQuestionId == question.Id)))

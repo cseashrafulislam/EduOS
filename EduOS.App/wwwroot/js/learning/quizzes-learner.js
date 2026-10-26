@@ -14,8 +14,7 @@ $('quizAnswerForm').classList.remove('d-none');$('quizTimer').textContent='Start
 }catch(e){msg('danger',e.message);}finally{$('quizStart').disabled=!(state.canAttempt&&state.enrollment&&$('quizList').value);}}
 async function submit(e){e.preventDefault();if(!state.attempt)return;
 const answers=state.candidate.questions.map(q=>{const selected=[...document.querySelectorAll('input[name="q'+q.id+'"]:checked')].map(x=>Number(x.value));
-return q.questionType==='MultipleChoice'?{quizQuestionId:q.id,selectedOptionIds:selected}:
-{quizQuestionId:q.id,selectedOptionId:selected[0]||null};});
+return {quizQuestionId:q.id,selectedOptionIds:selected};});
 $('quizSubmit').disabled=true;try{const result=await api('/api/lms/quizzes/attempts/'+state.attempt.id+'/submit','POST',
 {answers,rowVersion:state.attempt.rowVersion});$('quizAnswerForm').classList.add('d-none');
 const review=await api('/api/lms/quizzes/attempts/'+state.attempt.id+'/review');

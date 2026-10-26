@@ -77,7 +77,7 @@ public sealed class LmsQuizMultipleChoiceServiceTests
     }
 
     [Fact]
-    public async Task Legacy_single_choice_submission_and_review_remain_supported()
+    public async Task Single_choice_submission_and_review_use_canonical_option_ids()
     {
         await using var db = Database();
         var seed = await Seed(db);
@@ -86,7 +86,7 @@ public sealed class LmsQuizMultipleChoiceServiceTests
         {
             RowVersion = Convert.ToBase64String(seed.Attempt.RowVersion),
             Answers = [new SubmitQuizAnswerRequestDto { QuizQuestionId = seed.Single.Id,
-                SelectedOptionId = seed.SingleOption.Id }]
+                SelectedOptionIds = [seed.SingleOption.Id] }]
         });
         Assert.True(response.Success, response.Message);
         Assert.Equal(3m, response.Data!.ObtainedMarks);
@@ -96,6 +96,27 @@ public sealed class LmsQuizMultipleChoiceServiceTests
         Assert.True(review.Success);
         Assert.Single(review.Data!.Answers.Single(x => x.QuizQuestionId == seed.Single.Id).SelectedOptions);
         Assert.Equal(403, (await Service(db, 99).GetMyAttemptReviewAsync(seed.Attempt.Id)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Single_choice_rejects_more_than_one_option_before_persisting()
+    {
+        await using var db = Database();
+        var seed = await Seed(db);
+        var alternate = new QuizOption { TenantId = 101, QuizQuestionId = seed.Single.Id,
+            OptionText = "No", IsCorrect = false };
+        db.Add(alternate);
+        await db.SaveChangesAsync();
+        var response = await Service(db).SubmitQuizAttemptAsync(seed.Attempt.Id, new SubmitQuizAttemptRequestDto
+        {
+            RowVersion = Convert.ToBase64String(seed.Attempt.RowVersion),
+            Answers = [new SubmitQuizAnswerRequestDto { QuizQuestionId = seed.Single.Id,
+                SelectedOptionIds = [seed.SingleOption.Id, alternate.Id] }]
+        });
+        Assert.Equal(400, response.StatusCode);
+        Assert.Empty(await db.Set<QuizAnswer>().ToListAsync());
+        Assert.Empty(await db.Set<QuizAnswerOption>().ToListAsync());
+        Assert.Equal(QuizAttemptState.Started, (await db.Set<QuizAttempt>().SingleAsync()).State);
     }
 
     [Fact]

@@ -263,7 +263,6 @@ public class SubmitQuizAttemptRequestDto
 public class SubmitQuizAnswerRequestDto
 {
     public long QuizQuestionId { get; set; }
-    public long? SelectedOptionId { get; set; } // Legacy SingleChoice clients.
     public IReadOnlyList<long> SelectedOptionIds { get; set; } = Array.Empty<long>();
     [MaxLength(4000)] public string? AnswerText { get; set; }
 }

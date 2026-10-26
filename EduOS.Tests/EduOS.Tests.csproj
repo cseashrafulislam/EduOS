@@ -73,6 +73,8 @@
     <None Include="..\EduOS.App\Controllers\StudentsController.cs" Link="TestAssets\StudentsController.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Views\Students\Index.cshtml" Link="TestAssets\StudentsIndex.cshtml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\wwwroot\js\students\index.js" Link="TestAssets\students-index.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Views\Learning\Quizzes.cshtml" Link="TestAssets\Quizzes.cshtml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\wwwroot\js\learning\quizzes-learner.js" Link="TestAssets\quizzes-learner.js" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Views\Admissions\Index.cshtml" Link="TestAssets\AdmissionsIndex.cshtml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\wwwroot\js\admissions\index.js" Link="TestAssets\admissions-index.js" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Program.cs" Link="TestAssets\Program.cs" CopyToOutputDirectory="PreserveNewest" />
