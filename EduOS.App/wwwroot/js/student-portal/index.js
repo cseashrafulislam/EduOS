@@ -90,6 +90,7 @@
                 select.append(item);
             }
             if (linked?.length === 1) { select.value = linked[0].reference; loadCurrent(); }
+            document.dispatchEvent(new CustomEvent('portal:student-selected', { detail: { student: select.value } }));
             if (!linked?.length) notify('No student is linked to your account.', 'warning');
         } catch (error) { notify(error.message); }
     }
@@ -136,7 +137,10 @@
             notify(error.message);
         }
     }
-    select.addEventListener('change', loadCurrent);
+    select.addEventListener('change', () => {
+        loadCurrent();
+        document.dispatchEvent(new CustomEvent('portal:student-selected', { detail: { student: select.value } }));
+    });
     tabs.addEventListener('click', event => {
         const button = event.target.closest('button[data-portal-tab]');
         if (!button) return;

@@ -52,6 +52,24 @@
         <div class="col-md-3"><label for="studentPortalFrom" class="form-label">Attendance from</label><input id="studentPortalFrom" type="date" class="form-control" /></div>
         <div class="col-md-3"><label for="studentPortalTo" class="form-label">Attendance to</label><input id="studentPortalTo" type="date" class="form-control" /></div>
     </div></section>
+    <section class="card mb-3" aria-labelledby="portalPhotoTitle">
+        <div class="card-body">
+            <h3 id="portalPhotoTitle" class="h5">Student profile photo</h3>
+            <p class="small text-muted">Upload a JPG, PNG or WebP image up to 2 MB for your own or linked student.</p>
+            <form id="portalPhotoForm" enctype="multipart/form-data">
+                @Html.AntiForgeryToken()
+                <div class="d-flex flex-wrap align-items-end gap-3">
+                    <img id="portalPhotoPreview" class="rounded border d-none" alt="Student profile photo"
+                         style="width:96px;height:96px;object-fit:cover" />
+                    <div><label for="portalPhotoFile" class="form-label">Photo</label>
+                        <input type="file" class="form-control" id="portalPhotoFile"
+                               accept=".jpg,.jpeg,.png,.webp" required /></div>
+                    <button type="submit" id="portalPhotoSubmit" class="btn btn-primary" disabled>Save photo</button>
+                </div>
+                <div id="portalPhotoStatus" class="small mt-2" role="status" aria-live="polite"></div>
+            </form>
+        </div>
+    </section>
     <nav class="d-flex flex-wrap gap-2 mb-3" aria-label="Student portal sections" id="studentPortalTabs">
         <button type="button" class="btn btn-primary" data-portal-tab="timetable">Timetable</button>
         <button type="button" class="btn btn-outline-primary" data-portal-tab="attendance">Attendance</button>
@@ -79,4 +97,5 @@
     <script src="~/js/student-portal/guardian-preferences.js" asp-append-version="true"></script>
     <script src="~/js/student-portal/index.js" asp-append-version="true"></script>
     <script src="~/js/student-portal/documents-upload.js" asp-append-version="true"></script>
+    <script src="~/js/student-portal/photo.js" asp-append-version="true"></script>
 }
