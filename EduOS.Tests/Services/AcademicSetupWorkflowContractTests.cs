@@ -44,7 +44,7 @@ public sealed class AcademicSetupWorkflowContractTests
     {
         var iface = typeof(IAcademicSetupService);
         var implementation = typeof(AcademicSetupService);
-        iface.GetMethods().Should().HaveCount(27);
+        iface.GetMethods().Should().HaveCount(30);
         implementation.GetInterfaces().Should().Contain(iface);
         iface.GetMethod(nameof(IAcademicSetupService.GetDepartmentsAsync)).Should().NotBeNull();
         iface.GetMethod(nameof(IAcademicSetupService.CreateDepartmentAsync))!
@@ -63,6 +63,10 @@ public sealed class AcademicSetupWorkflowContractTests
             .GetParameters()[1].ParameterType.Should().Be(typeof(UpdateProgramCampusAllocationRequestDto));
         iface.GetMethod(nameof(IAcademicSetupService.CreateLevelAsync))!
             .GetParameters()[0].ParameterType.Should().Be(typeof(SaveAcademicLevelRequestDto));
+        iface.GetMethod(nameof(IAcademicSetupService.GetLevelsAsync)).Should().NotBeNull();
+        iface.GetMethod(nameof(IAcademicSetupService.GetLevelAsync)).Should().NotBeNull();
+        iface.GetMethod(nameof(IAcademicSetupService.UpdateLevelAsync))!
+            .GetParameters()[1].ParameterType.Should().Be(typeof(UpdateAcademicLevelRequestDto));
         iface.GetMethod(nameof(IAcademicSetupService.CreateCurriculumAsync))!
             .GetParameters()[0].ParameterType.Should().Be(typeof(SaveAcademicCurriculumRequestDto));
         iface.GetMethod(nameof(IAcademicSetupService.ActivateCurriculumAsync)).Should().NotBeNull();

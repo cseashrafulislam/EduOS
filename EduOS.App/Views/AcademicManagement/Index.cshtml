@@ -159,7 +159,26 @@
                 <div class="col-md-2"><label for="levelNumber" class="form-label">Level number *</label><input id="levelNumber" class="form-control" required type="number" min="1" max="1000" value="1" /></div>
                 <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Add Class</button></div>
             </form>
-            <div class="table-responsive"><table class="table table-hover"><thead><tr><th>Class / Grade</th><th>Code</th><th>Programme</th><th>Level</th></tr></thead><tbody id="levelRows"></tbody></table></div>
+            <div class="border rounded p-3">
+                <h3 class="h6">Class / Grade administration</h3>
+                <p class="small text-muted">Search active and inactive levels. Codes and programme are immutable. Changing progression, number or status is blocked when batches or curriculum mappings exist.</p>
+                <form id="levelSearchForm" class="row g-2 mb-3">
+                    <div class="col-md-5"><label for="levelSearch" class="form-label">Level name / code prefix</label><input id="levelSearch" maxlength="80" class="form-control" /></div>
+                    <div class="col-md-4"><label for="levelProgramFilter" class="form-label">Programme</label><select id="levelProgramFilter" class="form-select"></select></div>
+                    <div class="col-md-3 d-flex align-items-end gap-2"><button type="submit" class="btn btn-outline-primary">Search</button><button id="levelCsv" type="button" class="btn btn-outline-secondary">Export visible CSV</button></div>
+                </form>
+                <div class="table-responsive"><table class="table table-hover align-middle"><thead><tr><th>Class / Grade</th><th>Code</th><th>Programme</th><th>Level</th><th>Progression</th><th>Status</th><th>Action</th></tr></thead><tbody id="levelRows"></tbody></table></div>
+                <div class="d-flex align-items-center gap-2 mb-3"><button id="levelPrev" type="button" class="btn btn-sm btn-outline-secondary">Previous</button><span id="levelPage" class="small text-muted"></span><button id="levelNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button></div>
+                <form id="levelEditForm" class="row g-2 align-items-end border rounded p-3 d-none">
+                    <input id="levelEditId" type="hidden" /><input id="levelEditVersion" type="hidden" />
+                    <div class="col-md-3"><span id="levelEditContext" class="small text-muted"></span><label for="levelEditName" class="form-label d-block">Name *</label><input id="levelEditName" class="form-control" maxlength="150" required /></div>
+                    <div class="col-md-2"><label for="levelEditNumber" class="form-label">Level number</label><input id="levelEditNumber" type="number" min="1" max="1000" class="form-control" required /></div>
+                    <div class="col-md-2"><label for="levelEditOrder" class="form-label">Display order</label><input id="levelEditOrder" type="number" min="0" class="form-control" required /></div>
+                    <div class="col-md-2"><label class="form-check"><input id="levelEditPromotable" type="checkbox" class="form-check-input" /><span class="form-check-label">Promotable</span></label><label class="form-check"><input id="levelEditTerminal" type="checkbox" class="form-check-input" /><span class="form-check-label">Terminal</span></label></div>
+                    <div class="col-md-1"><label class="form-check"><input id="levelEditActive" type="checkbox" class="form-check-input" /><span class="form-check-label">Active</span></label></div>
+                    <div class="col-md-2 d-flex gap-2"><button type="submit" class="btn btn-primary">Save</button><button id="levelEditCancel" type="button" class="btn btn-outline-secondary">Cancel</button></div>
+                </form>
+            </div>
         </div>
     </section>
     <section data-section="rooms" class="card border-0 shadow-sm d-none">
@@ -309,4 +328,5 @@
     <script src="~/js/academic/programmes.js" asp-append-version="true"></script>
     <script src="~/js/academic/batches.js" asp-append-version="true"></script>
     <script src="~/js/academic/rooms.js" asp-append-version="true"></script>
+    <script src="~/js/academic/levels.js" asp-append-version="true"></script>
 }

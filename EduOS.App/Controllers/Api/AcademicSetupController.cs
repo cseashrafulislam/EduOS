@@ -90,6 +90,23 @@ public sealed class AcademicSetupController : ControllerBase
     public async Task<IActionResult> CreateLevelCanonical([FromBody] SaveAcademicLevelRequestDto request, CancellationToken cancellationToken) =>
         ToAction(await _service.CreateLevelAsync(request, cancellationToken));
 
+    [HttpGet("levels")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> Levels([FromQuery] string? search, [FromQuery] long? academicProgramId,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetLevelsAsync(search, academicProgramId, page, pageSize, cancellationToken));
+
+    [HttpGet("levels/{id:long}")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> Level(long id, CancellationToken cancellationToken) =>
+        ToAction(await _service.GetLevelAsync(id, cancellationToken));
+
+    [HttpPut("levels/{id:long}")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> UpdateLevel(long id, [FromBody] UpdateAcademicLevelRequestDto request,
+        CancellationToken cancellationToken) =>
+        ToAction(await _service.UpdateLevelAsync(id, request, cancellationToken));
+
     [HttpPost("tracks")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
     public async Task<IActionResult> CreateTrack([FromBody] SaveAcademicTrackRequestDto request, CancellationToken cancellationToken) =>
