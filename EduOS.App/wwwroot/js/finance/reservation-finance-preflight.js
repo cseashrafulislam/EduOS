@@ -44,6 +44,7 @@ function render(data) {
 form.addEventListener('submit', async event => {
     event.preventDefault();
     result.classList.add('d-none');
+    root.dispatchEvent(new Event('reservationFinancePreflightReset'));
     alert.className = 'alert d-none';
     const kind = document.getElementById('reservationFinanceKind').value;
     const id = document.getElementById('reservationFinanceId').value;

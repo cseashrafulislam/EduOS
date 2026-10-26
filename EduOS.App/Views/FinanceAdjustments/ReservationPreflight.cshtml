@@ -46,6 +46,25 @@
             <dl id="reservationFinanceDetails" class="row mb-3"></dl>
             <div id="reservationFinanceDecision" class="alert alert-warning" role="status"></div>
             <p class="small text-muted">Financial exposure is conservatively enrollment/student-wide because invoices and receipts have no canonical Hostel/Transport reservation source reference. A clear preflight is informational only, not permission to change a reservation.</p>
+            <section id="reservationFinanceEvidencePanel" class="border-top pt-3 d-none" aria-label="Invoice and payment evidence">
+                <h4 class="h6">Invoice and payment evidence</h4>
+                <p class="small text-muted">Read-only source records for Finance reconciliation. Invoices are enrollment-wide; payments are student-wide. These are NOT proven charges for this reservation and cannot approve any change.</p>
+                <div class="row g-2 align-items-end mb-2">
+                    <div class="col-sm-4"><label for="reservationFinanceEvidenceSource" class="form-label">Evidence source</label>
+                        <select id="reservationFinanceEvidenceSource" class="form-select"><option value="invoice">Invoices</option><option value="payment">Payments / receipts</option></select>
+                    </div>
+                </div>
+                <div id="reservationFinanceEvidenceAlert" class="alert d-none" role="status" aria-live="polite"></div>
+                <div class="table-responsive"><table class="table table-sm table-striped align-middle">
+                    <thead><tr><th>Reference</th><th>Date</th><th>State</th><th>Amount BDT</th><th>Paid BDT</th><th>Due BDT</th><th>Journal ID</th><th>Posting exposure</th></tr></thead>
+                    <tbody id="reservationFinanceEvidenceRows"></tbody>
+                </table></div>
+                <div class="d-flex align-items-center gap-2">
+                    <button id="reservationFinanceEvidencePrev" type="button" class="btn btn-sm btn-outline-secondary" disabled>Previous</button>
+                    <span id="reservationFinanceEvidencePage" aria-live="polite">Not loaded</span>
+                    <button id="reservationFinanceEvidenceNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>Next</button>
+                </div>
+            </section>
         </div>
     </section>
 </section>
