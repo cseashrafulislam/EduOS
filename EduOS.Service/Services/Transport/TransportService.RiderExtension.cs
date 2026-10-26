@@ -56,6 +56,9 @@ public sealed partial class TransportService
                         await MapAsync(assignment, ct), "Reservation already extended to this date.");
                 if (!assignment.RowVersion.AsSpan().SequenceEqual(version))
                     return Error("Assignment changed. Reload and retry.", 409);
+                if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
+                    assignment.StudentId, assignment.StudentEnrollmentId, ct))
+                    return Error("Posted finance activity requires an approved Finance adjustment before extension.", 409);
                 if (assignment.State != TransportAssignmentState.Active ||
                     !CanExtendOperatingRiderDates(assignment.StartDate, assignment.EndDate,
                         request.EndDate, today))

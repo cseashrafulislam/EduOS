@@ -1,6 +1,7 @@
 using EduOS.Core.DTOs.Transport;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Auth;
+using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Entities.Transport;
@@ -10,6 +11,7 @@ using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Persistence.Context;
 using EduOS.Persistence.Repositories;
 using EduOS.Service.Services.Transport;
+using EduOS.Service.Services.Finance;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -23,6 +25,34 @@ namespace EduOS.Tests.Services;
 
 public class TransportServiceTests
 {
+    [Fact]
+    public async Task Posted_enrollment_invoice_blocks_transport_closure_without_mutating_reservation()
+    {
+        await using var db = CreateContext(CreateOptions(), 101);
+        var rider = await SeedAssignmentAsync(db, 101, true, [1,2,3,4,5,6,7,8]);
+        db.StudentInvoices.Add(new StudentInvoice
+        {
+            TenantId = 101, StudentEnrollmentId = rider.StudentEnrollmentId,
+            ClientRequestId = Guid.NewGuid(), InvoiceNumber = "TR-POSTED",
+            InvoiceDate = new DateOnly(2026, 10, 1), DueDate = new DateOnly(2026, 10, 30),
+            State = InvoiceState.Issued, JournalId = 543
+        });
+        await db.SaveChangesAsync();
+
+        var result = await CreateService(db, 101).CloseAsync(rider.PublicId,
+            new CloseStudentTransportRequestDto
+            {
+                EndDate = DateOnly.FromDateTime(DateTime.Today),
+                RowVersion = Convert.ToBase64String(rider.RowVersion)
+            });
+
+        result.Success.Should().BeFalse();
+        result.StatusCode.Should().Be(409);
+        var stored = await db.StudentTransports.SingleAsync(x => x.Id == rider.Id);
+        stored.EndDate.Should().BeNull();
+        stored.State.Should().Be(TransportAssignmentState.Active);
+    }
+
     [Fact]
     public async Task Close_with_matching_row_version_closes_assignment()
     {
@@ -319,7 +349,8 @@ public class TransportServiceTests
         new GenericRepository<UserCampusAccess>(context),
         new GenericRepository<Campus>(context),
         new TestUnitOfWork(context),
-        new TestCurrentUser(tenant, canManage, role), TimeProvider.System, NullLogger<TransportService>.Instance);
+        new TestCurrentUser(tenant, canManage, role), TimeProvider.System,
+        NullLogger<TransportService>.Instance, new ReservationFinancePolicy(context));
 
     private static async Task<StudentTransport> SeedAssignmentAsync(EduOSDbContext context, long tenant, bool active, byte[] rowVersion)
     {

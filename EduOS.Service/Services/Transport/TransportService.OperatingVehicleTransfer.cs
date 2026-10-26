@@ -134,6 +134,9 @@ public sealed partial class TransportService
                     return Error("Transfer date must be within a currently operating reservation and after its start.", 409);
                 if (!source.RowVersion.AsSpan().SequenceEqual(version))
                     return Error("Source reservation changed. Reload and retry.", 409);
+                if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
+                    source.StudentId, source.StudentEnrollmentId, ct))
+                    return Error("Posted finance activity requires an approved Finance adjustment before transfer.", 409);
                 if (!await _students.GetQueryable().AsNoTracking().AnyAsync(x =>
                     x.TenantId == tenant && !x.IsDeleted && x.Id == source.StudentId && x.StatusCode == "Active", ct))
                     return Error("Student is unavailable.", 409);

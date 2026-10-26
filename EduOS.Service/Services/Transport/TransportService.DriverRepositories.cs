@@ -5,6 +5,7 @@ using EduOS.Core.Entities.Students;
 using EduOS.Core.Entities.Transport;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
+using EduOS.Core.Interfaces.IServices;
 using Microsoft.Extensions.Logging;
 using TransportRoute = EduOS.Core.Entities.Transport.Route;
 
@@ -23,9 +24,10 @@ public sealed partial class TransportService
         IGenericRepository<Student> students, IGenericRepository<UserCampusAccess> campusAccesses,
         IGenericRepository<Campus> campuses, IUnitOfWork unitOfWork, ICurrentUserService currentUser,
         TimeProvider clock, ILogger<TransportService> logger,
-        IGenericRepository<TransportDriver> drivers, IGenericRepository<VehicleDriverAssignment> driverLinks)
+        IGenericRepository<TransportDriver> drivers, IGenericRepository<VehicleDriverAssignment> driverLinks,
+        IReservationFinancePolicy reservationFinancePolicy)
         : this(routes, stops, vehicles, vehicleRoutes, assignments, enrollments, students,
-            campusAccesses, campuses, unitOfWork, currentUser, clock, logger)
+            campusAccesses, campuses, unitOfWork, currentUser, clock, logger, reservationFinancePolicy)
     {
         _drivers = drivers;
         _driverLinks = driverLinks;

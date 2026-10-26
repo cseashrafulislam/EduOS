@@ -28,6 +28,7 @@ public sealed partial class TransportService : ITransportService
     private readonly IGenericRepository<UserCampusAccess> _campusAccesses;
     private readonly IGenericRepository<Campus> _campuses;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IReservationFinancePolicy _reservationFinancePolicy;
     private readonly ICurrentUserService _currentUser;
     private readonly TimeProvider _clock;
     private readonly ILogger<TransportService> _logger;
@@ -37,7 +38,8 @@ public sealed partial class TransportService : ITransportService
         IGenericRepository<StudentTransport> assignments, IGenericRepository<StudentEnrollment> enrollments,
         IGenericRepository<Student> students, IGenericRepository<UserCampusAccess> campusAccesses,
         IGenericRepository<Campus> campuses, IUnitOfWork unitOfWork, ICurrentUserService currentUser,
-        TimeProvider clock, ILogger<TransportService> logger)
+        TimeProvider clock, ILogger<TransportService> logger,
+        IReservationFinancePolicy reservationFinancePolicy)
     {
         _routes = routes;
         _stops = stops;
@@ -52,6 +54,7 @@ public sealed partial class TransportService : ITransportService
         _currentUser = currentUser;
         _clock = clock;
         _logger = logger;
+        _reservationFinancePolicy = reservationFinancePolicy;
     }
 
     public async Task<ApiResponse<IReadOnlyList<RouteDto>>> GetRoutesAsync(CancellationToken cancellationToken = default)
@@ -408,6 +411,9 @@ public sealed partial class TransportService : ITransportService
                     return Error("Closure must be between assignment start and today. Cancel future reservations.", 409);
                 if (!entity.RowVersion.AsSpan().SequenceEqual(version))
                     return Error("Assignment changed. Reload and retry.", 409);
+                if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
+                    entity.StudentId, entity.StudentEnrollmentId, ct))
+                    return Error("Posted finance activity requires an approved Finance adjustment before closure.", 409);
                 entity.EndDate = endDate;
                 entity.State = TransportAssignmentState.Closed;
                 entity.UpdatedAt = _clock.GetUtcNow().UtcDateTime;

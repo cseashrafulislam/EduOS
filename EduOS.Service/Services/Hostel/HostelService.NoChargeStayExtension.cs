@@ -57,6 +57,9 @@ public sealed partial class HostelService
                     return Error("Extend before checkout within the original 90-day booking window.", 409);
                 if (!allocation.RowVersion.AsSpan().SequenceEqual(version))
                     return Error("Reservation changed. Reload and retry.", 409);
+                if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
+                    allocation.StudentId, allocation.StudentEnrollmentId, ct))
+                    return Error("Posted finance activity requires an approved Finance adjustment before extension.", 409);
                 if (!source.Bed.IsActive || !source.Room.IsActive || !source.Hostel.IsActive ||
                     source.Room.Capacity < 1)
                     return Error("Hostel accommodation is unavailable.", 409);

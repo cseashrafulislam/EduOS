@@ -86,6 +86,9 @@ public sealed partial class HostelService
                         await MapAsync(allocation, ct), "Reservation already starts on the selected date.");
                 if (!allocation.RowVersion.AsSpan().SequenceEqual(version))
                     return Error("Reservation changed. Reload and retry.", 409);
+                if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
+                    allocation.StudentId, allocation.StudentEnrollmentId, ct))
+                    return Error("Posted finance activity requires an approved Finance adjustment before rescheduling.", 409);
                 if (!source.Bed.IsActive || !source.Room.IsActive || !source.Hostel.IsActive ||
                     source.Room.Capacity < 1)
                     return Error("Hostel bed or room is unavailable.", 409);

@@ -50,6 +50,9 @@ public sealed partial class TransportService
                         await MapAsync(assignment, token), "Reservation already starts on this date.");
                 if (!assignment.RowVersion.AsSpan().SequenceEqual(version))
                     return Error("Assignment changed. Reload and retry.", 409);
+                if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
+                    assignment.StudentId, assignment.StudentEnrollmentId, token))
+                    return Error("Posted finance activity requires an approved Finance adjustment before rescheduling.", 409);
                 var studentIsActive = await _students.GetQueryable().AsNoTracking().AnyAsync(x =>
                     x.TenantId == tenant && !x.IsDeleted && x.Id == assignment.StudentId &&
                     x.StatusCode == "Active", token);

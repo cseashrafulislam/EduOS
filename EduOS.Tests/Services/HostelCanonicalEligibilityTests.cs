@@ -1,6 +1,7 @@
 using EduOS.Core.DTOs.Hostel;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Auth;
+using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Hostel;
 using EduOS.Core.Entities.Students;
@@ -22,6 +23,60 @@ namespace EduOS.Tests.Services;
 
 public sealed class HostelCanonicalEligibilityTests
 {
+    [Fact]
+    public async Task Posted_payment_blocks_hostel_checkout_and_keeps_original_stay()
+    {
+        var options = new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("hostel-posted-" + Guid.NewGuid().ToString("N")).Options;
+        await using var db = Context(101, options);
+        var campus = new Campus { TenantId = 101, Name = "Main", Code = "POST", IsActive = true };
+        var student = Student(101, "Active", "paid");
+        db.AddRange(campus, student);
+        await db.SaveChangesAsync();
+        var enrollment = Enrollment(student, true);
+        enrollment.CampusId = campus.Id;
+        var hostel = new EduOS.Core.Entities.Hostel.Hostel
+        { TenantId = 101, CampusId = campus.Id, Name = "Main Hostel", Code = "POST" };
+        db.AddRange(enrollment, hostel);
+        await db.SaveChangesAsync();
+        var room = new HostelRoom { TenantId = 101, HostelId = hostel.Id,
+            RoomNumber = "101", Capacity = 2, IsActive = true };
+        db.Add(room);
+        await db.SaveChangesAsync();
+        var bed = new HostelBed { TenantId = 101, HostelRoomId = room.Id,
+            BedNumber = "A", IsActive = true };
+        db.Add(bed);
+        await db.SaveChangesAsync();
+        var stay = new StudentHostelAllocation
+        {
+            TenantId = 101, StudentId = student.Id, StudentEnrollmentId = enrollment.Id,
+            HostelBedId = bed.Id, ClientRequestId = Guid.NewGuid(),
+            StartDate = DateOnly.FromDateTime(DateTime.Today.AddDays(-20)),
+            MonthlyRent = 0m, State = HostelAllocationState.Active,
+            RowVersion = [1,2,3,4,5,6,7,8]
+        };
+        db.Add(stay);
+        db.StudentPayments.Add(new StudentPayment
+        {
+            TenantId = 101, StudentId = student.Id, ClientRequestId = Guid.NewGuid(),
+            ReceiptNumber = "HS-PAY", PaymentDate = DateOnly.FromDateTime(DateTime.Today),
+            ReceivedByUserId = 7, Amount = 100m, State = PaymentState.Successful
+        });
+        await db.SaveChangesAsync();
+
+        var result = await Service(db).CloseAsync(stay.Id, new CloseStudentHostelAllocationRequestDto
+        {
+            EndDate = DateOnly.FromDateTime(DateTime.Today),
+            RowVersion = Convert.ToBase64String(stay.RowVersion)
+        });
+
+        result.Success.Should().BeFalse();
+        result.StatusCode.Should().Be(409);
+        var saved = await db.Set<StudentHostelAllocation>().SingleAsync(x => x.Id == stay.Id);
+        saved.EndDate.Should().BeNull();
+        saved.State.Should().Be(HostelAllocationState.Active);
+    }
+
     [Fact]
     public async Task Eligible_students_excludes_transferred_noncurrent_and_other_tenant()
     {
@@ -271,7 +326,8 @@ public sealed class HostelCanonicalEligibilityTests
         new GenericRepository<StudentHostelAllocation>(db),
         new GenericRepository<StudentEnrollment>(db), new GenericRepository<Student>(db),
         new GenericRepository<UserCampusAccess>(db), new GenericRepository<Campus>(db),
-        new UnitOfWork(db), new CurrentUser(canManage, role), TimeProvider.System, NullLogger<HostelService>.Instance);
+        new UnitOfWork(db), new CurrentUser(canManage, role), TimeProvider.System,
+        NullLogger<HostelService>.Instance, new EduOS.Service.Services.Finance.ReservationFinancePolicy(db));
 
     private static EduOSDbContext Context(long tenant, DbContextOptions<EduOSDbContext> options)
     {

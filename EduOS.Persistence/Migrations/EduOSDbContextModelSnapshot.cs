@@ -1440,9 +1440,6 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId", "DayOfWeek", "IsActive", "EffectiveFrom")
-                        .HasDatabaseName("IX_RoutineEntries_Tenant_Day_Active_From");
-
                     b.HasIndex("TenantId", "InstructorAssignmentId");
 
                     b.HasIndex("TenantId", "RoomId");
@@ -1450,6 +1447,9 @@ namespace EduOS.Persistence.Migrations
                     b.HasIndex("TenantId", "RoutineTimeSlotId");
 
                     b.HasIndex("TenantId", "SubjectOfferingId");
+
+                    b.HasIndex("TenantId", "DayOfWeek", "IsActive", "EffectiveFrom")
+                        .HasDatabaseName("IX_RoutineEntries_Tenant_Day_Active_From");
 
                     b.ToTable("RoutineEntries");
                 });
@@ -2719,9 +2719,6 @@ namespace EduOS.Persistence.Migrations
                     b.Property<bool>("IsVerified")
                         .HasColumnType("bit");
 
-                    b.Property<int>("VerificationStatus")
-                        .HasColumnType("int");
-
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
                         .IsRequired()
@@ -2741,6 +2738,9 @@ namespace EduOS.Persistence.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
+                    b.Property<int>("VerificationStatus")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("VerifiedAt")
                         .HasColumnType("datetime2");
 
@@ -2756,12 +2756,12 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("VerifiedByUserId");
 
+                    b.HasIndex("TenantId", "FileAssetId");
+
                     b.HasIndex("TenantId", "AdmissionApplicantId", "DocumentTypeCode", "VersionNo")
                         .IsUnique()
                         .HasDatabaseName("UX_AdmissionApplicantDocuments_Tenant_Applicant_Type_Version")
                         .HasFilter("[IsDeleted] = 0");
-
-                    b.HasIndex("TenantId", "FileAssetId");
 
                     b.ToTable("AdmissionApplicantDocuments", t =>
                         {
@@ -3112,15 +3112,15 @@ namespace EduOS.Persistence.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
-                    b.Property<string>("DocumentRequirementsJson")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<long?>("DeletedBy")
                         .HasColumnType("bigint");
+
+                    b.Property<string>("DocumentRequirementsJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
@@ -3178,12 +3178,12 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId", "AcademicYearId");
 
+                    b.HasIndex("TenantId", "CampusId");
+
                     b.HasIndex("TenantId", "Code")
                         .IsUnique()
                         .HasDatabaseName("UX_AdmissionIntakeForms_Tenant_Code")
                         .HasFilter("[IsDeleted] = 0");
-
-                    b.HasIndex("TenantId", "CampusId");
 
                     b.HasIndex("TenantId", "MediumId");
 
@@ -7061,24 +7061,6 @@ namespace EduOS.Persistence.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
-                    b.Property<DateTime?>("VerifiedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<long?>("VerifiedByUserId")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("VerificationNote")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("VerificationStatusCode")
-                        .IsRequired()
-                        .HasMaxLength(24)
-                        .HasColumnType("nvarchar(24)")
-                        .HasDefaultValue("NotRequired");
-
-
-
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
@@ -7107,6 +7089,23 @@ namespace EduOS.Persistence.Migrations
                     b.Property<long?>("UpdatedBy")
                         .HasColumnType("bigint");
 
+                    b.Property<string>("VerificationNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("VerificationStatusCode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)")
+                        .HasDefaultValue("NotRequired");
+
+                    b.Property<DateTime?>("VerifiedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("VerifiedByUserId")
+                        .HasColumnType("bigint");
+
                     b.Property<int>("VersionNo")
                         .HasColumnType("int");
 
@@ -7125,8 +7124,7 @@ namespace EduOS.Persistence.Migrations
 
                     b.ToTable("Documents", t =>
                         {
-                            t.HasCheckConstraint("CK_Documents_VerificationStatus",
-                                "[VerificationStatusCode] IN (N'NotRequired', N'Pending', N'Approved', N'Rejected')");
+                            t.HasCheckConstraint("CK_Documents_VerificationStatus", "[VerificationStatusCode] IN (N'NotRequired', N'Pending', N'Approved', N'Rejected')");
                         });
                 });
 
@@ -13860,13 +13858,13 @@ namespace EduOS.Persistence.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
-                    b.Property<string>("PayerBankName")
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
-
                     b.Property<string>("PayerAccountNumber")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("PayerBankName")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
 
                     b.Property<int>("PaymentMethod")
                         .HasColumnType("int");
@@ -13923,6 +13921,10 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("VerifiedByUserId");
 
+                    b.HasIndex("InitiatedAt", "Id")
+                        .HasDatabaseName("IX_SubscriptionPayments_PlatformPending")
+                        .HasFilter("[IsDeleted] = 0 AND [PaymentMethod] = 2 AND [State] = 2");
+
                     b.HasIndex("TenantId", "ClientRequestId")
                         .IsUnique();
 
@@ -13932,10 +13934,6 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId", "TransactionId")
                         .IsUnique();
-
-                    b.HasIndex("InitiatedAt", "Id")
-                        .HasDatabaseName("IX_SubscriptionPayments_PlatformPending")
-                        .HasFilter("[IsDeleted] = 0 AND [PaymentMethod] = 2 AND [State] = 2");
 
                     b.ToTable("SubscriptionPayments", t =>
                         {
@@ -14064,12 +14062,12 @@ namespace EduOS.Persistence.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
-                    b.Property<string>("DefaultLanguage")
+                    b.Property<string>("DateFormat")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
-                    b.Property<string>("DateFormat")
+                    b.Property<string>("DefaultLanguage")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
@@ -16779,6 +16777,12 @@ namespace EduOS.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("NormalizedLicenseNumber")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasComputedColumnSql("UPPER(LTRIM(RTRIM([LicenseNumber])))", true);
+
                     b.Property<string>("Phone")
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
@@ -16801,6 +16805,10 @@ namespace EduOS.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId", "EmployeeId");
+
+                    b.HasIndex("TenantId", "NormalizedLicenseNumber")
+                        .IsUnique()
+                        .HasFilter("[NormalizedLicenseNumber] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.ToTable("TransportDrivers");
                 });
@@ -16837,6 +16845,12 @@ namespace EduOS.Persistence.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
+                    b.Property<string>("NormalizedVehicleNumber")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasComputedColumnSql("UPPER(LTRIM(RTRIM([VehicleNumber])))", true);
+
                     b.Property<Guid>("PublicId")
                         .HasColumnType("uniqueidentifier");
 
@@ -16871,8 +16885,11 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId", "CampusId");
 
-                    b.HasIndex("TenantId", "VehicleNumber")
-                        .IsUnique();
+                    b.HasIndex("TenantId", "NormalizedVehicleNumber")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.HasIndex("TenantId", "VehicleNumber");
 
                     b.ToTable("Vehicles");
                 });

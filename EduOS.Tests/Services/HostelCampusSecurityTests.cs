@@ -151,7 +151,8 @@ public sealed class HostelCampusSecurityTests
         new GenericRepository<HostelBed>(db), new GenericRepository<StudentHostelAllocation>(db),
         new GenericRepository<StudentEnrollment>(db), new GenericRepository<Student>(db),
         new GenericRepository<UserCampusAccess>(db), new GenericRepository<Campus>(db),
-        new TestUnitOfWork(db), new Warden(), TimeProvider.System, NullLogger<HostelService>.Instance);
+        new TestUnitOfWork(db), new Warden(), TimeProvider.System,
+        NullLogger<HostelService>.Instance, new EduOS.Service.Services.Finance.ReservationFinancePolicy(db));
 
     private sealed class TestUnitOfWork(EduOSDbContext db) : IUnitOfWork
     {

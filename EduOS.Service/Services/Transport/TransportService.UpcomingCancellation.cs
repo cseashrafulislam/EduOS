@@ -60,6 +60,9 @@ public sealed partial class TransportService
                     return Error("This reservation has started or already ended. Use closure instead.", 409);
                 if (!assignment.RowVersion.AsSpan().SequenceEqual(version))
                     return Error("Assignment changed. Reload and retry.", 409);
+                if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
+                    assignment.StudentId, assignment.StudentEnrollmentId, ct))
+                    return Error("Posted finance activity requires an approved Finance adjustment before cancellation.", 409);
                 assignment.State = TransportAssignmentState.Cancelled;
                 assignment.EndDate = assignment.StartDate;
                 assignment.UpdatedAt = _clock.GetUtcNow().UtcDateTime;

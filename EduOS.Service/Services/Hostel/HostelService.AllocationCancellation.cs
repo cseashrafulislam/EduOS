@@ -45,6 +45,9 @@ public sealed partial class HostelService
                     return Error("Only active reservations can be cancelled.", 409);
                 if (!allocation.RowVersion.AsSpan().SequenceEqual(version))
                     return Error("Allocation changed. Reload and retry.", 409);
+                if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
+                    allocation.StudentId, allocation.StudentEnrollmentId, ct))
+                    return Error("Posted finance activity requires an approved Finance adjustment before cancellation.", 409);
                 var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
                 if (allocation.StartDate <= today)
                     return Error("Allocation has already started. Use the normal close workflow.", 409);

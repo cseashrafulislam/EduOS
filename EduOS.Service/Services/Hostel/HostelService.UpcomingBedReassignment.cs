@@ -106,6 +106,9 @@ public sealed partial class HostelService
                         await MapAsync(allocation, ct), "Reservation already uses the selected bed.");
                 if (!allocation.RowVersion.AsSpan().SequenceEqual(version))
                     return Error("Reservation changed. Reload and retry.", 409);
+                if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
+                    allocation.StudentId, allocation.StudentEnrollmentId, ct))
+                    return Error("Posted finance activity requires an approved Finance adjustment before bed change.", 409);
                 if (!source.Room.IsActive || !source.Hostel.IsActive || !source.Bed.IsActive)
                     return Error("Current hostel room or bed is inactive.", 409);
                 var target = await _beds.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>

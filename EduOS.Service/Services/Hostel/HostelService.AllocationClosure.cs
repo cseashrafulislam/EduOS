@@ -72,6 +72,9 @@ public sealed partial class HostelService
                     return Error("Checkout must be between the stay start and today. Cancel future reservations.", 409);
                 if (!allocation.RowVersion.AsSpan().SequenceEqual(version))
                     return Error("Hostel allocation changed. Reload and retry.", 409);
+                if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
+                    allocation.StudentId, allocation.StudentEnrollmentId, ct))
+                    return Error("Posted finance activity requires an approved Finance adjustment before checkout.", 409);
 
                 allocation.EndDate = end;
                 allocation.State = HostelAllocationState.Closed;

@@ -26,6 +26,7 @@ public sealed partial class HostelService : IHostelService
     private readonly IGenericRepository<UserCampusAccess> _campusAccesses;
     private readonly IGenericRepository<Campus> _campuses;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IReservationFinancePolicy _reservationFinancePolicy;
     private readonly ICurrentUserService _currentUser;
     private readonly TimeProvider _clock;
     private readonly ILogger<HostelService> _logger;
@@ -34,12 +35,14 @@ public sealed partial class HostelService : IHostelService
         IGenericRepository<HostelBed> beds, IGenericRepository<StudentHostelAllocation> allocations,
         IGenericRepository<StudentEnrollment> enrollments, IGenericRepository<Student> students,
         IGenericRepository<UserCampusAccess> campusAccesses, IGenericRepository<Campus> campuses,
-        IUnitOfWork unitOfWork, ICurrentUserService currentUser, TimeProvider clock, ILogger<HostelService> logger)
+        IUnitOfWork unitOfWork, ICurrentUserService currentUser, TimeProvider clock,
+        ILogger<HostelService> logger, IReservationFinancePolicy reservationFinancePolicy)
     {
         _hostels = hostels; _rooms = rooms; _beds = beds; _allocations = allocations;
         _enrollments = enrollments; _students = students; _campusAccesses = campusAccesses;
         _campuses = campuses; _unitOfWork = unitOfWork;
         _currentUser = currentUser; _clock = clock; _logger = logger;
+        _reservationFinancePolicy = reservationFinancePolicy;
     }
 
 

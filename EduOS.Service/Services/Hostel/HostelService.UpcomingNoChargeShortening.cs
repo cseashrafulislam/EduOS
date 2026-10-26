@@ -66,6 +66,9 @@ public sealed partial class HostelService
                     return Error("New checkout must be on or after arrival and before the current checkout.", 409);
                 if (!allocation.RowVersion.AsSpan().SequenceEqual(version))
                     return Error("Reservation changed. Reload and retry.", 409);
+                if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
+                    allocation.StudentId, allocation.StudentEnrollmentId, ct))
+                    return Error("Posted finance activity requires an approved Finance adjustment before shortening.", 409);
                 var previous = allocation.EndDate.Value;
                 allocation.EndDate = request.EndDate;
                 allocation.UpdatedAt = _clock.GetUtcNow().UtcDateTime;

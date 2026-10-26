@@ -55,6 +55,9 @@ public sealed partial class TransportService
                         await MapAsync(assignment, ct), "Reservation end date already matches.");
                 if (!assignment.RowVersion.AsSpan().SequenceEqual(version))
                     return Error("Assignment changed. Reload and retry.", 409);
+                if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
+                    assignment.StudentId, assignment.StudentEnrollmentId, ct))
+                    return Error("Posted finance activity requires an approved Finance adjustment before shortening.", 409);
                 if (!CanShortenUpcomingNoChargeRiderDates(
                     assignment.StartDate, assignment.EndDate, request.EndDate, today))
                     return Error("New end date must be within the original reservation.", 409);

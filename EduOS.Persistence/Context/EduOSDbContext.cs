@@ -1343,7 +1343,19 @@ public class EduOSDbContext :
             .IsUnique().HasFilter("[EndDate] IS NULL AND [IsDeleted] = 0");
         UniqueTenant<Route>(modelBuilder, nameof(Route.Code));
         UniqueTenant<RouteStop>(modelBuilder, nameof(RouteStop.RouteId), nameof(RouteStop.SequenceNo));
-        UniqueTenant<Vehicle>(modelBuilder, nameof(Vehicle.VehicleNumber));
+        // Keep the legacy lookup index, but normalized active uniqueness below
+        // is authoritative. The old unfiltered unique index prevented reuse after soft delete.
+        modelBuilder.Entity<Vehicle>().HasIndex(x => new { x.TenantId, x.VehicleNumber });
+        modelBuilder.Entity<Vehicle>().Property<string>("NormalizedVehicleNumber")
+            .HasMaxLength(50)
+            .HasComputedColumnSql("UPPER(LTRIM(RTRIM([VehicleNumber])))", stored: true);
+        modelBuilder.Entity<Vehicle>().HasIndex(nameof(Vehicle.TenantId), "NormalizedVehicleNumber")
+            .IsUnique().HasFilter("[IsDeleted] = 0");
+        modelBuilder.Entity<TransportDriver>().Property<string>("NormalizedLicenseNumber")
+            .HasMaxLength(100)
+            .HasComputedColumnSql("UPPER(LTRIM(RTRIM([LicenseNumber])))", stored: true);
+        modelBuilder.Entity<TransportDriver>().HasIndex(nameof(TransportDriver.TenantId), "NormalizedLicenseNumber")
+            .IsUnique().HasFilter("[NormalizedLicenseNumber] IS NOT NULL AND [IsDeleted] = 0");
         UniqueTenant<StudentTransport>(modelBuilder, nameof(StudentTransport.ClientRequestId));
         modelBuilder.Entity<StudentTransport>().HasIndex(x => new { x.TenantId, x.StudentId })
             .IsUnique().HasFilter("[EndDate] IS NULL AND [IsDeleted] = 0");
