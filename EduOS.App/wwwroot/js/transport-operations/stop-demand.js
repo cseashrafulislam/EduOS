@@ -5,13 +5,16 @@
     if (!form) return;
     const endpoint = '/api/transport/stop-demand';
     const campus = el('transportStopDemandCampus'), search = el('transportStopDemandSearch');
+    const operatingDate = el('transportStopDemandDate');
     const attention = el('transportStopDemandAttention'), rows = el('transportStopDemandRows');
     const status = el('transportStopDemandAlert'), csvButton = el('transportStopDemandCsv');
     const prev = el('transportStopDemandPrev'), next = el('transportStopDemandNext');
     const pageLabel = el('transportStopDemandPage');
     let page = 1, pages = 1, sequence = 0, loadedFilter = null;
+    const localToday = () => { const d = new Date(); return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-'); };
+    operatingDate.value = localToday(); operatingDate.min = operatingDate.value;
     function filters() {
-        const q = new URLSearchParams();
+        const q = new URLSearchParams({ operatingDate: operatingDate.value });
         if (campus.value) q.set('campusId', campus.value);
         if (search.value.trim()) q.set('search', search.value.trim());
         if (attention.checked) q.set('attentionOnly', 'true');
@@ -44,6 +47,7 @@
         return body.data;
     }
     async function load() {
+        if (!operatingDate.value || operatingDate.value < localToday()) { invalidate(); showError('Choose today or a future operating date.'); return; }
         const current = ++sequence, snapshot = filters();
         loadedFilter = null; csvButton.disabled = true;
         status.className = 'small text-muted mb-2';
@@ -73,7 +77,7 @@
             pageLabel.textContent = 'Page ' + page + ' of ' + pages + ' · ' + data.totalCount + ' stops';
             prev.disabled = page <= 1; next.disabled = page >= pages;
             loadedFilter = snapshot; csvButton.disabled = !data.items?.length;
-            status.textContent = 'Counts reflect current assignments, not measured boardings.';
+            status.textContent = 'Reservations effective on ' + operatingDate.value + '; not measured boardings.';
         } catch (error) {
             if (current !== sequence) return;
             rows.replaceChildren(); prev.disabled = true; next.disabled = true;
@@ -84,6 +88,7 @@
         event.preventDefault(); page = 1; load();
     });
     search.addEventListener('input', invalidate);
+    operatingDate.addEventListener('change', invalidate);
     campus.addEventListener('change', invalidate);
     attention.addEventListener('change', invalidate);
     prev.addEventListener('click', () => { page = Math.max(1, page - 1); load(); });

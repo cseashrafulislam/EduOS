@@ -13,10 +13,13 @@ public sealed partial class TransportService
     // A stop belongs to its canonical Route; never create a parallel stop inventory.
     public async Task<ApiResponse<PagedResult<TransportStopDemandRowDto>>> GetStopDemandAsync(
         long? campusId, int page, int pageSize, string? search, bool attentionOnly,
-        CancellationToken ct = default)
+        CancellationToken ct = default, DateOnly? operatingDate = null)
     {
         if (!CanManage()) return Denied<PagedResult<TransportStopDemandRowDto>>();
-        if (page < 1 || pageSize is < 1 or > 100 || (long)(page - 1) * pageSize > int.MaxValue ||
+        var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+        var asOf = operatingDate ?? today;
+        if (!IsSupportedStopDemandDate(asOf, today) ||
+            page < 1 || pageSize is < 1 or > 100 || (long)(page - 1) * pageSize > int.MaxValue ||
             campusId is <= 0 || search?.Trim().Length > 100)
             return ApiResponse<PagedResult<TransportStopDemandRowDto>>.ErrorResponse("Invalid stop demand filters.");
         var tenant = _currentUser.TenantId;
@@ -45,10 +48,9 @@ public sealed partial class TransportService
             .ThenBy(x => x.RouteId).ThenBy(x => x.SequenceNo).ThenBy(x => x.StopId)
             .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
         var stopIds = stops.Select(x => x.StopId).ToArray();
-        var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
         var assignments = _assignments.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == tenant && !x.IsDeleted && x.State == TransportAssignmentState.Active &&
-            x.StartDate <= today && (!x.EndDate.HasValue || x.EndDate.Value >= today));
+            x.StartDate <= asOf && (!x.EndDate.HasValue || x.EndDate.Value >= asOf));
         // Join on the stop's actual route to avoid counting malformed cross-route references.
         var pickups = await (from assignment in assignments
                              join stop in _stops.GetQueryable().AsNoTracking()
@@ -88,10 +90,16 @@ public sealed partial class TransportService
             });
     }
 
+    /// <summary>Inclusive forecast horizon shared by paged demand and CSV export.</summary>
+    public static bool IsSupportedStopDemandDate(DateOnly selected, DateOnly today) =>
+        selected >= today && selected <= today.AddDays(365);
+
     public async Task<ApiResponse<string>> ExportStopDemandCsvAsync(
-        long? campusId, string? search, bool attentionOnly, CancellationToken ct = default)
+        long? campusId, string? search, bool attentionOnly, CancellationToken ct = default,
+        DateOnly? operatingDate = null)
     {
-        var first = await GetStopDemandAsync(campusId, 1, 100, search, attentionOnly, ct);
+        var asOf = operatingDate ?? DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+        var first = await GetStopDemandAsync(campusId, 1, 100, search, attentionOnly, ct, asOf);
         if (!first.Success || first.Data == null)
             return ApiResponse<string>.ErrorResponse(first.Message ?? "Stop demand unavailable.", first.StatusCode);
         if (first.Data.TotalCount > 1000)
@@ -99,7 +107,7 @@ public sealed partial class TransportService
         var rows = new List<TransportStopDemandRowDto>(first.Data.Items);
         for (var page = 2; page <= (first.Data.TotalCount + 99) / 100; page++)
         {
-            var next = await GetStopDemandAsync(campusId, page, 100, search, attentionOnly, ct);
+            var next = await GetStopDemandAsync(campusId, page, 100, search, attentionOnly, ct, asOf);
             if (!next.Success || next.Data == null || next.Data.TotalCount != first.Data.TotalCount)
                 return ApiResponse<string>.ErrorResponse("Stop demand changed during export. Retry.", 409);
             rows.AddRange(next.Data.Items);
@@ -107,7 +115,7 @@ public sealed partial class TransportService
         var unique = new HashSet<long>();
         if (rows.Count != first.Data.TotalCount || rows.Any(x => !unique.Add(x.StopId)))
             return ApiResponse<string>.ErrorResponse("Stop demand changed during export. Retry.", 409);
-        var csv = new StringBuilder("Campus,Route Code,Route,Stop,Sequence,Route Active,Stop Active,Current Pickups,Current Dropoffs,Inactive With Riders\r\n");
+        var csv = new StringBuilder("Campus,Route Code,Route,Stop,Sequence,Route Active,Stop Active,Reserved Pickups,Reserved Dropoffs,Inactive With Riders,Operating Date\r\n");
         foreach (var row in rows)
             csv.Append(CsvCell(row.CampusName)).Append(',').Append(CsvCell(row.RouteCode)).Append(',')
                 .Append(CsvCell(row.RouteName)).Append(',').Append(CsvCell(row.StopName)).Append(',')
@@ -116,7 +124,8 @@ public sealed partial class TransportService
                 .Append(row.StopActive ? "Yes" : "No").Append(',')
                 .Append(row.CurrentPickups.ToString(CultureInfo.InvariantCulture)).Append(',')
                 .Append(row.CurrentDropoffs.ToString(CultureInfo.InvariantCulture)).Append(',')
-                .Append(row.InactiveWithRiders ? "Yes" : "No").Append("\r\n");
+                .Append(row.InactiveWithRiders ? "Yes" : "No").Append(',')
+                .Append(asOf.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)).Append("\r\n");
         return ApiResponse<string>.SuccessResponse(csv.ToString());
     }
 }

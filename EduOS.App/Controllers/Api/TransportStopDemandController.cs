@@ -22,18 +22,18 @@ public sealed class TransportStopDemandController : ControllerBase
     public async Task<IActionResult> Index([FromQuery] long? campusId = null,
         [FromQuery] int page = 1, [FromQuery] int pageSize = 15,
         [FromQuery] string? search = null, [FromQuery] bool attentionOnly = false,
-        CancellationToken cancellationToken = default)
+        [FromQuery] DateOnly? operatingDate = null, CancellationToken cancellationToken = default)
     {
-        var result = await _service.GetStopDemandAsync(campusId, page, pageSize, search, attentionOnly, cancellationToken);
+        var result = await _service.GetStopDemandAsync(campusId, page, pageSize, search, attentionOnly, cancellationToken, operatingDate);
         return StatusCode(result.StatusCode, result);
     }
 
     [HttpGet("export")]
     public async Task<IActionResult> Export([FromQuery] long? campusId = null,
         [FromQuery] string? search = null, [FromQuery] bool attentionOnly = false,
-        CancellationToken cancellationToken = default)
+        [FromQuery] DateOnly? operatingDate = null, CancellationToken cancellationToken = default)
     {
-        var result = await _service.ExportStopDemandCsvAsync(campusId, search, attentionOnly, cancellationToken);
+        var result = await _service.ExportStopDemandCsvAsync(campusId, search, attentionOnly, cancellationToken, operatingDate);
         if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
         Response.Headers["X-Content-Type-Options"] = "nosniff";
         return File(System.Text.Encoding.UTF8.GetBytes(result.Data), "text/csv; charset=utf-8", "transport-stop-demand.csv");
