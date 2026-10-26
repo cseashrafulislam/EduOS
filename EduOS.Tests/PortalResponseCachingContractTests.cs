@@ -11,7 +11,7 @@ public sealed class PortalResponseCachingContractTests
     [InlineData(typeof(SelfServicePortalController))]
     [InlineData(typeof(EmployeeSelfServiceController))]
     [InlineData(typeof(StudentExitController))]
-    [InlineData(typeof(LearnerIdentityController))]
+    [InlineData(typeof(LearnerIdentitiesApiController))]
     [InlineData(typeof(LearnerConsentsController))]
     [InlineData(typeof(AuditLogController))]
     [InlineData(typeof(TenantSettingController))]

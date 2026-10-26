@@ -1,0 +1,79 @@
+@{
+    ViewData["Title"] = "Learner Identity Registration";
+}
+
+<section class="admission-page" aria-labelledby="learnerIdentityTitle">
+    <header class="content-header-card">
+        <div>
+            <p class="dashboard-eyebrow">Learner Identity</p>
+            <h2 id="learnerIdentityTitle">Register or Request Learner Identity</h2>
+            <p>Register an institution learner, link their existing identity, or request consent when an identity belongs to another institution.</p>
+        </div>
+        <a class="btn btn-outline-secondary" asp-controller="Students" asp-action="Index">Student Directory</a>
+    </header>
+
+    <section class="content-card" aria-labelledby="identityFormTitle">
+        <div class="content-card-heading"><h3 id="identityFormTitle">Identity details</h3></div>
+        <form id="learnerIdentityForm" autocomplete="off">
+            @Html.AntiForgeryToken()
+            <div class="row g-3">
+                <div class="col-md-8">
+                    <label for="identityStudentSearch" class="form-label">Find an active student</label>
+                    <div class="input-group">
+                        <input id="identityStudentSearch" class="form-control" maxlength="100" placeholder="Name, student code, or roll" />
+                        <button id="identitySearch" class="btn btn-outline-primary" type="button">Search</button>
+                    </div>
+                    <label for="identityStudentReference" class="form-label mt-2">Student <span class="text-danger">*</span></label>
+                    <select id="identityStudentReference" class="form-select" required aria-describedby="identityStudentHint">
+                        <option value="">Loading active students...</option>
+                    </select>
+                    <div id="identityStudentHint" class="form-text">Choose an active student already registered in this institution.</div>
+                    <div class="d-flex align-items-center gap-2 mt-2">
+                        <button id="identityPrev" class="btn btn-sm btn-outline-secondary" type="button" disabled>Previous</button>
+                        <span id="identityPage" class="small text-muted" aria-live="polite"></span>
+                        <button id="identityNext" class="btn btn-sm btn-outline-secondary" type="button" disabled>Next</button>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label for="identityType" class="form-label">Identifier type <span class="text-danger">*</span></label>
+                    <select id="identityType" class="form-select" required>
+                        <option value="1">Birth registration</option>
+                        <option value="2">National ID</option>
+                    </select>
+                    <label for="identityValue" class="form-label mt-3">Identifier number <span class="text-danger">*</span></label>
+                    <input id="identityValue" class="form-control" type="text" inputmode="numeric" autocomplete="off"
+                           autocapitalize="off" spellcheck="false" minlength="10" maxlength="32" required />
+                    <div class="form-text">The identifier is transmitted securely and never shown in the result or saved in the browser.</div>
+                </div>
+                <div class="col-md-6">
+                    <label for="identityPurpose" class="form-label">Purpose <span class="text-danger">*</span></label>
+                    <select id="identityPurpose" class="form-select" required>
+                        <option value="1">Admission</option>
+                        <option value="2">Transfer</option>
+                        <option value="3">Identity verification</option>
+                        <option value="4">Continuing education</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <fieldset>
+                        <legend class="form-label fs-6">Requested information</legend>
+                        <div class="form-check"><input class="form-check-input" type="checkbox" checked disabled id="identityBasic" />
+                            <label class="form-check-label" for="identityBasic">Basic identity (required)</label></div>
+                        <div class="form-check"><input class="form-check-input" type="checkbox" id="identityMembership" />
+                            <label class="form-check-label" for="identityMembership">Institution membership history</label></div>
+                        <div class="form-check"><input class="form-check-input" type="checkbox" id="identityAcademic" />
+                            <label class="form-check-label" for="identityAcademic">Academic summary</label></div>
+                    </fieldset>
+                </div>
+            </div>
+            <div class="d-flex flex-wrap align-items-center gap-3 mt-4">
+                <button id="identitySubmit" class="btn btn-primary" type="submit">Register or Request Consent</button>
+                <span id="identityResult" role="status" aria-live="polite" class="small"></span>
+            </div>
+        </form>
+    </section>
+</section>
+
+@section Scripts {
+    <script src="~/js/learners/identity-registration.js" asp-append-version="true"></script>
+}

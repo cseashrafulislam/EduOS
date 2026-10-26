@@ -223,6 +223,13 @@
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
                     <span>@T["Students"]</span>
                 </a>
+                @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("AdmissionOfficer") == true)
+                {
+                    <a class="nav-link @ActiveFor("/LearnerIdentities")" href="/LearnerIdentities/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
+                        <span>Learner Identity Registration</span>
+                    </a>
+                }
 
 
                 @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||

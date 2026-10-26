@@ -1,4 +1,4 @@
-using EduOS.Core.DTOs.Student;
+using EduOS.Core.DTOs.Learners;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

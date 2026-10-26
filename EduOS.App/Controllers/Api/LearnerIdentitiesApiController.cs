@@ -1,4 +1,5 @@
-using EduOS.Core.DTOs.Student;
+using EduOS.App.Authorization;
+using EduOS.Core.DTOs.Learners;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -7,16 +8,17 @@ using Microsoft.AspNetCore.RateLimiting;
 namespace EduOS.App.Controllers.Api;
 
 [Authorize(Roles = "TenantAdmin,AdmissionOfficer")]
+[RequireModule("STUDENT")]
 [AutoValidateAntiforgeryToken]
 [EnableRateLimiting("LearnerIdentityPolicy")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 [ApiController]
 [Route("api/learner-identities")]
-public class LearnerIdentityController : ControllerBase
+public sealed class LearnerIdentitiesApiController : ControllerBase
 {
     private readonly ILearnerIdentityService _service;
 
-    public LearnerIdentityController(ILearnerIdentityService service)
+    public LearnerIdentitiesApiController(ILearnerIdentityService service)
     {
         _service = service;
     }
@@ -27,13 +29,13 @@ public class LearnerIdentityController : ControllerBase
     /// </summary>
     [HttpPost("register-or-request")]
     public async Task<IActionResult> RegisterOrRequest(
-        [FromBody] RegisterLearnerIdentityRequestDto request,
+        [FromBody] RegisterLearnerIdentityByReferenceRequestDto request,
         CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid)
             return BadRequest(new { success = false, message = "Invalid learner identity request." });
 
-        var result = await _service.RegisterOrRequestAsync(request, cancellationToken);
+        var result = await _service.RegisterOrRequestByReferenceAsync(request, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 }

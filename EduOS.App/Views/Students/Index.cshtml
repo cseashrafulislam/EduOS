@@ -40,6 +40,10 @@
         {
             <a class="btn btn-primary" asp-controller="EnrollmentManagement" asp-action="Index">Enroll Existing Student</a>
         }
+        @if (User.IsInRole("TenantAdmin") || User.IsInRole("AdmissionOfficer"))
+        {
+            <a class="btn btn-outline-primary" asp-controller="LearnerIdentities" asp-action="Index">Register Learner Identity</a>
+        }
         @if (User.IsInRole("TenantAdmin"))
         {
             <a class="btn btn-outline-danger" asp-controller="StudentLifecycle" asp-action="Index">Final Exit / TC</a>

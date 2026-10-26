@@ -1,11 +1,15 @@
 using EduOS.Core.Common;
-using EduOS.Core.DTOs.Student;
+using EduOS.Core.DTOs.Learners;
 using EduOS.Core.Enums;
 
 namespace EduOS.Core.Interfaces.IServices;
 
 public interface ILearnerIdentityService
 {
+    Task<ApiResponse<LearnerIdentityResultDto>> RegisterOrRequestByReferenceAsync(
+        RegisterLearnerIdentityByReferenceRequestDto request,
+        CancellationToken cancellationToken = default);
+
     Task<ApiResponse<LearnerIdentityResultDto>> RegisterOrRequestAsync(
         RegisterLearnerIdentityRequestDto request,
         CancellationToken cancellationToken = default);

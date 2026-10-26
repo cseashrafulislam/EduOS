@@ -1,4 +1,4 @@
-using EduOS.Core.DTOs.Student;
+using EduOS.Core.DTOs.Learners;
 using EduOS.Core.Entities.Learners;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Students;
@@ -8,7 +8,7 @@ using EduOS.Core.Interfaces;
 using EduOS.Core.Settings;
 using EduOS.Persistence.Context;
 using EduOS.Persistence.Repositories;
-using EduOS.Service.Services.Students;
+using EduOS.Service.Services.Learners;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;

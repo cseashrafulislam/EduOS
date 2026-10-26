@@ -58,7 +58,7 @@ public sealed class LearnerConsentPortalContractTests
     public void Guardian_role_requires_both_api_authorization_and_linked_person_ownership()
     {
         var api = Read("EduOS.App", "Controllers", "Api", "LearnerConsentsController.cs");
-        var service = Read("EduOS.Service", "Services", "Students", "LearnerConsentService.cs");
+        var service = Read("EduOS.Service", "Services", "Learners", "LearnerConsentService.cs");
         var repository = Read("EduOS.Persistence", "Repositories", "LearnerConsentRepository.cs");
         api.Should().Contain("[Authorize(Roles = \"Student,Parent,Guardian\")]");
         service.Should().Contain("_currentUser.IsInRole(\"Guardian\")");

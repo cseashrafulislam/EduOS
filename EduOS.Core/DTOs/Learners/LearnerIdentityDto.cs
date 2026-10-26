@@ -1,7 +1,7 @@
 using EduOS.Core.Enums;
 using System.ComponentModel.DataAnnotations;
 
-namespace EduOS.Core.DTOs.Student;
+namespace EduOS.Core.DTOs.Learners;
 
 public class RegisterLearnerIdentityRequestDto
 {
@@ -14,6 +14,23 @@ public class RegisterLearnerIdentityRequestDto
 
     public PersonIdentifierType IdentifierType { get; set; }
     public LearnerIdentityPurpose? Purpose { get; set; }
+    public LearnerDataScope RequestedScopes { get; set; } = LearnerDataScope.BasicIdentity;
+}
+
+public class RegisterLearnerIdentityByReferenceRequestDto
+{
+    [Required]
+    public Guid StudentReference { get; set; }
+
+    [Required, StringLength(32, MinimumLength = 10)]
+    public string IdentifierValue { get; set; } = string.Empty;
+
+    [EnumDataType(typeof(PersonIdentifierType))]
+    public PersonIdentifierType IdentifierType { get; set; }
+
+    [Required]
+    public LearnerIdentityPurpose? Purpose { get; set; }
+
     public LearnerDataScope RequestedScopes { get; set; } = LearnerDataScope.BasicIdentity;
 }
 

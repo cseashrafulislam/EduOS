@@ -1,5 +1,5 @@
 using EduOS.Core.Common;
-using EduOS.Core.DTOs.Student;
+using EduOS.Core.DTOs.Learners;
 
 namespace EduOS.Core.Interfaces.IServices;
 

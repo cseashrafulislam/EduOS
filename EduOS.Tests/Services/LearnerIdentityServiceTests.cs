@@ -1,4 +1,4 @@
-using EduOS.Core.DTOs.Student;
+using EduOS.Core.DTOs.Learners;
 using EduOS.Core.Entities.Learners;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Enums;
@@ -8,7 +8,7 @@ using EduOS.Core.Settings;
 using EduOS.Persistence.Context;
 using EduOS.Persistence.Repositories;
 using EduOS.Service.Helpers;
-using EduOS.Service.Services.Students;
+using EduOS.Service.Services.Learners;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
@@ -74,6 +74,55 @@ public class LearnerIdentityServiceTests
         (await context.PersonIdentifiers.CountAsync()).Should().Be(1);
         (await context.StudentPersonLinks.CountAsync()).Should().Be(1);
         (await context.LearnerIdentityAccessLogs.CountAsync()).Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Opaque_student_reference_registers_identity_for_current_tenant()
+    {
+        var options = CreateOptions();
+        await using var context = CreateContext(options, 101);
+        var student = await AddStudentAsync(context, 101, "Rahim Uddin");
+        var service = CreateService(context, new TestCurrentUser(101), LookupKey);
+
+        var result = await service.RegisterOrRequestByReferenceAsync(new RegisterLearnerIdentityByReferenceRequestDto
+        {
+            StudentReference = student.PublicId,
+            IdentifierType = PersonIdentifierType.NationalId,
+            IdentifierValue = "1234567890",
+            Purpose = LearnerIdentityPurpose.Admission,
+            RequestedScopes = LearnerDataScope.BasicIdentity
+        });
+
+        result.Success.Should().BeTrue();
+        result.StatusCode.Should().Be(201);
+        (await context.StudentPersonLinks.SingleAsync()).StudentId.Should().Be(student.Id);
+    }
+
+    [Fact]
+    public async Task Opaque_student_reference_must_not_resolve_another_tenants_student()
+    {
+        var options = CreateOptions();
+        Guid otherStudentReference;
+        await using (var seed = CreateContext(options, 202))
+            otherStudentReference = (await AddStudentAsync(seed, 202, "Private Student")).PublicId;
+
+        await using var tenantContext = CreateContext(options, 101);
+        var service = CreateService(tenantContext, new TestCurrentUser(101), LookupKey);
+
+        var result = await service.RegisterOrRequestByReferenceAsync(new RegisterLearnerIdentityByReferenceRequestDto
+        {
+            StudentReference = otherStudentReference,
+            IdentifierType = PersonIdentifierType.NationalId,
+            IdentifierValue = "1234567890",
+            Purpose = LearnerIdentityPurpose.Admission,
+            RequestedScopes = LearnerDataScope.BasicIdentity
+        });
+
+        result.Success.Should().BeFalse();
+        result.StatusCode.Should().Be(404);
+        result.Message.Should().NotContain("Private Student");
+        (await tenantContext.PersonIdentifiers.CountAsync()).Should().Be(0);
+        (await tenantContext.LearnerIdentityAccessLogs.CountAsync()).Should().Be(0);
     }
 
     [Fact]

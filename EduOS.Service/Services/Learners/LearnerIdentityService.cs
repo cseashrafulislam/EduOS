@@ -1,6 +1,6 @@
 using System.Globalization;
 using EduOS.Core.Common;
-using EduOS.Core.DTOs.Student;
+using EduOS.Core.DTOs.Learners;
 using EduOS.Core.Entities.Learners;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Enums;
@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace EduOS.Service.Services.Students;
+namespace EduOS.Service.Services.Learners;
 
 public sealed class LearnerIdentityService : ILearnerIdentityService
 {
@@ -57,6 +57,32 @@ public sealed class LearnerIdentityService : ILearnerIdentityService
         _identifierProtector = identifierProtector;
         _settings = settings.Value;
         _logger = logger;
+    }
+
+    public async Task<ApiResponse<LearnerIdentityResultDto>> RegisterOrRequestByReferenceAsync(
+        RegisterLearnerIdentityByReferenceRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_currentUser.IsAuthenticated || (!_currentUser.IsTenantAdmin && !_currentUser.IsInRole("AdmissionOfficer")))
+            return Error("Authorized admission access is required.", 403);
+        if (_currentUser.TenantId <= 0) return Error("Tenant context is required.", 403);
+        if (request == null || request.StudentReference == Guid.Empty)
+            return Error("Invalid learner identity request.");
+
+        var studentId = await _students.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == _currentUser.TenantId && x.PublicId == request.StudentReference &&
+                x.StatusCode == "Active" && !x.IsDeleted)
+            .Select(x => x.Id).SingleOrDefaultAsync(cancellationToken);
+        if (studentId <= 0) return Error("Student not found.", 404);
+
+        return await RegisterOrRequestAsync(new RegisterLearnerIdentityRequestDto
+        {
+            StudentId = studentId,
+            IdentifierType = request.IdentifierType,
+            IdentifierValue = request.IdentifierValue,
+            Purpose = request.Purpose,
+            RequestedScopes = request.RequestedScopes
+        }, cancellationToken);
     }
 
     public async Task<ApiResponse<LearnerIdentityResultDto>> RegisterOrRequestAsync(

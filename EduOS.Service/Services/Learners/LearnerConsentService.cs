@@ -1,5 +1,5 @@
 using EduOS.Core.Common;
-using EduOS.Core.DTOs.Student;
+using EduOS.Core.DTOs.Learners;
 using EduOS.Core.Enums;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace EduOS.Service.Services.Students;
+namespace EduOS.Service.Services.Learners;
 
 public sealed class LearnerConsentService : ILearnerConsentService
 {
