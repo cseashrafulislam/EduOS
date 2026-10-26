@@ -17,7 +17,14 @@ namespace EduOS.Tests.Services;
 
 public sealed class FeeStructureClosureTests
 {
-    private static readonly DateOnly Cutoff = new(2026, 12, 31);
+    private static DateOnly Cutoff
+    {
+        get
+        {
+            var future = DateTime.UtcNow.AddMonths(2);
+            return new DateOnly(future.Year, future.Month, DateTime.DaysInMonth(future.Year, future.Month));
+        }
+    }
 
     [Fact]
     public async Task Only_tenant_admin_can_close_a_fee_structure()
