@@ -5,6 +5,8 @@ namespace EduOS.Core.Interfaces.IServices;
 
 public interface ITransportService
 {
+    Task<ApiResponse<PagedResult<TransportDriverCoverageWindowRowDto>>> GetDriverCoverageWindowAsync(DateOnly fromDate, DateOnly toDate, long? campusId, int page, int pageSize, string? search, bool attentionOnly, CancellationToken cancellationToken = default);
+    Task<ApiResponse<string>> ExportDriverCoverageWindowCsvAsync(DateOnly fromDate, DateOnly toDate, long? campusId, string? search, bool attentionOnly, CancellationToken cancellationToken = default);
     Task<ApiResponse<TransportVehicleChangeImpactDto>> PreviewVehicleChangeImpactAsync(Guid reference, int proposedCapacity, bool proposedActive, string? rowVersion, CancellationToken cancellationToken = default);
     Task<ApiResponse<TransportCampusAssignmentReviewDto>> GetCampusAssignmentReviewAsync(CancellationToken cancellationToken = default);
     Task<ApiResponse<bool>> ApplyCampusAssignmentAsync(string kind, Guid reference, ApplyTransportCampusAssignmentDto request, CancellationToken cancellationToken = default);

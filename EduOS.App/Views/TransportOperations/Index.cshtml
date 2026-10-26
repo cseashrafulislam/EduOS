@@ -51,7 +51,7 @@
     @if (User.IsInRole("TenantAdmin")) { <partial name="_CampusAssignmentReview" /> }
     @if (canManage) { <partial name="_RouteVehicleLinks" /> }
     @if (canManage) { <partial name="_StopDemand" /> <partial name="_RiderReadiness" /> <partial name="_CapacityReport" /> <partial name="_SeatForecast" /> <partial name="_FleetInsights" /> }
-    @if (User.IsInRole("TenantAdmin")) { <partial name="_DriverRegistry" /> <partial name="_DriverLicenseCompliance" /> <partial name="_DriverReadiness" /> <partial name="_DriverCoverageForecast" /> <partial name="_VehicleDriverLinks" /> }
+    @if (User.IsInRole("TenantAdmin")) { <partial name="_DriverRegistry" /> <partial name="_DriverLicenseCompliance" /> <partial name="_DriverReadiness" /> <partial name="_DriverCoverageForecast" /> <partial name="_DriverCoverageWindow" /> <partial name="_VehicleDriverLinks" /> }
     @if (canManage)
     {
         <section class="card mb-3"><div class="card-body">
@@ -243,7 +243,7 @@
     @if (User.IsInRole("TenantAdmin")) { <script src="~/js/transport-operations/driver-registry.js" asp-append-version="true"></script> }
     @if (User.IsInRole("TenantAdmin")) { <script src="~/js/transport-operations/driver-license-compliance.js" asp-append-version="true"></script> }
     @if (User.IsInRole("TenantAdmin")) { <script src="~/js/transport-operations/driver-readiness.js" asp-append-version="true"></script> }
-    @if (User.IsInRole("TenantAdmin")) { <script src="~/js/transport-operations/driver-coverage-forecast.js" asp-append-version="true"></script> }
+    @if (User.IsInRole("TenantAdmin")) { <script src="~/js/transport-operations/driver-coverage-forecast.js" asp-append-version="true"></script> <script src="~/js/transport-operations/driver-coverage-window.js" asp-append-version="true"></script> }
     @if (User.IsInRole("TenantAdmin")) { <script src="~/js/transport-operations/vehicle-driver-core.js" asp-append-version="true"></script> }
     @if (User.IsInRole("TenantAdmin")) { <script src="~/js/transport-operations/vehicle-driver-options.js" asp-append-version="true"></script> }
     @if (User.IsInRole("TenantAdmin")) { <script src="~/js/transport-operations/vehicle-driver-reschedule.js" asp-append-version="true"></script> }
