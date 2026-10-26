@@ -1354,6 +1354,7 @@ public class EduOSDbContext :
         modelBuilder.Entity<TransportDriver>().Property<string>("NormalizedLicenseNumber")
             .HasMaxLength(100)
             .HasComputedColumnSql("UPPER(LTRIM(RTRIM([LicenseNumber])))", stored: true);
+        // SQL Server allows computed index keys, but not computed columns in the filter.
         modelBuilder.Entity<TransportDriver>().HasIndex(nameof(TransportDriver.TenantId), "NormalizedLicenseNumber")
             .IsUnique().HasFilter("[LicenseNumber] IS NOT NULL AND [IsDeleted] = 0");
         UniqueTenant<StudentTransport>(modelBuilder, nameof(StudentTransport.ClientRequestId));

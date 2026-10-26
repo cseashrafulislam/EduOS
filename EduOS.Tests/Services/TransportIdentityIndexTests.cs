@@ -37,6 +37,10 @@ public sealed class TransportIdentityIndexTests
         var index = Assert.Single(entity.GetIndexes(), i =>
             i.Properties.Select(p => p.Name).SequenceEqual(new[] { "TenantId", normalized }));
         Assert.True(index.IsUnique);
-        Assert.Contains("[IsDeleted] = 0", index.GetFilter());
+        var expectedFilter = original == "LicenseNumber"
+            ? "[LicenseNumber] IS NOT NULL AND [IsDeleted] = 0"
+            : "[IsDeleted] = 0";
+        Assert.Equal(expectedFilter, index.GetFilter());
+        Assert.DoesNotContain("[" + normalized + "]", index.GetFilter()!);
     }
 }

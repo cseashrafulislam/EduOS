@@ -56,6 +56,15 @@ and tenant-scoped unique filtered indexes for active Vehicle numbers and Driver 
 The legacy exact Vehicle-number unique index becomes nonunique, so a soft-deleted number
 can be reused. New writes still use the normal application validation.
 
+SQL Server permits `NormalizedLicenseNumber` as the persisted computed **index key**,
+but not inside a filtered index predicate. The driver index therefore filters on the
+non-computed source column `LicenseNumber IS NOT NULL` and `IsDeleted = 0`, while
+retaining the normalized computed value in its unique key. Since normalization is
+`UPPER(LTRIM(RTRIM(LicenseNumber)))`, NULL inclusion matches the prior intended
+filter; blank non-NULL licenses remain subject to uniqueness. The migration, model
+configuration and committed snapshots use the same filter. No existing record is
+rewritten as part of this fix.
+
 Before applying it to production, back up the database and check for per-tenant active
 duplicates after trimming and uppercasing vehicle numbers and license numbers. The
 migration throws SQL error `51036` or `51037` if duplicates exist; **do not** arbitrarily

@@ -6,7 +6,7 @@ namespace EduOS.App.Security;
 
 /// <summary>
 /// Identity's user-role join is global; only tenant-owned roles, or unambiguous
-/// legacy global roles for single-institution users, can authorize tenant work.
+/// unscoped global Identity roles for single-institution users, can authorize tenant work.
 /// An owner membership independently grants TenantAdmin for that institution.
 /// </summary>
 public static class TenantRoleResolver

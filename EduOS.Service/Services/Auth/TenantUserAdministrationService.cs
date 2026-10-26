@@ -254,7 +254,7 @@ public sealed partial class TenantUserAdministrationService : ITenantUserAdminis
                     throw new AdminRejectException("Only active members may receive roles.", 409);
                 _db.Entry(member).Property(x => x.RowVersion).OriginalValue = version;
 
-                // Global legacy Identity grants belong to the account, not to any one
+                // Unscoped global Identity grants belong to the account, not to any one
                 // institution. Revoke them only when THIS is the user's sole active
                 // institution; otherwise preserve unrelated institutions' access.
                 var activeMemberships = await _db.TenantMemberships.IgnoreQueryFilters().AsNoTracking()
