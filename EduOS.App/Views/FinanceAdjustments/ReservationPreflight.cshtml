@@ -63,6 +63,23 @@
             <dl id="reservationFinanceChangeReviewDetails" class="row mt-3 mb-0"></dl>
         </div>
     </section>
+    <section class="card mb-3" aria-label="Occupied Hostel transfer Finance review">
+        <div class="card-body">
+            <h3 class="h5">Occupied Hostel transfer — Finance review</h3>
+            <p class="small text-muted">Inspect an active, already-started Hostel stay above, then enter a destination bed and effective date. Finance checks tenant/campus links and invoice/payment exposure; Operations still owns bed capacity and transfer execution. This is never approval.</p>
+            <form id="hostelTransferFinanceReviewForm" class="row g-2 align-items-end">
+                <div class="col-md-4"><label for="hostelTransferFinanceDestination" class="form-label">Destination bed ID</label>
+                    <input id="hostelTransferFinanceDestination" class="form-control" type="number" min="1" step="1" required />
+                </div>
+                <div class="col-md-4"><label for="hostelTransferFinanceEffective" class="form-label">Effective date</label>
+                    <input id="hostelTransferFinanceEffective" class="form-control" type="date" required />
+                </div>
+                <div class="col-md-4"><button type="submit" class="btn btn-outline-primary w-100" disabled>Review transfer only</button></div>
+            </form>
+            <div id="hostelTransferFinanceAlert" class="alert d-none mt-3" role="status" aria-live="polite"></div>
+            <dl id="hostelTransferFinanceDetails" class="row mt-3 mb-0"></dl>
+        </div>
+    </section>
     <div id="reservationFinanceAlert" class="alert d-none" role="status" aria-live="polite"></div>
     <section id="reservationFinanceResult" class="card d-none" aria-label="Finance exposure">
         <div class="card-body">
@@ -97,4 +114,5 @@
     <script src="~/js/finance/reservation-finance-worklist.js" asp-append-version="true"></script>
     <script src="~/js/finance/reservation-finance-evidence.js" asp-append-version="true"></script>
     <script src="~/js/finance/reservation-finance-change-review.js" asp-append-version="true"></script>
+    <script src="~/js/finance/hostel-transfer-finance-review.js" asp-append-version="true"></script>
 }
