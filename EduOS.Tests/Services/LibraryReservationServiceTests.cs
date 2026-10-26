@@ -67,24 +67,8 @@ public sealed class LibraryReservationServiceTests
     {
         var databaseName = "reservation-search-" + Guid.NewGuid().ToString("N");
         var databaseRoot = new InMemoryDatabaseRoot();
-        await using var db = Context(101, databaseName, databaseRoot);
-        var (student, _, _) = await Seed(db, 101);
-        var eligible = new Student { TenantId = 101, PersonId = 2,
-            StudentCode = "ST-102", FullName = "Eligible Two", StatusCode = "Active" };
-        var unenrolled = new Student { TenantId = 101, PersonId = 3,
-            StudentCode = "ST-103", FullName = "No Enrollment", StatusCode = "Active" };
-        var inactive = new Student { TenantId = 101, PersonId = 4,
-            StudentCode = "ST-104", FullName = "Inactive", StatusCode = "Inactive" };
         var otherTenant = new Student { TenantId = 202, PersonId = 5,
             StudentCode = "ST-105", FullName = "Other Tenant", StatusCode = "Active" };
-        db.AddRange(eligible, unenrolled, inactive);
-        await db.SaveChangesAsync();
-        db.StudentEnrollments.AddRange(
-            new StudentEnrollment { TenantId = 101, StudentId = eligible.Id, IsCurrent = true,
-                State = EnrollmentState.Active, RollNo = "2", EnrollmentDate = new DateOnly(2026, 1, 1) },
-            new StudentEnrollment { TenantId = 101, StudentId = inactive.Id, IsCurrent = true,
-                State = EnrollmentState.Active, RollNo = "3", EnrollmentDate = new DateOnly(2026, 1, 1) });
-        await db.SaveChangesAsync();
         await using (var otherDb = Context(202, databaseName, databaseRoot))
         {
             otherDb.Students.Add(otherTenant);
@@ -94,7 +78,22 @@ public sealed class LibraryReservationServiceTests
                 EnrollmentDate = new DateOnly(2026, 1, 1) });
             await otherDb.SaveChangesAsync();
         }
-
+        await using var db = Context(101, databaseName, databaseRoot);
+        var (student, _, _) = await Seed(db, 101);
+        var eligible = new Student { TenantId = 101, PersonId = 2,
+            StudentCode = "ST-102", FullName = "Eligible Two", StatusCode = "Active" };
+        var unenrolled = new Student { TenantId = 101, PersonId = 3,
+            StudentCode = "ST-103", FullName = "No Enrollment", StatusCode = "Active" };
+        var inactive = new Student { TenantId = 101, PersonId = 4,
+            StudentCode = "ST-104", FullName = "Inactive", StatusCode = "Inactive" };
+        db.AddRange(eligible, unenrolled, inactive);
+        await db.SaveChangesAsync();
+        db.StudentEnrollments.AddRange(
+            new StudentEnrollment { TenantId = 101, StudentId = eligible.Id, IsCurrent = true,
+                State = EnrollmentState.Active, RollNo = "2", EnrollmentDate = new DateOnly(2026, 1, 1) },
+            new StudentEnrollment { TenantId = 101, StudentId = inactive.Id, IsCurrent = true,
+                State = EnrollmentState.Active, RollNo = "3", EnrollmentDate = new DateOnly(2026, 1, 1) });
+        await db.SaveChangesAsync();
         var service = Service(db, 101, "Librarian");
         var first = await service.SearchEligibleStudentsAsync(" ST- ", 1, 1);
         first.Success.Should().BeTrue();
