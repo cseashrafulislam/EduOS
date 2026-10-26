@@ -43,6 +43,18 @@ public sealed class FeeBillingController : ControllerBase
         [FromQuery] int take = 20, CancellationToken ct = default) =>
         Result(await _service.SearchStudentsAsync(search, take, ct));
 
+    [HttpGet("structures")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> StructureRegister([FromQuery] long? campusId,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 25,
+        CancellationToken ct = default) =>
+        Result(await _service.GetStructureRegisterAsync(campusId, page, pageSize, ct));
+
+    [HttpGet("structures/{id:long}")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> StructureDetail(long id, CancellationToken ct) =>
+        Result(await _service.GetStructureAsync(id, ct));
+
     [HttpPost("structures")]
     [HttpPut("structures/{id:long}")]
     [Authorize(Roles = "TenantAdmin,Principal,Accountant")]

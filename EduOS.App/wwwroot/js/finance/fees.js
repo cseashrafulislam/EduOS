@@ -3,7 +3,7 @@
 if (!document.getElementById('feeApp')) return;
 const e=id=>document.getElementById(id),base='/api/finance/fees';
 const token=document.querySelector('meta[name="request-verification-token"]')?.content;
-const state={options:null,student:null,invoice:null,invoicePage:1,receiptPage:1,invoicePages:1,receiptPages:1,createKey:null,createId:null,generateKey:null,generateId:null,paymentKey:null,paymentId:null};
+const state={options:null,student:null,invoice:null,invoicePage:1,receiptPage:1,invoicePages:1,receiptPages:1,createKey:null,createId:null,generateKey:null,generateId:null,paymentKey:null,paymentId:null,editingStructure:null,structurePage:1,structurePages:1};
 const today=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');};
 const dt=x=>x?String(x).slice(0,10):'',amount=x=>Number(x).toFixed(2);
 const option=(v,t)=>{const o=document.createElement('option');o.value=String(v);o.textContent=t;return o;};
@@ -17,12 +17,22 @@ async function api(path,method='GET',data){
  const x=await r.json().catch(()=>null);if(!r.ok||!x?.success)throw Error(x?.message||'Request failed ('+r.status+').');return x.data;
 }
 function fill(id,rows,label){const s=e(id),prev=s.value;s.replaceChildren(option('',label));for(const x of rows)s.append(option(x.id,x.name));if(rows.some(x=>String(x.id)===prev))s.value=prev;}
-function line(){
- const tr=document.createElement('tr'),h=document.createElement('select'),a=document.createElement('input'),b=document.createElement('button');
- h.className='form-select fee-line-head';h.required=true;h.append(option('','Choose fee head'));for(const x of state.options?.feeHeads||[])h.append(option(x.id,x.name));
- a.className='form-control fee-line-amount';a.type='number';a.min='.01';a.step='.01';a.required=true;
- b.type='button';b.className='btn btn-sm btn-outline-danger';b.textContent='Remove';b.onclick=()=>{if(e('feeLineRows').children.length>1)tr.remove();};
- for(const x of [h,a,b]){const td=document.createElement('td');td.append(x);tr.append(td);}e('feeLineRows').append(tr);
+function line(source=null){
+ const tr=document.createElement('tr'),h=document.createElement('select'),f=document.createElement('select'),a=document.createElement('input'),d=document.createElement('input'),m=document.createElement('input'),b=document.createElement('button');
+ tr.dataset.lineId=source?.id||'';tr.dataset.rowVersion=source?.rowVersion||'';
+ h.className='form-select fee-line-head';h.required=true;h.append(option('','Choose fee head'));
+ for(const x of state.options?.feeHeads||[])h.append(option(x.id,x.name));
+ if(source&&!Array.from(h.options).some(x=>x.value===String(source.feeHeadId)))h.append(option(source.feeHeadId,source.feeHeadName+' (inactive)'));
+ h.value=source?.feeHeadId||'';
+ f.className='form-select fee-line-frequency';
+ for(const [id,name] of [[1,'One time'],[2,'Monthly'],[3,'Quarterly'],[4,'Half yearly'],[5,'Yearly'],[6,'Per term']])f.append(option(id,name));
+ f.value=String(source?.frequency||2);
+ a.className='form-control fee-line-amount';a.type='number';a.min='.01';a.step='.01';a.required=true;a.value=source?.amount??'';
+ d.className='form-control fee-line-due';d.type='number';d.min='1';d.max='31';d.placeholder='—';d.value=source?.dueDayOfMonth??'';
+ m.className='form-check-input fee-line-mandatory';m.type='checkbox';m.checked=source?.isMandatory??true;
+ b.type='button';b.className='btn btn-sm btn-outline-danger';b.textContent=source?.id?'Retained':'Remove';b.disabled=!!source?.id;
+ b.onclick=()=>{if(e('feeLineRows').children.length>1)tr.remove();};
+ for(const x of [h,f,a,d,m,b]){const td=document.createElement('td');td.append(x);tr.append(td);}e('feeLineRows').append(tr);
 }
 function batches(){
  const c=Number(e('feeCampus').value),y=Number(e('feeYear').value),l=Number(e('feeLevel').value);
@@ -40,7 +50,7 @@ function structures(){
 async function options(){
  state.options=await api('/options');
  for(const [id,prop] of [['feeCampus','campuses'],['feeYear','academicYears'],['feeLevel','academicLevels'],['feeBatch','academicBatches']])fill(id,state.options[prop]||[],'Choose '+prop);
- e('feeLineRows').replaceChildren();line();batches();structures();
+ e('feeLineRows').replaceChildren();line();batches();structures();if(e('feeStructureRegister')){fill('feeRegisterCampus',state.options.campuses||[],'All campuses');await register();}
 }
 function stable(prefix,key){if(state[prefix+'Key']!==key){state[prefix+'Key']=key;state[prefix+'Id']=crypto.randomUUID();}return state[prefix+'Id'];}
 function clear(prefix){state[prefix+'Key']=null;state[prefix+'Id']=null;}
@@ -49,21 +59,73 @@ async function save(ev){
  const campusId=Number(e('feeCampus').value),academicYearId=Number(e('feeYear').value),academicLevelId=Number(e('feeLevel').value);
  const academicBatchId=e('feeStructureBatch').value?Number(e('feeStructureBatch').value):null;
  const year=state.options.academicYears.find(x=>x.id===academicYearId),batch=state.options.academicBatches.find(x=>x.id===academicBatchId);
- const effectiveFrom=e('feeEffectiveFrom').value;
+ const effectiveFrom=e('feeEffectiveFrom').value,effectiveTo=e('feeEffectiveTo').value||null;
+ if(effectiveTo&&effectiveTo<effectiveFrom)return alert('danger','Effective to must be after effective from.');
  if(year?.campusId&&year.campusId!==campusId||year?.effectiveFrom&&effectiveFrom<dt(year.effectiveFrom)||year?.effectiveTo&&effectiveFrom>dt(year.effectiveTo))return alert('danger','Campus/year or effective date mismatch.');
  if(academicBatchId&&(!batch||batch.campusId!==campusId||batch.academicYearId!==academicYearId||batch.academicLevelId!==academicLevelId))return alert('danger','Batch scope mismatch.');
  const lines=[],seen=new Set();
- for(const row of e('feeLineRows').children){const feeHeadId=Number(row.querySelector('.fee-line-head').value),raw=row.querySelector('.fee-line-amount').value;
- if(!feeHeadId||seen.has(feeHeadId)||!/^\d+(\.\d{1,2})?$/.test(raw)||Number(raw)<=0)return alert('danger','Fee heads must be unique with positive two-decimal amounts.');
- seen.add(feeHeadId);lines.push({feeHeadId,frequency:2,amount:Number(raw),isMandatory:true});}
+ for(const row of e('feeLineRows').children){
+ const feeHeadId=Number(row.querySelector('.fee-line-head').value),frequency=Number(row.querySelector('.fee-line-frequency').value),raw=row.querySelector('.fee-line-amount').value;
+ const dueRaw=row.querySelector('.fee-line-due').value,dueDayOfMonth=dueRaw?Number(dueRaw):null;
+ const key=feeHeadId+'|'+frequency;
+ if(!feeHeadId||seen.has(key)||!/^[0-9]+(\.[0-9]{1,2})?$/.test(raw)||Number(raw)<=0||dueDayOfMonth!==null&&(!Number.isInteger(dueDayOfMonth)||dueDayOfMonth<1||dueDayOfMonth>31))return alert('danger','Fee lines need unique head/frequency, positive two-decimal amount and valid due day.');
+ seen.add(key);const line={feeHeadId,frequency,amount:Number(raw),dueDayOfMonth,isMandatory:row.querySelector('.fee-line-mandatory').checked};
+ if(state.editingStructure&&row.dataset.lineId){line.id=Number(row.dataset.lineId);line.rowVersion=row.dataset.rowVersion;}
+ lines.push(line);
+ }
  if(!lines.length)return alert('danger','Add at least one fee head.');
- const body={campusId,academicYearId,academicLevelId,academicBatchId,name:e('feeStructureName').value.trim(),currencyCode:'BDT',effectiveFrom,effectiveTo:null,isActive:true,lines};
- const signature=JSON.stringify(body);body.clientRequestId=stable('create',signature);
- if(!confirm('Create this fee structure?'))return;
+ const body={campusId,academicYearId,academicLevelId,academicBatchId,name:e('feeStructureName').value.trim(),currencyCode:state.editingStructure?.currencyCode||'BDT',effectiveFrom,effectiveTo,isActive:e('feeStructureActive').checked,lines};
+ if(state.editingStructure)body.rowVersion=state.editingStructure.rowVersion;
+ body.clientRequestId=stable('create',JSON.stringify(body));
+ if(!confirm(state.editingStructure?'Amend this unbilled fee structure?':'Create this fee structure?'))return;
  e('feeSaveStructure').disabled=true;
- try{await api('/structures','POST',body);clear('create');await options();alert('success','Fee structure created.');}
- catch(err){alert('danger',err.message+' Check existing structures before retrying.');}
+ try{
+ const id=state.editingStructure?.id,method=id?'PUT':'POST',url=id?'/structures/'+id:'/structures';
+ await api(url,method,body);clear('create');state.editingStructure=null;await options();resetStructureForm();
+ alert('success',id?'Fee structure amended.':'Fee structure created.');
+ }catch(err){alert('danger',err.message+' Existing billed structures cannot be amended; reload before retrying.');}
  finally{e('feeSaveStructure').disabled=false;}
+}
+function resetStructureForm(){
+ state.editingStructure=null;clear('create');e('feeStructureForm').reset();e('feeStructureMode').textContent='Creating a new fee structure.';
+ e('feeEffectiveFrom').value=today();e('feeEffectiveTo').value='';e('feeStructureActive').checked=true;
+ e('feeLineRows').replaceChildren();line();batches();
+}
+async function register(){
+ if(!e('feeStructureRegister'))return;
+ const campus=e('feeRegisterCampus').value;
+ const r=await api('/structures?page='+state.structurePage+'&pageSize=20'+(campus?'&campusId='+encodeURIComponent(campus):''));
+ state.structurePages=Math.max(1,Math.ceil(r.totalCount/20));
+ e('feeRegisterPage').textContent='Page '+state.structurePage+' of '+state.structurePages;
+ e('feeRegisterPrev').disabled=state.structurePage<=1;e('feeRegisterNext').disabled=state.structurePage>=state.structurePages;
+ e('feeRegisterRows').replaceChildren();
+ for(const x of r.items||[]){
+ const tr=document.createElement('tr'),action=document.createElement('td');
+ const campusName=state.options.campuses.find(c=>c.id===x.campusId)?.name||x.campusId;
+ const yearName=state.options.academicYears.find(c=>c.id===x.academicYearId)?.name||x.academicYearId;
+ for(const [label,mode] of [['Edit unbilled','edit'],['Copy as new','copy']]){
+ const b=document.createElement('button');b.type='button';b.className='btn btn-sm btn-outline-primary me-1';b.textContent=label;
+ b.onclick=()=>loadStructure(x.id,mode).catch(err=>alert('danger',err.message));action.append(b);
+ }
+ tr.append(cell(x.name),cell(campusName),cell(yearName),cell(dt(x.effectiveFrom)+' – '+(dt(x.effectiveTo)||'Open')),cell(x.isActive?'Active':'Inactive'),action);
+ e('feeRegisterRows').append(tr);
+ }
+ if(!e('feeRegisterRows').children.length)empty('feeRegisterRows',6,'No fee structures.');
+}
+async function loadStructure(id,mode){
+ const x=await api('/structures/'+encodeURIComponent(id));
+ if(!x.lines?.length)throw Error('Structure has no active fee lines.');
+ state.editingStructure=mode==='edit'?x:null;clear('create');
+ e('feeCampus').value=String(x.campusId);e('feeYear').value=String(x.academicYearId);
+ e('feeLevel').value=x.academicLevelId==null?'':String(x.academicLevelId);batches();
+ e('feeStructureBatch').value=x.academicBatchId==null?'':String(x.academicBatchId);
+ e('feeStructureName').value=mode==='copy'?x.name+' - New':x.name;
+ e('feeEffectiveFrom').value=mode==='copy'?'':dt(x.effectiveFrom);
+ e('feeEffectiveTo').value=mode==='copy'?'':dt(x.effectiveTo);
+ e('feeStructureActive').checked=mode==='copy'?true:x.isActive;
+ e('feeLineRows').replaceChildren();for(const row of x.lines)line(mode==='copy'?{...row,id:null,rowVersion:null}:row);
+ e('feeStructureMode').textContent=mode==='copy'?'New version template: enter a new effective date. Existing overlapping scopes are rejected.':'Editing unbilled structure #'+x.id+'; issued invoices block amendments.';
+ e('feeStructureForm').scrollIntoView({behavior:'smooth',block:'start'});
 }
 async function generate(ev){
  ev.preventDefault();if(!ev.currentTarget.reportValidity())return;
@@ -118,7 +180,8 @@ async function collect(ev){
  finally{e('feeCollect').disabled=false;}
 }
 function page(kind,delta){const next=state[kind+'Page']+delta;if(next<1||next>state[kind+'Pages'])return;state[kind+'Page']=next;(kind==='invoice'?invoices():receipts()).catch(err=>alert('danger',err.message));}
-e('feeAddLine').addEventListener('click',line);e('feeStructureForm').addEventListener('submit',save);e('feeInvoiceForm').addEventListener('submit',generate);
+e('feeAddLine').addEventListener('click',()=>line());e('feeStructureReset').addEventListener('click',resetStructureForm);
+if(e('feeStructureRegister')){e('feeRegisterCampus').addEventListener('change',()=>{state.structurePage=1;register().catch(err=>alert('danger',err.message));});for(const [id,delta] of [['feeRegisterPrev',-1],['feeRegisterNext',1]])e(id).addEventListener('click',()=>{const p=state.structurePage+delta;if(p<1||p>state.structurePages)return;state.structurePage=p;register().catch(err=>alert('danger',err.message));});}e('feeStructureForm').addEventListener('submit',save);e('feeInvoiceForm').addEventListener('submit',generate);
 e('feeFindStudent').addEventListener('click',findStudent);e('feeLoadLedger').addEventListener('click',ledger);e('feePaymentForm').addEventListener('submit',collect);
 for(const id of ['feeCampus','feeYear','feeLevel'])e(id).addEventListener('change',batches);
 for(const id of ['feeBatch','feeMonth','feeBillingYear'])e(id).addEventListener('change',structures);

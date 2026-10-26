@@ -13,9 +13,11 @@
                 <div class="col-md-6"><label for="feeStructureBatch" class="form-label">Batch scope (optional)</label><select id="feeStructureBatch" class="form-select"></select></div>
                 <div class="col-md-6"><label for="feeStructureName" class="form-label">Structure name</label><input id="feeStructureName" maxlength="150" class="form-control" required /></div>
                 <div class="col-md-6"><label for="feeEffectiveFrom" class="form-label">Effective from</label><input id="feeEffectiveFrom" type="date" class="form-control" required /></div>
-                <div class="col-12"><div class="d-flex justify-content-between"><strong>Monthly fee heads (BDT)</strong><button id="feeAddLine" type="button" class="btn btn-outline-secondary btn-sm">Add fee head</button></div>
-                <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Fee head</th><th>Amount</th><th>Action</th></tr></thead><tbody id="feeLineRows"></tbody></table></div></div>
-                <div class="col-12"><button id="feeSaveStructure" class="btn btn-primary" type="submit">Save fee structure</button></div>
+                <div class="col-md-6"><label for="feeEffectiveTo" class="form-label">Effective to (optional)</label><input id="feeEffectiveTo" type="date" class="form-control" /></div>
+                <div class="col-md-6"><label class="form-label d-block">Status</label><label><input id="feeStructureActive" type="checkbox" checked /> Active</label></div>
+                <div class="col-12"><div class="d-flex justify-content-between"><strong>Fee heads (BDT)</strong><button id="feeAddLine" type="button" class="btn btn-outline-secondary btn-sm">Add fee head</button></div>
+                <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Fee head</th><th>Frequency</th><th>Amount</th><th>Due day</th><th>Mandatory</th><th>Action</th></tr></thead><tbody id="feeLineRows"></tbody></table></div></div>
+                <div class="col-12"><p id="feeStructureMode" class="small text-muted mb-2">Creating a new fee structure.</p><button id="feeSaveStructure" class="btn btn-primary" type="submit">Save fee structure</button> <button id="feeStructureReset" class="btn btn-outline-secondary" type="button">New structure</button></div>
             </form>
         </section></div>
         <div class="col-xl-6"><section class="card h-100">
@@ -31,6 +33,18 @@
             </form>
         </section></div>
     </div>
+    @if (User.IsInRole("TenantAdmin"))
+    {
+        <section class="card mb-3" id="feeStructureRegister">
+            <div class="card-header"><h3 class="h6 m-0">Fee structure register and amendments</h3></div>
+            <div class="card-body row g-2 align-items-end">
+                <div class="col-md-5"><label for="feeRegisterCampus" class="form-label">Campus</label><select id="feeRegisterCampus" class="form-select"><option value="">All campuses</option></select></div>
+                <div class="col-md-7 small text-muted">View historical/inactive structures, amend unbilled versions or copy a structure as a new one. Billed financial terms cannot be edited.</div>
+            </div>
+            <div class="table-responsive"><table class="table table-sm table-hover mb-0"><thead><tr><th>Name</th><th>Campus</th><th>Academic year</th><th>Effective</th><th>Status</th><th>Action</th></tr></thead><tbody id="feeRegisterRows"><tr><td colspan="6">Loading…</td></tr></tbody></table></div>
+            <div class="card-footer d-flex gap-2 align-items-center"><button id="feeRegisterPrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous</button><span id="feeRegisterPage" class="small">—</span><button id="feeRegisterNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next</button></div>
+        </section>
+    }
     <section class="card mb-3">
         <div class="card-header"><h3 class="h6 m-0">Student ledger and cash collection</h3></div>
         <div class="card-body">
