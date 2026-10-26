@@ -72,3 +72,9 @@ public sealed class LinkExistingStudentGuardianRequestDto
     public bool IsFinancialContact { get; set; }
     public bool IsEmergencyContact { get; set; }
 }
+
+public sealed class UnlinkStudentGuardianWorkspaceRequestDto
+{
+    [Required] public string RowVersion { get; set; } = string.Empty;
+    [Required, StringLength(500, MinimumLength = 10)] public string Reason { get; set; } = string.Empty;
+}

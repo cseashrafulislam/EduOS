@@ -40,7 +40,14 @@ export function renderGuardianLinks({ $, api, state, render, notice }) {
         edit.type = 'button'; edit.className = 'btn btn-sm btn-outline-primary';
         edit.textContent = 'Edit relationship';
         edit.disabled = state.busy;
-        heading.append(summary, edit);
+        const unlink = document.createElement('button');
+        unlink.type = 'button'; unlink.className = 'btn btn-sm btn-outline-danger';
+        unlink.textContent = 'Unlink guardian';
+        unlink.disabled = state.busy;
+        const headingActions = document.createElement('div');
+        headingActions.className = 'd-flex gap-2';
+        headingActions.append(edit, unlink);
+        heading.append(summary, headingActions);
         const permissions = document.createElement('div');
         permissions.className = 'small mt-2';
         permissions.textContent = [
@@ -128,7 +135,57 @@ export function renderGuardianLinks({ $, api, state, render, notice }) {
                 state.busy = false; save.disabled = false; edit.disabled = false;
             }
         });
-        card.append(heading, permissions, editor);
+        const unlinkForm = document.createElement('form');
+        unlinkForm.className = 'border rounded p-3 mt-3 d-none';
+        const unlinkLabel = document.createElement('label');
+        unlinkLabel.className = 'form-label';
+        unlinkLabel.textContent = 'Reason for revoking this guardian relationship (10-500 characters)';
+        const unlinkReason = document.createElement('textarea');
+        unlinkReason.className = 'form-control'; unlinkReason.required = true;
+        unlinkReason.minLength = 10; unlinkReason.maxLength = 500; unlinkReason.rows = 2;
+        unlinkLabel.append(unlinkReason);
+        const unlinkActions = document.createElement('div');
+        unlinkActions.className = 'd-flex gap-2 mt-2';
+        const confirmUnlink = document.createElement('button');
+        confirmUnlink.type = 'submit'; confirmUnlink.className = 'btn btn-danger btn-sm';
+        confirmUnlink.textContent = 'Confirm unlink';
+        const cancelUnlink = document.createElement('button');
+        cancelUnlink.type = 'button'; cancelUnlink.className = 'btn btn-outline-secondary btn-sm';
+        cancelUnlink.textContent = 'Keep guardian';
+        cancelUnlink.addEventListener('click', () => unlinkForm.classList.add('d-none'));
+        unlinkActions.append(confirmUnlink, cancelUnlink);
+        unlinkForm.append(unlinkLabel, unlinkActions);
+        unlink.addEventListener('click', () => {
+            if (state.busy) return;
+            if (guardian.isPrimary && !guardians.some(x => x.linkId !== guardian.linkId && x.isPrimary)) {
+                notice('Assign another primary guardian before unlinking this one.', true);
+                return;
+            }
+            for (const open of box.querySelectorAll('form')) open.classList.add('d-none');
+            unlinkForm.classList.remove('d-none');
+            unlinkReason.focus();
+        });
+        unlinkForm.addEventListener('submit', async event => {
+            event.preventDefault();
+            if (state.busy || !state.student || !unlinkForm.reportValidity()) return;
+            state.busy = true; confirmUnlink.disabled = true; unlink.disabled = true; edit.disabled = true;
+            try {
+                const url = '/api/student-guardians/students/' +
+                    encodeURIComponent(state.student.studentReference) + '/links/' +
+                    encodeURIComponent(String(guardian.linkId)) + '/unlink';
+                const updated = await api(url, 'POST', {
+                    rowVersion: guardian.rowVersion, reason: unlinkReason.value.trim()
+                });
+                state.busy = false;
+                render(updated);
+                notice('Guardian relationship revoked. Portal access for this student has ended.');
+            } catch (error) {
+                notice(error.message + ' Refresh the student before retrying a conflict.', true);
+            } finally {
+                state.busy = false; confirmUnlink.disabled = false; unlink.disabled = false; edit.disabled = false;
+            }
+        });
+        card.append(heading, permissions, editor, unlinkForm);
         box.append(card);
     }
 }

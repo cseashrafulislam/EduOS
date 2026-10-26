@@ -2,6 +2,7 @@ using EduOS.Core.Common;
 using EduOS.Core.DTOs.Students;
 using EduOS.Core.Entities.Learners;
 using EduOS.Core.Entities.Students;
+using EduOS.Core.Entities.System;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
@@ -9,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Data;
 using System.Security.Cryptography;
+using System.Text.Json;
 using System.Transactions;
 
 namespace EduOS.Service.Services.Students;
@@ -20,16 +22,19 @@ public sealed class StudentGuardianWorkspaceService : IStudentGuardianWorkspaceS
     private readonly IGenericRepository<Guardian> _guardians;
     private readonly IGenericRepository<StudentGuardian> _links;
     private readonly IGenericRepository<Person> _persons;
+    private readonly IGenericRepository<AuditLog> _auditLogs;
     private readonly IUnitOfWork _uow;
     private readonly ICurrentUserService _user;
     private readonly ILogger<StudentGuardianWorkspaceService> _logger;
 
     public StudentGuardianWorkspaceService(IGenericRepository<Student> students,
         IGenericRepository<Guardian> guardians, IGenericRepository<StudentGuardian> links,
-        IGenericRepository<Person> persons, IUnitOfWork uow, ICurrentUserService user,
+        IGenericRepository<Person> persons, IGenericRepository<AuditLog> auditLogs,
+        IUnitOfWork uow, ICurrentUserService user,
         ILogger<StudentGuardianWorkspaceService> logger)
     {
         _students = students; _guardians = guardians; _links = links; _persons = persons;
+        _auditLogs = auditLogs;
         _uow = uow; _user = user; _logger = logger;
     }
 
@@ -272,6 +277,74 @@ public sealed class StudentGuardianWorkspaceService : IStudentGuardianWorkspaceS
             link.IsEmergencyContact = request.IsEmergencyContact;
             link.UpdatedAt = now; link.UpdatedBy = _user.UserId;
             await _uow.SaveChangesAsync(token);
+            return await LoadAsync(studentReference, token);
+        }, ct);
+    }
+
+
+    /// <summary>Revoke one relationship, preserving its historical row and guardian identity.
+    /// Live portal authorization filters soft-deleted links, so access ends at commit.</summary>
+    public Task<ApiResponse<StudentGuardianWorkspaceDto>> UnlinkAsync(
+        Guid studentReference, long linkId, UnlinkStudentGuardianWorkspaceRequestDto request,
+        CancellationToken ct = default)
+    {
+        if (!Allowed) return Task.FromResult(Fail<StudentGuardianWorkspaceDto>("Tenant administrator permission required.", 403));
+        if (studentReference == Guid.Empty || linkId <= 0 || request == null ||
+            !ValidVersion(request.RowVersion) || string.IsNullOrWhiteSpace(request.Reason) ||
+            request.Reason.Trim().Length < 10 || request.Reason.Trim().Length > 500)
+            return Task.FromResult(Fail<StudentGuardianWorkspaceDto>("Valid relationship version and reason (10-500 characters) required."));
+        return WriteAsync(async token =>
+        {
+            var tenant = _user.TenantId;
+            var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.PublicId == studentReference && !x.IsDeleted, token);
+            if (student == null) return Fail<StudentGuardianWorkspaceDto>("Student not found.", 404);
+            // Explicit tenant and student predicates are mandatory when bypassing the soft-delete filter.
+            var link = await _links.GetQueryable().IgnoreQueryFilters().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.StudentId == student.Id && x.Id == linkId, token);
+            if (link == null) return Fail<StudentGuardianWorkspaceDto>("Guardian relationship not found.", 404);
+            var reason = request.Reason.Trim();
+            var auditValue = JsonSerializer.Serialize(new { Reason = reason, IsDeleted = true });
+            if (link.IsDeleted)
+            {
+                // Only an identical retry by the original administrator is idempotent.
+                var prior = await _auditLogs.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.EntityName == "StudentGuardian" &&
+                    x.EntityId == link.Id && x.Action == "StudentGuardian.Unlinked" &&
+                    x.UserId == _user.UserId && !x.IsDeleted, token);
+                return prior?.NewValue == auditValue
+                    ? await LoadAsync(studentReference, token)
+                    : Fail<StudentGuardianWorkspaceDto>("Relationship was already revoked. Refresh the student.", 409);
+            }
+            if (student.StatusCode != "Active" && student.StatusCode != "Suspended")
+                return Fail<StudentGuardianWorkspaceDto>("Guardian changes require an active or suspended student.", 409);
+            if (!VersionMatches(link.RowVersion, request.RowVersion))
+                return Fail<StudentGuardianWorkspaceDto>("Guardian relationship changed. Reload and retry.", 409);
+            var others = await _links.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == tenant && x.StudentId == student.Id &&
+                x.Id != linkId && !x.IsDeleted).ToListAsync(token);
+            if (link.IsPrimary && !others.Any(x => x.IsPrimary))
+                return Fail<StudentGuardianWorkspaceDto>("Assign another primary guardian before unlinking this one.", 409);
+            var now = DateTime.UtcNow;
+            link.IsDeleted = true; link.DeletedAt = now; link.DeletedBy = _user.UserId;
+            link.UpdatedAt = now; link.UpdatedBy = _user.UserId;
+            await _auditLogs.AddAsync(new AuditLog
+            {
+                TenantId = tenant, UserId = _user.UserId,
+                Action = "StudentGuardian.Unlinked", EntityName = "StudentGuardian",
+                EntityId = link.Id,
+                OldValue = JsonSerializer.Serialize(new
+                {
+                    StudentReference = student.PublicId, GuardianId = link.GuardianId,
+                    link.RelationCode, link.IsPrimary, link.CanReceiveSms,
+                    link.CanReceiveEmail, link.IsAuthorizedPickup,
+                    link.IsFinancialContact, link.IsEmergencyContact
+                }),
+                NewValue = auditValue, IsSuccess = true, OccurredAt = now
+            });
+            await _uow.SaveChangesAsync(token);
+            _logger.LogInformation("Guardian relationship {LinkId} revoked for tenant {TenantId} student {StudentId}",
+                link.Id, tenant, student.Id);
             return await LoadAsync(studentReference, token);
         }, ct);
     }

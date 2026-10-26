@@ -47,6 +47,15 @@ public sealed class StudentGuardiansController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpPost("students/{studentReference:guid}/links/{linkId:long}/unlink")]
+    public async Task<IActionResult> Unlink(Guid studentReference, long linkId,
+        [FromBody] UnlinkStudentGuardianWorkspaceRequestDto request, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await _service.UnlinkAsync(studentReference, linkId, request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPut("students/{studentReference:guid}/links/{linkId:long}")]
     public async Task<IActionResult> Update(Guid studentReference, long linkId,
         [FromBody] UpdateStudentGuardianWorkspaceLinkDto request, CancellationToken ct)
