@@ -33,7 +33,7 @@ public sealed class StudentTransferCertificateIdentitySnapshotContractTests
     public void Certificate_print_uses_issued_identity_and_marks_legacy_fallback()
     {
         var service = Read("EduOS.Service", "Services", "Students", "StudentExitService.Certificate.cs");
-        var dto = Read("EduOS.Core", "DTOs", "Student", "StudentTransferCertificateDto.cs");
+        var dto = Read("EduOS.Core", "DTOs", "Students", "StudentTransferCertificateDto.cs");
         var view = Read("EduOS.App", "Views", "StudentLifecycle", "Certificate.cshtml");
         service.Should().Contain("certificate.StudentNameAtIssue ?? student.FullName");
         service.Should().Contain("certificate.StudentCodeAtIssue ?? student.StudentCode");

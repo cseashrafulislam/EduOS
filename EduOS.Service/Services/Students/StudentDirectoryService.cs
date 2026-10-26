@@ -1,5 +1,5 @@
 using EduOS.Core.Common;
-using EduOS.Core.DTOs.Student;
+using EduOS.Core.DTOs.Students;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Students;
@@ -247,7 +247,7 @@ public sealed class StudentDirectoryService : IStudentDirectoryService
                         IsPrimary = x.IsPrimary
                     };
                 }).ToList(),
-            Enrollments = enrollments.Select(e => new EduOS.Core.DTOs.Student.StudentDirectoryEnrollmentDto
+            Enrollments = enrollments.Select(e => new EduOS.Core.DTOs.Students.StudentDirectoryEnrollmentDto
             {
                 Id = e.Id,
                 AcademicYear = lookups.YearNames.GetValueOrDefault(e.AcademicYearId) ?? string.Empty,

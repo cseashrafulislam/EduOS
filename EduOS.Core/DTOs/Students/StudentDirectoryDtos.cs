@@ -1,7 +1,7 @@
 using EduOS.Core.Common;
 using System.ComponentModel.DataAnnotations;
 
-namespace EduOS.Core.DTOs.Student;
+namespace EduOS.Core.DTOs.Students;
 
 public class StudentDirectoryQueryDto
 {

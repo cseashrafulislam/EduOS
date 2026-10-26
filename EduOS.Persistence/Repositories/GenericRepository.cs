@@ -59,95 +59,12 @@ namespace EduOS.Persistence.Repositories
             return await query.FirstOrDefaultAsync(predicate);
         }
 
-        public virtual async Task<List<T>> GetAllAsync()
-        {
-            return await _dbSet.ToListAsync();
-        }
-
-        public virtual async Task<List<T>> GetAllAsync(
-            params Expression<Func<T, object>>[] includes)
-        {
-            IQueryable<T> query = _dbSet;
-
-            foreach (var include in includes)
-            {
-                query = query.Include(include);
-            }
-
-            return await query.ToListAsync();
-        }
-
-        public virtual async Task<List<T>> GetAllAsync(
-            Expression<Func<T, object>> orderBy,
-            bool descending = false,
-            params Expression<Func<T, object>>[] includes)
-        {
-            IQueryable<T> query = _dbSet;
-
-            foreach (var include in includes)
-            {
-                query = query.Include(include);
-            }
-
-            query = descending
-                ? query.OrderByDescending(orderBy)
-                : query.OrderBy(orderBy);
-
-            return await query.ToListAsync();
-        }
-
-        public virtual async Task<List<T>> FindAsync(
-            Expression<Func<T, bool>> predicate)
-        {
-            return await _dbSet.Where(predicate).ToListAsync();
-        }
-
-        public virtual async Task<List<T>> FindAsync(
-            Expression<Func<T, bool>> predicate,
-            params Expression<Func<T, object>>[] includes)
-        {
-            IQueryable<T> query = _dbSet;
-
-            foreach (var include in includes)
-            {
-                query = query.Include(include);
-            }
-
-            return await query.Where(predicate).ToListAsync();
-        }
-
-        public virtual async Task<T?> FindFirstOrDefaultAsync(
-            Expression<Func<T, bool>> predicate)
-        {
-            return await _dbSet.FirstOrDefaultAsync(predicate);
-        }
-
-        public virtual async Task<T?> FindFirstOrDefaultAsync(
-            Expression<Func<T, bool>> predicate,
-            params Expression<Func<T, object>>[] includes)
-        {
-            IQueryable<T> query = _dbSet;
-
-            foreach (var include in includes)
-            {
-                query = query.Include(include);
-            }
-
-            return await query.FirstOrDefaultAsync(predicate);
-        }
-
         public virtual async Task<bool> AnyAsync()
         {
             return await _dbSet.AnyAsync();
         }
 
         public virtual async Task<bool> AnyAsync(
-            Expression<Func<T, bool>> predicate)
-        {
-            return await _dbSet.AnyAsync(predicate);
-        }
-
-        public virtual async Task<bool> ExistsAsync(
             Expression<Func<T, bool>> predicate)
         {
             return await _dbSet.AnyAsync(predicate);
@@ -182,29 +99,6 @@ namespace EduOS.Persistence.Repositories
         public virtual void UpdateRange(IEnumerable<T> entities)
         {
             _dbSet.UpdateRange(entities);
-        }
-
-        public virtual void Delete(T entity)
-        {
-            _dbSet.Remove(entity);
-        }
-
-        public virtual void DeleteRange(IEnumerable<T> entities)
-        {
-            _dbSet.RemoveRange(entities);
-        }
-
-        public virtual async Task<bool> DeleteByIdAsync(long id)
-        {
-            var entity = await GetByIdAsync(id);
-
-            if (entity == null)
-            {
-                return false;
-            }
-
-            Delete(entity);
-            return true;
         }
 
         public virtual IQueryable<T> GetQueryable()

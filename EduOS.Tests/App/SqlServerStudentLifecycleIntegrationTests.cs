@@ -1,4 +1,4 @@
-using EduOS.Core.DTOs.Student;
+using EduOS.Core.DTOs.Students;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Finance;

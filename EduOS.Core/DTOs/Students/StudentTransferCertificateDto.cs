@@ -1,4 +1,4 @@
-namespace EduOS.Core.DTOs.Student;
+namespace EduOS.Core.DTOs.Students;
 
 /// <summary>Historical transfer certificate projection for an authorized source-tenant administrator.</summary>
 public sealed class StudentTransferCertificateDto

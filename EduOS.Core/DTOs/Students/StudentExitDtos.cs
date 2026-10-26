@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace EduOS.Core.DTOs.Student;
+namespace EduOS.Core.DTOs.Students;
 
 public sealed class ProcessStudentExitDto
 {

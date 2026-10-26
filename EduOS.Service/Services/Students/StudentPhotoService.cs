@@ -1,6 +1,6 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Files;
-using EduOS.Core.DTOs.Student;
+using EduOS.Core.DTOs.Students;
 using EduOS.Core.Entities.Files;
 using EduOS.Core.Entities.System;
 using EduOS.Core.Entities.Students;

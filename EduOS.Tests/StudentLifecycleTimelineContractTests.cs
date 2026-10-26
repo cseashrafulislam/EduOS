@@ -1,6 +1,6 @@
 using EduOS.App.Authorization;
 using EduOS.App.Controllers.Api;
-using EduOS.Core.DTOs.Student;
+using EduOS.Core.DTOs.Students;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

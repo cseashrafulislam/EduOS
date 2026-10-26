@@ -1,4 +1,4 @@
-namespace EduOS.Core.DTOs.Student;
+namespace EduOS.Core.DTOs.Students;
 
 /// <summary>Tenant-private, immutable lifecycle facts for an authorized institution administrator.</summary>
 public sealed class StudentLifecycleTimelineDto

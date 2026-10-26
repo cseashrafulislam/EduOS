@@ -1,4 +1,4 @@
-namespace EduOS.Core.DTOs.Student;
+namespace EduOS.Core.DTOs.Students;
 
 /// <summary>Only a tenant-authorized route is exposed; never a private storage key.</summary>
 public sealed class StudentPhotoDto

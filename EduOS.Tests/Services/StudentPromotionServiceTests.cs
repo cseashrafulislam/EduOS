@@ -1,4 +1,4 @@
-using EduOS.Core.DTOs.Student;
+using EduOS.Core.DTOs.Students;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Students;

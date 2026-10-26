@@ -43,7 +43,7 @@ public sealed class StudentTransferCertificateContractTests
         mvc.Should().Contain("[Authorize(Roles = \"TenantAdmin\")]");
         mvc.Should().Contain("ResponseCache(NoStore = true");
         mvc.Should().Contain("Referrer-Policy");
-        view.Should().Contain("@model EduOS.Core.DTOs.Student.StudentTransferCertificateDto");
+        view.Should().Contain("@model EduOS.Core.DTOs.Students.StudentTransferCertificateDto");
         view.Should().Contain("Model.CertificateNumber");
         view.Should().Contain("Model.IssueDate");
         view.Should().Contain("noindex,nofollow,noarchive");
