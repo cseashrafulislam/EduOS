@@ -73,12 +73,13 @@ public sealed class StudentContactProfileService(
                 if (student == null) return Fail<StudentContactProfileDto>("Student not found.", 404);
 
                 // A retry is accepted only for the original student and exact persisted payload.
-                var previous = await db.AuditLogs.AsNoTracking().FirstOrDefaultAsync(x =>
-                    x.TenantId == user.TenantId && x.Action == AuditAction && x.RequestId == key, token);
+                var previous = await db.IdempotencyRecords.AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == user.TenantId && x.Scope == "StudentContactProfile" &&
+                    x.RequestId == request.ClientRequestId && !x.IsDeleted, token);
                 var same = student.Phone == phone && student.Email == email &&
                     student.Address == address && student.PreferredLanguage == language;
                 if (previous != null)
-                    return previous.EntityId == student.Id && previous.NewValue == digest && same
+                    return previous.TargetId == student.Id && previous.RequestHash == digest && same
                         ? ApiResponse<StudentContactProfileDto>.SuccessResponse(Map(student), "Contact profile already saved.")
                         : Fail<StudentContactProfileDto>("Request ID was already used or the profile changed.", 409);
 
@@ -101,6 +102,14 @@ public sealed class StudentContactProfileService(
                     student.UpdatedAt = now;
                     student.UpdatedBy = user.UserId;
                 }
+                db.IdempotencyRecords.Add(new IdempotencyRecord
+                {
+                    TenantId = user.TenantId, Scope = "StudentContactProfile",
+                    RequestId = request.ClientRequestId, RequestHash = digest,
+                    ResultHash = digest, TargetId = student.Id, CompletedByUserId = user.UserId,
+                    CompletedAt = now, ExpiresAt = now.AddYears(5),
+                    CreatedAt = now, CreatedBy = user.UserId
+                });
                 db.AuditLogs.Add(new AuditLog
                 {
                     TenantId = user.TenantId, UserId = user.UserId, Action = AuditAction,
