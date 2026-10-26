@@ -74,12 +74,15 @@ public sealed class AcademicCurriculumRegisterTests
                 AcademicLevelId = level.Id, SubjectId = subject.Id });
             await foreign.SaveChangesAsync();
         }
-        var detail = await Service(db).GetCurriculumAsync(row.Id);
+        // HttpContextAccessor flows through AsyncLocal. Restore the owning tenant
+        // after foreign-tenant seeding, then exercise the actual tenant-filtered read.
+        await using var tenantRead = Context(options, 501);
+        var detail = await Service(tenantRead).GetCurriculumAsync(row.Id);
         detail.Success.Should().BeTrue();
         detail.Data!.SubjectCount.Should().Be(1);
         detail.Data.Subjects.Should().ContainSingle(x => x.SubjectName == "Biology" &&
             x.AcademicLevelName == "Level One" && x.PassMarks == 40);
-        (await Service(db).GetCurriculumAsync(9999)).StatusCode.Should().Be(404);
+        (await Service(tenantRead).GetCurriculumAsync(9999)).StatusCode.Should().Be(404);
     }
 
     [Fact]
