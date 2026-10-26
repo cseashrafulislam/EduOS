@@ -136,14 +136,20 @@ public sealed class SubjectOfferingSetupTests
             ClientRequestId = Guid.NewGuid(),
             State = EduOS.Core.Enums.Domain.SubjectRegistrationState.Approved
         }).ToList();
-        registrations.Add(new StudentSubjectRegistration
-        {
-            TenantId = 302, SubjectOfferingId = created.Id, StudentEnrollmentId = 99,
-            ClientRequestId = Guid.NewGuid(),
-            State = EduOS.Core.Enums.Domain.SubjectRegistrationState.Pending
-        });
         db.AddRange(registrations);
         await db.SaveChangesAsync();
+        // Seed the foreign-tenant row through its own tenant context: the DbContext
+        // correctly rejects cross-tenant writes from the current tenant.
+        await using (var foreignDb = Context(options, 302))
+        {
+            foreignDb.Add(new StudentSubjectRegistration
+            {
+                TenantId = 302, SubjectOfferingId = created.Id, StudentEnrollmentId = 99,
+                ClientRequestId = Guid.NewGuid(),
+                State = EduOS.Core.Enums.Domain.SubjectRegistrationState.Pending
+            });
+            await foreignDb.SaveChangesAsync();
+        }
         var result = await sut.GetSubjectOfferingsAsync(ids.Batch, null);
         var offering = result.Data!.Items.Should().ContainSingle().Subject;
         offering.ReservedSeats.Should().Be(41);
