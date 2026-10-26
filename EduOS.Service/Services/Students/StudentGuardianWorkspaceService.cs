@@ -74,7 +74,12 @@ public sealed class StudentGuardianWorkspaceService : IStudentGuardianWorkspaceS
         var links = await _links.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == tenant && x.StudentId == student.Id && !x.IsDeleted)
             .OrderByDescending(x => x.IsPrimary).ThenBy(x => x.Id).Take(100).ToListAsync(ct);
-        var ids = links.Select(x => x.GuardianId).Distinct().ToArray();
+        // Only tenant administrators can access this workspace. Include a bounded set of
+        // revoked relationships for explicit reactivation; portal reads still exclude them.
+        var revokedLinks = await _links.GetQueryable().IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenant && x.StudentId == student.Id && x.IsDeleted)
+            .OrderByDescending(x => x.DeletedAt).ThenByDescending(x => x.Id).Take(50).ToListAsync(ct);
+        var ids = links.Concat(revokedLinks).Select(x => x.GuardianId).Distinct().ToArray();
         var guardians = await _guardians.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == tenant && ids.Contains(x.Id) && !x.IsDeleted && x.IsActive)
             .ToDictionaryAsync(x => x.Id, ct);
@@ -93,6 +98,19 @@ public sealed class StudentGuardianWorkspaceService : IStudentGuardianWorkspaceS
                     CanReceiveEmail = x.CanReceiveEmail, IsAuthorizedPickup = x.IsAuthorizedPickup,
                     IsFinancialContact = x.IsFinancialContact, IsEmergencyContact = x.IsEmergencyContact,
                     RowVersion = Convert.ToBase64String(x.RowVersion)
+                };
+            }).ToArray(),
+            RevokedGuardians = revokedLinks.Where(x => guardians.ContainsKey(x.GuardianId)).Select(x =>
+            {
+                var g = guardians[x.GuardianId];
+                return new StudentGuardianWorkspaceLinkDto
+                {
+                    LinkId = x.Id, GuardianReference = g.PublicId, FullName = g.FullName,
+                    RelationCode = x.RelationCode, IsPrimary = x.IsPrimary,
+                    CanReceiveSms = x.CanReceiveSms, CanReceiveEmail = x.CanReceiveEmail,
+                    IsAuthorizedPickup = x.IsAuthorizedPickup,
+                    IsFinancialContact = x.IsFinancialContact, IsEmergencyContact = x.IsEmergencyContact,
+                    RowVersion = Convert.ToBase64String(x.RowVersion), RevokedAt = x.DeletedAt
                 };
             }).ToArray()
         });
@@ -344,6 +362,100 @@ public sealed class StudentGuardianWorkspaceService : IStudentGuardianWorkspaceS
             });
             await _uow.SaveChangesAsync(token);
             _logger.LogInformation("Guardian relationship {LinkId} revoked for tenant {TenantId} student {StudentId}",
+                link.Id, tenant, student.Id);
+            return await LoadAsync(studentReference, token);
+        }, ct);
+    }
+
+
+    /// <summary>Re-enable an existing soft-deleted relationship. The guardian identity and
+    /// relationship ID are preserved; permissions must be explicitly re-authorized.</summary>
+    public Task<ApiResponse<StudentGuardianWorkspaceDto>> ReactivateAsync(
+        Guid studentReference, long linkId, ReactivateStudentGuardianWorkspaceRequestDto request,
+        CancellationToken ct = default)
+    {
+        if (!Allowed) return Task.FromResult(Fail<StudentGuardianWorkspaceDto>("Tenant administrator permission required.", 403));
+        var permissions = request?.Relationship;
+        if (studentReference == Guid.Empty || linkId <= 0 || permissions == null ||
+            !ValidVersion(permissions.RowVersion) || string.IsNullOrWhiteSpace(permissions.RelationCode) ||
+            permissions.RelationCode.Trim().Length > 50 || string.IsNullOrWhiteSpace(request!.Reason) ||
+            request.Reason.Trim().Length < 10 || request.Reason.Trim().Length > 500)
+            return Task.FromResult(Fail<StudentGuardianWorkspaceDto>("Valid relationship, version and reactivation reason (10-500 characters) required."));
+        return WriteAsync(async token =>
+        {
+            var tenant = _user.TenantId;
+            var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.PublicId == studentReference && !x.IsDeleted, token);
+            if (student == null) return Fail<StudentGuardianWorkspaceDto>("Student not found.", 404);
+            if (student.StatusCode != "Active" && student.StatusCode != "Suspended")
+                return Fail<StudentGuardianWorkspaceDto>("Guardian changes require an active or suspended student.", 409);
+            // Bypassing soft-delete filters must never bypass tenant/student ownership.
+            var link = await _links.GetQueryable().IgnoreQueryFilters().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.StudentId == student.Id && x.Id == linkId, token);
+            if (link == null) return Fail<StudentGuardianWorkspaceDto>("Guardian relationship not found.", 404);
+            var guardianExists = await _guardians.GetQueryable().AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenant && x.Id == link.GuardianId && x.IsActive && !x.IsDeleted, token);
+            if (!guardianExists) return Fail<StudentGuardianWorkspaceDto>("Guardian is no longer active in this institution.", 409);
+            var activeLinks = await _links.GetQueryable().Where(x =>
+                x.TenantId == tenant && x.StudentId == student.Id && !x.IsDeleted).ToListAsync(token);
+            var primary = permissions.IsPrimary || activeLinks.Count == 0;
+            var reason = request!.Reason.Trim();
+            var relation = permissions.RelationCode.Trim();
+            var auditValue = JsonSerializer.Serialize(new
+            {
+                Reason = reason, RelationCode = relation, IsPrimary = primary,
+                permissions.CanReceiveSms, permissions.CanReceiveEmail, permissions.IsAuthorizedPickup,
+                permissions.IsFinancialContact, permissions.IsEmergencyContact, IsDeleted = false
+            });
+            if (!link.IsDeleted)
+            {
+                // Retry only if this administrator already restored this exact relationship
+                // and the current permissions have not changed since that restoration.
+                var prior = await _auditLogs.GetQueryable().AsNoTracking().Where(x =>
+                    x.TenantId == tenant && x.EntityName == "StudentGuardian" &&
+                    x.EntityId == link.Id && x.Action == "StudentGuardian.Reactivated" &&
+                    x.UserId == _user.UserId && !x.IsDeleted)
+                    .OrderByDescending(x => x.Id).FirstOrDefaultAsync(token);
+                if (prior?.NewValue == auditValue && link.RelationCode == relation &&
+                    link.IsPrimary == primary && link.CanReceiveSms == permissions.CanReceiveSms &&
+                    link.CanReceiveEmail == permissions.CanReceiveEmail &&
+                    link.IsAuthorizedPickup == permissions.IsAuthorizedPickup &&
+                    link.IsFinancialContact == permissions.IsFinancialContact &&
+                    link.IsEmergencyContact == permissions.IsEmergencyContact)
+                    return await LoadAsync(studentReference, token);
+                return Fail<StudentGuardianWorkspaceDto>("Relationship is already active or has changed. Refresh the student.", 409);
+            }
+            if (!VersionMatches(link.RowVersion, permissions.RowVersion))
+                return Fail<StudentGuardianWorkspaceDto>("Guardian relationship changed. Reload and retry.", 409);
+            if (activeLinks.Count >= 100)
+                return Fail<StudentGuardianWorkspaceDto>("Guardian link limit reached.", 409);
+            var now = DateTime.UtcNow;
+            var oldValue = JsonSerializer.Serialize(new
+            {
+                link.RelationCode, link.IsPrimary, link.CanReceiveSms, link.CanReceiveEmail,
+                link.IsAuthorizedPickup, link.IsFinancialContact, link.IsEmergencyContact,
+                link.IsDeleted, link.DeletedAt, link.DeletedBy
+            });
+            if (primary)
+                foreach (var other in activeLinks.Where(x => x.IsPrimary))
+                { other.IsPrimary = false; other.UpdatedAt = now; other.UpdatedBy = _user.UserId; }
+            link.IsDeleted = false; link.DeletedAt = null; link.DeletedBy = null;
+            link.RelationCode = relation; link.IsPrimary = primary;
+            link.CanReceiveSms = permissions.CanReceiveSms;
+            link.CanReceiveEmail = permissions.CanReceiveEmail;
+            link.IsAuthorizedPickup = permissions.IsAuthorizedPickup;
+            link.IsFinancialContact = permissions.IsFinancialContact;
+            link.IsEmergencyContact = permissions.IsEmergencyContact;
+            link.UpdatedAt = now; link.UpdatedBy = _user.UserId;
+            await _auditLogs.AddAsync(new AuditLog
+            {
+                TenantId = tenant, UserId = _user.UserId,
+                Action = "StudentGuardian.Reactivated", EntityName = "StudentGuardian",
+                EntityId = link.Id, OldValue = oldValue, NewValue = auditValue,
+                IsSuccess = true, OccurredAt = now
+            });
+            await _uow.SaveChangesAsync(token);
+            _logger.LogInformation("Guardian relationship {LinkId} reactivated in tenant {TenantId} for student {StudentId}",
                 link.Id, tenant, student.Id);
             return await LoadAsync(studentReference, token);
         }, ct);

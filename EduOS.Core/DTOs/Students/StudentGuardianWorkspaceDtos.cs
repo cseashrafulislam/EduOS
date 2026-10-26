@@ -9,6 +9,7 @@ public sealed class StudentGuardianWorkspaceDto
     public string StudentCode { get; set; } = string.Empty;
     public string StudentRowVersion { get; set; } = string.Empty;
     public IReadOnlyList<StudentGuardianWorkspaceLinkDto> Guardians { get; set; } = Array.Empty<StudentGuardianWorkspaceLinkDto>();
+    public IReadOnlyList<StudentGuardianWorkspaceLinkDto> RevokedGuardians { get; set; } = Array.Empty<StudentGuardianWorkspaceLinkDto>();
 }
 
 public sealed class StudentGuardianWorkspaceLinkDto
@@ -26,6 +27,7 @@ public sealed class StudentGuardianWorkspaceLinkDto
     public bool IsFinancialContact { get; set; }
     public bool IsEmergencyContact { get; set; }
     public string RowVersion { get; set; } = string.Empty;
+    public DateTime? RevokedAt { get; set; }
 }
 
 public sealed class CreateStudentGuardianWorkspaceRequestDto
@@ -76,5 +78,11 @@ public sealed class LinkExistingStudentGuardianRequestDto
 public sealed class UnlinkStudentGuardianWorkspaceRequestDto
 {
     [Required] public string RowVersion { get; set; } = string.Empty;
+    [Required, StringLength(500, MinimumLength = 10)] public string Reason { get; set; } = string.Empty;
+}
+
+public sealed class ReactivateStudentGuardianWorkspaceRequestDto
+{
+    [Required] public UpdateStudentGuardianWorkspaceLinkDto Relationship { get; set; } = new();
     [Required, StringLength(500, MinimumLength = 10)] public string Reason { get; set; } = string.Empty;
 }

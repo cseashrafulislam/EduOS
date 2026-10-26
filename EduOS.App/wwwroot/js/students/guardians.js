@@ -2,6 +2,7 @@ import { setupGuardianSearch } from './guardian-search.js';
 import { setupGuardianSave } from './guardian-save.js';
 import { setupGuardianReuse } from './guardian-reuse.js';
 import { renderGuardianLinks } from './guardian-link-edit.js';
+import { renderRevokedGuardianLinks } from './guardian-reactivation.js';
 
 const $ = id => document.getElementById(id);
 const root = $('guardianWorkspace');
@@ -35,6 +36,7 @@ if (root) {
         $('guardianReuse').disabled = state.busy;
         $('guardianRefresh').disabled = state.busy;
         renderGuardianLinks({ $, api, state, render, notice });
+        renderRevokedGuardianLinks({ $, api, state, render, notice });
     }
     $('guardianRefresh').addEventListener('click', async () => {
         if (!state.student || state.busy) return;
