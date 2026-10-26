@@ -142,6 +142,18 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
             }]
         });
         Assert.True(saved.Success, saved.Message);
+        // A draft register is editable through SaveAsync, not the audited correction API.
+        db.ChangeTracker.Clear();
+        var draftMark = await db.StudentAttendances.AsNoTracking().SingleAsync();
+        var draftCorrection = await attendance.CorrectAttendanceAsync(draftMark.Id,
+            new AttendanceCorrectionRequestDto
+            {
+                NewState = AttendanceState.Absent, Reason = "Draft correction should be rejected",
+                RowVersion = Convert.ToBase64String(draftMark.RowVersion)
+            });
+        Assert.Equal(409, draftCorrection.StatusCode);
+        Assert.Empty(await db.StudentAttendanceAdjustments.AsNoTracking().ToListAsync());
+        db.ChangeTracker.Clear();
         var finalized = await attendance.FinalizeSessionAsync(
             saved.Data!.AttendanceSessionId, saved.Data.SessionRowVersion);
         Assert.True(finalized.Success, finalized.Message);
@@ -178,6 +190,34 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
         Assert.Equal(AttendanceState.Leave, adjustment.PreviousState);
         Assert.Equal(AttendanceState.Absent, adjustment.NewState);
         Assert.Equal(managerId, adjustment.ChangedByUserId);
+        var history = await attendance.GetCorrectionsAsync(leaveMark.Id);
+        Assert.True(history.Success, history.Message);
+        Assert.Equal(1, history.Data!.TotalCount);
+        var eventRow = Assert.Single(history.Data.Items);
+        Assert.Equal(adjustment.Id, eventRow.Id);
+        Assert.Equal(AttendanceState.Leave, eventRow.PreviousState);
+        Assert.Equal(AttendanceState.Absent, eventRow.NewState);
+        Assert.Equal(managerId, eventRow.ChangedByUserId);
+        Assert.Equal(adjustment.Reason, eventRow.Reason);
+        var paged = await attendance.GetCorrectionsAsync(leaveMark.Id, page: 2, pageSize: 1);
+        Assert.True(paged.Success, paged.Message);
+        Assert.Empty(paged.Data!.Items);
+        Assert.Equal(1, paged.Data.TotalCount);
+        Assert.Equal(400, (await attendance.GetCorrectionsAsync(leaveMark.Id, page: 0)).StatusCode);
+        Assert.Equal(400, (await attendance.GetCorrectionsAsync(leaveMark.Id, pageSize: 101)).StatusCode);
+        Assert.Equal(404, (await attendance.GetCorrectionsAsync(long.MaxValue)).StatusCode);
+        var teacher = AttendanceService(db, new Actor(tenantId, managerId, "Teacher"));
+        Assert.Equal(403, (await teacher.GetCorrectionsAsync(leaveMark.Id)).StatusCode);
+        var otherTenant = AttendanceService(db, new Actor(tenantId + 999, managerId, "TenantAdmin"));
+        Assert.Equal(404, (await otherTenant.GetCorrectionsAsync(leaveMark.Id)).StatusCode);
+        // A replay with a stale version cannot create another correction event.
+        var replay = await attendance.CorrectAttendanceAsync(leaveMark.Id, new AttendanceCorrectionRequestDto
+        {
+            NewState = AttendanceState.Absent, Reason = "Attendance review confirmed student was absent",
+            RowVersion = Convert.ToBase64String(leaveMark.RowVersion)
+        });
+        Assert.Equal(409, replay.StatusCode);
+        Assert.Single(await db.StudentAttendanceAdjustments.AsNoTracking().ToListAsync());
         var finalizedSession = await db.AttendanceSessions.AsNoTracking().SingleAsync();
         Assert.True(finalizedSession.IsFinalized);
         Assert.Equal(managerId, finalizedSession.FinalizedByUserId);
