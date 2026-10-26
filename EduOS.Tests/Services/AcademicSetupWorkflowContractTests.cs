@@ -44,7 +44,7 @@ public sealed class AcademicSetupWorkflowContractTests
     {
         var iface = typeof(IAcademicSetupService);
         var implementation = typeof(AcademicSetupService);
-        iface.GetMethods().Should().HaveCount(18);
+        iface.GetMethods().Should().HaveCount(21);
         implementation.GetInterfaces().Should().Contain(iface);
         iface.GetMethod(nameof(IAcademicSetupService.GetDepartmentsAsync)).Should().NotBeNull();
         iface.GetMethod(nameof(IAcademicSetupService.CreateDepartmentAsync))!
@@ -53,6 +53,10 @@ public sealed class AcademicSetupWorkflowContractTests
             .GetParameters()[1].ParameterType.Should().Be(typeof(SaveAcademicDepartmentRequestDto));
         iface.GetMethod(nameof(IAcademicSetupService.CreateProgramAsync))!
             .GetParameters()[0].ParameterType.Should().Be(typeof(SaveAcademicProgramRequestDto));
+        iface.GetMethod(nameof(IAcademicSetupService.GetProgramsAsync)).Should().NotBeNull();
+        iface.GetMethod(nameof(IAcademicSetupService.GetProgramAsync)).Should().NotBeNull();
+        iface.GetMethod(nameof(IAcademicSetupService.UpdateProgramAsync))!
+            .GetParameters()[1].ParameterType.Should().Be(typeof(UpdateAcademicProgramRequestDto));
         iface.GetMethod(nameof(IAcademicSetupService.GetProgramCampusAllocationAsync))!
             .GetParameters()[0].ParameterType.Should().Be(typeof(long));
         iface.GetMethod(nameof(IAcademicSetupService.UpdateProgramCampusAllocationAsync))!
@@ -64,6 +68,16 @@ public sealed class AcademicSetupWorkflowContractTests
         iface.GetMethod(nameof(IAcademicSetupService.ActivateCurriculumAsync)).Should().NotBeNull();
         iface.GetMethod(nameof(IAcademicSetupService.CreateBatchAsync))!
             .GetParameters()[0].ParameterType.Should().Be(typeof(SaveAcademicBatchRequestDto));
+    }
+
+    [Fact]
+    public void Programme_metadata_update_requires_tenant_admin_and_uses_put()
+    {
+        var method = typeof(AcademicSetupController)
+            .GetMethod(nameof(AcademicSetupController.UpdateProgramme))!;
+        method.GetCustomAttributes(typeof(HttpPutAttribute), true).Should().ContainSingle();
+        method.GetCustomAttributes(typeof(AuthorizeAttribute), true)
+            .Cast<AuthorizeAttribute>().Single().Roles.Should().Be("TenantAdmin");
     }
 
     [Fact]

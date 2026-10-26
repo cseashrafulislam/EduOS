@@ -59,6 +59,23 @@ public sealed class AcademicSetupController : ControllerBase
     public async Task<IActionResult> CreateProgram([FromBody] SaveAcademicProgramRequestDto request, CancellationToken cancellationToken) =>
         ToAction(await _service.CreateProgramAsync(request, cancellationToken));
 
+    [HttpGet("programmes")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> Programmes([FromQuery] string? search,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetProgramsAsync(search, page, pageSize, cancellationToken));
+
+    [HttpGet("programmes/{id:long}")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> Programme(long id, CancellationToken cancellationToken) =>
+        ToAction(await _service.GetProgramAsync(id, cancellationToken));
+
+    [HttpPut("programmes/{id:long}")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> UpdateProgramme(long id, [FromBody] UpdateAcademicProgramRequestDto request,
+        CancellationToken cancellationToken) =>
+        ToAction(await _service.UpdateProgramAsync(id, request, cancellationToken));
+
     [HttpPost("programmes/{academicProgramId:long}/levels")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
     public async Task<IActionResult> CreateLevel(long academicProgramId, [FromBody] SaveAcademicLevelRequestDto request, CancellationToken cancellationToken)

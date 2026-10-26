@@ -92,6 +92,39 @@
                 <thead><tr><th>Programme</th><th>Campus availability</th><th>Action</th></tr></thead>
                 <tbody id="programCampusRows"></tbody>
             </table></div>
+            <div class="border rounded p-3 mb-4">
+                <h3 class="h6">Programme metadata &amp; department reassignment</h3>
+                <p class="small text-muted">Search active or inactive programmes. Programme codes and campus allocation are managed separately. Duration and deactivation changes are blocked when active academic dependencies exist.</p>
+                <div class="row g-2 mb-2">
+                    <div class="col-md-6"><label for="programmeSearch" class="form-label">Programme name / code prefix</label><input id="programmeSearch" class="form-control" maxlength="80" /></div>
+                    <div class="col-md-2 d-flex align-items-end"><button id="programmeSearchButton" type="button" class="btn btn-outline-primary">Search</button></div>
+                </div>
+                <div class="table-responsive"><table class="table table-hover align-middle">
+                    <thead><tr><th>Programme</th><th>Code</th><th>Department</th><th>Months</th><th>Status</th><th>Action</th></tr></thead>
+                    <tbody id="programmeRows"></tbody>
+                </table></div>
+                <div class="d-flex gap-2 align-items-center mb-3">
+                    <button id="programmePrev" type="button" class="btn btn-sm btn-outline-secondary">Previous</button>
+                    <span id="programmePage" class="small text-muted"></span>
+                    <button id="programmeNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button>
+                    <button id="programmeCsv" type="button" class="btn btn-sm btn-outline-primary ms-auto">Export visible CSV</button>
+                </div>
+                <form id="programmeEditForm" class="row g-2 d-none">
+                    <input id="programmeEditId" type="hidden" /><input id="programmeEditVersion" type="hidden" />
+                    <div class="col-md-2"><label for="programmeEditCode" class="form-label">Code (immutable)</label><input id="programmeEditCode" class="form-control" readonly /></div>
+                    <div class="col-md-4"><label for="programmeEditName" class="form-label">Name *</label><input id="programmeEditName" class="form-control" maxlength="200" required /></div>
+                    <div class="col-md-3"><label for="programmeEditShortName" class="form-label">Short name</label><input id="programmeEditShortName" class="form-control" maxlength="100" /></div>
+                    <div class="col-md-3"><label for="programmeEditDuration" class="form-label">Duration (months)</label><input id="programmeEditDuration" type="number" min="0" max="1200" class="form-control" required /></div>
+                    <div class="col-md-4"><label for="programmeDepartmentSearch" class="form-label">Find department by prefix</label><div class="input-group"><input id="programmeDepartmentSearch" class="form-control" maxlength="80" /><button id="programmeDepartmentSearchButton" type="button" class="btn btn-outline-secondary">Find</button></div></div>
+                    <div class="col-md-4"><label for="programmeEditDepartment" class="form-label">Department</label><select id="programmeEditDepartment" class="form-select"><option value="">No department</option></select></div>
+                    <div class="col-md-4"><label for="programmeEditAward" class="form-label">Award title</label><input id="programmeEditAward" class="form-control" maxlength="150" /></div>
+                    <div class="col-md-6"><label for="programmeEditDescription" class="form-label">Description</label><textarea id="programmeEditDescription" class="form-control" rows="2" maxlength="1000"></textarea></div>
+                    <div class="col-md-2"><label for="programmeEditOrder" class="form-label">Display order</label><input id="programmeEditOrder" type="number" min="0" class="form-control" required /></div>
+                    <div class="col-md-2 d-flex align-items-center"><label class="form-check"><input id="programmeEditAdmissions" type="checkbox" class="form-check-input" /><span class="form-check-label">Admissions open</span></label></div>
+                    <div class="col-md-2 d-flex align-items-center"><label class="form-check"><input id="programmeEditActive" type="checkbox" class="form-check-input" /><span class="form-check-label">Active</span></label></div>
+                    <div class="col-12 d-flex gap-2"><button id="programmeEditSave" type="submit" class="btn btn-primary">Save metadata</button><button id="programmeEditCancel" type="button" class="btn btn-outline-secondary">Cancel</button></div>
+                </form>
+            </div>
             <form id="programAllocationForm" class="card border-primary mb-4 d-none">
                 <div class="card-body">
                     <h3 class="h6">Manage campuses: <span id="allocationProgramName"></span></h3>
@@ -216,4 +249,5 @@
     <script src="~/js/academic/management-forms.js" asp-append-version="true"></script>
     <script src="~/js/academic/subject-offerings.js" asp-append-version="true"></script>
     <script src="~/js/academic/departments.js" asp-append-version="true"></script>
+    <script src="~/js/academic/programmes.js" asp-append-version="true"></script>
 }
