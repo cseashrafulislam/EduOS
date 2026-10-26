@@ -2,7 +2,9 @@ namespace EduOS.Core.Interfaces.IServices;
 
 /// <summary>
 /// Finance-owned, tenant-scoped preflight for edits to existing hostel and transport reservations.
-/// A true result means that a finance adjustment approval is required before mutation.
+/// True means posted activity OR an issued, unposted invoice exists. Both block
+/// financially effective reservation mutations until Finance reconciliation/approval.
+/// This is a conservative exposure gate, not an approval or a posting operation.
 /// </summary>
 public interface IReservationFinancePolicy
 {

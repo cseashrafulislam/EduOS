@@ -10,6 +10,47 @@ namespace EduOS.Tests.Services;
 
 public sealed class ReservationFinancePolicyTests
 {
+
+    [Fact]
+    public async Task Issued_unposted_invoice_blocks_reservation_mutations_before_any_payment()
+    {
+        await using var db = Context(101);
+        db.StudentInvoices.Add(new StudentInvoice
+        {
+            TenantId = 101, StudentEnrollmentId = 11, ClientRequestId = Guid.NewGuid(),
+            InvoiceNumber = "RF-ISSUED", InvoiceDate = new DateOnly(2026, 10, 1),
+            DueDate = new DateOnly(2026, 10, 31), State = InvoiceState.Issued,
+            JournalId = null, PaidAmount = 0m
+        });
+        await db.SaveChangesAsync();
+
+        // Hostel reschedule and Transport extension both consume this Finance gate.
+        Assert.True(await new ReservationFinancePolicy(db).HasPostedActivityAsync(101, 10, 11));
+        Assert.False(await new ReservationFinancePolicy(db).HasPostedActivityAsync(101, 10, 12));
+        Assert.Empty(db.Journals);
+    }
+
+    [Fact]
+    public async Task Cancelled_unposted_invoice_is_not_a_blocker_but_its_posting_is_immutable()
+    {
+        await using var db = Context(101);
+        var invoice = new StudentInvoice
+        {
+            TenantId = 101, StudentEnrollmentId = 11, ClientRequestId = Guid.NewGuid(),
+            InvoiceNumber = "RF-CANCELLED", InvoiceDate = new DateOnly(2026, 10, 1),
+            DueDate = new DateOnly(2026, 10, 31), State = InvoiceState.Cancelled
+        };
+        db.StudentInvoices.Add(invoice);
+        await db.SaveChangesAsync();
+        var policy = new ReservationFinancePolicy(db);
+        Assert.False(await policy.HasPostedActivityAsync(101, 10, 11));
+
+        // A journal reference remains financial history even when state is Cancelled.
+        invoice.JournalId = 42;
+        await db.SaveChangesAsync();
+        Assert.True(await policy.HasPostedActivityAsync(101, 10, 11));
+    }
+
     [Fact]
     public async Task Draft_invoice_does_not_block_but_posted_invoice_does()
     {

@@ -9,7 +9,9 @@ namespace EduOS.Service.Services.Finance;
 /// Conservative interim gate. Existing invoices/payments do not record a canonical
 /// hostel/transport reservation reference, so any posted financial activity for the
 /// enrollment/student is treated as potentially related. Do not infer a link from
-/// invoice text or silently change posted obligations.
+/// invoice text or silently change posted obligations. Issued-but-unposted
+/// invoices also block: they represent billing commitments that must be reconciled
+/// before a no-charge reservation date/term mutation.
 /// </summary>
 public sealed class ReservationFinancePolicy : IReservationFinancePolicy
 {
@@ -26,7 +28,7 @@ public sealed class ReservationFinancePolicy : IReservationFinancePolicy
         if (await _db.StudentInvoices.AsNoTracking().AnyAsync(x =>
                 x.TenantId == tenantId && !x.IsDeleted &&
                 x.StudentEnrollmentId == studentEnrollmentId &&
-                (x.JournalId.HasValue || x.PaidAmount > 0m ||
+                (x.State == InvoiceState.Issued || x.JournalId.HasValue || x.PaidAmount > 0m ||
                  x.State == InvoiceState.PartiallyPaid || x.State == InvoiceState.Paid ||
                  x.State == InvoiceState.Refunded), cancellationToken))
             return true;
