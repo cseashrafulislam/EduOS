@@ -14,8 +14,10 @@ public sealed class StudentOptionalSubjectWorkspaceContractTests
         var js = Read("EduOS.App", "wwwroot", "js", "students", "optional-subjects.js");
         service.Should().Contain("_user.IsTenantAdmin").And.Contain("x.TenantId == tenant")
             .And.Contain("item.IsOptional").And.Contain("enrollment.AcademicBatchId");
-        api.Should().Contain("[Authorize(Roles = \"TenantAdmin\")]");
-        mvc.Should().Contain("[Authorize(Roles = \"TenantAdmin\")]");
+        api.Should().Contain("[Authorize(Roles = \"TenantAdmin,Principal,VicePrincipal,Student,Guardian,Parent\")]");
+        mvc.Should().Contain("[Authorize(Roles = \"TenantAdmin,Principal,VicePrincipal,Student,Guardian,Parent\")]");
+        service.Should().Contain("student.UserId != _user.UserId")
+            .And.Contain("guardian.UserId == _user.UserId");
         js.Should().Contain("studentEnrollmentReference").And.Contain("subjectOfferingReference")
             .And.Contain("clientRequestId:requestId").And.Contain("rowVersion:item.rowVersion")
             .And.Contain("RequestVerificationToken");
