@@ -40,7 +40,7 @@ test('route-vehicle response and table expose both metrics',()=>{
 test('route-vehicle row renders current riders separately from future reservations',()=>{
     const body={children:[],replaceChildren(){this.children=[];},append(child){this.children.push(child);}};
     const element=tag=>({tag,children:[],textContent:'',append(child){this.children.push(child);},addEventListener(){}});
-    const u={el:()=>body,closeLink(){}};
+    const u={el:()=>body,closeLink(){},today:()=>'2026-10-16'};
     vm.runInNewContext(render,{window:{transportLink:u},document:{createElement:element}});
     u.renderLinks([{campusName:'North',routeName:'R1',vehicleNumber:'BUS-1',capacity:40,
         occupiedToday:9,activeRiders:12,effectiveFrom:'2026-10-16',effectiveTo:null,isCurrent:true}]);

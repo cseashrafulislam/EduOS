@@ -11,11 +11,13 @@ const view=read('EduOS.App/Views/HostelOperations/_AllocationReadiness.cshtml');
 const partial=read('EduOS.App/Views/HostelOperations/_BedAvailability.cshtml');
 const js=read('EduOS.App/wwwroot/js/hostel-operations/bed-availability.js');
 test('canonical, tenant/campus-authorized future interval planning with room capacity',()=>{
-    for(const fragment of ['CanManage()','AllowedCampusIds(tenant)','roomIds.Contains(bed.HostelRoomId)','HostelAllocationState.Cancelled','allocation.StartDate <= toDate','allocation.EndDate.Value >= fromDate','capacity - reserved.Count','candidateCount > 1000'])
+    for(const fragment of ['CanManage()','AllowedCampusIds(tenant)','roomIds.Contains(bed.HostelRoomId)','HostelAllocationState.Cancelled','allocation.StartDate <= toDate','allocation.EndDate.Value >= fromDate','capacity - peakOccupied','PeakOccupiedBeds(','candidateCount > 1000'])
         assert.ok(service.includes(fragment),fragment);
+    assert.match(service,/var blockedBeds = bookings\?\.Select\(x => x\.BedId\)\.ToHashSet\(\)/);
+    assert.match(service,/\.Select\(x => x\.BedId\)\.Distinct\(\)\.Count\(\)/);
     assert.match(service,/pageSize is < 1 or > 100/);
     assert.match(service,/toDate.DayNumber - fromDate.DayNumber > 89/);
-    assert.match(service,/!allocation.IsDeleted && !bed.IsDeleted/);
+    assert.match(service,/!allocation\.IsDeleted && roomIds\.Contains\(bed\.HostelRoomId\)/);
     assert.doesNotMatch(dto,/StudentName|StudentCode|MonthlyRent|SecurityDeposit/);
 });
 test('authorized API, MVC view, JS, and bounded CSV share filters',()=>{

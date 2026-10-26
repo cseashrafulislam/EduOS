@@ -49,6 +49,14 @@ jobs:
       - name: Build
         run: dotnet build EduOS.slnx --configuration Release --no-restore
 
+      - name: Setup Node.js for UI contracts
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate JavaScript UI and workflow contracts
+        run: node --test EduOS.Tests/JavaScript/*.test.cjs
+
       - name: Validate payment browser JavaScript syntax
         run: |
           node --check EduOS.App/wwwroot/js/account/payment.js

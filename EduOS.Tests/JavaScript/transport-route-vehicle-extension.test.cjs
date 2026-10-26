@@ -20,6 +20,6 @@ test('route vehicle extension is wired through authorized API, transactional ser
  assert.match(render,/u\.extendLink\(x\)/);
  assert.match(js,/rowVersion:item\.rowVersion/);
  assert.match(index,/route-vehicle-extend\.js/);
- assert.match(view,/Extend an operating/);
+ assert.match(view,/extend a scheduled or operating link/);
  assert.doesNotMatch(js,/innerHTML/);
 });

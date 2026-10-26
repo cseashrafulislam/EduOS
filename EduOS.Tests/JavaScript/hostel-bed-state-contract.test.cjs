@@ -11,7 +11,7 @@ assert.match(service, /IsolationLevel.Serializable/);
 assert.match(service, /Close active allocation before deactivating bed/);
 assert.match(service, /CanManageCampusAsync\(hostel.CampusId/);
 assert.match(service, /bed.RowVersion.AsSpan\(\).SequenceEqual\(version\)/);
-assert.match(service, /reserved >= room.Capacity/);
+assert.match(service, /reservedBedSlots >= room.Capacity/);
 assert.match(service, /bed.UpdatedBy = _currentUser.UserId/);
 assert.match(api, /\[HttpPut\("beds\/\{id:long\}\/state"\)\]/);
 assert.match(api, /\[Authorize\(Roles = "TenantAdmin,Principal,HostelWarden"\)\]/);

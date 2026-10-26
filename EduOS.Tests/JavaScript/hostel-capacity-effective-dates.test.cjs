@@ -19,7 +19,8 @@ test('tenant/campus scoping, privacy and future reservation protection remain in
     assert.match(capacity, /AllowedCampusIds\(tenant\)/);
     assert.doesNotMatch(capacity, /StudentName|StudentCode|MonthlyRent|SecurityDeposit/);
     const booking = service.split('GetAvailableBedsAsync(')[1].split('GetActiveAllocationsAsync(')[0];
-    assert.match(booking, /x\.State == HostelAllocationState\.Active/);
+    assert.match(booking, /x\.State != HostelAllocationState\.Cancelled/);
+    assert.match(booking, /!x\.EndDate\.HasValue \|\| x\.EndDate\.Value >= reservationStart/);
 });
 test('inclusive effective-date boundary semantics', () => {
     const effective = (start, end, today) => start <= today && (end == null || end >= today);

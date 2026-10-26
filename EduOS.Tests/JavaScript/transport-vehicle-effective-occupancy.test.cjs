@@ -14,11 +14,12 @@ test('vehicle setup reports effective occupancy separately from active reservati
     assert.match(dto, /public int OccupiedToday/);
 });
 test('capacity and deactivation still protect future active reservations', () => {
-    assert.match(service, /request.Capacity < occupied/);
+    assert.match(service, /request.Capacity < peak/);
+    assert.match(service, /PeakReservedSeats\(bookings\.Select\(x => \(x\.StartDate, x\.EndDate\)\)/);
     assert.match(service, /!request.IsActive && \(occupied > 0 \|\| currentRoutes > 0 \|\| currentDriver\)/);
     assert.match(service, /IsolationLevel.Serializable/);
     assert.match(service, /vehicle.RowVersion.AsSpan\(\).SequenceEqual\(version\)/);
-    assert.match(js, /value < item.assignedStudents/);
+    assert.match(js, /value < item.peakReservedSeats/);
     assert.match(js, /item.assignedStudents > 0/);
 });
 test('authorized existing API and safe UI show both counts without new endpoints', () => {
