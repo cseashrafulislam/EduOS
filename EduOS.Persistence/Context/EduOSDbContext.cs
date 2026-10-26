@@ -1372,14 +1372,27 @@ public class EduOSDbContext :
         UniqueTenant<StudentTransport>(modelBuilder, nameof(StudentTransport.ClientRequestId));
         modelBuilder.Entity<StudentTransport>().HasIndex(x => new { x.TenantId, x.StudentId })
             .IsUnique().HasFilter("[EndDate] IS NULL AND [IsDeleted] = 0");
+        // Non-unique date-window indexes support SERIALIZABLE overlap and peak-seat
+        // queries across both current and historical rows. They are not exclusion
+        // constraints; service transactions must still recheck every intersecting period.
+        modelBuilder.Entity<StudentTransport>().HasIndex(x => new { x.TenantId, x.StudentId, x.StartDate, x.EndDate })
+            .HasFilter("[IsDeleted] = 0");
+        modelBuilder.Entity<StudentTransport>().HasIndex(x => new { x.TenantId, x.VehicleId, x.StartDate, x.EndDate })
+            .HasFilter("[IsDeleted] = 0");
         modelBuilder.Entity<RouteVehicleAssignment>().HasIndex(x => new { x.TenantId, x.RouteId, x.VehicleId })
             .IsUnique().HasFilter("[IsCurrent] = 1 AND [IsDeleted] = 0");
         modelBuilder.Entity<RouteVehicleAssignment>().HasIndex(x => new { x.TenantId, x.VehicleId })
             .IsUnique().HasFilter("[IsCurrent] = 1 AND [IsDeleted] = 0");
+        modelBuilder.Entity<RouteVehicleAssignment>().HasIndex(x => new { x.TenantId, x.VehicleId, x.EffectiveFrom, x.EffectiveTo })
+            .HasFilter("[IsDeleted] = 0");
         modelBuilder.Entity<VehicleDriverAssignment>().HasIndex(x => new { x.TenantId, x.VehicleId })
             .IsUnique().HasFilter("[IsCurrent] = 1 AND [IsDeleted] = 0");
         modelBuilder.Entity<VehicleDriverAssignment>().HasIndex(x => new { x.TenantId, x.TransportDriverId })
             .IsUnique().HasFilter("[IsCurrent] = 1 AND [IsDeleted] = 0");
+        modelBuilder.Entity<VehicleDriverAssignment>().HasIndex(x => new { x.TenantId, x.TransportDriverId, x.EffectiveFrom, x.EffectiveTo })
+            .HasFilter("[IsDeleted] = 0");
+        modelBuilder.Entity<VehicleDriverAssignment>().HasIndex(x => new { x.TenantId, x.VehicleId, x.EffectiveFrom, x.EffectiveTo })
+            .HasFilter("[IsDeleted] = 0");
 
         // LMS
         UniqueTenant<Course>(modelBuilder, nameof(Course.Code));

@@ -16639,6 +16639,9 @@ namespace EduOS.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("[IsCurrent] = 1 AND [IsDeleted] = 0");
 
+                    b.HasIndex("TenantId", "VehicleId", "EffectiveFrom", "EffectiveTo")
+                        .HasFilter("[IsDeleted] = 0");
+
                     b.HasIndex("TenantId", "RouteId", "VehicleId")
                         .IsUnique()
                         .HasFilter("[IsCurrent] = 1 AND [IsDeleted] = 0");
@@ -16751,6 +16754,12 @@ namespace EduOS.Persistence.Migrations
                         .HasFilter("[EndDate] IS NULL AND [IsDeleted] = 0");
 
                     b.HasIndex("TenantId", "VehicleId");
+
+                    b.HasIndex("TenantId", "StudentId", "StartDate", "EndDate")
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.HasIndex("TenantId", "VehicleId", "StartDate", "EndDate")
+                        .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("StudentTransports", t =>
                         {
@@ -16980,6 +16989,12 @@ namespace EduOS.Persistence.Migrations
                     b.HasIndex("TenantId", "VehicleId")
                         .IsUnique()
                         .HasFilter("[IsCurrent] = 1 AND [IsDeleted] = 0");
+
+                    b.HasIndex("TenantId", "VehicleId", "EffectiveFrom", "EffectiveTo")
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.HasIndex("TenantId", "TransportDriverId", "EffectiveFrom", "EffectiveTo")
+                        .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("VehicleDriverAssignments", t =>
                         {
