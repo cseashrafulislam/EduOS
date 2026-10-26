@@ -33,7 +33,7 @@ public sealed class AssessmentComponentRegisterWorkflowContractTests
     [Fact]
     public void Register_joins_canonical_scopes_and_enforces_tenant_campus_year()
     {
-        var source = Read("EduOS.Service", "Services", "Exams", "ExamWorkflowService.ComponentRegister.cs");
+        var source = Read("EduOS.Service", "Services", "Assessment", "AssessmentAdministrationService.ComponentRegister.cs");
         source.Should().Contain("component.TenantId == tenant && subject.TenantId == tenant");
         source.Should().Contain("exam.CampusId == batch.CampusId && exam.AcademicYearId == batch.AcademicYearId");
         source.Should().Contain("Take(request.PageSize)");
@@ -43,7 +43,7 @@ public sealed class AssessmentComponentRegisterWorkflowContractTests
     [Fact]
     public void Existing_write_enforces_draft_marks_weight_concurrency_and_scope()
     {
-        var source = Read("EduOS.Service", "Services", "Exams", "ExamWorkflowService.Documents.cs");
+        var source = Read("EduOS.Service", "Services", "Assessment", "AssessmentAdministrationService.Documents.cs");
         source.Should().Contain("exam.State != AssessmentState.Draft");
         source.Should().Contain("batch.CampusId != exam.CampusId");
         source.Should().Contain("Matches(old.RowVersion, request.RowVersion)");
@@ -54,14 +54,14 @@ public sealed class AssessmentComponentRegisterWorkflowContractTests
     [Fact]
     public void Api_mvc_navigation_and_browser_are_connected_and_safe()
     {
-        var api = Read("EduOS.App", "Controllers", "Api", "ExamWorkflowController.cs");
-        var mvc = Read("EduOS.App", "Controllers", "ExamOperationsController.cs");
+        var api = Read("EduOS.App", "Controllers", "Api", "AssessmentAdministrationApiController.cs");
+        var mvc = Read("EduOS.App", "Controllers", "AssessmentAdministrationController.cs");
         var menu = Read("EduOS.App", "Views", "Shared", "_Layout.cshtml");
-        var view = Read("EduOS.App", "Views", "ExamOperations", "AssessmentComponents.cshtml");
-        var js = Read("EduOS.App", "wwwroot", "js", "exams", "assessment-components.js");
+        var view = Read("EduOS.App", "Views", "AssessmentAdministration", "AssessmentComponents.cshtml");
+        var js = Read("EduOS.App", "wwwroot", "js", "assessment", "assessment-components.js");
         api.Should().Contain("[HttpGet(\"components\")]");
         mvc.Should().Contain("public IActionResult AssessmentComponents() => View()");
-        menu.Should().Contain("href=\"/ExamOperations/AssessmentComponents\"");
+        menu.Should().Contain("href=\"/AssessmentAdministration/AssessmentComponents\"");
         view.Should().Contain("@Html.AntiForgeryToken()");
         js.Should().Contain("RequestVerificationToken: token");
         js.Should().Contain("rowVersion: state.rowVersion");

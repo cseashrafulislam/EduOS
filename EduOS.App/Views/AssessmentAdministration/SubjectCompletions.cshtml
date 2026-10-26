@@ -1,0 +1,31 @@
+@{
+    ViewData["Title"] = "Subject Completion Reconciliation";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<section class="container-fluid py-4" id="subjectCompletionWorkspace">
+    @Html.AntiForgeryToken()
+    <h1 class="h4">Subject completion reconciliation</h1>
+    <p class="text-muted">Complete approved subjects after the academic year ends and all applicable published assessments are passed. This audited action unlocks subject prerequisites; one published exam alone is insufficient.</p>
+    <div id="completionNotice" class="alert d-none" role="alert" aria-live="polite"></div>
+    <form id="completionFilter" class="card card-body row g-2 mb-3">
+        <div class="col-md-5"><label class="form-label" for="completionBatch">Academic batch</label>
+            <select class="form-select" id="completionBatch" required><option value="">Loading batches…</option></select></div>
+        <div class="col-md-4"><label class="form-label" for="completionSearch">Student / roll / subject</label>
+            <input class="form-control" id="completionSearch" maxlength="100" /></div>
+        <div class="col-auto"><button type="submit" class="btn btn-primary">Search</button></div>
+        <div class="col-auto"><button type="button" class="btn btn-outline-secondary" id="completionCsv">CSV (page)</button></div>
+        <div class="col-auto"><button type="button" class="btn btn-outline-secondary" id="completionPrint">Print</button></div>
+    </form>
+    <div class="card card-body">
+        <div class="table-responsive"><table class="table table-sm table-hover">
+            <thead><tr><th>Roll</th><th>Student</th><th>Subject</th><th>State</th><th>Evidence</th><th class="completion-action">Action</th></tr></thead>
+            <tbody id="completionRows"></tbody>
+        </table></div>
+        <div class="d-flex justify-content-between"><span id="completionCount" class="small text-muted"></span>
+            <div class="d-flex gap-2"><button type="button" id="completionPrev" class="btn btn-sm btn-outline-secondary">Previous</button>
+                <button type="button" id="completionNext" class="btn btn-sm btn-outline-secondary">Next</button></div>
+        </div>
+    </div>
+</section>
+<style>@@media print { #completionFilter,#completionNotice,#completionPrev,#completionNext,.completion-action { display:none!important; } }</style>
+@section Scripts { <script src="~/js/assessment/subject-completions.js" asp-append-version="true"></script> }

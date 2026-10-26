@@ -20,7 +20,7 @@ public sealed class AssessmentScheduleRegisterWorkflowContractTests
     [Fact]
     public void Register_is_tenant_and_campus_scoped_with_bounded_pagination()
     {
-        var service = Read("EduOS.Service", "Services", "Exams", "ExamWorkflowService.ScheduleRegister.cs");
+        var service = Read("EduOS.Service", "Services", "Assessment", "AssessmentAdministrationService.ScheduleRegister.cs");
         service.Should().Contain("if (!CanPublish())");
         service.Should().Contain("schedule.TenantId == tenant && subject.TenantId == tenant");
         service.Should().Contain("exam.CampusId == batch.CampusId");
@@ -32,7 +32,7 @@ public sealed class AssessmentScheduleRegisterWorkflowContractTests
     [Fact]
     public void Save_enforces_dates_campus_room_conflicts_and_concurrency()
     {
-        var setup = Read("EduOS.Service", "Services", "Exams", "ExamWorkflowService.Setup.cs");
+        var setup = Read("EduOS.Service", "Services", "Assessment", "AssessmentAdministrationService.Setup.cs");
         setup.Should().Contain("request.AssessmentDate < exam.StartDate");
         setup.Should().Contain("batch.CampusId != exam.CampusId");
         setup.Should().Contain("Room already booked for an overlapping assessment.");
@@ -43,21 +43,21 @@ public sealed class AssessmentScheduleRegisterWorkflowContractTests
     [Fact]
     public void Api_mvc_and_navigation_use_exam_manager_roles()
     {
-        var api = Read("EduOS.App", "Controllers", "Api", "ExamWorkflowController.cs");
-        var mvc = Read("EduOS.App", "Controllers", "ExamOperationsController.cs");
+        var api = Read("EduOS.App", "Controllers", "Api", "AssessmentAdministrationApiController.cs");
+        var mvc = Read("EduOS.App", "Controllers", "AssessmentAdministrationController.cs");
         var menu = Read("EduOS.App", "Views", "Shared", "_Layout.cshtml");
         api.Should().Contain("[HttpGet(\"schedules\")]");
         api.Should().Contain("[HttpGet(\"schedules/rooms\")]");
         api.Should().Contain("[AutoValidateAntiforgeryToken]");
         mvc.Should().Contain("public IActionResult AssessmentSchedules() => View()");
-        menu.Should().Contain("href=\"/ExamOperations/AssessmentSchedules\"");
+        menu.Should().Contain("href=\"/AssessmentAdministration/AssessmentSchedules\"");
     }
 
     [Fact]
     public void Browser_uses_antiforgery_concurrency_safe_rendering_and_export()
     {
-        var js = Read("EduOS.App", "wwwroot", "js", "exams", "assessment-schedules.js");
-        var view = Read("EduOS.App", "Views", "ExamOperations", "AssessmentSchedules.cshtml");
+        var js = Read("EduOS.App", "wwwroot", "js", "assessment", "assessment-schedules.js");
+        var view = Read("EduOS.App", "Views", "AssessmentAdministration", "AssessmentSchedules.cshtml");
         js.Should().Contain("RequestVerificationToken: token");
         js.Should().Contain("rowVersion: state.rowVersion");
         js.Should().Contain("td.textContent");

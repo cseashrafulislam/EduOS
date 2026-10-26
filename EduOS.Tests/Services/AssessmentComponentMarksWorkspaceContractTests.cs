@@ -33,7 +33,7 @@ public sealed class AssessmentComponentMarksWorkspaceContractTests
     [Fact]
     public void Roster_reuses_canonical_eligibility_and_enforces_tenant()
     {
-        var source = Read("EduOS.Service", "Services", "Exams", "ExamWorkflowService.ComponentMarks.cs");
+        var source = Read("EduOS.Service", "Services", "Assessment", "AssessmentAdministrationService.ComponentMarks.cs");
         source.Should().Contain("GetMarkRosterAsync(new AssessmentMarkRosterQueryDto");
         source.Should().Contain("x.TenantId == tenant");
         source.Should().Contain("roster.IsResultPublished");
@@ -44,7 +44,7 @@ public sealed class AssessmentComponentMarksWorkspaceContractTests
     [Fact]
     public void Component_writes_block_published_and_ineligible_records()
     {
-        var source = Read("EduOS.Service", "Services", "Exams", "ExamWorkflowService.Documents.cs");
+        var source = Read("EduOS.Service", "Services", "Assessment", "AssessmentAdministrationService.Documents.cs");
         source.Should().Contain("Published component marks cannot be edited.");
         source.Should().Contain("EligibleAsync(offering.Id, batch.Id, token)");
         source.Should().Contain("batch.CampusId != exam.CampusId");
@@ -55,15 +55,15 @@ public sealed class AssessmentComponentMarksWorkspaceContractTests
     [Fact]
     public void End_to_end_api_view_menu_and_safe_browser_are_connected()
     {
-        Read("EduOS.App", "Controllers", "Api", "ExamWorkflowController.cs")
+        Read("EduOS.App", "Controllers", "Api", "AssessmentAdministrationApiController.cs")
             .Should().Contain("[HttpGet(\"component-marks/roster\")]");
-        Read("EduOS.App", "Controllers", "ExamOperationsController.cs")
+        Read("EduOS.App", "Controllers", "AssessmentAdministrationController.cs")
             .Should().Contain("public IActionResult ComponentMarks() => View()");
         Read("EduOS.App", "Views", "Shared", "_Layout.cshtml")
-            .Should().Contain("href=\"/ExamOperations/ComponentMarks\"");
-        Read("EduOS.App", "Views", "ExamOperations", "ComponentMarks.cshtml")
+            .Should().Contain("href=\"/AssessmentAdministration/ComponentMarks\"");
+        Read("EduOS.App", "Views", "AssessmentAdministration", "ComponentMarks.cshtml")
             .Should().Contain("@Html.AntiForgeryToken()");
-        var js = Read("EduOS.App", "wwwroot", "js", "exams", "component-marks.js");
+        var js = Read("EduOS.App", "wwwroot", "js", "assessment", "component-marks.js");
         js.Should().Contain("RequestVerificationToken: token");
         js.Should().Contain("td.textContent");
         js.Should().Contain("rowVersion: tr.dataset.version");

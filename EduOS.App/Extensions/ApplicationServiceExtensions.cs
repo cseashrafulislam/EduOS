@@ -7,7 +7,7 @@ using EduOS.Core.Settings;
 using EduOS.Service.Helpers;
 using EduOS.Service.Services;
 using EduOS.Service.Helpers.Payment;
-using EduOS.Service.Helpers.Storage;using EduOS.Service.Mappings;using EduOS.Service.Services.Academic;using EduOS.Service.Services.Auth;using EduOS.Service.Services.Admission;using EduOS.Service.Services.Attendance;using EduOS.Service.Services.Exams;using EduOS.Service.Services.Finance;using EduOS.Service.Services.HR;using EduOS.Service.Services.Hostel;using EduOS.Service.Services.Library;using EduOS.Service.Services.LMS;using EduOS.Service.Services.Portals;using EduOS.Service.Services.SaaS;using EduOS.Service.Services.Students;using EduOS.Service.Services.Tenants;using EduOS.Service.Services.Communication;using EduOS.Service.Services.Platform;using EduOS.Service.Services.Transport;using EduOS.Service.Services.Documents;using Microsoft.Extensions.Configuration;using Microsoft.Extensions.DependencyInjection;using Microsoft.AspNetCore.Authorization;
+using EduOS.Service.Helpers.Storage;using EduOS.Service.Mappings;using EduOS.Service.Services.Academic;using EduOS.Service.Services.Auth;using EduOS.Service.Services.Admission;using EduOS.Service.Services.Attendance;using EduOS.Service.Services.AssessmentAdministration;using EduOS.Service.Services.Finance;using EduOS.Service.Services.HR;using EduOS.Service.Services.Hostel;using EduOS.Service.Services.Library;using EduOS.Service.Services.LMS;using EduOS.Service.Services.Portals;using EduOS.Service.Services.SaaS;using EduOS.Service.Services.Students;using EduOS.Service.Services.Tenants;using EduOS.Service.Services.Communication;using EduOS.Service.Services.Platform;using EduOS.Service.Services.Transport;using EduOS.Service.Services.Documents;using Microsoft.Extensions.Configuration;using Microsoft.Extensions.DependencyInjection;using Microsoft.AspNetCore.Authorization;
 namespace EduOS.App.Extensions
 {
     public static class ApplicationServiceExtensions
@@ -55,7 +55,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<INumberSeriesService, NumberSeriesService>();
             s.AddScoped<ICustomFieldService, CustomFieldService>();
             s.AddScoped<IOnboardingService, OnboardingService>();
-            s.AddScoped<IInstitutionRegistrationService, InstitutionOnboardingService>();
+            s.AddScoped<IInstitutionRegistrationService, InstitutionRegistrationService>();
             s.AddScoped<IInstitutionFoundationService, InstitutionFoundationService>();
             s.AddScoped<IInstitutionProfileWizardService, InstitutionProfileWizardService>();
             s.AddScoped<IDashboardService, DashboardService>();
@@ -92,7 +92,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<IAcademicInstructionService, AcademicInstructionService>();
             s.AddScoped<IStudentAttendanceService, StudentAttendanceService>();
             s.AddScoped<IStudentLeaveService, StudentLeaveService>();
-            s.AddScoped<IAssessmentAdministrationService, ExamWorkflowService>();
+            s.AddScoped<IAssessmentAdministrationService, AssessmentAdministrationService>();
             s.AddScoped<IFeeBillingService, FeeBillingService>();
             s.AddScoped<ISelfServicePortalService, SelfServicePortalService>();
             s.AddScoped<IEmployeeSelfServiceService, EmployeeSelfServiceService>();

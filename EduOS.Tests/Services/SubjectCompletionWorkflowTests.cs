@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using EduOS.Core.DTOs.Assessment;
-using EduOS.Service.Services.Exams;
+using EduOS.Service.Services.AssessmentAdministration;
 using FluentAssertions;
 using Xunit;
 namespace EduOS.Tests.Services;
@@ -46,7 +46,7 @@ public sealed class SubjectCompletionWorkflowTests
     [Fact]
     public void Write_is_tenant_scoped_audited_idempotent_and_concurrency_checked()
     {
-        var service = Read("EduOS.Service","Services","Exams","ExamWorkflowService.SubjectCompletions.cs");
+        var service = Read("EduOS.Service","Services", "Assessment","AssessmentAdministrationService.SubjectCompletions.cs");
         service.Should().Contain("registration.TenantId == tenant");
         service.Should().Contain("ResultPublicationState.Published");
         service.Should().Contain("SubjectCompletionPolicy.BlockReason");
@@ -55,26 +55,26 @@ public sealed class SubjectCompletionWorkflowTests
         service.Should().Contain("RecordAuditAsync");
         service.Should().Contain("GetSubjectCompletionBatchesAsync");
         service.Should().Contain("year.EndDate < today");
-        Read("EduOS.Service","Services","Exams","ExamWorkflowService.Setup.cs")
+        Read("EduOS.Service","Services", "Assessment","AssessmentAdministrationService.Setup.cs")
             .Should().Contain("Completed subject registrations prevent assessment changes.");
-        Read("EduOS.Service","Services","Exams","ExamWorkflowService.Documents.cs")
+        Read("EduOS.Service","Services", "Assessment","AssessmentAdministrationService.Documents.cs")
             .Should().Contain("Completed subject registrations prevent publication withdrawal.");
     }
     [Fact]
     public void End_to_end_api_view_js_and_menu_are_wired()
     {
-        Read("EduOS.App","Controllers","Api","ExamWorkflowController.cs")
+        Read("EduOS.App","Controllers","Api","AssessmentAdministrationApiController.cs")
             .Should().Contain("[HttpGet(\"subject-completions\")]")
             .And.Contain("[HttpPost(\"subject-completions/{id:long}/complete\")]");
-        Read("EduOS.App","Controllers","ExamOperationsController.cs")
+        Read("EduOS.App","Controllers","AssessmentAdministrationController.cs")
             .Should().Contain("public IActionResult SubjectCompletions() => View()");
         Read("EduOS.App","Views","Shared","_Layout.cshtml")
-            .Should().Contain("href=\"/ExamOperations/SubjectCompletions\"");
-        Read("EduOS.App","Views","ExamOperations","SubjectCompletions.cshtml")
+            .Should().Contain("href=\"/AssessmentAdministration/SubjectCompletions\"");
+        Read("EduOS.App","Views","AssessmentAdministration","SubjectCompletions.cshtml")
             .Should().Contain("@Html.AntiForgeryToken()");
-        var js = Read("EduOS.App","wwwroot","js","exams","subject-completions.js");
+        var js = Read("EduOS.App","wwwroot","js","assessment","subject-completions.js");
         js.Should().Contain("RequestVerificationToken: token");
-        js.Should().Contain("/api/exams/workflow/subject-completions/batches");
+        js.Should().Contain("/api/assessment-administration/subject-completions/batches");
         js.Should().Contain("td.textContent");
         js.Should().Contain("rowVersion: row.rowVersion");
         js.Should().Contain("URL.createObjectURL");

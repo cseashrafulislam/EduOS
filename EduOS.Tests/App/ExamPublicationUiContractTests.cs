@@ -12,7 +12,7 @@ public sealed class ExamPublicationUiContractTests
     [InlineData("ExamController")]
     public void Exam_publication_view_exposes_all_authorized_roles(string role)
     {
-        var view = ReadFile("EduOS.App", "Views", "ExamOperations", "Index.cshtml");
+        var view = ReadFile("EduOS.App", "Views", "AssessmentAdministration", "Index.cshtml");
         view.Should().Contain($"User.IsInRole(\"{role}\")");
         view.Should().Contain("data-can-publish");
     }

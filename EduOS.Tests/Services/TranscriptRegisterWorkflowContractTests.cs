@@ -20,8 +20,8 @@ public sealed class TranscriptRegisterWorkflowContractTests
     [Fact]
     public void Candidate_and_issue_use_same_released_published_result_gate()
     {
-        var service = Read("EduOS.Service", "Services", "Exams", "ExamWorkflowService.TranscriptRegister.cs");
-        var issue = Read("EduOS.Service", "Services", "Exams", "ExamWorkflowService.Documents.cs");
+        var service = Read("EduOS.Service", "Services", "Assessment", "AssessmentAdministrationService.TranscriptRegister.cs");
+        var issue = Read("EduOS.Service", "Services", "Assessment", "AssessmentAdministrationService.Documents.cs");
         service.Should().Contain("private IQueryable<long> EligibleTranscriptStudentIds(long tenant)");
         service.Should().Contain("publication.State == ResultPublicationState.Published");
         service.Should().Contain("publication.VisibleToStudent");
@@ -35,7 +35,7 @@ public sealed class TranscriptRegisterWorkflowContractTests
     [Fact]
     public void Register_search_is_tenant_scoped_bounded_and_returns_concurrency_token()
     {
-        var source = Read("EduOS.Service", "Services", "Exams", "ExamWorkflowService.TranscriptRegister.cs");
+        var source = Read("EduOS.Service", "Services", "Assessment", "AssessmentAdministrationService.TranscriptRegister.cs");
         source.Should().Contain("if (!CanPublish())");
         source.Should().Contain("issue.TenantId == tenant && !issue.IsDeleted");
         source.Should().Contain("student.TenantId");
@@ -48,21 +48,21 @@ public sealed class TranscriptRegisterWorkflowContractTests
     [Fact]
     public void Controller_and_navigation_restrict_transcript_management_to_authorized_roles()
     {
-        var controller = Read("EduOS.App", "Controllers", "Api", "ExamWorkflowController.cs");
-        var mvc = Read("EduOS.App", "Controllers", "ExamOperationsController.cs");
+        var controller = Read("EduOS.App", "Controllers", "Api", "AssessmentAdministrationApiController.cs");
+        var mvc = Read("EduOS.App", "Controllers", "AssessmentAdministrationController.cs");
         var nav = Read("EduOS.App", "Views", "Shared", "_Layout.cshtml");
         controller.Should().Contain("[HttpGet(\"transcripts/candidates\")]");
         controller.Should().Contain("[HttpGet(\"transcripts\")]");
         controller.Should().Contain("[AutoValidateAntiforgeryToken]");
         mvc.Should().Contain("public IActionResult Transcripts() => View()");
-        nav.Should().Contain("href=\"/ExamOperations/Transcripts\"");
+        nav.Should().Contain("href=\"/AssessmentAdministration/Transcripts\"");
     }
 
     [Fact]
     public void Browser_workflow_supports_csrf_idempotency_revoke_and_safe_csv()
     {
-        var script = Read("EduOS.App", "wwwroot", "js", "exams", "transcripts.js");
-        var view = Read("EduOS.App", "Views", "ExamOperations", "Transcripts.cshtml");
+        var script = Read("EduOS.App", "wwwroot", "js", "assessment", "transcripts.js");
+        var view = Read("EduOS.App", "Views", "AssessmentAdministration", "Transcripts.cshtml");
         script.Should().Contain("RequestVerificationToken: token");
         script.Should().Contain("state.requestId ||= crypto.randomUUID()");
         script.Should().Contain("rowVersion: row.rowVersion");

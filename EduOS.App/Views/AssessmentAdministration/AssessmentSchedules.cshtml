@@ -1,0 +1,64 @@
+@{
+    ViewData["Title"] = "Assessment Schedule Register";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<section class="container-fluid py-4" id="assessmentScheduleWorkspace">
+    @Html.AntiForgeryToken()
+    <header class="d-flex justify-content-between flex-wrap gap-2 mb-3">
+        <div><h1 class="h4 mb-1">Assessment schedules</h1>
+            <p class="text-muted mb-0">Manage exam dates and room bookings. Published or closed assessments cannot be rescheduled.</p></div>
+        <a asp-controller="AssessmentAdministration" asp-action="Index" class="btn btn-outline-secondary">Marks &amp; results</a>
+    </header>
+    <div id="scheduleNotice" class="alert d-none" role="alert" aria-live="polite"></div>
+    <div class="card mb-3"><div class="card-body">
+        <form id="scheduleForm">
+            <h2 class="h6" id="scheduleFormTitle">New schedule</h2>
+            <div class="row g-3">
+                <div class="col-lg-6"><label for="scheduleSubject" class="form-label">Assessment / Batch / Subject</label>
+                    <select id="scheduleSubject" class="form-select" required><option value="">Loading available subjects…</option></select></div>
+                <div class="col-lg-3"><label for="scheduleDate" class="form-label">Exam date</label>
+                    <input id="scheduleDate" class="form-control" type="date" required /></div>
+                <div class="col-lg-3"><label for="scheduleRoom" class="form-label">Room (optional)</label>
+                    <select id="scheduleRoom" class="form-select"><option value="">No room assigned</option></select></div>
+                <div class="col-md-3"><label for="scheduleStart" class="form-label">Start time</label>
+                    <input id="scheduleStart" type="time" class="form-control" /></div>
+                <div class="col-md-3"><label for="scheduleEnd" class="form-label">End time</label>
+                    <input id="scheduleEnd" type="time" class="form-control" /></div>
+                <div class="col-md-6"><label for="scheduleInstructions" class="form-label">Instructions</label>
+                    <input id="scheduleInstructions" class="form-control" maxlength="1000" /></div>
+            </div>
+            <div class="d-flex gap-2 mt-3">
+                <button id="scheduleSave" class="btn btn-primary" type="submit">Save schedule</button>
+                <button id="scheduleClear" class="btn btn-outline-secondary" type="button">Cancel edit</button>
+            </div>
+        </form>
+    </div></div>
+    <div class="card"><div class="card-body">
+        <h2 class="h6">Schedule register</h2>
+        <div class="row g-2 align-items-end mb-3">
+            <div class="col-md-3"><label for="scheduleFrom" class="form-label">From date</label>
+                <input id="scheduleFrom" type="date" class="form-control" /></div>
+            <div class="col-md-3"><label for="scheduleTo" class="form-label">To date</label>
+                <input id="scheduleTo" type="date" class="form-control" /></div>
+            <div class="col-auto"><button id="scheduleSearch" type="button" class="btn btn-outline-primary">Search</button></div>
+            <div class="col-auto"><button id="scheduleCsv" type="button" class="btn btn-outline-secondary">CSV (current page)</button></div>
+            <div class="col-auto"><button id="schedulePrint" type="button" class="btn btn-outline-secondary">Print</button></div>
+        </div>
+        <div class="table-responsive"><table class="table table-sm table-hover align-middle">
+            <thead><tr><th>Date</th><th>Time</th><th>Assessment</th><th>Batch</th><th>Subject</th><th>Room</th><th>Instructions</th><th class="schedule-action">Action</th></tr></thead>
+            <tbody id="scheduleRows"></tbody>
+        </table></div>
+        <div class="d-flex justify-content-between align-items-center">
+            <span id="scheduleCount" class="text-muted small"></span>
+            <div class="d-flex gap-2"><button id="schedulePrev" type="button" class="btn btn-sm btn-outline-secondary">Previous</button>
+                <button id="scheduleNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button></div>
+        </div>
+    </div></div>
+</section>
+<style>
+@@media print {
+    #scheduleForm, #scheduleSearch, #scheduleCsv, #schedulePrint, #scheduleFrom,
+    #scheduleTo, #schedulePrev, #scheduleNext, #scheduleNotice, .schedule-action { display: none !important; }
+}
+</style>
+@section Scripts { <script src="~/js/assessment/assessment-schedules.js" asp-append-version="true"></script> }

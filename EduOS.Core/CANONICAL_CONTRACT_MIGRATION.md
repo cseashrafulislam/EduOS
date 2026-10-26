@@ -60,7 +60,7 @@ Determine whether an existing database column contains these **old wizard values
 
 - Hostel/Transport read/write DTO alias subclasses: use `StudentHostelAllocationDto`, `AllocateStudentHostelRequestDto`, `RouteDto`, `VehicleDto` and their canonical request DTOs.
 - Old attendance `ClassId`/`SectionId` roster and string status contract: use `AcademicBatchId`, `AttendanceSessionId`, `AttendanceState` and a single attendance register contract.
-- Old `IExamWorkflowService`: use `IAssessmentAdministrationService` with `Assessment` workflow read models.
+- Old `IAssessmentAdministrationService`: use `IAssessmentAdministrationService` with `Assessment` workflow read models.
 - Upload transport `IFormFile`: map web-layer uploads to `PrivateFileUploadDto` only at the boundary. Validate and stream safely, then authorize storage and downloads.
 - Redundant tenant-profile and OnboardingStep contracts: use `TenantDto`, `OnboardingStage`, domain setting and communication administration services.
 

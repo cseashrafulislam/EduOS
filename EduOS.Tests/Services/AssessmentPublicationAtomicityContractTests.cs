@@ -8,7 +8,7 @@ public sealed class AssessmentPublicationAtomicityContractTests
     [Fact]
     public void Publication_validates_entire_roster_before_any_publication_write()
     {
-        var source = ReadRepositoryFile("EduOS.Service", "Services", "Exams", "ExamWorkflowService.cs");
+        var source = ReadRepositoryFile("EduOS.Service", "Services", "Assessment", "AssessmentAdministrationService.cs");
         var start = source.IndexOf("public async Task<ApiResponse<ResultPublicationDto>> PublishResultAsync", StringComparison.Ordinal);
         var end = source.IndexOf("private async Task<(AssessmentResultSheetDto? Sheet, string? Error)> CalculateAsync", start, StringComparison.Ordinal);
         start.Should().BeGreaterThan(-1);

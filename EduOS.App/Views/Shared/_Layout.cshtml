@@ -241,7 +241,7 @@
                         </a>
                     }
                 }
-                <a class="nav-link @ActiveFor("/ExamOperations")" href="/ExamOperations/Index">
+                <a class="nav-link @ActiveFor("/AssessmentAdministration")" href="/AssessmentAdministration/Index">
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
                     <span>Exam Marks &amp; Results</span>
                 </a>
@@ -249,7 +249,7 @@
                      User?.IsInRole("VicePrincipal") == true || User?.IsInRole("ExamController") == true ||
                      User?.IsInRole("Teacher") == true)
                 {
-                    <a class="nav-link @ActiveFor("/ExamOperations/ComponentMarks")" href="/ExamOperations/ComponentMarks">
+                    <a class="nav-link @ActiveFor("/AssessmentAdministration/ComponentMarks")" href="/AssessmentAdministration/ComponentMarks">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
                         <span>Component Marks Register</span>
                     </a>
@@ -257,31 +257,31 @@
                 @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
                      User?.IsInRole("VicePrincipal") == true || User?.IsInRole("ExamController") == true)
                 {
-                    <a class="nav-link @ActiveFor("/ExamOperations/SubjectCompletions")" href="/ExamOperations/SubjectCompletions">
+                    <a class="nav-link @ActiveFor("/AssessmentAdministration/SubjectCompletions")" href="/AssessmentAdministration/SubjectCompletions">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
                         <span>Subject Completion Register</span>
                     </a>
-                    <a class="nav-link @ActiveFor("/ExamOperations/AssessmentComponents")" href="/ExamOperations/AssessmentComponents">
+                    <a class="nav-link @ActiveFor("/AssessmentAdministration/AssessmentComponents")" href="/AssessmentAdministration/AssessmentComponents">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
                         <span>Assessment Components</span>
                     </a>
-                    <a class="nav-link @ActiveFor("/ExamOperations/AssessmentSchedules")" href="/ExamOperations/AssessmentSchedules">
+                    <a class="nav-link @ActiveFor("/AssessmentAdministration/AssessmentSchedules")" href="/AssessmentAdministration/AssessmentSchedules">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#calendar" /></svg>
                         <span>Assessment Schedules</span>
                     </a>
-                    <a class="nav-link @ActiveFor("/ExamOperations/GradeSchemes")" href="/ExamOperations/GradeSchemes">
+                    <a class="nav-link @ActiveFor("/AssessmentAdministration/GradeSchemes")" href="/AssessmentAdministration/GradeSchemes">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
                         <span>Grade Schemes</span>
                     </a>
-                    <a class="nav-link @ActiveFor("/ExamOperations/CertificateTemplates")" href="/ExamOperations/CertificateTemplates">
+                    <a class="nav-link @ActiveFor("/AssessmentAdministration/CertificateTemplates")" href="/AssessmentAdministration/CertificateTemplates">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
                         <span>Certificate Templates</span>
                     </a>
-                    <a class="nav-link @ActiveFor("/ExamOperations/Certificates")" href="/ExamOperations/Certificates">
+                    <a class="nav-link @ActiveFor("/AssessmentAdministration/Certificates")" href="/AssessmentAdministration/Certificates">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
                         <span>Certificate Issue Register</span>
                     </a>
-                    <a class="nav-link @ActiveFor("/ExamOperations/Transcripts")" href="/ExamOperations/Transcripts">
+                    <a class="nav-link @ActiveFor("/AssessmentAdministration/Transcripts")" href="/AssessmentAdministration/Transcripts">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
                         <span>Transcript Issue Register</span>
                     </a>
