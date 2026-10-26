@@ -359,6 +359,13 @@ public sealed partial class TransportService : ITransportService
             _logger.LogWarning(ex, "SQL Server transport assignment serialization conflict for tenant {TenantId}", tenant);
             return Error("Transport assignment conflicts with another update.", 409);
         }
+        catch (InvalidOperationException ex) when (HasSqlSerializationConflict(ex))
+        {
+            // EF Core can wrap SQL Server 1205 in an execution-strategy
+            // InvalidOperationException even without retries enabled.
+            _logger.LogWarning(ex, "Transport assignment deadlock for tenant {TenantId}", tenant);
+            return Error("Transport assignment conflicts with another update.", 409);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Transport assignment failed for tenant {TenantId}", tenant);
@@ -500,6 +507,14 @@ public sealed partial class TransportService : ITransportService
     private bool CanRead() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0;
     private bool CanManage() => CanRead() && (_currentUser.IsTenantAdmin ||
         _currentUser.IsInRole("Principal") || _currentUser.IsInRole("TransportManager"));
+    private static bool HasSqlSerializationConflict(Exception exception)
+    {
+        for (Exception? cause = exception; cause != null; cause = cause.InnerException)
+            if (cause is Microsoft.Data.SqlClient.SqlException { Number: 1205 or 1222 or 3960 })
+                return true;
+        return false;
+    }
+
     private static bool TryDecodeVersion(string? supplied, out byte[] version)
     {
         version = Array.Empty<byte>();
