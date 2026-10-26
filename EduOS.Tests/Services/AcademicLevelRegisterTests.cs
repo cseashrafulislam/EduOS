@@ -24,6 +24,12 @@ public sealed class AcademicLevelRegisterTests
     public async Task Level_register_is_tenant_scoped_paged_and_includes_inactive()
     {
         var options = Options();
+        await using (var foreign = Context(options, 502))
+        {
+            foreign.Add(new AcademicLevel { TenantId = 502, AcademicProgramId = 999,
+                Name = "Foreign", Code = "FOREIGN", LevelNo = 10, RowVersion = Version.ToArray() });
+            await foreign.SaveChangesAsync();
+        }
         await using var db = Context(options, 501);
         var programme = new AcademicProgram { TenantId = 501, Name = "Secondary", Code = "SEC", IsActive = true };
         db.Add(programme); await db.SaveChangesAsync();
@@ -31,9 +37,7 @@ public sealed class AcademicLevelRegisterTests
             new AcademicLevel { TenantId = 501, AcademicProgramId = programme.Id, Name = "Grade 8",
                 Code = "G8", LevelNo = 8, IsActive = false, RowVersion = Version.ToArray() },
             new AcademicLevel { TenantId = 501, AcademicProgramId = programme.Id, Name = "Grade 9",
-                Code = "G9", LevelNo = 9, RowVersion = Version.ToArray() },
-            new AcademicLevel { TenantId = 502, AcademicProgramId = programme.Id, Name = "Foreign",
-                Code = "FOREIGN", LevelNo = 10, RowVersion = Version.ToArray() });
+                Code = "G9", LevelNo = 9, RowVersion = Version.ToArray() });
         await db.SaveChangesAsync();
         var sut = Service(db);
         var first = await sut.GetLevelsAsync("Grade", programme.Id, 1, 1);
