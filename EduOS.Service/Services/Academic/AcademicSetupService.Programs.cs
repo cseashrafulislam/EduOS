@@ -46,7 +46,7 @@ public sealed partial class AcademicSetupService
         return ApiResponse<PagedResult<AcademicProgramDto>>.SuccessResponse(
             new PagedResult<AcademicProgramDto>
             {
-                Page = page, PageSize = pageSize, TotalCount = count, Items = mapped
+                Page = page, PageSize = pageSize, TotalCount = count, Items = mapped.ToList()
             });
     }
 
