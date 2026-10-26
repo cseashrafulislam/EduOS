@@ -1,3 +1,4 @@
+using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.System;
 using EduOS.Core.Entities.Transport;
@@ -187,6 +188,134 @@ public sealed class SqlServerTransportIdentityIntegrationTests
         await first.SaveChangesAsync();
         b.Capacity = 27;
         await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => second.SaveChangesAsync());
+    }
+
+    [Fact]
+    public async Task Route_vehicle_assignment_has_sql_rowversion_and_rejects_a_second_current_vehicle_link()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
+        var suffix = Guid.NewGuid().ToString("N")[..12];
+        long tenantId, linkId, vehicleId, alternateRouteId;
+        await using (var seed = new EduOSDbContext(options))
+        {
+            var tenant = new Tenant { Code = "CI-RV-" + suffix, Name = "Route/vehicle concurrency CI",
+                Email = "rv-" + suffix + "@example.test", State = TenantState.Active };
+            seed.Tenants.Add(tenant);
+            await seed.SaveChangesAsync();
+            tenantId = tenant.Id;
+            using (seed.BeginSystemTenantScope(tenantId))
+            {
+                var campus = new Campus { TenantId = tenantId, Name = "Transport test campus",
+                    Code = "RV-C", IsActive = true };
+                seed.Campuses.Add(campus);
+                await seed.SaveChangesAsync();
+                var firstRoute = new Route { TenantId = tenantId, CampusId = campus.Id,
+                    Name = "Route one", Code = "RV-1", IsActive = true };
+                var alternateRoute = new Route { TenantId = tenantId, CampusId = campus.Id,
+                    Name = "Route two", Code = "RV-2", IsActive = true };
+                var vehicle = new Vehicle { TenantId = tenantId, CampusId = campus.Id,
+                    VehicleNumber = "CI-RV-BUS-" + suffix, Capacity = 20, IsActive = true };
+                seed.AddRange(firstRoute, alternateRoute, vehicle);
+                await seed.SaveChangesAsync();
+                alternateRouteId = alternateRoute.Id;
+                vehicleId = vehicle.Id;
+                var link = new RouteVehicleAssignment { TenantId = tenantId, RouteId = firstRoute.Id,
+                    VehicleId = vehicleId, EffectiveFrom = new DateOnly(2027, 1, 10),
+                    EffectiveTo = new DateOnly(2027, 1, 20), IsCurrent = true };
+                seed.RouteVehicleAssignments.Add(link);
+                await seed.SaveChangesAsync();
+                linkId = link.Id;
+                Assert.Equal(8, link.RowVersion.Length);
+            }
+        }
+        await using var first = ScopedContext(options, tenantId);
+        await using var second = ScopedContext(options, tenantId);
+        var a = await first.RouteVehicleAssignments.SingleAsync(x => x.Id == linkId);
+        var b = await second.RouteVehicleAssignments.SingleAsync(x => x.Id == linkId);
+        a.EffectiveTo = new DateOnly(2027, 1, 25);
+        await first.SaveChangesAsync();
+        b.EffectiveTo = new DateOnly(2027, 1, 26);
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => second.SaveChangesAsync());
+
+        // The deployed filtered index deliberately reserves at most one current
+        // route link per vehicle; a future non-overlapping link must not bypass it.
+        await using var competitor = ScopedContext(options, tenantId);
+        competitor.RouteVehicleAssignments.Add(new RouteVehicleAssignment
+        {
+            TenantId = tenantId, RouteId = alternateRouteId, VehicleId = vehicleId,
+            EffectiveFrom = new DateOnly(2027, 2, 1), EffectiveTo = new DateOnly(2027, 2, 10),
+            IsCurrent = true
+        });
+        await Assert.ThrowsAsync<DbUpdateException>(() => competitor.SaveChangesAsync());
+        await using var verify = ScopedContext(options, tenantId);
+        Assert.Equal(new DateOnly(2027, 1, 25), await verify.RouteVehicleAssignments
+            .Where(x => x.Id == linkId).Select(x => x.EffectiveTo).SingleAsync());
+    }
+
+    [Fact]
+    public async Task Driver_assignment_has_sql_rowversion_and_prevents_a_second_current_driver_link()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
+        var suffix = Guid.NewGuid().ToString("N")[..12];
+        long tenantId, linkId, driverId, alternateVehicleId;
+        await using (var seed = new EduOSDbContext(options))
+        {
+            var tenant = new Tenant { Code = "CI-DL-" + suffix, Name = "Driver assignment concurrency CI",
+                Email = "dl-" + suffix + "@example.test", State = TenantState.Active };
+            seed.Tenants.Add(tenant);
+            await seed.SaveChangesAsync();
+            tenantId = tenant.Id;
+            using (seed.BeginSystemTenantScope(tenantId))
+            {
+                var campus = new Campus { TenantId = tenantId, Code = "DL-C",
+                    Name = "Driver campus", IsActive = true };
+                seed.Campuses.Add(campus);
+                await seed.SaveChangesAsync();
+                var firstVehicle = new Vehicle { TenantId = tenantId, CampusId = campus.Id,
+                    VehicleNumber = "CI-DL-ONE-" + suffix, Capacity = 30, IsActive = true };
+                var otherVehicle = new Vehicle { TenantId = tenantId, CampusId = campus.Id,
+                    VehicleNumber = "CI-DL-TWO-" + suffix, Capacity = 30, IsActive = true };
+                var driver = new TransportDriver { TenantId = tenantId, FullName = "Driver CI",
+                    LicenseNumber = "CI-DL-LIC-" + suffix, LicenseExpiresOn = new DateOnly(2028, 1, 1),
+                    IsActive = true };
+                seed.AddRange(firstVehicle, otherVehicle, driver);
+                await seed.SaveChangesAsync();
+                driverId = driver.Id;
+                alternateVehicleId = otherVehicle.Id;
+                var link = new VehicleDriverAssignment { TenantId = tenantId,
+                    VehicleId = firstVehicle.Id, TransportDriverId = driverId,
+                    EffectiveFrom = new DateOnly(2027, 1, 10),
+                    EffectiveTo = new DateOnly(2027, 1, 20), IsCurrent = true };
+                seed.VehicleDriverAssignments.Add(link);
+                await seed.SaveChangesAsync();
+                linkId = link.Id;
+                Assert.Equal(8, link.RowVersion.Length);
+            }
+        }
+        await using var first = ScopedContext(options, tenantId);
+        await using var second = ScopedContext(options, tenantId);
+        var a = await first.VehicleDriverAssignments.SingleAsync(x => x.Id == linkId);
+        var b = await second.VehicleDriverAssignments.SingleAsync(x => x.Id == linkId);
+        a.EffectiveTo = new DateOnly(2027, 1, 25);
+        await first.SaveChangesAsync();
+        b.EffectiveTo = new DateOnly(2027, 1, 26);
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => second.SaveChangesAsync());
+
+        await using var competitor = ScopedContext(options, tenantId);
+        competitor.VehicleDriverAssignments.Add(new VehicleDriverAssignment
+        {
+            TenantId = tenantId, VehicleId = alternateVehicleId, TransportDriverId = driverId,
+            EffectiveFrom = new DateOnly(2027, 2, 1), EffectiveTo = new DateOnly(2027, 2, 10),
+            IsCurrent = true
+        });
+        await Assert.ThrowsAsync<DbUpdateException>(() => competitor.SaveChangesAsync());
+        await using var verify = ScopedContext(options, tenantId);
+        Assert.Equal(new DateOnly(2027, 1, 25), await verify.VehicleDriverAssignments
+            .Where(x => x.Id == linkId).Select(x => x.EffectiveTo).SingleAsync());
     }
 
     private static EduOSDbContext ScopedContext(DbContextOptions<EduOSDbContext> options, long tenant)
