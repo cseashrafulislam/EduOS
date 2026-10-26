@@ -16811,7 +16811,7 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId", "NormalizedLicenseNumber")
                         .IsUnique()
-                        .HasFilter("[NormalizedLicenseNumber] IS NOT NULL AND [IsDeleted] = 0");
+                        .HasFilter("[LicenseNumber] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.ToTable("TransportDrivers");
                 });

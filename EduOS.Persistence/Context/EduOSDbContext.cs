@@ -1355,7 +1355,7 @@ public class EduOSDbContext :
             .HasMaxLength(100)
             .HasComputedColumnSql("UPPER(LTRIM(RTRIM([LicenseNumber])))", stored: true);
         modelBuilder.Entity<TransportDriver>().HasIndex(nameof(TransportDriver.TenantId), "NormalizedLicenseNumber")
-            .IsUnique().HasFilter("[NormalizedLicenseNumber] IS NOT NULL AND [IsDeleted] = 0");
+            .IsUnique().HasFilter("[LicenseNumber] IS NOT NULL AND [IsDeleted] = 0");
         UniqueTenant<StudentTransport>(modelBuilder, nameof(StudentTransport.ClientRequestId));
         modelBuilder.Entity<StudentTransport>().HasIndex(x => new { x.TenantId, x.StudentId })
             .IsUnique().HasFilter("[EndDate] IS NULL AND [IsDeleted] = 0");

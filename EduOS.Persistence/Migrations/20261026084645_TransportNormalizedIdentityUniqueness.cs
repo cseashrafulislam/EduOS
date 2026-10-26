@@ -68,7 +68,7 @@ IF EXISTS (
                 table: "TransportDrivers",
                 columns: new[] { "TenantId", "NormalizedLicenseNumber" },
                 unique: true,
-                filter: "[NormalizedLicenseNumber] IS NOT NULL AND [IsDeleted] = 0");
+                filter: "[LicenseNumber] IS NOT NULL AND [IsDeleted] = 0");
         }
 
         /// <inheritdoc />

@@ -142,6 +142,12 @@ public sealed class SqlServerTransportIdentityIntegrationTests
             FullName = "Replacement Driver", LicenseNumber = licenseNumber });
         await db.SaveChangesAsync();
 
+        // Unlicensed drivers must not collide on the computed NULL index key.
+        db.TransportDrivers.AddRange(
+            new TransportDriver { TenantId = tenant1, FullName = "Unlicensed Driver One" },
+            new TransportDriver { TenantId = tenant1, FullName = "Unlicensed Driver Two" });
+        await db.SaveChangesAsync();
+
         await using var other = ScopedContext(options, tenant2);
         other.Vehicles.Add(new Vehicle { TenantId = tenant2, VehicleNumber = vehicleNumber, Capacity = 20 });
         other.TransportDrivers.Add(new TransportDriver { TenantId = tenant2,
