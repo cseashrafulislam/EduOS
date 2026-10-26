@@ -143,7 +143,109 @@ public sealed class HostelCampusSecurityTests
             EndDate = DateOnly.FromDateTime(DateTime.UtcNow), RowVersion = Convert.ToBase64String(allocation.RowVersion)
         });
         close.StatusCode.Should().Be(403);
+        var reschedule = await service.RescheduleUpcomingAllocationStartAsync(allocation.Id,
+            new RescheduleUpcomingHostelStartRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), StartDate = DateOnly.FromDateTime(DateTime.Today.AddDays(10)),
+                RowVersion = Convert.ToBase64String(allocation.RowVersion)
+            });
+        reschedule.StatusCode.Should().Be(403);
         (await db.Set<StudentHostelAllocation>().SingleAsync()).State.Should().Be(HostelAllocationState.Active);
+    }
+
+    [Fact]
+    public async Task No_charge_start_reschedule_is_durable_and_chargeable_stays_require_finance()
+    {
+        var options = new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("hostel-prearrival-receipts-" + Guid.NewGuid().ToString("N")).Options;
+        var http = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity([
+                new Claim(ClaimTypes.NameIdentifier, "7"), new Claim(ClaimTypes.Role, "HostelWarden"),
+                new Claim("TenantId", "101")
+            ], "TestAuthentication"))
+        };
+        http.Items["TenantId"] = 101L;
+        await using var db = new EduOSDbContext(options, new HttpContextAccessor { HttpContext = http });
+        var today = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
+        var campus = new Campus { TenantId = 101, Name = "Authorized campus", Code = "HC" };
+        db.Campuses.Add(campus);
+        await db.SaveChangesAsync();
+        var hostel = new Hostel { TenantId = 101, CampusId = campus.Id, Name = "Hostel", Code = "H" };
+        var grant = new UserCampusAccess { TenantId = 101, CampusId = campus.Id, UserId = 7 };
+        var student = new Student { TenantId = 101, PersonId = 1,
+            FullName = "Authorized student", StudentCode = "HC-ST", StatusCode = "Active" };
+        db.AddRange(hostel, grant, student);
+        await db.SaveChangesAsync();
+        var room = new HostelRoom { TenantId = 101, HostelId = hostel.Id, RoomNumber = "R1", Capacity = 1 };
+        var enrollment = new StudentEnrollment
+        {
+            TenantId = 101, StudentId = student.Id, CampusId = campus.Id,
+            ClientRequestId = Guid.NewGuid(), IsCurrent = true, State = EnrollmentState.Active,
+            AcademicYearId = 1, AcademicProgramId = 1, AcademicLevelId = 1,
+            AcademicBatchId = 1, AcademicCurriculumId = 1, RollNo = "1"
+        };
+        db.AddRange(room, enrollment);
+        await db.SaveChangesAsync();
+        var bed = new HostelBed { TenantId = 101, HostelRoomId = room.Id, BedNumber = "A" };
+        db.HostelBeds.Add(bed);
+        await db.SaveChangesAsync();
+        var allocation = new StudentHostelAllocation
+        {
+            TenantId = 101, ClientRequestId = Guid.NewGuid(), StudentId = student.Id,
+            StudentEnrollmentId = enrollment.Id, HostelBedId = bed.Id,
+            StartDate = today.AddDays(30), EndDate = today.AddDays(100),
+            State = HostelAllocationState.Active, RowVersion = [1, 2, 3, 4, 5, 6, 7, 8]
+        };
+        db.StudentHostelAllocations.Add(allocation);
+        await db.SaveChangesAsync();
+        var service = CreateService(db);
+        var version = Convert.ToBase64String(allocation.RowVersion);
+        var key = Guid.NewGuid();
+        var request = new RescheduleUpcomingHostelStartRequestDto
+        {
+            ClientRequestId = key, StartDate = today.AddDays(20), RowVersion = version
+        };
+        var first = await service.RescheduleUpcomingAllocationStartAsync(allocation.Id, request);
+        first.Success.Should().BeTrue(first.Message);
+        var updatedAt = allocation.UpdatedAt;
+        var retry = await service.RescheduleUpcomingAllocationStartAsync(allocation.Id, request);
+        retry.Success.Should().BeTrue(retry.Message);
+        retry.Message.Should().Be(first.Message);
+        allocation.UpdatedAt.Should().Be(updatedAt);
+        (await db.IdempotencyRecords.CountAsync(x => x.Scope == "hostel.upcoming-start-reschedule"))
+            .Should().Be(1);
+        var changedPayload = await service.RescheduleUpcomingAllocationStartAsync(allocation.Id,
+            new RescheduleUpcomingHostelStartRequestDto
+            {
+                ClientRequestId = key, StartDate = today.AddDays(18), RowVersion = version
+            });
+        changedPayload.StatusCode.Should().Be(409);
+
+        allocation.MonthlyRent = 800m;
+        await db.SaveChangesAsync();
+        var chargeable = await service.RescheduleUpcomingAllocationStartAsync(allocation.Id,
+            new RescheduleUpcomingHostelStartRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), StartDate = today.AddDays(18), RowVersion = version
+            });
+        chargeable.StatusCode.Should().Be(409);
+        allocation.StartDate.Should().Be(today.AddDays(20));
+
+        allocation.MonthlyRent = 0m;
+        await db.SaveChangesAsync();
+        var exactlyNinetyDays = await service.RescheduleUpcomingAllocationStartAsync(allocation.Id,
+            new RescheduleUpcomingHostelStartRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), StartDate = today.AddDays(11), RowVersion = version
+            });
+        exactlyNinetyDays.Success.Should().BeTrue(exactlyNinetyDays.Message);
+        var overNinetyDays = await service.RescheduleUpcomingAllocationStartAsync(allocation.Id,
+            new RescheduleUpcomingHostelStartRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), StartDate = today.AddDays(5), RowVersion = version
+            });
+        overNinetyDays.StatusCode.Should().Be(409);
     }
 
     private static HostelService CreateService(EduOSDbContext db) => new(
@@ -152,7 +254,8 @@ public sealed class HostelCampusSecurityTests
         new GenericRepository<StudentEnrollment>(db), new GenericRepository<Student>(db),
         new GenericRepository<UserCampusAccess>(db), new GenericRepository<Campus>(db),
         new TestUnitOfWork(db), new Warden(), TimeProvider.System,
-        NullLogger<HostelService>.Instance, new EduOS.Service.Services.Finance.ReservationFinancePolicy(db));
+        NullLogger<HostelService>.Instance, new EduOS.Service.Services.Finance.ReservationFinancePolicy(db),
+        new EduOS.Service.Services.Platform.ReservationCommandReceiptStore(db, TimeProvider.System));
 
     private sealed class TestUnitOfWork(EduOSDbContext db) : IUnitOfWork
     {

@@ -48,6 +48,12 @@ public sealed partial class HostelService
             !TryDecodeVersion(request.RowVersion, out var version))
             return Error("Reservation, start date and row version are required.");
         var tenant = _currentUser.TenantId;
+        const string operation = "hostel.upcoming-start-reschedule";
+        var requestHash = HostelCommandFingerprint(operation, id,
+            request.StartDate.ToString("yyyy-MM-dd"), Convert.ToBase64String(version));
+        var requestId = request.ClientRequestId == Guid.Empty
+            ? LegacyHostelCommandRequestId(tenant, _currentUser.UserId, operation, id, requestHash)
+            : request.ClientRequestId;
         try
         {
             return await _unitOfWork.ExecuteInTransactionAsync(async ct =>
@@ -77,18 +83,34 @@ public sealed partial class HostelService
                     return Error("Active enrollment and hostel campus ownership are required.", 409);
                 if (!await CanManageCampusAsync(source.Hostel.CampusId, tenant, ct))
                     return Denied<StudentHostelAllocationDto>();
+                var replay = await _commandReceipts.ReplayAsync<StudentHostelAllocationDto>(tenant,
+                    _currentUser.UserId, operation, requestId, id, requestHash, ct);
+                if (replay.Conflict)
+                    return Error("Request key was already used with different command details.", 409);
+                if (replay.Found) return replay.Response!;
                 var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
                 if (allocation.State != HostelAllocationState.Active ||
                     !CanRescheduleUpcomingStay(allocation.StartDate, allocation.EndDate, request.StartDate, today))
                     return Error("Only future reservations may be rescheduled within their existing end date.", 409);
                 if (allocation.StartDate == request.StartDate)
-                    return ApiResponse<StudentHostelAllocationDto>.SuccessResponse(
+                {
+                    var same = ApiResponse<StudentHostelAllocationDto>.SuccessResponse(
                         await MapAsync(allocation, ct), "Reservation already starts on the selected date.");
+                    await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
+                        requestId, id, requestHash, same, ct);
+                    await _unitOfWork.SaveChangesAsync(ct);
+                    return same;
+                }
                 if (!allocation.RowVersion.AsSpan().SequenceEqual(version))
                     return Error("Reservation changed. Reload and retry.", 409);
                 if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
                     allocation.StudentId, allocation.StudentEnrollmentId, ct))
                     return Error("Posted finance activity requires an approved Finance adjustment before rescheduling.", 409);
+                if (allocation.MonthlyRent != 0m || allocation.SecurityDeposit != 0m || allocation.FeeHeadId.HasValue)
+                    return Error("Charged stays require the Finance billing and adjustment workflow before rescheduling.", 409);
+                if (allocation.EndDate.HasValue &&
+                    allocation.EndDate.Value.DayNumber - request.StartDate.DayNumber > 89)
+                    return Error("Fixed-term stays cannot exceed 90 inclusive days.", 409);
                 if (!source.Bed.IsActive || !source.Room.IsActive || !source.Hostel.IsActive ||
                     source.Room.Capacity < 1)
                     return Error("Hostel bed or room is unavailable.", 409);
@@ -125,8 +147,12 @@ public sealed partial class HostelService
                 await _unitOfWork.SaveChangesAsync(ct);
                 _logger.LogInformation("Hostel pre-arrival reschedule: tenant {TenantId}, allocation {AllocationId}, from {OldDate} to {NewDate}",
                     tenant, allocation.Id, previous, request.StartDate);
-                return ApiResponse<StudentHostelAllocationDto>.SuccessResponse(
+                var success = ApiResponse<StudentHostelAllocationDto>.SuccessResponse(
                     await MapAsync(allocation, ct), "Upcoming hostel reservation rescheduled.");
+                await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
+                    requestId, id, requestHash, success, ct);
+                await _unitOfWork.SaveChangesAsync(ct);
+                return success;
             }, System.Data.IsolationLevel.Serializable, cancellationToken);
         }
         catch (DbUpdateConcurrencyException) { return Error("Reservation changed. Reload and retry.", 409); }

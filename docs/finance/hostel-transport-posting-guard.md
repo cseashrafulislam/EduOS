@@ -20,6 +20,16 @@ requires a Finance-owned schedule/proration contract. A zero-fare extension may
 proceed only after the posting guard and all seat/overlap checks pass. Paid shortening
 is blocked; zero-fare shortening is still subject to the posting guard.
 
+**Hostel pre-arrival start reschedule** is limited to stays with zero `MonthlyRent`,
+zero `SecurityDeposit`, and no `FeeHeadId`, even if Finance has not yet posted.
+Changing the start of a charged stay can change its future billing period, and the
+Finance-owned schedule/adjustment contract does not yet exist. The zero-charge
+command still blocks posted activity, enforces the inclusive 90-day fixed-term
+limit, and stores its successful outcome through the tenant-scoped
+`IdempotencyRecord` receipt in the same transaction as the canonical allocation.
+Older clients without a request UUID use a deterministic key bound to tenant,
+actor, allocation, requested date, and the original row version.
+
 **Important limitation:** The existing Finance schema does not link a posted invoice or
 payment to a specific Hostel/Transport reservation. Until a trustworthy link is
 introduced, the guard intentionally blocks any posted enrollment invoice or successful

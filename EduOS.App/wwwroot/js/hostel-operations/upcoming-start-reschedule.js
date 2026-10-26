@@ -7,6 +7,7 @@
     const save = document.getElementById('hostelRescheduleSave');
     const cancel = document.getElementById('hostelRescheduleCancel');
     let pending = null;
+    let requestKey = null, requestSignature = null;
     const dateString = d => [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
     const tomorrow = () => { const d = new Date(); d.setDate(d.getDate() + 1); return dateString(d); };
     const limit = () => { const d = new Date(); d.setFullYear(d.getFullYear() + 2); return dateString(d); };
@@ -16,11 +17,17 @@
         el.textContent = message;
         el.focus();
     };
-    const dismiss = () => { pending = null; panel.classList.add('d-none'); field.value = ''; };
+    const dismiss = () => {
+        pending = null; requestKey = null; requestSignature = null;
+        panel.classList.add('d-none'); field.value = '';
+    };
     window.hostelUpcomingStartReschedule = {
         begin(item) {
             if (!item || item.startDate <= dateString(new Date())) {
                 notify('Only upcoming hostel reservations can be rescheduled.'); return;
+            }
+            if (Number(item.monthlyRent) !== 0) {
+                notify('Charged stays need the approved Finance adjustment workflow.'); return;
             }
             pending = item;
             context.textContent = item.studentName + ' · ' + item.hostelName +
@@ -38,7 +45,12 @@
             notify('Choose a future start date within two years.'); return;
         }
         if (startDate === pending.startDate) { dismiss(); return; }
-        if (!confirm('Reschedule this upcoming hostel reservation? Bed and financial terms remain unchanged.')) return;
+        if (!confirm('Reschedule this no-charge hostel reservation?')) return;
+        if (!window.crypto?.randomUUID) { notify('Secure browser context required.'); return; }
+        const signature = [pending.id, startDate, pending.rowVersion].join('|');
+        if (signature !== requestSignature) {
+            requestSignature = signature; requestKey = window.crypto.randomUUID();
+        }
         save.disabled = true;
         try {
             const token = document.querySelector('meta[name="request-verification-token"]')?.content;
@@ -46,7 +58,7 @@
             const response = await fetch('/api/hostel/allocations/' + encodeURIComponent(pending.id) + '/reschedule-start', {
                 method: 'POST', credentials: 'same-origin', cache: 'no-store',
                 headers: { Accept: 'application/json', 'Content-Type': 'application/json', RequestVerificationToken: token },
-                body: JSON.stringify({ startDate, rowVersion: pending.rowVersion })
+                body: JSON.stringify({ clientRequestId: requestKey, startDate, rowVersion: pending.rowVersion })
             });
             const result = await response.json().catch(() => null);
             if (!response.ok || !result?.success) throw new Error(result?.message || 'Reschedule failed.');
