@@ -1,0 +1,29 @@
+<section class="card mb-3" id="transportDriverCoverageForecastPanel"><div class="card-body">
+    <h3 class="h5">Future driver coverage and dispatch risk</h3>
+    <p class="small text-muted">Tenant administrators only. Check a future operating date before dispatch: booked riders, route coverage, driver assignments and license validity. Advisory snapshot only; no student names, driver identities or financial details.</p>
+    <form id="transportDriverCoverageForecastFilters" class="row g-2 mb-2">
+        <div class="col-md-2"><label for="transportDriverCoverageForecastDate" class="form-label">Operating date</label><input id="transportDriverCoverageForecastDate" class="form-control" type="date" required /></div>
+        <div class="col-md-3"><label for="transportDriverCoverageForecastCampus" class="form-label">Campus</label><select id="transportDriverCoverageForecastCampus" class="form-select"><option value="">All authorized campuses</option></select></div>
+        <div class="col-md-3"><label for="transportDriverCoverageForecastSearch" class="form-label">Vehicle / campus</label><input id="transportDriverCoverageForecastSearch" class="form-control" type="search" maxlength="100" /></div>
+        <div class="col-md-3"><label for="transportDriverCoverageForecastState" class="form-label">Readiness</label><select id="transportDriverCoverageForecastState" class="form-select">
+            <option value="Attention">Needs attention</option><option value="All">All vehicles</option><option value="Ready">Ready</option>
+            <option value="Idle">Idle</option><option value="Over_Capacity">Over capacity</option>
+            <option value="No_Route">No route</option><option value="Route_Conflict">Route conflict</option>
+            <option value="No_Driver">No driver</option><option value="Driver_Conflict">Driver conflict</option>
+            <option value="Inactive_Driver">Inactive driver</option><option value="Inactive_Vehicle">Inactive vehicle</option>
+            <option value="Missing_Expiry">Missing license expiry</option><option value="Expired">Expired license</option>
+        </select></div>
+        <div class="col-md-1 d-flex align-items-end"><button type="submit" class="btn btn-outline-primary w-100">Go</button></div>
+    </form>
+    <button id="transportDriverCoverageForecastExport" class="btn btn-outline-success btn-sm mb-2" type="button" disabled>Export filtered CSV</button>
+    <div id="transportDriverCoverageForecastStatus" class="small text-muted mb-2" role="status" aria-live="polite">Loading…</div>
+    <div class="table-responsive"><table class="table table-sm table-hover align-middle">
+        <thead><tr><th>Campus</th><th>Vehicle</th><th>Reserved / seats</th><th>Routes</th><th>Drivers</th><th>License expires</th><th>Readiness</th></tr></thead>
+        <tbody id="transportDriverCoverageForecastRows"><tr><td colspan="7">Loading…</td></tr></tbody>
+    </table></div>
+    <div class="d-flex align-items-center justify-content-between gap-2">
+        <button id="transportDriverCoverageForecastPrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous</button>
+        <span id="transportDriverCoverageForecastPage" class="small text-muted"></span>
+        <button id="transportDriverCoverageForecastNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next</button>
+    </div>
+</div></section>
