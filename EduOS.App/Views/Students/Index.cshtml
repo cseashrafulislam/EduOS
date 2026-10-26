@@ -107,6 +107,33 @@
                         </form>
                     </section>
                 }
+                @if (User.IsInRole("TenantAdmin"))
+                {
+                    <section class="border rounded p-3 mb-3" aria-labelledby="studentContactTitle">
+                        <h3 id="studentContactTitle" class="h6">Student contact profile</h3>
+                        <p class="small text-muted">Update institution contact details only. Identity, enrollment and historical snapshots remain unchanged.</p>
+                        <form id="studentContactForm" autocomplete="off">
+                            @Html.AntiForgeryToken()
+                            <div class="row g-2">
+                                <div class="col-md-6"><label class="form-label" for="studentContactPhone">Phone</label>
+                                    <input id="studentContactPhone" class="form-control" maxlength="30" /></div>
+                                <div class="col-md-6"><label class="form-label" for="studentContactEmail">Email</label>
+                                    <input id="studentContactEmail" type="email" class="form-control" maxlength="200" /></div>
+                                <div class="col-12"><label class="form-label" for="studentContactAddress">Contact address</label>
+                                    <textarea id="studentContactAddress" class="form-control" rows="2" maxlength="1000"></textarea></div>
+                                <div class="col-md-4"><label class="form-label" for="studentContactLanguage">Preferred language</label>
+                                    <select id="studentContactLanguage" class="form-select">
+                                        <option value="bn-BD">Bangla</option><option value="en-BD">English (Bangladesh)</option>
+                                        <option value="en-US">English (US)</option>
+                                    </select></div>
+                                <div class="col-md-8"><label class="form-label" for="studentContactReason">Change reason</label>
+                                    <input id="studentContactReason" class="form-control" required minlength="10" maxlength="500" placeholder="Why is the contact information changing?" /></div>
+                            </div>
+                            <button id="studentContactSave" type="submit" class="btn btn-outline-primary btn-sm mt-2" disabled>Save contact profile</button>
+                            <div id="studentContactStatus" role="status" aria-live="polite" class="small mt-2"></div>
+                        </form>
+                    </section>
+                }
                 <section aria-labelledby="guardianTitle"><h3 class="h6" id="guardianTitle">@T["GuardianInformation"]</h3><div id="studentGuardians" class="admission-list"></div></section>
                 <section class="mt-4" aria-labelledby="enrollmentTitle"><h3 class="h6" id="enrollmentTitle">@T["EnrollmentHistory"]</h3><div id="studentEnrollments" class="admission-list"></div></section>
                 @if (User.IsInRole("TenantAdmin"))
@@ -131,5 +158,6 @@
     {
         <script src="~/js/students/lifecycle-timeline.js" asp-append-version="true"></script>
         <script src="~/js/students/photo.js" asp-append-version="true"></script>
+        <script src="~/js/students/contact-profile.js" asp-append-version="true"></script>
     }
 }
