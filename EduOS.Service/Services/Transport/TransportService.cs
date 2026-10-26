@@ -242,24 +242,23 @@ public sealed partial class TransportService : ITransportService
             return Error("Reservation end date cannot precede its start date.");
         try
         {
-            using var scope = new TransactionScope(TransactionScopeOption.Required,
-                new TransactionOptions { IsolationLevel = IsolationLevel.Serializable },
-                TransactionScopeAsyncFlowOption.Enabled);
+            return await _unitOfWork.ExecuteInTransactionAsync(async ct =>
+            {
             var old = await _assignments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
-                x.ClientRequestId == request.ClientRequestId, cancellationToken);
+                x.ClientRequestId == request.ClientRequestId, ct);
             if (old != null)
             {
                 if (!_currentUser.IsTenantAdmin)
                 {
                     var oldCampus = await _enrollments.GetQueryable().AsNoTracking()
                         .Where(x => x.TenantId == tenant && x.Id == old.StudentEnrollmentId && x.StudentId == old.StudentId)
-                        .Select(x => (long?)x.CampusId).FirstOrDefaultAsync(cancellationToken);
-                    if (!oldCampus.HasValue || !await CanManageCampusAsync(oldCampus.Value, tenant, cancellationToken))
+                        .Select(x => (long?)x.CampusId).FirstOrDefaultAsync(ct);
+                    if (!oldCampus.HasValue || !await CanManageCampusAsync(oldCampus.Value, tenant, ct))
                         return Denied<StudentTransportDto>();
                 }
                 if (old.RouteId <= 0 || old.VehicleId <= 0)
                     return Error("Existing request is inconsistent.", 409);
-                var replay = await MapAsync(old, cancellationToken);
+                var replay = await MapAsync(old, ct);
                 if (replay.StudentEnrollmentReference != request.StudentEnrollmentReference ||
                     replay.RouteReference != request.RouteReference ||
                     replay.VehicleReference != request.VehicleReference ||
@@ -268,24 +267,24 @@ public sealed partial class TransportService : ITransportService
                     replay.EndDate != request.EndDate ||
                     (request.MonthlyFare.HasValue && replay.MonthlyFare != request.MonthlyFare.Value))
                     return Error("Client request ID was reused for different transport assignment data.", 409);
-                scope.Complete();
+                
                 return ApiResponse<StudentTransportDto>.SuccessResponse(replay, "Transport assignment already processed.");
             }
             var enrollment = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
                 x.PublicId == request.StudentEnrollmentReference && x.IsCurrent &&
-                x.State == EnrollmentState.Active, cancellationToken);
+                x.State == EnrollmentState.Active, ct);
             if (enrollment == null) return Error("Active student enrollment not found.", 404);
-            if (!await _campuses.GetQueryable().AsNoTracking().AnyAsync(c => c.TenantId == tenant && c.Id == enrollment.CampusId && c.IsActive, cancellationToken))
+            if (!await _campuses.GetQueryable().AsNoTracking().AnyAsync(c => c.TenantId == tenant && c.Id == enrollment.CampusId && c.IsActive, ct))
                 return Error("Enrollment campus is inactive.", 409);
-            if (!await CanManageCampusAsync(enrollment.CampusId, tenant, cancellationToken))
+            if (!await CanManageCampusAsync(enrollment.CampusId, tenant, ct))
                 return Denied<StudentTransportDto>();
             var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
-                x.Id == enrollment.StudentId && x.StatusCode == "Active", cancellationToken);
+                x.Id == enrollment.StudentId && x.StatusCode == "Active", ct);
             if (student == null) return Error("Student not found.", 404);
             var route = await _routes.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
-                x.PublicId == request.RouteReference && x.IsActive, cancellationToken);
+                x.PublicId == request.RouteReference && x.IsActive, ct);
             var vehicle = await _vehicles.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
-                x.PublicId == request.VehicleReference && x.IsActive, cancellationToken);
+                x.PublicId == request.VehicleReference && x.IsActive, ct);
             if (route == null || vehicle == null || vehicle.Capacity <= 0)
                 return Error("Route or vehicle is unavailable.", 404);
             if ((route.CampusId.HasValue && route.CampusId != enrollment.CampusId) ||
@@ -294,19 +293,19 @@ public sealed partial class TransportService : ITransportService
             var vehicleRoute = await _vehicleRoutes.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
                 x.RouteId == route.Id && x.VehicleId == vehicle.Id && x.IsCurrent &&
                 x.EffectiveFrom <= startDate &&
-                (!x.EffectiveTo.HasValue || (request.EndDate.HasValue && x.EffectiveTo.Value >= request.EndDate.Value)), cancellationToken);
+                (!x.EffectiveTo.HasValue || (request.EndDate.HasValue && x.EffectiveTo.Value >= request.EndDate.Value)), ct);
             if (vehicleRoute == null) return Error("Vehicle must serve the route for the entire reservation period.", 409);
             var stopIds = new[] { request.PickupStopId, request.DropStopId }.Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToArray();
             if (stopIds.Length > 0)
             {
                 var foundStops = await _stops.GetQueryable().AsNoTracking().CountAsync(x => x.TenantId == tenant &&
-                    x.RouteId == route.Id && x.IsActive && stopIds.Contains(x.Id), cancellationToken);
+                    x.RouteId == route.Id && x.IsActive && stopIds.Contains(x.Id), ct);
                 if (foundStops != stopIds.Length) return Error("One or more stops do not belong to the selected route.", 409);
             }
             if (await _assignments.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
                 x.StudentId == student.Id && x.State == TransportAssignmentState.Active &&
                 x.StartDate <= (request.EndDate ?? DateOnly.MaxValue) &&
-                (!x.EndDate.HasValue || x.EndDate.Value >= startDate), cancellationToken))
+                (!x.EndDate.HasValue || x.EndDate.Value >= startDate), ct))
                 return Error("Student already has an active transport assignment.", 409);
             // Check peak concurrent seats, not the sum of bookings from disjoint periods.
             // Serializable transaction protects the read/check/insert against concurrent writers.
@@ -317,7 +316,7 @@ public sealed partial class TransportService : ITransportService
                     x.StartDate <= requestedEnd &&
                     (!x.EndDate.HasValue || x.EndDate.Value >= startDate))
                 .Select(x => new { x.StartDate, x.EndDate })
-                .Take(10001).ToListAsync(cancellationToken);
+                .Take(10001).ToListAsync(ct);
             if (overlapping.Count > 10000)
                 return Error("Too many overlapping reservations to validate capacity.", 413);
             var occupied = PeakReservedSeats(overlapping.Select(x => (x.StartDate, x.EndDate)),
@@ -335,14 +334,15 @@ public sealed partial class TransportService : ITransportService
                 State = TransportAssignmentState.Active, CreatedAt = now, CreatedBy = _currentUser.UserId
             };
             await _assignments.AddAsync(entity);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            var response = await MapAsync(entity, cancellationToken);
-            scope.Complete();
+            await _unitOfWork.SaveChangesAsync(ct);
+            var response = await MapAsync(entity, ct);
+            
             return new ApiResponse<StudentTransportDto>
             {
                 Success = true, StatusCode = 201, Message = "Transport assigned.",
                 Data = response
             };
+            }, System.Data.IsolationLevel.Serializable, cancellationToken);
         }
         catch (DbUpdateException ex)
         {
@@ -352,6 +352,11 @@ public sealed partial class TransportService : ITransportService
         catch (TransactionAbortedException ex)
         {
             _logger.LogWarning(ex, "Serialized transport transaction aborted for tenant {TenantId}", tenant);
+            return Error("Transport assignment conflicts with another update.", 409);
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 1205 or 1222 or 3960)
+        {
+            _logger.LogWarning(ex, "SQL Server transport assignment serialization conflict for tenant {TenantId}", tenant);
             return Error("Transport assignment conflicts with another update.", 409);
         }
         catch (Exception ex)

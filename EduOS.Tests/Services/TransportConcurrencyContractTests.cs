@@ -16,11 +16,12 @@ public class TransportConcurrencyContractTests
         closeStart.Should().BeGreaterThan(assignStart);
         var assignMethod = source[assignStart..closeStart];
 
-        assignMethod.Should().Contain("IsolationLevel = IsolationLevel.Serializable");
-        assignMethod.Should().Contain("TransactionScopeAsyncFlowOption.Enabled");
+        assignMethod.Should().Contain("_unitOfWork.ExecuteInTransactionAsync");
+        assignMethod.Should().Contain("System.Data.IsolationLevel.Serializable");
+        assignMethod.Should().NotContain("new TransactionScope");
         assignMethod.Should().Contain("CountAsync(x => x.TenantId == tenant &&");
         assignMethod.Should().Contain("if (occupied >= vehicle.Capacity)");
-        assignMethod.Should().Contain("scope.Complete();");
+        assignMethod.Should().Contain("await _unitOfWork.SaveChangesAsync(ct)");
         assignMethod.Should().Contain("x.State == TransportAssignmentState.Active");
         assignMethod.Should().Contain("Client request ID was reused for different transport assignment data.");
         assignMethod.Should().Contain("replay.RouteReference != request.RouteReference");
@@ -36,6 +37,7 @@ public class TransportConcurrencyContractTests
 
         assignMethod.Should().Contain("catch (DbUpdateException ex)");
         assignMethod.Should().Contain("catch (TransactionAbortedException ex)");
+        assignMethod.Should().Contain("catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 1205 or 1222 or 3960)");
         assignMethod.Should().Contain("Transport assignment conflicts with another update.\", 409");
     }
 
