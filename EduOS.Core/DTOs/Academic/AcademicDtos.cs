@@ -345,6 +345,7 @@ public class AcademicCurriculumDto
     public DateOnly? EffectiveTo { get; set; }
     public bool IsCurrent { get; set; }
     public bool IsActive { get; set; }
+    public int SubjectCount { get; set; }
     public IReadOnlyList<CurriculumSubjectDto> Subjects { get; set; } = Array.Empty<CurriculumSubjectDto>();
     public string RowVersion { get; set; } = string.Empty;
 }

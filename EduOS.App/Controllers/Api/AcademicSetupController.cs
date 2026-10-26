@@ -151,6 +151,18 @@ public sealed class AcademicSetupController : ControllerBase
         CancellationToken cancellationToken) =>
         ToAction(await _service.UpdateSubjectAsync(id, request, cancellationToken));
 
+    [HttpGet("curricula")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> Curricula([FromQuery] string? search, [FromQuery] long? academicProgramId,
+        [FromQuery] DateOnly? effectiveOn, [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetCurriculaAsync(search, academicProgramId, effectiveOn, page, pageSize, cancellationToken));
+
+    [HttpGet("curricula/{id:long}")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> Curriculum(long id, CancellationToken cancellationToken) =>
+        ToAction(await _service.GetCurriculumAsync(id, cancellationToken));
+
     [HttpPost("curricula")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
     public async Task<IActionResult> CreateCurriculum([FromBody] SaveAcademicCurriculumRequestDto request, CancellationToken cancellationToken) =>

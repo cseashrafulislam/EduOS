@@ -28,6 +28,8 @@ public interface IAcademicSetupService
     Task<ApiResponse<PagedResult<SubjectDto>>> GetSubjectsAsync(string? search, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default);
     Task<ApiResponse<SubjectDto>> GetSubjectAsync(long id, CancellationToken cancellationToken = default);
     Task<ApiResponse<SubjectDto>> UpdateSubjectAsync(long id, UpdateAcademicSubjectRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<AcademicCurriculumDto>>> GetCurriculaAsync(string? search, long? academicProgramId, DateOnly? effectiveOn, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default);
+    Task<ApiResponse<AcademicCurriculumDto>> GetCurriculumAsync(long id, CancellationToken cancellationToken = default);
     Task<ApiResponse<AcademicCurriculumDto>> CreateCurriculumAsync(SaveAcademicCurriculumRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<AcademicCurriculumDto>> ActivateCurriculumAsync(long curriculumId, string rowVersion, CancellationToken cancellationToken = default);
     Task<ApiResponse<CurriculumSubjectDto>> RegisterCurriculumSubjectAsync(long academicCurriculumId, SaveCurriculumSubjectRequestDto request, CancellationToken cancellationToken = default);
