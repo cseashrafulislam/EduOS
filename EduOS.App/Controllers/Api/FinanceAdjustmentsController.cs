@@ -45,6 +45,9 @@ public sealed class FinanceAdjustmentsController : ControllerBase
     [HttpPut("fine-rules/{id:long}")]
     public async Task<IActionResult> UpdateFineRule(long id,[FromBody] SaveFineRuleRequestDto request,CancellationToken ct)
         => Reply(await service.SaveFineRuleAsync(id,request,ct));
+    [HttpGet("fines/register")]
+    public async Task<IActionResult> FineRegister([FromQuery] StudentFineRegisterQueryDto request, CancellationToken ct)
+        => Reply(await service.GetFineRegisterAsync(request, ct));
     [HttpPost("fines")]
     public async Task<IActionResult> ApplyFine([FromBody] ApplyStudentFineRequestDto request,CancellationToken ct)
         => Reply(await service.ApplyFineAsync(request,ct));

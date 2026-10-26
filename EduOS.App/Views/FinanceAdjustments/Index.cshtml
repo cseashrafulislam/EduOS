@@ -66,6 +66,35 @@
             </form>
         </div></div></div>
     </div>
+    <section class="card mb-3" id="fineRegisterRoot" aria-labelledby="fineRegisterHeading">
+        <div class="card-body">
+            <h3 class="h5" id="fineRegisterHeading">Institution-wide administrative fine register</h3>
+            <p class="small text-warning">Unwaived fines here are administrative records only. They are not billed receivables, cash collected or GL income. Invoice posting requires separate source linkage and accounting configuration.</p>
+            <div id="fineRegisterAlert" class="alert d-none" role="status" aria-live="polite"></div>
+            <div class="row g-2 align-items-end mb-3">
+                <div class="col-md-2"><label class="form-label" for="fineRegisterCampus">Campus ID (optional)</label><input id="fineRegisterCampus" type="number" min="1" class="form-control" /></div>
+                <div class="col-md-2"><label class="form-label" for="fineRegisterFrom">Fine from</label><input id="fineRegisterFrom" type="date" class="form-control" /></div>
+                <div class="col-md-2"><label class="form-label" for="fineRegisterTo">Fine to</label><input id="fineRegisterTo" type="date" class="form-control" /></div>
+                <div class="col-md-2"><label class="form-label" for="fineRegisterStatus">Status</label><select id="fineRegisterStatus" class="form-select"><option value="">All</option><option value="false">Unwaived</option><option value="true">Waived</option></select></div>
+                <div class="col-md-2"><button id="fineRegisterLoad" type="button" class="btn btn-outline-primary w-100">Load fines</button></div>
+            </div>
+            <div class="row g-2 mb-3" aria-label="Administrative fine totals for selected campus and dates">
+                <div class="col-md-4"><div class="border rounded p-2">Recorded (BDT): <strong id="fineRegisterRecorded">0.00</strong></div></div>
+                <div class="col-md-4"><div class="border rounded p-2">Waived (BDT): <strong id="fineRegisterWaived">0.00</strong></div></div>
+                <div class="col-md-4"><div class="border rounded p-2">Unwaived, unposted (BDT): <strong id="fineRegisterOpen">0.00</strong></div></div>
+            </div>
+            <div class="table-responsive"><table class="table table-sm table-striped align-middle">
+                <thead><tr><th>Fine date</th><th>Student</th><th>Campus</th><th>Rule</th><th>Amount (BDT)</th><th>Status</th><th>Reason</th><th>Action</th></tr></thead>
+                <tbody id="fineRegisterRows"></tbody>
+            </table></div>
+            <div class="d-flex align-items-center gap-2">
+                <button id="fineRegisterPrev" type="button" class="btn btn-sm btn-outline-secondary">Previous</button>
+                <span id="fineRegisterPage" aria-live="polite">Page 1</span>
+                <button id="fineRegisterNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button>
+            </div>
+            <p class="small text-muted mt-2">Inspect / waive opens the existing authorized enrollment adjustment workflow. Waiver reasons are recorded separately in the audit log.</p>
+        </div>
+    </section>
     <div class="card mb-3" id="adjustRefundSection"><div class="card-body">
         <h3 class="h5">Student cash refund review &amp; GL payout recording</h3>
         <p class="small text-warning">Record payout only after cash has actually been disbursed and independently verified. This screen does not send money. Posted receipt journals are never edited; a new contra journal and append-only refund allocations are created. <strong>Current scope:</strong> only receipts allocated to partially paid invoices. Fully paid invoices require a Platform-owned credit-note/immutability integration and cannot be paid out here.</p>
@@ -100,4 +129,5 @@
 </section>
 @section Scripts {
     <script src="~/js/finance/finance-adjustments.js" asp-append-version="true"></script>
+    <script src="~/js/finance/finance-fine-register.js" asp-append-version="true"></script>
 }
