@@ -1,0 +1,30 @@
+@{
+    ViewData["Title"] = "Reservation Finance Preflight";
+}
+<section class="container-fluid py-3" id="reservationFinanceRoot">
+    <header class="mb-3">
+        <h2>Hostel / Transport finance preflight</h2>
+        <p class="text-muted">Read-only institutional Finance review for reservation start-date, fixed-term, renewal, extension and occupied-transfer requests. This screen never approves or posts a monetary adjustment.</p>
+        <a href="/FinanceAdjustments/Index" class="btn btn-outline-secondary btn-sm">Back to Finance Adjustments</a>
+    </header>
+    <div class="alert alert-warning">After any posted invoice or payment, financially effective reservation changes must remain blocked until an approved, tenant-scoped, idempotent Finance adjustment contract exists. No automatic proration, rent, deposit, invoice or ledger changes are performed here.</div>
+    <form id="reservationFinanceForm" class="card card-body mb-3">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4"><label class="form-label" for="reservationFinanceKind">Reservation module</label><select id="reservationFinanceKind" class="form-select" required><option value="hostel">Hostel</option><option value="transport">Transport</option></select></div>
+            <div class="col-md-4"><label class="form-label" for="reservationFinanceId">Canonical reservation ID</label><input id="reservationFinanceId" class="form-control" type="number" min="1" step="1" required /></div>
+            <div class="col-md-4"><button class="btn btn-primary w-100" type="submit">Check Finance exposure</button></div>
+        </div>
+    </form>
+    <div id="reservationFinanceAlert" class="alert d-none" role="status" aria-live="polite"></div>
+    <section id="reservationFinanceResult" class="card d-none" aria-label="Finance exposure">
+        <div class="card-body">
+            <h3 class="h5">Canonical reservation and posting exposure</h3>
+            <dl id="reservationFinanceDetails" class="row mb-3"></dl>
+            <div id="reservationFinanceDecision" class="alert alert-warning" role="status"></div>
+            <p class="small text-muted">Financial exposure is conservatively enrollment/student-wide because invoices and receipts have no canonical Hostel/Transport reservation source reference. A clear preflight is informational only, not permission to change a reservation.</p>
+        </div>
+    </section>
+</section>
+@section Scripts {
+    <script src="~/js/finance/reservation-finance-preflight.js" asp-append-version="true"></script>
+}

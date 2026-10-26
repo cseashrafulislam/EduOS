@@ -11,4 +11,8 @@ public sealed class FinanceAdjustmentsController : Controller
     [HttpGet]
     [ResponseCache(NoStore=true,Location=ResponseCacheLocation.None)]
     public IActionResult Index()=>View();
+
+    [HttpGet]
+    [ResponseCache(NoStore=true,Location=ResponseCacheLocation.None)]
+    public IActionResult ReservationPreflight()=>View();
 }
