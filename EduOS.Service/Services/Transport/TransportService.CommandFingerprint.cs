@@ -10,10 +10,11 @@ public sealed partial class TransportService
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
             JsonSerializer.Serialize(new { Operation = operation, TargetId = targetId, Parts = parts })))).ToLowerInvariant();
 
-    // Prior driver-extension clients did not send request IDs. The original row version
+    // Prior driver-command clients did not send request IDs. The original row version
     // is part of the fingerprint, so retries derive the same receipt without giving
-    // unrelated later updates the same key. Keep this fallback only for legacy calls.
-    private static Guid LegacyExtensionRequestId(long tenantId, long actorId, string operation,
+    // unrelated later updates the same key. The hash domain below must stay unchanged:
+    // receipts from the previously deployed extension endpoints depend on it.
+    private static Guid LegacyDriverCommandRequestId(long tenantId, long actorId, string operation,
         long assignmentId, string requestHash)
     {
         var digest = SHA256.HashData(Encoding.UTF8.GetBytes(

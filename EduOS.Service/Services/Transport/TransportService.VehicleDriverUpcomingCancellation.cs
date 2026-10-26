@@ -17,6 +17,10 @@ public sealed partial class TransportService
             return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse("Assignment and valid row version are required.");
         var tenant = _currentUser.TenantId;
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+        const string operation = "transport.upcoming-driver-cancellation";
+        var requestHash = CommandFingerprint(operation, assignmentId, Convert.ToBase64String(version));
+        var commandId = request.ClientRequestId != Guid.Empty ? request.ClientRequestId :
+            LegacyDriverCommandRequestId(tenant, _currentUser.UserId, operation, assignmentId, requestHash);
         try
         {
             return await _unitOfWork.ExecuteInTransactionAsync(async token =>
@@ -34,11 +38,23 @@ public sealed partial class TransportService
                     return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse("Assignment campus unavailable.", 409);
                 if (!await CanManageCampusAsync(vehicle.CampusId.Value, tenant, token))
                     return Denied<VehicleDriverAssignmentDto>();
+                var replay = await _commandReceipts.ReplayAsync<VehicleDriverAssignmentDto>(tenant,
+                    _currentUser.UserId, operation, commandId, assignmentId, requestHash, token);
+                if (replay.Conflict)
+                    return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse(
+                        "Request key was already used with different command details.", 409);
+                if (replay.Found) return replay.Response!;
                 if (link.EffectiveFrom <= today)
                     return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse("Assignment has already started.", 409);
                 if (!link.IsCurrent)
-                    return ApiResponse<VehicleDriverAssignmentDto>.SuccessResponse(
+                {
+                    var same = ApiResponse<VehicleDriverAssignmentDto>.SuccessResponse(
                         MapVehicleDriverLink(link), "Reservation already cancelled.");
+                    await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
+                        commandId, assignmentId, requestHash, same, token);
+                    await _unitOfWork.SaveChangesAsync(token);
+                    return same;
+                }
                 if (!link.RowVersion.AsSpan().SequenceEqual(version))
                     return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse("Assignment changed. Reload.", 409);
                 var end = link.EffectiveTo ?? DateOnly.MaxValue;
@@ -52,8 +68,12 @@ public sealed partial class TransportService
                 link.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
                 link.UpdatedBy = _currentUser.UserId;
                 await _unitOfWork.SaveChangesAsync(token);
-                return ApiResponse<VehicleDriverAssignmentDto>.SuccessResponse(
+                var success = ApiResponse<VehicleDriverAssignmentDto>.SuccessResponse(
                     MapVehicleDriverLink(link), "Future driver reservation cancelled.");
+                await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
+                    commandId, assignmentId, requestHash, success, token);
+                await _unitOfWork.SaveChangesAsync(token);
+                return success;
             }, System.Data.IsolationLevel.Serializable, ct);
         }
         catch (DbUpdateConcurrencyException)

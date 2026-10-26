@@ -12,8 +12,7 @@ public sealed partial class TransportService
 {
     /// <summary>Replace a driver on an already-operating vehicle without interrupting its riders.
     /// Reuses VehicleDriverAssignment history; monetary terms and rider assignments are untouched.
-    /// The entity lacks a persisted request key, so retries are recognized by exact same-day state,
-    /// not by durable ClientRequestId uniqueness. A Platform schema contract is required for that.
+    /// The predecessor/successor and durable request receipt commit in one transaction.
     /// </summary>
     public async Task<ApiResponse<VehicleDriverAssignmentDto>> ReplaceActiveDriverAsync(
         long assignmentId, ReplaceActiveVehicleDriverRequestDto request, CancellationToken ct = default)
@@ -26,6 +25,9 @@ public sealed partial class TransportService
         var tenant = _currentUser.TenantId;
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
         var yesterday = today.AddDays(-1);
+        const string operation = "transport.operating-driver-replacement";
+        var requestHash = CommandFingerprint(operation, assignmentId, request.NewDriverId,
+            Convert.ToBase64String(sourceVersion), Convert.ToBase64String(driverVersion));
         try
         {
             return await _unitOfWork.ExecuteInTransactionAsync(async token =>
@@ -43,6 +45,12 @@ public sealed partial class TransportService
                     return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse("Active vehicle campus unavailable.", 409);
                 if (!await CanManageCampusAsync(vehicle.CampusId.Value, tenant, token))
                     return Denied<VehicleDriverAssignmentDto>();
+                var receipt = await _commandReceipts.ReplayAsync<VehicleDriverAssignmentDto>(tenant,
+                    _currentUser.UserId, operation, request.ClientRequestId, assignmentId, requestHash, token);
+                if (receipt.Conflict)
+                    return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse(
+                        "Request key was already used with different command details.", 409);
+                if (receipt.Found) return receipt.Response!;
                 var target = await _drivers.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && !x.IsDeleted && x.IsActive && x.Id == request.NewDriverId, token);
                 if (target == null || !target.LicenseExpiresOn.HasValue || target.LicenseExpiresOn.Value < today)
@@ -57,8 +65,14 @@ public sealed partial class TransportService
                         x.VehicleId == source.VehicleId && x.TransportDriverId == target.Id &&
                         x.EffectiveFrom == today, token);
                     if (replay != null)
-                        return ApiResponse<VehicleDriverAssignmentDto>.SuccessResponse(
+                    {
+                        var same = ApiResponse<VehicleDriverAssignmentDto>.SuccessResponse(
                             MapVehicleDriverLink(replay), "Replacement already recorded today.");
+                        await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
+                            request.ClientRequestId, assignmentId, requestHash, same, token);
+                        await _unitOfWork.SaveChangesAsync(token);
+                        return same;
+                    }
                 }
                 if (!source.IsCurrent || source.EffectiveFrom >= today ||
                     (source.EffectiveTo.HasValue && source.EffectiveTo.Value < today))
@@ -101,8 +115,12 @@ public sealed partial class TransportService
                 _logger.LogInformation(
                     "Driver replacement tenant {TenantId}, vehicle {VehicleId}, predecessor {OldId}, successor {NewId}",
                     tenant, source.VehicleId, source.Id, successor.Id);
-                return ApiResponse<VehicleDriverAssignmentDto>.SuccessResponse(
+                var success = ApiResponse<VehicleDriverAssignmentDto>.SuccessResponse(
                     MapVehicleDriverLink(successor), "Vehicle driver replaced without changing rider assignments.");
+                await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
+                    request.ClientRequestId, assignmentId, requestHash, success, token);
+                await _unitOfWork.SaveChangesAsync(token);
+                return success;
             }, System.Data.IsolationLevel.Serializable, ct);
         }
         catch (DbUpdateConcurrencyException)

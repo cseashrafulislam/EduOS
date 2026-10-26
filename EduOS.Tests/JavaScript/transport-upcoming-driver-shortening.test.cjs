@@ -5,12 +5,13 @@ const vm=require('node:vm');
 const path=require('node:path');
 const source=fs.readFileSync(path.join(__dirname,
  '../../EduOS.App/wwwroot/js/transport-operations/vehicle-driver-upcoming-shorten.js'),'utf8');
-function harness(answer,confirmation=true){
+function harness(answer,confirmation=true,failFirst=false){
  const calls=[],messages=[];
  const u={today:()=> '2026-10-26',endpoint:'/api/transport/vehicle-driver-links',
-  api:async(...args)=>{calls.push(args);return{};},
+  api:async(...args)=>{calls.push(args);if(failFirst&&calls.length===1)throw Error('temporary error');return{};},
   notify:(...args)=>messages.push(args),loadLinks:async()=>{calls.push(['reload']);}};
- vm.runInNewContext(source,{window:{vehicleDriverUI:u,prompt:()=>answer,confirm:()=>confirmation},
+ vm.runInNewContext(source,{window:{vehicleDriverUI:u,prompt:()=>answer,confirm:()=>confirmation,
+   crypto:{randomUUID:()=> '44444444-4444-4444-8444-444444444444'}},
   Date,Number,encodeURIComponent});
  return {u,calls,messages};
 }
@@ -22,7 +23,15 @@ test('shortens canonical future driver reservation and refreshes',async()=>{
  assert.equal(h.calls[0][1],'POST');
  assert.equal(h.calls[0][2].effectiveTo,'2026-11-15');
  assert.equal(h.calls[0][2].rowVersion,'version');
+ assert.equal(h.calls[0][2].clientRequestId,'44444444-4444-4444-8444-444444444444');
  assert.deepEqual(h.calls[1],['reload']);
+});
+test('failed request retries with the same key',async()=>{
+ const h=harness('2026-11-15',true,true);
+ await h.u.shortenUpcomingDriver(row);
+ await h.u.shortenUpcomingDriver(row);
+ assert.equal(h.calls.length,3);
+ assert.equal(h.calls[0][2].clientRequestId,h.calls[1][2].clientRequestId);
 });
 test('rejects invalid and out-of-range dates',async()=>{
  for(const date of ['2026-11-30','2026-12-01','2026-10-31','2026-11-31','bad']){

@@ -192,6 +192,115 @@ public class TransportServiceTests
         (await db.IdempotencyRecords.CountAsync(x => x.Scope == scope)).Should().Be(2);
     }
 
+    [Theory]
+    [InlineData("reschedule")]
+    [InlineData("shorten")]
+    [InlineData("cancel")]
+    public async Task Upcoming_driver_commands_replay_once_and_preserve_legacy_calls(string command)
+    {
+        await using var db = CreateContext(CreateOptions(), 101);
+        var today = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
+        var campus = new Campus { TenantId = 101, Name = "Future driver campus", Code = "DRV-F" };
+        db.Campuses.Add(campus);
+        await db.SaveChangesAsync();
+        var vehicle = new Vehicle { TenantId = 101, CampusId = campus.Id, VehicleNumber = "BUS-F",
+            Capacity = 20, IsActive = true };
+        var driver = new TransportDriver { TenantId = 101, FullName = "Future driver",
+            LicenseNumber = "LIC-F", LicenseExpiresOn = today.AddDays(90), IsActive = true };
+        db.AddRange(vehicle, driver);
+        await db.SaveChangesAsync();
+        var link = new VehicleDriverAssignment { TenantId = 101, VehicleId = vehicle.Id,
+            TransportDriverId = driver.Id, EffectiveFrom = today.AddDays(10),
+            EffectiveTo = today.AddDays(30), IsCurrent = true,
+            RowVersion = [8, 7, 6, 5, 4, 3, 2, 1] };
+        db.VehicleDriverAssignments.Add(link);
+        await db.SaveChangesAsync();
+        var version = Convert.ToBase64String(link.RowVersion);
+        var service = CreateService(db, 101);
+        async Task<EduOS.Core.Common.ApiResponse<VehicleDriverAssignmentDto>> Execute(Guid key, int variation = 0) =>
+            command switch
+            {
+                "reschedule" => await service.RescheduleUpcomingDriverStartAsync(link.Id,
+                    new RescheduleUpcomingVehicleDriverRequestDto { ClientRequestId = key,
+                        EffectiveFrom = today.AddDays(15 + variation), RowVersion = version }),
+                "shorten" => await service.ShortenUpcomingDriverAsync(link.Id,
+                    new ShortenUpcomingVehicleDriverRequestDto { ClientRequestId = key,
+                        EffectiveTo = today.AddDays(20 - variation), RowVersion = version }),
+                _ => await service.CancelUpcomingDriverAssignmentAsync(link.Id,
+                    new CancelUpcomingVehicleDriverAssignmentRequestDto { ClientRequestId = key,
+                        RowVersion = variation == 0 ? version : Convert.ToBase64String([1, 2, 3, 4, 5, 6, 7, 9]) })
+            };
+        var key = Guid.NewGuid();
+        var first = await Execute(key);
+        first.Success.Should().BeTrue(first.Message);
+        var updatedAt = link.UpdatedAt;
+        var replay = await Execute(key);
+        replay.Success.Should().BeTrue(replay.Message);
+        replay.Message.Should().Be(first.Message);
+        link.UpdatedAt.Should().Be(updatedAt);
+        var scope = command switch
+        {
+            "reschedule" => "transport.upcoming-driver-start-reschedule",
+            "shorten" => "transport.upcoming-driver-shortening",
+            _ => "transport.upcoming-driver-cancellation"
+        };
+        (await db.IdempotencyRecords.CountAsync(x => x.Scope == scope)).Should().Be(1);
+        (await Execute(key, 1)).StatusCode.Should().Be(409);
+        var legacy = await Execute(Guid.Empty, command == "cancel" ? 0 : 2);
+        legacy.Success.Should().BeTrue(legacy.Message);
+        var legacyReplay = await Execute(Guid.Empty, command == "cancel" ? 0 : 2);
+        legacyReplay.Success.Should().BeTrue(legacyReplay.Message);
+        legacyReplay.Message.Should().Be(legacy.Message);
+        (await db.IdempotencyRecords.CountAsync(x => x.Scope == scope)).Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Operating_driver_replacement_replays_successor_without_duplicate_history()
+    {
+        await using var db = CreateContext(CreateOptions(), 101);
+        var today = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
+        var campus = new Campus { TenantId = 101, Name = "Replacement campus", Code = "DRV-R" };
+        db.Campuses.Add(campus);
+        await db.SaveChangesAsync();
+        var vehicle = new Vehicle { TenantId = 101, CampusId = campus.Id, VehicleNumber = "BUS-R",
+            Capacity = 25, IsActive = true };
+        var previous = new TransportDriver { TenantId = 101, FullName = "Previous driver",
+            LicenseNumber = "LIC-R1", LicenseExpiresOn = today.AddDays(60), IsActive = true };
+        var next = new TransportDriver { TenantId = 101, FullName = "Replacement driver",
+            LicenseNumber = "LIC-R2", LicenseExpiresOn = today.AddDays(100), IsActive = true,
+            RowVersion = [2, 2, 2, 2, 2, 2, 2, 2] };
+        db.AddRange(vehicle, previous, next);
+        await db.SaveChangesAsync();
+        var link = new VehicleDriverAssignment { TenantId = 101, VehicleId = vehicle.Id,
+            TransportDriverId = previous.Id, EffectiveFrom = today.AddDays(-10),
+            EffectiveTo = today.AddDays(30), IsCurrent = true,
+            RowVersion = [5, 5, 5, 5, 5, 5, 5, 5] };
+        db.VehicleDriverAssignments.Add(link);
+        await db.SaveChangesAsync();
+        var request = new ReplaceActiveVehicleDriverRequestDto { ClientRequestId = Guid.NewGuid(),
+            NewDriverId = next.Id, AssignmentRowVersion = Convert.ToBase64String(link.RowVersion),
+            DriverRowVersion = Convert.ToBase64String(next.RowVersion) };
+        var service = CreateService(db, 101);
+        var first = await service.ReplaceActiveDriverAsync(link.Id, request);
+        first.Success.Should().BeTrue(first.Message);
+        var historyCount = await db.VehicleDriverAssignments.CountAsync();
+        historyCount.Should().Be(2);
+        var replay = await service.ReplaceActiveDriverAsync(link.Id, request);
+        replay.Success.Should().BeTrue(replay.Message);
+        replay.Message.Should().Be(first.Message);
+        (await db.VehicleDriverAssignments.CountAsync()).Should().Be(historyCount);
+        link.IsCurrent.Should().BeFalse();
+        link.EffectiveTo.Should().Be(today.AddDays(-1));
+        (await db.IdempotencyRecords.CountAsync(x => x.Scope == "transport.operating-driver-replacement"))
+            .Should().Be(1);
+        (await service.ReplaceActiveDriverAsync(link.Id, new ReplaceActiveVehicleDriverRequestDto
+        {
+            ClientRequestId = request.ClientRequestId, NewDriverId = previous.Id,
+            AssignmentRowVersion = request.AssignmentRowVersion,
+            DriverRowVersion = request.DriverRowVersion
+        })).StatusCode.Should().Be(409);
+    }
+
     [Fact]
     public async Task Upcoming_charged_transport_extension_requires_finance_billing_contract()
     {

@@ -1,6 +1,7 @@
 (() => {
 'use strict';
 const u=window.vehicleDriverUI;if(!u)return;
+let requestKey=null,requestSignature=null;
 u.shortenUpcomingDriver=async item=>{
  if(!item||!item.isScheduled||item.isCancelled||!item.rowVersion||
     !item.effectiveTo||item.effectiveFrom<=u.today())return;
@@ -13,9 +14,13 @@ u.shortenUpcomingDriver=async item=>{
   u.notify('Choose a valid date from scheduled start through the day before current end.');return;
  }
  if(!window.confirm('Shorten this future driver reservation through '+end+'?'))return;
+ if(!window.crypto?.randomUUID)return u.notify('Secure browser context required.');
+ const signature=[item.id,end,item.rowVersion].join('|');
+ if(signature!==requestSignature){requestSignature=signature;requestKey=window.crypto.randomUUID();}
  try{
   await u.api(u.endpoint+'/'+encodeURIComponent(item.id)+'/shorten-upcoming','POST',
-   {effectiveTo:end,rowVersion:item.rowVersion});
+   {clientRequestId:requestKey,effectiveTo:end,rowVersion:item.rowVersion});
+  requestKey=null;requestSignature=null;
   u.notify('Upcoming driver reservation shortened.',true);
   await u.loadLinks();
  }catch(error){u.notify(error.message);}

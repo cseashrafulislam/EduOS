@@ -20,12 +20,17 @@ function renderRow(item){
   item.effectiveFrom,item.effectiveTo,item.isCancelled?'Cancelled':item.isScheduled?'Scheduled':item.isCurrent?'Current':'Ended'].forEach(x=>tr.append(cell(x)));
  const action=document.createElement('td');
  if(item.isScheduled){
+  let cancellationRequestKey=null;
   const button=document.createElement('button');button.type='button';
   button.className='btn btn-outline-danger btn-sm';button.textContent='Cancel reservation';
   button.onclick=async()=>{
    if(!confirm('Cancel this unused future driver reservation?'))return;
+   if(!window.crypto?.randomUUID)return u.notify('Secure browser context required.');
+   if(!cancellationRequestKey)cancellationRequestKey=window.crypto.randomUUID();
    button.disabled=true;
-   try{await u.api(u.endpoint+'/'+item.id+'/cancel-upcoming','POST',{rowVersion:item.rowVersion});
+   try{await u.api(u.endpoint+'/'+item.id+'/cancel-upcoming','POST',{
+    clientRequestId:cancellationRequestKey,rowVersion:item.rowVersion});
+    cancellationRequestKey=null;
     u.notify('Upcoming reservation cancelled.',true);await u.loadLinks();}
    catch(error){u.notify(error.message);}finally{button.disabled=false;}
   };
