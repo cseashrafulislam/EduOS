@@ -47,6 +47,41 @@
     </section>
 </section>
 
+
+@if (User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal"))
+{
+    <div class="modal fade" id="attendanceCorrectionHistoryModal" tabindex="-1"
+         aria-labelledby="attendanceCorrectionHistoryTitle" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title h5" id="attendanceCorrectionHistoryTitle">Attendance correction history</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="attendanceCorrectionHistoryStudent" class="small text-muted"></p>
+                    <div id="attendanceCorrectionHistoryStatus" role="status" aria-live="polite"></div>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead><tr><th>Changed at (UTC)</th><th>Previous</th><th>New</th><th>Reason</th><th>Changed by user</th></tr></thead>
+                            <tbody id="attendanceCorrectionHistoryRows"></tbody>
+                        </table>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <button type="button" id="attendanceHistoryPrevious" class="btn btn-sm btn-outline-secondary">Previous</button>
+                        <span id="attendanceHistoryPage" class="small"></span>
+                        <button type="button" id="attendanceHistoryNext" class="btn btn-sm btn-outline-secondary">Next</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @section Scripts {
     <script src="~/js/attendance/index.js" asp-append-version="true"></script>
+    @if (User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal"))
+    {
+        <script src="~/js/attendance/correction-history.js" asp-append-version="true"></script>
+    }
 }

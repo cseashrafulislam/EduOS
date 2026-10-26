@@ -118,6 +118,14 @@
                 edit.textContent = 'Correct (audit)';
                 edit.addEventListener('click', () => correctAttendance(tr, edit));
                 td.append(edit);
+                const history = document.createElement('button');
+                history.type = 'button'; history.className = 'btn btn-sm btn-outline-secondary mt-1 ms-1';
+                history.textContent = 'Correction history';
+                history.addEventListener('click', () => document.dispatchEvent(
+                    new CustomEvent('attendance:corrections-open', {
+                        detail: { attendanceId: student.id, studentName: student.studentName }
+                    })));
+                td.append(history);
             }
             tr.append(td);
             tr.append(inputCell('time', 'checkIn', student.checkInTime ? String(student.checkInTime).slice(0, 5) : ''));

@@ -300,6 +300,16 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                 var session = await _sessions.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == _user.TenantId && x.Id == row.AttendanceSessionId && !x.IsDeleted, token);
                 if (session == null) return Error<StudentAttendanceDto>("Attendance session not found.", 404);
+                if (!session.IsFinalized)
+                    return Error<StudentAttendanceDto>("Only finalized attendance can be corrected. Edit the draft register instead.", 409);
+                var ownsEnrollment = await (from enrollment in _enrollments.GetQueryable().AsNoTracking()
+                    join student in _students.GetQueryable().AsNoTracking() on enrollment.StudentId equals student.Id
+                    where enrollment.TenantId == _user.TenantId && student.TenantId == _user.TenantId &&
+                        enrollment.Id == row.StudentEnrollmentId && !enrollment.IsDeleted && !student.IsDeleted &&
+                        enrollment.AcademicBatchId == session.AcademicBatchId
+                    select enrollment.Id).AnyAsync(token);
+                if (!ownsEnrollment)
+                    return Error<StudentAttendanceDto>("Historical enrollment ownership mismatch.", 409);
                 if (row.State == request.NewState)
                     return Error<StudentAttendanceDto>("Attendance state is already the requested value.", 409);
                 var now = _clock.GetUtcNow().UtcDateTime;
@@ -327,6 +337,66 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
         {
             _logger.LogWarning(ex, "Attendance correction conflict for tenant {TenantId}", _user.TenantId);
             return Error<StudentAttendanceDto>("Attendance correction conflicts with an existing record.", 409);
+        }
+    }
+
+
+    /// <summary>
+    /// Paginated readback of immutable correction events. This query uses the attendance's
+    /// historical enrollment identity; it never substitutes the student's current enrollment.
+    /// Only attendance managers can read correction reasons and actor identifiers.
+    /// </summary>
+    public async Task<ApiResponse<PagedResult<StudentAttendanceAdjustmentDto>>> GetCorrectionsAsync(
+        long attendanceId, int page = 1, int pageSize = 20, CancellationToken ct = default)
+    {
+        if (!CanCorrect())
+            return Error<PagedResult<StudentAttendanceAdjustmentDto>>("Attendance history permission denied.", 403);
+        if (attendanceId <= 0 || page < 1 || pageSize is < 1 or > 100 ||
+            (long)(page - 1) * pageSize > int.MaxValue)
+            return Error<PagedResult<StudentAttendanceAdjustmentDto>>("Valid attendance, page and page size are required.");
+
+        var tenant = _user.TenantId;
+        try
+        {
+            // Check the complete ownership chain, not merely a guessed attendance ID.
+            var exists = await (from attendance in _attendances.GetQueryable().AsNoTracking()
+                join enrollment in _enrollments.GetQueryable().AsNoTracking()
+                    on attendance.StudentEnrollmentId equals enrollment.Id
+                join student in _students.GetQueryable().AsNoTracking()
+                    on enrollment.StudentId equals student.Id
+                join session in _sessions.GetQueryable().AsNoTracking()
+                    on attendance.AttendanceSessionId equals session.Id
+                where attendance.TenantId == tenant && enrollment.TenantId == tenant &&
+                    student.TenantId == tenant && session.TenantId == tenant &&
+                    attendance.Id == attendanceId && !attendance.IsDeleted &&
+                    !enrollment.IsDeleted && !student.IsDeleted && !session.IsDeleted &&
+                    enrollment.AcademicBatchId == session.AcademicBatchId
+                select attendance.Id).AnyAsync(ct);
+            if (!exists)
+                return Error<PagedResult<StudentAttendanceAdjustmentDto>>("Attendance record not found.", 404);
+
+            var query = _adjustments.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == tenant && x.StudentAttendanceId == attendanceId && !x.IsDeleted);
+            var total = await query.CountAsync(ct);
+            var items = await query.OrderByDescending(x => x.ChangedAt).ThenByDescending(x => x.Id)
+                .Skip((page - 1) * pageSize).Take(pageSize)
+                .Select(x => new StudentAttendanceAdjustmentDto
+                {
+                    Id = x.Id, StudentAttendanceId = x.StudentAttendanceId,
+                    PreviousState = x.PreviousState, NewState = x.NewState,
+                    Reason = x.Reason, ChangedByUserId = x.ChangedByUserId, ChangedAt = x.ChangedAt
+                }).ToListAsync(ct);
+            return ApiResponse<PagedResult<StudentAttendanceAdjustmentDto>>.SuccessResponse(
+                new PagedResult<StudentAttendanceAdjustmentDto>
+                {
+                    Items = items, TotalCount = total, Page = page, PageSize = pageSize
+                });
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Attendance correction history read failed for tenant {TenantId}", tenant);
+            return Error<PagedResult<StudentAttendanceAdjustmentDto>>("Correction history could not be loaded.", 500);
         }
     }
 

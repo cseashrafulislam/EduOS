@@ -65,4 +65,13 @@ public sealed class StudentAttendanceController : ControllerBase
         var result = await _service.CorrectAttendanceAsync(attendanceId, request, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
+    // Correction history is manager-only and deliberately separate from the teacher roster.
+    [HttpGet("{attendanceId:long}/corrections")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
+    public async Task<IActionResult> GetCorrections(long attendanceId, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, CancellationToken cancellationToken = default)
+    {
+        var result = await _service.GetCorrectionsAsync(attendanceId, page, pageSize, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
 }
