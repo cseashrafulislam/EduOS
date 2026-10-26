@@ -37,12 +37,18 @@ public sealed class FeeStructureRegisterTests
     [Fact]
     public async Task Register_includes_inactive_but_excludes_deleted_and_other_tenants()
     {
-        await using var db = Database();
+        var name = "fee-structures-" + Guid.NewGuid().ToString("N");
+        await using (var foreignDb = Database(name, 42))
+        {
+            foreignDb.FeeStructures.Add(new FeeStructure { TenantId = 42, CampusId = 11,
+                AcademicYearId = 1, Name = "Foreign", EffectiveFrom = new DateOnly(2026, 1, 1) });
+            await foreignDb.SaveChangesAsync();
+        }
+        await using var db = Database(name);
         db.FeeStructures.AddRange(
             new FeeStructure { TenantId = 41, CampusId = 11, AcademicYearId = 1, Name = "Old inactive", EffectiveFrom = new DateOnly(2025, 1, 1), IsActive = false },
             new FeeStructure { TenantId = 41, CampusId = 12, AcademicYearId = 1, Name = "Other campus", EffectiveFrom = new DateOnly(2026, 1, 1) },
-            new FeeStructure { TenantId = 41, CampusId = 11, AcademicYearId = 1, Name = "Deleted", IsDeleted = true, EffectiveFrom = new DateOnly(2024, 1, 1) },
-            new FeeStructure { TenantId = 42, CampusId = 11, AcademicYearId = 1, Name = "Foreign", EffectiveFrom = new DateOnly(2026, 1, 1) });
+            new FeeStructure { TenantId = 41, CampusId = 11, AcademicYearId = 1, Name = "Deleted", IsDeleted = true, EffectiveFrom = new DateOnly(2024, 1, 1) });
         await db.SaveChangesAsync();
         var service = Service(db, new User("TenantAdmin"));
         var all = await service.GetStructureRegisterAsync();
@@ -56,12 +62,20 @@ public sealed class FeeStructureRegisterTests
     [Fact]
     public async Task Detail_returns_canonical_lines_and_blocks_foreign_structure()
     {
-        await using var db = Database();
+        var name = "fee-structures-" + Guid.NewGuid().ToString("N");
+        long foreignId;
+        await using (var foreignDb = Database(name, 42))
+        {
+            var foreign = new FeeStructure { TenantId = 42, CampusId = 11,
+                AcademicYearId = 1, Name = "Foreign", EffectiveFrom = new DateOnly(2026, 1, 1) };
+            foreignDb.FeeStructures.Add(foreign);
+            await foreignDb.SaveChangesAsync();
+            foreignId = foreign.Id;
+        }
+        await using var db = Database(name);
         var own = new FeeStructure { TenantId = 41, CampusId = 11, AcademicYearId = 1,
             Name = "Monthly", EffectiveFrom = new DateOnly(2026, 1, 1) };
-        var foreign = new FeeStructure { TenantId = 42, CampusId = 11, AcademicYearId = 1,
-            Name = "Foreign", EffectiveFrom = new DateOnly(2026, 1, 1) };
-        db.FeeStructures.AddRange(own, foreign);
+        db.FeeStructures.Add(own);
         var head = new FeeHead { TenantId = 41, Code = "TUITION", Name = "Tuition" };
         db.FeeHeads.Add(head);
         await db.SaveChangesAsync();
@@ -73,7 +87,7 @@ public sealed class FeeStructureRegisterTests
         var result = await service.GetStructureAsync(own.Id);
         result.StatusCode.Should().Be(200);
         result.Data!.Lines.Single().Amount.Should().Be(2500m);
-        (await service.GetStructureAsync(foreign.Id)).StatusCode.Should().Be(404);
+        (await service.GetStructureAsync(foreignId)).StatusCode.Should().Be(404);
     }
 
     private static FeeBillingService Service(EduOSDbContext db, ICurrentUserService user) => new(
@@ -87,12 +101,12 @@ public sealed class FeeStructureRegisterTests
         new GenericRepository<Campus>(db), new GenericRepository<Tenant>(db),
         db, user, TimeProvider.System, NullLogger<FeeBillingService>.Instance);
 
-    private static EduOSDbContext Database()
+    private static EduOSDbContext Database(string? name = null, long tenant = 41)
     {
         var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
-        accessor.HttpContext.Items["TenantId"] = 41L;
+        accessor.HttpContext.Items["TenantId"] = tenant;
         return new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
-            .UseInMemoryDatabase("fee-structures-" + Guid.NewGuid().ToString("N")).Options, accessor);
+            .UseInMemoryDatabase(name ?? "fee-structures-" + Guid.NewGuid().ToString("N")).Options, accessor);
     }
 
     private sealed class User(string role) : ICurrentUserService
