@@ -165,6 +165,7 @@ async function main() {
         await page.locator('#trackCreateCode').fill('SCI');
         await page.locator('#trackCreateForm button[type="submit"]').click();
         await page.waitForFunction(() => document.querySelector('#trackRows')?.textContent.includes('Science'));
+        assert(mutations.some(x => x.path === '/api/academic-setup/tracks' && x.method === 'POST'));
         await page.locator('#trackRows button').first().click();
         await page.waitForFunction(() => !document.querySelector('#trackEditForm')?.classList.contains('d-none'));
         await page.locator('#trackEditName').fill('Science Updated');
