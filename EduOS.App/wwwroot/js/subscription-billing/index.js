@@ -5,7 +5,7 @@ if(!root)return;
 const status={1:"Trial",2:"Active",3:"Grace",4:"Suspended",5:"Cancelled",6:"Expired",7:"Pending payment"};
 const invoiceStatus={1:"Draft",2:"Issued",3:"Partially paid",4:"Paid",5:"Cancelled",6:"Refunded"};
 const paymentStatus={1:"Initiated",2:"Awaiting verification",3:"Successful",4:"Failed",5:"Cancelled",6:"Refunded"};
-const state={current:null,upcoming:null,page:1,pages:1,invoicePage:1,invoicePages:1,invoiceState:"",invoiceVersion:0,invoiceDetailVersion:0,busy:false,version:0};
+const state={current:null,upcoming:null,plans:[],page:1,pages:1,invoicePage:1,invoicePages:1,invoiceState:"",invoiceVersion:0,invoiceDetailVersion:0,busy:false,version:0};
 const token=root.querySelector('input[name="__RequestVerificationToken"]')?.value ||
  document.querySelector('meta[name="request-verification-token"]')?.content || "";
 function message(text,kind="danger"){const e=$("sbAlert");e.textContent=text;e.className="alert alert-"+kind;}
@@ -74,17 +74,37 @@ function renderUpcoming(){
  box.textContent=s.autoRenew
   ?"Auto-renew is enabled: an invoice will be scheduled automatically during the final 30 days. You may also request it now. No payment is collected automatically."
   :"Request the next billing period at the plan's current price. No payment is collected automatically.";
+ // Only public, active, same-currency plans can be scheduled; the server revalidates.
+ const eligiblePlans=state.plans.filter(p=>p&&p.isActive&&p.isPublic&&
+   String(p.currencyCode||"").toUpperCase()===String(s.currencyCode||"").toUpperCase());
+ let planSelect=null;
+ if(eligiblePlans.length){
+  const label=document.createElement("label");label.className="small";
+  label.textContent="Plan for next period ";
+  planSelect=document.createElement("select");planSelect.className="form-select form-select-sm";
+  planSelect.setAttribute("aria-label","Plan for next subscription period");
+  for(const plan of eligiblePlans){
+   const opt=document.createElement("option");opt.value=String(plan.id);
+   opt.textContent=plan.name+" ("+plan.currencyCode+")";
+   opt.selected=Number(plan.id)===Number(s.subscriptionPlanId);
+   planSelect.append(opt);
+  }
+  label.append(planSelect);actions.append(label);
+ }
  const b=button("Generate renewal invoice",async()=>{
   if(state.busy||!confirm("Create a renewal invoice? The next period begins after your current period. Payment requires separate verification."))return;
   if(!globalThis.crypto?.randomUUID){message("Secure request IDs are unavailable in this browser.");return;}
-  const key="eduos:renewal:"+s.reference;
+  const nextPlanId=planSelect?Number(planSelect.value):Number(s.subscriptionPlanId);
+  if(!Number.isSafeInteger(nextPlanId)||nextPlanId<=0){message("Select a valid next-period plan.");return;}
+  const key="eduos:renewal:"+s.reference+":"+nextPlanId;
   let requestId=null;
   try{requestId=sessionStorage.getItem(key);}catch{}
   if(!requestId){requestId=crypto.randomUUID();try{sessionStorage.setItem(key,requestId);}catch{}}
   state.busy=true;b.disabled=true;
   try{
    await api("/api/subscription/"+encodeURIComponent(s.reference)+"/renew","POST",
-     {clientRequestId:requestId,rowVersion:s.rowVersion});
+     {clientRequestId:requestId,rowVersion:s.rowVersion,
+      nextPlanId:nextPlanId===Number(s.subscriptionPlanId)?null:nextPlanId});
    try{sessionStorage.removeItem(key);}catch{}
    message("Renewal created. Pay the invoice below to activate the next period.","success");
    await refresh();
@@ -243,12 +263,13 @@ async function refresh(){
  const version=++state.version;
  const invoiceTask=refreshInvoices();
  try{
-  const [current,history,lifecycle,upcoming]=await Promise.all([
+  const [current,history,lifecycle,upcoming,plans]=await Promise.all([
    api("/api/subscription/current"),
    api("/api/subscription/history?page="+state.page+"&pageSize=10"),
-   api("/api/subscription/lifecycle-status"),api("/api/subscription/upcoming")]);
+   api("/api/subscription/lifecycle-status"),api("/api/subscription/upcoming"),
+   api("/api/subscription-plans").catch(()=>[])]);
   if(version!==state.version)return;
-  state.current=current;state.upcoming=upcoming;renderCurrent();renderLifecycle(lifecycle);renderUpcoming();renderHistory(history);
+  state.current=current;state.upcoming=upcoming;state.plans=Array.isArray(plans)?plans:[];renderCurrent();renderLifecycle(lifecycle);renderUpcoming();renderHistory(history);
  }catch(e){if(version===state.version)message(e.message);}
  await invoiceTask;
 }

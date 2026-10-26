@@ -36,10 +36,11 @@ public sealed partial class SubscriptionService
     {
         if (!CanManage()) return Denied<TenantSubscriptionDto>();
         if (subscriptionReference == Guid.Empty || request == null ||
-            request.ClientRequestId == Guid.Empty || !TryVersion(request.RowVersion, out var version))
+            request.ClientRequestId == Guid.Empty || request.NextPlanId is <= 0 ||
+            !TryVersion(request.RowVersion, out var version))
             return Error<TenantSubscriptionDto>("Subscription reference, request ID and row version are required.");
         return await ScheduleRenewalCoreAsync(_user.TenantId, subscriptionReference,
-            request.ClientRequestId, version, _user.UserId, false, ct);
+            request.ClientRequestId, version, _user.UserId, false, ct, request.NextPlanId);
     }
 
     /// <summary>
@@ -68,7 +69,7 @@ public sealed partial class SubscriptionService
 
     private async Task<ApiResponse<TenantSubscriptionDto>> ScheduleRenewalCoreAsync(
         long tenantId, Guid subscriptionReference, Guid requestId, byte[]? expectedVersion,
-        long? actorId, bool automatic, CancellationToken ct)
+        long? actorId, bool automatic, CancellationToken ct, long? nextPlanId = null)
     {
         try
         {
@@ -84,10 +85,15 @@ public sealed partial class SubscriptionService
                 var successor = await _subscriptions.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenantId && x.PreviousSubscriptionId == previous.Id && !x.IsDeleted, token);
                 if (successor != null)
-                    return automatic || successor.PublicId == requestId
-                        ? ApiResponse<TenantSubscriptionDto>.SuccessResponse(
-                            await MapAsync(successor, token), "Renewal already scheduled.")
-                        : Error<TenantSubscriptionDto>("A renewal is already scheduled for this period.", 409);
+                {
+                    // Replaying the same idempotency key with a different target plan is a conflict.
+                    // Automatic retries intentionally accept the already scheduled successor.
+                    if (!automatic && (successor.PublicId != requestId ||
+                        successor.SubscriptionPlanId != (nextPlanId ?? previous.SubscriptionPlanId)))
+                        return Error<TenantSubscriptionDto>("A different renewal is already scheduled for this period.", 409);
+                    return ApiResponse<TenantSubscriptionDto>.SuccessResponse(
+                        await MapAsync(successor, token), "Renewal already scheduled.");
+                }
                 if (await _subscriptions.GetQueryable().AsNoTracking().AnyAsync(x =>
                     x.TenantId == tenantId && x.PublicId == requestId && !x.IsDeleted, token))
                     return Error<TenantSubscriptionDto>("Request ID is already in use.", 409);
@@ -111,9 +117,12 @@ public sealed partial class SubscriptionService
                     return Error<TenantSubscriptionDto>("Another current or pending period already exists.", 409);
 
                 var plan = await _plans.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                    x.Id == previous.SubscriptionPlanId && x.IsActive && x.IsPublic && !x.IsDeleted, token);
+                    x.Id == (nextPlanId ?? previous.SubscriptionPlanId) && x.IsActive && x.IsPublic && !x.IsDeleted, token);
                 if (plan == null)
-                    return Error<TenantSubscriptionDto>("This plan is no longer available for renewal.", 409);
+                    return Error<TenantSubscriptionDto>("The selected next-period plan is not available.", 409);
+                // Currency changes require a separate, explicitly reviewed billing workflow.
+                if (!string.Equals(plan.CurrencyCode, previous.CurrencyCode, StringComparison.OrdinalIgnoreCase))
+                    return Error<TenantSubscriptionDto>("The next-period plan must use the current billing currency.", 409);
                 var price = SubscriptionCalculator.GetPriceForCycle(plan, previous.BillingCycleCode);
                 if (price < 0m) return Error<TenantSubscriptionDto>("Invalid renewal price.", 409);
                 var next = new TenantSubscription

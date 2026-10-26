@@ -142,6 +142,76 @@ public sealed class SubscriptionServiceTests
     }
 
     [Fact]
+    public async Task Renewal_can_change_next_period_plan_without_changing_current_or_duplicate_invoice()
+    {
+        await using var setup = await SetupAsync();
+        setup.ActivateRequest();
+        var originalPlan = await AddPlanAsync(setup.Db, 1000m);
+        var nextPlan = await AddPlanAsync(setup.Db, 1800m);
+        (await setup.Service.StartAsync(Request(originalPlan.Id))).Success.Should().BeTrue();
+        var current = await setup.Db.TenantSubscriptions.SingleAsync();
+        current.State = SubscriptionState.Active;
+        current.StartsAt = DateTime.UtcNow.AddDays(-20);
+        current.EndsAt = DateTime.UtcNow.AddDays(5);
+        current.RowVersion = new byte[] { 6, 7, 8 };
+        await setup.Db.SaveChangesAsync();
+        var request = new RenewSubscriptionRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), NextPlanId = nextPlan.Id,
+            RowVersion = Convert.ToBase64String(current.RowVersion)
+        };
+        var result = await setup.Service.RenewAsync(current.PublicId, request);
+        result.Success.Should().BeTrue();
+        result.Data!.SubscriptionPlanId.Should().Be(nextPlan.Id);
+        result.Data.PriceSnapshot.Should().Be(1800m);
+        result.Data.StartsAt.Should().Be(current.EndsAt);
+        (await setup.Db.TenantSubscriptions.SingleAsync(x => x.Id == current.Id))
+            .SubscriptionPlanId.Should().Be(originalPlan.Id);
+        var invoice = await setup.Db.SubscriptionInvoices
+            .SingleAsync(x => x.TenantSubscriptionId == result.Data.Id);
+        invoice.TotalAmount.Should().Be(1800m);
+        invoice.DueAmount.Should().Be(1800m);
+        (await setup.Db.SubscriptionInvoiceLines.SingleAsync(x => x.SubscriptionInvoiceId == invoice.Id))
+            .Amount.Should().Be(1800m);
+        var replay = await setup.Service.RenewAsync(current.PublicId, request);
+        replay.Success.Should().BeTrue();
+        replay.Data!.Id.Should().Be(result.Data.Id);
+        request.NextPlanId = originalPlan.Id;
+        (await setup.Service.RenewAsync(current.PublicId, request)).StatusCode.Should().Be(409);
+        (await setup.Db.TenantSubscriptions.CountAsync()).Should().Be(2);
+        (await setup.Db.SubscriptionInvoices.CountAsync()).Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Renewal_rejects_hidden_and_cross_currency_next_period_plans()
+    {
+        await using var setup = await SetupAsync();
+        setup.ActivateRequest();
+        var originalPlan = await AddPlanAsync(setup.Db, 1000m);
+        var hiddenPlan = await AddPlanAsync(setup.Db, 1500m, isPublic: false);
+        var foreignPlan = await AddPlanAsync(setup.Db, 1700m);
+        foreignPlan.CurrencyCode = "USD";
+        await setup.Db.SaveChangesAsync();
+        (await setup.Service.StartAsync(Request(originalPlan.Id))).Success.Should().BeTrue();
+        var current = await setup.Db.TenantSubscriptions.SingleAsync();
+        current.State = SubscriptionState.Active;
+        current.EndsAt = DateTime.UtcNow.AddDays(5);
+        current.RowVersion = new byte[] { 8, 9, 10 };
+        await setup.Db.SaveChangesAsync();
+        foreach (var target in new[] { hiddenPlan.Id, foreignPlan.Id })
+        {
+            var result = await setup.Service.RenewAsync(current.PublicId, new RenewSubscriptionRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), NextPlanId = target,
+                RowVersion = Convert.ToBase64String(current.RowVersion)
+            });
+            result.StatusCode.Should().Be(409);
+        }
+        (await setup.Db.TenantSubscriptions.CountAsync()).Should().Be(1);
+        (await setup.Db.SubscriptionInvoices.CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
     public async Task Renewal_rejects_stale_version_and_requests_too_early()
     {
         await using var setup = await SetupAsync();
