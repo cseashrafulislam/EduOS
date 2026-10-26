@@ -55,7 +55,7 @@ public sealed partial class InventoryCatalogService
             if (await _db.InventoryLocations.AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.Code == code && x.Id != entity.Id && !x.IsDeleted, ct))
                 return ApiResponse<InventoryLocationDto>.ErrorResponse("Location code is already in use.", 409);
             entity.Code = code; entity.Name = name; entity.CampusId = request.CampusId; entity.IsActive = request.IsActive;
-            if (!locationId.HasValue || request.Address != null) entity.Address = address;
+            entity.Address = address;
             if (locationId.HasValue) { entity.UpdatedAt = now; entity.UpdatedBy = _user.UserId; }
             await _db.SaveChangesAsync(ct);
             return new ApiResponse<InventoryLocationDto> { Success = true, StatusCode = locationId.HasValue ? 200 : 201,

@@ -77,10 +77,10 @@
     }
     function renderLocations() {
         const target = el('locationRows'); target.replaceChildren();
-        if (!locations.length) { empty(target, canManage ? 5 : 4, 'No locations found.'); return; }
+        if (!locations.length) { empty(target, canManage ? 6 : 5, 'No locations found.'); return; }
         for (const row of locations) {
             const tr = document.createElement('tr');
-            [row.code, row.name, row.campusId, row.isActive ? 'Active' : 'Inactive'].forEach(v => tr.append(td(v)));
+            [row.code, row.name, row.campusId, row.address, row.isActive ? 'Active' : 'Inactive'].forEach(v => tr.append(td(v)));
             if (canManage) action(tr, () => editLocation(row));
             target.append(tr);
         }
@@ -99,14 +99,14 @@
             renderLocations();
         } catch (error) {
             notice(error.message);
-            empty(el('locationRows'), canManage ? 5 : 4, 'Unable to load locations.');
+            empty(el('locationRows'), canManage ? 6 : 5, 'Unable to load locations.');
         }
     }
     function editLocation(row) {
         const values = { locationId: row.id, locationVersion: row.rowVersion, locationCode: row.code,
             locationName: row.name, locationCampus: row.campusId };
         Object.entries(values).forEach(([key, value]) => { el(key).value = value ?? ''; });
-        el('locationAddress').value = ''; el('locationActive').checked = row.isActive;
+        el('locationAddress').value = row.address ?? ''; el('locationActive').checked = row.isActive;
         el('locationForm').scrollIntoView({ block: 'center', behavior: 'smooth' });
     }
     function resetLocation() {

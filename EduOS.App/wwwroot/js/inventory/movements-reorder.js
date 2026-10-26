@@ -1,4 +1,4 @@
-import { el, notice } from './movements-api.js';
+import { el, notice, activeLocations } from './movements-api.js';
 
 const decimalFields = /("(?:quantityOnHand|reorderLevel|shortfall)"\s*:\s*)(-?\d+(?:\.\d+)?)/g;
 const csvCell = value => {
@@ -27,10 +27,9 @@ async function get(path) {
 export async function initReorder() {
     const select = el('reorderLocation');
     if (!select) return;
-    const locations = await get('catalog/locations');
-    const rows = Array.isArray(locations) ? locations : locations.items || [];
+    const rows = await activeLocations();
     select.replaceChildren(new Option('Select location', ''));
-    rows.filter(x => x.isActive).forEach(x => select.add(new Option(x.code + ' — ' + x.name, String(x.id))));
+    rows.forEach(x => select.add(new Option(x.code + ' — ' + x.name, String(x.id))));
     let report = null;
     el('reorderForm').addEventListener('submit', async event => {
         event.preventDefault();

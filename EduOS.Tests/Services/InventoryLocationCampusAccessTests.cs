@@ -42,28 +42,28 @@ public sealed class InventoryLocationCampusAccessTests
 
         var storeKeeper = new InventoryCatalogService(db, new User(101, "StoreKeeper"),
             TimeProvider.System, NullLogger<InventoryCatalogService>.Instance);
-        var visible = await storeKeeper.GetLocationsAsync(null);
-        visible.Data!.Select(x => x.Code).Should().BeEquivalentTo(["A1", "SHARED"]);
-        (await storeKeeper.GetLocationsAsync(second.Id)).StatusCode.Should().Be(403);
-        (await storeKeeper.GetLocationsAsync(first.Id)).Data!.Select(x => x.Code)
+        var visible = await storeKeeper.GetLocationsPageAsync(1, 25, null, null);
+        visible.Data!.Items.Select(x => x.Code).Should().BeEquivalentTo(["A1", "SHARED"]);
+        (await storeKeeper.GetLocationsPageAsync(1, 25, second.Id, null)).StatusCode.Should().Be(403);
+        (await storeKeeper.GetLocationsPageAsync(1, 25, first.Id, null)).Data!.Items.Select(x => x.Code)
             .Should().BeEquivalentTo(["A1"]);
 
         grant.IsActive = false;
         await db.SaveChangesAsync();
-        (await storeKeeper.GetLocationsAsync(null)).Data!.Select(x => x.Code)
+        (await storeKeeper.GetLocationsPageAsync(1, 25, null, null)).Data!.Items.Select(x => x.Code)
             .Should().BeEquivalentTo(["SHARED"]);
 
         // Deactivating a campus immediately invalidates previously granted access.
         grant.IsActive = true;
         first.IsActive = false;
         await db.SaveChangesAsync();
-        (await storeKeeper.GetLocationsAsync(null)).Data!.Select(x => x.Code)
+        (await storeKeeper.GetLocationsPageAsync(1, 25, null, null)).Data!.Items.Select(x => x.Code)
             .Should().BeEquivalentTo(["SHARED"]);
-        (await storeKeeper.GetLocationsAsync(first.Id)).StatusCode.Should().Be(403);
+        (await storeKeeper.GetLocationsPageAsync(1, 25, first.Id, null)).StatusCode.Should().Be(403);
         (await storeKeeper.GetLocationsPageAsync(1, 25, first.Id, null)).StatusCode.Should().Be(403);
         first.IsActive = true;
         await db.SaveChangesAsync();
-        (await storeKeeper.GetLocationsAsync(first.Id)).Data!.Select(x => x.Code)
+        (await storeKeeper.GetLocationsPageAsync(1, 25, first.Id, null)).Data!.Items.Select(x => x.Code)
             .Should().BeEquivalentTo(["A1"]);
     }
 
@@ -84,7 +84,7 @@ public sealed class InventoryLocationCampusAccessTests
         var second = new Campus { TenantId = 101, Code = "B", Name = "Campus B" };
         db.Campuses.AddRange(first, second);
         await db.SaveChangesAsync();
-        var owned = new InventoryLocation { TenantId = 101, CampusId = first.Id, Code = "A1", Name = "Store A", RowVersion = [1] };
+        var owned = new InventoryLocation { TenantId = 101, CampusId = first.Id, Code = "A1", Name = "Store A", Address = "Old street", RowVersion = [1] };
         var foreign = new InventoryLocation { TenantId = 101, CampusId = second.Id, Code = "B1", Name = "Store B", RowVersion = [1] };
         var shared = new InventoryLocation { TenantId = 101, Code = "SHARED", Name = "Shared Store", RowVersion = [1] };
         db.InventoryLocations.AddRange(owned, foreign, shared);
@@ -104,6 +104,10 @@ public sealed class InventoryLocationCampusAccessTests
         (await service.SaveLocationAsync(owned.Id, Request(second.Id, "A1", "Moved", version))).StatusCode.Should().Be(403);
         (await service.SaveLocationAsync(null, Request(first.Id, "B1", "Store B"))).StatusCode.Should().Be(403);
         (await service.SaveLocationAsync(null, Request(first.Id, "A2", "Store A2"))).StatusCode.Should().Be(201);
+        var cleared = await service.SaveLocationAsync(owned.Id, Request(first.Id, "A1", "Store A", version));
+        cleared.Success.Should().BeTrue();
+        cleared.Data!.Address.Should().BeNull();
+        owned.Address.Should().BeNull();
         owned.CampusId.Should().Be(first.Id);
         foreign.Name.Should().Be("Store B");
         shared.Name.Should().Be("Shared Store");
@@ -141,7 +145,7 @@ public sealed class InventoryLocationCampusAccessTests
         db.Campuses.AddRange(first, blocked);
         await db.SaveChangesAsync();
         db.UserCampusAccesses.Add(new UserCampusAccess { TenantId = 101, UserId = 7, CampusId = first.Id, IsActive = true });
-        db.InventoryLocations.AddRange(Enumerable.Range(0, 120).Select(i => new InventoryLocation
+        db.InventoryLocations.AddRange(Enumerable.Range(0, 220).Select(i => new InventoryLocation
         { TenantId = 101, CampusId = first.Id, Code = $"A{i:D3}", Name = $"Store {i}" }));
         db.InventoryLocations.Add(new InventoryLocation { TenantId = 101, CampusId = blocked.Id, Code = "B001", Name = "Blocked" });
         db.InventoryLocations.Add(new InventoryLocation { TenantId = 101, Code = "SHARED", Name = "Shared" });
@@ -163,16 +167,18 @@ public sealed class InventoryLocationCampusAccessTests
         (await db.InventoryLocations.AnyAsync(x => x.Code == "FOREIGN")).Should().BeFalse();
         var service = new InventoryCatalogService(db, new User(101, "InventoryManager"),
             TimeProvider.System, NullLogger<InventoryCatalogService>.Instance);
-        (await service.GetLocationsAsync(null)).Data!.Should().HaveCount(121);
+        (await service.GetLocationsPageAsync(1, 25, null, null)).Data!.TotalCount.Should().Be(221);
         var firstPage = await service.GetLocationsPageAsync(1, 500, null, null);
         firstPage.Data!.PageSize.Should().Be(100);
-        firstPage.Data.TotalCount.Should().Be(121);
+        firstPage.Data.TotalCount.Should().Be(221);
         firstPage.Data.Items.Should().HaveCount(100);
         var secondPage = await service.GetLocationsPageAsync(2, 100, null, null);
-        secondPage.Data!.Items.Should().HaveCount(21);
-        secondPage.Data.Items.Select(x => x.Code).Should().Contain("SHARED");
+        secondPage.Data!.Items.Should().HaveCount(100);
+        var thirdPage = await service.GetLocationsPageAsync(3, 100, null, null);
+        thirdPage.Data!.Items.Should().HaveCount(21);
+        thirdPage.Data.Items.Select(x => x.Code).Should().Contain("SHARED");
         (await service.GetLocationsPageAsync(1, 25, blocked.Id, null)).StatusCode.Should().Be(403);
-        (await service.GetLocationsPageAsync(1, 25, first.Id, "A119")).Data!.TotalCount.Should().Be(1);
+        (await service.GetLocationsPageAsync(1, 25, first.Id, "A219")).Data!.TotalCount.Should().Be(1);
         (await service.GetLocationsPageAsync(1, 25, null, new string('x', 101))).StatusCode.Should().Be(400);
         (await service.GetLocationsPageAsync(int.MaxValue, 100, null, null)).Data!.Items.Should().BeEmpty();
         (await new InventoryCatalogService(db, new User(101, "Student"),
@@ -193,19 +199,21 @@ public sealed class InventoryLocationCampusAccessTests
         db.Campuses.AddRange(active, disabled);
         await db.SaveChangesAsync();
         db.InventoryLocations.AddRange(
-            new InventoryLocation { TenantId = 101, CampusId = active.Id, Code = "A1", Name = "Active Store" },
+            new InventoryLocation { TenantId = 101, CampusId = active.Id, Code = "A1", Name = "Active Store", Address = "Campus lane" },
             new InventoryLocation { TenantId = 101, CampusId = disabled.Id, Code = "B1", Name = "Disabled Store" },
             new InventoryLocation { TenantId = 101, Code = "SHARED", Name = "Shared Store" });
         await db.SaveChangesAsync();
         var admin = new InventoryCatalogService(db, new User(101, "TenantAdmin"),
             TimeProvider.System, NullLogger<InventoryCatalogService>.Instance);
-        (await admin.GetLocationsAsync(null)).Data!.Select(x => x.Code)
+        (await admin.GetLocationsPageAsync(1, 25, null, null)).Data!.Items.Select(x => x.Code)
             .Should().BeEquivalentTo(["A1", "B1", "SHARED"]);
+        (await admin.GetLocationsPageAsync(1, 25, null, "A1")).Data!.Items.Single().Address
+            .Should().Be("Campus lane");
         disabled.IsActive = false;
         await db.SaveChangesAsync();
-        (await admin.GetLocationsAsync(null)).Data!.Select(x => x.Code)
+        (await admin.GetLocationsPageAsync(1, 25, null, null)).Data!.Items.Select(x => x.Code)
             .Should().BeEquivalentTo(["A1", "SHARED"]);
-        (await admin.GetLocationsAsync(disabled.Id)).Data!.Should().BeEmpty();
+        (await admin.GetLocationsPageAsync(1, 25, disabled.Id, null)).Data!.Items.Should().BeEmpty();
         (await admin.GetLocationsPageAsync(1, 25, null, "B1")).Data!.TotalCount.Should().Be(0);
         disabled.IsActive = true;
         await db.SaveChangesAsync();

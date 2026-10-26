@@ -26,9 +26,27 @@ export function fill(select, rows, text) {
     select.add(new Option(text, ''));
     rows.forEach(row => select.add(new Option(row.code ? row.code + ' — ' + row.name : row.name, String(row.id))));
 }
-export async function catalogs(search = '') {
+export async function activeLocations() {
+    const pageSize = 100, rows = [];
+    for (let page = 1; page <= 100; page++) {
+        const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+        const data = await api('catalog/locations?' + query);
+        if (!Array.isArray(data?.items) || !Number.isSafeInteger(data.totalCount) || data.totalCount < 0 ||
+            data.page !== page || data.pageSize !== pageSize)
+            throw new Error('Invalid location page received. Please retry.');
+        rows.push(...data.items);
+        if (!data.hasNextPage) {
+            if (rows.length !== data.totalCount) throw new Error('Location list changed. Please retry.');
+            return rows.filter(x => x.isActive);
+        }
+        if (!data.items.length) throw new Error('Incomplete location page received. Please retry.');
+    }
+    throw new Error('Over 10,000 accessible locations; narrow the catalog before loading dropdowns.');
+}
+export async function catalogs(search = '', knownLocations = null) {
     const query = new URLSearchParams({ page: '1', pageSize: '100', search });
-    const [items, locations] = await Promise.all([api('catalog/items?' + query), api('catalog/locations')]);
+    const [items, locations] = await Promise.all([api('catalog/items?' + query),
+        knownLocations ?? activeLocations()]);
     return { items: (items.items || []).filter(x => x.isActive && x.isStockTracked),
-        locations: (Array.isArray(locations) ? locations : locations.items || []).filter(x => x.isActive) };
+        locations };
 }

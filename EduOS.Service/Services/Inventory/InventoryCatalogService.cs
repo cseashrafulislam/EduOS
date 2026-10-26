@@ -50,7 +50,7 @@ public sealed partial class InventoryCatalogService : IInventoryCatalogService
     };
     private static InventoryLocationDto Map(InventoryLocation x) => new()
     {
-        Id = x.Id, CampusId = x.CampusId, Code = x.Code, Name = x.Name,
+        Id = x.Id, CampusId = x.CampusId, Code = x.Code, Name = x.Name, Address = x.Address,
         IsActive = x.IsActive, RowVersion = Convert.ToBase64String(x.RowVersion)
     };
 }

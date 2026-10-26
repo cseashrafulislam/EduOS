@@ -22,17 +22,6 @@ public sealed partial class InventoryCatalogService
         return rows;
     }
 
-    // Preserve legacy array contract; newer consumers opt in to pagination.
-    public async Task<ApiResponse<IReadOnlyList<InventoryLocationDto>>> GetLocationsAsync(long? campusId, CancellationToken ct = default)
-    {
-        if (!CanRead()) return Denied<IReadOnlyList<InventoryLocationDto>>();
-        if (campusId is <= 0) return ApiResponse<IReadOnlyList<InventoryLocationDto>>.ErrorResponse("Invalid campus.");
-        if (campusId.HasValue && !await CanAccessCampusAsync(campusId.Value, ct))
-            return Denied<IReadOnlyList<InventoryLocationDto>>();
-        var rows = await VisibleLocations(campusId).OrderBy(x => x.Code).ThenBy(x => x.Id).Take(200).ToListAsync(ct);
-        return ApiResponse<IReadOnlyList<InventoryLocationDto>>.SuccessResponse(rows.Select(Map).ToList());
-    }
-
     public async Task<ApiResponse<PagedResult<InventoryLocationDto>>> GetLocationsPageAsync(int page, int pageSize, long? campusId, string? search, CancellationToken ct = default)
     {
         if (!CanRead()) return Denied<PagedResult<InventoryLocationDto>>();

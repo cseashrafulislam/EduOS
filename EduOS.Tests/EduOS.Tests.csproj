@@ -73,6 +73,13 @@
     <None Include="..\EduOS.App\Controllers\StudentsController.cs" Link="TestAssets\StudentsController.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Views\Students\Index.cshtml" Link="TestAssets\StudentsIndex.cshtml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\wwwroot\js\students\index.js" Link="TestAssets\students-index.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Controllers\Api\InventoryCatalogController.cs" Link="TestAssets\InventoryCatalogController.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\Views\InventoryCatalog\Index.cshtml" Link="TestAssets\InventoryCatalogIndex.cshtml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\wwwroot\js\inventory\catalog.js" Link="TestAssets\inventory-catalog.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\wwwroot\js\inventory\movements-api.js" Link="TestAssets\movements-api.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\wwwroot\js\inventory\movements-form.js" Link="TestAssets\movements-form.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\wwwroot\js\inventory\movements-reorder.js" Link="TestAssets\movements-reorder.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\EduOS.App\wwwroot\js\inventory\movements-stock-position.js" Link="TestAssets\movements-stock-position.js" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Views\Learning\Quizzes.cshtml" Link="TestAssets\Quizzes.cshtml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\wwwroot\js\learning\quizzes-learner.js" Link="TestAssets\quizzes-learner.js" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\EduOS.App\Views\Admissions\Index.cshtml" Link="TestAssets\AdmissionsIndex.cshtml" CopyToOutputDirectory="PreserveNewest" />

@@ -17,7 +17,7 @@ export async function initForm(refresh) {
     let timer;
     el('movementItemSearch').addEventListener('input', () => {
         clearTimeout(timer); timer = setTimeout(async () => {
-            try { const result = await catalogs(el('movementItemSearch').value.trim());
+            try { const result = await catalogs(el('movementItemSearch').value.trim(), data.locations);
                 fill(el('movementItem'), result.items, 'Select stock item'); }
             catch (e) { notice(e.message); }
         }, 350);

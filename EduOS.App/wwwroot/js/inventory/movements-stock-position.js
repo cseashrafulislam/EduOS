@@ -1,4 +1,4 @@
-import { el, notice } from './movements-api.js';
+import { el, notice, activeLocations } from './movements-api.js';
 
 const decimalFields = /("(?:quantityOnHand|recordedCostBalance|reorderLevel)"\s*:\s*)(-?\d+(?:\.\d+)?)/g;
 const csvCell = value => {
@@ -28,10 +28,9 @@ export async function initStockPosition() {
     const form = el('stockPositionForm');
     if (!form) return;
     const location = el('stockPositionLocation'), run = el('stockPositionRun'), csv = el('stockPositionCsv');
-    const locations = await get('catalog/locations');
-    const allowed = Array.isArray(locations) ? locations : locations.items || [];
+    const allowed = await activeLocations();
     location.replaceChildren(new Option('Select location', ''));
-    allowed.filter(x => x.isActive).forEach(x =>
+    allowed.forEach(x =>
         location.add(new Option(x.code + ' — ' + x.name, String(x.id))));
     let page = 1, report = null, busy = false;
     function invalidate() {
