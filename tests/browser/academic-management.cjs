@@ -38,6 +38,35 @@ async function main() {
             if (!url.pathname.startsWith('/api/'))
                 return route.fulfill({ status: 200, contentType: 'text/html', body: html });
             if (request.method() === 'GET') {
+                if (url.pathname === '/api/academic-setup/curricula') {
+                    let items = catalog.curricula.filter(x =>
+                        !url.searchParams.get('academicProgramId') ||
+                        x.academicProgramId === Number(url.searchParams.get('academicProgramId')));
+                    const prefix = (url.searchParams.get('search') || '').toLowerCase();
+                    if (prefix) items = items.filter(x => x.name.toLowerCase().startsWith(prefix) ||
+                        x.code.toLowerCase().startsWith(prefix));
+                    const date = url.searchParams.get('effectiveOn');
+                    if (date) items = items.filter(x => x.effectiveFrom <= date &&
+                        (!x.effectiveTo || x.effectiveTo >= date));
+                    const p = Number(url.searchParams.get('page') || 1);
+                    const size = Number(url.searchParams.get('pageSize') || 20);
+                    const data = { items: items.slice((p - 1) * size, p * size).map(x => ({
+                        ...x, subjectCount: catalog.curriculumSubjects.filter(y =>
+                            y.academicCurriculumId === x.id).length
+                    })), totalCount: items.length, page: p, pageSize: size };
+                    return route.fulfill({ status: 200, contentType: 'application/json',
+                        body: JSON.stringify({ success: true, data }) });
+                }
+                if (/^\/api\/academic-setup\/curricula\/\d+$/.test(url.pathname)) {
+                    const data = catalog.curricula.find(x => x.id === Number(url.pathname.split('/').at(-1)));
+                    const subjects = data ? catalog.curriculumSubjects.filter(x => x.academicCurriculumId === data.id)
+                        .map(x => ({ ...x, academicLevelName: 'Grade Nine',
+                            subjectName: 'Advanced Mathematics' })) : [];
+                    return route.fulfill({ status: data ? 200 : 404, contentType: 'application/json',
+                        body: JSON.stringify({ success: !!data, data: data && {
+                            ...data, subjects, subjectCount: subjects.length
+                        } }) });
+                }
                 if (url.pathname === '/api/academic-setup/subjects') {
                     const prefix = (url.searchParams.get('search') || '').toLowerCase();
                     const matches = catalog.subjects.filter(x => !prefix ||
@@ -160,6 +189,7 @@ async function main() {
         await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/academic/levels.js') });
         await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/academic/tracks.js') });
         await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/academic/subjects.js') });
+        await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/academic/curricula.js') });
         await page.waitForSelector('#yearRows tr');
         assert.match(await page.locator('#yearRows').innerText(), /Academic 2026/);
 
@@ -240,7 +270,10 @@ async function main() {
         assert(mutations.some(x => x.path.endsWith('/curricula/701/subjects')));
         assert.equal(catalog.curriculumSubjects.length, 1);
         await page.locator('#curriculumRows button').first().click();
-        await page.waitForFunction(() => document.querySelector('#curriculumRows')?.textContent.includes('Active'));
+        await page.waitForFunction(() => document.querySelector('#curriculumDetails')?.textContent.includes('Advanced Mathematics'));
+        await page.locator('#curriculumCsv').click();
+        await page.locator('#curriculumRows button').filter({ hasText: 'Activate' }).first().click();
+        await page.waitForFunction(() => document.querySelector('#curriculumRows')?.textContent.includes('Current'));
         assert(mutations.some(x => x.path.endsWith('/activate') && x.method === 'PUT'));
         await page.locator('[data-panel="sections"]').click();
         await page.locator('#sectionName').fill('Grade Nine A');
