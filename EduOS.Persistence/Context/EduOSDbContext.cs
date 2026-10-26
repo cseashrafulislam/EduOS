@@ -1337,6 +1337,18 @@ public class EduOSDbContext :
         UniqueTenant<HostelRoom>(modelBuilder, nameof(HostelRoom.HostelId), nameof(HostelRoom.RoomNumber));
         UniqueTenant<HostelBed>(modelBuilder, nameof(HostelBed.HostelRoomId), nameof(HostelBed.BedNumber));
         UniqueTenant<StudentHostelAllocation>(modelBuilder, nameof(StudentHostelAllocation.ClientRequestId));
+        // One successor per source stay, including soft-deleted history. Tenant-composite FK
+        // rejects cross-tenant lineage; no backfill guesses for legacy allocations.
+        modelBuilder.Entity<StudentHostelAllocation>()
+            .HasOne<StudentHostelAllocation>()
+            .WithMany()
+            .HasForeignKey(x => new { x.TenantId, x.PreviousAllocationId })
+            .HasPrincipalKey(x => new { x.TenantId, x.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<StudentHostelAllocation>()
+            .HasIndex(x => new { x.TenantId, x.PreviousAllocationId })
+            .IsUnique()
+            .HasFilter("[PreviousAllocationId] IS NOT NULL");
         modelBuilder.Entity<StudentHostelAllocation>().HasIndex(x => new { x.TenantId, x.HostelBedId })
             .IsUnique().HasFilter("[EndDate] IS NULL AND [IsDeleted] = 0");
         modelBuilder.Entity<StudentHostelAllocation>().HasIndex(x => new { x.TenantId, x.StudentId })
@@ -1470,7 +1482,10 @@ public class EduOSDbContext :
         modelBuilder.Entity<VehicleDriverAssignment>().ToTable(t =>
             t.HasCheckConstraint("CK_VehicleDriverAssignment_DateRange", "[EffectiveTo] IS NULL OR [EffectiveTo] >= [EffectiveFrom]"));
         modelBuilder.Entity<StudentHostelAllocation>().ToTable(t =>
-            t.HasCheckConstraint("CK_StudentHostelAllocation_DateRange", "[EndDate] IS NULL OR [EndDate] >= [StartDate]"));
+        {
+            t.HasCheckConstraint("CK_StudentHostelAllocation_DateRange", "[EndDate] IS NULL OR [EndDate] >= [StartDate]");
+            t.HasCheckConstraint("CK_StudentHostelAllocation_Predecessor", "[PreviousAllocationId] IS NULL OR [PreviousAllocationId] <> [Id]");
+        });
         modelBuilder.Entity<StudentTransport>().ToTable(t =>
             t.HasCheckConstraint("CK_StudentTransport_DateRange", "[EndDate] IS NULL OR [EndDate] >= [StartDate]"));
         modelBuilder.Entity<AssetAssignment>().ToTable(t =>

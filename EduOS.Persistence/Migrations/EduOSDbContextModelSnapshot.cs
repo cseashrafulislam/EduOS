@@ -9314,6 +9314,9 @@ namespace EduOS.Persistence.Migrations
                     b.Property<decimal>("MonthlyRent")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<long?>("PreviousAllocationId")
+                        .HasColumnType("bigint");
+
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
                         .IsRequired()
@@ -9357,6 +9360,10 @@ namespace EduOS.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("[EndDate] IS NULL AND [IsDeleted] = 0");
 
+                    b.HasIndex("TenantId", "PreviousAllocationId")
+                        .IsUnique()
+                        .HasFilter("[PreviousAllocationId] IS NOT NULL");
+
                     b.HasIndex("TenantId", "StudentEnrollmentId");
 
                     b.HasIndex("TenantId", "StudentId")
@@ -9366,6 +9373,8 @@ namespace EduOS.Persistence.Migrations
                     b.ToTable("StudentHostelAllocations", t =>
                         {
                             t.HasCheckConstraint("CK_StudentHostelAllocation_DateRange", "[EndDate] IS NULL OR [EndDate] >= [StartDate]");
+
+                            t.HasCheckConstraint("CK_StudentHostelAllocation_Predecessor", "[PreviousAllocationId] IS NULL OR [PreviousAllocationId] <> [Id]");
                         });
                 });
 
@@ -19950,6 +19959,12 @@ namespace EduOS.Persistence.Migrations
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Hostel.StudentHostelAllocation", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "PreviousAllocationId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("EduOS.Core.Entities.Academic.StudentEnrollment", null)
                         .WithMany()

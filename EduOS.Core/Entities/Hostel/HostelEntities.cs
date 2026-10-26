@@ -35,6 +35,9 @@ public class StudentHostelAllocation : BaseTenantEntity
     public long StudentId { get; set; }
     public long StudentEnrollmentId { get; set; }
     public long HostelBedId { get; set; }
+    // Optional immutable lineage: successor allocation references the previous stay.
+    // Only the occupied-transfer command may populate this; never rewrite a source bed.
+    public long? PreviousAllocationId { get; set; }
     public DateOnly StartDate { get; set; }
     public DateOnly? EndDate { get; set; }
     [Column(TypeName = "decimal(18,2)")] public decimal MonthlyRent { get; set; }
