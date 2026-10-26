@@ -36,15 +36,21 @@ public sealed class GuardianContactProfileService(
     private async Task<Guardian?> FindLinkedAsync(Guid studentReference, Guid guardianReference,
         CancellationToken ct)
     {
-        var studentIds = db.Students.AsNoTracking()
+        // Separate tenant-scoped predicates translate consistently on SQL Server and
+        // the in-memory test provider; the write path repeats all reads under SERIALIZABLE.
+        var studentId = await db.Students.AsNoTracking()
             .Where(s => s.TenantId == user.TenantId && s.PublicId == studentReference &&
                 !s.IsDeleted && (s.StatusCode == "Active" || s.StatusCode == "Suspended"))
-            .Select(s => s.Id);
-        return await db.Guardians.FirstOrDefaultAsync(g =>
+            .Select(s => s.Id).FirstOrDefaultAsync(ct);
+        if (studentId <= 0) return null;
+        var guardian = await db.Guardians.FirstOrDefaultAsync(g =>
             g.TenantId == user.TenantId && g.PublicId == guardianReference &&
-            g.IsActive && !g.IsDeleted && db.StudentGuardians.Any(link =>
-                link.TenantId == user.TenantId && link.GuardianId == g.Id &&
-                !link.IsDeleted && studentIds.Contains(link.StudentId)), ct);
+            g.IsActive && !g.IsDeleted, ct);
+        if (guardian == null) return null;
+        var linked = await db.StudentGuardians.AsNoTracking().AnyAsync(link =>
+            link.TenantId == user.TenantId && link.StudentId == studentId &&
+            link.GuardianId == guardian.Id && !link.IsDeleted, ct);
+        return linked ? guardian : null;
     }
 
     public async Task<ApiResponse<GuardianContactProfileDto>> GetAsync(Guid studentReference,
