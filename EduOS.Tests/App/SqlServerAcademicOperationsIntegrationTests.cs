@@ -221,6 +221,32 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
         var finalizedSession = await db.AttendanceSessions.AsNoTracking().SingleAsync();
         Assert.True(finalizedSession.IsFinalized);
         Assert.Equal(managerId, finalizedSession.FinalizedByUserId);
+
+        // Real SQL Server executes the grouped historical-enrollment report query.
+        // The audited correction must appear in the report's final status totals.
+        var reportService = new StudentAttendanceReportService(
+            db, new Actor(tenantId, managerId, "TenantAdmin"),
+            NullLogger<StudentAttendanceReportService>.Instance);
+        var reportQuery = new StudentAttendanceReportQueryDto
+        {
+            AcademicBatchId = batchId,
+            FromDate = new DateOnly(2026, 10, 10),
+            ToDate = new DateOnly(2026, 10, 11)
+        };
+        var report = await reportService.GetAsync(reportQuery);
+        Assert.True(report.Success, report.Message);
+        var reportRow = Assert.Single(report.Data!.Items);
+        Assert.Equal(enrollmentReference, reportRow.StudentEnrollmentReference);
+        Assert.Equal("01", reportRow.RollNo);
+        Assert.Equal(1, reportRow.MarkedSessions);
+        Assert.Equal(1, reportRow.Absent);
+        Assert.Equal(0m, reportRow.AttendancePercent);
+        Assert.Equal(403, (await new StudentAttendanceReportService(
+            db, new Actor(tenantId, managerId, "Teacher"),
+            NullLogger<StudentAttendanceReportService>.Instance).GetAsync(reportQuery)).StatusCode);
+        Assert.Equal(404, (await new StudentAttendanceReportService(
+            db, new Actor(tenantId + 999, managerId, "TenantAdmin"),
+            NullLogger<StudentAttendanceReportService>.Instance).GetAsync(reportQuery)).StatusCode);
     }
 
     private static EduOSDbContext TenantDb(DbContextOptions<EduOSDbContext> options, long tenantId)
