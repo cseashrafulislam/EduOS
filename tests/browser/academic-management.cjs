@@ -38,6 +38,22 @@ async function main() {
             if (!url.pathname.startsWith('/api/'))
                 return route.fulfill({ status: 200, contentType: 'text/html', body: html });
             if (request.method() === 'GET') {
+                if (url.pathname === '/api/academic-setup/subjects') {
+                    const prefix = (url.searchParams.get('search') || '').toLowerCase();
+                    const matches = catalog.subjects.filter(x => !prefix ||
+                        x.name.toLowerCase().startsWith(prefix) || x.code.toLowerCase().startsWith(prefix));
+                    const p = Number(url.searchParams.get('page') || 1);
+                    const size = Number(url.searchParams.get('pageSize') || 20);
+                    const data = { items: matches.slice((p - 1) * size, p * size),
+                        totalCount: matches.length, page: p, pageSize: size };
+                    return route.fulfill({ status: 200, contentType: 'application/json',
+                        body: JSON.stringify({ success: true, data }) });
+                }
+                if (/^\/api\/academic-setup\/subjects\/\d+$/.test(url.pathname)) {
+                    const data = catalog.subjects.find(x => x.id === Number(url.pathname.split('/').at(-1)));
+                    return route.fulfill({ status: data ? 200 : 404, contentType: 'application/json',
+                        body: JSON.stringify({ success: !!data, data }) });
+                }
                 if (url.pathname === '/api/academic-setup/tracks') {
                     let items = catalog.tracks.filter(x =>
                         !url.searchParams.get('academicProgramId') ||
@@ -96,6 +112,11 @@ async function main() {
             const data = request.postDataJSON() || {};
             mutations.push({ path: url.pathname, method: request.method(), data });
             if (request.method() === 'PUT' &&
+                /^\/api\/academic-setup\/subjects\/\d+$/.test(url.pathname)) {
+                const row = catalog.subjects.find(x => x.id === Number(url.pathname.split('/').at(-1)));
+                if (row) Object.assign(row, data);
+            }
+            if (request.method() === 'PUT' &&
                 /^\/api\/academic-setup\/tracks\/\d+$/.test(url.pathname)) {
                 const row = catalog.tracks.find(x => x.id === Number(url.pathname.split('/').at(-1)));
                 if (row) Object.assign(row, data);
@@ -138,6 +159,7 @@ async function main() {
         await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/academic/management-forms.js') });
         await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/academic/levels.js') });
         await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/academic/tracks.js') });
+        await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/academic/subjects.js') });
         await page.waitForSelector('#yearRows tr');
         assert.match(await page.locator('#yearRows').innerText(), /Academic 2026/);
 
@@ -179,6 +201,18 @@ async function main() {
         await page.locator('#subjectCode').fill('MATH');
         await page.locator('#subjectForm button[type="submit"]').click();
         await page.waitForFunction(() => document.querySelector('#subjectRows')?.textContent.includes('Mathematics'));
+        await page.locator('#subjectRows button').first().click();
+        await page.waitForFunction(() => !document.querySelector('#subjectEditForm')?.classList.contains('d-none'));
+        await page.locator('#subjectEditName').fill('Advanced Mathematics');
+        await page.locator('#subjectEditShortName').fill('Adv Math');
+        await page.locator('#subjectEditCredits').fill('4');
+        await page.locator('#subjectEditForm button[type="submit"]').click();
+        await page.waitForFunction(() => document.querySelector('#subjectRows')?.textContent.includes('Advanced Mathematics'));
+        assert(mutations.some(x => x.path === '/api/academic-setup/subjects/601' && x.method === 'PUT'));
+        await page.locator('#subjectSearch').fill('Advanced');
+        await page.locator('#subjectSearchForm button[type="submit"]').click();
+        await page.waitForFunction(() => document.querySelector('#subjectPage')?.textContent.includes('1 subjects'));
+        await page.locator('#subjectCsv').click();
 
         await page.locator('[data-panel="curricula"]').click();
         await page.locator('#curriculumName').fill('Secondary Curriculum 2026');
