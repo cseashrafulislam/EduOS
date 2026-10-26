@@ -82,7 +82,7 @@
         await api('/api/academic-setup/programmes', { method: 'POST', body: JSON.stringify({
             name: field('programName'), code: field('programCode').toUpperCase(),
             durationInMonths: Number(field('programDuration')) || 0,
-            campusIds,
+            academicDepartmentId: idOf('programDepartment'), campusIds,
             isAdmissionOpen: true, isActive: true, displayOrder: 0
         }) });
     }, 'Programme created.'));

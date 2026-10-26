@@ -13,6 +13,7 @@
     </div>
     <div id="academicNotice" class="alert d-none" role="alert" aria-live="polite"></div>
     <ul class="nav nav-tabs flex-wrap mb-3" role="tablist" aria-label="Academic setup">
+        <li class="nav-item"><button data-panel="departments" class="nav-link" type="button">Departments</button></li>
         <li class="nav-item"><button data-panel="years" class="nav-link active" type="button">Academic Years</button></li>
         <li class="nav-item"><button data-panel="terms" class="nav-link" type="button">Terms</button></li>
         <li class="nav-item"><button data-panel="classes" class="nav-link" type="button">Classes / Grades</button></li>
@@ -21,6 +22,26 @@
         <li class="nav-item"><button data-panel="curricula" class="nav-link" type="button">Curriculum</button></li>
         <li class="nav-item"><button data-panel="offerings" class="nav-link" type="button">Subject Offerings</button></li>
     </ul>
+    <section data-section="departments" class="card border-0 shadow-sm d-none">
+        <div class="card-body">
+            <h2 class="h5">Academic departments</h2>
+            <p class="small text-muted">Organize programmes by department. Active programmes prevent department deactivation. Codes are immutable.</p>
+            <div class="row g-2 mb-3">
+                <div class="col-md-6"><label for="departmentSearch" class="form-label">Search name / code prefix</label><input id="departmentSearch" class="form-control" maxlength="80" /></div>
+                <div class="col-md-3 d-flex align-items-end"><button id="departmentSearchButton" type="button" class="btn btn-outline-primary">Search</button></div>
+            </div>
+            <form id="departmentForm" class="row g-2 align-items-end mb-3">
+                <input id="departmentId" type="hidden" /><input id="departmentVersion" type="hidden" />
+                <div class="col-md-3"><label for="departmentName" class="form-label">Name *</label><input id="departmentName" class="form-control" maxlength="150" required /></div>
+                <div class="col-md-2"><label for="departmentCode" class="form-label">Code *</label><input id="departmentCode" class="form-control" maxlength="30" required /></div>
+                <div class="col-md-4"><label for="departmentDescription" class="form-label">Description</label><input id="departmentDescription" class="form-control" maxlength="500" /></div>
+                <div class="col-md-1"><label class="form-check"><input id="departmentActive" type="checkbox" class="form-check-input" checked /><span class="form-check-label">Active</span></label></div>
+                <div class="col-md-2 d-flex gap-2"><button id="departmentSave" type="submit" class="btn btn-primary">Create Department</button><button id="departmentCancel" type="button" class="btn btn-outline-secondary">Clear</button></div>
+            </form>
+            <div class="table-responsive"><table class="table table-hover align-middle"><thead><tr><th>Name</th><th>Code</th><th>Description</th><th>Status</th><th>Action</th></tr></thead><tbody id="departmentRows"></tbody></table></div>
+            <div class="d-flex gap-2 align-items-center"><button id="departmentPrev" type="button" class="btn btn-sm btn-outline-secondary">Previous</button><span id="departmentPage" class="small text-muted"></span><button id="departmentNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button><button id="departmentCsv" type="button" class="btn btn-sm btn-outline-primary ms-auto">Export visible CSV</button></div>
+        </div>
+    </section>
     <section data-section="years" class="card border-0 shadow-sm">
         <div class="card-body">
             <h2 class="h5">Academic years</h2>
@@ -63,7 +84,7 @@
                 <div class="col-md-2"><label for="programCode" class="form-label">Code *</label><input id="programCode" class="form-control" maxlength="50" required placeholder="SEC" /></div>
                 <div class="col-md-2"><label for="programDuration" class="form-label">Months</label><input id="programDuration" type="number" min="0" max="1200" value="0" class="form-control" /></div>
                 <div class="col-md-3"><label for="programCampus" class="form-label">Offered at campuses (Ctrl/Cmd + click)</label><select id="programCampus" class="form-select" multiple size="3" aria-describedby="programCampusHelp"></select><small id="programCampusHelp" class="text-muted">Leave empty for all campuses.</small></div>
-                <div class="col-md-2"><button type="submit" class="btn btn-primary w-100">Add Programme</button></div>
+                <div class="col-md-2"><label for="programDepartment" class="form-label">Department</label><select id="programDepartment" class="form-select"><option value="">No department</option></select><button type="submit" class="btn btn-primary w-100 mt-2">Add Programme</button></div>
             </form>
             <h3 class="h6">Available programmes</h3>
             <div id="programList" class="mb-2"></div>
@@ -194,4 +215,5 @@
     <script src="~/js/academic/management.js" asp-append-version="true"></script>
     <script src="~/js/academic/management-forms.js" asp-append-version="true"></script>
     <script src="~/js/academic/subject-offerings.js" asp-append-version="true"></script>
+    <script src="~/js/academic/departments.js" asp-append-version="true"></script>
 }

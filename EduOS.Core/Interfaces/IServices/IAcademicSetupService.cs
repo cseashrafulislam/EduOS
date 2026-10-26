@@ -7,6 +7,9 @@ namespace EduOS.Core.Interfaces.IServices;
 public interface IAcademicSetupService
 {
     Task<ApiResponse<AcademicSetupCatalogDto>> GetSetupOptionsAsync(long? academicYearId, string? search, int take = 50, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<AcademicDepartmentDto>>> GetDepartmentsAsync(string? search, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default);
+    Task<ApiResponse<AcademicDepartmentDto>> CreateDepartmentAsync(SaveAcademicDepartmentRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<AcademicDepartmentDto>> UpdateDepartmentAsync(long id, SaveAcademicDepartmentRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<AcademicProgramDto>> CreateProgramAsync(SaveAcademicProgramRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<ProgramCampusAllocationDto>> GetProgramCampusAllocationAsync(long academicProgramId, CancellationToken cancellationToken = default);
     Task<ApiResponse<ProgramCampusAllocationDto>> UpdateProgramCampusAllocationAsync(long academicProgramId, UpdateProgramCampusAllocationRequestDto request, CancellationToken cancellationToken = default);
