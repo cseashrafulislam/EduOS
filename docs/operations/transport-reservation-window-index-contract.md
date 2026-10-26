@@ -70,3 +70,7 @@ They do **not** prove that concurrent writes to **different** aggregates (rider 
 versus capacity reduction/deactivation, or two overlapping noncurrent route links)
 are serializable; those require Operations-owned service-command tests with deterministic
 resource locking and HTTP 409 mapping. No migration, index change or new receipt store is needed.
+
+## Atomic durable-receipt SQL Server regression (2026-10-27)
+
+`SqlServerTransportIdentityIntegrationTests.Canonical_vehicle_update_and_durable_command_receipt_commit_or_rollback_together` uses the deployed SQL Server schema, the existing `ReservationCommandReceiptStore`, and one canonical `Vehicle` row. It verifies that a serializable transaction rolling back after both `SaveChanges` calls preserves neither the vehicle mutation nor its command receipt. A subsequent committed transaction persists both, and a fresh tenant-scoped DbContext can replay the exact original response; changed request hashes and actors return conflict. This is **shared persistence contract coverage**, not a replacement for Operations' command-level authorization, audit, capacity, or cross-aggregate race tests. The existing SQL migration smoke test filter already includes this test class; no migration or DI change is required.

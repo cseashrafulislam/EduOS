@@ -1,4 +1,6 @@
+using EduOS.Core.Common;
 using EduOS.Core.Entities.Academic;
+using EduOS.Service.Services.Platform;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.System;
 using EduOS.Core.Entities.Transport;
@@ -13,6 +15,101 @@ namespace EduOS.Tests.App;
 [Collection("SqlServerIntegration")]
 public sealed class SqlServerTransportIdentityIntegrationTests
 {
+    [Fact]
+    public async Task Canonical_vehicle_update_and_durable_command_receipt_commit_or_rollback_together()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
+        var suffix = Guid.NewGuid().ToString("N")[..12];
+        long tenantId, vehicleId;
+        await using (var seed = new EduOSDbContext(options))
+        {
+            var tenant = new Tenant
+            {
+                Code = "CI-AT-" + suffix, Name = "Atomic receipt CI",
+                Email = "at-" + suffix + "@example.test", State = TenantState.Active
+            };
+            seed.Tenants.Add(tenant);
+            await seed.SaveChangesAsync();
+            tenantId = tenant.Id;
+            using (seed.BeginSystemTenantScope(tenantId))
+            {
+                var vehicle = new Vehicle
+                {
+                    TenantId = tenantId, VehicleNumber = "CI-AT-BUS-" + suffix,
+                    Capacity = 21, IsActive = true
+                };
+                seed.Vehicles.Add(vehicle);
+                await seed.SaveChangesAsync();
+                vehicleId = vehicle.Id;
+            }
+        }
+
+        const string scope = "transport.route-vehicle-change";
+        const long actorId = 7;
+        var requestId = Guid.NewGuid();
+        var requestHash = ReservationCommandReceiptStore.Hash(
+            "vehicle:" + vehicleId + ":capacity:23:rowversion:original");
+        var outcome = ApiResponse<string>.SuccessResponse("capacity-23", "Committed.");
+
+        // A receipt saved alongside an uncommitted canonical mutation must not survive rollback.
+        await using (var db = ScopedContext(options, tenantId))
+        {
+            await using var transaction = await db.Database.BeginTransactionAsync(
+                System.Data.IsolationLevel.Serializable);
+            var vehicle = await db.Vehicles.SingleAsync(x => x.Id == vehicleId);
+            vehicle.Capacity = 22;
+            await db.SaveChangesAsync();
+            var store = new ReservationCommandReceiptStore(db, TimeProvider.System);
+            await store.RecordAsync(tenantId, actorId, scope, requestId, vehicleId, requestHash, outcome);
+            await db.SaveChangesAsync();
+            await transaction.RollbackAsync();
+        }
+
+        await using (var verifyRollback = ScopedContext(options, tenantId))
+        {
+            Assert.Equal(21, await verifyRollback.Vehicles.Where(x => x.Id == vehicleId)
+                .Select(x => x.Capacity).SingleAsync());
+            Assert.False((await new ReservationCommandReceiptStore(verifyRollback, TimeProvider.System)
+                .ReplayAsync<string>(tenantId, actorId, scope, requestId, vehicleId, requestHash)).Found);
+            Assert.Equal(0, await verifyRollback.IdempotencyRecords.CountAsync(x =>
+                x.TenantId == tenantId && x.Scope == scope && x.RequestId == requestId));
+        }
+
+        // Committing the same canonical mutation and its receipt makes both durable.
+        await using (var db = ScopedContext(options, tenantId))
+        {
+            await using var transaction = await db.Database.BeginTransactionAsync(
+                System.Data.IsolationLevel.Serializable);
+            var vehicle = await db.Vehicles.SingleAsync(x => x.Id == vehicleId);
+            vehicle.Capacity = 23;
+            await db.SaveChangesAsync();
+            await new ReservationCommandReceiptStore(db, TimeProvider.System)
+                .RecordAsync(tenantId, actorId, scope, requestId, vehicleId, requestHash, outcome);
+            await db.SaveChangesAsync();
+            await transaction.CommitAsync();
+        }
+
+        await using (var verifyCommit = ScopedContext(options, tenantId))
+        {
+            Assert.Equal(23, await verifyCommit.Vehicles.Where(x => x.Id == vehicleId)
+                .Select(x => x.Capacity).SingleAsync());
+            Assert.Equal(1, await verifyCommit.IdempotencyRecords.CountAsync(x =>
+                x.TenantId == tenantId && x.Scope == scope && x.RequestId == requestId));
+            var store = new ReservationCommandReceiptStore(verifyCommit, TimeProvider.System);
+            var replay = await store.ReplayAsync<string>(
+                tenantId, actorId, scope, requestId, vehicleId, requestHash);
+            Assert.True(replay.Found);
+            Assert.False(replay.Conflict);
+            Assert.Equal("capacity-23", replay.Response!.Data);
+            Assert.True((await store.ReplayAsync<string>(tenantId, actorId, scope,
+                requestId, vehicleId, ReservationCommandReceiptStore.Hash("changed"))).Conflict);
+            Assert.True((await store.ReplayAsync<string>(tenantId, actorId + 1, scope,
+                requestId, vehicleId, requestHash)).Conflict);
+        }
+    }
+
     [Fact]
     public async Task Parallel_identical_transport_command_keys_can_commit_only_one_receipt_on_sql_server()
     {
