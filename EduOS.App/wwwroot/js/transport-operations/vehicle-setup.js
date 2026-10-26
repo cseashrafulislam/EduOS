@@ -50,27 +50,60 @@
         option(status, 'true', 'Active'); option(status, 'false', 'Inactive');
         status.value = String(item.isActive); statusCell.append(status); tr.append(statusCell);
         const action = document.createElement('td'), button = document.createElement('button');
+        const previewButton = document.createElement('button'), impact = document.createElement('div');
+        let impactSequence = 0;
+        impact.className = 'small text-muted mt-1';
+        impact.setAttribute('role', 'status');
+        impact.setAttribute('aria-live', 'polite');
+        function invalidateImpact() { ++impactSequence; impact.textContent = 'Settings changed. Preview again.'; }
+        capacity.addEventListener('input', invalidateImpact);
+        status.addEventListener('change', invalidateImpact);
+        async function checkImpact() {
+            const value = Number(capacity.value), active = status.value === 'true';
+            if (!Number.isInteger(value) || value < 1 || value > 1000) throw new Error('Capacity must be 1–1000.');
+            const stamp = ++impactSequence;
+            const q = new URLSearchParams({
+                capacity: String(value), isActive: String(active), rowVersion: item.rowVersion
+            });
+            const result = await api('/api/transport/vehicle-setup/' +
+                encodeURIComponent(item.reference) + '/change-impact?' + q);
+            if (stamp !== impactSequence || Number(capacity.value) !== value ||
+                (status.value === 'true') !== active) throw new Error('Settings changed during preview. Retry.');
+            impact.textContent = 'Occupied today: ' + result.occupiedToday +
+                ' · Peak reserved: ' + result.peakReservedSeats +
+                ' · Active reservation records: ' + result.activeReservationRecords +
+                ' · Route links: ' + result.currentRouteAssignments +
+                ' · Driver links: ' + result.currentDriverAssignments + '. ' + result.explanation;
+            return result;
+        }
+        previewButton.type = 'button';
+        previewButton.className = 'btn btn-outline-secondary btn-sm me-1';
+        previewButton.textContent = 'Preview impact';
+        previewButton.addEventListener('click', async () => {
+            previewButton.disabled = true;
+            try { await checkImpact(); } catch (err) { alertUser(err.message); }
+            finally { previewButton.disabled = false; }
+        });
         button.type = 'button'; button.className = 'btn btn-outline-primary btn-sm'; button.textContent = 'Save';
         button.addEventListener('click', async () => {
             const value = Number(capacity.value), active = status.value === 'true';
             if (!Number.isInteger(value) || value < 1 || value > 1000) {
                 alertUser('Capacity must be 1–1000.'); return;
             }
-            if (value < item.peakReservedSeats || (!active &&
-                (item.assignedStudents > 0 || item.currentRouteAssignments > 0))) {
-                alertUser('Capacity is below peak simultaneous reservations, or deactivation conflicts with existing assignments.'); return;
-            }
-            if (!active && item.isActive && !confirm('Deactivate this vehicle?')) return;
             button.disabled = true;
+            previewButton.disabled = true;
             try {
+                const preview = await checkImpact();
+                if (!preview.canApply) { alertUser(preview.explanation); return; }
+                if (!active && item.isActive && !confirm('Deactivate this vehicle?')) return;
                 await api('/api/transport/vehicle-setup/' + encodeURIComponent(item.reference),
                     'PUT', { capacity: value, isActive: active, rowVersion: item.rowVersion });
                 alertUser('Vehicle updated.', true);
                 window.dispatchEvent(new CustomEvent('transport:vehicles-changed'));
                 await load();
-            } catch (err) { alertUser(err.message); } finally { button.disabled = false; }
+            } catch (err) { alertUser(err.message); } finally { button.disabled = false; previewButton.disabled = false; }
         });
-        action.append(button); tr.append(action); return tr;
+        action.append(previewButton, button, impact); tr.append(action); return tr;
     }
     async function load() {
         const current = ++sequence;

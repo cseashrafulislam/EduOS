@@ -1,6 +1,6 @@
 <section class="card mb-3" id="transportVehicleSetupPanel"><div class="card-body">
     <h3 class="h5">Vehicle inventory and capacity control</h3>
-    <p class="text-muted small">Create campus vehicles and update capacity or activation. Capacity changes use peak simultaneous reservations from today onward, not the sum of disjoint bookings. Close rider, route and driver assignments before deactivation.</p>
+    <p class="text-muted small">Create campus vehicles and update capacity or activation. Preview each proposed change before saving; the preview shows peak simultaneous reserved seats and route/driver conflicts without rider identities. The save operation independently rechecks capacity and assignment safety in a transaction.</p>
     <div id="transportVehicleSetupAlert" class="d-none" role="alert" tabindex="-1"></div>
     <form id="transportVehicleSetupForm" class="row g-2 mb-3">
         @Html.AntiForgeryToken()

@@ -211,6 +211,14 @@ public sealed class TransportController : ControllerBase
         CancellationToken cancellationToken = default) =>
         ToAction(await _service.GetVehicleSetupPageAsync(campusId, page, pageSize, search, cancellationToken));
 
+    [HttpGet("vehicle-setup/{reference:guid}/change-impact")]
+    [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> VehicleChangeImpact(Guid reference,
+        [FromQuery] int capacity, [FromQuery] bool isActive, [FromQuery] string? rowVersion,
+        CancellationToken ct = default) =>
+        ToAction(await _service.PreviewVehicleChangeImpactAsync(reference, capacity, isActive, rowVersion, ct));
+
     [HttpPost("vehicle-setup")]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
     public async Task<IActionResult> CreateVehicleSetup([FromBody] CreateTransportVehicleRequestDto request, CancellationToken ct) =>
