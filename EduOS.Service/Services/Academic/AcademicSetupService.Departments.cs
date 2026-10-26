@@ -7,10 +7,13 @@ namespace EduOS.Service.Services.Academic;
 
 public sealed partial class AcademicSetupService
 {
+    private bool CanManageDepartments() => _currentUser.IsAuthenticated &&
+        _currentUser.TenantId > 0 && _currentUser.IsTenantAdmin;
+
     public async Task<ApiResponse<PagedResult<AcademicDepartmentDto>>> GetDepartmentsAsync(
         string? search, int page = 1, int pageSize = 20, CancellationToken ct = default)
     {
-        if (!CanManage()) return Denied<PagedResult<AcademicDepartmentDto>>();
+        if (!CanManageDepartments()) return Denied<PagedResult<AcademicDepartmentDto>>();
         if (page < 1 || pageSize is < 1 or > 100 || search?.Length > 80 ||
             (long)(page - 1) * pageSize > int.MaxValue)
             return Error<PagedResult<AcademicDepartmentDto>>("Invalid department search or page.");
@@ -36,7 +39,7 @@ public sealed partial class AcademicSetupService
     public Task<ApiResponse<AcademicDepartmentDto>> CreateDepartmentAsync(
         SaveAcademicDepartmentRequestDto request, CancellationToken ct = default)
     {
-        if (!CanManage()) return Task.FromResult(Denied<AcademicDepartmentDto>());
+        if (!CanManageDepartments()) return Task.FromResult(Denied<AcademicDepartmentDto>());
         if (!ValidDepartment(request))
             return Task.FromResult(Error<AcademicDepartmentDto>("Valid department name, code and description are required."));
         return ExecuteWriteAsync("create academic department", async () =>
@@ -69,7 +72,7 @@ public sealed partial class AcademicSetupService
     public Task<ApiResponse<AcademicDepartmentDto>> UpdateDepartmentAsync(
         long id, SaveAcademicDepartmentRequestDto request, CancellationToken ct = default)
     {
-        if (!CanManage()) return Task.FromResult(Denied<AcademicDepartmentDto>());
+        if (!CanManageDepartments()) return Task.FromResult(Denied<AcademicDepartmentDto>());
         if (id <= 0 || !ValidDepartment(request))
             return Task.FromResult(Error<AcademicDepartmentDto>("Valid department and settings are required."));
         byte[] expected;
