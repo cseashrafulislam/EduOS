@@ -16,6 +16,7 @@ using Xunit;
 
 namespace EduOS.Tests.App;
 
+[Collection("SqlServerIntegration")]
 public sealed class SqlServerAcademicSetupIntegrationTests
 {
     [Fact]

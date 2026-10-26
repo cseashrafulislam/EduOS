@@ -20,6 +20,7 @@ namespace EduOS.Tests.App;
 /// Runs against migrated, disposable SQL Server 2022 in the SQL migration workflow.
 /// Does not depend on provider-specific InMemory behavior or require production secrets.
 /// </summary>
+[Collection("SqlServerIntegration")]
 public sealed class SqlServerAuthTenantIntegrationTests
 {
     [Fact]

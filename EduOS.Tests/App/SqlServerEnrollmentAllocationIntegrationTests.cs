@@ -17,6 +17,7 @@ using Xunit;
 namespace EduOS.Tests.App;
 
 /// <summary>Real SQL Server seat allocation test; EF InMemory cannot prove row locks or rollback.</summary>
+[Collection("SqlServerIntegration")]
 public sealed class SqlServerEnrollmentAllocationIntegrationTests
 {
     [Fact]

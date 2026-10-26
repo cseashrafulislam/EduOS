@@ -19,6 +19,7 @@ using Xunit;
 namespace EduOS.Tests.App;
 
 /// <summary>Real SQL Server verifies student leave approval and derived roster flags without rewriting attendance.</summary>
+[Collection("SqlServerIntegration")]
 public sealed class SqlServerAcademicOperationsIntegrationTests
 {
     [Fact]
