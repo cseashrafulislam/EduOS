@@ -29,10 +29,17 @@ public sealed class AcademicBatchRegisterTests
             new AcademicBatch { TenantId = 401, Name = "Section A", Code = "A", CampusId = 5,
                 AcademicYearId = 7, IsActive = false, RowVersion = Version.ToArray() },
             new AcademicBatch { TenantId = 401, Name = "Section B", Code = "B", CampusId = 6,
-                AcademicYearId = 7, IsActive = true, RowVersion = Version.ToArray() },
-            new AcademicBatch { TenantId = 402, Name = "Section Foreign", Code = "F", CampusId = 5,
                 AcademicYearId = 7, IsActive = true, RowVersion = Version.ToArray() });
         await db.SaveChangesAsync();
+        // Tenant-aware SaveChanges rejects foreign records in the active tenant context.
+        // Seed the foreign record through its own tenant context against the same test database.
+        await using (var foreign = Context(options, 402))
+        {
+            foreign.Add(new AcademicBatch { TenantId = 402, Name = "Section Foreign",
+                Code = "F", CampusId = 5, AcademicYearId = 7, IsActive = true,
+                RowVersion = Version.ToArray() });
+            await foreign.SaveChangesAsync();
+        }
         var sut = Service(db, 401);
         var result = await sut.GetBatchesAsync("Section", 5, 7);
         result.Success.Should().BeTrue();
