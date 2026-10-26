@@ -347,6 +347,7 @@ public class AcademicCurriculumDto
     public bool IsActive { get; set; }
     public int SubjectCount { get; set; }
     public int SubjectOfferingCount { get; set; }
+    public int StudentEnrollmentCount { get; set; }
     public bool IsSubjectMappingLocked { get; set; }
     public string? SubjectMappingLockReason { get; set; }
     public IReadOnlyList<CurriculumSubjectDto> Subjects { get; set; } = Array.Empty<CurriculumSubjectDto>();

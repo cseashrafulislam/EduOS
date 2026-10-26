@@ -30,6 +30,7 @@ public sealed partial class AcademicSetupService : IAcademicSetupService
     private readonly IGenericRepository<Shift> _shifts;
     private readonly IGenericRepository<SubjectOffering> _offerings;
     private readonly IGenericRepository<StudentSubjectRegistration> _registrations;
+    private readonly IGenericRepository<StudentEnrollment> _enrollments;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUser;
     private readonly ILogger<AcademicSetupService> _logger;
@@ -52,6 +53,7 @@ public sealed partial class AcademicSetupService : IAcademicSetupService
         IGenericRepository<Shift> shifts,
         IGenericRepository<SubjectOffering> offerings,
         IGenericRepository<StudentSubjectRegistration> registrations,
+        IGenericRepository<StudentEnrollment> enrollments,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUser,
         ILogger<AcademicSetupService> logger)
@@ -73,6 +75,7 @@ public sealed partial class AcademicSetupService : IAcademicSetupService
         _shifts = shifts;
         _offerings = offerings;
         _registrations = registrations;
+        _enrollments = enrollments;
         _unitOfWork = unitOfWork;
         _currentUser = currentUser;
         _logger = logger;
@@ -599,7 +602,13 @@ public sealed partial class AcademicSetupService : IAcademicSetupService
                     return Error<CurriculumSubjectDto>("Curriculum subject already exists with different settings.", 409);
                 return ApiResponse<CurriculumSubjectDto>.SuccessResponse(MapCurriculumSubject(existing));
             }
-            // Identical retries above remain safe; a used or retired version cannot gain mappings.
+            // Preserve enrollment history even if the original offerings were removed.
+            // Identical mapping retries above remain safe and do not mutate the curriculum.
+            if (await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenant && !x.IsDeleted &&
+                x.AcademicCurriculumId == academicCurriculumId, ct))
+                return Error<CurriculumSubjectDto>(
+                    "Student enrollments already use this curriculum. Create a new version.", 409);
             var mappingIds = await _curriculumSubjects.GetQueryable().AsNoTracking()
                 .Where(x => x.TenantId == tenant && !x.IsDeleted &&
                     x.AcademicCurriculumId == academicCurriculumId)

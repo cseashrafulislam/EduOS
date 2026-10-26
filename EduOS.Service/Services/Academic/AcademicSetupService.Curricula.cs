@@ -45,6 +45,12 @@ public sealed partial class AcademicSetupService
             group offering by mapping.AcademicCurriculumId into groupRows
             select new { Id = groupRows.Key, Count = groupRows.Count() })
             .ToDictionaryAsync(x => x.Id, x => x.Count, ct);
+        // Count historical and current enrollments; an ended enrollment still fixes the version.
+        var enrollmentCounts = await _enrollments.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && !x.IsDeleted && ids.Contains(x.AcademicCurriculumId))
+            .GroupBy(x => x.AcademicCurriculumId)
+            .Select(g => new { Id = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.Id, x => x.Count, ct);
         var programIds = rows.Select(x => x.AcademicProgramId).Distinct().ToArray();
         var currentVersions = await _curricula.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == tenant && !x.IsDeleted && x.IsActive &&
@@ -60,7 +66,8 @@ public sealed partial class AcademicSetupService
                 x.AcademicProgramId == row.AcademicProgramId &&
                 x.AcademicTrackId == row.AcademicTrackId && x.MediumId == row.MediumId &&
                 x.VersionNo > row.VersionNo);
-            ApplyMappingLock(dto, row, offeringCounts.GetValueOrDefault(row.Id), superseded, today);
+            ApplyMappingLock(dto, row, offeringCounts.GetValueOrDefault(row.Id),
+                enrollmentCounts.GetValueOrDefault(row.Id), superseded, today);
             return dto;
         }).ToList();
         return ApiResponse<PagedResult<AcademicCurriculumDto>>.SuccessResponse(
@@ -94,12 +101,16 @@ public sealed partial class AcademicSetupService
         var offeringCount = mappingIds.Length == 0 ? 0 : await _offerings.GetQueryable().AsNoTracking()
             .CountAsync(x => x.TenantId == tenant && !x.IsDeleted &&
                 mappingIds.Contains(x.CurriculumSubjectId), ct);
+        var enrollmentCount = await _enrollments.GetQueryable().AsNoTracking()
+            .CountAsync(x => x.TenantId == tenant && !x.IsDeleted &&
+                x.AcademicCurriculumId == id, ct);
         var superseded = !row.IsCurrent && await _curricula.GetQueryable().AsNoTracking()
             .AnyAsync(x => x.TenantId == tenant && !x.IsDeleted && x.IsActive &&
                 x.IsCurrent && x.AcademicProgramId == row.AcademicProgramId &&
                 x.AcademicTrackId == row.AcademicTrackId && x.MediumId == row.MediumId &&
                 x.VersionNo > row.VersionNo, ct);
-        ApplyMappingLock(dto, row, offeringCount, superseded, DateOnly.FromDateTime(DateTime.UtcNow));
+        ApplyMappingLock(dto, row, offeringCount, enrollmentCount, superseded,
+            DateOnly.FromDateTime(DateTime.UtcNow));
         dto.Subjects = mappings.Select(mapping =>
         {
             var item = MapCurriculumSubject(mapping);
@@ -114,11 +125,14 @@ public sealed partial class AcademicSetupService
         return ApiResponse<AcademicCurriculumDto>.SuccessResponse(dto);
     }
     private static void ApplyMappingLock(AcademicCurriculumDto dto, AcademicCurriculum row,
-        int offeringCount, bool superseded, DateOnly today)
+        int offeringCount, int enrollmentCount, bool superseded, DateOnly today)
     {
         dto.SubjectOfferingCount = offeringCount;
-        dto.SubjectMappingLockReason = offeringCount > 0
-            ? "Subject offerings already reference this curriculum; create a new version."
+        dto.StudentEnrollmentCount = enrollmentCount;
+        dto.SubjectMappingLockReason = enrollmentCount > 0
+            ? "Student enrollments already reference this curriculum; create a new version."
+            : offeringCount > 0
+                ? "Subject offerings already reference this curriculum; create a new version."
             : row.EffectiveTo.HasValue && row.EffectiveTo.Value < today
                 ? "This curriculum's effective period has ended; create a new version."
                 : superseded

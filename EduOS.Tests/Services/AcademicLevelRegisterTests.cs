@@ -141,7 +141,7 @@ public sealed class AcademicLevelRegisterTests
         new GenericRepository<AcademicYear>(db), new GenericRepository<AcademicTerm>(db),
         new GenericRepository<AcademicTrack>(db), new GenericRepository<Medium>(db),
         new GenericRepository<Shift>(db), new GenericRepository<SubjectOffering>(db),
-        new GenericRepository<StudentSubjectRegistration>(db), db, new User(admin),
+        new GenericRepository<StudentSubjectRegistration>(db), new GenericRepository<StudentEnrollment>(db), db, new User(admin),
         NullLogger<AcademicSetupService>.Instance);
 
     private sealed class User(bool admin) : ICurrentUserService

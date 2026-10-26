@@ -66,6 +66,7 @@ public sealed class SqlServerAcademicSetupIntegrationTests
             new GenericRepository<Shift>(db),
             new GenericRepository<SubjectOffering>(db),
             new GenericRepository<StudentSubjectRegistration>(db),
+            new GenericRepository<StudentEnrollment>(db),
             db, new AcademicAdmin(tenantId),
             NullLogger<AcademicSetupService>.Instance);
         var target = await db.AcademicCurriculums.AsNoTracking().SingleAsync(x => x.Id == curriculum2);

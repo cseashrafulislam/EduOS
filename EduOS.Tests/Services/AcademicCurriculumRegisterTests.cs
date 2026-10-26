@@ -164,6 +164,77 @@ public sealed class AcademicCurriculumRegisterTests
         (await db.CurriculumSubjects.CountAsync()).Should().Be(1);
     }
 
+    [Fact]
+    public async Task Historical_enrollment_without_offerings_locks_mapping_and_reports_count()
+    {
+        await using var db = Context(Options(), 501);
+        var curriculum = new AcademicCurriculum { TenantId = 501, AcademicProgramId = 12,
+            Name = "Historical", Code = "HIST", VersionNo = 1, IsCurrent = true,
+            EffectiveFrom = new DateOnly(2025, 1, 1), RowVersion = Version.ToArray() };
+        var level = new AcademicLevel { TenantId = 501, AcademicProgramId = 12, Name = "Level", Code = "L1" };
+        var biology = new Subject { TenantId = 501, Name = "Biology", Code = "BIO" };
+        var physics = new Subject { TenantId = 501, Name = "Physics", Code = "PHY" };
+        db.AddRange(curriculum, level, biology, physics);
+        await db.SaveChangesAsync();
+        var mapping = new CurriculumSubject { TenantId = 501, AcademicCurriculumId = curriculum.Id,
+            AcademicLevelId = level.Id, SubjectId = biology.Id, FullMarks = 100, PassMarks = 33 };
+        db.Add(mapping);
+        db.Add(new StudentEnrollment { TenantId = 501, AcademicCurriculumId = curriculum.Id,
+            AcademicProgramId = 12, AcademicLevelId = level.Id, AcademicBatchId = 10,
+            AcademicYearId = 20, CampusId = 30, StudentId = 40, RollNo = "OLD-01",
+            EnrollmentDate = new DateOnly(2025, 2, 1), IsCurrent = false });
+        await db.SaveChangesAsync();
+        var service = Service(db);
+        var detail = await service.GetCurriculumAsync(curriculum.Id);
+        detail.Data!.StudentEnrollmentCount.Should().Be(1);
+        detail.Data.SubjectOfferingCount.Should().Be(0);
+        detail.Data.IsSubjectMappingLocked.Should().BeTrue();
+        detail.Data.SubjectMappingLockReason.Should().Contain("Student enrollments");
+        var list = await service.GetCurriculaAsync(null, 12, null);
+        list.Data!.Items.Should().ContainSingle(x => x.Id == curriculum.Id &&
+            x.StudentEnrollmentCount == 1 && x.IsSubjectMappingLocked);
+        var newMapping = new SaveCurriculumSubjectRequestDto { AcademicLevelId = level.Id,
+            SubjectId = physics.Id, FullMarks = 100, PassMarks = 33 };
+        (await service.RegisterCurriculumSubjectAsync(curriculum.Id, newMapping)).StatusCode.Should().Be(409);
+        (await db.CurriculumSubjects.CountAsync()).Should().Be(1);
+        var replay = await service.RegisterCurriculumSubjectAsync(curriculum.Id,
+            new SaveCurriculumSubjectRequestDto { AcademicLevelId = level.Id,
+                SubjectId = biology.Id, FullMarks = 100, PassMarks = 33 });
+        replay.Success.Should().BeTrue();
+        replay.Data!.Id.Should().Be(mapping.Id);
+    }
+
+    [Fact]
+    public async Task Other_tenant_enrollment_does_not_lock_unused_curriculum()
+    {
+        var options = Options();
+        long curriculumId;
+        await using (var db = Context(options, 501))
+        {
+            var curriculum = new AcademicCurriculum { TenantId = 501, AcademicProgramId = 15,
+                Name = "Unused", Code = "UNUSED", IsCurrent = true,
+                EffectiveFrom = new DateOnly(2025, 1, 1), RowVersion = Version.ToArray() };
+            db.Add(curriculum);
+            await db.SaveChangesAsync();
+            curriculumId = curriculum.Id;
+        }
+        await using (var foreign = Context(options, 502))
+        {
+            foreign.Add(new StudentEnrollment { TenantId = 502, AcademicCurriculumId = curriculumId,
+                AcademicProgramId = 15, AcademicLevelId = 1, AcademicBatchId = 10,
+                AcademicYearId = 20, CampusId = 30, StudentId = 50, RollNo = "FOREIGN",
+                EnrollmentDate = new DateOnly(2025, 2, 1) });
+            await foreign.SaveChangesAsync();
+        }
+        await using var own = Context(options, 501);
+        var detail = await Service(own).GetCurriculumAsync(curriculumId);
+        detail.Data!.StudentEnrollmentCount.Should().Be(0);
+        detail.Data.IsSubjectMappingLocked.Should().BeFalse();
+        var list = await Service(own).GetCurriculaAsync(null, 15, null);
+        list.Data!.Items.Should().ContainSingle(x => x.Id == curriculumId &&
+            x.StudentEnrollmentCount == 0 && !x.IsSubjectMappingLocked);
+    }
+
     private static DbContextOptions<EduOSDbContext> Options() =>
         new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase("academic-curriculum-register-" + Guid.NewGuid().ToString("N")).Options;
@@ -191,7 +262,7 @@ public sealed class AcademicCurriculumRegisterTests
         new GenericRepository<AcademicYear>(db), new GenericRepository<AcademicTerm>(db),
         new GenericRepository<AcademicTrack>(db), new GenericRepository<Medium>(db),
         new GenericRepository<Shift>(db), new GenericRepository<SubjectOffering>(db),
-        new GenericRepository<StudentSubjectRegistration>(db), db, new User(admin),
+        new GenericRepository<StudentSubjectRegistration>(db), new GenericRepository<StudentEnrollment>(db), db, new User(admin),
         NullLogger<AcademicSetupService>.Instance);
 
     private sealed class User(bool admin) : ICurrentUserService

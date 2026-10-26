@@ -66,6 +66,7 @@ async function main() {
                         body: JSON.stringify({ success: !!data, data: data && {
                             ...data, subjects, subjectCount: subjects.length,
                             subjectOfferingCount: data.subjectOfferingCount || 0,
+                            studentEnrollmentCount: data.studentEnrollmentCount || 0,
                             isSubjectMappingLocked: !!data.isSubjectMappingLocked,
                             subjectMappingLockReason: data.subjectMappingLockReason || null
                         } }) });
@@ -286,6 +287,19 @@ async function main() {
         await page.locator('#curriculumRows button').first().click();
         await page.waitForFunction(() =>
             document.querySelector('#curriculumDetails')?.textContent.includes('Mapping locked'));
+        // An enrollment-only historical dependency must also lock the mapping form.
+        catalog.curricula[0].subjectOfferingCount = 0;
+        catalog.curricula[0].studentEnrollmentCount = 1;
+        catalog.curricula[0].subjectMappingLockReason =
+            'Student enrollments already reference this curriculum; create a new version.';
+        await page.locator('#curriculumSelection').dispatchEvent('change');
+        await page.waitForFunction(() =>
+            document.querySelector('#curriculumMappingNotice')?.textContent.includes('Student enrollments'));
+        assert.equal(await page.locator('#curriculumMappingSubmit').isDisabled(), true);
+        await page.locator('#curriculumSearchForm button[type="submit"]').click();
+        await page.locator('#curriculumRows button').first().click();
+        await page.waitForFunction(() =>
+            document.querySelector('#curriculumDetails')?.textContent.includes('1 enrollments'));
         await page.locator('#curriculumCsv').click();
         await page.locator('#curriculumRows button').filter({ hasText: 'Activate' }).first().click();
         await page.waitForFunction(() => document.querySelector('#curriculumRows')?.textContent.includes('Current'));

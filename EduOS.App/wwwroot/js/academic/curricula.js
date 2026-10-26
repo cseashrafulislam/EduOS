@@ -49,6 +49,7 @@
             cell(tr, x.effectiveFrom + ' – ' + (x.effectiveTo || 'Open'));
             cell(tr, x.subjectCount);
             cell(tr, x.subjectOfferingCount);
+            cell(tr, x.studentEnrollmentCount);
             cell(tr, (x.isSubjectMappingLocked ? 'Mapping locked / ' : '') +
                 (x.isCurrent ? 'Current' : 'Historical') + (x.isActive ? '' : ' / Inactive'));
             const actions = cell(tr, '');
@@ -65,7 +66,7 @@
         });
         if (!rows.length) {
             const tr = document.createElement('tr');
-            const td = cell(tr, 'No curriculum versions found.'); td.colSpan = 8; target.append(tr);
+            const td = cell(tr, 'No curriculum versions found.'); td.colSpan = 9; target.append(tr);
         }
         el('curriculumPage').textContent = 'Page ' + page + ' • ' + total + ' versions';
         el('curriculumPrevious').disabled = page <= 1;
@@ -83,7 +84,8 @@
         summary.className = 'small text-muted';
         summary.textContent = 'Effective: ' + data.effectiveFrom + ' to ' +
             (data.effectiveTo || 'open') + ' • ' + data.subjectCount +
-            ' subject mappings • ' + data.subjectOfferingCount + ' offerings' +
+            ' subject mappings • ' + data.subjectOfferingCount + ' offerings • ' +
+            data.studentEnrollmentCount + ' enrollments' +
             (data.isSubjectMappingLocked ? ' • Mapping locked: ' + data.subjectMappingLockReason : ' • Mapping open');
         host.append(summary);
         const table = document.createElement('table');
@@ -109,9 +111,9 @@
     };
     el('curriculumCsv').addEventListener('click', () => {
         const lines = [['Code', 'Name', 'Programme', 'Version', 'Effective from', 'Effective to',
-            'Current', 'Active', 'Subjects', 'Offerings', 'Mapping status'], ...rows.map(x => [x.code, x.name,
+            'Current', 'Active', 'Subjects', 'Offerings', 'Enrollments', 'Mapping status'], ...rows.map(x => [x.code, x.name,
             programName(x.academicProgramId), x.versionNo, x.effectiveFrom, x.effectiveTo,
-            x.isCurrent, x.isActive, x.subjectCount, x.subjectOfferingCount,
+            x.isCurrent, x.isActive, x.subjectCount, x.subjectOfferingCount, x.studentEnrollmentCount,
             x.isSubjectMappingLocked ? x.subjectMappingLockReason : 'Open'])];
         const blob = new Blob(['\uFEFF' + lines.map(row => row.map(safe).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
         const url = URL.createObjectURL(blob), link = document.createElement('a');
