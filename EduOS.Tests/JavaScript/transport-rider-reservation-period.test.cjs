@@ -23,12 +23,14 @@ test('existing authorized API and workspace handle bounded and open-ended reserv
     new Function(js);
 });
 test('write checks full route coverage and peak concurrent occupancy inside serializable transaction', () => {
-    assert.match(service, /IsolationLevel = IsolationLevel.Serializable/);
+    assert.match(service, /_unitOfWork\.ExecuteInTransactionAsync\(async ct =>/);
+    assert.match(service, /System\.Data\.IsolationLevel\.Serializable, cancellationToken/);
+    assert.doesNotMatch(service, /new TransactionScope\(/);
     assert.match(service, /request.EndDate.HasValue && request.EndDate.Value < startDate/);
     assert.match(service, /request.EndDate.HasValue && x.EffectiveTo.Value >= request.EndDate.Value/);
     assert.match(service, /x.StartDate <= requestedEnd/);
     assert.match(service, /x.EndDate.Value >= startDate/);
-    assert.match(service, /\.Take\(10001\)\.ToListAsync\(cancellationToken\)/);
+    assert.match(service, /\.Take\(10001\)\.ToListAsync\(ct\)/);
     assert.match(service, /PeakReservedSeats\(overlapping.Select/);
     assert.match(service, /replay.EndDate != request.EndDate/);
     assert.match(service, /x.StartDate <= \(request.EndDate \?\? DateOnly.MaxValue\)/);
