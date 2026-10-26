@@ -65,6 +65,87 @@ public sealed class StudentGuardianWorkspaceService : IStudentGuardianWorkspaceS
         }
     }
 
+    public async Task<ApiResponse<PagedResult<StudentGuardianRelationshipHistoryDto>>> GetHistoryAsync(
+        Guid studentReference, int page = 1, int pageSize = 20, CancellationToken ct = default)
+    {
+        if (!Allowed)
+            return Fail<PagedResult<StudentGuardianRelationshipHistoryDto>>("Tenant administrator permission required.", 403);
+        if (studentReference == Guid.Empty || page < 1 || pageSize is < 1 or > 100)
+            return Fail<PagedResult<StudentGuardianRelationshipHistoryDto>>("Valid student reference and paging required.");
+        try
+        {
+            var tenant = _user.TenantId;
+            var studentId = await _students.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenant && x.PublicId == studentReference && !x.IsDeleted)
+                .Select(x => x.Id).SingleOrDefaultAsync(ct);
+            if (studentId <= 0)
+                return Fail<PagedResult<StudentGuardianRelationshipHistoryDto>>("Student not found.", 404);
+
+            // Include revoked links without exposing another tenant's soft-deleted records.
+            var linkIds = _links.GetQueryable().IgnoreQueryFilters().AsNoTracking()
+                .Where(x => x.TenantId == tenant && x.StudentId == studentId)
+                .Select(x => x.Id);
+            var query = _auditLogs.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == tenant && x.EntityName == "StudentGuardian" &&
+                x.EntityId.HasValue && linkIds.Contains(x.EntityId.Value));
+            var total = await query.CountAsync(ct);
+            var offset = ((long)page - 1) * pageSize;
+            var entries = offset > int.MaxValue ? new List<GuardianAuditRow>() : await query
+                .OrderByDescending(x => x.OccurredAt).ThenByDescending(x => x.Id)
+                .Skip((int)offset).Take(pageSize)
+                .Select(x => new GuardianAuditRow
+                {
+                    Id = x.Id, LinkId = x.EntityId!.Value, ActorUserId = x.UserId,
+                    Action = x.Action, NewValue = x.NewValue, IsSuccess = x.IsSuccess,
+                    OccurredAt = x.OccurredAt
+                }).ToListAsync(ct);
+            return ApiResponse<PagedResult<StudentGuardianRelationshipHistoryDto>>.SuccessResponse(
+                new PagedResult<StudentGuardianRelationshipHistoryDto>
+                {
+                    Items = entries.Select(x => new StudentGuardianRelationshipHistoryDto
+                    {
+                        Id = x.Id, LinkId = x.LinkId, ActorUserId = x.ActorUserId,
+                        Action = x.Action, Reason = ReadAuditReason(x.NewValue),
+                        IsSuccess = x.IsSuccess, OccurredAt = x.OccurredAt
+                    }).ToList(),
+                    TotalCount = total, Page = page, PageSize = pageSize
+                });
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Guardian relationship audit read failed for tenant {TenantId}", _user.TenantId);
+            return Fail<PagedResult<StudentGuardianRelationshipHistoryDto>>("Guardian history could not be loaded.", 500);
+        }
+    }
+
+    private sealed class GuardianAuditRow
+    {
+        public long Id { get; set; }
+        public long LinkId { get; set; }
+        public long? ActorUserId { get; set; }
+        public string Action { get; set; } = string.Empty;
+        public string? NewValue { get; set; }
+        public bool IsSuccess { get; set; }
+        public DateTime OccurredAt { get; set; }
+    }
+
+    private static string? ReadAuditReason(string? newValue)
+    {
+        if (string.IsNullOrWhiteSpace(newValue)) return null;
+        try
+        {
+            using var json = JsonDocument.Parse(newValue);
+            if (json.RootElement.ValueKind != JsonValueKind.Object ||
+                !json.RootElement.TryGetProperty("Reason", out var reason) ||
+                reason.ValueKind != JsonValueKind.String)
+                return null;
+            var value = reason.GetString();
+            return value?.Length > 500 ? value[..500] : value;
+        }
+        catch (JsonException) { return null; }
+    }
+
     private async Task<ApiResponse<StudentGuardianWorkspaceDto>> LoadAsync(Guid studentReference, CancellationToken ct)
     {
         var tenant = _user.TenantId;

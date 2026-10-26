@@ -30,6 +30,17 @@ public sealed class StudentGuardianWorkspaceLinkDto
     public DateTime? RevokedAt { get; set; }
 }
 
+public sealed class StudentGuardianRelationshipHistoryDto
+{
+    public long Id { get; set; }
+    public long LinkId { get; set; }
+    public long? ActorUserId { get; set; }
+    public string Action { get; set; } = string.Empty;
+    public string? Reason { get; set; }
+    public bool IsSuccess { get; set; }
+    public DateTime OccurredAt { get; set; }
+}
+
 public sealed class CreateStudentGuardianWorkspaceRequestDto
 {
     [Required] public Guid ClientRequestId { get; set; }

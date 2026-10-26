@@ -94,4 +94,25 @@ public sealed class StudentGuardianRelationshipWorkspaceContractTests
         entry.Should().Contain("RequestVerificationToken: token");
         entry.Should().Contain("credentials: 'same-origin'");
     }
+
+    [Fact]
+    public void Guardian_relationship_history_is_read_only_paged_and_bound_to_student_and_tenant()
+    {
+        var service = Read("EduOS.Service", "Services", "Students", "StudentGuardianWorkspaceService.cs");
+        var api = Read("EduOS.App", "Controllers", "Api", "StudentGuardiansController.cs");
+        var view = Read("EduOS.App", "Views", "StudentGuardians", "Index.cshtml");
+        var entry = Read("EduOS.App", "wwwroot", "js", "students", "guardians.js");
+        var script = Read("EduOS.App", "wwwroot", "js", "students", "guardian-history.js");
+
+        service.Should().Contain("GetHistoryAsync")
+            .And.Contain("x.TenantId == tenant && x.StudentId == studentId")
+            .And.Contain("x.TenantId == tenant && x.EntityName == \"StudentGuardian\"")
+            .And.Contain("IgnoreQueryFilters()")
+            .And.Contain("Skip((int)offset).Take(pageSize)")
+            .And.Contain("ReadAuditReason(x.NewValue)");
+        api.Should().Contain("students/{studentReference:guid}/history");
+        view.Should().Contain("guardianHistoryRows");
+        entry.Should().Contain("setupGuardianHistory").And.Contain("guardianHistory.refresh()");
+        script.Should().Contain("/history?").And.Contain("textContent").And.NotContain("innerHTML");
+    }
 }

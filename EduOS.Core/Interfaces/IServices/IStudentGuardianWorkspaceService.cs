@@ -6,6 +6,8 @@ namespace EduOS.Core.Interfaces.IServices;
 public interface IStudentGuardianWorkspaceService
 {
     Task<ApiResponse<StudentGuardianWorkspaceDto>> GetAsync(Guid studentReference, CancellationToken ct = default);
+    Task<ApiResponse<PagedResult<StudentGuardianRelationshipHistoryDto>>> GetHistoryAsync(
+        Guid studentReference, int page = 1, int pageSize = 20, CancellationToken ct = default);
     Task<ApiResponse<StudentGuardianWorkspaceDto>> CreateAndLinkAsync(CreateStudentGuardianWorkspaceRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<StudentGuardianWorkspaceDto>> LinkExistingAsync(LinkExistingStudentGuardianRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<StudentGuardianWorkspaceDto>> UnlinkAsync(Guid studentReference, long linkId, UnlinkStudentGuardianWorkspaceRequestDto request, CancellationToken ct = default);

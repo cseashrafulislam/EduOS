@@ -3,6 +3,7 @@ import { setupGuardianSave } from './guardian-save.js';
 import { setupGuardianReuse } from './guardian-reuse.js';
 import { renderGuardianLinks } from './guardian-link-edit.js';
 import { renderRevokedGuardianLinks } from './guardian-reactivation.js';
+import { setupGuardianHistory } from './guardian-history.js';
 
 const $ = id => document.getElementById(id);
 const root = $('guardianWorkspace');
@@ -29,6 +30,7 @@ if (root) {
             throw Error(json?.message || 'Request failed. Refresh and retry.');
         return json.data;
     }
+    const guardianHistory = setupGuardianHistory({ $, api, state });
     function render(student) {
         state.student = student;
         $('guardianSelected').textContent = student.studentName + ' (' + student.studentCode + ')';
@@ -37,6 +39,7 @@ if (root) {
         $('guardianRefresh').disabled = state.busy;
         renderGuardianLinks({ $, api, state, render, notice });
         renderRevokedGuardianLinks({ $, api, state, render, notice });
+        guardianHistory.refresh();
     }
     $('guardianRefresh').addEventListener('click', async () => {
         if (!state.student || state.busy) return;
