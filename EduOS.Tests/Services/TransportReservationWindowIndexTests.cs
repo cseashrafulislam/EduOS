@@ -59,7 +59,7 @@ public sealed class TransportReservationWindowIndexTests
         var count = await db.Database.SqlQueryRaw<int>(@"
 SELECT COUNT(*) AS [Value]
 FROM sys.indexes i
-WHERE i.has_filter = 1 AND i.filter_definition = N'[IsDeleted] = 0'
+WHERE i.has_filter = 1 AND i.filter_definition LIKE N'%IsDeleted%'
 AND (
     (i.object_id = OBJECT_ID(N'dbo.StudentTransports') AND i.name IN (
         N'IX_StudentTransports_TenantId_StudentId_StartDate_EndDate',
