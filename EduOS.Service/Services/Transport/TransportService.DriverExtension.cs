@@ -15,8 +15,7 @@ public sealed partial class TransportService
         requestedEnd > currentEnd.Value && licenseEnd.HasValue && requestedEnd <= licenseEnd.Value;
 
     /// <summary>Extend the existing operating assignment after a license renewal.
-    /// No new aggregate, financial write, or durable idempotency key is introduced.
-    /// Identical-state replay is safe; key-based idempotency needs Platform persistence.</summary>
+    /// A successful request and its durable receipt commit in the same transaction.</summary>
     public async Task<ApiResponse<VehicleDriverAssignmentDto>> ExtendOperatingDriverAsync(
         long assignmentId, ExtendOperatingVehicleDriverRequestDto request, CancellationToken ct = default)
     {
@@ -26,6 +25,11 @@ public sealed partial class TransportService
             return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse("Assignment, extension date and row version are required.");
         var tenant = _currentUser.TenantId;
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+        const string operation = "transport.operating-driver-extension";
+        var requestHash = CommandFingerprint(operation, assignmentId,
+            request.EffectiveTo.ToString("yyyy-MM-dd"), Convert.ToBase64String(version));
+        var commandId = request.ClientRequestId != Guid.Empty ? request.ClientRequestId :
+            LegacyExtensionRequestId(tenant, _currentUser.UserId, operation, assignmentId, requestHash);
         try
         {
             return await _unitOfWork.ExecuteInTransactionAsync(async token =>
@@ -43,6 +47,12 @@ public sealed partial class TransportService
                     return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse("Active vehicle campus unavailable.", 409);
                 if (!await CanManageCampusAsync(vehicle.CampusId.Value, tenant, token))
                     return Denied<VehicleDriverAssignmentDto>();
+                var replay = await _commandReceipts.ReplayAsync<VehicleDriverAssignmentDto>(tenant,
+                    _currentUser.UserId, operation, commandId, assignmentId, requestHash, token);
+                if (replay.Conflict)
+                    return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse(
+                        "Request key was already used with different command details.", 409);
+                if (replay.Found) return replay.Response!;
                 var driver = await _drivers.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == link.TransportDriverId && !x.IsDeleted && x.IsActive, token);
                 if (driver == null || !driver.LicenseExpiresOn.HasValue)
@@ -50,8 +60,14 @@ public sealed partial class TransportService
                 if (link.IsCurrent && link.EffectiveFrom <= today &&
                     link.EffectiveTo == request.EffectiveTo &&
                     driver.LicenseExpiresOn.Value >= request.EffectiveTo)
-                    return ApiResponse<VehicleDriverAssignmentDto>.SuccessResponse(
+                {
+                    var same = ApiResponse<VehicleDriverAssignmentDto>.SuccessResponse(
                         MapVehicleDriverLink(link), "Driver assignment already extended to this date.");
+                    await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
+                        commandId, assignmentId, requestHash, same, token);
+                    await _unitOfWork.SaveChangesAsync(token);
+                    return same;
+                }
                 if (!link.RowVersion.AsSpan().SequenceEqual(version))
                     return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse("Assignment changed. Reload.", 409);
                 if (!link.IsCurrent || !CanExtendOperatingDriverDates(
@@ -75,8 +91,12 @@ public sealed partial class TransportService
                 _logger.LogInformation(
                     "Driver assignment extended for tenant {TenantId}, campus {CampusId}, assignment {AssignmentId}, end {End}",
                     tenant, vehicle.CampusId.Value, link.Id, link.EffectiveTo);
-                return ApiResponse<VehicleDriverAssignmentDto>.SuccessResponse(
+                var success = ApiResponse<VehicleDriverAssignmentDto>.SuccessResponse(
                     MapVehicleDriverLink(link), "Operating driver assignment extended.");
+                await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
+                    commandId, assignmentId, requestHash, success, token);
+                await _unitOfWork.SaveChangesAsync(token);
+                return success;
             }, System.Data.IsolationLevel.Serializable, ct);
         }
         catch (DbUpdateConcurrencyException)

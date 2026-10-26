@@ -139,6 +139,59 @@ public class TransportServiceTests
         link.VehicleId.Should().Be(nextVehicle.Id);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Driver_extension_records_original_outcome_and_keeps_legacy_retries_safe(bool upcoming)
+    {
+        await using var db = CreateContext(CreateOptions(), 101);
+        var today = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
+        var campus = new Campus { TenantId = 101, Name = "Driver extension campus", Code = "D-EXT" };
+        db.Campuses.Add(campus);
+        await db.SaveChangesAsync();
+        var vehicle = new Vehicle { TenantId = 101, CampusId = campus.Id, VehicleNumber = "BUS-EXT",
+            Capacity = 30, IsActive = true };
+        var driver = new TransportDriver { TenantId = 101, FullName = "Licensed driver",
+            LicenseNumber = "LIC-EXT", LicenseExpiresOn = today.AddDays(100), IsActive = true };
+        db.AddRange(vehicle, driver);
+        await db.SaveChangesAsync();
+        var link = new VehicleDriverAssignment { TenantId = 101, VehicleId = vehicle.Id,
+            TransportDriverId = driver.Id, EffectiveFrom = today.AddDays(upcoming ? 10 : -10),
+            EffectiveTo = today.AddDays(upcoming ? 20 : 2), IsCurrent = true,
+            RowVersion = [7, 6, 5, 4, 3, 2, 1, 9] };
+        db.VehicleDriverAssignments.Add(link);
+        await db.SaveChangesAsync();
+        var version = Convert.ToBase64String(link.RowVersion);
+        var newEnd = today.AddDays(upcoming ? 30 : 15);
+        var key = Guid.NewGuid();
+        var service = CreateService(db, 101);
+        async Task<EduOS.Core.Common.ApiResponse<VehicleDriverAssignmentDto>> Extend(DateOnly end, Guid requestId) =>
+            upcoming
+                ? await service.ExtendUpcomingDriverAsync(link.Id, new ExtendUpcomingVehicleDriverRequestDto
+                    { ClientRequestId = requestId, EffectiveTo = end, RowVersion = version })
+                : await service.ExtendOperatingDriverAsync(link.Id, new ExtendOperatingVehicleDriverRequestDto
+                    { ClientRequestId = requestId, EffectiveTo = end, RowVersion = version });
+
+        var first = await Extend(newEnd, key);
+        first.Success.Should().BeTrue(first.Message);
+        var updatedAt = link.UpdatedAt;
+        var replay = await Extend(newEnd, key);
+        replay.Success.Should().BeTrue(replay.Message);
+        replay.Message.Should().Be(first.Message);
+        link.UpdatedAt.Should().Be(updatedAt);
+        var scope = upcoming ? "transport.upcoming-driver-extension" : "transport.operating-driver-extension";
+        (await db.IdempotencyRecords.CountAsync(x => x.Scope == scope)).Should().Be(1);
+        (await Extend(newEnd.AddDays(1), key)).StatusCode.Should().Be(409);
+        link.EffectiveTo.Should().Be(newEnd);
+
+        var legacy = await Extend(newEnd.AddDays(5), Guid.Empty);
+        legacy.Success.Should().BeTrue(legacy.Message);
+        var legacyReplay = await Extend(newEnd.AddDays(5), Guid.Empty);
+        legacyReplay.Success.Should().BeTrue(legacyReplay.Message);
+        legacyReplay.Message.Should().Be(legacy.Message);
+        (await db.IdempotencyRecords.CountAsync(x => x.Scope == scope)).Should().Be(2);
+    }
+
     [Fact]
     public async Task Upcoming_charged_transport_extension_requires_finance_billing_contract()
     {

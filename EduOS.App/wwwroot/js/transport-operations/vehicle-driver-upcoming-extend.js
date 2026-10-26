@@ -1,6 +1,7 @@
 (() => {
 'use strict';
 const u=window.vehicleDriverUI;if(!u)return;
+let requestKey=null,requestSignature=null;
 u.extendUpcomingDriver=async item=>{
  if(!item||!item.isScheduled||item.isCancelled||!item.rowVersion||
     !item.effectiveTo||!item.licenseExpiresOn||item.effectiveFrom<=u.today()||
@@ -14,9 +15,13 @@ u.extendUpcomingDriver=async item=>{
   u.notify('Choose a valid date after the current end and no later than license expiry.');return;
  }
  if(!window.confirm('Extend this future driver reservation through '+end+'?'))return;
+ if(!window.crypto?.randomUUID)return u.notify('Secure browser context required.');
+ const signature=[item.id,end,item.rowVersion].join('|');
+ if(signature!==requestSignature){requestSignature=signature;requestKey=window.crypto.randomUUID();}
  try{
   await u.api(u.endpoint+'/'+encodeURIComponent(item.id)+'/extend-upcoming','POST',
-   {effectiveTo:end,rowVersion:item.rowVersion});
+   {clientRequestId:requestKey,effectiveTo:end,rowVersion:item.rowVersion});
+  requestKey=null;requestSignature=null;
   u.notify('Upcoming driver reservation extended.',true);
   await u.loadLinks();
  }catch(error){u.notify(error.message);}

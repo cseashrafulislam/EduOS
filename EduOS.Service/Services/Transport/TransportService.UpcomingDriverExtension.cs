@@ -17,7 +17,7 @@ public sealed partial class TransportService
     /// <summary>
     /// Extend an existing future driver reservation after license renewal.
     /// This preserves its canonical assignment identity, vehicle and driver.
-    /// Exact-state replay is safe; durable request-key idempotency needs Platform persistence.
+    /// Successful request-key outcomes persist atomically with the canonical assignment.
     /// </summary>
     public async Task<ApiResponse<VehicleDriverAssignmentDto>> ExtendUpcomingDriverAsync(
         long assignmentId, ExtendUpcomingVehicleDriverRequestDto request, CancellationToken ct = default)
@@ -29,6 +29,11 @@ public sealed partial class TransportService
                 "Assignment, new end date and row version are required.");
         var tenant = _currentUser.TenantId;
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+        const string operation = "transport.upcoming-driver-extension";
+        var requestHash = CommandFingerprint(operation, assignmentId,
+            request.EffectiveTo.ToString("yyyy-MM-dd"), Convert.ToBase64String(version));
+        var commandId = request.ClientRequestId != Guid.Empty ? request.ClientRequestId :
+            LegacyExtensionRequestId(tenant, _currentUser.UserId, operation, assignmentId, requestHash);
         try
         {
             return await _unitOfWork.ExecuteInTransactionAsync(async token =>
@@ -47,6 +52,12 @@ public sealed partial class TransportService
                         "Active vehicle campus unavailable.", 409);
                 if (!await CanManageCampusAsync(vehicle.CampusId.Value, tenant, token))
                     return Denied<VehicleDriverAssignmentDto>();
+                var replay = await _commandReceipts.ReplayAsync<VehicleDriverAssignmentDto>(tenant,
+                    _currentUser.UserId, operation, commandId, assignmentId, requestHash, token);
+                if (replay.Conflict)
+                    return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse(
+                        "Request key was already used with different command details.", 409);
+                if (replay.Found) return replay.Response!;
                 var driver = await _drivers.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == link.TransportDriverId && !x.IsDeleted && x.IsActive, token);
                 if (driver == null || !driver.LicenseExpiresOn.HasValue)
@@ -57,8 +68,14 @@ public sealed partial class TransportService
                         "Only a future current driver reservation can be extended.", 409);
                 if (link.EffectiveTo == request.EffectiveTo &&
                     driver.LicenseExpiresOn.Value >= request.EffectiveTo)
-                    return ApiResponse<VehicleDriverAssignmentDto>.SuccessResponse(
+                {
+                    var same = ApiResponse<VehicleDriverAssignmentDto>.SuccessResponse(
                         MapVehicleDriverLink(link), "Driver reservation already ends on this date.");
+                    await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
+                        commandId, assignmentId, requestHash, same, token);
+                    await _unitOfWork.SaveChangesAsync(token);
+                    return same;
+                }
                 if (!link.RowVersion.AsSpan().SequenceEqual(version))
                     return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse(
                         "Assignment changed. Reload and retry.", 409);
@@ -82,8 +99,12 @@ public sealed partial class TransportService
                 _logger.LogInformation(
                     "Upcoming driver reservation extended: tenant {TenantId}, campus {CampusId}, assignment {AssignmentId}, old end {OldEnd}, new end {NewEnd}",
                     tenant, vehicle.CampusId.Value, link.Id, oldEnd, link.EffectiveTo);
-                return ApiResponse<VehicleDriverAssignmentDto>.SuccessResponse(
+                var success = ApiResponse<VehicleDriverAssignmentDto>.SuccessResponse(
                     MapVehicleDriverLink(link), "Upcoming driver reservation extended.");
+                await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
+                    commandId, assignmentId, requestHash, success, token);
+                await _unitOfWork.SaveChangesAsync(token);
+                return success;
             }, System.Data.IsolationLevel.Serializable, ct);
         }
         catch (DbUpdateConcurrencyException)

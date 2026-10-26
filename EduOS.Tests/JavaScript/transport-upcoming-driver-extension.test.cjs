@@ -5,13 +5,14 @@ const vm=require('node:vm');
 const path=require('node:path');
 const source=fs.readFileSync(path.join(__dirname,
  '../../EduOS.App/wwwroot/js/transport-operations/vehicle-driver-upcoming-extend.js'),'utf8');
-function harness(answer,confirmation=true){
+function harness(answer,confirmation=true,failFirst=false){
  const calls=[],messages=[];
  const u={today:()=> '2026-10-26',endpoint:'/api/transport/vehicle-driver-links',
-  api:async(...args)=>{calls.push(args);return{};},
+  api:async(...args)=>{calls.push(args);if(failFirst&&calls.length===1)throw Error('temporary error');return{};},
   notify:(...args)=>messages.push(args),
   loadLinks:async()=>{calls.push(['reload']);}};
- vm.runInNewContext(source,{window:{vehicleDriverUI:u,prompt:()=>answer,confirm:()=>confirmation},
+ vm.runInNewContext(source,{window:{vehicleDriverUI:u,prompt:()=>answer,confirm:()=>confirmation,
+   crypto:{randomUUID:()=> '22222222-2222-4222-8222-222222222222'}},
   Date,Number,encodeURIComponent});
  return {u,calls,messages};
 }
@@ -24,7 +25,16 @@ test('posts authorized extension of canonical future reservation and refreshes',
  assert.equal(h.calls[0][1],'POST');
  assert.equal(h.calls[0][2].effectiveTo,'2026-12-15');
  assert.equal(h.calls[0][2].rowVersion,'version');
+ assert.equal(h.calls[0][2].clientRequestId,'22222222-2222-4222-8222-222222222222');
  assert.deepEqual(h.calls[1],['reload']);
+});
+test('retry after a network error keeps the same durable request key',async()=>{
+ const h=harness('2026-12-15',true,true);
+ await h.u.extendUpcomingDriver(row);
+ await h.u.extendUpcomingDriver(row);
+ assert.equal(h.calls.length,3);
+ assert.equal(h.calls[0][2].clientRequestId,h.calls[1][2].clientRequestId);
+ assert.deepEqual(h.calls[2],['reload']);
 });
 test('rejects invalid, unextended or unlicensed end dates',async()=>{
  for(const date of ['2026-11-30','2027-01-01','2026-12-32']){

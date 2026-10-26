@@ -79,15 +79,22 @@ function renderRow(item){
    const extendButton=document.createElement('button');
    extendButton.type='button';extendButton.className='btn btn-outline-primary btn-sm mt-1';
    extendButton.textContent='Extend after license renewal';
+   let extensionRequestKey=null,extensionSignature=null;
    extendButton.onclick=async()=>{
     if(!extension.value||extension.value<=item.effectiveTo||
        extension.value>item.licenseExpiresOn)
      return u.notify('Choose an end date later than the current end and no later than license expiry.');
     if(!confirm('Extend this operating driver assignment through '+extension.value+'?'))return;
+    if(!window.crypto?.randomUUID)return u.notify('Secure browser context required.');
+    const signature=[item.id,extension.value,item.rowVersion].join('|');
+    if(signature!==extensionSignature){
+     extensionSignature=signature;extensionRequestKey=window.crypto.randomUUID();
+    }
     extendButton.disabled=true;
     try{
      await u.api(u.endpoint+'/'+item.id+'/extend','POST',{
-      effectiveTo:extension.value,rowVersion:item.rowVersion});
+      clientRequestId:extensionRequestKey,effectiveTo:extension.value,rowVersion:item.rowVersion});
+     extensionRequestKey=null;extensionSignature=null;
      u.notify('Driver assignment extended.',true);await u.loadLinks();
     }catch(error){u.notify(error.message);}finally{extendButton.disabled=false;}
    };

@@ -10,8 +10,8 @@ namespace EduOS.Service.Services.Transport;
 
 /// <summary>Vehicle/driver assignments use the canonical aggregate and existing filtered unique indexes.
 /// Only one current assignment per vehicle and driver can be scheduled until Platform changes the indexes.
-/// ClientRequestId is not persisted on this entity: exact-data replay is supported, durable key-based
-/// idempotency requires a Platform-owned schema change and must not be claimed here.</summary>
+/// ClientRequestId is not stored on this entity: durable command outcomes live in the shared
+/// tenant-scoped IdempotencyRecords table, atomically committed with canonical mutations.</summary>
 public sealed partial class TransportService
 {
     public async Task<ApiResponse<PagedResult<TransportVehicleDriverLinkRowDto>>> GetVehicleDriverLinksAsync(
