@@ -86,6 +86,73 @@ public sealed class SubjectOfferingSetupTests
         { Capacity = 1, IsActive = false, RowVersion = version })).StatusCode.Should().Be(409);
     }
 
+
+    [Fact]
+    public async Task Offering_register_reports_pending_allocated_and_released_seats()
+    {
+        var options = Options();
+        await using var db = Context(options, 301);
+        var ids = await SeedAsync(db, 301);
+        var sut = Service(db, 301);
+        var created = (await sut.CreateSubjectOfferingAsync(Request(ids))).Data!;
+        db.AddRange(
+            new StudentSubjectRegistration { TenantId = 301, SubjectOfferingId = created.Id,
+                StudentEnrollmentId = 1, ClientRequestId = Guid.NewGuid(),
+                State = EduOS.Core.Enums.Domain.SubjectRegistrationState.Pending },
+            new StudentSubjectRegistration { TenantId = 301, SubjectOfferingId = created.Id,
+                StudentEnrollmentId = 2, ClientRequestId = Guid.NewGuid(),
+                State = EduOS.Core.Enums.Domain.SubjectRegistrationState.Approved },
+            new StudentSubjectRegistration { TenantId = 301, SubjectOfferingId = created.Id,
+                StudentEnrollmentId = 3, ClientRequestId = Guid.NewGuid(),
+                State = EduOS.Core.Enums.Domain.SubjectRegistrationState.Completed },
+            new StudentSubjectRegistration { TenantId = 301, SubjectOfferingId = created.Id,
+                StudentEnrollmentId = 4, ClientRequestId = Guid.NewGuid(),
+                State = EduOS.Core.Enums.Domain.SubjectRegistrationState.Rejected },
+            new StudentSubjectRegistration { TenantId = 301, SubjectOfferingId = created.Id,
+                StudentEnrollmentId = 5, ClientRequestId = Guid.NewGuid(),
+                State = EduOS.Core.Enums.Domain.SubjectRegistrationState.Dropped });
+        await db.SaveChangesAsync();
+        var result = await sut.GetSubjectOfferingsAsync(ids.Batch, null);
+        result.Success.Should().BeTrue();
+        var offering = result.Data!.Items.Should().ContainSingle().Subject;
+        offering.PendingSeats.Should().Be(1);
+        offering.AllocatedSeats.Should().Be(2);
+        offering.ReservedSeats.Should().Be(3);
+        offering.SeatsRemaining.Should().Be(37);
+        offering.IsOverCapacity.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Offering_register_excludes_foreign_tenant_reservations_and_bounds_available_seats()
+    {
+        var options = Options();
+        await using var db = Context(options, 301);
+        var ids = await SeedAsync(db, 301);
+        var sut = Service(db, 301);
+        var created = (await sut.CreateSubjectOfferingAsync(Request(ids))).Data!;
+        var registrations = Enumerable.Range(1, 41).Select(i => new StudentSubjectRegistration
+        {
+            TenantId = 301, SubjectOfferingId = created.Id, StudentEnrollmentId = i,
+            ClientRequestId = Guid.NewGuid(),
+            State = EduOS.Core.Enums.Domain.SubjectRegistrationState.Approved
+        }).ToList();
+        registrations.Add(new StudentSubjectRegistration
+        {
+            TenantId = 302, SubjectOfferingId = created.Id, StudentEnrollmentId = 99,
+            ClientRequestId = Guid.NewGuid(),
+            State = EduOS.Core.Enums.Domain.SubjectRegistrationState.Pending
+        });
+        db.AddRange(registrations);
+        await db.SaveChangesAsync();
+        var result = await sut.GetSubjectOfferingsAsync(ids.Batch, null);
+        var offering = result.Data!.Items.Should().ContainSingle().Subject;
+        offering.ReservedSeats.Should().Be(41);
+        offering.PendingSeats.Should().Be(0);
+        offering.AllocatedSeats.Should().Be(41);
+        offering.SeatsRemaining.Should().Be(0);
+        offering.IsOverCapacity.Should().BeTrue();
+    }
+
     private static SaveSubjectOfferingRequestDto Request((long Batch, long Mapping, long Year) ids) => new()
     {
         ClientRequestId = Guid.NewGuid(), AcademicBatchId = ids.Batch, CurriculumSubjectId = ids.Mapping,

@@ -39,7 +39,17 @@
         for (const row of visible) {
             const tr = document.createElement('tr');
             cell(tr, row.code); cell(tr, row.subjectName + ' (' + row.subjectCode + ')');
-            cell(tr, row.capacity); cell(tr, ['','On campus','Online live','Self-paced','Hybrid'][row.deliveryMode] || row.deliveryMode);
+            cell(tr, row.capacity);
+            cell(tr, row.pendingSeats); cell(tr, row.allocatedSeats); cell(tr, row.reservedSeats);
+            const available = cell(tr, row.seatsRemaining);
+            if (row.isOverCapacity) {
+                available.classList.add('text-danger', 'fw-bold');
+                available.title = 'Existing reservations exceed configured capacity; investigate before allocating seats.';
+            } else if (!row.seatsRemaining) {
+                available.classList.add('text-warning', 'fw-bold');
+                available.title = 'No seats available.';
+            }
+            cell(tr, ['','On campus','Online live','Self-paced','Hybrid'][row.deliveryMode] || row.deliveryMode);
             cell(tr, row.isActive ? 'Active' : 'Inactive');
             const action = cell(tr, '');
             const edit = document.createElement('button'); edit.type = 'button';
@@ -55,11 +65,11 @@
             });
             action.append(edit); body.append(tr);
         }
-        if (!visible.length) { const tr = document.createElement('tr'); const td = cell(tr, 'No offerings found.'); td.colSpan = 6; body.append(tr); }
+        if (!visible.length) { const tr = document.createElement('tr'); const td = cell(tr, 'No offerings found.'); td.colSpan = 10; body.append(tr); }
         el('offeringPrevious').disabled = page <= 1;
         el('offeringNext').disabled = page >= totalPages;
         el('offeringPage').textContent = 'Page ' + page + ' of ' + Math.max(1, totalPages) + ' • ' + result.totalCount + ' offerings';
-        status('Results are tenant-scoped. Exports include only the visible page.');
+        status('Seat counts include pending, approved and completed registrations. Rejected/dropped seats are released. CSV exports include only the visible page.');
     }
     const safeRefresh = async () => { try { await refresh(); } catch (e) { notice(e.message, true); } };
     window.addEventListener('eduos:academic-reloaded', () => {
@@ -108,9 +118,15 @@
     });
     el('offeringCsv').addEventListener('click', () => {
         if (!visible.length) return;
-        const escape = value => '"' + String(value ?? '').replace(/"/g, '""') + '"';
-        const rows = [['Code','Subject','Capacity','Mode','Active'], ...visible.map(x =>
-            [x.code,x.subjectName,x.capacity,x.deliveryMode,x.isActive])];
+        const escape = value => {
+            const text = String(value ?? '');
+            // Prevent spreadsheet formula execution from tenant-authored subject codes/names.
+            const safe = /^[\s]*[=+@-]/.test(text) ? "'" + text : text;
+            return '"' + safe.replace(/"/g, '""') + '"';
+        };
+        const rows = [['Code','Subject','Capacity','Pending','Allocated','Reserved','Available','Over Capacity','Mode','Active'], ...visible.map(x =>
+            [x.code,x.subjectName,x.capacity,x.pendingSeats,x.allocatedSeats,x.reservedSeats,
+                x.seatsRemaining,x.isOverCapacity,x.deliveryMode,x.isActive])];
         const csv = '\uFEFF' + rows.map(x => x.map(escape).join(',')).join('\r\n');
         const link = document.createElement('a'), url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
         link.href = url; link.download = 'subject-offerings-page-' + page + '.csv'; link.click();

@@ -435,6 +435,12 @@ public class SubjectOfferingDto
     public long? AcademicTermId { get; set; }
     public string Code { get; set; } = string.Empty;
     public int Capacity { get; set; }
+    // Pending reservations and approved/completed allocations consume offering seats.
+    public int PendingSeats { get; set; }
+    public int AllocatedSeats { get; set; }
+    public int ReservedSeats { get; set; }
+    public int SeatsRemaining { get; set; }
+    public bool IsOverCapacity { get; set; }
     public DeliveryModeType DeliveryMode { get; set; }
     public bool IsActive { get; set; }
     public IReadOnlyList<InstructorAssignmentDto> Instructors { get; set; } = Array.Empty<InstructorAssignmentDto>();

@@ -41,11 +41,39 @@ public sealed partial class AcademicSetupService
         var count = await query.CountAsync(ct);
         var rows = await query.OrderBy(x => x.offering.Code).ThenBy(x => x.offering.Id)
             .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        // Aggregate only the visible offering IDs. Counts use the same reservation
+        // semantics as enrollment capacity enforcement (pending/approved/completed).
+        var offeringIds = rows.Select(x => x.offering.Id).ToArray();
+        var usage = await _registrations.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && offeringIds.Contains(x.SubjectOfferingId) &&
+                !x.IsDeleted && x.State != SubjectRegistrationState.Rejected &&
+                x.State != SubjectRegistrationState.Dropped)
+            .GroupBy(x => x.SubjectOfferingId)
+            .Select(x => new
+            {
+                OfferingId = x.Key,
+                Reserved = x.Count(),
+                Pending = x.Count(y => y.State == SubjectRegistrationState.Pending),
+                Allocated = x.Count(y => y.State == SubjectRegistrationState.Approved ||
+                    y.State == SubjectRegistrationState.Completed)
+            }).ToDictionaryAsync(x => x.OfferingId, ct);
         return ApiResponse<PagedResult<SubjectOfferingDto>>.SuccessResponse(new PagedResult<SubjectOfferingDto>
         {
             Page = page, PageSize = pageSize, TotalCount = count,
-            Items = rows.Select(x => MapOffering(x.offering, batch.Name, x.mapping.SubjectId,
-                x.subject.Name, x.subject.Code)).ToList()
+            Items = rows.Select(x =>
+            {
+                var dto = MapOffering(x.offering, batch.Name, x.mapping.SubjectId,
+                    x.subject.Name, x.subject.Code);
+                if (usage.TryGetValue(x.offering.Id, out var seats))
+                {
+                    dto.PendingSeats = seats.Pending;
+                    dto.AllocatedSeats = seats.Allocated;
+                    dto.ReservedSeats = seats.Reserved;
+                }
+                dto.SeatsRemaining = Math.Max(0, dto.Capacity - dto.ReservedSeats);
+                dto.IsOverCapacity = dto.ReservedSeats > dto.Capacity;
+                return dto;
+            }).ToList()
         });
     }
 
