@@ -26,6 +26,72 @@ namespace EduOS.Tests.Services;
 public class TransportServiceTests
 {
     [Fact]
+    public async Task Legacy_campus_repair_requires_review_and_applies_only_unlinked_institution_records()
+    {
+        await using var db = CreateContext(CreateOptions(), 101);
+        var campus = new Campus { TenantId = 101, Name = "Verified campus", Code = "VER", IsActive = true };
+        var route = new TransportRoute { TenantId = 101, Name = "Old route", Code = "OLD", RowVersion = [1,2,3,4,5,6,7,8] };
+        db.AddRange(campus, route);
+        await db.SaveChangesAsync();
+        var service = CreateService(db, 101);
+        var review = await service.GetLegacyCampusRepairReviewAsync();
+        review.Success.Should().BeTrue();
+        var row = review.Data!.Rows.Single(x => x.Reference == route.PublicId);
+        row.CanApply.Should().BeTrue();
+        var request = new ApplyTransportCampusRepairDto
+        {
+            CampusId = campus.Id, RowVersion = row.RowVersion
+        };
+        var premature = await service.ApplyLegacyCampusRepairAsync("route", route.PublicId, request);
+        premature.StatusCode.Should().Be(400);
+        route.CampusId.Should().BeNull();
+        request.ConfirmHistoricalCampusReview = true;
+        var success = await service.ApplyLegacyCampusRepairAsync("route", route.PublicId, request);
+        success.Success.Should().BeTrue(success.Message);
+        route.CampusId.Should().Be(campus.Id);
+        var auditTrail = await db.AuditLogs.IgnoreQueryFilters().ToListAsync();
+        auditTrail.Any(x => x.TenantId == 101 && x.EntityName == "Route" && x.Action == "Update" &&
+            x.EntityId == route.Id).Should().BeTrue(string.Join(";", auditTrail.Select(x =>
+                $"{x.TenantId}/{x.EntityName}/{x.EntityId}/{x.Action}")));
+        (await service.GetLegacyCampusRepairReviewAsync()).Data!.Rows.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Legacy_campus_repair_rejects_links_stale_versions_and_other_tenants_campuses()
+    {
+        await using var db = CreateContext(CreateOptions(), 101);
+        var campus = new Campus { TenantId = 101, Name = "Local", Code = "L", IsActive = true };
+        var route = new TransportRoute { TenantId = 101, Name = "Linked", Code = "LINK", RowVersion = [1,2,3,4,5,6,7,8] };
+        var vehicle = new Vehicle { TenantId = 101, VehicleNumber = "LEGACY-01", Capacity = 12,
+            RowVersion = [1,2,3,4,5,6,7,8] };
+        db.AddRange(campus, route, vehicle);
+        await db.SaveChangesAsync();
+        db.RouteVehicleAssignments.Add(new RouteVehicleAssignment
+        {
+            TenantId = 101, RouteId = route.Id, VehicleId = vehicle.Id,
+            EffectiveFrom = DateOnly.FromDateTime(DateTime.Today.AddDays(-30)), IsCurrent = false,
+            IsDeleted = true
+        });
+        await db.SaveChangesAsync();
+        var service = CreateService(db, 101);
+        var review = await service.GetLegacyCampusRepairReviewAsync();
+        review.Success.Should().BeTrue();
+        review.Data!.Rows.Should().HaveCount(2);
+        review.Data.Rows.Should().OnlyContain(x => !x.CanApply && x.LinkedRecords > 0);
+        var linked = await service.ApplyLegacyCampusRepairAsync("vehicle", vehicle.PublicId,
+            new ApplyTransportCampusRepairDto { CampusId = campus.Id,
+                RowVersion = Convert.ToBase64String(vehicle.RowVersion), ConfirmHistoricalCampusReview = true });
+        linked.StatusCode.Should().Be(409);
+        vehicle.CampusId.Should().BeNull();
+        var stale = await service.ApplyLegacyCampusRepairAsync("route", route.PublicId,
+            new ApplyTransportCampusRepairDto { CampusId = campus.Id, RowVersion = Convert.ToBase64String([9,9,9,9,9,9,9,9]),
+                ConfirmHistoricalCampusReview = true });
+        stale.StatusCode.Should().Be(409);
+        var unauthorised = await CreateService(db, 101, false).GetLegacyCampusRepairReviewAsync();
+        unauthorised.StatusCode.Should().Be(403);
+    }
+
+    [Fact]
     public async Task Upcoming_route_vehicle_change_persists_outcome_and_rejects_key_reuse()
     {
         await using var db = CreateContext(CreateOptions(), 101);
@@ -422,7 +488,10 @@ public class TransportServiceTests
         new GenericRepository<Campus>(context),
         new TestUnitOfWork(context),
         new TestCurrentUser(tenant, canManage, role), TimeProvider.System,
-        NullLogger<TransportService>.Instance, new ReservationFinancePolicy(context),
+        NullLogger<TransportService>.Instance,
+        new GenericRepository<TransportDriver>(context),
+        new GenericRepository<VehicleDriverAssignment>(context),
+        new ReservationFinancePolicy(context),
         new EduOS.Service.Services.Platform.ReservationCommandReceiptStore(context, TimeProvider.System));
 
     private static async Task<StudentTransport> SeedAssignmentAsync(EduOSDbContext context, long tenant, bool active, byte[] rowVersion)

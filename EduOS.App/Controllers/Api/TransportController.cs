@@ -19,6 +19,18 @@ public sealed class TransportController : ControllerBase
     private readonly ITransportService _service;
     public TransportController(ITransportService service) => _service = service;
 
+    [HttpGet("legacy-campus-review")]
+    [Authorize(Roles = "TenantAdmin")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> LegacyCampusReview(CancellationToken ct) =>
+        ToAction(await _service.GetLegacyCampusRepairReviewAsync(ct));
+
+    [HttpPost("legacy-campus-review/{kind}/{reference:guid}/apply")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> ApplyLegacyCampusRepair(string kind, Guid reference,
+        [FromBody] ApplyTransportCampusRepairDto request, CancellationToken ct) =>
+        ToAction(await _service.ApplyLegacyCampusRepairAsync(kind, reference, request, ct));
+
     [HttpGet("routes")]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
     public async Task<IActionResult> Routes(CancellationToken ct) => ToAction(await _service.GetRoutesAsync(ct));

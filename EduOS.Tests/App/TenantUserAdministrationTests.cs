@@ -112,6 +112,75 @@ public sealed class TenantUserAdministrationTests
         Assert.Empty(db.UserRoles);
     }
 
+    [Fact]
+    public async Task Legacy_global_grants_are_listed_for_review_and_require_explicit_removal_approval()
+    {
+        var access = ContextFor(100, isAdmin: true);
+        await using var db = access.Db;
+        await SeedSystemRolesAsync(db, access.Accessor, new ApplicationRole
+        {
+            Id = 93, TenantId = null, Name = "LegacyStaff", NormalizedName = "LEGACYSTAFF",
+            IsSystemRole = false
+        });
+        db.Users.Add(new ApplicationUser { Id = 210, FullName = "Legacy member", Email = "legacy@example.test" });
+        db.TenantMemberships.Add(new TenantMembership
+        {
+            Id = 300, TenantId = 100, UserId = 210, Status = EduOS.Core.Enums.Domain.MembershipStatus.Active,
+            RowVersion = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 }
+        });
+        db.UserRoles.Add(new IdentityUserRole<long> { UserId = 210, RoleId = 93 });
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+
+        var service = Service(db, access.User, access.Email);
+        var list = await service.GetMembersAsync(1, 20, null);
+        Assert.True(list.Success);
+        var member = Assert.Single(list.Data!.Items);
+        Assert.Equal(new[] { "LegacyStaff" }, member.LegacyGlobalRoleNames);
+        Assert.True(member.CanRemoveLegacyGlobalRoles);
+
+        var attempt = await service.SetMemberRolesAsync(member.MembershipId,
+            new TenantMemberRolesRequestDto { RowVersion = member.RowVersion, RoleIds = Array.Empty<long>() });
+        Assert.False(attempt.Success);
+        Assert.Equal(409, attempt.StatusCode);
+        Assert.Contains("explicitly approve", attempt.Message);
+        Assert.Single(db.UserRoles);
+    }
+
+    [Fact]
+    public async Task Legacy_grants_for_members_with_multiple_institutions_are_not_marked_for_local_removal()
+    {
+        var access = ContextFor(100, isAdmin: true);
+        await using var db = access.Db;
+        await SeedSystemRolesAsync(db, access.Accessor, new ApplicationRole
+        {
+            Id = 94, Name = "OldTeacher", NormalizedName = "OLDTEACHER"
+        });
+        db.Users.Add(new ApplicationUser { Id = 211, FullName = "Shared member", Email = "shared@example.test" });
+        db.TenantMemberships.Add(new TenantMembership { TenantId = 100, UserId = 211 });
+        await db.SaveChangesAsync();
+        var principal = access.Accessor.HttpContext!.User;
+        var oldTenant = access.Accessor.HttpContext!.Items["TenantId"];
+        try
+        {
+            access.Accessor.HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity());
+            access.Accessor.HttpContext.Items.Remove("TenantId");
+            db.TenantMemberships.Add(new TenantMembership { TenantId = 200, UserId = 211 });
+            db.UserRoles.Add(new IdentityUserRole<long> { UserId = 211, RoleId = 94 });
+            await db.SaveChangesAsync();
+        }
+        finally
+        {
+            access.Accessor.HttpContext.User = principal;
+            access.Accessor.HttpContext.Items["TenantId"] = oldTenant;
+        }
+        db.ChangeTracker.Clear();
+        var list = await Service(db, access.User, access.Email).GetMembersAsync(1, 20, null);
+        var member = Assert.Single(list.Data!.Items);
+        Assert.Equal(new[] { "OldTeacher" }, member.LegacyGlobalRoleNames);
+        Assert.False(member.CanRemoveLegacyGlobalRoles);
+    }
+
     [Theory]
     [InlineData(nameof(TenantUsersController.CreateRole))]
     [InlineData(nameof(TenantUsersController.SetRoles))]

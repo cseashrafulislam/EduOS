@@ -48,6 +48,7 @@
     </div></section>
     }
     @if (canManage) { <partial name="_VehicleSetup" /> }
+    @if (User.IsInRole("TenantAdmin")) { <partial name="_LegacyCampusReview" /> }
     @if (canManage) { <partial name="_RouteVehicleLinks" /> }
     @if (canManage) { <partial name="_StopDemand" /> <partial name="_RiderReadiness" /> <partial name="_CapacityReport" /> <partial name="_SeatForecast" /> <partial name="_FleetInsights" /> }
     @if (User.IsInRole("TenantAdmin")) { <partial name="_DriverRegistry" /> <partial name="_DriverLicenseCompliance" /> <partial name="_DriverReadiness" /> <partial name="_DriverCoverageForecast" /> <partial name="_VehicleDriverLinks" /> }
@@ -255,4 +256,5 @@
     @if (User.IsInRole("TenantAdmin")) { <script src="~/js/transport-operations/vehicle-driver-replace.js" asp-append-version="true"></script> }
     @if (User.IsInRole("TenantAdmin")) { <script src="~/js/transport-operations/vehicle-driver-replace-submit.js" asp-append-version="true"></script> }
     @if (User.IsInRole("TenantAdmin")) { <script src="~/js/transport-operations/vehicle-driver-init.js" asp-append-version="true"></script> }
+    @if (User.IsInRole("TenantAdmin")) { <script src="~/js/transport-operations/legacy-campus-review.js" asp-append-version="true"></script> }
 }

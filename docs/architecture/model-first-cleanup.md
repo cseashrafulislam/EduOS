@@ -18,9 +18,9 @@ Target branch: `Ashraful`. Canonical entity declarations under `EduOS.Core/Entit
 
 | Area | Verified dependency | Required migration before removal |
 | --- | --- | --- |
-| Transport | Old route/vehicle rows without campus assignment are explicitly rejected pending controlled repair | Migrate historical data through approved tenant-aware remediation, not by deleting validation |
-| Authorization | `PermissionAccessHandler` and tenant role resolver retain protections for older global role grants | Migrate grants to tenant memberships, audit privilege equivalence and test isolation first |
-| Content security | CSP permits some inline script/style for older pages | Move remaining inline behavior to CSP-compliant assets before tightening policy |
+| Transport | Tenant-admin review lists missing-campus routes and vehicles; audited, version-checked apply is allowed only if there are no historical rider, pairing or driver links (including soft-deleted links) | Linked rows still need source-evidence validation, Finance review and a separately approved remediation; no automatic backfill |
+| Authorization | Tenant user administration lists legacy global role grants and requires explicit approval before removing them for sole-institution users; multi-institution grants remain for Platform review | Review cross-institution grants and privilege equivalence with Platform before ending the protected resolver fallback |
+| Content security | CSP now enforces object/base/frame restrictions and reports prospective script/style violations without blocking legacy pages | Migrate remaining inline scripts/styles and external dependencies before enforcing `script-src` and `style-src` |
 | Certificates | Older certificates lack issued name/code snapshots | Preserve explicit legacy fallback; historical identities must not be fabricated |
 
 ## Gate for each remaining workflow

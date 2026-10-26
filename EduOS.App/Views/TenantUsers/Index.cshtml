@@ -67,8 +67,10 @@
             <div class="card-body">
                 <h5 id="memberEditorTitle"></h5>
                 <p class="small text-muted">Changes revoke the selected user's old sessions. Ownership cannot be changed here.</p>
+                <div id="memberLegacyRoleNotice" class="alert alert-warning d-none" role="status"></div>
                 <form id="saveMemberRolesForm">
                     <div id="memberRoleOptions" class="row row-cols-1 row-cols-md-3 g-2 mb-3"></div>
+                    <label id="memberLegacyRoleApprovalLabel" class="form-check mb-3 d-none"><input id="memberLegacyRoleApproval" class="form-check-input" type="checkbox" /><span class="form-check-label">I reviewed the existing global grants and approve removing them for this user's sole institution.</span></label>
                     <button id="saveMemberRoles" class="btn btn-primary" type="submit">Save roles</button>
                 </form>
                 <hr />

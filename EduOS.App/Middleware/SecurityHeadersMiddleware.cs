@@ -4,7 +4,7 @@ namespace EduOS.App.Middleware
 {
     /// <summary>
     /// Adds browser and transport-adjacent response hardening without changing application payloads.
-    /// Keep policy here conservative: EduOS still has legacy pages that may use inline script/style.
+    /// Legacy inline scripts/styles require migration before script/style CSP enforcement.
     /// </summary>
     public sealed class SecurityHeadersMiddleware
     {
@@ -25,6 +25,16 @@ namespace EduOS.App.Middleware
             headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=(), usb=()";
             headers["Cross-Origin-Opener-Policy"] = "same-origin";
             headers["X-Permitted-Cross-Domain-Policies"] = "none";
+
+            // Immediately enforce directives that do not affect existing inline
+            // Razor scripts/styles. Keep a stricter script/style policy report-only
+            // until the remaining inline behaviors and third-party dependencies
+            // have been inventoried and migrated.
+            headers["Content-Security-Policy"] = "object-src 'none'; base-uri 'self'; frame-ancestors 'self'";
+            headers["Content-Security-Policy-Report-Only"] =
+                "default-src 'self'; script-src 'self'; style-src 'self'; " +
+                "img-src 'self' data: blob:; font-src 'self' data:; " +
+                "connect-src 'self' wss:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'";
 
             // Do not emit the obsolete X-XSS-Protection parser switch. Modern browsers ignore it,
             // and old implementations have historically introduced their own XSS edge cases.
