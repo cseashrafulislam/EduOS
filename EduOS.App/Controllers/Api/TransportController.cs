@@ -472,6 +472,12 @@ public sealed class TransportController : ControllerBase
         [FromBody] ExtendUpcomingVehicleDriverRequestDto request, CancellationToken ct) =>
         ToAction(await _service.ExtendUpcomingDriverAsync(id, request, ct));
 
+    [HttpPost("vehicle-driver-links/{id:long}/shorten-upcoming")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> ShortenUpcomingVehicleDriver(long id,
+        [FromBody] ShortenUpcomingVehicleDriverRequestDto request, CancellationToken ct) =>
+        ToAction(await _service.ShortenUpcomingDriverAsync(id, request, ct));
+
     [HttpPost("vehicle-driver-links/{id:long}/extend")]
     [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> ExtendOperatingVehicleDriver(long id,

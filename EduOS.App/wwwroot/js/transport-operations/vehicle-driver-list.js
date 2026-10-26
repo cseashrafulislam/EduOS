@@ -47,6 +47,13 @@ function renderRow(item){
    extend.onclick=()=>u.extendUpcomingDriver?.(item);
    action.append(extend);
   }
+   if(item.effectiveTo&&item.effectiveFrom>u.today()){
+    const shorten=document.createElement("button");shorten.type="button";
+    shorten.className="btn btn-outline-warning btn-sm ms-1";
+    shorten.textContent="Shorten scheduled end";
+    shorten.onclick=()=>u.shortenUpcomingDriver?.(item);
+    action.append(shorten);
+   }
  }else if(item.isCurrent&&(!item.effectiveTo||item.effectiveTo>=u.today())){
   const date=document.createElement('input');date.type='date';date.className='form-control form-control-sm';
   date.setAttribute('aria-label','End date for '+item.vehicleNumber);
