@@ -147,6 +147,12 @@
             inspect.disabled = gatewayBusy;
             inspect.addEventListener('click', () => gatewayInspect(item.paymentId, item.rowVersion));
             td.append(inspect);
+            const trail = document.createElement('button');
+            trail.type = 'button';
+            trail.className = 'btn btn-outline-secondary btn-sm ms-1';
+            trail.textContent = 'Review trail';
+            trail.addEventListener('click', () => gatewayFinanceLoad(item.paymentId, item.rowVersion, 1));
+            td.append(trail);
             tr.append(td);
             gatewayRows.append(tr);
         }
@@ -304,4 +310,157 @@
         }
     });
     gatewayLoad();
+
+    // Finance triage is an append-only audit workflow. It never invokes the
+    // payment settlement callback, nor accepts provider status from the browser.
+    const financePanel = get('gatewayFinancePanel');
+    const financeRows = get('gatewayFinanceRows');
+    const financeStatus = get('gatewayFinanceStatus');
+    const financePrevious = get('gatewayFinancePrevious');
+    const financeNext = get('gatewayFinanceNext');
+    const financePageLabel = get('gatewayFinancePage');
+    const financeForm = get('gatewayFinanceForm');
+    const financeSave = get('gatewayFinanceSave');
+    const financeDecision = get('gatewayFinanceDecision');
+    const financeNote = get('gatewayFinanceNote');
+    let financePaymentId = 0;
+    let financeRowVersion = '';
+    let financeEvidenceAuditId = 0;
+    let financePage = 1;
+    let financeTotal = 0;
+    let financeRequestSeq = 0;
+    let financeBusy = false;
+    let financeRequestId = null;
+    const financePageSize = 10;
+    financeDecision.addEventListener('change', () => { financeRequestId = null; });
+    financeNote.addEventListener('input', () => { financeRequestId = null; });
+
+    async function gatewayFinanceLoad(paymentId, rowVersion, targetPage) {
+        if (financeBusy) return;
+        if (financePaymentId !== paymentId) {
+            financePaymentId = paymentId;
+            financeEvidenceAuditId = 0;
+            financeRequestId = null;
+            financeNote.value = '';
+        }
+        financeRowVersion = rowVersion;
+        financePage = targetPage;
+        const seq = ++financeRequestSeq;
+        financePanel.classList.remove('d-none');
+        get('gatewayFinancePayment').textContent = 'Gateway payment #' + paymentId;
+        financeStatus.className = 'small text-muted mb-3';
+        financeStatus.textContent = 'Loading provider evidence and finance reviews…';
+        financeSave.disabled = true;
+        financePrevious.disabled = true;
+        financeNext.disabled = true;
+        const query = new URLSearchParams({ page: String(financePage), pageSize: String(financePageSize) });
+        try {
+            const response = await fetch('/api/subscription-payment/admin/gateway-payments/' +
+                encodeURIComponent(String(paymentId)) + '/finance-history?' + query, {
+                credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' }
+            });
+            const payload = await response.json().catch(() => null);
+            if (seq !== financeRequestSeq) return;
+            if (!response.ok || payload?.success !== true)
+                throw new Error(payload?.message || 'Unable to load finance review history.');
+            const items = Array.isArray(payload.data?.items) ? payload.data.items : [];
+            financeTotal = Number(payload.data?.totalCount || 0);
+            const pages = Math.max(1, Math.ceil(financeTotal / financePageSize));
+            if (financePage > pages) { await gatewayFinanceLoad(paymentId, rowVersion, pages); return; }
+            financeRows.replaceChildren();
+            for (const item of items) {
+                const tr = document.createElement('tr');
+                cell(tr, date(item.occurredAtUtc), 'Audit #' + item.auditId);
+                cell(tr, item.action === 'GatewayFinanceReview' ? 'Finance review' :
+                    item.action === 'GatewayProviderEscalation' ? 'Provider escalation' : 'Provider inspection',
+                    item.decision || '');
+                cell(tr, item.reviewerUserId ?? '—');
+                cell(tr, item.note || (item.requiresManualReview ? 'Manual review required' : 'Inspection recorded'));
+                cell(tr, item.evidenceSha256 || '—', item.evidenceAuditId ? 'Linked audit #' + item.evidenceAuditId : '');
+                financeRows.append(tr);
+            }
+            if (!items.length) {
+                const tr = document.createElement('tr');
+                const td = document.createElement('td');
+                td.colSpan = 5;
+                td.className = 'text-muted text-center';
+                td.textContent = 'No investigation history. Inspect the provider first.';
+                tr.append(td);
+                financeRows.append(tr);
+            }
+            if (financePage === 1) {
+                const escalation = items.find(x => x.action === 'GatewayProviderEscalation' &&
+                    x.providerConfirmed === true && x.requiresManualReview === true);
+                financeEvidenceAuditId = Number(escalation?.auditId || 0);
+            }
+            financePageLabel.textContent = 'Page ' + financePage + ' of ' + pages +
+                ' · ' + financeTotal + ' audit records';
+            financePrevious.disabled = financePage <= 1;
+            financeNext.disabled = financePage >= pages;
+            financeSave.disabled = !financeEvidenceAuditId;
+            financeStatus.textContent = financeEvidenceAuditId
+                ? 'Escalation evidence #' + financeEvidenceAuditId +
+                    ' selected. Notes are auditable and do not change financial balances.'
+                : 'No provider-confirmed escalation evidence. Inspect the provider before recording a review.';
+        } catch (error) {
+            if (seq !== financeRequestSeq) return;
+            financeRows.replaceChildren();
+            financeSave.disabled = true;
+            financeStatus.textContent = error.message || 'Unable to load finance review history.';
+            financeStatus.className = 'small text-danger mb-3';
+        }
+    }
+    financeForm.addEventListener('submit', async event => {
+        event.preventDefault();
+        if (financeBusy || !financePaymentId || !financeEvidenceAuditId || !financeRowVersion) return;
+        const note = financeNote.value.trim();
+        if (note.length < 10 || note.length > 500) {
+            financeStatus.textContent = 'Enter a note between 10 and 500 characters.';
+            return;
+        }
+        const token = get('gatewayRecoveryAntiforgery')
+            .querySelector('input[name="__RequestVerificationToken"]')?.value;
+        if (!token) {
+            financeStatus.textContent = 'Security token unavailable. Reload the page.';
+            return;
+        }
+        if (!financeRequestId) financeRequestId = crypto.randomUUID();
+        financeBusy = true;
+        financeSave.disabled = true;
+        financeStatus.className = 'small text-muted mb-3';
+        financeStatus.textContent = 'Recording finance follow-up…';
+        try {
+            const response = await fetch('/api/subscription-payment/admin/gateway-payments/' +
+                encodeURIComponent(String(financePaymentId)) + '/finance-review', {
+                method: 'POST', credentials: 'same-origin', cache: 'no-store',
+                headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+                body: JSON.stringify({
+                    requestId: financeRequestId, rowVersion: financeRowVersion,
+                    evidenceAuditId: financeEvidenceAuditId, decision: financeDecision.value, note
+                })
+            });
+            const payload = await response.json().catch(() => null);
+            if (!response.ok || payload?.success !== true)
+                throw new Error(payload?.message || 'Finance review could not be recorded.');
+            financeRequestId = null;
+            financeNote.value = '';
+            financeBusy = false;
+            await gatewayFinanceLoad(financePaymentId, financeRowVersion, 1);
+        } catch (error) {
+            financeStatus.textContent = error.message || 'Finance review could not be recorded.';
+            financeStatus.className = 'small text-danger mb-3';
+        } finally {
+            financeBusy = false;
+            financeSave.disabled = !financeEvidenceAuditId;
+        }
+    });
+    financePrevious.addEventListener('click', () => {
+        if (!financeBusy && financePage > 1)
+            gatewayFinanceLoad(financePaymentId, financeRowVersion, financePage - 1);
+    });
+    financeNext.addEventListener('click', () => {
+        if (!financeBusy && financePage < Math.ceil(financeTotal / financePageSize))
+            gatewayFinanceLoad(financePaymentId, financeRowVersion, financePage + 1);
+    });
+
 })();

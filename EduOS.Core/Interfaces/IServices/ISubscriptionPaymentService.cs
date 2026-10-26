@@ -49,6 +49,10 @@ public interface ISubscriptionPaymentService
     Task<ApiResponse<bool>> ReconcileGatewayPaymentAsync(long paymentId, string rowVersion);
     Task<ApiResponse<GatewayProviderInspectionDto>> InspectGatewayProviderAsync(
         long paymentId, string rowVersion, CancellationToken ct = default);
+    Task<ApiResponse<PagedResult<GatewayFinanceHistoryItemDto>>> GetGatewayFinanceHistoryAsync(
+        long paymentId, int page, int pageSize, CancellationToken ct = default);
+    Task<ApiResponse<GatewayFinanceHistoryItemDto>> RecordGatewayFinanceReviewAsync(
+        long paymentId, GatewayFinanceReviewRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<PagedGatewayPaymentRecoveryDto>> GetGatewayExceptionQueueAsync(
         int page, int pageSize, string? search, string? category, CancellationToken ct = default);
 

@@ -71,6 +71,41 @@
             </div>
         </div>
     </section>
+    <section id="gatewayFinancePanel" class="card border-0 shadow-sm mt-4 d-none" aria-labelledby="gatewayFinanceHeading">
+        <div class="card-body">
+            <h2 class="h5" id="gatewayFinanceHeading">Gateway finance review trail</h2>
+            <p class="text-muted small">Append-only investigation notes linked to independently verified AamarPay escalation evidence. Recording a review does not settle, refund, cancel, or adjust any payment or invoice. Do not enter bank account numbers or personal information in notes.</p>
+            <div id="gatewayFinancePayment" class="fw-semibold mb-2"></div>
+            <div id="gatewayFinanceStatus" class="small text-muted mb-3" role="status" aria-live="polite"></div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                    <thead><tr><th>Recorded</th><th>Action</th><th>Reviewer</th><th>Finding / Note</th><th>Evidence</th></tr></thead>
+                    <tbody id="gatewayFinanceRows"></tbody>
+                </table>
+            </div>
+            <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
+                <button id="gatewayFinancePrevious" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+                <span id="gatewayFinancePage" class="small text-muted"></span>
+                <button id="gatewayFinanceNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+            </div>
+            <form id="gatewayFinanceForm" class="row g-2">
+                <div class="col-md-4">
+                    <label for="gatewayFinanceDecision" class="form-label">Finance follow-up</label>
+                    <select id="gatewayFinanceDecision" class="form-select" required>
+                        <option value="Investigating">Investigating</option>
+                        <option value="ProviderDisputeOpened">Provider dispute opened</option>
+                        <option value="FinanceEscalated">Escalated to finance</option>
+                        <option value="AwaitingRefundInstructions">Awaiting refund instructions</option>
+                    </select>
+                </div>
+                <div class="col-md-8">
+                    <label for="gatewayFinanceNote" class="form-label">Investigation note (10–500 characters)</label>
+                    <textarea id="gatewayFinanceNote" class="form-control" rows="2" minlength="10" maxlength="500" required></textarea>
+                </div>
+                <div class="col-12"><button id="gatewayFinanceSave" type="submit" class="btn btn-outline-warning btn-sm" disabled>Record finance review</button></div>
+            </form>
+        </div>
+    </section>
     <a class="btn btn-link mt-3" href="/Account/PaymentVerification">Review pending bank transfers</a>
 </div>
 @section Scripts {

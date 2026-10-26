@@ -231,6 +231,32 @@ namespace EduOS.App.Controllers.Api
             return StatusCode(result.StatusCode, result);
         }
 
+        // Provider inspection and finance triage remain separate from financial settlement.
+        [Authorize(Roles = "SuperAdmin")]
+        [EnableRateLimiting("ApiPolicy")]
+        [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+        [HttpGet("admin/gateway-payments/{paymentId:long}/finance-history")]
+        public async Task<IActionResult> GetGatewayFinanceHistory(
+            long paymentId, [FromQuery] int page = 1, [FromQuery] int pageSize = 10,
+            CancellationToken ct = default)
+        {
+            var result = await _paymentService.GetGatewayFinanceHistoryAsync(paymentId, page, pageSize, ct);
+            return StatusCode(result.StatusCode, result);
+        }
+
+        // Append-only reviewer triage, linked to verified escalation evidence.
+        // Never settles an invoice, refunds funds or changes payment state.
+        [Authorize(Roles = "SuperAdmin")]
+        [EnableRateLimiting("ApiPolicy")]
+        [HttpPost("admin/gateway-payments/{paymentId:long}/finance-review")]
+        public async Task<IActionResult> RecordGatewayFinanceReview(
+            long paymentId, [FromBody] GatewayFinanceReviewRequestDto request, CancellationToken ct)
+        {
+            if (!ModelState.IsValid) return ValidationProblem(ModelState);
+            var result = await _paymentService.RecordGatewayFinanceReviewAsync(paymentId, request, ct);
+            return StatusCode(result.StatusCode, result);
+        }
+
         // Inspect blocked provider payments without changing financial state.
         [Authorize(Roles = "SuperAdmin")]
         [EnableRateLimiting("ApiPolicy")]
