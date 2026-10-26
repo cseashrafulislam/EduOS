@@ -81,7 +81,7 @@ public sealed class SqlServerEnrollmentAllocationIntegrationTests
                 await setup.SaveChangesAsync();
                 batchId = batch.Id;
                 setup.SubjectOfferings.Add(new SubjectOffering { TenantId = tenantId, AcademicBatchId = batchId,
-                    AcademicYearId = year.Id, CurriculumSubjectId = line.Id, Code = "MATH-9A" });
+                    AcademicYearId = year.Id, CurriculumSubjectId = line.Id, Code = "MATH-9A", Capacity = 1 });
                 await setup.SaveChangesAsync();
             }
         }
