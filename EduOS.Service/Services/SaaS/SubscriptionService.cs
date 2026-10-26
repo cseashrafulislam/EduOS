@@ -1,6 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.SaaS;
 using EduOS.Core.Entities.SaaS;
+using EduOS.Core.Entities.System;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
@@ -8,6 +9,7 @@ using EduOS.Core.Interfaces.IServices;
 using EduOS.Service.Helpers.Subscription;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Data;
 using System.Security.Cryptography;
 
 namespace EduOS.Service.Services.SaaS;
@@ -19,6 +21,7 @@ public sealed partial class SubscriptionService : ISubscriptionService
     private readonly ISubscriptionInvoiceRepository _invoices;
     private readonly IGenericRepository<SubscriptionInvoiceLine> _invoiceLines;
     private readonly IGenericRepository<Tenant> _tenants;
+    private readonly IGenericRepository<AuditLog> _audits;
     private readonly IUnitOfWork _uow;
     private readonly ICurrentUserService _user;
     private readonly TimeProvider _clock;
@@ -26,7 +29,8 @@ public sealed partial class SubscriptionService : ISubscriptionService
 
     public SubscriptionService(ITenantSubscriptionRepository subscriptions, ISubscriptionPlanRepository plans,
         ISubscriptionInvoiceRepository invoices, IGenericRepository<SubscriptionInvoiceLine> invoiceLines,
-        IGenericRepository<Tenant> tenants, IUnitOfWork uow, ICurrentUserService user,
+        IGenericRepository<Tenant> tenants, IGenericRepository<AuditLog> audits,
+        IUnitOfWork uow, ICurrentUserService user,
         TimeProvider clock, ILogger<SubscriptionService> logger)
     {
         _subscriptions = subscriptions;
@@ -34,6 +38,7 @@ public sealed partial class SubscriptionService : ISubscriptionService
         _invoices = invoices;
         _invoiceLines = invoiceLines;
         _tenants = tenants;
+        _audits = audits;
         _uow = uow;
         _user = user;
         _clock = clock;
@@ -240,19 +245,83 @@ public sealed partial class SubscriptionService : ISubscriptionService
             return Error<TenantSubscriptionDto>("Subscription reference and row version are required.");
         if (!string.IsNullOrWhiteSpace(request.Reason))
             return Error<TenantSubscriptionDto>("Cancellation reason cannot be retained by the current subscription model.", 409);
-        return await ChangeAsync(subscriptionReference, version, row =>
+        var tenantId = _user.TenantId;
+        try
         {
-            if (row.State is SubscriptionState.Expired or SubscriptionState.Cancelled)
-                return "Subscription has already ended.";
-            row.AutoRenew = false;
-            if (!request.AtPeriodEnd)
+            return await _uow.ExecuteInTransactionAsync(async token =>
             {
-                row.State = SubscriptionState.Cancelled;
-                row.CancelledAt = _clock.GetUtcNow().UtcDateTime;
-                row.EndsAt = row.CancelledAt.Value;
-            }
-            return null;
-        }, ct);
+                var row = await _subscriptions.GetQueryable().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenantId && x.PublicId == subscriptionReference && !x.IsDeleted, token);
+                if (row == null) return Error<TenantSubscriptionDto>("Subscription not found.", 404);
+                // A completed immediate cancellation is a safe, side-effect-free retry.
+                if (!request.AtPeriodEnd && row.State == SubscriptionState.Cancelled)
+                    return ApiResponse<TenantSubscriptionDto>.SuccessResponse(
+                        await MapAsync(row, token), "Subscription already ended.");
+                if (row.RowVersion.Length != version.Length ||
+                    !CryptographicOperations.FixedTimeEquals(row.RowVersion, version))
+                    return Error<TenantSubscriptionDto>("Subscription has changed. Reload and retry.", 409);
+                var now = _clock.GetUtcNow().UtcDateTime;
+                if (row.State is not (SubscriptionState.Trial or SubscriptionState.Active or SubscriptionState.Grace) ||
+                    row.StartsAt > now || row.EndsAt <= now)
+                    return Error<TenantSubscriptionDto>("Only a current active subscription can be ended.", 409);
+                // Cancelling a predecessor must not silently strand a paid or payable successor.
+                var successorExists = await _subscriptions.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenantId && x.PreviousSubscriptionId == row.Id && !x.IsDeleted &&
+                    (x.State == SubscriptionState.PendingPayment || x.State == SubscriptionState.Active ||
+                     x.State == SubscriptionState.Trial || x.State == SubscriptionState.Grace), token);
+                if (successorExists)
+                    return Error<TenantSubscriptionDto>(
+                        "A next-period renewal already exists. Resolve that invoice or renewal before ending this subscription.", 409);
+                // AtPeriodEnd means stop future automatic renewal, NOT early termination.
+                if (request.AtPeriodEnd && !row.AutoRenew)
+                    return ApiResponse<TenantSubscriptionDto>.SuccessResponse(
+                        await MapAsync(row, token), "Automatic renewal is already disabled.");
+                var previousState = row.State;
+                var previousEnd = row.EndsAt;
+                var previousAutoRenew = row.AutoRenew;
+                row.AutoRenew = false;
+                if (!request.AtPeriodEnd)
+                {
+                    row.State = SubscriptionState.Cancelled;
+                    row.CancelledAt = now;
+                    row.EndsAt = now;
+                }
+                row.UpdatedAt = now;
+                row.UpdatedBy = _user.UserId;
+                _subscriptions.Update(row);
+                var actor = _user.FullName ?? _user.Email ?? "TenantAdmin";
+                await _audits.AddAsync(new AuditLog
+                {
+                    TenantId = tenantId, UserId = _user.UserId,
+                    UserName = actor[..Math.Min(actor.Length, 200)],
+                    Action = request.AtPeriodEnd ? "Subscription.AutoRenewStopped" : "Subscription.Cancelled",
+                    EntityName = "TenantSubscription", EntityId = row.Id,
+                    OldValue = $"State={previousState};AutoRenew={previousAutoRenew};EndsAt={previousEnd:O}",
+                    NewValue = $"State={row.State};AutoRenew={row.AutoRenew};EndsAt={row.EndsAt:O}",
+                    IpAddress = _user.IpAddress?[..Math.Min(100, _user.IpAddress.Length)],
+                    Endpoint = "/api/subscription/{reference}/cancel",
+                    OccurredAt = now, CreatedAt = now, CreatedBy = _user.UserId, IsSuccess = true
+                });
+                await _uow.SaveChangesAsync(token);
+                return ApiResponse<TenantSubscriptionDto>.SuccessResponse(await MapAsync(row, token),
+                    request.AtPeriodEnd ? "Automatic renewal disabled; current period remains active." :
+                    "Subscription ended immediately. No refund was initiated.");
+            }, IsolationLevel.Serializable, ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Error<TenantSubscriptionDto>("Subscription changed concurrently. Reload and retry.", 409);
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Subscription cancellation write conflict for tenant {TenantId}", tenantId);
+            return Error<TenantSubscriptionDto>("Subscription cancellation conflicted with another request.", 409);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Subscription cancellation failed for tenant {TenantId}", tenantId);
+            return Error<TenantSubscriptionDto>("Subscription could not be ended.", 500);
+        }
     }
 
     public async Task<ApiResponse<TenantSubscriptionDto>> SetAutoRenewAsync(Guid subscriptionReference,

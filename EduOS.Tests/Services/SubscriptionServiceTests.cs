@@ -18,6 +18,92 @@ namespace EduOS.Tests.Services;
 public sealed class SubscriptionServiceTests
 {
     [Fact]
+    public async Task Immediate_cancellation_ends_period_and_writes_one_tenant_audit()
+    {
+        await using var setup = await SetupAsync();
+        setup.ActivateRequest();
+        var plan = await AddPlanAsync(setup.Db, 900m);
+        (await setup.Service.StartAsync(Request(plan.Id))).Success.Should().BeTrue();
+        var current = await setup.Db.TenantSubscriptions.SingleAsync();
+        current.State = SubscriptionState.Active;
+        current.AutoRenew = true;
+        current.StartsAt = DateTime.UtcNow.AddDays(-20);
+        current.EndsAt = DateTime.UtcNow.AddDays(5);
+        current.RowVersion = new byte[] { 2, 3, 4 };
+        await setup.Db.SaveChangesAsync();
+        var request = new CancelSubscriptionRequestDto
+        {
+            AtPeriodEnd = false, RowVersion = Convert.ToBase64String(current.RowVersion)
+        };
+        var result = await setup.Service.CancelAsync(current.PublicId, request);
+        result.Success.Should().BeTrue(result.Message);
+        var saved = await setup.Db.TenantSubscriptions.SingleAsync();
+        saved.State.Should().Be(SubscriptionState.Cancelled);
+        saved.AutoRenew.Should().BeFalse();
+        saved.CancelledAt.Should().NotBeNull();
+        saved.EndsAt.Should().Be(saved.CancelledAt!.Value);
+        var audit = await setup.Db.AuditLogs.SingleAsync();
+        audit.TenantId.Should().Be(setup.Tenant.Id);
+        audit.Action.Should().Be("Subscription.Cancelled");
+        audit.EntityId.Should().Be(saved.Id);
+        (await setup.Service.CancelAsync(current.PublicId, request)).Success.Should().BeTrue();
+        (await setup.Db.AuditLogs.CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Cancellation_rejects_scheduled_successor_without_mutation_or_audit()
+    {
+        await using var setup = await SetupAsync();
+        setup.ActivateRequest();
+        var plan = await AddPlanAsync(setup.Db, 900m);
+        (await setup.Service.StartAsync(Request(plan.Id))).Success.Should().BeTrue();
+        var current = await setup.Db.TenantSubscriptions.SingleAsync();
+        current.State = SubscriptionState.Active;
+        current.AutoRenew = true;
+        current.StartsAt = DateTime.UtcNow.AddDays(-20);
+        current.EndsAt = DateTime.UtcNow.AddDays(5);
+        current.RowVersion = new byte[] { 5, 6, 7 };
+        setup.Db.TenantSubscriptions.Add(new TenantSubscription
+        {
+            TenantId = setup.Tenant.Id, SubscriptionPlanId = plan.Id,
+            PreviousSubscriptionId = current.Id, State = SubscriptionState.PendingPayment,
+            StartsAt = current.EndsAt, EndsAt = current.EndsAt.AddMonths(1),
+            BillingCycleCode = "Monthly", PriceSnapshot = 900m, CurrencyCode = "BDT"
+        });
+        await setup.Db.SaveChangesAsync();
+        var result = await setup.Service.CancelAsync(current.PublicId, new CancelSubscriptionRequestDto
+        {
+            AtPeriodEnd = false, RowVersion = Convert.ToBase64String(current.RowVersion)
+        });
+        result.StatusCode.Should().Be(409);
+        current.State.Should().Be(SubscriptionState.Active);
+        current.AutoRenew.Should().BeTrue();
+        (await setup.Db.AuditLogs.CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Cancellation_rejects_stale_row_version_without_audit()
+    {
+        await using var setup = await SetupAsync();
+        setup.ActivateRequest();
+        var plan = await AddPlanAsync(setup.Db, 900m);
+        (await setup.Service.StartAsync(Request(plan.Id))).Success.Should().BeTrue();
+        var current = await setup.Db.TenantSubscriptions.SingleAsync();
+        current.State = SubscriptionState.Active;
+        current.StartsAt = DateTime.UtcNow.AddDays(-20);
+        current.EndsAt = DateTime.UtcNow.AddDays(5);
+        current.RowVersion = new byte[] { 1, 2, 3 };
+        await setup.Db.SaveChangesAsync();
+        var result = await setup.Service.CancelAsync(current.PublicId, new CancelSubscriptionRequestDto
+        {
+            AtPeriodEnd = false, RowVersion = Convert.ToBase64String(new byte[] { 9, 9, 9 })
+        });
+        result.StatusCode.Should().Be(409);
+        current.State.Should().Be(SubscriptionState.Active);
+        (await setup.Db.AuditLogs.CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
     public async Task Paid_subscription_creates_one_immutable_invoice_and_advances_to_payment()
     {
         await using var setup = await SetupAsync();
@@ -346,6 +432,7 @@ public sealed class SubscriptionServiceTests
             new SubscriptionInvoiceRepository(db),
             new GenericRepository<SubscriptionInvoiceLine>(db),
             new GenericRepository<Tenant>(db),
+            new GenericRepository<EduOS.Core.Entities.System.AuditLog>(db),
             db, user, TimeProvider.System,
             NullLogger<SubscriptionService>.Instance);
         return new Setup(db, tenant, service, accessor, http);
@@ -363,6 +450,7 @@ public sealed class SubscriptionServiceTests
             new SubscriptionInvoiceRepository(Db),
             new GenericRepository<SubscriptionInvoiceLine>(Db),
             new GenericRepository<Tenant>(Db),
+            new GenericRepository<EduOS.Core.Entities.System.AuditLog>(Db),
             Db, new TestUser(Tenant.Id, false), TimeProvider.System,
             NullLogger<SubscriptionService>.Instance);
         public ValueTask DisposeAsync() => Db.DisposeAsync();

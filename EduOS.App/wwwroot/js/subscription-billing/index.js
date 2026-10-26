@@ -39,6 +39,24 @@ function renderCurrent(){
    finally{state.busy=false;b.disabled=false;}
   });actions.append(b);
  }
+ if([1,2,3].includes(s.state)&&new Date(s.startsAt)<=new Date()&&
+    new Date(s.endsAt)>new Date()&&s.rowVersion&&!state.upcoming){
+  const endButton=button("End subscription now",async()=>{
+   if(state.busy)return;
+   const typed=window.prompt("Ending this subscription immediately removes access. No automatic refund will be issued. Type END to continue:");
+   if(typed!=="END")return;
+   if(!window.confirm("Confirm immediate cancellation of "+s.planName+"? This ends the current paid/trial period now and cannot be undone."))return;
+   state.busy=true;endButton.disabled=true;
+   try{
+    await api("/api/subscription/"+encodeURIComponent(s.reference)+"/cancel","POST",
+      {atPeriodEnd:false,rowVersion:s.rowVersion});
+    message("Subscription ended immediately. No automatic refund was initiated.","success");
+    await refresh();
+   }catch(e){message(e.message+(e.status===409?" Reload the latest subscription state and retry.":""));}
+   finally{state.busy=false;endButton.disabled=false;}
+  });
+  endButton.className="btn btn-outline-danger btn-sm";actions.append(endButton);
+ }
 }
 function renderLifecycle(info){
  const box=$("sbLifecycle"),actions=$("sbRenewalActions");
