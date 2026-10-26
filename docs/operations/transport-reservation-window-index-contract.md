@@ -55,3 +55,18 @@ These tests are included in `sqlserver-migration.yml` and require
 rechecks, cancellation-vs-extension races or HTTP 409 mapping. Those remain
 separate two-command integration requirements for Issues #36/#37/#50/#51.
 No new migration, duplicate receipt table, or schema backfill is introduced.
+
+## Simultaneous canonical mutation regression (2026-10-27)
+
+`SqlServerTransportConcurrentUniquenessTests` now also loads the **same SQL Server rowversion**
+in two independent tenant-scoped contexts and starts both writes concurrently:
+- Vehicle capacity reduction versus vehicle deactivation (#36).
+- Upcoming route-vehicle replacement versus effective-period modification (#50).
+
+Exactly one writer must commit; the other must receive `DbUpdateConcurrencyException`.
+Readback must contain **one entire winner state**, never a merged/lost update.
+These tests run under `EDUOS_SQL_AUTH_TEST_CONNECTION` in the existing SQL migration smoke workflow.
+They do **not** prove that concurrent writes to **different** aggregates (rider assignment
+versus capacity reduction/deactivation, or two overlapping noncurrent route links)
+are serializable; those require Operations-owned service-command tests with deterministic
+resource locking and HTTP 409 mapping. No migration, index change or new receipt store is needed.

@@ -94,6 +94,87 @@ public sealed class SqlServerTransportConcurrentUniquenessTests
         await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => second.SaveChangesAsync());
     }
 
+
+    [Fact]
+    public async Task Concurrent_vehicle_capacity_reduction_and_deactivation_reject_lost_updates()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var state = await SeedAsync(connection);
+
+        await using var first = ScopedContext(state.Options, state.TenantId);
+        await using var second = ScopedContext(state.Options, state.TenantId);
+        var capacityEditor = await first.Vehicles.SingleAsync(x => x.Id == state.Vehicle1Id);
+        var statusEditor = await second.Vehicles.SingleAsync(x => x.Id == state.Vehicle1Id);
+        Assert.Equal(8, capacityEditor.RowVersion.Length);
+        Assert.Equal(capacityEditor.RowVersion, statusEditor.RowVersion);
+
+        capacityEditor.Capacity = 10;
+        statusEditor.IsActive = false;
+        var committed = await Task.WhenAll(TryRowVersionCommitAsync(first), TryRowVersionCommitAsync(second));
+        Assert.Equal(1, committed.Count(x => x));
+
+        await using var verify = ScopedContext(state.Options, state.TenantId);
+        var persisted = await verify.Vehicles.SingleAsync(x => x.Id == state.Vehicle1Id);
+        Assert.True(
+            (persisted.Capacity == 10 && persisted.IsActive) ||
+            (persisted.Capacity == 20 && !persisted.IsActive),
+            "A stale vehicle writer must not silently overwrite the competing capacity or activation change.");
+    }
+
+    [Fact]
+    public async Task Concurrent_route_vehicle_replacement_and_period_change_reject_lost_updates()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var state = await SeedAsync(connection);
+        long linkId;
+        await using (var seed = ScopedContext(state.Options, state.TenantId))
+        {
+            var link = new RouteVehicleAssignment
+            {
+                TenantId = state.TenantId, RouteId = state.Route1Id, VehicleId = state.Vehicle1Id,
+                EffectiveFrom = new DateOnly(2027, 1, 10),
+                EffectiveTo = new DateOnly(2027, 1, 20), IsCurrent = true
+            };
+            seed.RouteVehicleAssignments.Add(link);
+            await seed.SaveChangesAsync();
+            linkId = link.Id;
+        }
+
+        await using var first = ScopedContext(state.Options, state.TenantId);
+        await using var second = ScopedContext(state.Options, state.TenantId);
+        var vehicleEditor = await first.RouteVehicleAssignments.SingleAsync(x => x.Id == linkId);
+        var periodEditor = await second.RouteVehicleAssignments.SingleAsync(x => x.Id == linkId);
+        Assert.Equal(8, vehicleEditor.RowVersion.Length);
+        Assert.Equal(vehicleEditor.RowVersion, periodEditor.RowVersion);
+
+        vehicleEditor.VehicleId = state.Vehicle2Id;
+        periodEditor.EffectiveTo = new DateOnly(2027, 1, 22);
+        var committed = await Task.WhenAll(TryRowVersionCommitAsync(first), TryRowVersionCommitAsync(second));
+        Assert.Equal(1, committed.Count(x => x));
+
+        await using var verify = ScopedContext(state.Options, state.TenantId);
+        var persisted = await verify.RouteVehicleAssignments.SingleAsync(x => x.Id == linkId);
+        Assert.True(
+            (persisted.VehicleId == state.Vehicle2Id && persisted.EffectiveTo == new DateOnly(2027, 1, 20)) ||
+            (persisted.VehicleId == state.Vehicle1Id && persisted.EffectiveTo == new DateOnly(2027, 1, 22)),
+            "A stale route-link writer must not combine incompatible changes from concurrent commands.");
+    }
+
+    private static async Task<bool> TryRowVersionCommitAsync(EduOSDbContext db)
+    {
+        try
+        {
+            await db.SaveChangesAsync();
+            return true;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return false;
+        }
+    }
+
     private static async Task AssertOneCommitAsync(SeedState state, Action<EduOSDbContext, int> stage)
     {
         async Task<bool> WriteAsync(int contender)
