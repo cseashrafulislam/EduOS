@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EduOS.Service.Services.Accounting;
 
-public sealed class AccountingSetupService : IAccountingSetupService
+public sealed partial class AccountingSetupService : IAccountingSetupService
 {
     private readonly EduOSDbContext db;
     private readonly ICurrentUserService user;
@@ -186,6 +186,9 @@ public sealed class AccountingSetupService : IAccountingSetupService
             if (await db.Journals.AnyAsync(x => x.TenantId == user.TenantId && x.AccountingPeriodId == row.Id && !x.IsDeleted &&
                 (x.State == JournalState.Draft || x.State == JournalState.Submitted || x.State == JournalState.Approved), ct))
                 return ApiResponse<AccountingPeriodDto>.ErrorResponse("Resolve unposted journals before closing the period.", 409);
+            var readiness = await GetPeriodCloseReadinessAsync(periodId, ct);
+            if (!readiness.Success || readiness.Data is not { CanClose: true })
+                return ApiResponse<AccountingPeriodDto>.ErrorResponse("Period reconciliation is incomplete; inspect close readiness before closing.", 409);
             var now = clock.GetUtcNow().UtcDateTime;
             row.IsClosed = true; row.ClosedAt = now; row.ClosedByUserId = user.UserId; row.UpdatedAt = now; row.UpdatedBy = user.UserId;
             await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);

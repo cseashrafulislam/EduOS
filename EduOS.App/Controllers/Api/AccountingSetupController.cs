@@ -21,6 +21,8 @@ public sealed class AccountingSetupController : ControllerBase
     [HttpGet("periods")] public async Task<IActionResult> Periods(int? year,CancellationToken ct) => Reply(await service.GetPeriodsAsync(year,ct));
     [HttpPost("periods"),Authorize(Roles="TenantAdmin,Principal")] public async Task<IActionResult> CreatePeriod([FromBody] SaveAccountingPeriodRequestDto r,CancellationToken ct) => Reply(await service.SavePeriodAsync(null,r,ct));
     [HttpPut("periods/{id:long}"),Authorize(Roles="TenantAdmin,Principal")] public async Task<IActionResult> UpdatePeriod(long id,[FromBody] SaveAccountingPeriodRequestDto r,CancellationToken ct) => Reply(await service.SavePeriodAsync(id,r,ct));
+    [HttpGet("periods/{id:long}/close-readiness"),Authorize(Roles="TenantAdmin,Principal"),ResponseCache(NoStore=true,Location=ResponseCacheLocation.None)]
+    public async Task<IActionResult> PeriodCloseReadiness(long id,CancellationToken ct) => Reply(await service.GetPeriodCloseReadinessAsync(id,ct));
     [HttpPost("periods/{id:long}/close"),Authorize(Roles="TenantAdmin,Principal")] public async Task<IActionResult> ClosePeriod(long id,[FromBody] CloseAccountingPeriodRequestDto r,CancellationToken ct) => Reply(await service.ClosePeriodAsync(id,r,ct));
     [HttpGet("banks"),Authorize(Roles="TenantAdmin,Principal")] public async Task<IActionResult> Banks(CancellationToken ct) => Reply(await service.GetBankAccountsAsync(ct));
     [HttpPost("banks"),Authorize(Roles="TenantAdmin,Principal")] public async Task<IActionResult> CreateBank([FromBody] SaveBankAccountRequestDto r,CancellationToken ct) => Reply(await service.SaveBankAccountAsync(null,r,ct));

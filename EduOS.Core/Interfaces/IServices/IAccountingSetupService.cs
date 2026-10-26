@@ -9,6 +9,7 @@ public interface IAccountingSetupService
     Task<ApiResponse<AccountDto>> GetAccountAsync(long accountId, CancellationToken cancellationToken = default);
     Task<ApiResponse<AccountDto>> SaveAccountAsync(long? accountId, SaveAccountRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<AccountingPeriodDto>>> GetPeriodsAsync(int? year, CancellationToken cancellationToken = default);
+    Task<ApiResponse<AccountingPeriodCloseReadinessDto>> GetPeriodCloseReadinessAsync(long periodId, CancellationToken cancellationToken = default);
     Task<ApiResponse<AccountingPeriodDto>> SavePeriodAsync(long? periodId, SaveAccountingPeriodRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<AccountingPeriodDto>> ClosePeriodAsync(long periodId, CloseAccountingPeriodRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<BankAccountDto>>> GetBankAccountsAsync(CancellationToken cancellationToken = default);

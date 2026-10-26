@@ -47,7 +47,19 @@ if (root) {
         periods = await request('/periods');
         $('periodRows').innerHTML = periods.map(p => '<tr><td>' + safe(p.name) + '</td><td>' + safe(p.startDate) +
             '</td><td>' + safe(p.endDate) + '</td><td>' + (p.isClosed ? 'Closed' : 'Open') + '</td>' +
-            (writable ? '<td>' + (p.isClosed ? '' : '<button class="btn btn-sm btn-outline-primary me-2" data-edit-period="' + p.id + '">Edit</button><button class="btn btn-sm btn-outline-danger" data-close-period="' + p.id + '">Close</button>') + '</td>' : '') + '</tr>').join('');
+            (writable ? '<td>' + (p.isClosed ? '' : '<button class="btn btn-sm btn-outline-primary me-2" data-edit-period="' + p.id + '">Edit</button><button class="btn btn-sm btn-outline-info me-2" data-preview-period="' + p.id + '">Review close</button><button class="btn btn-sm btn-outline-danger" data-close-period="' + p.id + '">Close</button>') + '</td>' : '') + '</tr>').join('');
+    }
+    async function showPeriodReadiness(id) {
+        const data = await request('/periods/' + id + '/close-readiness');
+        const panel = $('periodCloseReadiness');
+        panel.className = 'alert ' + (data.canClose ? 'alert-success' : 'alert-warning');
+        panel.textContent = data.periodName + ': ' + (data.canClose ? 'Ready to close.' : 'Not ready.') +
+            ' Posted: ' + data.postedCount + ', reversed: ' + data.reversedCount +
+            ', drafts: ' + data.draftCount + ', submitted: ' + data.submittedCount +
+            ', approved: ' + data.approvedCount + ', invalid journals: ' + data.invalidJournalCount +
+            ', invalid lines: ' + data.invalidLineCount + ', unbalanced journals: ' + data.unbalancedJournalCount +
+            ', invalid accounts: ' + data.missingAccountCount + '. ' + (data.blockers || []).join(' ');
+        return data;
     }
     async function loadBanks() {
         if (!writable) return;
@@ -80,14 +92,19 @@ if (root) {
         $('periodRows').addEventListener('click', e => run(async () => {
             const edit = e.target.closest('[data-edit-period]')?.dataset.editPeriod;
             const close = e.target.closest('[data-close-period]')?.dataset.closePeriod;
+            const preview = e.target.closest('[data-preview-period]')?.dataset.previewPeriod;
+            if (preview) await showPeriodReadiness(preview);
             if (edit) {
                 const p = periods.find(x => String(x.id) === edit); if (!p) return;
                 $('periodId').value = p.id; $('periodVersion').value = p.rowVersion;
                 $('periodName').value = p.name; $('periodFrom').value = p.startDate; $('periodTo').value = p.endDate;
             }
             if (close) {
-                const p = periods.find(x => String(x.id) === close); if (!p || !confirm('Close period ' + p.name + '? This cannot be undone.')) return;
-                await request('/periods/' + close + '/close', 'POST', {rowVersion:p.rowVersion});
+                const p = periods.find(x => String(x.id) === close); if (!p) return;
+                const readiness = await showPeriodReadiness(close);
+                if (!readiness.canClose) { alert('Period is not ready to close. Resolve the displayed blockers.', true); return; }
+                if (!confirm('Close period ' + p.name + '? ' + readiness.postedCount + ' posted and ' + readiness.reversedCount + ' reversed journals verified. This cannot be undone.')) return;
+                await request('/periods/' + close + '/close', 'POST', {rowVersion:readiness.rowVersion});
                 await loadPeriods(); alert('Period closed.');
             }
         }));
