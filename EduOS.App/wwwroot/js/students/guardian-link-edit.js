@@ -21,7 +21,21 @@ export function renderGuardianLinks({ $, api, state, render, notice }) {
         detail.className = 'small text-muted';
         detail.textContent = [guardian.relationCode, guardian.isPrimary ? 'Primary guardian' : '',
             guardian.phone || '', guardian.email || ''].filter(Boolean).join(' · ');
-        summary.append(name, detail);
+        const reference = document.createElement('div');
+        reference.className = 'small text-muted';
+        reference.textContent = 'Guardian reference: ' + guardian.guardianReference;
+        const copy = document.createElement('button');
+        copy.type = 'button'; copy.className = 'btn btn-sm btn-link p-0';
+        copy.textContent = 'Copy reference for sibling';
+        copy.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(guardian.guardianReference);
+                notice('Guardian reference copied. Select the sibling and link the existing guardian.');
+            } catch {
+                notice('Select and copy the visible guardian reference.', true);
+            }
+        });
+        summary.append(name, detail, reference, copy);
         const edit = document.createElement('button');
         edit.type = 'button'; edit.className = 'btn btn-sm btn-outline-primary';
         edit.textContent = 'Edit relationship';

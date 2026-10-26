@@ -24,6 +24,32 @@
                 </div>
             </div></section>
             <section class="card shadow-sm border-0 mt-3"><div class="card-body">
+                <h2 class="h6">Link an existing guardian (siblings)</h2>
+                <p class="small text-muted">Copy the guardian reference from another student's linked guardian card. Only guardians already registered in this institution can be reused. Permissions are set independently for each student.</p>
+                <form id="guardianReuseForm" class="row g-2">
+                    <div class="col-12"><label class="form-label" for="guardianExistingReference">Existing guardian reference *</label>
+                        <input id="guardianExistingReference" class="form-control" maxlength="36" required autocomplete="off" placeholder="Guardian UUID from another student" /></div>
+                    <div class="col-md-6"><label class="form-label" for="guardianExistingRelation">Relationship *</label>
+                        <select id="guardianExistingRelation" class="form-select" required>
+                            <option value="Father">Father</option><option value="Mother">Mother</option>
+                            <option value="LegalGuardian">Legal guardian</option><option value="Other">Other</option>
+                        </select></div>
+                    <div class="col-12 form-check ms-2"><input id="guardianExistingPrimary" class="form-check-input" type="checkbox" />
+                        <label for="guardianExistingPrimary" class="form-check-label">Primary guardian</label></div>
+                    <div class="col-12 form-check ms-2"><input id="guardianExistingSms" class="form-check-input" type="checkbox" />
+                        <label for="guardianExistingSms" class="form-check-label">May receive SMS</label></div>
+                    <div class="col-12 form-check ms-2"><input id="guardianExistingEmail" class="form-check-input" type="checkbox" />
+                        <label for="guardianExistingEmail" class="form-check-label">May receive email</label></div>
+                    <div class="col-12 form-check ms-2"><input id="guardianExistingPickup" class="form-check-input" type="checkbox" />
+                        <label for="guardianExistingPickup" class="form-check-label">Authorized pickup</label></div>
+                    <div class="col-12 form-check ms-2"><input id="guardianExistingFinancial" class="form-check-input" type="checkbox" />
+                        <label for="guardianExistingFinancial" class="form-check-label">Financial contact</label></div>
+                    <div class="col-12 form-check ms-2"><input id="guardianExistingEmergency" class="form-check-input" type="checkbox" />
+                        <label for="guardianExistingEmergency" class="form-check-label">Emergency contact</label></div>
+                    <div class="col-12"><button id="guardianReuse" class="btn btn-outline-primary" type="submit" disabled>Link existing guardian</button></div>
+                </form>
+            </div></section>
+            <section class="card shadow-sm border-0 mt-3"><div class="card-body">
                 <h2 class="h6">Link a new guardian</h2>
                 <form id="guardianCreateForm" class="row g-2">
                     <div class="col-12"><label class="form-label" for="guardianName">Full name *</label>

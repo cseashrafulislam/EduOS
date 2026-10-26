@@ -168,6 +168,70 @@ public sealed class StudentGuardianWorkspaceService : IStudentGuardianWorkspaceS
         }, ct);
     }
 
+
+    /// <summary>Link an already registered tenant guardian to another student (e.g. a sibling).
+    /// A matching existing link is a safe retry; conflicting permissions require explicit edit.</summary>
+    public Task<ApiResponse<StudentGuardianWorkspaceDto>> LinkExistingAsync(
+        LinkExistingStudentGuardianRequestDto request, CancellationToken ct = default)
+    {
+        if (!Allowed) return Task.FromResult(Fail<StudentGuardianWorkspaceDto>("Tenant administrator permission required.", 403));
+        if (request == null || request.StudentReference == Guid.Empty || request.GuardianReference == Guid.Empty ||
+            string.IsNullOrWhiteSpace(request.RelationCode) || request.RelationCode.Trim().Length > 50 ||
+            !ValidVersion(request.StudentRowVersion))
+            return Task.FromResult(Fail<StudentGuardianWorkspaceDto>("Valid student, existing guardian, relation and student version required."));
+        return WriteAsync(async token =>
+        {
+            var tenant = _user.TenantId;
+            var student = await _students.GetQueryable().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.PublicId == request.StudentReference && !x.IsDeleted, token);
+            if (student == null) return Fail<StudentGuardianWorkspaceDto>("Student not found.", 404);
+            var guardian = await _guardians.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.PublicId == request.GuardianReference && x.IsActive && !x.IsDeleted, token);
+            if (guardian == null) return Fail<StudentGuardianWorkspaceDto>("Guardian not found in this institution.", 404);
+            // The tenant/student/guardian pair has a unique database index. Never create a second Person.
+            var existing = await _links.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.StudentId == student.Id && x.GuardianId == guardian.Id, token);
+            if (existing != null)
+            {
+                if (!existing.IsDeleted && existing.RelationCode == request.RelationCode.Trim() &&
+                    existing.IsPrimary == request.IsPrimary &&
+                    existing.CanReceiveSms == request.CanReceiveSms &&
+                    existing.CanReceiveEmail == request.CanReceiveEmail &&
+                    existing.IsAuthorizedPickup == request.IsAuthorizedPickup &&
+                    existing.IsFinancialContact == request.IsFinancialContact &&
+                    existing.IsEmergencyContact == request.IsEmergencyContact)
+                    return await LoadAsync(request.StudentReference, token);
+                return Fail<StudentGuardianWorkspaceDto>(
+                    "Guardian is already linked or was previously removed. Review the existing relationship.", 409);
+            }
+            if (student.StatusCode != "Active" && student.StatusCode != "Suspended")
+                return Fail<StudentGuardianWorkspaceDto>("Guardian changes require an active or suspended student.", 409);
+            if (!VersionMatches(student.RowVersion, request.StudentRowVersion))
+                return Fail<StudentGuardianWorkspaceDto>("Student changed. Reload and retry.", 409);
+            var links = await _links.GetQueryable().Where(x =>
+                x.TenantId == tenant && x.StudentId == student.Id && !x.IsDeleted).ToListAsync(token);
+            if (links.Count >= 100) return Fail<StudentGuardianWorkspaceDto>("Guardian link limit reached.", 409);
+            var primary = request.IsPrimary || links.Count == 0;
+            var now = DateTime.UtcNow;
+            if (primary)
+                foreach (var link in links.Where(x => x.IsPrimary))
+                { link.IsPrimary = false; link.UpdatedAt = now; link.UpdatedBy = _user.UserId; }
+            await _links.AddAsync(new StudentGuardian
+            {
+                TenantId = tenant, StudentId = student.Id, GuardianId = guardian.Id,
+                RelationCode = request.RelationCode.Trim(), IsPrimary = primary,
+                CanReceiveSms = request.CanReceiveSms, CanReceiveEmail = request.CanReceiveEmail,
+                IsAuthorizedPickup = request.IsAuthorizedPickup,
+                IsFinancialContact = request.IsFinancialContact, IsEmergencyContact = request.IsEmergencyContact,
+                CreatedAt = now, CreatedBy = _user.UserId
+            });
+            await _uow.SaveChangesAsync(token);
+            _logger.LogInformation("Existing guardian {GuardianId} linked to student {StudentId} in tenant {TenantId}",
+                guardian.Id, student.Id, tenant);
+            return await LoadAsync(request.StudentReference, token);
+        }, ct);
+    }
+
     public Task<ApiResponse<StudentGuardianWorkspaceDto>> UpdateLinkAsync(
         Guid studentReference, long linkId, UpdateStudentGuardianWorkspaceLinkDto request, CancellationToken ct = default)
     {

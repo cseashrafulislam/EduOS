@@ -58,3 +58,17 @@ public sealed class UpdateStudentGuardianWorkspaceLinkDto
     public bool IsEmergencyContact { get; set; }
     [Required] public string RowVersion { get; set; } = string.Empty;
 }
+
+public sealed class LinkExistingStudentGuardianRequestDto
+{
+    [Required] public Guid StudentReference { get; set; }
+    [Required] public Guid GuardianReference { get; set; }
+    [Required] public string StudentRowVersion { get; set; } = string.Empty;
+    [Required, StringLength(50)] public string RelationCode { get; set; } = string.Empty;
+    public bool IsPrimary { get; set; }
+    public bool CanReceiveSms { get; set; }
+    public bool CanReceiveEmail { get; set; }
+    public bool IsAuthorizedPickup { get; set; }
+    public bool IsFinancialContact { get; set; }
+    public bool IsEmergencyContact { get; set; }
+}

@@ -1,5 +1,6 @@
 import { setupGuardianSearch } from './guardian-search.js';
 import { setupGuardianSave } from './guardian-save.js';
+import { setupGuardianReuse } from './guardian-reuse.js';
 import { renderGuardianLinks } from './guardian-link-edit.js';
 
 const $ = id => document.getElementById(id);
@@ -31,6 +32,7 @@ if (root) {
         state.student = student;
         $('guardianSelected').textContent = student.studentName + ' (' + student.studentCode + ')';
         $('guardianCreate').disabled = state.busy;
+        $('guardianReuse').disabled = state.busy;
         $('guardianRefresh').disabled = state.busy;
         renderGuardianLinks({ $, api, state, render, notice });
     }
@@ -44,6 +46,7 @@ if (root) {
     });
     setupGuardianSearch({ $, api, state, render, notice });
     setupGuardianSave({ $, api, state, render, notice });
+    setupGuardianReuse({ $, api, state, render, notice });
     const reference = new URLSearchParams(location.search).get('studentReference');
     if (reference && /^[0-9a-f-]{36}$/i.test(reference)) {
         api('/api/student-guardians/students/' + encodeURIComponent(reference))

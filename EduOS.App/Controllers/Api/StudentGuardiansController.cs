@@ -39,6 +39,14 @@ public sealed class StudentGuardiansController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpPost("existing")]
+    public async Task<IActionResult> LinkExisting([FromBody] LinkExistingStudentGuardianRequestDto request, CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await _service.LinkExistingAsync(request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPut("students/{studentReference:guid}/links/{linkId:long}")]
     public async Task<IActionResult> Update(Guid studentReference, long linkId,
         [FromBody] UpdateStudentGuardianWorkspaceLinkDto request, CancellationToken ct)
