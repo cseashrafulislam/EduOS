@@ -107,10 +107,23 @@ async function register(){
  const b=document.createElement('button');b.type='button';b.className='btn btn-sm btn-outline-primary me-1';b.textContent=label;
  b.onclick=()=>loadStructure(x.id,mode).catch(err=>alert('danger',err.message));action.append(b);
  }
+ if(x.isActive){
+  const b=document.createElement('button');b.type='button';b.className='btn btn-sm btn-outline-danger';b.textContent='Close future billing';
+  b.onclick=()=>selectClosure(x.id).catch(err=>alert('danger',err.message));action.append(b);
+ }
  tr.append(cell(x.name),cell(campusName),cell(yearName),cell(dt(x.effectiveFrom)+' – '+(dt(x.effectiveTo)||'Open')),cell(x.isActive?'Active':'Inactive'),action);
  e('feeRegisterRows').append(tr);
  }
  if(!e('feeRegisterRows').children.length)empty('feeRegisterRows',6,'No fee structures.');
+}
+async function selectClosure(id){
+ const x=await api('/structures/'+encodeURIComponent(id));
+ if(!x.isActive)throw Error('Only active fee structures can be closed.');
+ e('feeCloseId').value=String(x.id);e('feeCloseVersion').value=x.rowVersion;
+ e('feeCloseName').value=x.name+' — Campus '+x.campusId;
+ e('feeCloseDate').value='';
+ e('feeStructureCloseForm').classList.remove('d-none');
+ e('feeCloseDate').focus();
 }
 async function loadStructure(id,mode){
  const x=await api('/structures/'+encodeURIComponent(id));
@@ -180,6 +193,22 @@ async function collect(ev){
  finally{e('feeCollect').disabled=false;}
 }
 function page(kind,delta){const next=state[kind+'Page']+delta;if(next<1||next>state[kind+'Pages'])return;state[kind+'Page']=next;(kind==='invoice'?invoices():receipts()).catch(err=>alert('danger',err.message));}
+if(e('feeStructureCloseForm')){
+ e('feeCloseCancel').addEventListener('click',()=>e('feeStructureCloseForm').classList.add('d-none'));
+ e('feeStructureCloseForm').addEventListener('submit',ev=>{ev.preventDefault();(async()=>{
+  const id=e('feeCloseId').value,date=e('feeCloseDate').value,version=e('feeCloseVersion').value;
+  if(!/^\d+$/.test(id)||!version||!/^\d{4}-\d{2}-\d{2}$/.test(date))throw Error('Select a structure and valid month-end date.');
+  const parts=date.split('-').map(Number);
+  if(parts[2]!==new Date(parts[0],parts[1],0).getDate())throw Error('Closure must be on the last day of a month.');
+  if(!confirm('Close future billing for '+e('feeCloseName').value+' through '+date+'? Issued invoices remain unchanged. This cannot be extended or reopened.'))return;
+  e('feeCloseSubmit').disabled=true;
+  try{
+   await api('/structures/'+encodeURIComponent(id)+'/close','POST',{effectiveTo:date,rowVersion:version});
+   e('feeStructureCloseForm').classList.add('d-none');
+   await options();alert('success','Future billing closed. Existing invoices and fee lines are unchanged.');
+  }finally{e('feeCloseSubmit').disabled=false;}
+ })().catch(err=>alert('danger',err.message));});
+}
 e('feeAddLine').addEventListener('click',()=>line());e('feeStructureReset').addEventListener('click',resetStructureForm);
 if(e('feeStructureRegister')){e('feeRegisterCampus').addEventListener('change',()=>{state.structurePage=1;register().catch(err=>alert('danger',err.message));});for(const [id,delta] of [['feeRegisterPrev',-1],['feeRegisterNext',1]])e(id).addEventListener('click',()=>{const p=state.structurePage+delta;if(p<1||p>state.structurePages)return;state.structurePage=p;register().catch(err=>alert('danger',err.message));});}e('feeStructureForm').addEventListener('submit',save);e('feeInvoiceForm').addEventListener('submit',generate);
 e('feeFindStudent').addEventListener('click',findStudent);e('feeLoadLedger').addEventListener('click',ledger);e('feePaymentForm').addEventListener('submit',collect);

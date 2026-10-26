@@ -42,6 +42,15 @@
                 <div class="col-md-7 small text-muted">View historical/inactive structures, amend unbilled versions or copy a structure as a new one. Billed financial terms cannot be edited.</div>
             </div>
             <div class="table-responsive"><table class="table table-sm table-hover mb-0"><thead><tr><th>Name</th><th>Campus</th><th>Academic year</th><th>Effective</th><th>Status</th><th>Action</th></tr></thead><tbody id="feeRegisterRows"><tr><td colspan="6">Loading…</td></tr></tbody></table></div>
+            <form id="feeStructureCloseForm" class="card-body border-top d-none" autocomplete="off">
+                <div class="alert alert-warning small mb-2">Close future monthly billing for the selected structure. Existing invoices, payments and fee lines are preserved. The closure date must be the last day of the current or a future month; reopening or extending a closure is not supported.</div>
+                <input id="feeCloseId" type="hidden" /><input id="feeCloseVersion" type="hidden" />
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-5"><label class="form-label" for="feeCloseName">Selected structure</label><input id="feeCloseName" class="form-control" readonly /></div>
+                    <div class="col-md-3"><label class="form-label" for="feeCloseDate">Final effective date</label><input id="feeCloseDate" type="date" class="form-control" required /></div>
+                    <div class="col-md-4"><button id="feeCloseSubmit" class="btn btn-danger" type="submit">Close future billing</button> <button id="feeCloseCancel" class="btn btn-outline-secondary" type="button">Cancel</button></div>
+                </div>
+            </form>
             <div class="card-footer d-flex gap-2 align-items-center"><button id="feeRegisterPrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous</button><span id="feeRegisterPage" class="small">—</span><button id="feeRegisterNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next</button></div>
         </section>
     }

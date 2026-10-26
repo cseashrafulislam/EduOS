@@ -55,6 +55,12 @@ public sealed class FeeBillingController : ControllerBase
     public async Task<IActionResult> StructureDetail(long id, CancellationToken ct) =>
         Result(await _service.GetStructureAsync(id, ct));
 
+    [HttpPost("structures/{id:long}/close")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> CloseStructure(long id,
+        [FromBody] CloseFeeStructureRequestDto request, CancellationToken ct) =>
+        Result(await _service.CloseFeeStructureAsync(id, request, ct));
+
     [HttpPost("structures")]
     [HttpPut("structures/{id:long}")]
     [Authorize(Roles = "TenantAdmin,Principal,Accountant")]
