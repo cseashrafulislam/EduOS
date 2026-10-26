@@ -24,15 +24,8 @@ public sealed class AcademicBatchRegisterTests
     public async Task Register_includes_inactive_sections_and_filters_tenant_campus_and_year()
     {
         var options = Options();
-        await using var db = Context(options, 401);
-        db.AddRange(
-            new AcademicBatch { TenantId = 401, Name = "Section A", Code = "A", CampusId = 5,
-                AcademicYearId = 7, IsActive = false, RowVersion = Version.ToArray() },
-            new AcademicBatch { TenantId = 401, Name = "Section B", Code = "B", CampusId = 6,
-                AcademicYearId = 7, IsActive = true, RowVersion = Version.ToArray() });
-        await db.SaveChangesAsync();
-        // Tenant-aware SaveChanges rejects foreign records in the active tenant context.
-        // Seed the foreign record through its own tenant context against the same test database.
+        // Seed the foreign tenant first. HttpContextAccessor uses ambient context, so the
+        // active tenant must be restored before constructing the service and querying.
         await using (var foreign = Context(options, 402))
         {
             foreign.Add(new AcademicBatch { TenantId = 402, Name = "Section Foreign",
@@ -40,6 +33,13 @@ public sealed class AcademicBatchRegisterTests
                 RowVersion = Version.ToArray() });
             await foreign.SaveChangesAsync();
         }
+        await using var db = Context(options, 401);
+        db.AddRange(
+            new AcademicBatch { TenantId = 401, Name = "Section A", Code = "A", CampusId = 5,
+                AcademicYearId = 7, IsActive = false, RowVersion = Version.ToArray() },
+            new AcademicBatch { TenantId = 401, Name = "Section B", Code = "B", CampusId = 6,
+                AcademicYearId = 7, IsActive = true, RowVersion = Version.ToArray() });
+        await db.SaveChangesAsync();
         var sut = Service(db, 401);
         var result = await sut.GetBatchesAsync("Section", 5, 7);
         result.Success.Should().BeTrue();
