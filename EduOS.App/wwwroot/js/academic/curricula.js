@@ -48,7 +48,9 @@
             cell(tr, x.versionNo);
             cell(tr, x.effectiveFrom + ' – ' + (x.effectiveTo || 'Open'));
             cell(tr, x.subjectCount);
-            cell(tr, (x.isCurrent ? 'Current' : 'Historical') + (x.isActive ? '' : ' / Inactive'));
+            cell(tr, x.subjectOfferingCount);
+            cell(tr, (x.isSubjectMappingLocked ? 'Mapping locked / ' : '') +
+                (x.isCurrent ? 'Current' : 'Historical') + (x.isActive ? '' : ' / Inactive'));
             const actions = cell(tr, '');
             actions.append(button('Subjects', () => details(x.id)));
             if (x.isActive && !x.isCurrent)
@@ -63,7 +65,7 @@
         });
         if (!rows.length) {
             const tr = document.createElement('tr');
-            const td = cell(tr, 'No curriculum versions found.'); td.colSpan = 7; target.append(tr);
+            const td = cell(tr, 'No curriculum versions found.'); td.colSpan = 8; target.append(tr);
         }
         el('curriculumPage').textContent = 'Page ' + page + ' • ' + total + ' versions';
         el('curriculumPrevious').disabled = page <= 1;
@@ -80,7 +82,9 @@
         const summary = document.createElement('p');
         summary.className = 'small text-muted';
         summary.textContent = 'Effective: ' + data.effectiveFrom + ' to ' +
-            (data.effectiveTo || 'open') + ' • ' + data.subjectCount + ' subject mappings';
+            (data.effectiveTo || 'open') + ' • ' + data.subjectCount +
+            ' subject mappings • ' + data.subjectOfferingCount + ' offerings' +
+            (data.isSubjectMappingLocked ? ' • Mapping locked: ' + data.subjectMappingLockReason : ' • Mapping open');
         host.append(summary);
         const table = document.createElement('table');
         table.className = 'table table-sm';
@@ -105,9 +109,10 @@
     };
     el('curriculumCsv').addEventListener('click', () => {
         const lines = [['Code', 'Name', 'Programme', 'Version', 'Effective from', 'Effective to',
-            'Current', 'Active', 'Subjects'], ...rows.map(x => [x.code, x.name,
+            'Current', 'Active', 'Subjects', 'Offerings', 'Mapping status'], ...rows.map(x => [x.code, x.name,
             programName(x.academicProgramId), x.versionNo, x.effectiveFrom, x.effectiveTo,
-            x.isCurrent, x.isActive, x.subjectCount])];
+            x.isCurrent, x.isActive, x.subjectCount, x.subjectOfferingCount,
+            x.isSubjectMappingLocked ? x.subjectMappingLockReason : 'Open'])];
         const blob = new Blob(['\uFEFF' + lines.map(row => row.map(safe).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
         const url = URL.createObjectURL(blob), link = document.createElement('a');
         link.href = url; link.download = 'academic-curricula-page-' + page + '.csv';
@@ -122,9 +127,34 @@
     el('curriculumNext').addEventListener('click', () => {
         if (page * size < total) { page++; load().catch(e => notice(e.message, true)); }
     });
+    let mappingTicket = 0;
+    async function refreshMappingEligibility() {
+        const ticket = ++mappingTicket;
+        const id = Number(el('curriculumSelection').value);
+        const save = el('curriculumMappingSubmit'), info = el('curriculumMappingNotice');
+        save.disabled = true;
+        info.textContent = id ? 'Checking curriculum mapping eligibility…' : 'Select a curriculum to check mapping eligibility.';
+        if (!id) return;
+        try {
+            const detail = await api('/api/academic-setup/curricula/' + id);
+            if (ticket !== mappingTicket || Number(el('curriculumSelection').value) !== id) return;
+            save.disabled = detail.isSubjectMappingLocked;
+            info.textContent = detail.isSubjectMappingLocked
+                ? detail.subjectMappingLockReason
+                : 'Mapping is open. New subjects are validated again when saved.';
+        } catch (e) {
+            if (ticket !== mappingTicket) return;
+            info.textContent = 'Unable to check mapping eligibility: ' + e.message;
+        }
+    }
+    el('curriculumSelection').addEventListener('change', () => {
+        refreshMappingEligibility().catch(e => notice(e.message, true));
+    });
     window.addEventListener('eduos:academic-reloaded', () => {
         programOptions(); load().catch(e => notice(e.message, true));
+        refreshMappingEligibility().catch(e => notice(e.message, true));
     });
     programOptions();
     load().catch(e => notice(e.message, true));
+    refreshMappingEligibility().catch(e => notice(e.message, true));
 })();

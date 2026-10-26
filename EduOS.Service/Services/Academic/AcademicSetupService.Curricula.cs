@@ -1,4 +1,5 @@
 using EduOS.Core.Common;
+using EduOS.Core.Entities.Academic;
 using EduOS.Core.DTOs.Academic;
 using Microsoft.EntityFrameworkCore;
 
@@ -35,10 +36,31 @@ public sealed partial class AcademicSetupService
             .Where(x => x.TenantId == tenant && !x.IsDeleted && ids.Contains(x.AcademicCurriculumId))
             .GroupBy(x => x.AcademicCurriculumId)
             .Select(g => new { Id = g.Key, Count = g.Count() }).ToDictionaryAsync(x => x.Id, x => x.Count, ct);
+        var offeringCounts = await (from mapping in _curriculumSubjects.GetQueryable().AsNoTracking()
+            join offering in _offerings.GetQueryable().AsNoTracking()
+                on mapping.Id equals offering.CurriculumSubjectId
+            where mapping.TenantId == tenant && !mapping.IsDeleted &&
+                ids.Contains(mapping.AcademicCurriculumId) &&
+                offering.TenantId == tenant && !offering.IsDeleted
+            group offering by mapping.AcademicCurriculumId into groupRows
+            select new { Id = groupRows.Key, Count = groupRows.Count() })
+            .ToDictionaryAsync(x => x.Id, x => x.Count, ct);
+        var programIds = rows.Select(x => x.AcademicProgramId).Distinct().ToArray();
+        var currentVersions = await _curricula.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && !x.IsDeleted && x.IsActive &&
+                x.IsCurrent && programIds.Contains(x.AcademicProgramId))
+            .Select(x => new { x.AcademicProgramId, x.AcademicTrackId, x.MediumId, x.VersionNo })
+            .ToListAsync(ct);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var items = rows.Select(row =>
         {
             var dto = MapCurriculum(row);
             dto.SubjectCount = counts.GetValueOrDefault(row.Id);
+            var superseded = !row.IsCurrent && currentVersions.Any(x =>
+                x.AcademicProgramId == row.AcademicProgramId &&
+                x.AcademicTrackId == row.AcademicTrackId && x.MediumId == row.MediumId &&
+                x.VersionNo > row.VersionNo);
+            ApplyMappingLock(dto, row, offeringCounts.GetValueOrDefault(row.Id), superseded, today);
             return dto;
         }).ToList();
         return ApiResponse<PagedResult<AcademicCurriculumDto>>.SuccessResponse(
@@ -68,6 +90,16 @@ public sealed partial class AcademicSetupService
         var subjectNames = subjects.ToDictionary(x => x.Id);
         var dto = MapCurriculum(row);
         dto.SubjectCount = mappings.Count;
+        var mappingIds = mappings.Select(x => x.Id).ToArray();
+        var offeringCount = mappingIds.Length == 0 ? 0 : await _offerings.GetQueryable().AsNoTracking()
+            .CountAsync(x => x.TenantId == tenant && !x.IsDeleted &&
+                mappingIds.Contains(x.CurriculumSubjectId), ct);
+        var superseded = !row.IsCurrent && await _curricula.GetQueryable().AsNoTracking()
+            .AnyAsync(x => x.TenantId == tenant && !x.IsDeleted && x.IsActive &&
+                x.IsCurrent && x.AcademicProgramId == row.AcademicProgramId &&
+                x.AcademicTrackId == row.AcademicTrackId && x.MediumId == row.MediumId &&
+                x.VersionNo > row.VersionNo, ct);
+        ApplyMappingLock(dto, row, offeringCount, superseded, DateOnly.FromDateTime(DateTime.UtcNow));
         dto.Subjects = mappings.Select(mapping =>
         {
             var item = MapCurriculumSubject(mapping);
@@ -80,5 +112,18 @@ public sealed partial class AcademicSetupService
             return item;
         }).ToList();
         return ApiResponse<AcademicCurriculumDto>.SuccessResponse(dto);
+    }
+    private static void ApplyMappingLock(AcademicCurriculumDto dto, AcademicCurriculum row,
+        int offeringCount, bool superseded, DateOnly today)
+    {
+        dto.SubjectOfferingCount = offeringCount;
+        dto.SubjectMappingLockReason = offeringCount > 0
+            ? "Subject offerings already reference this curriculum; create a new version."
+            : row.EffectiveTo.HasValue && row.EffectiveTo.Value < today
+                ? "This curriculum's effective period has ended; create a new version."
+                : superseded
+                    ? "A newer current curriculum supersedes this version."
+                    : null;
+        dto.IsSubjectMappingLocked = dto.SubjectMappingLockReason != null;
     }
 }

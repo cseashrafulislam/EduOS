@@ -599,6 +599,27 @@ public sealed partial class AcademicSetupService : IAcademicSetupService
                     return Error<CurriculumSubjectDto>("Curriculum subject already exists with different settings.", 409);
                 return ApiResponse<CurriculumSubjectDto>.SuccessResponse(MapCurriculumSubject(existing));
             }
+            // Identical retries above remain safe; a used or retired version cannot gain mappings.
+            var mappingIds = await _curriculumSubjects.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenant && !x.IsDeleted &&
+                    x.AcademicCurriculumId == academicCurriculumId)
+                .Select(x => x.Id).ToArrayAsync(ct);
+            if (mappingIds.Length > 0 && await _offerings.GetQueryable().AsNoTracking()
+                .AnyAsync(x => x.TenantId == tenant && !x.IsDeleted &&
+                    mappingIds.Contains(x.CurriculumSubjectId), ct))
+                return Error<CurriculumSubjectDto>(
+                    "Subject offerings already use this curriculum. Create a new version.", 409);
+            if (curriculum.EffectiveTo.HasValue &&
+                curriculum.EffectiveTo.Value < DateOnly.FromDateTime(DateTime.UtcNow))
+                return Error<CurriculumSubjectDto>(
+                    "The curriculum effective period has ended. Create a new version.", 409);
+            if (!curriculum.IsCurrent && await _curricula.GetQueryable().AsNoTracking()
+                .AnyAsync(x => x.TenantId == tenant && !x.IsDeleted && x.IsActive &&
+                    x.IsCurrent && x.AcademicProgramId == curriculum.AcademicProgramId &&
+                    x.AcademicTrackId == curriculum.AcademicTrackId &&
+                    x.MediumId == curriculum.MediumId && x.VersionNo > curriculum.VersionNo, ct))
+                return Error<CurriculumSubjectDto>(
+                    "A newer current curriculum supersedes this version.", 409);
             var row = new CurriculumSubject
             {
                 TenantId = tenant, AcademicCurriculumId = academicCurriculumId,
@@ -611,7 +632,7 @@ public sealed partial class AcademicSetupService : IAcademicSetupService
             await _curriculumSubjects.AddAsync(row);
             await _unitOfWork.SaveChangesAsync(ct);
             return Created(MapCurriculumSubject(row), "Curriculum subject registered.");
-        });
+        }, serializable: true);
     }
 
     public Task<ApiResponse<AcademicBatchDto>> CreateBatchAsync(SaveAcademicBatchRequestDto request,

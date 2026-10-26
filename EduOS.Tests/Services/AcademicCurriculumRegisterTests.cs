@@ -96,6 +96,74 @@ public sealed class AcademicCurriculumRegisterTests
             .Cast<AuthorizeAttribute>().Single().Roles.Should().Be("TenantAdmin");
     }
 
+
+    [Fact]
+    public async Task Offering_dependencies_lock_mapping_but_identical_replay_remains_safe()
+    {
+        await using var db = Context(Options(), 501);
+        var curriculum = new AcademicCurriculum { TenantId = 501, AcademicProgramId = 8,
+            Name = "Used", Code = "USED", VersionNo = 1, IsCurrent = true,
+            EffectiveFrom = new DateOnly(2025, 1, 1), RowVersion = Version.ToArray() };
+        var level = new AcademicLevel { TenantId = 501, AcademicProgramId = 8, Name = "L1", Code = "L1" };
+        var biology = new Subject { TenantId = 501, Name = "Biology", Code = "BIO" };
+        var physics = new Subject { TenantId = 501, Name = "Physics", Code = "PHY" };
+        db.AddRange(curriculum, level, biology, physics);
+        await db.SaveChangesAsync();
+        var mapping = new CurriculumSubject { TenantId = 501, AcademicCurriculumId = curriculum.Id,
+            AcademicLevelId = level.Id, SubjectId = biology.Id, FullMarks = 100, PassMarks = 33 };
+        db.Add(mapping);
+        await db.SaveChangesAsync();
+        db.Add(new SubjectOffering { TenantId = 501, AcademicBatchId = 22,
+            AcademicYearId = 11, CurriculumSubjectId = mapping.Id, Code = "BIO-1" });
+        await db.SaveChangesAsync();
+        var service = Service(db);
+        var detail = await service.GetCurriculumAsync(curriculum.Id);
+        detail.Data!.IsSubjectMappingLocked.Should().BeTrue();
+        detail.Data.SubjectOfferingCount.Should().Be(1);
+        detail.Data.SubjectMappingLockReason.Should().Contain("Subject offerings");
+        var register = await service.GetCurriculaAsync(null, null, null);
+        register.Data!.Items.Should().ContainSingle(x => x.Id == curriculum.Id &&
+            x.IsSubjectMappingLocked && x.SubjectOfferingCount == 1);
+        var rejected = await service.RegisterCurriculumSubjectAsync(curriculum.Id,
+            new SaveCurriculumSubjectRequestDto { AcademicLevelId = level.Id,
+                SubjectId = physics.Id, FullMarks = 100, PassMarks = 33 });
+        rejected.StatusCode.Should().Be(409);
+        (await db.CurriculumSubjects.CountAsync()).Should().Be(1);
+        var replay = await service.RegisterCurriculumSubjectAsync(curriculum.Id,
+            new SaveCurriculumSubjectRequestDto { AcademicLevelId = level.Id,
+                SubjectId = biology.Id, FullMarks = 100, PassMarks = 33 });
+        replay.Success.Should().BeTrue();
+        replay.Data!.Id.Should().Be(mapping.Id);
+    }
+
+    [Fact]
+    public async Task Superseded_and_expired_versions_are_locked_while_unused_current_is_editable()
+    {
+        await using var db = Context(Options(), 501);
+        var old = new AcademicCurriculum { TenantId = 501, AcademicProgramId = 7,
+            Name = "Old", Code = "OLD", VersionNo = 1,
+            EffectiveFrom = new DateOnly(2023, 1, 1), RowVersion = Version.ToArray() };
+        var current = new AcademicCurriculum { TenantId = 501, AcademicProgramId = 7,
+            Name = "Current", Code = "CURRENT", VersionNo = 2, IsCurrent = true,
+            EffectiveFrom = new DateOnly(2025, 1, 1), RowVersion = Version.ToArray() };
+        var expired = new AcademicCurriculum { TenantId = 501, AcademicProgramId = 9,
+            Name = "Expired", Code = "EXPIRED", VersionNo = 1, IsCurrent = true,
+            EffectiveFrom = new DateOnly(2020, 1, 1),
+            EffectiveTo = new DateOnly(2021, 1, 1), RowVersion = Version.ToArray() };
+        var level = new AcademicLevel { TenantId = 501, AcademicProgramId = 7, Name = "L1", Code = "L1" };
+        var subject = new Subject { TenantId = 501, Name = "Math", Code = "MATH" };
+        db.AddRange(old, current, expired, level, subject);
+        await db.SaveChangesAsync();
+        var request = new SaveCurriculumSubjectRequestDto { AcademicLevelId = level.Id,
+            SubjectId = subject.Id, FullMarks = 100, PassMarks = 33 };
+        (await Service(db).RegisterCurriculumSubjectAsync(old.Id, request)).StatusCode.Should().Be(409);
+        (await Service(db).RegisterCurriculumSubjectAsync(expired.Id, request)).StatusCode.Should().Be(409);
+        (await Service(db).GetCurriculumAsync(old.Id)).Data!.IsSubjectMappingLocked.Should().BeTrue();
+        (await Service(db).GetCurriculumAsync(expired.Id)).Data!.IsSubjectMappingLocked.Should().BeTrue();
+        (await Service(db).RegisterCurriculumSubjectAsync(current.Id, request)).Success.Should().BeTrue();
+        (await db.CurriculumSubjects.CountAsync()).Should().Be(1);
+    }
+
     private static DbContextOptions<EduOSDbContext> Options() =>
         new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase("academic-curriculum-register-" + Guid.NewGuid().ToString("N")).Options;
