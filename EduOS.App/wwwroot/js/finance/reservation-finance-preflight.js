@@ -58,6 +58,7 @@ form.addEventListener('submit', async event => {
         const body = await response.json().catch(() => null);
         if (!response.ok || !body?.success || !body.data) throw Error(body?.message || 'Finance preflight failed.');
         render(body.data);
+        root.dispatchEvent(new CustomEvent('reservationFinancePreflightLoaded', {detail:body.data}));
         show('Finance exposure loaded. No reservation mutation or posting was performed.', false);
     } catch (error) { show(error.message || 'Finance preflight failed.', true); }
     finally { button.disabled = false; }
