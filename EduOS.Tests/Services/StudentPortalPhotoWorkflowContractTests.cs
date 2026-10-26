@@ -45,6 +45,17 @@ public sealed class StudentPortalPhotoWorkflowContractTests
     }
 
     [Fact]
+    public void Portal_photo_metadata_does_not_reference_out_of_scope_file_and_replay_uses_portal_route()
+    {
+        var source = Read("EduOS.Service", "Services", "Students", "StudentPhotoService.cs");
+        var metadata = source.Split("public async Task<ApiResponse<StudentPhotoDto>> GetPortalAsync")[1]
+            .Split("public Task<ApiResponse<StudentPhotoDto>> UploadAsync")[0];
+        metadata.Should().Contain("PhotoUrl = path")
+            .And.NotContain("PhotoUrl = portal ?");
+        source.Should().Contain("PhotoUrl = portal ? PortalPhotoPath(studentReference, file.PublicId) : path");
+    }
+
+    [Fact]
     public void Portal_photo_form_uses_csrf_and_idempotent_request_id()
     {
         var api = Read("EduOS.App", "Controllers", "Api", "SelfServicePortalController.cs");

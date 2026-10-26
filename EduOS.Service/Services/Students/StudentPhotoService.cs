@@ -93,8 +93,8 @@ public sealed class StudentPhotoService(
             path = PortalPhotoPath(studentReference, file);
         return ApiResponse<StudentPhotoDto>.SuccessResponse(new StudentPhotoDto
         {
-            PhotoUrl = portal ? PortalPhotoPath(studentReference, file.PublicId) : path,
-                    RowVersion = Convert.ToBase64String(student.RowVersion)
+            PhotoUrl = path,
+            RowVersion = Convert.ToBase64String(student.RowVersion)
         });
     }
 
@@ -170,7 +170,8 @@ public sealed class StudentPhotoService(
             if (student.PhotoUrl == path)
                 return ApiResponse<StudentPhotoDto>.SuccessResponse(new StudentPhotoDto
                 {
-                    PhotoUrl = path, RowVersion = Convert.ToBase64String(student.RowVersion)
+                    PhotoUrl = portal ? PortalPhotoPath(studentReference, file.PublicId) : path,
+                    RowVersion = Convert.ToBase64String(student.RowVersion)
                 }, "Photo already saved.");
             if (!VersionMatches(student.RowVersion, rowVersion))
                 return Fail<StudentPhotoDto>("Student changed. Reload the profile.", 409);
