@@ -165,6 +165,12 @@ public sealed partial class FeeBillingService : IFeeBillingService
             if (feeStructureId.HasValue && row == null) return Error<FeeStructureDto>("Fee structure not found.", 404);
             if (row != null && !Match(row.RowVersion, request.RowVersion))
                 return Error<FeeStructureDto>("Fee structure changed. Reload and retry.", 409);
+            // An established effective end date is a financial boundary. Reopening or
+            // extending it through the generic amendment endpoint would bypass closure.
+            if (row != null && row.EffectiveTo.HasValue &&
+                (!request.EffectiveTo.HasValue || request.EffectiveTo.Value > row.EffectiveTo.Value))
+                return Error<FeeStructureDto>(
+                    "An established end date cannot be extended or removed; create a new future version.", 409);
             var overlaps = await _structures.GetQueryable().AsNoTracking().AnyAsync(x =>
                 x.TenantId == tenant && x.CampusId == campus.Id && x.AcademicYearId == year.Id &&
                 x.AcademicBatchId == request.AcademicBatchId &&
