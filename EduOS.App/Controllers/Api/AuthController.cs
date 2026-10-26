@@ -53,11 +53,10 @@ namespace EduOS.App.Controllers.Api
         public async Task<IActionResult> Login([FromBody] LoginRequestDto dto)
         {
             Response.Headers.CacheControl = "no-store";
-            if (dto == null || string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Password))
+            if (dto == null || string.IsNullOrWhiteSpace(dto.UserNameOrEmail) || string.IsNullOrWhiteSpace(dto.Password))
                 return BadRequest(new { success = false, message = "Username/email and password are required." });
 
-            // Legacy LoginRequestDto.Email accepts either a username or email address.
-            var identifier = dto.Email.Trim();
+            var identifier = dto.UserNameOrEmail.Trim();
             var ip = GetClientIp();
             var userAgent = Truncate(HttpContext.Request.Headers["User-Agent"].FirstOrDefault(), 500);
             var user = await _userManager.FindByEmailAsync(identifier) ?? await _userManager.FindByNameAsync(identifier);

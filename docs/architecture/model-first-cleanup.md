@@ -8,13 +8,14 @@ Target branch: `Ashraful`. Canonical entity declarations under `EduOS.Core/Entit
 - Removed `EduOS.Service/Services/Students/StudentService.cs`, a wholly commented-out, unregistered old implementation. Active student management uses the registered domain services.
 - Removed unused unbounded `GetAllAsync`/`FindAsync` methods and unused direct hard-delete helpers from generic repository contracts and implementation. Authorized domain-specific reversal and soft-delete workflows remain unchanged.
 - Added architecture regression tests for canonical student DTO location and generic repository surface.
+- Replaced the misleading login-only `Email` request field with `UserNameOrEmail` across the login DTO, API, browser script and form. Password reset and verified contact emails still use actual `Email` fields. The `/api/auth/login` JSON field is now `userNameOrEmail`; there is no legacy login alias.
+- Removed unregistered `IAuthenticationService` and `IMfaEnrollmentService` abstractions and their unconsumed token/response DTOs. Renamed the remaining MFA DTO file for its actual active security action models; real cookie authentication and MFA endpoints remain in the active `AuthController`.
 
 ## Remaining live compatibility and migration items
 
 | Area | Verified dependency | Required migration before removal |
 | --- | --- | --- |
 | Institution profile onboarding | `InstitutionProfileWizardDto`, service interface/implementation and `InstitutionOnboardingController` still use the legacy onboarding contract | Design model-based Tenant/TenantSetting request and response, migrate browser form and onboarding API together, then remove adapter |
-| Authentication | `AuthController` still accepts username through the historical `LoginRequestDto.Email` field | Update login DTO and all clients as one versioned contract change; preserve tenant and MFA behavior |
 | LMS assessment | `SelectedOptionId` coexists with `SelectedOptionIds` for historical single-choice clients | Inventory all callers and migrate persisted answer/selection handling before dropping compatibility |
 | Inventory catalog | `InventoryCatalogLocationReads` preserves an array response for old callers | Migrate every response consumer to bounded paging, then retire array mode |
 | Transport | Old route/vehicle rows without campus assignment are explicitly rejected pending controlled repair | Migrate historical data through approved tenant-aware remediation, not by deleting validation |

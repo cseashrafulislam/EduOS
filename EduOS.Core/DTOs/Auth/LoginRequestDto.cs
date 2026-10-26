@@ -2,10 +2,9 @@
 {
     public class LoginRequestDto
     {
-        // Keep 'Email' for backward-compatible JSON; value may be username or email.
         [Required(ErrorMessage = "Username or email is required.")]
         [StringLength(256)]
-        public string Email { get; set; } = string.Empty;
+        public string UserNameOrEmail { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Password is required.")]
         public string Password { get; set; } = string.Empty;
@@ -16,30 +15,6 @@
 
     }
 
-    public class LoginResponseDto
-    {
-        public string AccessToken { get; set; } = string.Empty;
-        public string RefreshToken { get; set; } = string.Empty;
-        /// <summary>When true, no access/refresh tokens have been issued.</summary>
-        public bool RequiresMfa { get; set; }
-        public string? MfaChallengeToken { get; set; }
-        public DateTime ExpiresAt { get; set; }
-        public long UserId { get; set; }
-        public string FullName { get; set; } = string.Empty;
-        public string Email { get; set; } = string.Empty;
-        public long TenantId { get; set; }
-        public string InstitutionName { get; set; } = string.Empty;
-        public IList<string> Roles { get; set; } = new List<string>();
-        public EduOS.Core.Enums.Domain.OnboardingStage OnboardingStage { get; set; }
-    }
-    public class RefreshTokenRequestDto
-    {
-        [Required] public string RefreshToken { get; set; } = string.Empty;
-    }
-    public class LogoutRequestDto
-    {
-        public string? RefreshToken { get; set; }
-    }
     public class ForgotPasswordRequestDto
     {
         [Required, EmailAddress] public string Email { get; set; } = "";

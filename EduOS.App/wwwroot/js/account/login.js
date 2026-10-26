@@ -7,9 +7,9 @@
         if (!form || !submitButton) return;
 
         const parameters = new URLSearchParams(window.location.search);
-        const emailField = document.getElementById('email');
-        const emailParameter = parameters.get('email');
-        if (emailField && emailParameter) emailField.value = emailParameter;
+        const identifierField = document.getElementById('userNameOrEmail');
+        const identifierParameter = parameters.get('userNameOrEmail');
+        if (identifierField && identifierParameter) identifierField.value = identifierParameter;
 
         if (parameters.get('status') === 'password-reset') {
             showAlert('success', submitButton.dataset.resetSuccess || '');
@@ -21,13 +21,13 @@
         form.addEventListener('submit', async event => {
             event.preventDefault();
 
-            const email = emailField?.value?.trim();
+            const userNameOrEmail = identifierField?.value?.trim();
             const password = document.getElementById('password')?.value;
             const rememberMe = document.getElementById('rememberMe')?.checked ?? false;
             const institutionChoice = document.getElementById('institutionChoice');
             const tenantId = institutionChoice?.value ? Number(institutionChoice.value) : null;
 
-            if (!email || !password) {
+            if (!userNameOrEmail || !password) {
                 showAlert('danger', form.dataset.requiredMessage);
                 return;
             }
@@ -40,7 +40,7 @@
                     cache: 'no-store',
                     credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                    body: JSON.stringify({ email, password, rememberMe, tenantId })
+                    body: JSON.stringify({ userNameOrEmail, password, rememberMe, tenantId })
                 });
                 const payload = await response.json().catch(() => null);
 

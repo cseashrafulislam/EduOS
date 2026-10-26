@@ -46,7 +46,7 @@ public sealed class OptionalMfaAuthContractTests
         Assert.Contains("if (response.data.enabled)", profileJs);
         Assert.Contains("setupLink.classList.remove('d-none')", profileJs);
         Assert.Contains("href=\"/Account/Profile\"", setup);
-        Assert.Contains("type=\"text\" id=\"email\"", loginView);
+        Assert.Contains("type=\"text\" id=\"userNameOrEmail\"", loginView);
         Assert.Contains("@T[\"UsernameOrEmail\"]", loginView);
         Assert.True(typeof(AccountController).GetMethod(nameof(AccountController.MfaSetup))!
             .GetCustomAttributes(typeof(AuthorizeAttribute), true).Any());
