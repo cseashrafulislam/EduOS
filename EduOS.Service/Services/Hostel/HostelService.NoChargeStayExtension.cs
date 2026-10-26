@@ -23,6 +23,12 @@ public sealed partial class HostelService
             !TryDecodeVersion(request.RowVersion, out var version))
             return Error("Reservation, checkout date and row version are required.");
         var tenant = _currentUser.TenantId;
+        const string operation = "hostel.no-charge-stay-extension";
+        var requestHash = HostelCommandFingerprint(operation, id,
+            request.EndDate.ToString("yyyy-MM-dd"), Convert.ToBase64String(version));
+        var requestId = request.ClientRequestId == Guid.Empty
+            ? LegacyHostelCommandRequestId(tenant, _currentUser.UserId, operation, id, requestHash)
+            : request.ClientRequestId;
         try
         {
             return await _unitOfWork.ExecuteInTransactionAsync(async ct =>
@@ -45,14 +51,25 @@ public sealed partial class HostelService
                     return Error("Active enrollment and matching hostel campus are required.", 409);
                 if (!await CanManageCampusAsync(source.Hostel.CampusId, tenant, ct))
                     return Denied<StudentHostelAllocationDto>();
+                var replay = await _commandReceipts.ReplayAsync<StudentHostelAllocationDto>(tenant,
+                    _currentUser.UserId, operation, requestId, id, requestHash, ct);
+                if (replay.Conflict)
+                    return Error("Request key was already used with different command details.", 409);
+                if (replay.Found) return replay.Response!;
                 if (allocation.State != HostelAllocationState.Active || !allocation.EndDate.HasValue)
                     return Error("Only active fixed-term stays can be extended.", 409);
                 if (allocation.MonthlyRent != 0m || allocation.SecurityDeposit != 0m || allocation.FeeHeadId.HasValue)
                     return Error("Charged stays require Finance billing integration.", 409);
                 var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
                 if (allocation.EndDate.Value == request.EndDate && allocation.EndDate.Value >= today)
-                    return ApiResponse<StudentHostelAllocationDto>.SuccessResponse(
+                {
+                    var same = ApiResponse<StudentHostelAllocationDto>.SuccessResponse(
                         await MapAsync(allocation, ct), "Checkout date already matches.");
+                    await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
+                        requestId, id, requestHash, same, ct);
+                    await _unitOfWork.SaveChangesAsync(ct);
+                    return same;
+                }
                 if (!CanExtendNoChargeStay(allocation.StartDate, allocation.EndDate, request.EndDate, today))
                     return Error("Extend before checkout within the original 90-day booking window.", 409);
                 if (!allocation.RowVersion.AsSpan().SequenceEqual(version))
@@ -95,8 +112,12 @@ public sealed partial class HostelService
                 await _unitOfWork.SaveChangesAsync(ct);
                 _logger.LogInformation("No-charge hostel extension tenant {TenantId}, allocation {AllocationId}, {OldEnd} to {NewEnd}",
                     tenant, allocation.Id, previous, request.EndDate);
-                return ApiResponse<StudentHostelAllocationDto>.SuccessResponse(
+                var success = ApiResponse<StudentHostelAllocationDto>.SuccessResponse(
                     await MapAsync(allocation, ct), "No-charge stay extended.");
+                await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
+                    requestId, id, requestHash, success, ct);
+                await _unitOfWork.SaveChangesAsync(ct);
+                return success;
             }, System.Data.IsolationLevel.Serializable, cancellationToken);
         }
         catch (DbUpdateConcurrencyException) { return Error("Reservation changed. Reload and retry.", 409); }

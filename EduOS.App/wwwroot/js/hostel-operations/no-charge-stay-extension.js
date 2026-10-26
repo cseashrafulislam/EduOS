@@ -7,6 +7,7 @@
     const save = document.getElementById('hostelNoChargeExtensionSave');
     const cancel = document.getElementById('hostelNoChargeExtensionCancel');
     let pending = null;
+    let requestKey = null, requestSignature = null;
     const addDays = (value, days) => {
         const d = new Date(value + 'T00:00:00Z');
         d.setUTCDate(d.getUTCDate() + days);
@@ -22,7 +23,10 @@
         alert.className = 'alert alert-' + (success ? 'success' : 'danger');
         alert.textContent = message; alert.focus();
     };
-    const dismiss = () => { pending = null; field.value = ''; panel.classList.add('d-none'); };
+    const dismiss = () => {
+        pending = null; requestKey = null; requestSignature = null;
+        field.value = ''; panel.classList.add('d-none');
+    };
     window.hostelNoChargeStayExtension = {
         begin(item) {
             if (!item?.canExtendNoCharge || !item.endDate || item.endDate < today()) {
@@ -47,6 +51,11 @@
             notify('Choose a later checkout within the original 90-day window.'); return;
         }
         if (!confirm('Extend this no-charge stay? No Finance records will change.')) return;
+        if (!window.crypto?.randomUUID) { notify('Secure browser context required.'); return; }
+        const signature = [pending.id, endDate, pending.rowVersion].join('|');
+        if (signature !== requestSignature) {
+            requestSignature = signature; requestKey = window.crypto.randomUUID();
+        }
         save.disabled = true;
         try {
             const token = document.querySelector('meta[name="request-verification-token"]')?.content;
@@ -56,7 +65,7 @@
                 method: 'POST', credentials: 'same-origin', cache: 'no-store',
                 headers: { Accept: 'application/json', 'Content-Type': 'application/json',
                     RequestVerificationToken: token },
-                body: JSON.stringify({ endDate, rowVersion: pending.rowVersion })
+                body: JSON.stringify({ clientRequestId: requestKey, endDate, rowVersion: pending.rowVersion })
             });
             const result = await response.json().catch(() => null);
             if (!response.ok || !result?.success)

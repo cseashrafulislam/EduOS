@@ -15,12 +15,15 @@ test('no-charge extension has authorized transactional service and safe UI', () 
     assert.match(api, /ExtendNoChargeStayAsync/);
     for (const term of ['IsolationLevel.Serializable', 'CanManageCampusAsync', 'PeakConcurrentStays',
         'allocation.MonthlyRent != 0m', 'allocation.SecurityDeposit != 0m',
-        'allocation.FeeHeadId.HasValue', 'RowVersion.AsSpan().SequenceEqual'])
+        'allocation.FeeHeadId.HasValue', 'RowVersion.AsSpan().SequenceEqual',
+        'ReplayAsync<StudentHostelAllocationDto>', '_commandReceipts.RecordAsync'])
         assert.ok(service.includes(term), term);
     assert.match(view, /hostelNoChargeExtensionPanel/);
     assert.match(index, /hostelNoChargeStayExtension/);
     assert.match(index, /hostel-stay-extended/);
     assert.match(js, /rowVersion: pending\.rowVersion/);
+    assert.match(js, /clientRequestId: requestKey/);
+    assert.match(js, /crypto\.randomUUID/);
     assert.match(js, /RequestVerificationToken: token/);
     assert.doesNotMatch(js, /innerHTML/);
 });

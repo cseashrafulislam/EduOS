@@ -24,6 +24,12 @@ public sealed partial class HostelService
             !TryDecodeVersion(request.RowVersion, out var version))
             return Error("Reservation, checkout date and row version are required.");
         var tenant = _currentUser.TenantId;
+        const string operation = "hostel.upcoming-no-charge-shortening";
+        var requestHash = HostelCommandFingerprint(operation, id,
+            request.EndDate.ToString("yyyy-MM-dd"), Convert.ToBase64String(version));
+        var requestId = request.ClientRequestId == Guid.Empty
+            ? LegacyHostelCommandRequestId(tenant, _currentUser.UserId, operation, id, requestHash)
+            : request.ClientRequestId;
         try
         {
             return await _unitOfWork.ExecuteInTransactionAsync(async ct =>
@@ -50,6 +56,11 @@ public sealed partial class HostelService
                     return Error("Active enrollment and matching hostel campus are required.", 409);
                 if (!await CanManageCampusAsync(source.Hostel.CampusId, tenant, ct))
                     return Denied<StudentHostelAllocationDto>();
+                var replay = await _commandReceipts.ReplayAsync<StudentHostelAllocationDto>(tenant,
+                    _currentUser.UserId, operation, requestId, id, requestHash, ct);
+                if (replay.Conflict)
+                    return Error("Request key was already used with different command details.", 409);
+                if (replay.Found) return replay.Response!;
                 if (allocation.State != HostelAllocationState.Active || !allocation.EndDate.HasValue)
                     return Error("Only active fixed-term reservations can be shortened.", 409);
                 if (allocation.MonthlyRent != 0m || allocation.SecurityDeposit != 0m ||
@@ -59,8 +70,14 @@ public sealed partial class HostelService
                 if (allocation.StartDate <= today || allocation.EndDate.Value < allocation.StartDate)
                     return Error("Only valid, unstarted reservations can be shortened.", 409);
                 if (request.EndDate == allocation.EndDate.Value)
-                    return ApiResponse<StudentHostelAllocationDto>.SuccessResponse(
+                {
+                    var same = ApiResponse<StudentHostelAllocationDto>.SuccessResponse(
                         await MapAsync(allocation, ct), "Checkout date already matches.");
+                    await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
+                        requestId, id, requestHash, same, ct);
+                    await _unitOfWork.SaveChangesAsync(ct);
+                    return same;
+                }
                 if (!CanShortenUpcomingNoChargeStay(
                     allocation.StartDate, allocation.EndDate, request.EndDate, today))
                     return Error("New checkout must be on or after arrival and before the current checkout.", 409);
@@ -77,8 +94,12 @@ public sealed partial class HostelService
                 _logger.LogInformation(
                     "Upcoming no-charge hostel checkout shortened for tenant {TenantId}, allocation {AllocationId}, {OldEnd} to {NewEnd}",
                     tenant, allocation.Id, previous, request.EndDate);
-                return ApiResponse<StudentHostelAllocationDto>.SuccessResponse(
+                var success = ApiResponse<StudentHostelAllocationDto>.SuccessResponse(
                     await MapAsync(allocation, ct), "Upcoming no-charge checkout shortened.");
+                await _commandReceipts.RecordAsync(tenant, _currentUser.UserId, operation,
+                    requestId, id, requestHash, success, ct);
+                await _unitOfWork.SaveChangesAsync(ct);
+                return success;
             }, System.Data.IsolationLevel.Serializable, cancellationToken);
         }
         catch (DbUpdateConcurrencyException) { return Error("Reservation changed. Reload and retry.", 409); }

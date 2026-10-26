@@ -7,6 +7,7 @@
     const save = document.getElementById('hostelNoChargeShorteningSave');
     const cancel = document.getElementById('hostelNoChargeShorteningCancel');
     let pending = null;
+    let requestKey = null, requestSignature = null;
     const today = () => {
         const d = new Date();
         return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'),
@@ -23,7 +24,8 @@
         alert.textContent = message; alert.focus();
     };
     const dismiss = () => {
-        pending = null; field.value = ''; panel.classList.add('d-none');
+        pending = null; requestKey = null; requestSignature = null;
+        field.value = ''; panel.classList.add('d-none');
     };
     window.hostelUpcomingNoChargeShortening = {
         begin(item) {
@@ -51,6 +53,11 @@
             notify('Choose checkout on or after arrival and before the existing checkout.'); return;
         }
         if (!confirm('Shorten this future no-charge stay? The released dates become available.')) return;
+        if (!window.crypto?.randomUUID) { notify('Secure browser context required.'); return; }
+        const signature = [pending.id, endDate, pending.rowVersion].join('|');
+        if (signature !== requestSignature) {
+            requestSignature = signature; requestKey = window.crypto.randomUUID();
+        }
         save.disabled = true;
         try {
             const token = document.querySelector('meta[name="request-verification-token"]')?.content;
@@ -60,7 +67,7 @@
                 method: 'POST', credentials: 'same-origin', cache: 'no-store',
                 headers: { Accept: 'application/json', 'Content-Type': 'application/json',
                     RequestVerificationToken: token },
-                body: JSON.stringify({ endDate, rowVersion: pending.rowVersion })
+                body: JSON.stringify({ clientRequestId: requestKey, endDate, rowVersion: pending.rowVersion })
             });
             const result = await response.json().catch(() => null);
             if (!response.ok || !result?.success)

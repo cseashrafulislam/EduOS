@@ -30,6 +30,12 @@ limit, and stores its successful outcome through the tenant-scoped
 Older clients without a request UUID use a deterministic key bound to tenant,
 actor, allocation, requested date, and the original row version.
 
+The existing **zero-charge Hostel extension and upcoming shortening** use the same
+durable receipt contract, without changing rent, deposit, fee head, invoice or ledger.
+These commands still reject posted activity and all charged stays. A successful
+retry returns the previously recorded response without a second date or audit update;
+the original request key must not be reused for a different checkout date.
+
 **Important limitation:** The existing Finance schema does not link a posted invoice or
 payment to a specific Hostel/Transport reservation. Until a trustworthy link is
 introduced, the guard intentionally blocks any posted enrollment invoice or successful

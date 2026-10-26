@@ -246,6 +246,49 @@ public sealed class HostelCampusSecurityTests
                 ClientRequestId = Guid.NewGuid(), StartDate = today.AddDays(5), RowVersion = version
             });
         overNinetyDays.StatusCode.Should().Be(409);
+
+        // Separate zero-charge period corrections must also replay their original
+        // successful result without changing the canonical audit timestamp.
+        allocation.EndDate = today.AddDays(50);
+        await db.SaveChangesAsync();
+        var extensionKey = Guid.NewGuid();
+        var extension = new ExtendNoChargeHostelStayRequestDto
+        {
+            ClientRequestId = extensionKey, EndDate = today.AddDays(55), RowVersion = version
+        };
+        var extended = await service.ExtendNoChargeStayAsync(allocation.Id, extension);
+        extended.Success.Should().BeTrue(extended.Message);
+        var extensionAudit = allocation.UpdatedAt;
+        var extendedReplay = await service.ExtendNoChargeStayAsync(allocation.Id, extension);
+        extendedReplay.Success.Should().BeTrue(extendedReplay.Message);
+        extendedReplay.Message.Should().Be(extended.Message);
+        allocation.UpdatedAt.Should().Be(extensionAudit);
+        (await db.IdempotencyRecords.CountAsync(x => x.Scope == "hostel.no-charge-stay-extension"))
+            .Should().Be(1);
+        (await service.ExtendNoChargeStayAsync(allocation.Id, new ExtendNoChargeHostelStayRequestDto
+        {
+            ClientRequestId = extensionKey, EndDate = today.AddDays(56), RowVersion = version
+        })).StatusCode.Should().Be(409);
+
+        var shorteningKey = Guid.NewGuid();
+        var shortening = new ShortenUpcomingNoChargeHostelStayRequestDto
+        {
+            ClientRequestId = shorteningKey, EndDate = today.AddDays(45), RowVersion = version
+        };
+        var shortened = await service.ShortenUpcomingNoChargeStayAsync(allocation.Id, shortening);
+        shortened.Success.Should().BeTrue(shortened.Message);
+        var shorteningAudit = allocation.UpdatedAt;
+        var shortenedReplay = await service.ShortenUpcomingNoChargeStayAsync(allocation.Id, shortening);
+        shortenedReplay.Success.Should().BeTrue(shortenedReplay.Message);
+        shortenedReplay.Message.Should().Be(shortened.Message);
+        allocation.UpdatedAt.Should().Be(shorteningAudit);
+        (await db.IdempotencyRecords.CountAsync(x => x.Scope == "hostel.upcoming-no-charge-shortening"))
+            .Should().Be(1);
+        (await service.ShortenUpcomingNoChargeStayAsync(allocation.Id,
+            new ShortenUpcomingNoChargeHostelStayRequestDto
+            {
+                ClientRequestId = shorteningKey, EndDate = today.AddDays(44), RowVersion = version
+            })).StatusCode.Should().Be(409);
     }
 
     private static HostelService CreateService(EduOSDbContext db) => new(

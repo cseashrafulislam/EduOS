@@ -16,12 +16,15 @@ test('no-charge future checkout shortening is a complete authorized vertical sli
     for (const term of ['IsolationLevel.Serializable', 'CanManageCampusAsync',
         'allocation.MonthlyRent != 0m', 'allocation.SecurityDeposit != 0m',
         'allocation.FeeHeadId.HasValue', 'RowVersion.AsSpan().SequenceEqual',
-        'allocation.UpdatedBy', 'allocation.StartDate <= today'])
+        'allocation.UpdatedBy', 'allocation.StartDate <= today',
+        'ReplayAsync<StudentHostelAllocationDto>', '_commandReceipts.RecordAsync'])
         assert.ok(service.includes(term), term);
     assert.match(view, /hostelNoChargeShorteningPanel/);
     assert.match(index, /hostelUpcomingNoChargeShortening/);
     assert.match(index, /hostel-stay-shortened/);
     assert.match(js, /rowVersion: pending\.rowVersion/);
+    assert.match(js, /clientRequestId: requestKey/);
+    assert.match(js, /crypto\.randomUUID/);
     assert.match(js, /RequestVerificationToken: token/);
     assert.doesNotMatch(js, /innerHTML/);
     new Function(js);
