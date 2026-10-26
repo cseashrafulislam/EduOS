@@ -88,7 +88,7 @@ public sealed class StudentOptionalSubjectQueryService : IStudentOptionalSubject
                 item.AcademicCurriculumId == enrollment.AcademicCurriculumId &&
                 item.AcademicLevelId == enrollment.AcademicLevelId
             orderby subject.Name, offering.Code
-            select new { item.SubjectId, Offering = new OptionalSubjectOfferingDto
+            select new { item.SubjectId, OfferingId = offering.Id, Offering = new OptionalSubjectOfferingDto
             {
                 Reference = offering.PublicId, Code = subject.Code,
                 SubjectName = subject.Name, Capacity = offering.Capacity
@@ -98,10 +98,20 @@ public sealed class StudentOptionalSubjectQueryService : IStudentOptionalSubject
         var missing = await helper.MissingAsync(tenant, student.Id, enrollment.CampusId,
             enrollment.AcademicCurriculumId, options.Select(x => x.SubjectId).ToArray(),
             DateOnly.FromDateTime(DateTime.UtcNow), ct);
+        var offeringIds = options.Select(x => x.OfferingId).ToArray();
+        var reserved = await _registrations.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && offeringIds.Contains(x.SubjectOfferingId) && !x.IsDeleted &&
+            x.State != SubjectRegistrationState.Rejected && x.State != SubjectRegistrationState.Dropped)
+            .GroupBy(x => x.SubjectOfferingId)
+            .Select(x => new { OfferingId = x.Key, Count = x.Count() })
+            .ToDictionaryAsync(x => x.OfferingId, x => x.Count, ct);
         foreach (var option in options)
         {
             option.Offering.MissingPrerequisites = missing.GetValueOrDefault(option.SubjectId) ?? Array.Empty<string>();
-            option.Offering.IsEligible = option.Offering.MissingPrerequisites.Count == 0;
+            option.Offering.SeatsRemaining = Math.Max(0, option.Offering.Capacity -
+                reserved.GetValueOrDefault(option.OfferingId));
+            option.Offering.IsEligible = option.Offering.MissingPrerequisites.Count == 0 &&
+                option.Offering.SeatsRemaining > 0;
         }
 
         var registrations = await (from registration in _registrations.GetQueryable().AsNoTracking()

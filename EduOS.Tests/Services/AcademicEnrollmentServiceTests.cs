@@ -309,6 +309,124 @@ public sealed class AcademicEnrollmentServiceTests
         (await query.GetAsync(seed.OtherStudentRef)).StatusCode.Should().Be(404);
     }
 
+
+    [Fact]
+    public async Task Required_subject_offering_capacity_rejects_second_enrollment_without_partial_registration()
+    {
+        var options = Options();
+        var seed = await SeedAsync(options, 3);
+        await using var db = Context(options, 101, 7, "TenantAdmin");
+        var core = await db.Set<SubjectOffering>().SingleAsync(x => x.Code == "G9-MATH");
+        core.Capacity = 1;
+        await db.SaveChangesAsync();
+        var service = Service(db, new TestUser(101, 7, "TenantAdmin"));
+        var first = await service.EnrollAsync(new CreateStudentEnrollmentRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), StudentReference = seed.StudentRef,
+            AcademicBatchId = seed.BatchId, AcademicCurriculumId = seed.CurriculumId,
+            RollNo = "01", EnrollmentDate = new DateOnly(2026, 9, 21)
+        });
+        first.Success.Should().BeTrue();
+        var denied = await service.EnrollAsync(new CreateStudentEnrollmentRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), StudentReference = seed.OtherStudentRef,
+            AcademicBatchId = seed.BatchId, AcademicCurriculumId = seed.CurriculumId,
+            RollNo = "02", EnrollmentDate = new DateOnly(2026, 9, 21)
+        });
+        denied.StatusCode.Should().Be(409);
+        (await db.StudentEnrollments.CountAsync()).Should().Be(1);
+        (await db.StudentSubjectRegistrations.CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Pending_elective_reserves_last_seat_and_rejection_releases_it()
+    {
+        var options = Options();
+        var seed = await SeedAsync(options, 3);
+        await using var db = Context(options, 101, 7, "TenantAdmin");
+        var elective = await db.Set<SubjectOffering>().SingleAsync(x => x.Code == "G9-MUSIC");
+        elective.Capacity = 1;
+        await db.SaveChangesAsync();
+        var service = Service(db, new TestUser(101, 7, "TenantAdmin"));
+        var enrollments = new List<Guid>();
+        foreach (var (reference, roll) in new[] { (seed.StudentRef, "01"), (seed.OtherStudentRef, "02") })
+        {
+            var result = await service.EnrollAsync(new CreateStudentEnrollmentRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), StudentReference = reference,
+                AcademicBatchId = seed.BatchId, AcademicCurriculumId = seed.CurriculumId,
+                RollNo = roll, EnrollmentDate = new DateOnly(2026, 9, 21)
+            });
+            result.Success.Should().BeTrue();
+            enrollments.Add(result.Data!.Reference);
+        }
+        var firstRequest = new RegisterStudentSubjectRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), StudentEnrollmentReference = enrollments[0],
+            SubjectOfferingReference = seed.OptionalOfferingRef
+        };
+        var first = await service.RequestOptionalSubjectAsync(firstRequest);
+        first.Success.Should().BeTrue();
+        (await service.RequestOptionalSubjectAsync(firstRequest)).Data!.Id.Should().Be(first.Data!.Id);
+        var secondRequest = new RegisterStudentSubjectRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), StudentEnrollmentReference = enrollments[1],
+            SubjectOfferingReference = seed.OptionalOfferingRef
+        };
+        (await service.RequestOptionalSubjectAsync(secondRequest)).StatusCode.Should().Be(409);
+        var workspace = await SubjectQuery(db, new TestUser(101, 7, "TenantAdmin")).GetAsync(seed.OtherStudentRef);
+        workspace.Data!.Offerings.Single().SeatsRemaining.Should().Be(0);
+        workspace.Data.Offerings.Single().IsEligible.Should().BeFalse();
+
+        var pending = await db.StudentSubjectRegistrations.SingleAsync(x => x.Id == first.Data.Id);
+        pending.RowVersion = [1, 2, 3, 4, 5, 6, 7, 8];
+        await db.SaveChangesAsync();
+        var rejected = await service.DecideSubjectAsync(pending.Id, new ChangeSubjectRegistrationStateRequestDto
+        {
+            State = SubjectRegistrationState.Rejected,
+            RowVersion = Convert.ToBase64String(pending.RowVersion)
+        });
+        rejected.Success.Should().BeTrue();
+        (await service.RequestOptionalSubjectAsync(secondRequest)).Success.Should().BeTrue();
+        (await db.StudentSubjectRegistrations.CountAsync(x => x.SubjectOfferingId == elective.Id &&
+            x.State != SubjectRegistrationState.Rejected && x.State != SubjectRegistrationState.Dropped)).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Elective_approval_fails_closed_when_offering_capacity_becomes_invalid()
+    {
+        var options = Options();
+        var seed = await SeedAsync(options, 3);
+        await using var db = Context(options, 101, 7, "TenantAdmin");
+        var service = Service(db, new TestUser(101, 7, "TenantAdmin"));
+        var enrolled = await service.EnrollAsync(new CreateStudentEnrollmentRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), StudentReference = seed.StudentRef,
+            AcademicBatchId = seed.BatchId, AcademicCurriculumId = seed.CurriculumId,
+            RollNo = "01", EnrollmentDate = new DateOnly(2026, 9, 21)
+        });
+        enrolled.Success.Should().BeTrue();
+        var request = await service.RequestOptionalSubjectAsync(new RegisterStudentSubjectRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), StudentEnrollmentReference = enrolled.Data!.Reference,
+            SubjectOfferingReference = seed.OptionalOfferingRef
+        });
+        request.Success.Should().BeTrue();
+        var elective = await db.Set<SubjectOffering>().SingleAsync(x => x.Code == "G9-MUSIC");
+        elective.Capacity = 0;
+        var pending = await db.StudentSubjectRegistrations.SingleAsync(x => x.Id == request.Data!.Id);
+        pending.RowVersion = [1, 2, 3, 4, 5, 6, 7, 8];
+        await db.SaveChangesAsync();
+        var denied = await service.DecideSubjectAsync(pending.Id, new ChangeSubjectRegistrationStateRequestDto
+        {
+            State = SubjectRegistrationState.Approved,
+            RowVersion = Convert.ToBase64String(pending.RowVersion)
+        });
+        denied.StatusCode.Should().Be(409);
+        (await db.StudentSubjectRegistrations.SingleAsync(x => x.Id == pending.Id))
+            .State.Should().Be(SubjectRegistrationState.Pending);
+    }
+
     private static StudentOptionalSubjectQueryService SubjectQuery(EduOSDbContext db, ICurrentUserService user) => new(
         new GenericRepository<Student>(db), new GenericRepository<StudentEnrollment>(db),
         new GenericRepository<SubjectOffering>(db), new GenericRepository<CurriculumSubject>(db),
@@ -394,12 +512,12 @@ public sealed class AcademicEnrollmentServiceTests
         var coreOffering = new SubjectOffering
         {
             TenantId = 101, AcademicBatchId = batch.Id, CurriculumSubjectId = core.Id,
-            AcademicYearId = year.Id, Code = "G9-MATH"
+            AcademicYearId = year.Id, Code = "G9-MATH", Capacity = capacity
         };
         var electiveOffering = new SubjectOffering
         {
             TenantId = 101, AcademicBatchId = batch.Id, CurriculumSubjectId = elective.Id,
-            AcademicYearId = year.Id, Code = "G9-MUSIC"
+            AcademicYearId = year.Id, Code = "G9-MUSIC", Capacity = capacity
         };
         var slot = new RoutineTimeSlot
         {

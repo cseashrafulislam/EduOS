@@ -20,6 +20,7 @@ function refresh(){
  el('subjectsOffering').disabled=busy||!workspace;
  el('subjectsRequestButton').disabled=busy||!workspace||!chosen||chosen.isEligible===false;
  el('subjectsEligibility').textContent=missing.length?'Complete prerequisites: '+missing.join(', '):'Eligibility is rechecked on approval.';
+ el('subjectsCapacity').textContent=chosen?(chosen.seatsRemaining+' of '+chosen.capacity+' seats remaining'+(chosen.seatsRemaining<=0?' — Full':'')):'Select an elective to check seats.';
 }
 async function load(ref){
  const data=await api('/api/student-optional-subjects/students/'+encodeURIComponent(ref));
@@ -30,7 +31,7 @@ async function load(ref){
  const menu=el('subjectsOffering');menu.replaceChildren(new Option('Choose optional subject',''));
  for(const item of data.offerings||[]){
    const missing=item.missingPrerequisites||[];
-   const option=new Option(item.subjectName+' ('+item.code+')'+(missing.length?' — Requires: '+missing.join(', '):''),item.reference);
+   const option=new Option(item.subjectName+' ('+item.code+') — '+item.seatsRemaining+'/'+item.capacity+' seats'+(missing.length?' — Requires: '+missing.join(', '):'')+(item.seatsRemaining<=0?' — Full':''),item.reference);
    option.disabled=item.isEligible===false;menu.add(option);
   }
  const table=el('subjectsRegistrations');table.replaceChildren();

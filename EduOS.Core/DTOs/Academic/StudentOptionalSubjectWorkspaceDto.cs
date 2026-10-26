@@ -17,6 +17,7 @@ public sealed class OptionalSubjectOfferingDto
     public string Code { get; set; } = string.Empty;
     public string SubjectName { get; set; } = string.Empty;
     public int Capacity { get; set; }
+    public int SeatsRemaining { get; set; }
     public bool IsEligible { get; set; } = true;
     public IReadOnlyList<string> MissingPrerequisites { get; set; } = Array.Empty<string>();
 }

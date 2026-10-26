@@ -9,6 +9,7 @@ using EduOS.Core.Interfaces.IServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
+using System.Data;
 
 namespace EduOS.Service.Services.Academic;
 
@@ -169,7 +170,7 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
                 return Error<StudentEnrollmentDto>("Curriculum must contain required subjects.", 409);
             var requiredIds = requiredSubjects.Select(x => x.Id).ToArray();
             var offerings = await _offerings.GetQueryable().AsNoTracking().Where(x =>
-                x.TenantId == tenant && x.AcademicBatchId == batch.Id && x.IsActive &&
+                x.TenantId == tenant && x.AcademicBatchId == batch.Id && x.IsActive && !x.IsDeleted &&
                 requiredIds.Contains(x.CurriculumSubjectId)).ToListAsync(ct);
             if (offerings.GroupBy(x => x.CurriculumSubjectId).Any(x => x.Count() != 1) ||
                 requiredSubjects.Any(x => offerings.All(y => y.CurriculumSubjectId != x.Id)))
@@ -193,6 +194,16 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
                 x.TenantId == tenant && x.AcademicBatchId == batch.Id && x.RollNo == roll &&
                 x.IsCurrent && !x.IsDeleted, ct))
                 throw new BatchAllocationException("Roll already assigned in this academic batch.");
+
+            // Every mandatory registration consumes one seat in its subject offering.
+            // The surrounding SERIALIZABLE transaction protects these predicate counts
+            // against simultaneous enrollment and elective reservations.
+            foreach (var offering in offerings.OrderBy(x => x.Id))
+            {
+                var reserved = await CountReservedSeatsAsync(offering.Id, ct);
+                if (offering.Capacity <= 0 || reserved >= offering.Capacity)
+                    throw new BatchAllocationException($"Required subject offering {offering.Code} has no available seats.");
+            }
 
             var now = _clock.GetUtcNow().UtcDateTime;
             var entity = new StudentEnrollment
@@ -248,11 +259,11 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
             var offering = await (from offer in _offerings.GetQueryable().AsNoTracking()
                 join item in _curriculumSubjects.GetQueryable().AsNoTracking() on offer.CurriculumSubjectId equals item.Id
                 where offer.TenantId == tenant && item.TenantId == tenant && offer.IsActive && item.IsActive &&
-                    offer.PublicId == request.SubjectOfferingReference && offer.AcademicBatchId == enrollment.AcademicBatchId &&
+                    !offer.IsDeleted && !item.IsDeleted && offer.PublicId == request.SubjectOfferingReference && offer.AcademicBatchId == enrollment.AcademicBatchId &&
                     offer.AcademicYearId == enrollment.AcademicYearId && item.IsOptional &&
                     item.AcademicCurriculumId == enrollment.AcademicCurriculumId &&
                     item.AcademicLevelId == enrollment.AcademicLevelId
-                select new { offer.Id, item.CreditHours, item.SubjectId }).FirstOrDefaultAsync(ct);
+                select new { offer.Id, offer.Capacity, item.CreditHours, item.SubjectId }).FirstOrDefaultAsync(ct);
             if (offering == null)
                 return Error<StudentSubjectRegistrationDto>("Optional subject offering is not available for this enrollment.", 409);
             var replay = await _registrations.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
@@ -272,6 +283,10 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
             var missing = await MissingPrerequisitesAsync(enrollment, offering.SubjectId, ct);
             if (missing.Count > 0)
                 return Error<StudentSubjectRegistrationDto>("Complete prerequisites first: " + string.Join(", ", missing), 409);
+            // Pending requests reserve a seat until approved, rejected or dropped.
+            // This matches SubjectOffering setup's capacity/deactivation rules.
+            if (offering.Capacity <= 0 || await CountReservedSeatsAsync(offering.Id, ct) >= offering.Capacity)
+                throw new BatchAllocationException("Optional subject offering capacity has been reached.");
             var now = _clock.GetUtcNow().UtcDateTime;
             var entity = new StudentSubjectRegistration
             {
@@ -307,7 +322,7 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
             var offering = await (from offer in _offerings.GetQueryable().AsNoTracking()
                 join item in _curriculumSubjects.GetQueryable().AsNoTracking() on offer.CurriculumSubjectId equals item.Id
                 where offer.TenantId == tenant && item.TenantId == tenant && offer.Id == entity.SubjectOfferingId
-                select new { item.IsOptional, item.SubjectId, item.AcademicCurriculumId, item.AcademicLevelId,
+                select new { offer.Id, offer.Capacity, item.IsOptional, item.SubjectId, item.AcademicCurriculumId, item.AcademicLevelId,
                     offer.AcademicBatchId, offer.AcademicYearId, offer.IsActive, ItemActive = item.IsActive }).FirstOrDefaultAsync(ct);
             if (offering == null || !offering.IsOptional)
                 return Error<StudentSubjectRegistrationDto>("Required subjects cannot use elective approval.", 409);
@@ -333,6 +348,10 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
                 var missing = await MissingPrerequisitesAsync(enrollment, offering.SubjectId, ct);
                 if (missing.Count > 0)
                     return Error<StudentSubjectRegistrationDto>("Complete prerequisites first: " + string.Join(", ", missing), 409);
+                // The pending request already occupies one seat. Revalidate before
+                // approval to fail closed on legacy over-allocation or changed limits.
+                if (offering.Capacity <= 0 || await CountReservedSeatsAsync(offering.Id, ct) > offering.Capacity)
+                    throw new BatchAllocationException("Optional subject offering is over capacity.");
             }
             var now = _clock.GetUtcNow().UtcDateTime;
             entity.State = request.State;
@@ -468,11 +487,16 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
         }).ToList();
     }
 
+    private Task<int> CountReservedSeatsAsync(long offeringId, CancellationToken ct) =>
+        _registrations.GetQueryable().AsNoTracking().CountAsync(x =>
+            x.TenantId == _user.TenantId && x.SubjectOfferingId == offeringId && !x.IsDeleted &&
+            x.State != SubjectRegistrationState.Rejected && x.State != SubjectRegistrationState.Dropped, ct);
+
     private async Task<ApiResponse<T>> ExecuteWriteAsync<T>(string operation, Func<Task<ApiResponse<T>>> action)
     {
         try
         {
-            return await _uow.ExecuteInTransactionAsync(_ => action());
+            return await _uow.ExecuteInTransactionAsync(_ => action(), IsolationLevel.Serializable);
         }
         catch (BatchAllocationException ex)
         {
