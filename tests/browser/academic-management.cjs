@@ -38,6 +38,25 @@ async function main() {
             if (!url.pathname.startsWith('/api/'))
                 return route.fulfill({ status: 200, contentType: 'text/html', body: html });
             if (request.method() === 'GET') {
+                if (url.pathname === '/api/academic-setup/levels') {
+                    let items = catalog.levels.filter(x =>
+                        !url.searchParams.get('academicProgramId') ||
+                        x.academicProgramId === Number(url.searchParams.get('academicProgramId')));
+                    const prefix = (url.searchParams.get('search') || '').toLowerCase();
+                    if (prefix) items = items.filter(x => x.name.toLowerCase().startsWith(prefix) ||
+                        x.code.toLowerCase().startsWith(prefix));
+                    const page = Number(url.searchParams.get('page') || 1);
+                    const size = Number(url.searchParams.get('pageSize') || 20);
+                    const data = { items: items.slice((page - 1) * size, page * size),
+                        totalCount: items.length, page, pageSize: size };
+                    return route.fulfill({ status: 200, contentType: 'application/json',
+                        body: JSON.stringify({ success: true, data }) });
+                }
+                if (/^\/api\/academic-setup\/levels\/\d+$/.test(url.pathname)) {
+                    const data = catalog.levels.find(x => x.id === Number(url.pathname.split('/').at(-1)));
+                    return route.fulfill({ status: data ? 200 : 404, contentType: 'application/json',
+                        body: JSON.stringify({ success: !!data, data }) });
+                }
                 const data = {
                     '/api/institution-onboarding/academic-years': years,
                     '/api/institution-onboarding/academic-terms': terms,
@@ -50,6 +69,11 @@ async function main() {
             assert.equal(request.headers()['requestverificationtoken'], 'browser-test-csrf');
             const data = request.postDataJSON() || {};
             mutations.push({ path: url.pathname, method: request.method(), data });
+            if (request.method() === 'PUT' &&
+                /^\/api\/academic-setup\/levels\/\d+$/.test(url.pathname)) {
+                const row = catalog.levels.find(x => x.id === Number(url.pathname.split('/').at(-1)));
+                if (row) Object.assign(row, data);
+            }
             if (url.pathname.endsWith('/activate')) {
                 const id = Number(url.pathname.split('/').at(-2));
                 catalog.curricula.forEach(x => { x.isCurrent = x.id === id; });
@@ -79,6 +103,7 @@ async function main() {
         await page.goto('http://eduos.test/AcademicManagement/Index');
         await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/academic/management.js') });
         await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/academic/management-forms.js') });
+        await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/academic/levels.js') });
         await page.waitForSelector('#yearRows tr');
         assert.match(await page.locator('#yearRows').innerText(), /Academic 2026/);
 
@@ -94,6 +119,13 @@ async function main() {
         await page.locator('#levelNumber').fill('9');
         await page.locator('#levelForm button[type="submit"]').click();
         await page.waitForFunction(() => document.querySelector('#levelRows')?.textContent.includes('Grade Nine'));
+        await page.locator('#levelRows button').first().click();
+        await page.waitForFunction(() => !document.querySelector('#levelEditForm')?.classList.contains('d-none'));
+        await page.locator('#levelEditName').fill('Grade Nine Updated');
+        await page.locator('#levelEditForm button[type="submit"]').click();
+        await page.waitForFunction(() => document.querySelector('#levelRows')?.textContent.includes('Grade Nine Updated'));
+        assert(mutations.some(x => x.path === '/api/academic-setup/levels/501' && x.method === 'PUT'));
+        await page.locator('#levelCsv').click();
 
         await page.locator('[data-panel="subjects"]').click();
         await page.locator('#subjectName').fill('Mathematics');
