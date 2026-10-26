@@ -19,6 +19,12 @@ public sealed class LibraryReservationsController : ControllerBase
     private readonly ILibraryReservationService _service;
     public LibraryReservationsController(ILibraryReservationService implementation) => _service = implementation;
 
+    [HttpGet("eligible-students")]
+    [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
+    public async Task<IActionResult> EligibleStudents([FromQuery] string search, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, CancellationToken ct = default) =>
+        Reply(await _service.SearchEligibleStudentsAsync(search, page, pageSize, ct));
+
     [HttpGet("mine")]
     public async Task<IActionResult> Mine([FromQuery] int page = 1, [FromQuery] int pageSize = 20,
         CancellationToken ct = default) => Reply(await _service.GetMyReservationsAsync(page, pageSize, ct));

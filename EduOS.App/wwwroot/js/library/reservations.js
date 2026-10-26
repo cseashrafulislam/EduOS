@@ -3,7 +3,10 @@
     const el = id => document.getElementById(id);
     const root = el('reservationApp');
     if (!root) return;
-    const staff = root.dataset.staff === 'true', state = { mine: 1, queue: 1, book: '', copies: [], key: crypto.randomUUID(), search: 0, queueRequest: 0 };
+    const staff = root.dataset.staff === 'true', state = {
+        mine: 1, queue: 1, book: '', copies: [], key: crypto.randomUUID(), search: 0,
+        queueRequest: 0, studentRequest: 0, studentPage: 1
+    };
     const stateNames = { 1: 'Pending', 2: 'Fulfilled', 3: 'Cancelled', 4: 'Expired' };
     function alertUser(text, ok = false) {
         const target = el('reservationAlert');
@@ -58,6 +61,38 @@
             state.book = select.value;
             if (staff) await loadQueue();
         } catch (error) { alertUser(error.message); }
+    }
+    async function loadStudents(page = 1) {
+        if (!staff) return;
+        const search = el('reservationStudentSearch').value.trim();
+        if (search.length < 2 || search.length > 100) {
+            el('reservationStudentStatus').textContent = 'Enter at least 2 characters of a student name or code.';
+            return;
+        }
+        const sequence = ++state.studentRequest;
+        const select = el('reservationStudent'), more = el('reservationStudentMore');
+        more.hidden = true;
+        if (page === 1) select.replaceChildren(new Option('My linked student account', ''));
+        el('reservationStudentStatus').textContent = 'Searching active students…';
+        try {
+            const data = await api('/api/library/reservations/eligible-students?' + new URLSearchParams({
+                search, page, pageSize: 20
+            }));
+            if (sequence !== state.studentRequest || el('reservationStudentSearch').value.trim() !== search) return;
+            (data?.items || []).forEach(student => select.add(new Option(
+                `${student.studentCode} — ${student.studentName}`, student.studentReference)));
+            state.studentPage = page;
+            more.hidden = !data?.hasNextPage;
+            el('reservationStudentStatus').textContent = data?.totalCount
+                ? `${data.totalCount} matching active student(s). Select the correct student below.`
+                : 'No active students matched. Try the beginning of a name or code.';
+        } catch (error) {
+            if (sequence === state.studentRequest) {
+                more.hidden = true;
+                el('reservationStudentStatus').textContent = 'Student search unavailable.';
+                alertUser(error.message);
+            }
+        }
     }
     async function loadMine() {
         try {
@@ -132,16 +167,31 @@
     }
     el('reservationSearch').addEventListener('submit', e => { e.preventDefault(); searchBooks(); });
     el('reservationBook').addEventListener('change', () => { state.queue = 1; state.key = crypto.randomUUID(); loadQueue(); });
-    el('reservationStudent')?.addEventListener('input', () => { state.key = crypto.randomUUID(); });
+    if (staff) {
+        el('reservationStudentSearchForm').addEventListener('submit', e => { e.preventDefault(); loadStudents(); });
+        el('reservationStudentMore').addEventListener('click', () => loadStudents(state.studentPage + 1));
+        el('reservationStudentSearch').addEventListener('input', () => {
+            ++state.studentRequest;
+            el('reservationStudent').replaceChildren(new Option('My linked student account', ''));
+            el('reservationStudentMore').hidden = true;
+            el('reservationStudentStatus').textContent = 'Search to choose an active student.';
+            state.key = crypto.randomUUID();
+        });
+        el('reservationStudent').addEventListener('change', () => { state.key = crypto.randomUUID(); });
+    }
     el('reservationCreate').addEventListener('submit', async e => {
         e.preventDefault();
         const book = el('reservationBook').value;
         if (!book) { alertUser('Choose a book.'); return; }
+        if (staff && el('reservationStudentSearch').value.trim() && !el('reservationStudent').value) {
+            alertUser('Select a student from the search results, or clear the search to use your linked student account.');
+            return;
+        }
         const button = el('reservationCreateButton'); button.disabled = true;
         try {
             await api('/api/library/reservations', 'POST', {
                 clientRequestId: state.key, bookReference: book,
-                studentReference: staff ? (el('reservationStudent').value.trim() || '00000000-0000-0000-0000-000000000000')
+                studentReference: staff ? (el('reservationStudent').value || '00000000-0000-0000-0000-000000000000')
                     : '00000000-0000-0000-0000-000000000000'
             });
             state.key = crypto.randomUUID(); alertUser('Reservation placed.', true);

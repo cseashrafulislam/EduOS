@@ -126,3 +126,10 @@ public class ReserveBookRequestDto
     public Guid BookReference { get; set; }
     public Guid StudentReference { get; set; }
 }
+
+public class BookReservationStudentOptionDto
+{
+    public Guid StudentReference { get; set; }
+    public string StudentCode { get; set; } = string.Empty;
+    public string StudentName { get; set; } = string.Empty;
+}

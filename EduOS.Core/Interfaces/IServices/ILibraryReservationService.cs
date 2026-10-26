@@ -5,6 +5,7 @@ namespace EduOS.Core.Interfaces.IServices;
 
 public interface ILibraryReservationService
 {
+    Task<ApiResponse<PagedResult<BookReservationStudentOptionDto>>> SearchEligibleStudentsAsync(string search, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<BookReservationDto>> ReserveBookAsync(ReserveBookRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<BookReservationDto>> CancelReservationAsync(long reservationId, string rowVersion, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<BookReservationDto>>> GetMyReservationsAsync(int page, int pageSize, CancellationToken cancellationToken = default);

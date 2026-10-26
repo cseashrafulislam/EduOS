@@ -15,14 +15,22 @@
                 <div class="col-md-9"><label for="reservationQuery" class="form-label">Book title, author or ISBN</label><input id="reservationQuery" class="form-control" maxlength="150" autocomplete="off" /></div>
                 <div class="col-md-3 d-flex align-items-end"><button type="submit" class="btn btn-outline-primary w-100">Search books</button></div>
             </form>
+            @if (canManage) {
+                <form id="reservationStudentSearchForm" class="row g-2 mb-2">
+                    <div class="col-md-7"><label for="reservationStudentSearch" class="form-label">Find active student by name or code</label><input id="reservationStudentSearch" type="search" class="form-control" maxlength="100" minlength="2" autocomplete="off" placeholder="First letters of name or student code" /></div>
+                    <div class="col-md-3 d-flex align-items-end"><button type="submit" class="btn btn-outline-secondary w-100">Find students</button></div>
+                    <div class="col-md-2 d-flex align-items-end"><button id="reservationStudentMore" type="button" class="btn btn-outline-secondary w-100" hidden>More</button></div>
+                </form>
+                <p id="reservationStudentStatus" class="small text-muted" role="status" aria-live="polite"></p>
+            }
             <form id="reservationCreate" class="row g-2 align-items-end">
                 <div class="col-md-@(canManage ? "5" : "9")"><label for="reservationBook" class="form-label">Book *</label><select id="reservationBook" class="form-select" required><option value="">Select a book</option></select></div>
                 @if (canManage) {
-                    <div class="col-md-4"><label for="reservationStudent" class="form-label">Student public reference (optional for own account)</label><input id="reservationStudent" class="form-control" placeholder="Student GUID" /></div>
+                    <div class="col-md-4"><label for="reservationStudent" class="form-label">Student</label><select id="reservationStudent" class="form-select"><option value="">My linked student account</option></select></div>
                 }
                 <div class="col-md-3"><button id="reservationCreateButton" type="submit" class="btn btn-primary w-100">Reserve book</button></div>
             </form>
-            <p class="text-muted small mt-2 mb-0">Students reserve for themselves. Staff may specify a student public reference. Active enrollment and campus eligibility are checked server-side.</p>
+            <p class="text-muted small mt-2 mb-0">Students reserve for themselves. Staff can search and choose an active student. Active enrollment and campus eligibility are checked server-side.</p>
         </div>
     </section>
     <section class="card mb-3">
