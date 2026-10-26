@@ -1,6 +1,7 @@
 using EduOS.Core.Entities.Hostel;
 using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Xunit;
 
 namespace EduOS.Tests.Services;
@@ -39,7 +40,12 @@ public sealed class HostelOccupiedTransferLineageContractTests
         Assert.True(version.IsConcurrencyToken);
         Assert.Equal(Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.OnAddOrUpdate,
             version.ValueGenerated);
-        Assert.Contains(entity.GetCheckConstraints(), x =>
+        // EF Core 10 omits relational check-constraint metadata from the read-optimized
+        // runtime model; use the design-time model for schema contract assertions.
+        var designEntity = db.GetService<Microsoft.EntityFrameworkCore.Metadata.IDesignTimeModel>()
+            .Model.FindEntityType(typeof(StudentHostelAllocation));
+        Assert.NotNull(designEntity);
+        Assert.Contains(designEntity!.GetCheckConstraints(), x =>
             x.Name == "CK_StudentHostelAllocation_Predecessor" &&
             x.Sql!.Contains("[PreviousAllocationId] <> [Id]", StringComparison.Ordinal));
     }
