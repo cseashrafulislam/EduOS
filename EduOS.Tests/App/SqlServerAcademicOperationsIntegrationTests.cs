@@ -211,12 +211,12 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
         var otherTenant = AttendanceService(db, new Actor(tenantId + 999, managerId, "TenantAdmin"));
         Assert.Equal(404, (await otherTenant.GetCorrectionsAsync(leaveMark.Id)).StatusCode);
         // A replay with a stale version cannot create another correction event.
-        var replay = await attendance.CorrectAttendanceAsync(leaveMark.Id, new AttendanceCorrectionRequestDto
+        var correctionReplay = await attendance.CorrectAttendanceAsync(leaveMark.Id, new AttendanceCorrectionRequestDto
         {
             NewState = AttendanceState.Absent, Reason = "Attendance review confirmed student was absent",
             RowVersion = Convert.ToBase64String(leaveMark.RowVersion)
         });
-        Assert.Equal(409, replay.StatusCode);
+        Assert.Equal(409, correctionReplay.StatusCode);
         Assert.Single(await db.StudentAttendanceAdjustments.AsNoTracking().ToListAsync());
         var finalizedSession = await db.AttendanceSessions.AsNoTracking().SingleAsync();
         Assert.True(finalizedSession.IsFinalized);
