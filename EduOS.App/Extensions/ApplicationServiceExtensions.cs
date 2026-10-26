@@ -74,6 +74,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<IEmailService, EmailService>();
             s.AddScoped<IEmailJob, EmailJob>();
             s.AddScoped<ILearnerIdentityService, LearnerIdentityService>();
+            s.AddScoped<IStudentPersonAddressService, StudentPersonAddressService>();
             s.AddScoped<ILearnerConsentService, LearnerConsentService>();
             s.AddScoped<IAdmissionApplicationService, AdmissionApplicationService>();
             s.AddScoped<IAdmissionCashReceiptService, AdmissionCashReceiptService>();

@@ -78,8 +78,46 @@
             </div>
         </form>
     </section>
+
+    @if (User?.IsInRole("TenantAdmin") == true)
+    {
+        <section class="content-card mt-3" aria-labelledby="identityAddressTitle">
+            <div class="content-card-heading"><h3 id="identityAddressTitle">Structured learner address</h3></div>
+            <p class="small text-muted">Only identities belonging exclusively to this institution can be edited. Existing admission and enrollment address snapshots are preserved.</p>
+            <form id="identityAddressForm" autocomplete="off">
+                @Html.AntiForgeryToken()
+                <div class="row g-3">
+                    <div class="col-md-3"><label for="identityAddressType" class="form-label">Address type</label>
+                        <select id="identityAddressType" class="form-select"><option value="Current">Current</option><option value="Permanent">Permanent</option></select></div>
+                    <div class="col-md-9"><label for="identityAddressLine1" class="form-label">Address line 1</label>
+                        <input id="identityAddressLine1" class="form-control" required minlength="3" maxlength="500" /></div>
+                    <div class="col-md-6"><label for="identityAddressLine2" class="form-label">Address line 2</label>
+                        <input id="identityAddressLine2" class="form-control" maxlength="500" /></div>
+                    <div class="col-md-3"><label for="identityCity" class="form-label">City</label>
+                        <input id="identityCity" class="form-control" maxlength="100" /></div>
+                    <div class="col-md-3"><label for="identityDistrict" class="form-label">District</label>
+                        <input id="identityDistrict" class="form-control" maxlength="100" /></div>
+                    <div class="col-md-4"><label for="identityDivisionOrState" class="form-label">Division / State</label>
+                        <input id="identityDivisionOrState" class="form-control" maxlength="100" /></div>
+                    <div class="col-md-4"><label for="identityPostalCode" class="form-label">Postal code</label>
+                        <input id="identityPostalCode" class="form-control" maxlength="30" /></div>
+                    <div class="col-md-4"><label for="identityCountryCode" class="form-label">Country code</label>
+                        <input id="identityCountryCode" class="form-control" maxlength="2" pattern="[A-Z]{2}" value="BD" required /></div>
+                </div>
+                <input id="identityAddressRowVersion" type="hidden" />
+                <div class="d-flex flex-wrap align-items-center gap-3 mt-3">
+                    <button id="identityAddressSave" class="btn btn-primary" type="submit" disabled>Save address</button>
+                    <span id="identityAddressStatus" class="small" role="status" aria-live="polite"></span>
+                </div>
+            </form>
+        </section>
+    }
 </section>
 
 @section Scripts {
     <script src="~/js/learners/identity-registration.js" asp-append-version="true"></script>
+    @if (User?.IsInRole("TenantAdmin") == true)
+    {
+        <script src="~/js/learners/identity-addresses.js" asp-append-version="true"></script>
+    }
 }
