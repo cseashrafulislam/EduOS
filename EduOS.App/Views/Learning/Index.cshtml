@@ -14,6 +14,25 @@
             <label class="form-check-label"><input id="learningIncludeArchived" type="checkbox" class="form-check-input me-1" /> Include my archived completed courses</label>
             <button id="learningHistoricalExport" type="button" class="btn btn-outline-secondary btn-sm">Export visible courses (CSV)</button>
         </div>
+        <section class="card mb-3" aria-labelledby="learningMyProgressHeading">
+            <div class="card-header d-flex flex-wrap justify-content-between gap-2 align-items-center">
+                <h3 class="h6 mb-0" id="learningMyProgressHeading">My course progress</h3>
+                <div class="d-flex gap-2">
+                    <button id="learningMyProgressRefresh" type="button" class="btn btn-outline-primary btn-sm">Refresh progress</button>
+                    <button id="learningMyProgressExport" type="button" class="btn btn-outline-secondary btn-sm">Export visible page (CSV)</button>
+                </div>
+            </div>
+            <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
+                <thead><tr><th>Course</th><th>Enrollment</th><th>Lessons</th><th>Graded assignments</th><th>Passed quizzes</th><th>Lesson completion</th></tr></thead>
+                <tbody id="learningMyProgressRows"><tr><td colspan="6">Loading progress…</td></tr></tbody>
+            </table></div>
+            <div class="card-footer d-flex justify-content-end align-items-center gap-2">
+                <button id="learningMyProgressPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+                <span id="learningMyProgressPage" aria-live="polite">Page 1</span>
+                <button id="learningMyProgressNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+            </div>
+            <p class="small text-muted px-3 pb-2 mb-0">Lesson completion is not a final course grade or certificate. Only your own active courses appear here.</p>
+        </section>
         <div id="learningHistoricalNotice" class="alert alert-info d-none" role="status">Archived course: published lessons and assignments are available for historical reading only. New progress and submissions are disabled.</div>
     }
     @if(canAuthor) { <div id="learningAuthoringLock" class="alert alert-warning d-none" role="status" aria-live="polite"></div> }

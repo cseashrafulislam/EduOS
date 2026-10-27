@@ -2,7 +2,7 @@
 'use strict';
 const root=document.getElementById('learningApp');if(!root)return;
 const $=id=>document.getElementById(id),author=root.dataset.author==='true',student=root.dataset.student==='true',manager=root.dataset.manager==='true';
-const state={courses:[],detail:null,programs:[],subjects:[],page:1,pages:1,editingCourse:null,editingLesson:null,editingAssignment:null,loadId:0,lessonPage:1,lessonPages:1,assignmentPage:1,assignmentPages:1,reviewPage:1,reviewPages:1,reviewLoadId:0,authoringLocked:true,includeArchived:false};
+const state={courses:[],detail:null,programs:[],subjects:[],page:1,pages:1,editingCourse:null,editingLesson:null,editingAssignment:null,loadId:0,lessonPage:1,lessonPages:1,assignmentPage:1,assignmentPages:1,reviewPage:1,reviewPages:1,reviewLoadId:0,authoringLocked:true,includeArchived:false,myProgressPage:1,myProgressPages:1,myProgressRows:[],myProgressLoadId:0,lessonProgress:new Map(),progressLoaded:false};
 const opt=(value,label)=>{const x=document.createElement('option');x.value=String(value);x.textContent=label;return x;};
 const cell=value=>{const x=document.createElement('td');x.textContent=value==null?'':String(value);return x;};
 const notice=(type,message)=>{const x=$('learningAlert');x.className='alert alert-'+type;x.textContent=message;x.focus();};
@@ -78,6 +78,7 @@ async function saveCourse(e){
 async function load(){
  const x=chosen();if(!x){state.detail=null;state.authoringLocked=true;render();return;}
  const request=++state.loadId;
+ state.lessonProgress=new Map();state.progressLoaded=false;
  try{
   if(author){
    state.authoringLocked=true;
@@ -90,6 +91,12 @@ async function load(){
   state.lessonPages=Math.max(1,d.lessons?.totalPages||1);
   state.assignmentPages=Math.max(1,d.assignments?.totalPages||1);
   state.detail={course:d.course,lessons:d.lessons?.items||[],assignments:d.assignments?.items||[]};
+  if(student){
+   const progress=await api('/api/lms/courses/'+encodeURIComponent(x.reference)+'/lesson-progress?page='+state.lessonPage+'&pageSize=20');
+   if(request!==state.loadId)return;
+   state.lessonProgress=new Map((progress?.items||[]).map(p=>[p.lessonReference,p]));
+   state.progressLoaded=true;
+  }
   $('learningProgress').textContent=(d.lessons?.totalCount||0)+' lessons';render();
  }catch(e){if(request!==state.loadId)return;state.detail=null;render();notice('danger',e.message);}
 }
@@ -119,7 +126,13 @@ function render(){
   if(x.contentUrl){try{const url=new URL(x.contentUrl);if(['http:','https:'].includes(url.protocol)){
    const a=document.createElement('a');a.href=url.href;a.target='_blank';a.rel='noopener noreferrer';a.textContent=' Resource';content.append(a);
   }}catch{}}
-  if(student&&state.detail?.course?.isActive)action.append(button('Mark completed',()=>complete(x)));
+  if(student){
+   const progress=state.lessonProgress.get(x.reference);
+   if(progress?.isCompleted)action.textContent='Completed';
+   else if(!state.progressLoaded)action.textContent='Progress unavailable';
+   else if(state.detail?.course?.isActive)action.append(button('Mark completed',()=>complete(x)));
+   else action.textContent='Not completed';
+  }
   if(author&&!locked)action.append(button('Edit',()=>editLesson(x)));
   tr.append(cell(x.displayOrder),cell(x.title),content,action);lessons.append(tr);
  }
@@ -226,18 +239,74 @@ async function loadReviews(){
  }catch(e){if(seq!==state.reviewLoadId)return;reviewEmpty('Unable to load submissions.');notice('danger',e.message);}
 }
 async function complete(lesson){
- try{await api('/api/lms/lessons/progress','POST',{lessonReference:lesson.reference,progressPercent:100,isCompleted:true});
-  notice('success','Lesson progress saved.');
+ try{const saved=await api('/api/lms/lessons/progress','POST',{lessonReference:lesson.reference,progressPercent:100,isCompleted:true});
+  state.lessonProgress.set(lesson.reference,saved);state.progressLoaded=true;render();
+  notice('success','Lesson progress saved.');await loadMyProgress();
  }catch(e){notice('danger',e.message);}
 }
+
+function renderMyProgress(){
+ const body=$('learningMyProgressRows');body.replaceChildren();
+ for(const x of state.myProgressRows){
+  const tr=document.createElement('tr');
+  const lessons=x.completedLessons+' / '+x.requiredLessons;
+  const assignments=x.gradedAssignments+' / '+x.requiredAssignments;
+  const quizzes=x.passedQuizzes+' / '+x.requiredQuizzes;
+  tr.append(cell(x.courseTitle+' ('+x.courseCode+')'),
+   cell(Number(x.state)===2?'Completed':'Active'),cell(lessons),
+   cell(assignments),cell(quizzes),cell(x.lessonCompletionPercent+'%'));
+  body.append(tr);
+ }
+ if(!body.childNodes.length){
+  const tr=document.createElement('tr'),td=cell('No active course enrollments on this page.');
+  td.colSpan=6;tr.append(td);body.append(tr);
+ }
+ $('learningMyProgressPage').textContent='Page '+state.myProgressPage+' / '+state.myProgressPages;
+ $('learningMyProgressPrev').disabled=state.myProgressPage<=1;
+ $('learningMyProgressNext').disabled=state.myProgressPage>=state.myProgressPages;
+}
+async function loadMyProgress(){
+ if(!student)return;
+ const seq=++state.myProgressLoadId;
+ try{
+  const data=await api('/api/lms/my-progress?page='+state.myProgressPage+'&pageSize=20');
+  if(seq!==state.myProgressLoadId)return;
+  state.myProgressRows=data?.items||[];
+  state.myProgressPages=Math.max(1,data?.totalPages||1);
+  renderMyProgress();
+ }catch(e){
+  if(seq!==state.myProgressLoadId)return;
+  state.myProgressRows=[];renderMyProgress();notice('danger','Unable to load learning progress: '+e.message);
+ }
+}
+function exportMyProgress(){
+ const rows=[['Course','Code','Enrollment','Completed lessons','Required lessons','Graded assignments',
+  'Required assignments','Passed quizzes','Required quizzes','Lesson completion %'],
+  ...state.myProgressRows.map(x=>[x.courseTitle,x.courseCode,Number(x.state)===2?'Completed':'Active',
+   x.completedLessons,x.requiredLessons,x.gradedAssignments,x.requiredAssignments,
+   x.passedQuizzes,x.requiredQuizzes,x.lessonCompletionPercent])];
+ const safe=value=>{
+  let s=String(value??'');
+  if(/^[=+@\-\t\r]/.test(s))s="'"+s;
+  return '"'+s.replaceAll('"','""')+'"';
+ };
+ const csv=rows.map(row=>row.map(safe).join(',')).join('\r\n');
+ const url=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
+ const a=document.createElement('a');a.href=url;a.download='my-lms-progress-page-'+state.myProgressPage+'.csv';
+ a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
 if(student){
+ $('learningMyProgressRefresh').addEventListener('click',()=>loadMyProgress());
+ $('learningMyProgressPrev').addEventListener('click',()=>{if(state.myProgressPage>1){state.myProgressPage--;loadMyProgress();}});
+ $('learningMyProgressNext').addEventListener('click',()=>{if(state.myProgressPage<state.myProgressPages){state.myProgressPage++;loadMyProgress();}});
+ $('learningMyProgressExport').addEventListener('click',exportMyProgress);
  $('learningIncludeArchived').addEventListener('change',e=>{
   state.includeArchived=!!e.target.checked;state.page=1;courses();
  });
  $('learningHistoricalExport').addEventListener('click',()=>{
   const rows=[['Code','Title','Program','Subject','Status'],...state.courses.map(x=>[
    x.code,x.title,x.academicProgramName||'',x.subjectName||'',x.isActive?'Active':'Archived'])];
-  const csv=rows.map(row=>row.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');
+  const csv=rows.map(row=>row.map(v=>{let s=String(v??'');if(/^[=+@\\-\\t\\r]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"';}).join(',')).join('\r\n');
   const url=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
   const a=document.createElement('a');a.href=url;a.download='my-lms-courses-page-'+state.page+'.csv';
   a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -273,5 +342,5 @@ if(author){
  $('learningReviewPrev').addEventListener('click',()=>{if(state.reviewPage>1){state.reviewPage--;loadReviews();}});
  $('learningReviewNext').addEventListener('click',()=>{if(state.reviewPage<state.reviewPages){state.reviewPage++;loadReviews();}});
 }
-catalog();instructors();courses();
+catalog();instructors();courses();if(student)loadMyProgress();
 })();
