@@ -125,9 +125,20 @@ public sealed class InventoryItemHistoryServiceTests
         await db.SaveChangesAsync();
         (await Service(db).GetItemHistoryAsync(item.Id, store.Id, null, null, null, 1, 25))
             .StatusCode.Should().Be(409);
-        line.IsDeleted = false;
+        // Do not mutate a posted line to repair the fixture: DbContext correctly
+        // enforces posted stock immutability. A different item with only a draft
+        // tombstone must remain readable.
+        var cleanItem = new InventoryItem { TenantId = 101, Code = "C", Name = "Clean paper" };
+        db.InventoryItems.Add(cleanItem);
         await db.SaveChangesAsync();
-        var result = await Service(db).GetItemHistoryAsync(item.Id, store.Id, null, null, null, 1, 25);
+        db.InventoryMovementLines.Add(new InventoryMovementLine {
+            TenantId = 101, InventoryMovementId = posted.Id, InventoryItemId = cleanItem.Id,
+            Quantity = 3m, UnitCost = 2m });
+        db.InventoryMovementLines.Add(new InventoryMovementLine {
+            TenantId = 101, InventoryMovementId = draft.Id, InventoryItemId = cleanItem.Id,
+            Quantity = 5m, IsDeleted = true });
+        await db.SaveChangesAsync();
+        var result = await Service(db).GetItemHistoryAsync(cleanItem.Id, store.Id, null, null, null, 1, 25);
         result.StatusCode.Should().Be(200);
         result.Data!.ClosingQuantity.Should().Be(3m);
     }
