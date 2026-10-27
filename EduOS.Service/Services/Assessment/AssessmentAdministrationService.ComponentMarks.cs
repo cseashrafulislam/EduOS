@@ -1,5 +1,6 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Assessment;
+using EduOS.Core.Entities.Assessment;
 using EduOS.Core.Enums.Domain;
 using Microsoft.EntityFrameworkCore;
 
@@ -40,18 +41,12 @@ public sealed partial class AssessmentAdministrationService
             .ToListAsync(ct);
         var masterByRegistration = masters.ToDictionary(x => x.StudentSubjectRegistrationId);
         var masterIds = masters.Select(x => x.Id).ToArray();
-        var componentIds = components.Select(x => x.Id).ToArray();
+        // Include orphaned details in reconciliation rather than silently filtering them out.
         var saved = await _componentMarks.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == tenant && masterIds.Contains(x.StudentAssessmentMarkId) &&
-            componentIds.Contains(x.AssessmentComponentId) && !x.IsDeleted).ToListAsync(ct);
+            !x.IsDeleted).ToListAsync(ct);
         var byMaster = saved.GroupBy(x => x.StudentAssessmentMarkId).ToDictionary(
-            x => x.Key, x => (IReadOnlyList<AssessmentComponentMarkEntryDto>)x.Select(m =>
-                new AssessmentComponentMarkEntryDto
-                {
-                    Id = m.Id, AssessmentComponentId = m.AssessmentComponentId,
-                    ObtainedMarks = m.ObtainedMarks, IsAbsent = m.IsAbsent,
-                    IsWithheld = m.IsWithheld, RowVersion = Version(m.RowVersion)
-                }).ToList());
+            x => x.Key, x => (IReadOnlyList<StudentAssessmentComponentMark>)x.ToList());
         return ApiResponse<AssessmentComponentMarkRosterDto>.SuccessResponse(new()
         {
             AssessmentId = request.AssessmentId, AcademicBatchId = request.AcademicBatchId,
@@ -62,18 +57,32 @@ public sealed partial class AssessmentAdministrationService
             Components = components.Select(x => new AssessmentComponentMarkOptionDto
             {
                 Id = x.Id, Name = x.Name, Code = x.Code, FullMarks = x.FullMarks,
-                PassMarks = x.PassMarks, IsMandatoryPass = x.IsMandatoryPass
+                PassMarks = x.PassMarks, Weightage = x.Weightage,
+                IsMandatoryPass = x.IsMandatoryPass
             }).ToList(),
             Students = roster.Students.Select(x =>
             {
                 masterByRegistration.TryGetValue(x.StudentSubjectRegistrationId, out var master);
+                var details = master != null && byMaster.TryGetValue(master.Id, out var existing)
+                    ? existing : Array.Empty<StudentAssessmentComponentMark>();
+                var check = master == null ? null : AssessmentComponentMarkPolicy.Evaluate(
+                    roster.FullMarks, master.ObtainedMarks, master.IsAbsent,
+                    master.IsWithheld, components, details);
                 return new AssessmentComponentMarkStudentDto
                 {
                     StudentReference = x.StudentReference, StudentCode = x.StudentCode,
                     StudentName = x.StudentName, RollNo = x.RollNo,
                     StudentAssessmentMarkId = master?.Id,
-                    Marks = master != null && byMaster.TryGetValue(master.Id, out var marks)
-                        ? marks : Array.Empty<AssessmentComponentMarkEntryDto>()
+                    SubjectObtainedMarks = master?.ObtainedMarks,
+                    ExpectedSubjectMarks = check?.ExpectedSubjectMarks,
+                    ReconciliationStatus = check?.Status ?? "MissingSubjectMark",
+                    MandatoryComponentsPassed = check?.MandatoryComponentsPassed ?? false,
+                    Marks = details.Select(m => new AssessmentComponentMarkEntryDto
+                    {
+                        Id = m.Id, AssessmentComponentId = m.AssessmentComponentId,
+                        ObtainedMarks = m.ObtainedMarks, IsAbsent = m.IsAbsent,
+                        IsWithheld = m.IsWithheld, RowVersion = Version(m.RowVersion)
+                    }).ToList()
                 };
             }).ToList()
         });

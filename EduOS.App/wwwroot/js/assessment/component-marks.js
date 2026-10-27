@@ -52,7 +52,8 @@
         const editable = roster.isEditable && !state.busy;
         el('cmHeading').textContent = roster.assessmentName + ' / ' + roster.subjectName + ' / ' + comp.name;
         el('cmInfo').textContent = roster.students.length + ' students · Full ' + comp.fullMarks +
-            ' · Pass ' + comp.passMarks + (roster.isResultPublished ? ' · Published (locked)' : '');
+            ' · Pass ' + comp.passMarks + ' · Weight ' + comp.weightage + '%' +
+            (roster.isResultPublished ? ' · Published (locked)' : '');
         for (const student of roster.students) {
             const tr = document.createElement('tr');
             const previous = (student.marks || []).find(x => x.assessmentComponentId === comp.id);
@@ -72,11 +73,17 @@
             tr.append(cell(student.rollNo), cell(student.studentCode), cell(student.studentName));
             for (const input of [mark, absent, withheld]) { const td = document.createElement('td'); td.append(input); tr.append(td); }
             tr.append(cell(student.studentAssessmentMarkId ? (previous ? 'Recorded' : 'Pending') : 'Save subject mark first'));
+            tr.append(cell(student.subjectObtainedMarks));
+            tr.append(cell(student.expectedSubjectMarks));
+            const status = cell(student.reconciliationStatus);
+            if (!['Reconciled', 'NotConfigured', 'MandatoryComponentFailed'].includes(student.reconciliationStatus))
+                status.classList.add('text-danger');
+            tr.append(status);
             body.append(tr);
         }
         if (!roster.students.length) {
             const tr = document.createElement('tr'), td = cell('No eligible registered students.');
-            td.colSpan = 7; tr.append(td); body.append(tr);
+            td.colSpan = 10; tr.append(td); body.append(tr);
         }
         el('cmSave').disabled = !editable || !roster.students.some(x => x.studentAssessmentMarkId);
     }
@@ -147,11 +154,13 @@
         if (!state.roster || !comp) return;
         const safe = v => /^[=+@\-\t\r]/.test(String(v ?? '')) ? "'" + String(v) : v;
         const quote = v => '"' + String(safe(v) ?? '').replace(/"/g, '""') + '"';
-        const rows = [['Roll', 'Student code', 'Student', 'Component', 'Mark', 'Absent', 'Withheld'],
+        const rows = [['Roll', 'Student code', 'Student', 'Component', 'Mark', 'Absent', 'Withheld',
+            'Subject total', 'Calculated total', 'Reconciliation'],
             ...state.roster.students.map(s => {
                 const m = (s.marks || []).find(x => x.assessmentComponentId === comp.id);
                 return [s.rollNo, s.studentCode, s.studentName, comp.name,
-                    m ? m.obtainedMarks : '', m?.isAbsent ?? '', m?.isWithheld ?? ''];
+                    m ? m.obtainedMarks : '', m?.isAbsent ?? '', m?.isWithheld ?? '',
+                    s.subjectObtainedMarks ?? '', s.expectedSubjectMarks ?? '', s.reconciliationStatus];
             })];
         const blob = new Blob(['\uFEFF' + rows.map(r => r.map(quote).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
         const url = URL.createObjectURL(blob), link = document.createElement('a');

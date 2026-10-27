@@ -62,6 +62,17 @@ public sealed partial class AssessmentAdministrationService
             .ToDictionary(x => x.Key, x => x.ToArray());
         var markLookup = marks.GroupBy(x => (x.AssessmentSubjectId, x.StudentSubjectRegistrationId))
             .ToDictionary(x => x.Key, x => x.ToArray());
+        var definitions = await _components.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && subjectIds.Contains(x.AssessmentSubjectId) &&
+            !x.IsDeleted).ToListAsync(ct);
+        var componentsBySubject = definitions.GroupBy(x => x.AssessmentSubjectId)
+            .ToDictionary(x => x.Key, x => (IReadOnlyList<EduOS.Core.Entities.Assessment.AssessmentComponent>)x.ToList());
+        var masterIds = marks.Select(x => x.Id).ToArray();
+        var details = await _componentMarks.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && masterIds.Contains(x.StudentAssessmentMarkId) &&
+            !x.IsDeleted).ToListAsync(ct);
+        var detailsByMaster = details.GroupBy(x => x.StudentAssessmentMarkId)
+            .ToDictionary(x => x.Key, x => (IReadOnlyList<EduOS.Core.Entities.Assessment.StudentAssessmentComponentMark>)x.ToList());
         var output = new List<AssessmentReadinessStudentDto>(students.Count);
         foreach (var person in students)
         {
@@ -90,6 +101,13 @@ public sealed partial class AssessmentAdministrationService
                 if (mark.ObtainedMarks < 0 || mark.ObtainedMarks > subject.FullMarks ||
                     mark.IsAbsent && mark.ObtainedMarks != 0)
                     Issue("InvalidMark");
+                componentsBySubject.TryGetValue(subject.AssessmentSubjectId, out var definitionsForSubject);
+                detailsByMaster.TryGetValue(mark.Id, out var detailsForMark);
+                var componentCheck = AssessmentComponentMarkPolicy.Evaluate(
+                    subject.FullMarks, mark.ObtainedMarks, mark.IsAbsent, mark.IsWithheld,
+                    definitionsForSubject ?? Array.Empty<EduOS.Core.Entities.Assessment.AssessmentComponent>(),
+                    detailsForMark ?? Array.Empty<EduOS.Core.Entities.Assessment.StudentAssessmentComponentMark>());
+                if (!componentCheck.IsReconciled) Issue(componentCheck.Status);
             }
             if (applicable == 0)
                 issues.Add(new AssessmentReadinessIssueDto { Code = "NoApplicableSubjects" });

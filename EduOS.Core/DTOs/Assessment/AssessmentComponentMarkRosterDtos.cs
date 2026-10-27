@@ -14,6 +14,7 @@ public sealed class AssessmentComponentMarkOptionDto
     public string Code { get; set; } = string.Empty;
     public decimal FullMarks { get; set; }
     public decimal PassMarks { get; set; }
+    public decimal Weightage { get; set; }
     public bool IsMandatoryPass { get; set; }
 }
 
@@ -34,6 +35,10 @@ public sealed class AssessmentComponentMarkStudentDto
     public string StudentName { get; set; } = string.Empty;
     public string RollNo { get; set; } = string.Empty;
     public long? StudentAssessmentMarkId { get; set; }
+    public decimal? SubjectObtainedMarks { get; set; }
+    public decimal? ExpectedSubjectMarks { get; set; }
+    public string ReconciliationStatus { get; set; } = string.Empty;
+    public bool MandatoryComponentsPassed { get; set; }
     public IReadOnlyList<AssessmentComponentMarkEntryDto> Marks { get; set; } = Array.Empty<AssessmentComponentMarkEntryDto>();
 }
 

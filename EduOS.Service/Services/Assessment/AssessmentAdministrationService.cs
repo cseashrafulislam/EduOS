@@ -492,6 +492,18 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
         if (marks.GroupBy(x => (x.AssessmentSubjectId, x.StudentSubjectRegistrationId)).Any(g => g.Count() != 1))
             return (null, "Duplicate subject marks require review.");
         var marksByPair = marks.ToDictionary(x => (x.AssessmentSubjectId, x.StudentSubjectRegistrationId));
+        // One batched read for all configured component definitions and saved details.
+        var componentDefinitions = await _components.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && subjectIds.Contains(x.AssessmentSubjectId) &&
+            !x.IsDeleted).ToListAsync(ct);
+        var componentsBySubject = componentDefinitions.GroupBy(x => x.AssessmentSubjectId)
+            .ToDictionary(x => x.Key, x => (IReadOnlyList<AssessmentComponent>)x.ToList());
+        var masterIds = marks.Select(x => x.Id).ToArray();
+        var componentDetails = await _componentMarks.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && masterIds.Contains(x.StudentAssessmentMarkId) &&
+            !x.IsDeleted).ToListAsync(ct);
+        var detailsByMaster = componentDetails.GroupBy(x => x.StudentAssessmentMarkId)
+            .ToDictionary(x => x.Key, x => (IReadOnlyList<StudentAssessmentComponentMark>)x.ToList());
         var scheme = await _gradeSchemes.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == tenant && x.Id == exam.GradeSchemeId && x.IsActive && !x.IsDeleted, ct);
         if (scheme == null) return (null, "Assessment requires an active grade scheme.");
@@ -520,6 +532,15 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
                 if (mark.ObtainedMarks < 0 || mark.ObtainedMarks > subject.sub.FullMarks ||
                     mark.IsAbsent && mark.ObtainedMarks != 0)
                     return (null, "Invalid subject mark requires review.");
+                componentsBySubject.TryGetValue(subject.sub.Id, out var definitions);
+                detailsByMaster.TryGetValue(mark.Id, out var details);
+                var componentCheck = AssessmentComponentMarkPolicy.Evaluate(
+                    subject.sub.FullMarks, mark.ObtainedMarks, mark.IsAbsent,
+                    mark.IsWithheld, definitions ?? Array.Empty<AssessmentComponent>(),
+                    details ?? Array.Empty<StudentAssessmentComponentMark>());
+                if (!componentCheck.IsReconciled)
+                    return (null, "Component marks require reconciliation before publication.");
+                passed &= componentCheck.MandatoryComponentsPassed;
                 full += subject.sub.FullMarks; total += mark.ObtainedMarks;
                 weighted += mark.ObtainedMarks / subject.sub.FullMarks * subject.sub.Weightage;
                 weightSum += subject.sub.Weightage;
