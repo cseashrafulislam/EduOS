@@ -184,9 +184,7 @@ public sealed class FeePaymentReconciliationWorkflowTests
     public async Task Soft_deleted_paid_refund_journal_is_reported_in_both_workspaces()
     {
         await using var db = Database();
-        SeedPaidRefund(db, false, false, false);
-        db.Journals.Single(x => x.Id == 70).IsDeleted = true;
-        await db.SaveChangesAsync();
+        SeedPaidRefund(db, false, false, false, deletedJournal: true);
         var service = new FeeReceivablesAgingService(db, new TestUser());
         (await service.GetPaymentReconciliationAsync(null, null, 1, 25))
             .Data!.Rows[0].Issues.Should().Contain("Paid refund journal requires reconciliation");
@@ -212,7 +210,8 @@ public sealed class FeePaymentReconciliationWorkflowTests
             .Data!.Rows[0].Issues.Should().Contain("Paid refund journal requires reconciliation");
     }
 
-    private static void SeedPaidRefund(EduOSDbContext db, bool deletedLine, bool wrongSource, bool reversed)
+    private static void SeedPaidRefund(EduOSDbContext db, bool deletedLine, bool wrongSource,
+        bool reversed, bool deletedJournal = false)
     {
         Seed(db);
         var invoice = db.StudentInvoices.Single();
@@ -229,7 +228,8 @@ public sealed class FeePaymentReconciliationWorkflowTests
         {
             Id = 70, TenantId = 41, JournalNumber = "JRN-70",
             SourceType = wrongSource ? "Other" : "StudentRefund", SourceId = 40,
-            State = JournalState.Posted, CampusId = 7, CurrencyCode = "BDT"
+            State = JournalState.Posted, CampusId = 7, CurrencyCode = "BDT",
+            IsDeleted = deletedJournal
         });
         db.JournalLines.AddRange(
             new JournalLine
