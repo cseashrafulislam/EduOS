@@ -6,10 +6,38 @@
     const status = el('attendanceReportStatus'), pageLabel = el('attendanceReportPage');
     const previous = el('attendanceReportPrevious'), next = el('attendanceReportNext');
     let page = 1, totalPages = 0, pending = 0;
+    let visibleItems = [];
+    const csvButton = el('attendanceReportCsv');
     const today = new Date();
     const dateString = new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
     el('attendanceReportFrom').value = dateString;
     el('attendanceReportTo').value = dateString;
+
+    // Export only the authorized, currently displayed page; never bypass server paging.
+    // Neutralize spreadsheet formulas in user-controlled names/codes before writing CSV.
+    function csvCell(value) {
+        const text = String(value ?? '');
+        const safe = /^[\s]*[=+\-@\t\r]/.test(text) ? "'" + text : text;
+        return '"' + safe.replace(/"/g, '""') + '"';
+    }
+    function exportVisiblePage() {
+        if (!visibleItems.length) return;
+        const headings = ["Roll","Student code","Student","Marked","Present","Absent","Late","Leave","Excused","Attendance %"];
+        const records = visibleItems.map(x => [x.rollNo, x.studentCode, x.studentName, x.markedSessions, x.present, x.absent, x.late, x.leave, x.excused, x.attendancePercent]);
+        const csv = [headings, ...records].map(row => row.map(csvCell).join(',')).join('\r\n');
+        const blob = new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'attendance-' + String(el('attendanceReportBatch').value).replace(/[^0-9]/g, '') +
+            '-' + String(el('attendanceReportFrom').value).replace(/[^0-9-]/g, '') +
+            '-' + String(el('attendanceReportTo').value).replace(/[^0-9-]/g, '') +
+            '-page-' + page + '.csv';
+        document.body.append(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+    }
     const cell = value => {
         const td = document.createElement('td');
         td.textContent = String(value ?? '');
@@ -43,6 +71,7 @@
         }
         const requestId = ++pending;
         previous.disabled = next.disabled = true;
+        visibleItems = []; csvButton.disabled = true;
         message('Loading finalized attendance…');
         try {
             const params = new URLSearchParams({
@@ -51,6 +80,8 @@
             });
             const data = await fetchJson('/api/student-attendance/report?' + params);
             if (requestId !== pending) return;
+            visibleItems = data.items || [];
+            csvButton.disabled = visibleItems.length === 0;
             body.replaceChildren();
             for (const item of data.items || []) {
                 const tr = document.createElement('tr');
@@ -72,12 +103,14 @@
             if (requestId === pending) { body.replaceChildren(); message(error.message); }
         }
     }
+    csvButton.addEventListener('click', exportVisiblePage);
     form.addEventListener('submit', event => { event.preventDefault(); page = 1; load(); });
     previous.addEventListener('click', () => { if (page > 1) { page--; load(); } });
     next.addEventListener('click', () => { if (page < totalPages) { page++; load(); } });
     for (const id of ['attendanceReportBatch', 'attendanceReportFrom', 'attendanceReportTo'])
         el(id).addEventListener('change', () => { pending++; page = 1; totalPages = 0;
-            previous.disabled = next.disabled = true; body.replaceChildren();
+            previous.disabled = next.disabled = true;
+        visibleItems = []; csvButton.disabled = true; body.replaceChildren();
             pageLabel.textContent = ''; message('Load report for the selected filters.'); });
     loadBatches();
 })();

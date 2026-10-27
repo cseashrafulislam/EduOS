@@ -7,11 +7,39 @@
     const status = el('leaveReportStatus'), pageText = el('leaveReportPage');
     const previous = el('leaveReportPrevious'), next = el('leaveReportNext');
     let page = 1, totalPages = 0, pending = 0;
+    let visibleItems = [];
+    const csvButton = el('leaveReportCsv');
     const now = new Date();
     const today = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
     el('leaveReportFrom').value = today;
     el('leaveReportTo').value = today;
     const states = { 1: 'Draft', 2: 'Submitted', 3: 'Approved', 4: 'Rejected', 5: 'Cancelled' };
+
+    // Export only the authorized, currently displayed page; never bypass server paging.
+    // Neutralize spreadsheet formulas in user-controlled names/codes before writing CSV.
+    function csvCell(value) {
+        const text = String(value ?? '');
+        const safe = /^[\s]*[=+\-@\t\r]/.test(text) ? "'" + text : text;
+        return '"' + safe.replace(/"/g, '""') + '"';
+    }
+    function exportVisiblePage() {
+        if (!visibleItems.length) return;
+        const headings = ["Roll","Student code","Student","From","To","Days in period","Status","Reviewed"];
+        const records = visibleItems.map(x => [x.rollNo, x.studentCode, x.studentName, x.fromDate, x.toDate, x.periodDays, states[x.state] || 'Unknown', x.reviewedAt || '']);
+        const csv = [headings, ...records].map(row => row.map(csvCell).join(',')).join('\r\n');
+        const blob = new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'student-leave-' + String(el('leaveReportBatch').value).replace(/[^0-9]/g, '') +
+            '-' + String(el('leaveReportFrom').value).replace(/[^0-9-]/g, '') +
+            '-' + String(el('leaveReportTo').value).replace(/[^0-9-]/g, '') +
+            '-page-' + page + '.csv';
+        document.body.append(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+    }
     function cell(value) {
         const td = document.createElement('td');
         td.textContent = String(value ?? '');
@@ -46,6 +74,7 @@
         }
         const request = ++pending;
         previous.disabled = next.disabled = true;
+        visibleItems = []; csvButton.disabled = true;
         status.textContent = 'Loading leave report…';
         try {
             const params = new URLSearchParams({
@@ -55,6 +84,8 @@
             if (el('leaveReportState').value) params.set('state', el('leaveReportState').value);
             const data = await json('/api/student-leaves/report?' + params);
             if (request !== pending) return;
+            visibleItems = data.items || [];
+            csvButton.disabled = visibleItems.length === 0;
             rows.replaceChildren();
             for (const item of data.items || []) {
                 const tr = document.createElement('tr');
@@ -84,9 +115,11 @@
     function invalidate() {
         pending++; page = 1; totalPages = 0;
         previous.disabled = next.disabled = true;
+        visibleItems = []; csvButton.disabled = true;
         rows.replaceChildren(); pageText.textContent = '';
         status.textContent = 'Load report for the selected filters.';
     }
+    csvButton.addEventListener('click', exportVisiblePage);
     form.addEventListener('submit', event => { event.preventDefault(); page = 1; load(); });
     previous.addEventListener('click', () => { if (page > 1) { page--; load(); } });
     next.addEventListener('click', () => { if (page < totalPages) { page++; load(); } });

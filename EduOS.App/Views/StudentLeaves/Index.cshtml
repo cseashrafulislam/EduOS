@@ -55,7 +55,10 @@
                 <div class="col-md-2"><button type="submit" class="btn btn-primary w-100">Load report</button></div>
             </form>
             <p id="leaveReportStatus" class="small text-muted mt-3" role="status" aria-live="polite">Select filters to load the report.</p>
-            <div class="table-responsive"><table class="table table-sm table-striped align-middle">
+            <div class="d-flex gap-2 mb-2">
+            <button id="leaveReportCsv" type="button" class="btn btn-sm btn-outline-primary" disabled>Export visible page CSV</button>
+        </div>
+        <div class="table-responsive"><table class="table table-sm table-striped align-middle">
                 <thead><tr><th>Roll</th><th>Student code</th><th>Student</th><th>Leave dates</th>
                     <th>Days in period</th><th>Status</th><th>Reviewed</th></tr></thead>
                 <tbody id="leaveReportRows"></tbody>

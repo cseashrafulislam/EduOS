@@ -62,6 +62,9 @@
             <div class="col-md-2"><button type="submit" class="btn btn-primary w-100">Load report</button></div>
         </form>
         <p id="attendanceReportStatus" class="small text-muted mt-3" role="status" aria-live="polite">Select filters to load the report.</p>
+        <div class="d-flex gap-2 mb-2">
+            <button id="attendanceReportCsv" type="button" class="btn btn-sm btn-outline-primary" disabled>Export visible page CSV</button>
+        </div>
         <div class="table-responsive">
             <table class="table table-sm table-striped">
                 <thead><tr><th>Roll</th><th>Student code</th><th>Name</th><th>Marked</th><th>Present</th><th>Absent</th><th>Late</th><th>Leave</th><th>Excused</th><th>Attendance %</th></tr></thead>
