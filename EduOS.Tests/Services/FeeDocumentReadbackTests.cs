@@ -122,10 +122,18 @@ public sealed class FeeDocumentReadbackTests
 
     private static EduOSDbContext Database(long tenant = 41, string? store = null)
     {
-        var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
+        var accessor = new LocalContextAccessor { HttpContext = new DefaultHttpContext() };
         accessor.HttpContext.Items["TenantId"] = tenant;
         return new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase("fee-documents-" + (store ?? Guid.NewGuid().ToString("N"))).Options, accessor);
+    }
+
+    // HttpContextAccessor uses a static AsyncLocal shared across instances. Separate
+    // tenant fixtures need independent request contexts or the foreign seed switches
+    // the original DbContext's global tenant filter to the wrong tenant.
+    private sealed class LocalContextAccessor : IHttpContextAccessor
+    {
+        public HttpContext? HttpContext { get; set; }
     }
 
     private sealed class User(string role) : ICurrentUserService
