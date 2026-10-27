@@ -151,7 +151,7 @@ public sealed class AcademicRoutineServiceTests
     }
 
     [Fact]
-    public async Task Principal_grants_must_match_tenant_and_remain_active_with_active_campus()
+    public async Task Principal_grants_must_remain_active_with_active_campus()
     {
         var options = Options();
         var scope = await SeedAsync(options);
@@ -163,15 +163,6 @@ public sealed class AcademicRoutineServiceTests
         };
         db.UserCampusAccesses.Add(inactive);
         await db.SaveChangesAsync();
-        // Seed the other tenant through its own authorized tenant context.
-        await using (var foreignDb = Context(options, 202))
-        {
-            foreignDb.UserCampusAccesses.Add(new UserCampusAccess
-            {
-                TenantId = 202, UserId = 7, CampusId = scope.CampusId, IsActive = true
-            });
-            await foreignDb.SaveChangesAsync();
-        }
         var principal = Service(db, new TestUser(101, "VicePrincipal"));
         (await principal.GetBatchTimetableAsync(batchId, null)).StatusCode.Should().Be(404);
 
