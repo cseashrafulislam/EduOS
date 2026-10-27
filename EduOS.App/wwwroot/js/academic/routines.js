@@ -30,7 +30,7 @@
         const q='?take=100'+(search?'&search='+encodeURIComponent(search):'');
         const data=await api('/api/academic-setup/catalog'+q);
         state.batches=(data.batches||[]).filter(x=>x.isActive).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
-        state.rooms=(data.rooms||[]).filter(x=>x.isActive);
+        if(!search)state.rooms=(data.rooms||[]).filter(x=>x.isActive);
         select('routineBatch',state.batches.map(x=>({id:x.id,name:[x.academicYearName,x.academicProgramName,x.name].filter(Boolean).join(' / ')})),'Select academic batch');
         if(state.batches.length===100)status('warning','Showing up to 100 batches. Search by name or code to find more.');
         else if(!state.batches.length)status('warning','No matching active academic batches.');
@@ -115,11 +115,11 @@
     async function saveAssignment(e){
         e.preventDefault();if(!e.currentTarget.reportValidity())return;
         const batch=selectedBatch();if(!batch)return status('danger','Select a batch first.');
-        const btn=el('routineAssign');btn.disabled=true;
         const from=el('routineAssignFrom').value,to=el('routineAssignTo').value;
         if(to&&to<from)return status('danger','Assignment end date must not precede start date.');
         const offering=el('routineSubject').value,employee=el('routineTeacher').value;
         if(!offering||!employee)return status('danger','Choose an offered subject and an active teacher.');
+        const btn=el('routineAssign');btn.disabled=true;
         try{await api('/api/academic-routines/assignments','POST',{
             clientRequestId:crypto.randomUUID(),subjectOfferingReference:offering,employeeReference:employee,
             effectiveFrom:from,effectiveTo:to||null,isPrimary:el('routinePrimary').checked,isActive:true
@@ -162,12 +162,12 @@
     }
     function csvEscape(value){
         let text=String(value===null||value===undefined?'':value);
-        if(/^[\\s]*[=+@-]/.test(text))text="'"+text;
+        if(/^\s*[=+@-]/.test(text))text="'"+text;
         return '"'+text.replace(/"/g,'""')+'"';
     }
     function exportCsv(filename,headers,rows){
         if(!rows.length)return status('warning','Load a timetable with records before exporting.');
-        const csv='\\uFEFF'+[headers,...rows].map(row=>row.map(csvEscape).join(',')).join('\\r\\n');
+        const csv='\uFEFF'+[headers,...rows].map(row=>row.map(csvEscape).join(',')).join('\r\n');
         const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
         const a=document.createElement('a');a.href=url;a.download=filename;document.body.append(a);a.click();a.remove();
         setTimeout(()=>URL.revokeObjectURL(url),1000);
