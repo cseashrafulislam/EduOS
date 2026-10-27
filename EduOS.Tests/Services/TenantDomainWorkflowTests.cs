@@ -57,6 +57,51 @@ public sealed class TenantDomainWorkflowTests
         Assert.Equal(403, (await service.GetDomainsAsync()).StatusCode);
     }
 
+    [Fact]
+    public async Task Domain_registration_request_key_cannot_replay_for_a_different_existing_hostname()
+    {
+        var http = new DefaultHttpContext();
+        http.Items["TenantId"] = 101L;
+        await using var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("domain-replay-" + Guid.NewGuid().ToString("N")).Options,
+            new HttpContextAccessor { HttpContext = http });
+        var service = new TenantDomainService(db, db, new TestUser(101, true),
+            new FakeLookup(), TimeProvider.System, NullLogger<TenantDomainService>.Instance);
+        var firstKey = Guid.NewGuid();
+        var secondKey = Guid.NewGuid();
+
+        var first = await service.RegisterDomainAsync(new EduOS.Core.DTOs.SaaS.RegisterTenantDomainRequestDto
+        {
+            HostName = "alpha.example.org", ClientRequestId = firstKey
+        });
+        var second = await service.RegisterDomainAsync(new EduOS.Core.DTOs.SaaS.RegisterTenantDomainRequestDto
+        {
+            HostName = "beta.example.org", ClientRequestId = secondKey
+        });
+        Assert.True(first.Success);
+        Assert.True(second.Success);
+        Assert.NotNull(first.Data?.VerificationRecordValue);
+        Assert.NotNull(second.Data?.VerificationRecordValue);
+
+        // Previously this incorrectly succeeded because beta belonged to the same tenant.
+        var misuse = await service.RegisterDomainAsync(new EduOS.Core.DTOs.SaaS.RegisterTenantDomainRequestDto
+        {
+            HostName = "beta.example.org", ClientRequestId = firstKey
+        });
+        Assert.Equal(409, misuse.StatusCode);
+
+        var replay = await service.RegisterDomainAsync(new EduOS.Core.DTOs.SaaS.RegisterTenantDomainRequestDto
+        {
+            HostName = "alpha.example.org", ClientRequestId = firstKey
+        });
+        Assert.True(replay.Success);
+        Assert.Equal("alpha.example.org", replay.Data?.Domain.HostName);
+        Assert.Equal(string.Empty, replay.Data?.VerificationRecordValue);
+        Assert.Equal(2, await db.TenantDomains.CountAsync());
+        Assert.Equal(2, await db.AuditLogs.CountAsync(x =>
+            x.EntityName == "TenantDomain" && x.Action == "DomainRegistered"));
+    }
+
     private sealed class FakeLookup : ITenantDomainTxtLookup
     {
         public Task<IReadOnlyList<string>> GetTxtAsync(string name, CancellationToken ct)

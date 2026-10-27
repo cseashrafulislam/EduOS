@@ -125,13 +125,20 @@ public sealed class TenantDomainService(
         {
             return await unit.ExecuteInTransactionAsync(async ct =>
             {
-                var prior = await db.AuditLogs.IgnoreQueryFilters().AsNoTracking().AnyAsync(x =>
-                    x.TenantId == user.TenantId && x.EntityName == "TenantDomain" &&
-                    (x.Action == "DomainRegistered" || x.Action == "DomainChallengeRotated") &&
-                    x.RequestId == request.ClientRequestId.ToString("D"), ct);
+                // A request key is bound to the original tenant, actor, domain row and hostname.
+                // Reusing a prior key for another already-registered hostname must not replay success.
+                var prior = await db.AuditLogs.IgnoreQueryFilters().AsNoTracking()
+                    .Where(x => x.TenantId == user.TenantId && x.EntityName == "TenantDomain" &&
+                        (x.Action == "DomainRegistered" || x.Action == "DomainChallengeRotated") &&
+                        x.RequestId == request.ClientRequestId.ToString("D"))
+                    .OrderBy(x => x.Id)
+                    .Select(x => new { x.EntityId, x.NewValue, x.UserId })
+                    .FirstOrDefaultAsync(ct);
                 var existing = await db.TenantDomains.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.HostName == host, ct);
-                if (prior)
-                    return existing != null && !existing.IsDeleted && existing.TenantId == user.TenantId
+                if (prior != null)
+                    return existing != null && !existing.IsDeleted && existing.TenantId == user.TenantId &&
+                        existing.Id == prior.EntityId && prior.UserId == user.UserId &&
+                        string.Equals(prior.NewValue, host, StringComparison.Ordinal)
                         ? ApiResponse<TenantDomainRegistrationDto>.SuccessResponse(new()
                         {
                             Domain = Map(existing), VerificationRecordName = RecordName(host)
