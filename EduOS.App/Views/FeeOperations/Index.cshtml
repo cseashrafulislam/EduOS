@@ -1,6 +1,6 @@
 @{ ViewData["Title"] = "Student Fees & Billing"; }
 <section id="feeApp" class="container-fluid py-3">
-    <header class="mb-3"><h2 class="h4 mb-1">Student Fees &amp; Billing</h2><p class="text-muted mb-0">Fee setup, monthly invoicing, student ledger and audited cash receipts.</p></header>
+    <header class="mb-3"><h2 class="h4 mb-1">Student Fees &amp; Billing</h2></header>
     <div class="mb-2"><a class="btn btn-outline-primary btn-sm" href="/FeeDiscountRules/Index">Discount Rule Administration</a> <a class="btn btn-outline-primary btn-sm" href="/StudentInvoicePosting/Index">Student Invoice GL Posting</a> <a class="btn btn-outline-primary btn-sm" href="/StudentPaymentPosting/Index">Student Cash Receipt GL Posting</a> <a class="btn btn-outline-primary btn-sm" href="/FinanceAdjustments/Index#adjustRefundSection">Cash Refunds &amp; GL Settlement</a></div>
     <div class="d-none" tabindex="-1" id="feeAlert" role="alert" aria-live="polite"></div>
     <div class="row g-3 mb-3">
@@ -67,6 +67,28 @@
         <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0"><thead><tr><th>Invoice</th><th>Date</th><th>Due date</th><th>Total</th><th>Paid</th><th>Outstanding</th><th>Action</th></tr></thead><tbody id="feeInvoices"><tr><td colspan="7" class="text-center text-muted p-3">Select a student.</td></tr></tbody></table></div>
         <div class="card-footer d-flex gap-2 align-items-center"><button type="button" id="feeInvoicePrev" class="btn btn-outline-secondary btn-sm" disabled>Previous</button><span id="feeInvoicePage" class="small text-muted">—</span><button type="button" id="feeInvoiceNext" class="btn btn-outline-secondary btn-sm" disabled>Next</button></div>
     </section>
+    @if (User.IsInRole("TenantAdmin"))
+    {
+        <section id="feeAllocationAudit" class="card mb-3 d-none" aria-labelledby="feeAuditTitle">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h3 class="h6 m-0" id="feeAuditTitle">Invoice receipt allocation audit</h3>
+                <button type="button" id="feeAuditClose" class="btn btn-outline-secondary btn-sm">Close</button>
+            </div>
+            <div class="card-body">
+                <p id="feeAuditSummary" class="mb-2" role="status" aria-live="polite"></p>
+                <button type="button" id="feeAuditCsv" class="btn btn-outline-primary btn-sm" disabled>Export displayed page (CSV)</button>
+            </div>
+            <div class="table-responsive"><table class="table table-sm mb-0">
+                <thead><tr><th>Receipt</th><th>Date</th><th>Allocation (BDT)</th><th>Payment state</th><th>GL journal</th></tr></thead>
+                <tbody id="feeAuditRows"></tbody>
+            </table></div>
+            <div class="card-footer d-flex gap-2 align-items-center">
+                <button type="button" id="feeAuditPrev" class="btn btn-outline-secondary btn-sm" disabled>Previous</button>
+                <span id="feeAuditPage" class="small" aria-live="polite"></span>
+                <button type="button" id="feeAuditNext" class="btn btn-outline-secondary btn-sm" disabled>Next</button>
+            </div>
+        </section>
+    }
     <section id="feePaymentPanel" class="card mb-3 d-none">
         <div class="card-header"><h3 class="h6 m-0">Collect cash payment</h3></div>
         <form id="feePaymentForm" class="card-body row g-2 align-items-end">
@@ -79,7 +101,6 @@
     <section class="card mb-3"><div class="card-header"><h3 class="h6 m-0">Receipt history</h3></div>
         <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Receipt</th><th>Date</th><th>Amount</th><th>Method</th><th>Allocation</th><th>Document</th></tr></thead><tbody id="feeReceipts"><tr><td colspan="6">Select a student.</td></tr></tbody></table></div>
         <div class="card-footer d-flex gap-2 align-items-center"><button type="button" id="feeReceiptPrev" class="btn btn-outline-secondary btn-sm" disabled>Previous</button><span id="feeReceiptPage" class="small text-muted">—</span><button type="button" id="feeReceiptNext" class="btn btn-outline-secondary btn-sm" disabled>Next</button></div>
-        <div class="card-footer small text-muted">Cash receipts are recorded against invoices. Post the invoice GL first, then use Student Cash Receipt GL Posting to settle receivables.</div>
     </section>
 </section>
 @section Scripts { <script src="~/js/finance/fees.js" asp-append-version="true"></script> }

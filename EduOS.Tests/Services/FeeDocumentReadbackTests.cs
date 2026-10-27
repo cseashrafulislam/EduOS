@@ -33,6 +33,53 @@ public sealed class FeeDocumentReadbackTests
     }
 
     [Fact]
+    public async Task Invoice_allocation_audit_is_tenant_owned_and_paged()
+    {
+        var store = Guid.NewGuid().ToString("N");
+        await using var db = Database(41, store);
+        var data = Seed(db, store);
+        var service = Service(db, new User("TenantAdmin"));
+        var result = await service.GetInvoiceAllocationAuditAsync(data.student, data.invoice, 1, 1);
+        result.StatusCode.Should().Be(200);
+        result.Data!.TotalAllocations.Should().Be(1);
+        result.Data.Items.Should().ContainSingle().Which.ReceiptNumber.Should().Be("RCP-41");
+        result.Data.GrossSuccessfulAllocations.Should().Be(50m);
+        result.Data.GrossToNetDifference.Should().Be(0m);
+        result.Data.MatchesCurrentInvoice.Should().BeTrue();
+        (await service.GetInvoiceAllocationAuditAsync(data.otherStudent, data.invoice)).StatusCode.Should().Be(404);
+        (await service.GetInvoiceAllocationAuditAsync(data.student, data.foreignInvoice)).StatusCode.Should().Be(404);
+        (await service.GetInvoiceAllocationAuditAsync(data.student, data.invoice, 0, 25)).StatusCode.Should().Be(400);
+        (await Service(db, new User("Accountant"))
+            .GetInvoiceAllocationAuditAsync(data.student, data.invoice)).StatusCode.Should().Be(403);
+        await using var foreignContext = Database(42, store);
+        (await Service(foreignContext, new User("TenantAdmin"))
+            .GetInvoiceAllocationAuditAsync(data.student, data.invoice)).StatusCode.Should().Be(404);
+    }
+
+    [Fact]
+    public async Task Invoice_allocation_audit_flags_gross_to_net_discrepancy_without_changing_invoice()
+    {
+        var store = Guid.NewGuid().ToString("N");
+        await using var db = Database(41, store);
+        var data = Seed(db, store);
+        db.StudentPayments.Add(new StudentPayment { Id = 43, TenantId = 41,
+            PublicId = Guid.NewGuid(), StudentId = 1, ReceiptNumber = "RCP-EXTRA",
+            Amount = 10m, PaymentDate = new DateOnly(2026, 10, 3) });
+        db.PaymentAllocations.Add(new PaymentAllocation { Id = 53, TenantId = 41,
+            StudentPaymentId = 43, StudentInvoiceId = 20, Amount = 10m });
+        await db.SaveChangesAsync();
+        var result = await Service(db, new User("TenantAdmin"))
+            .GetInvoiceAllocationAuditAsync(data.student, data.invoice, 1, 1);
+        result.StatusCode.Should().Be(200);
+        result.Data!.TotalAllocations.Should().Be(2);
+        result.Data.Items.Should().HaveCount(1);
+        result.Data.GrossSuccessfulAllocations.Should().Be(60m);
+        result.Data.GrossToNetDifference.Should().Be(10m);
+        result.Data.MatchesCurrentInvoice.Should().BeFalse();
+        db.StudentInvoices.Single(x => x.Id == 20).PaidAmount.Should().Be(50m);
+    }
+
+    [Fact]
     public async Task Receipt_document_is_scoped_to_student_and_preserves_allocations()
     {
         var store = Guid.NewGuid().ToString("N");

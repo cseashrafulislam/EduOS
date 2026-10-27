@@ -3,7 +3,7 @@
 if (!document.getElementById('feeApp')) return;
 const e=id=>document.getElementById(id),base='/api/finance/fees';
 const token=document.querySelector('meta[name="request-verification-token"]')?.content;
-const state={options:null,student:null,invoice:null,invoicePage:1,receiptPage:1,invoicePages:1,receiptPages:1,createKey:null,createId:null,generateKey:null,generateId:null,paymentKey:null,paymentId:null,editingStructure:null,structurePage:1,structurePages:1};
+const state={options:null,student:null,invoice:null,invoicePage:1,receiptPage:1,invoicePages:1,receiptPages:1,createKey:null,createId:null,generateKey:null,generateId:null,paymentKey:null,paymentId:null,editingStructure:null,structurePage:1,structurePages:1,auditInvoice:null,auditPage:1,auditPages:1,auditData:null};
 const today=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');};
 const dt=x=>x?String(x).slice(0,10):'',amount=x=>Number(x).toFixed(2);
 const option=(v,t)=>{const o=document.createElement('option');o.value=String(v);o.textContent=t;return o;};
@@ -165,9 +165,50 @@ async function invoices(){
  state.invoicePages=Math.max(1,Math.ceil(r.totalCount/25));pager('invoice');e('feeInvoices').replaceChildren();
  for(const x of r.items||[]){const tr=document.createElement('tr'),action=document.createElement('td');
  if(Number(x.dueAmount)>0&&(x.state===2||x.state===3)){const b=document.createElement('button');b.type='button';b.className='btn btn-sm btn-outline-primary';b.textContent='Collect cash';b.onclick=()=>{state.invoice=x;clear('payment');e('feePaymentPanel').classList.remove('d-none');e('feePaymentInvoice').value=x.invoiceNumber;e('feePaymentAmount').value=amount(x.dueAmount);e('feePaymentAmount').max=x.dueAmount;};action.append(b);}
+ if(e('feeAllocationAudit')){const audit=document.createElement('button');audit.type='button';audit.className='btn btn-sm btn-outline-secondary ms-1';audit.textContent='Receipt audit';audit.onclick=()=>openAudit(x.reference).catch(err=>alert('danger',err.message));action.append(audit);}
  const view=document.createElement('a');view.className='btn btn-sm btn-outline-secondary ms-1';view.textContent='View / Print';view.href='/FeeDocuments/Invoice?studentReference='+encodeURIComponent(state.student)+'&documentReference='+encodeURIComponent(x.reference);action.append(view);
  tr.append(cell(x.invoiceNumber),cell(dt(x.invoiceDate)),cell(dt(x.dueDate)),cell(amount(x.totalAmount)),cell(amount(x.paidAmount)),cell(amount(x.dueAmount)),action);e('feeInvoices').append(tr);}
  if(!e('feeInvoices').children.length)empty('feeInvoices',7,'No invoices.');
+}
+async function openAudit(invoiceReference){
+ if(!state.student||!e('feeAllocationAudit'))return;
+ if(state.auditInvoice!==invoiceReference){state.auditInvoice=invoiceReference;state.auditPage=1;}
+ state.auditData=null;e('feeAuditCsv').disabled=true;
+ const result=await api('/students/'+encodeURIComponent(state.student)+'/invoices/'+
+  encodeURIComponent(invoiceReference)+'/allocation-audit?page='+state.auditPage+'&pageSize=25');
+ if(state.auditInvoice!==invoiceReference)return;
+ state.auditData=result;state.auditPages=Math.max(1,Math.ceil(result.totalAllocations/25));
+ e('feeAuditSummary').textContent=result.invoiceNumber+' — Invoice BDT '+amount(result.invoiceTotal)+
+  '; current paid BDT '+amount(result.currentPaid)+'; due BDT '+amount(result.currentDue)+
+  '; gross successful allocations BDT '+amount(result.grossSuccessfulAllocations)+
+  '; gross-to-net difference BDT '+amount(result.grossToNetDifference)+'. '+
+  (result.matchesCurrentInvoice?'Amounts agree; GL posting is not verified.':
+  'Difference or invalid allocation requires Finance review; refunds may explain a difference.');
+ e('feeAuditRows').replaceChildren();
+ for(const x of result.items||[]){
+  const tr=document.createElement('tr');
+  tr.append(cell(x.receiptNumber),cell(dt(x.paymentDate)),cell(amount(x.allocationAmount)),
+   cell(String(x.paymentState)),cell(x.journalId==null?'Not posted':x.journalId));
+  e('feeAuditRows').append(tr);
+ }
+ if(!e('feeAuditRows').children.length)empty('feeAuditRows',5,'No allocations on this page.');
+ e('feeAuditPage').textContent='Page '+state.auditPage+' of '+state.auditPages+
+  ' ('+result.totalAllocations+' allocations)';
+ e('feeAuditPrev').disabled=state.auditPage<=1;
+ e('feeAuditNext').disabled=state.auditPage>=state.auditPages;
+ e('feeAuditCsv').disabled=false;
+ e('feeAllocationAudit').classList.remove('d-none');
+}
+function exportAudit(){
+ const r=state.auditData;if(!r)return;
+ const safe=v=>{let t=String(v??'');if(/^[\\s\\u0000-\\u001f]*[=+\\-@]/.test(t))t="'"+t;return '"'+t.replace(/"/g,'""')+'"';};
+ const rows=[['Invoice','Receipt','Date','Allocation BDT','Payment state','GL journal'],
+  ...(r.items||[]).map(x=>[r.invoiceNumber,x.receiptNumber,dt(x.paymentDate),
+   amount(x.allocationAmount),String(x.paymentState),x.journalId??'Not posted'])];
+ const csv='\\uFEFF'+rows.map(row=>row.map(safe).join(',')).join('\\r\\n')+'\\r\\n';
+ const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+ const a=document.createElement('a');a.href=url;a.download='invoice-receipt-audit-page-'+r.page+'.csv';
+ document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 async function receipts(){
  const r=await api('/students/'+encodeURIComponent(state.student)+'/payments?page='+state.receiptPage+'&pageSize=25');
@@ -179,7 +220,7 @@ async function receipts(){
 }
 async function ledger(){
  const ref=e('feeStudent').value;if(!ref)return alert('warning','Select a student.');
- if(state.student!==ref){state.student=ref;state.invoicePage=1;state.receiptPage=1;state.invoice=null;clear('payment');e('feePaymentPanel').classList.add('d-none');}
+ if(state.student!==ref){if(e('feeAllocationAudit'))e('feeAllocationAudit').classList.add('d-none');state.auditInvoice=null;state.auditData=null;state.student=ref;state.invoicePage=1;state.receiptPage=1;state.invoice=null;clear('payment');e('feePaymentPanel').classList.add('d-none');}
  try{const r=await api('/students/'+encodeURIComponent(ref)+'/ledger');e('feeLedgerSummary').textContent=r.studentName+' ('+r.studentCode+') — Billed: '+amount(r.totalBilled)+' Paid: '+amount(r.totalPaid)+' Due: '+amount(r.totalDue)+' BDT';await Promise.all([invoices(),receipts()]);}
  catch(err){alert('danger',err.message);}
 }
@@ -217,6 +258,14 @@ if(e('feeStructureRegister')){e('feeRegisterCampus').addEventListener('change',(
 e('feeFindStudent').addEventListener('click',findStudent);e('feeLoadLedger').addEventListener('click',ledger);e('feePaymentForm').addEventListener('submit',collect);
 for(const id of ['feeCampus','feeYear','feeLevel'])e(id).addEventListener('change',batches);
 for(const id of ['feeBatch','feeMonth','feeBillingYear'])e(id).addEventListener('change',structures);
+if(e('feeAllocationAudit')){
+ e('feeAuditClose').addEventListener('click',()=>e('feeAllocationAudit').classList.add('d-none'));
+ e('feeAuditCsv').addEventListener('click',exportAudit);
+ for(const [id,delta] of [['feeAuditPrev',-1],['feeAuditNext',1]])
+  e(id).addEventListener('click',()=>{const next=state.auditPage+delta;
+   if(next<1||next>state.auditPages||!state.auditInvoice)return;
+   state.auditPage=next;openAudit(state.auditInvoice).catch(err=>alert('danger',err.message));});
+}
 e('feeInvoicePrev').addEventListener('click',()=>page('invoice',-1));e('feeInvoiceNext').addEventListener('click',()=>page('invoice',1));
 e('feeReceiptPrev').addEventListener('click',()=>page('receipt',-1));e('feeReceiptNext').addEventListener('click',()=>page('receipt',1));
 const now=new Date();e('feeMonth').value=String(now.getMonth()+1);e('feeBillingYear').value=String(now.getFullYear());e('feePaymentDate').value=today();e('feeEffectiveFrom').value=today();

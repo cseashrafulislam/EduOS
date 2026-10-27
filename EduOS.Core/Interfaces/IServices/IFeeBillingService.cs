@@ -19,6 +19,7 @@ public interface IFeeBillingService
     Task<ApiResponse<StudentInvoiceDto>> GetStudentInvoiceDocumentAsync(Guid studentReference, Guid documentReference, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentPaymentDocumentDto>> GetStudentPaymentDocumentAsync(Guid studentReference, Guid documentReference, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentLedgerDto>> GetStudentLedgerAsync(Guid studentReference, CancellationToken cancellationToken = default);
+    Task<ApiResponse<InvoiceAllocationAuditDto>> GetInvoiceAllocationAuditAsync(Guid studentReference, Guid invoiceReference, int page = 1, int pageSize = 25, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<StudentInvoiceDto>>> GetStudentInvoicesAsync(Guid studentReference, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<StudentPaymentDto>>> GetStudentPaymentsAsync(Guid studentReference, int page, int pageSize, CancellationToken cancellationToken = default);
 }

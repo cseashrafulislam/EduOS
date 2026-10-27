@@ -89,6 +89,12 @@ public sealed class FeeBillingController : ControllerBase
     public async Task<IActionResult> PaymentDocument(Guid reference, Guid documentReference, CancellationToken ct) =>
         Result(await _service.GetStudentPaymentDocumentAsync(reference, documentReference, ct));
 
+    [HttpGet("students/{reference:guid}/invoices/{invoiceReference:guid}/allocation-audit")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> InvoiceAllocationAudit(Guid reference, Guid invoiceReference,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default) =>
+        Result(await _service.GetInvoiceAllocationAuditAsync(reference, invoiceReference, page, pageSize, ct));
+
     [HttpGet("students/{reference:guid}/ledger")]
     [Authorize(Roles = "TenantAdmin,Principal,Accountant")]
     public async Task<IActionResult> Ledger(Guid reference, CancellationToken ct) =>
