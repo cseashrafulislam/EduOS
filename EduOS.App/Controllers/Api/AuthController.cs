@@ -1,4 +1,5 @@
 using EduOS.App.Security;
+using EduOS.App.Localization;
 using EduOS.Core.DTOs.Auth;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Learners;
@@ -667,6 +668,7 @@ namespace EduOS.App.Controllers.Api
                 Id = user.Id,
                 FullName = user.FullName ?? string.Empty,
                 Email = user.Email ?? string.Empty,
+                PreferredLanguage = user.PreferredLanguage,
                 PhoneNumber = user.PhoneNumber,
                 Address = user.PersonId.HasValue ? await _db.PersonAddresses.AsNoTracking()
                     .Where(x => x.PersonId == user.PersonId.Value && x.IsPrimary && !x.IsDeleted)
@@ -875,6 +877,8 @@ namespace EduOS.App.Controllers.Api
                 primary.AddClaims(BuildSessionClaims(user, authenticationMethod, session.Role, session.TenantId, sid));
                 await HttpContext.SignInAsync(IdentityConstants.ApplicationScheme, principal,
                     new AuthenticationProperties { IsPersistent = rememberMe });
+                // Restore the account's saved language on this device after successful sign-in.
+                PreferredCultureCookie.Write(HttpContext, user.PreferredLanguage);
             }
             catch
             {

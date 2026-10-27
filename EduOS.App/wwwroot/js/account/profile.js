@@ -35,6 +35,7 @@ async function loadProfile() {
 
         setText('profileDisplayName', profile.fullName || 'User');
         setText('profileDisplayEmail', profile.email || '');
+        setText('profileLanguage', profile.preferredLanguage === 'en-BD' ? 'English (Bangladesh)' : 'বাংলা (বাংলাদেশ)');
 
         updateAvatar(profile.fullName);
     } catch (error) {
