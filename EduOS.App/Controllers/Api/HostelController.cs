@@ -31,6 +31,21 @@ public sealed class HostelController : ControllerBase
         [FromQuery] int pageSize = 25, [FromQuery] string? search = null, CancellationToken ct = default) =>
         ToAction(await _service.GetFacilitiesAsync(campusId, page, pageSize, search, ct));
 
+    [HttpGet("facilities/export")]
+    [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> FacilitiesExport([FromQuery] long? campusId = null,
+        [FromQuery] string? search = null, CancellationToken ct = default)
+    {
+        var result = await _service.ExportFacilitiesCsvAsync(campusId, search, ct);
+        if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
+        Response.Headers["Cache-Control"] = "no-store";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(System.Text.Encoding.UTF8.GetPreamble().Concat(
+            System.Text.Encoding.UTF8.GetBytes(result.Data)).ToArray(),
+            "text/csv; charset=utf-8", "hostel-facilities.csv");
+    }
+
     [HttpPost("facilities")]
     [Authorize(Roles = "TenantAdmin,Principal,HostelWarden")]
     public async Task<IActionResult> CreateFacility([FromBody] CreateHostelFacilityRequestDto request, CancellationToken ct) =>

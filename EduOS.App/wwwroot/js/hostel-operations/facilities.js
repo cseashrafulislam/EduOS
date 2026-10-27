@@ -5,7 +5,9 @@
     const rows = el('hostelFacilityRows'), status = el('hostelFacilityStatus');
     const prev = el('hostelFacilityPrev'), next = el('hostelFacilityNext');
     const search = el('hostelFacilitySearch'), campus = el('hostelFacilityCampus');
-    let page = 1, totalPages = 1, generation = 0, busy = false, creating = false, saving = false;
+    let page = 1, totalPages = 1, generation = 0, busy = false, creating = false, saving = false, loadedFilter = null;
+    const exportButton = el('hostelFacilityCsv'), filterCampus = el('hostelFacilityFilterCampus');
+    const snapshot = () => { const q = new URLSearchParams(); if (filterCampus.value) q.set('campusId', filterCampus.value); if (search.value.trim()) q.set('search', search.value.trim()); return q.toString(); };
     let editing = null;
     const editForm = el('hostelFacilityEdit'), editSave = el('hostelFacilityEditSave');
     function clearEditor() { editing = null; editForm.classList.add('d-none'); editForm.reset(); }
@@ -40,20 +42,23 @@
     function controls() {
         prev.disabled = busy || page <= 1;
         next.disabled = busy || page >= totalPages;
+        exportButton.disabled = busy || loadedFilter === null || loadedFilter !== snapshot();
         el('hostelFacilityPage').textContent = 'Page ' + page + ' of ' + totalPages;
     }
     async function loadCampuses() {
         try {
             const campuses = await request('/api/hostel/facility-campuses');
             campus.replaceChildren(new Option('Choose campus', ''));
-            for (const item of campuses || []) campus.add(new Option(item.name, String(item.id)));
+            filterCampus.replaceChildren(new Option('All authorized campuses', ''));
+            for (const item of campuses || []) { campus.add(new Option(item.name, String(item.id))); filterCampus.add(new Option(item.name, String(item.id))); }
         } catch (error) { notify(error.message, true); }
     }
     async function load() {
         const current = ++generation;
-        busy = true; rows.replaceChildren(); controls(); notify('Loading facilities…');
+        busy = true; loadedFilter = null; rows.replaceChildren(); controls(); notify('Loading facilities…');
         try {
             const params = new URLSearchParams({ page: String(page), pageSize: '25' });
+            if (filterCampus.value) params.set('campusId', filterCampus.value);
             if (search.value.trim()) params.set('search', search.value.trim());
             const data = await request('/api/hostel/facilities?' + params);
             if (current !== generation) return;
@@ -85,7 +90,8 @@
                 const tr = document.createElement('tr'), cell = td('No facilities match the filter.');
                 cell.colSpan = 8; tr.append(cell); rows.append(tr);
             }
-            notify(String(data.totalCount || 0) + ' matching facilities.');
+            loadedFilter = snapshot();
+            notify(String(data.totalCount || 0) + ' matching facilities. Export limited to 1,000 records.');
         } catch (error) { if (current === generation) notify(error.message, true); }
         finally { if (current === generation) { busy = false; controls(); } }
     }
@@ -133,10 +139,31 @@
     el('hostelFacilityEditCancel').addEventListener('click', clearEditor);
     el('hostelFacilityFilter').addEventListener('submit', event => { event.preventDefault(); page = 1; load(); });
     search.addEventListener('input', () => {
-        generation++; rows.replaceChildren(); page = 1; totalPages = 1;
+        generation++; loadedFilter = null; rows.replaceChildren(); page = 1; totalPages = 1;
         notify('Filter changed. Select Search to load updated results.'); controls();
     });
+    filterCampus.addEventListener('change', () => { generation++; loadedFilter = null; page = 1; totalPages = 1; rows.replaceChildren(); notify('Filter changed. Select Search to reload.'); controls(); });
     prev.addEventListener('click', () => { if (!busy && page > 1) { page--; load(); } });
     next.addEventListener('click', () => { if (!busy && page < totalPages) { page++; load(); } });
+    exportButton.addEventListener('click', async () => {
+        const selected = snapshot(), start = generation;
+        if (loadedFilter === null || loadedFilter !== selected) return;
+        exportButton.disabled = true;
+        try {
+            const response = await fetch('/api/hostel/facilities/export?' + selected,
+                { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'text/csv' } });
+            if (!response.ok) {
+                const result = await response.json().catch(() => null);
+                throw Error(result?.message || 'Facility export failed.');
+            }
+            const blob = await response.blob();
+            if (start !== generation || loadedFilter !== selected || snapshot() !== selected)
+                throw Error('Filters changed during export. Search again.');
+            const url = URL.createObjectURL(blob), link = document.createElement('a');
+            link.href = url; link.download = 'hostel-facilities.csv'; document.body.append(link);
+            link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } catch (error) { notify(error.message, true); }
+        finally { exportButton.disabled = loadedFilter === null || loadedFilter !== snapshot(); }
+    });
     loadCampuses(); load();
 })();

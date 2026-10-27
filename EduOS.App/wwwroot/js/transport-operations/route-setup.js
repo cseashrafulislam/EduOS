@@ -4,7 +4,10 @@
     if (!el('transportRouteSetupForm')) return;
     const form = el('transportRouteSetupForm');
     const token = form.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
-    let page = 1, totalPages = 1, loadSequence = 0, statePending = false;
+    let page = 1, totalPages = 1, loadSequence = 0, statePending = false, loadedFilter = null;
+    const exportButton = el('transportRouteSetupCsv');
+    const snapshot = () => { const q = new URLSearchParams(); const c = el('transportRouteSetupFilterCampus').value, s = el('transportRouteSetupSearch').value.trim(); if (c) q.set('campusId', c); if (s) q.set('search', s); return q.toString(); };
+    function invalidateExport() { loadedFilter = null; exportButton.disabled = true; }
     const visibleRoutes = new Map();
     function notify(message, ok = false) {
         const box = el('transportRouteSetupAlert');
@@ -31,14 +34,15 @@
         (campuses || []).forEach(c => option(select, c.id, c.name));
     }
     async function loadRoutes() {
-        const sequence = ++loadSequence;
+        const sequence = ++loadSequence, filterAtStart = snapshot();
+        invalidateExport();
         const q = new URLSearchParams({ page: String(page), pageSize: '15' });
         const campus = el('transportRouteSetupFilterCampus').value;
         const term = el('transportRouteSetupSearch').value.trim();
         if (campus) q.set('campusId', campus);
         if (term) q.set('search', term);
         const data = await api('/api/transport/route-setup?' + q.toString());
-        if (sequence !== loadSequence) return;
+        if (sequence !== loadSequence || filterAtStart !== snapshot()) return;
         const body = el('transportRouteSetupRows'); body.replaceChildren(); visibleRoutes.clear();
         (data.items || []).forEach(item => {
             const tr = document.createElement('tr');
@@ -69,6 +73,7 @@
         el('transportRouteSetupPageInfo').textContent = 'Page ' + page + ' of ' + totalPages + ' · ' + data.totalCount + ' routes';
         el('transportRouteSetupPrev').disabled = page <= 1;
         el('transportRouteSetupNext').disabled = page >= totalPages;
+        loadedFilter = filterAtStart; exportButton.disabled = !(data.items || []).length;
     }
     async function save(event) {
         event.preventDefault();
@@ -116,6 +121,28 @@
     });
     form.addEventListener('submit', save);
     el('transportRouteSetupSearchForm').addEventListener('submit', event => { event.preventDefault(); page = 1; loadRoutes().catch(e => notify(e.message)); });
+    el('transportRouteSetupSearch').addEventListener('input', invalidateExport);
+    el('transportRouteSetupFilterCampus').addEventListener('change', invalidateExport);
+    exportButton.addEventListener('click', async () => {
+        const selected = snapshot(), start = loadSequence;
+        if (loadedFilter === null || loadedFilter !== selected) return;
+        exportButton.disabled = true;
+        try {
+            const response = await fetch('/api/transport/route-setup/export?' + selected,
+                { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'text/csv' } });
+            if (!response.ok) {
+                const result = await response.json().catch(() => null);
+                throw Error(result?.message || 'Route inventory export failed.');
+            }
+            const blob = await response.blob();
+            if (start !== loadSequence || loadedFilter !== selected || snapshot() !== selected)
+                throw Error('Filters changed during export. Search again.');
+            const url = URL.createObjectURL(blob), link = document.createElement('a');
+            link.href = url; link.download = 'transport-route-inventory.csv'; document.body.append(link);
+            link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } catch (error) { notify(error.message); }
+        finally { exportButton.disabled = loadedFilter === null || loadedFilter !== snapshot(); }
+    });
     el('transportRouteSetupPrev').addEventListener('click', () => { page = Math.max(1, page - 1); loadRoutes().catch(e => notify(e.message)); });
     el('transportRouteSetupNext').addEventListener('click', () => { page = Math.min(totalPages, page + 1); loadRoutes().catch(e => notify(e.message)); });
     Promise.all([loadCampuses(), loadRoutes()]).then(() => {

@@ -297,8 +297,10 @@
                     <button id="hostelFacilityEditCancel" type="button" class="btn btn-outline-secondary">Cancel</button></div>
             </form>
             <form id="hostelFacilityFilter" class="d-flex gap-2 mb-2">
+                <select id="hostelFacilityFilterCampus" class="form-select" aria-label="Filter facility campus"><option value="">All authorized campuses</option></select>
                 <input id="hostelFacilitySearch" class="form-control" maxlength="100" aria-label="Search facilities" placeholder="Campus, facility or code" />
                 <button type="submit" class="btn btn-outline-primary">Search</button>
+                <button id="hostelFacilityCsv" type="button" class="btn btn-outline-secondary" disabled>Export filtered CSV</button>
             </form>
             <div id="hostelFacilityStatus" class="small text-muted" role="status" aria-live="polite"></div>
             <div class="table-responsive"><table class="table table-sm table-hover">

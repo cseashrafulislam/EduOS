@@ -13,6 +13,7 @@ public interface IHostelService
     Task<ApiResponse<PagedResult<HostelAllocationReadinessRowDto>>> GetAllocationReadinessAsync(long? campusId, int page, int pageSize, string? search, bool attentionOnly, CancellationToken cancellationToken = default);
     Task<ApiResponse<string>> ExportAllocationReadinessCsvAsync(long? campusId, string? search, bool attentionOnly, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<HostelFacilityCampusDto>>> GetFacilityCampusesAsync(CancellationToken ct = default);
+    Task<ApiResponse<string>> ExportFacilitiesCsvAsync(long? campusId, string? search, CancellationToken ct = default);
     Task<ApiResponse<PagedResult<HostelFacilityDto>>> GetFacilitiesAsync(long? campusId, int page, int pageSize, string? search, CancellationToken ct = default);
     Task<ApiResponse<HostelFacilityDto>> CreateFacilityAsync(CreateHostelFacilityRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<HostelFacilityDto>> UpdateFacilityAsync(Guid reference, UpdateHostelFacilityRequestDto request, CancellationToken ct = default);
