@@ -53,7 +53,7 @@ public sealed partial class TransportService
                             join vehicle in _vehicles.GetQueryable().AsNoTracking() on link.VehicleId equals vehicle.Id
                             where link.TenantId == tenant && route.TenantId == tenant &&
                                 vehicle.TenantId == tenant && !link.IsDeleted && !route.IsDeleted &&
-                                !vehicle.IsDeleted && route.CampusId.HasValue &&
+                                route.IsActive && !vehicle.IsDeleted && route.CampusId.HasValue &&
                                 route.CampusId == vehicle.CampusId && ids.Contains(link.VehicleId) &&
                                 link.IsCurrent && link.EffectiveFrom <= today &&
                                 (!link.EffectiveTo.HasValue || link.EffectiveTo.Value >= today)

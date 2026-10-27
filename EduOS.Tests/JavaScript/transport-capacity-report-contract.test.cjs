@@ -11,6 +11,11 @@ test('capacity report enforces tenant, campus, paging and current rider dates', 
         'x.EndDate.Value >= today', 'TransportAssignmentState.Active'])
         assert.ok(service.includes(token), token);
 });
+test('current route coverage excludes inactive and cross-campus route links', () => {
+    assert.match(service, /route.IsActive && !vehicle.IsDeleted/);
+    assert.match(service, /route.CampusId == vehicle.CampusId/);
+    assert.match(service, /route.TenantId == tenant/);
+});
 test('bounded CSV protects against formula injection and contains no student identity', () => {
     assert.match(service, /TotalCount > 1000/);
     assert.match(service, /CsvCell\(row.VehicleNumber\)/);

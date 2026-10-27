@@ -37,6 +37,66 @@ public sealed class SqlServerTransportSeatCapacityIntegrationTests
 {
     private static readonly ConcurrentQueue<string> Diagnostics = new();
 
+
+    [Fact]
+    public async Task Current_and_future_dispatch_reports_ignore_inactive_and_cross_campus_routes()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var fixture = await SeedAsync(connection);
+        long routeId;
+        await using (var setup = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var link = await setup.RouteVehicleAssignments.SingleAsync(x =>
+                x.TenantId == fixture.TenantId && x.VehicleId == fixture.VehicleId &&
+                x.IsCurrent && !x.IsDeleted);
+            link.EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1);
+            routeId = link.RouteId;
+            await setup.SaveChangesAsync();
+        }
+
+        async Task<(int Current, int Future)> RouteCountsAsync()
+        {
+            await using var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+            var current = await Service(db, fixture.TenantId, fixture.UserId)
+                .GetCapacityReportAsync(null, 1, 25, null);
+            var future = await DriverService(db, fixture.TenantId, fixture.UserId)
+                .GetDriverCoverageForecastAsync(fixture.Start, null, 1, 25, null, "All");
+            Assert.True(current.Success, current.Message);
+            Assert.True(future.Success, future.Message);
+            return (Assert.Single(current.Data!.Items).CurrentRouteLinks,
+                Assert.Single(future.Data!.Items).RouteLinks);
+        }
+
+        Assert.Equal((1, 1), await RouteCountsAsync());
+
+        await using (var setup = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var route = await setup.Set<TransportRoute>().SingleAsync(x =>
+                x.TenantId == fixture.TenantId && x.Id == routeId);
+            route.IsActive = false;
+            await setup.SaveChangesAsync();
+        }
+        Assert.Equal((0, 0), await RouteCountsAsync());
+
+        await using (var setup = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var otherCampus = new Campus
+            {
+                TenantId = fixture.TenantId, Code = "OTHER-" + Guid.NewGuid().ToString("N")[..12],
+                Name = "Other dispatch campus", IsActive = true
+            };
+            setup.Set<Campus>().Add(otherCampus);
+            await setup.SaveChangesAsync();
+            var route = await setup.Set<TransportRoute>().SingleAsync(x =>
+                x.TenantId == fixture.TenantId && x.Id == routeId);
+            route.IsActive = true;
+            route.CampusId = otherCampus.Id;
+            await setup.SaveChangesAsync();
+        }
+        Assert.Equal((0, 0), await RouteCountsAsync());
+    }
+
     [Fact]
     public async Task Concurrent_hostel_bookings_for_one_bed_preserve_capacity_and_request_replay()
     {

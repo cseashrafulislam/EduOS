@@ -49,11 +49,18 @@ public sealed partial class TransportService
                 (!x.EndDate.HasValue || x.EndDate.Value >= operatingDate))
             .GroupBy(x => x.VehicleId).Select(g => new { Id = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.Id, x => x.Count, ct);
-        var routes = await _vehicleRoutes.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenant && !x.IsDeleted && ids.Contains(x.VehicleId) &&
-                x.IsCurrent && x.EffectiveFrom <= operatingDate &&
-                (!x.EffectiveTo.HasValue || x.EffectiveTo.Value >= operatingDate))
-            .GroupBy(x => x.VehicleId).Select(g => new { Id = g.Key, Count = g.Count() })
+        // Only an active route in the vehicle's own campus is usable dispatch coverage.
+        // Match the multi-day coverage and current capacity reports for legacy/corrupt links.
+        var routes = await (from link in _vehicleRoutes.GetQueryable().AsNoTracking()
+            join route in _routes.GetQueryable().AsNoTracking() on link.RouteId equals route.Id
+            join vehicle in _vehicles.GetQueryable().AsNoTracking() on link.VehicleId equals vehicle.Id
+            where link.TenantId == tenant && route.TenantId == tenant && vehicle.TenantId == tenant &&
+                !link.IsDeleted && link.IsCurrent && !route.IsDeleted && route.IsActive &&
+                !vehicle.IsDeleted && route.CampusId.HasValue && route.CampusId == vehicle.CampusId &&
+                ids.Contains(link.VehicleId) && link.EffectiveFrom <= operatingDate &&
+                (!link.EffectiveTo.HasValue || link.EffectiveTo.Value >= operatingDate)
+            group link by link.VehicleId into g
+            select new { Id = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.Id, x => x.Count, ct);
         var links = await (from link in _driverLinks.GetQueryable().AsNoTracking()
             join driver in _drivers.GetQueryable().AsNoTracking() on link.TransportDriverId equals driver.Id into joined
