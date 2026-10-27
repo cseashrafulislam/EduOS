@@ -81,6 +81,11 @@ public sealed partial class FeeReceivablesAgingService
         var refunds = await _db.Refunds.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.TenantId == tenant && refundIds.Contains(x.Id))
             .ToDictionaryAsync(x => x.Id, ct);
+        var refundEvidence = await InstitutionalRefundJournalIntegrity.LoadAsync(
+            _db, tenant, refunds.Values.ToArray(), ct);
+        if (refundEvidence == null)
+            return ApiResponse<FeeReconciliationRegisterDto>.ErrorResponse(
+                "Too many refund journal lines on this page; narrow the filters.", 409);
         var journalIds = rows.Where(x => x.JournalId.HasValue)
             .Select(x => x.JournalId!.Value).Distinct().ToArray();
         var journals = await _db.Journals.IgnoreQueryFilters().AsNoTracking()
@@ -136,6 +141,8 @@ public sealed partial class FeeReceivablesAgingService
                         continue;
                     }
                     refunded += portion.Amount;
+                    if (!refundEvidence.Matches(refund, tenant, invoice.CampusId, invoice.StudentId))
+                        issues.Add("Paid refund journal requires reconciliation");
                 }
             }
             var net = gross - refunded;

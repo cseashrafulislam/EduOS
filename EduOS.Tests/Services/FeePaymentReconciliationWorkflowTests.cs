@@ -1,4 +1,5 @@
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Accounting;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.SaaS;
@@ -149,6 +150,102 @@ public sealed class FeePaymentReconciliationWorkflowTests
             .GetPaymentReconciliationAsync(null, null, 1, 25);
         admin.Data!.Rows.Should().ContainSingle();
         admin.Data.Rows[0].Issues.Should().Contain("Unresolved allocation campus provenance");
+    }
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(false, false, true)]
+    public async Task Paid_refund_journal_is_reconciled_in_both_finance_reports(
+        bool deletedLine, bool wrongSource, bool reversed)
+    {
+        await using var db = Database();
+        SeedPaidRefund(db, deletedLine, wrongSource, reversed);
+        var service = new FeeReceivablesAgingService(db, new TestUser());
+        var receipt = await service.GetPaymentReconciliationAsync(null, null, 1, 25);
+        var invoice = await service.GetReconciliationAsync(null, null, 1, 25);
+        receipt.StatusCode.Should().Be(200);
+        invoice.StatusCode.Should().Be(200);
+        var valid = !deletedLine && !wrongSource && !reversed;
+        if (valid)
+        {
+            receipt.Data!.Rows[0].Status.Should().Be("Unposted");
+            invoice.Data!.Rows[0].Status.Should().Be("Unposted");
+        }
+        else
+        {
+            receipt.Data!.Rows[0].Issues.Should().Contain("Paid refund journal requires reconciliation");
+            invoice.Data!.Rows[0].Issues.Should().Contain("Paid refund journal requires reconciliation");
+        }
+    }
+
+    [Fact]
+    public async Task Missing_paid_refund_journal_is_reported_in_both_workspaces()
+    {
+        await using var db = Database();
+        SeedPaidRefund(db, false, false, false);
+        db.Journals.Remove(db.Journals.Single(x => x.Id == 70));
+        await db.SaveChangesAsync();
+        var service = new FeeReceivablesAgingService(db, new TestUser());
+        (await service.GetPaymentReconciliationAsync(null, null, 1, 25))
+            .Data!.Rows[0].Issues.Should().Contain("Paid refund journal requires reconciliation");
+        (await service.GetReconciliationAsync(null, null, 1, 25))
+            .Data!.Rows[0].Issues.Should().Contain("Paid refund journal requires reconciliation");
+    }
+
+    [Fact]
+    public async Task Shared_paid_refund_journal_is_not_accepted_as_independent_provenance()
+    {
+        await using var db = Database();
+        SeedPaidRefund(db, false, false, false);
+        db.Refunds.Add(new Refund
+        {
+            Id = 41, TenantId = 41, StudentPaymentId = 20, Amount = 5m,
+            State = RefundState.Paid, ReversalJournalId = 70, Reason = "Duplicate link"
+        });
+        await db.SaveChangesAsync();
+        var service = new FeeReceivablesAgingService(db, new TestUser());
+        (await service.GetPaymentReconciliationAsync(null, null, 1, 25))
+            .Data!.Rows[0].Issues.Should().Contain("Paid refund journal requires reconciliation");
+        (await service.GetReconciliationAsync(null, null, 1, 25))
+            .Data!.Rows[0].Issues.Should().Contain("Paid refund journal requires reconciliation");
+    }
+
+    private static void SeedPaidRefund(EduOSDbContext db, bool deletedLine, bool wrongSource, bool reversed)
+    {
+        Seed(db);
+        var invoice = db.StudentInvoices.Single();
+        invoice.PaidAmount = 80m;
+        invoice.DueAmount = 20m;
+        db.PaymentAllocations.Add(new PaymentAllocation
+        { Id = 30, TenantId = 41, StudentPaymentId = 20, StudentInvoiceId = 10, Amount = 100m });
+        db.Refunds.Add(new Refund
+        { Id = 40, TenantId = 41, StudentPaymentId = 20, Amount = 20m,
+          State = RefundState.Paid, ReversalJournalId = 70, Reason = "Return" });
+        db.RefundAllocations.Add(new RefundAllocation
+        { Id = 50, TenantId = 41, RefundId = 40, PaymentAllocationId = 30, Amount = 20m });
+        db.Journals.Add(new Journal
+        {
+            Id = 70, TenantId = 41, JournalNumber = "JRN-70",
+            SourceType = wrongSource ? "Other" : "StudentRefund", SourceId = 40,
+            State = JournalState.Posted, CampusId = 7, CurrencyCode = "BDT"
+        });
+        db.JournalLines.AddRange(
+            new JournalLine
+            { Id = 71, TenantId = 41, JournalId = 70, LineNo = 1,
+              AccountId = 100, CampusId = 7, StudentId = 8, DebitAmount = 20m,
+              IsDeleted = deletedLine },
+            new JournalLine
+            { Id = 72, TenantId = 41, JournalId = 70, LineNo = 2,
+              AccountId = 101, CampusId = 7, StudentId = 8, CreditAmount = 20m });
+        if (reversed)
+            db.Journals.Add(new Journal
+            {
+                Id = 73, TenantId = 41, JournalNumber = "JRN-73",
+                State = JournalState.Posted, ReversalOfJournalId = 70
+            });
+        db.SaveChanges();
     }
 
     private static void Seed(EduOSDbContext db)

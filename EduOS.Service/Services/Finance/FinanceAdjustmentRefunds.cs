@@ -172,6 +172,33 @@ public sealed partial class FinanceAdjustmentService
                     previous.ReferenceNumber!=evidence || previous.JournalDate!=request.PayoutDate ||
                     previous.AccountingPeriodId!=request.AccountingPeriodId)
                     return Error<RefundDto>("Prior payout requires reconciliation; replay details differ.",409);
+                var originalReceipt = payment.JournalId.HasValue
+                    ? await db.Journals.IgnoreQueryFilters().AsNoTracking()
+                        .FirstOrDefaultAsync(x=>x.TenantId==tenant &&
+                            x.Id==payment.JournalId.Value,ct)
+                    : null;
+                var evidenceRows = await InstitutionalRefundJournalIntegrity.LoadAsync(
+                    db,tenant,new[]{refund},ct);
+                var priorAllocations = await db.RefundAllocations.IgnoreQueryFilters().AsNoTracking()
+                    .Where(x=>x.TenantId==tenant && x.RefundId==refund.Id).ToListAsync(ct);
+                var originalIds = priorAllocations.Select(x=>x.PaymentAllocationId).Distinct().ToArray();
+                var originalAllocations = await db.PaymentAllocations.IgnoreQueryFilters().AsNoTracking()
+                    .Where(x=>x.TenantId==tenant && originalIds.Contains(x.Id))
+                    .ToDictionaryAsync(x=>x.Id,ct);
+                if(!previous.CampusId.HasValue || originalReceipt==null ||
+                    originalReceipt.IsDeleted || originalReceipt.State!=JournalState.Posted ||
+                    originalReceipt.SourceType!="StudentPayment" ||
+                    originalReceipt.SourceId!=payment.Id ||
+                    originalReceipt.CampusId!=previous.CampusId ||
+                    evidenceRows==null ||
+                    !evidenceRows.Matches(refund,tenant,previous.CampusId.Value,payment.StudentId) ||
+                    priorAllocations.Count==0 ||
+                    priorAllocations.Any(x=>x.IsDeleted || x.Amount<=0m ||
+                        decimal.Round(x.Amount,2)!=x.Amount ||
+                        !originalAllocations.TryGetValue(x.PaymentAllocationId,out var source) ||
+                        source.IsDeleted || source.StudentPaymentId!=payment.Id) ||
+                    priorAllocations.Sum(x=>x.Amount)!=refund.Amount)
+                    return Error<RefundDto>("Prior payout journal or allocation history requires reconciliation.",409);
                 return ApiResponse<RefundDto>.SuccessResponse(Map(refund,payment.PublicId),"Existing posted refund returned.");
             }
             if(refund.State!=RefundState.Approved || !Matches(refund.RowVersion,request.RowVersion) ||
