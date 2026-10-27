@@ -50,32 +50,38 @@ public sealed partial class FeeReceivablesAgingService
             .GroupBy(x => x.StudentPaymentId)
             .Select(g => new { PaymentId = g.Key, TotalCount = g.Count() });
 
+        // Page receipts independently of optional allocation scope. A left join to a
+        // grouped non-nullable campus aggregate can materialize null incorrectly under
+        // EF InMemory, and should not determine tenant-admin visibility.
         var query =
             from payment in _db.StudentPayments.AsNoTracking()
             join student in _db.Students.AsNoTracking()
                 on new { payment.TenantId, Id = payment.StudentId }
                 equals new { student.TenantId, student.Id }
-            join scope in receiptCampuses on payment.Id equals scope.PaymentId into scopes
-            from scope in scopes.DefaultIfEmpty()
-            join total in allocationCounts on payment.Id equals total.PaymentId into totals
-            from total in totals.DefaultIfEmpty()
             where payment.TenantId == tenant && !payment.IsDeleted && !student.IsDeleted &&
                 (payment.State == PaymentState.Successful || payment.State == PaymentState.Refunded)
-            select new
-            {
-                payment, student,
-                CampusId = scope == null ? (long?)null : scope.MinCampusId,
-                MaxCampusId = scope == null ? (long?)null : scope.MaxCampusId,
-                ResolvedCount = scope == null ? 0 : scope.MatchedCount,
-                AllocationCount = total == null ? 0 : total.TotalCount
-            };
+            select new { payment, student };
+        var safelyScopedIds =
+            from scope in receiptCampuses
+            join total in allocationCounts on scope.PaymentId equals total.PaymentId
+            where scope.MinCampusId == scope.MaxCampusId &&
+                scope.MatchedCount == total.TotalCount &&
+                allowedCampuses.Any(c => c.Id == scope.MinCampusId)
+            select scope.PaymentId;
         if (!_user.IsTenantAdmin)
-            query = query.Where(x => x.CampusId.HasValue && x.CampusId == x.MaxCampusId &&
-                x.ResolvedCount == x.AllocationCount &&
-                allowedCampuses.Any(c => c.Id == x.CampusId.Value));
+            query = query.Where(x => safelyScopedIds.Contains(x.payment.Id));
         if (campusId.HasValue)
-            query = query.Where(x => x.CampusId == campusId.Value &&
-                x.MaxCampusId == campusId.Value);
+        {
+            var selectedCampus = campusId.Value;
+            var campusScopedIds =
+                from scope in receiptCampuses
+                join total in allocationCounts on scope.PaymentId equals total.PaymentId
+                where scope.MinCampusId == selectedCampus &&
+                    scope.MaxCampusId == selectedCampus &&
+                    scope.MatchedCount == total.TotalCount
+                select scope.PaymentId;
+            query = query.Where(x => campusScopedIds.Contains(x.payment.Id));
+        }
         var term = search?.Trim();
         if (!string.IsNullOrEmpty(term))
             query = query.Where(x => x.payment.ReceiptNumber.StartsWith(term) ||
@@ -89,10 +95,13 @@ public sealed partial class FeeReceivablesAgingService
                 x.payment.Id, x.payment.PublicId, x.payment.ReceiptNumber,
                 x.payment.Amount, x.payment.CurrencyCode, x.payment.JournalId,
                 x.payment.StudentId, x.payment.State, x.student.StudentCode,
-                x.student.FullName, x.CampusId, x.MaxCampusId,
-                x.ResolvedCount, x.AllocationCount
+                x.student.FullName
             }).ToListAsync(ct);
         var paymentIds = rows.Select(x => x.Id).ToArray();
+        var scopes = await receiptCampuses.Where(x => paymentIds.Contains(x.PaymentId))
+            .ToDictionaryAsync(x => x.PaymentId, ct);
+        var totals = await allocationCounts.Where(x => paymentIds.Contains(x.PaymentId))
+            .ToDictionaryAsync(x => x.PaymentId, ct);
         var allocations = await _db.PaymentAllocations.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.TenantId == tenant && paymentIds.Contains(x.StudentPaymentId))
             .ToListAsync(ct);
@@ -138,8 +147,7 @@ public sealed partial class FeeReceivablesAgingService
             .Where(x => x.TenantId == tenant && x.ReversalOfJournalId.HasValue &&
                 journalIds.Contains(x.ReversalOfJournalId.Value) && x.State == JournalState.Posted)
             .Select(x => x.ReversalOfJournalId!.Value).ToListAsync(ct)).ToHashSet();
-        var campusIds = rows.Where(x => x.CampusId.HasValue)
-            .Select(x => x.CampusId!.Value).Distinct().ToArray();
+        var campusIds = scopes.Values.Select(x => x.MinCampusId).Distinct().ToArray();
         var campusNames = await allowedCampuses.Where(x => campusIds.Contains(x.Id))
             .ToDictionaryAsync(x => x.Id, x => x.Name, ct);
         var byPayment = allocations.ToLookup(x => x.StudentPaymentId);
@@ -148,15 +156,20 @@ public sealed partial class FeeReceivablesAgingService
 
         foreach (var payment in rows)
         {
+            var scope = scopes.GetValueOrDefault(payment.Id);
+            var campus = scope == null ? (long?)null : scope.MinCampusId;
+            var maxCampus = scope == null ? (long?)null : scope.MaxCampusId;
+            var resolvedCount = scope?.MatchedCount ?? 0;
+            var allocationCount = totals.TryGetValue(payment.Id, out var total) ? total.TotalCount : 0;
             var issues = new List<string>();
             if (payment.CurrencyCode != "BDT" || payment.Amount <= 0m ||
                 decimal.Round(payment.Amount, 2) != payment.Amount)
                 issues.Add("Receipt amount or currency invalid");
-            if (!payment.CampusId.HasValue)
+            if (!campus.HasValue)
                 issues.Add("Receipt has no invoice allocation or campus provenance");
-            else if (payment.CampusId != payment.MaxCampusId)
+            else if (campus != maxCampus)
                 issues.Add("Receipt allocations span multiple campuses");
-            if (payment.ResolvedCount != payment.AllocationCount)
+            if (resolvedCount != allocationCount)
                 issues.Add("Unresolved allocation campus provenance");
             decimal gross = 0m, paidRefunds = 0m;
             foreach (var allocation in byPayment[payment.Id])
@@ -200,12 +213,12 @@ public sealed partial class FeeReceivablesAgingService
                     issues.Add("Paid refund total or reversal provenance invalid");
             }
             if (payment.JournalId.HasValue &&
-                (!payment.CampusId.HasValue || payment.CampusId != payment.MaxCampusId ||
+                (!campus.HasValue || campus != maxCampus ||
                  !journals.TryGetValue(payment.JournalId.Value, out var journal) ||
                  reversed.Contains(payment.JournalId.Value) ||
                  !InstitutionalPostingJournalIntegrity.Matches(journal,
                      linesByJournal[payment.JournalId.Value].ToArray(), tenant,
-                     "StudentPayment", payment.Id, payment.CampusId.Value,
+                     "StudentPayment", payment.Id, campus.Value,
                      payment.StudentId, payment.Amount,
                      linesByJournal[payment.JournalId.Value]
                          .Where(x => x.DebitAmount > 0m).Select(x => (long?)x.AccountId)
@@ -215,9 +228,9 @@ public sealed partial class FeeReceivablesAgingService
             {
                 PaymentReference = payment.PublicId, ReceiptNumber = payment.ReceiptNumber,
                 StudentCode = payment.StudentCode, StudentName = payment.FullName,
-                CampusName = !payment.CampusId.HasValue ? "Unallocated" :
-                    payment.CampusId != payment.MaxCampusId ? "Multiple campuses" :
-                    campusNames.GetValueOrDefault(payment.CampusId.Value, "Campus unavailable"),
+                CampusName = !campus.HasValue ? "Unallocated" :
+                    campus != maxCampus ? "Multiple campuses" :
+                    campusNames.GetValueOrDefault(campus.Value, "Campus unavailable"),
                 CurrencyCode = payment.CurrencyCode, Amount = payment.Amount,
                 GrossAllocated = gross, PaidRefunds = paidRefunds, NetAllocated = gross - paidRefunds,
                 Status = issues.Count > 0 ? "Requires review" :
