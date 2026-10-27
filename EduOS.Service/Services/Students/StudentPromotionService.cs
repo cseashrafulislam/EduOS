@@ -308,6 +308,69 @@ public sealed class StudentPromotionService : IStudentPromotionService
         return ApiResponse<IReadOnlyList<StudentPromotionHistoryDto>>.SuccessResponse(result);
     }
 
+    /// <summary>
+    /// Tenant-scoped, bounded historical progression readback. Enrollment rows preserve
+    /// the original rolls and academic placement; no current-enrollment inference.
+    /// </summary>
+    public async Task<ApiResponse<PagedResult<StudentPromotionHistoryDto>>> GetHistoryPageAsync(
+        Guid studentReference, int page = 1, int pageSize = 20, CancellationToken ct = default)
+    {
+        if (!CanManage())
+            return Denied<PagedResult<StudentPromotionHistoryDto>>();
+        if (studentReference == Guid.Empty || page < 1 || pageSize is < 1 or > 100 ||
+            page > int.MaxValue / pageSize)
+            return ApiResponse<PagedResult<StudentPromotionHistoryDto>>.ErrorResponse(
+                "A valid student reference, page and page size (1-100) are required.");
+
+        var tenant = _user.TenantId;
+        var studentId = await _students.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && x.PublicId == studentReference && !x.IsDeleted)
+            .Select(x => (long?)x.Id).SingleOrDefaultAsync(ct);
+        if (studentId is null)
+            return ApiResponse<PagedResult<StudentPromotionHistoryDto>>.ErrorResponse(
+                "Student not found.", 404);
+
+        var history =
+            from record in _records.GetQueryable().AsNoTracking()
+            join source in _enrollments.GetQueryable().AsNoTracking()
+                on record.FromEnrollmentId equals source.Id
+            join target in _enrollments.GetQueryable().AsNoTracking()
+                on record.ToEnrollmentId equals target.Id
+            where record.TenantId == tenant && record.StudentId == studentId.Value &&
+                  !record.IsDeleted && source.TenantId == tenant && !source.IsDeleted &&
+                  target.TenantId == tenant && !target.IsDeleted &&
+                  source.StudentId == studentId.Value && target.StudentId == studentId.Value
+            select new { Record = record, Source = source, Target = target };
+
+        var total = await history.CountAsync(ct);
+        var rows = await history.OrderByDescending(x => x.Record.ProcessedAt)
+            .ThenByDescending(x => x.Record.Id)
+            .Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(x => new StudentPromotionHistoryDto
+            {
+                Reference = x.Record.PublicId,
+                Decision = x.Record.Decision,
+                FromAcademicYearId = x.Source.AcademicYearId,
+                ToAcademicYearId = x.Target.AcademicYearId,
+                FromAcademicLevelId = x.Source.AcademicLevelId,
+                ToAcademicLevelId = x.Target.AcademicLevelId,
+                FromAcademicBatchId = x.Source.AcademicBatchId,
+                ToAcademicBatchId = x.Target.AcademicBatchId,
+                FromAcademicTrackId = x.Source.AcademicTrackId,
+                ToAcademicTrackId = x.Target.AcademicTrackId,
+                FromRoll = x.Source.RollNo,
+                ToRoll = x.Target.RollNo,
+                ProcessedAt = x.Record.ProcessedAt,
+                Note = x.Record.Note
+            }).ToListAsync(ct);
+
+        return ApiResponse<PagedResult<StudentPromotionHistoryDto>>.SuccessResponse(
+            new PagedResult<StudentPromotionHistoryDto>
+            {
+                Items = rows, TotalCount = total, Page = page, PageSize = pageSize
+            });
+    }
+
     private async Task<ApiResponse<StudentPromotionResultDto>> ExistingResultAsync(
         StudentPromotionRecord record, Student student, CancellationToken ct)
     {

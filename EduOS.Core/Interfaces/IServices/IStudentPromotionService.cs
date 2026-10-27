@@ -15,4 +15,8 @@ public interface IStudentPromotionService
     Task<ApiResponse<IReadOnlyList<StudentPromotionHistoryDto>>> GetHistoryAsync(
         Guid studentReference,
         CancellationToken cancellationToken = default);
+
+    Task<ApiResponse<PagedResult<StudentPromotionHistoryDto>>> GetHistoryPageAsync(
+        Guid studentReference, int page = 1, int pageSize = 20,
+        CancellationToken cancellationToken = default);
 }

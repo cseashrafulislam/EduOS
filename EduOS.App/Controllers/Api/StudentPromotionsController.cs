@@ -39,6 +39,17 @@ public sealed class StudentPromotionsController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("history")]
+    [EnableRateLimiting("ApiPolicy")]
+    public async Task<IActionResult> GetHistoryPage(
+        Guid studentReference, [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _service.GetHistoryPageAsync(
+            studentReference, page, pageSize, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost]
     [EnableRateLimiting("ApiPolicy")]
     public async Task<IActionResult> Promote(

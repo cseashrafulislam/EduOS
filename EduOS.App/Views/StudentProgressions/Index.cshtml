@@ -13,16 +13,19 @@
     @Html.AntiForgeryToken()
     <div id="promotionAlert" class="d-none" role="alert" tabindex="-1"></div>
     <section class="content-card mb-3" aria-labelledby="promotionLookupTitle">
-        <div class="content-card-heading"><h3 id="promotionLookupTitle">Select student / শিক্ষার্থী নির্বাচন</h3></div>
-        <form id="promotionLookup" class="row g-3">
+        <div class="content-card-heading"><h3 id="promotionLookupTitle">Find student / শিক্ষার্থী খুঁজুন</h3></div>
+        <form id="promotionLookup" class="row g-3" role="search">
             <div class="col-md-9">
-                <label class="form-label" for="promotionStudentReference">Student reference *</label>
-                <input class="form-control" id="promotionStudentReference" type="text" maxlength="36" required autocomplete="off" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+                <label class="form-label" for="promotionSearch">Student name, code or roll *</label>
+                <input class="form-control" id="promotionSearch" type="search" minlength="2" maxlength="100" required autocomplete="off" placeholder="Search by name, student code or roll" />
             </div>
             <div class="col-md-3 d-flex align-items-end">
-                <button class="btn btn-outline-primary w-100" type="submit">Load student</button>
+                <button id="promotionSearchButton" class="btn btn-outline-primary w-100" type="submit">Search students</button>
             </div>
         </form>
+        <p id="promotionSearchStatus" class="small text-muted mt-2" role="status" aria-live="polite">Search for a student or open this page from Student Directory.</p>
+        <div id="promotionResults" class="list-group mt-2" role="list" aria-label="Student search results"></div>
+        <p id="promotionSelectionStatus" class="small mt-2" role="status" aria-live="polite"></p>
     </section>
     <section id="promotionEditor" class="content-card d-none" aria-labelledby="promotionEditorTitle">
         <div class="content-card-heading">
@@ -47,6 +50,25 @@
                 <button id="promotionSubmit" class="btn btn-primary" type="submit">Confirm progression</button>
             </div>
         </form>
+    </section>
+    <section id="promotionHistoryPanel" class="content-card mt-3 d-none" aria-labelledby="promotionHistoryTitle">
+        <div class="content-card-heading">
+            <h3 id="promotionHistoryTitle">Promotion / Repeat History</h3>
+            <p>Original enrollment rolls and academic placement are preserved; no current-enrollment substitution.</p>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-striped">
+                <caption class="visually-hidden">Student promotion and repeat decisions</caption>
+                <thead><tr><th scope="col">Decision</th><th scope="col">From roll</th><th scope="col">To roll</th><th scope="col">Academic placement (year / level / batch)</th><th scope="col">Processed (UTC)</th><th scope="col">Note</th></tr></thead>
+                <tbody id="promotionHistoryRows"></tbody>
+            </table>
+        </div>
+        <nav class="d-flex align-items-center gap-2" aria-label="Promotion history pages">
+            <button id="promotionHistoryPrevious" class="btn btn-sm btn-outline-secondary" type="button" disabled>Previous</button>
+            <span id="promotionHistoryPage" class="small" aria-live="polite"></span>
+            <button id="promotionHistoryNext" class="btn btn-sm btn-outline-secondary" type="button" disabled>Next</button>
+        </nav>
+        <p id="promotionHistoryStatus" class="small text-muted mt-2" role="status" aria-live="polite"></p>
     </section>
 </section>
 @section Scripts {
