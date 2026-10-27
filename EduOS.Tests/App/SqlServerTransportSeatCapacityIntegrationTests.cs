@@ -873,6 +873,135 @@ public sealed class SqlServerTransportSeatCapacityIntegrationTests
         }
     }
 
+    [Fact]
+    public async Task Closing_route_vehicle_link_racing_future_rider_booking_cannot_strand_reservation()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var fixture = await SeedAsync(connection);
+        long linkId;
+        CloseTransportAssignmentRequestDto close;
+        await using (var setup = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var link = await setup.RouteVehicleAssignments.SingleAsync(x =>
+                x.TenantId == fixture.TenantId && x.VehicleId == fixture.VehicleId &&
+                x.IsCurrent && !x.IsDeleted);
+            link.EffectiveTo = null;
+            await setup.SaveChangesAsync();
+            linkId = link.Id;
+            close = new CloseTransportAssignmentRequestDto
+            {
+                EffectiveTo = fixture.Start.AddDays(1),
+                RowVersion = Convert.ToBase64String(link.RowVersion)
+            };
+        }
+        var booking = Request(fixture, 0, fixture.Start.AddDays(2), fixture.Start.AddDays(5));
+
+        async Task<ApiResponse<RouteVehicleAssignmentDto>> CloseAsync()
+        {
+            await using var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+            return await Service(db, fixture.TenantId, fixture.UserId)
+                .CloseRouteVehicleAssignmentAsync(linkId, close);
+        }
+        async Task<ApiResponse<StudentTransportDto>> BookAsync()
+        {
+            await using var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+            return await Service(db, fixture.TenantId, fixture.UserId).AssignAsync(booking);
+        }
+
+        // Separate SQL connections: neither a closed route link nor a stranded
+        // future rider is an acceptable result of this race.
+        var closeTask = CloseAsync();
+        var bookingTask = BookAsync();
+        await Task.WhenAll(closeTask, bookingTask);
+        var closed = await closeTask;
+        var booked = await bookingTask;
+        Assert.True(closed.Success || booked.Success,
+            "Both operations failed: closure=" + closed.Message + "; booking=" + booked.Message);
+        Assert.False(closed.Success && booked.Success,
+            "A future rider cannot commit against a concurrently shortened route link.");
+        Assert.True(closed.Success || closed.StatusCode == 409, closed.Message);
+        Assert.True(booked.Success || booked.StatusCode == 409, booked.Message);
+
+        await using (var verify = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var persisted = await verify.RouteVehicleAssignments.AsNoTracking()
+                .SingleAsync(x => x.Id == linkId && x.TenantId == fixture.TenantId);
+            Assert.Equal(closed.Success ? fixture.Start.AddDays(1) : (DateOnly?)null,
+                persisted.EffectiveTo);
+            var riders = await verify.StudentTransports.AsNoTracking().Where(x =>
+                x.TenantId == fixture.TenantId && !x.IsDeleted &&
+                x.RouteVehicleAssignmentId == linkId &&
+                x.State == TransportAssignmentState.Active).ToListAsync();
+            Assert.Equal(booked.Success ? 1 : 0, riders.Count);
+            if (booked.Success)
+                Assert.True(persisted.EffectiveTo == null ||
+                    persisted.EffectiveTo.Value >= Assert.Single(riders).EndDate);
+        }
+        if (booked.Success)
+        {
+            var replay = await BookAsync();
+            Assert.True(replay.Success, replay.Message);
+            Assert.Equal(booked.Data!.Reference, replay.Data!.Reference);
+        }
+    }
+
+    [Fact]
+    public async Task Driver_link_closure_rejects_existing_future_rider_without_changing_history()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var fixture = await SeedAsync(connection);
+        long linkId;
+        CloseTransportAssignmentRequestDto close;
+        await using (var setup = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var today = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
+            var driver = new TransportDriver
+            {
+                TenantId = fixture.TenantId, FullName = "Closure safety driver",
+                LicenseNumber = "CLOSE-SAFE-" + Guid.NewGuid().ToString("N")[..12],
+                LicenseExpiresOn = today.AddDays(90), IsActive = true
+            };
+            setup.TransportDrivers.Add(driver);
+            await setup.SaveChangesAsync();
+            var link = new VehicleDriverAssignment
+            {
+                TenantId = fixture.TenantId, VehicleId = fixture.VehicleId,
+                TransportDriverId = driver.Id, EffectiveFrom = today,
+                EffectiveTo = null, IsCurrent = true
+            };
+            setup.Add(link);
+            await setup.SaveChangesAsync();
+            linkId = link.Id;
+            close = new CloseTransportAssignmentRequestDto
+            {
+                EffectiveTo = fixture.Start.AddDays(1),
+                RowVersion = Convert.ToBase64String(link.RowVersion)
+            };
+        }
+
+        var booking = await AssignAsync(fixture,
+            Request(fixture, 0, fixture.Start, fixture.Start.AddDays(5)));
+        Assert.True(booking.Success, booking.Message);
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var result = await DriverService(db, fixture.TenantId, fixture.UserId)
+                .CloseDriverAssignmentAsync(linkId, close);
+            Assert.False(result.Success);
+            Assert.Equal(409, result.StatusCode);
+        }
+        await using var verify = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+        var persisted = await verify.Set<VehicleDriverAssignment>().AsNoTracking()
+            .SingleAsync(x => x.TenantId == fixture.TenantId && x.Id == linkId);
+        Assert.Null(persisted.EffectiveTo);
+        Assert.True(persisted.IsCurrent);
+        Assert.Equal(close.RowVersion, Convert.ToBase64String(persisted.RowVersion));
+        Assert.Equal(1, await verify.StudentTransports.CountAsync(x =>
+            x.TenantId == fixture.TenantId && !x.IsDeleted &&
+            x.State == TransportAssignmentState.Active && x.VehicleId == fixture.VehicleId));
+    }
+
     private static AssignStudentTransportRequestDto Request(
         Fixture fixture, int student, DateOnly from, DateOnly to) => new()
     {
