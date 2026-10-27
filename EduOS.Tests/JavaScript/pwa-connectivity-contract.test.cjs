@@ -41,5 +41,24 @@ test('service worker excludes private, redirected, authenticated and non-static 
     assert.match(source, /request\.headers\.has\('Authorization'\)/);
     assert.match(source, /private\|no-store\|no-cache/);
     assert.match(source, /isPublicStaticResponse\(request, response\)/);
-    assert.doesNotMatch(source, /caches\.open\(.*\)\.then\(.*cache\.put\(.*\)\s*\)/s);
+    const context = {
+        self: { addEventListener: () => {}, location: { origin: 'https://eduos.example.test' } },
+        caches: {}, URL
+    };
+    vm.runInNewContext(source, context);
+    const request = { url: 'https://eduos.example.test/css/site.css', headers: new Headers(), cache: 'default' };
+    const response = (cacheControl = 'public, max-age=300', contentType = 'text/css', redirected = false) => ({
+        ok: true, type: 'basic', redirected,
+        headers: new Headers({ 'Cache-Control': cacheControl, 'Content-Type': contentType })
+    });
+    assert.equal(context.isCacheableStaticPath('/css/site.css'), true);
+    assert.equal(context.isCacheableStaticPath('/api/students'), false);
+    assert.equal(context.isCacheableStaticPath('/images/tenant/private-record'), false);
+    assert.equal(context.isPublicStaticResponse(request, response()), true);
+    assert.equal(context.isPublicStaticResponse(request, response('private, max-age=300')), false);
+    assert.equal(context.isPublicStaticResponse(request, response('no-store')), false);
+    assert.equal(context.isPublicStaticResponse(request, response('public', 'text/html')), false);
+    assert.equal(context.isPublicStaticResponse(request, response('public', 'text/css', true)), false);
+    request.headers.set('Authorization', 'Bearer test');
+    assert.equal(context.isPublicStaticResponse(request, response()), false);
 });
