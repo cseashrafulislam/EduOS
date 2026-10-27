@@ -176,6 +176,43 @@ public sealed class AcademicInstructionServiceTests
     }
 
     [Fact]
+    public async Task Lesson_offering_selector_is_paged_and_teacher_and_tenant_scoped()
+    {
+        var options = Options();
+        var seed = await SeedAsync(options);
+        await using (var db = Context(options, 101, 7, "TenantAdmin"))
+        {
+            var manager = Service(db, 101, 7, "TenantAdmin");
+            var result = await manager.GetLessonOfferingChoicesAsync(seed.BatchId, null, 1, 20);
+            result.Success.Should().BeTrue();
+            result.Data!.Items.Should().ContainSingle();
+            result.Data.Items[0].Reference.Should().Be(seed.OfferingReference);
+            (await manager.GetLessonOfferingChoicesAsync(seed.BatchId, null, 1, 101))
+                .StatusCode.Should().Be(400);
+        }
+        await using (var db = Context(options, 101, 70, "Teacher"))
+        {
+            var teacher = Service(db, 101, 70, "Teacher");
+            var result = await teacher.GetLessonOfferingChoicesAsync(seed.BatchId, null, 1, 20);
+            result.Success.Should().BeTrue();
+            result.Data!.Items.Should().ContainSingle();
+        }
+        await using (var db = Context(options, 101, 71, "Teacher"))
+        {
+            var unassigned = Service(db, 101, 71, "Teacher");
+            var result = await unassigned.GetLessonOfferingChoicesAsync(seed.BatchId, null, 1, 20);
+            result.Success.Should().BeTrue();
+            result.Data!.Items.Should().BeEmpty();
+        }
+        await using (var db = Context(options, 202, 8, "TenantAdmin"))
+        {
+            var other = Service(db, 202, 8, "TenantAdmin");
+            (await other.GetLessonOfferingChoicesAsync(seed.BatchId, null, 1, 20))
+                .StatusCode.Should().Be(404);
+        }
+    }
+
+    [Fact]
     public async Task Unauthorized_user_cannot_create_lesson_plan_or_substitution()
     {
         var options = Options();

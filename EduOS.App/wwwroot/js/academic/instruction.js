@@ -63,7 +63,7 @@
     async function loadOfferings(batchId) {
         const rows = [];
         for (let page = 1; page <= 5; page++) {
-            const result = await api('/api/academic-setup/batches/' + batchId + '/offerings?' +
+            const result = await api('/api/academic-instruction/batches/' + batchId + '/lesson-offerings?' +
                 new URLSearchParams({ page: String(page), pageSize: '100' }));
             rows.push(...(result?.items || []));
             if (page >= (result?.totalPages || 1)) break;

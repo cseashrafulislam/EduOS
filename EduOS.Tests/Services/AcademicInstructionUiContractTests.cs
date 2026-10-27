@@ -52,6 +52,9 @@ public sealed class AcademicInstructionUiContractTests
         js.Should().Contain("rowVersion: row.rowVersion");
         js.Should().Contain("headers.RequestVerificationToken = token");
         js.Should().Contain("state.lessonPage");
+        js.Should().Contain("/api/academic-instruction/batches/");
+        js.Should().Contain("/lesson-offerings?");
+        js.Should().NotContain("/api/academic-setup/batches/");
         js.Should().NotContain("chapterName:");
         js.Should().NotContain("progressPercent");
         js.Should().NotContain("substituteTeacherId");

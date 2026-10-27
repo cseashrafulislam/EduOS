@@ -66,6 +66,59 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
         _logger = logger;
     }
 
+    /// <summary>Read-only offering selector for lesson authoring; teacher visibility is limited to assigned offerings.</summary>
+    public async Task<ApiResponse<PagedResult<LessonOfferingOptionDto>>> GetLessonOfferingChoicesAsync(
+        long academicBatchId, string? search, int page, int pageSize, CancellationToken ct = default)
+    {
+        if (!CanRead()) return Denied<PagedResult<LessonOfferingOptionDto>>();
+        if (academicBatchId <= 0 || page < 1 || pageSize is < 1 or > 100 || search?.Length > 100)
+            return Error<PagedResult<LessonOfferingOptionDto>>("Invalid lesson offering filters or page.");
+        var tenant = _currentUser.TenantId;
+        if (!await _academicBatches.GetQueryable().AsNoTracking().AnyAsync(x =>
+            x.TenantId == tenant && x.Id == academicBatchId && x.IsActive && !x.IsDeleted, ct))
+            return Error<PagedResult<LessonOfferingOptionDto>>("Active academic batch not found.", 404);
+
+        var offerings = _subjectOfferings.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.AcademicBatchId == academicBatchId && x.IsActive && !x.IsDeleted);
+        if (!IsManager())
+        {
+            var teacherId = await GetLinkedTeacherIdAsync(ct);
+            if (!teacherId.HasValue) return Denied<PagedResult<LessonOfferingOptionDto>>();
+            var assignedIds = _instructorAssignments.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == tenant && x.EmployeeId == teacherId.Value && x.IsActive && !x.IsDeleted)
+                .Select(x => x.SubjectOfferingId);
+            offerings = offerings.Where(x => assignedIds.Contains(x.Id));
+        }
+        var query = from offering in offerings
+                    join curriculumSubject in _curriculumSubjects.GetQueryable().AsNoTracking()
+                        on offering.CurriculumSubjectId equals curriculumSubject.Id
+                    join subject in _subjects.GetQueryable().AsNoTracking()
+                        on curriculumSubject.SubjectId equals subject.Id
+                    where curriculumSubject.TenantId == tenant && !curriculumSubject.IsDeleted &&
+                          subject.TenantId == tenant && !subject.IsDeleted
+                    select new LessonOfferingOptionDto
+                    {
+                        Id = offering.Id, Reference = offering.PublicId,
+                        SubjectName = subject.Name, SubjectCode = subject.Code,
+                        Code = offering.Code, IsActive = offering.IsActive
+                    };
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            query = query.Where(x => x.SubjectName.StartsWith(term) ||
+                x.SubjectCode.StartsWith(term) || x.Code.StartsWith(term));
+        }
+        var total = await query.CountAsync(ct);
+        var offset = ((long)page - 1) * pageSize;
+        if (offset > int.MaxValue)
+            return Error<PagedResult<LessonOfferingOptionDto>>("Page exceeds supported range.");
+        var rows = await query.OrderBy(x => x.SubjectName).ThenBy(x => x.Id)
+            .Skip((int)offset).Take(pageSize).ToListAsync(ct);
+        return ApiResponse<PagedResult<LessonOfferingOptionDto>>.SuccessResponse(
+            new PagedResult<LessonOfferingOptionDto>
+            { Items = rows, TotalCount = total, Page = page, PageSize = pageSize });
+    }
+
     public async Task<ApiResponse<IReadOnlyList<SubstitutionDto>>> GetSubstitutionsAsync(
         DateOnly fromDate, DateOnly toDate, long? academicBatchId, CancellationToken ct = default)
     {

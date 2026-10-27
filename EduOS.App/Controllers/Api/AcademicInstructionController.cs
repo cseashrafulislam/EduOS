@@ -21,6 +21,11 @@ public sealed class AcademicInstructionController : ControllerBase
 
     public AcademicInstructionController(IAcademicInstructionService service) => _service = service;
 
+    [HttpGet("batches/{academicBatchId:long}/lesson-offerings")]
+    public async Task<IActionResult> LessonOfferings(long academicBatchId, [FromQuery] string? search,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetLessonOfferingChoicesAsync(academicBatchId, search, page, pageSize, cancellationToken));
+
     [HttpGet("substitutions")]
     public async Task<IActionResult> Substitutions([FromQuery] DateOnly fromDate, [FromQuery] DateOnly toDate, [FromQuery] long? academicBatchId, CancellationToken cancellationToken) =>
         ToAction(await _service.GetSubstitutionsAsync(fromDate, toDate, academicBatchId, cancellationToken));
