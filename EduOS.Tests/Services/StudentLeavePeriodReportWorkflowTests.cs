@@ -141,13 +141,13 @@ public sealed class StudentLeavePeriodReportWorkflowTests
     }
 
     [Fact]
-    public async Task Principal_report_rejects_inactive_campus_and_other_tenant_grants()
+    public async Task Principal_report_rejects_inactive_campus_even_with_valid_grant()
     {
         await using var db = Context(71);
         db.AcademicBatches.Add(new AcademicBatch { Id = 10, TenantId = 71, CampusId = 8,
             Name = "Batch", Code = "B" });
         db.Campuses.Add(new Campus { Id = 8, TenantId = 71, Name = "North", Code = "N", IsActive = false });
-        db.UserCampusAccesses.Add(new UserCampusAccess { Id = 101, TenantId = 72,
+        db.UserCampusAccesses.Add(new UserCampusAccess { Id = 101, TenantId = 71,
             UserId = 7, CampusId = 8, IsActive = true });
         await db.SaveChangesAsync();
         Assert.Equal(404, (await Service(db, 71, manager: false, principal: true)
