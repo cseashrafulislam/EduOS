@@ -8,21 +8,22 @@ EduOS is a configurable, multi-tenant SaaS platform for the Bangladesh education
 
 ## Product decisions and engineering specifications (2026-10-27)
 
-**EduOS is an institution-agnostic, multi-tenant Education ERP + LMS + Finance + Administration platform.** The initial real-user release can prioritize essential education workflows without renaming domain models for any school/college preset or deleting existing optional modules.
+**EduOS is an institution-agnostic, multi-tenant Education ERP + LMS + Finance + Administration platform.** Version 1.0 is a **fully completed, production-accepted education ERP through advanced HR and Payroll** for 16 launch institutes spanning seven categories and approximately 40,000 initial student records. Version 2.0 adds only **new, fully completed modules**, never a deferred 'advanced' edition of V1's Results, LMS, Finance, HR, Academic or other accepted modules. Canonical models remain generic for all institution presets.
 
 | Area | Current decision |
 | --- | --- |
-| Product scope | Preserve the complete cross-institution module catalogue; deliver real end-to-end workflows, not model/API/UI scaffolds marketed as completed features. |
+| Product scope | **Module-complete delivery:** assign each agreed business module to one release and finish every required workflow/UI/report/security/acceptance case before calling it ready. No Basic V1 / Advanced V2 split. |
 | Data architecture | Keep the existing **single SQL Server database** and existing **EduOSDbContext**. No database routing, sharding, registry or schema changes are authorized by these documents. Evaluate multi-database only later on measured capacity/operational evidence. |
 | Tenant and security | Tenant/campus/membership/role/ownership/entitlement isolation across API, UI, report, file, cache and background work; audited, atomic high-risk transactions. |
 | User experience | Clean responsive bilingual (`bn-BD` / `en-BD`) UI, header help icon, global language selection, PWA, and **per-user-per-institute saved design** (sidebar top/left/right, safe themes/colors/fonts/density, allowed menu/dashboard layout). Personalization is a **target requirement**, not yet a verified completed workflow. |
-| Release order | Finish critical admission/student, academic/attendance/result, finance/fees, LMS and platform UX slices for a real pilot; preserve existing Hostel, Transport, Library, HR, Inventory and other module code/data and securely gate unfinished flows. |
+| Release order | **V1:** full platform, admission/student/global identity, academic/routine/attendance, examination/results/credentials, LMS, fees/full finance, full HR/payroll, portals, professional bilingual UI/PWA, reporting and 40k-record import across 16 institutes. **V2:** only separately complete Library, Hostel, Transport, Inventory/Procurement, Assets/Facilities and other approved new modules. |
 | Quality | No duplicate/dead speculative code, fake dashboards, unbounded queries, silent posting/editing, incomplete layer chains or untested claims. CI, security, migration/restore, concurrency and real-user acceptance are required. |
 | Scale promise | Architecture targets millions of learners; **no million-concurrent-user or production-capacity claim** without measured load tests and recovery evidence. |
 
 ### Read before planning, coding or reporting status
 
 1. [Product Blueprint and delivery rules](docs/PRODUCT_BLUEPRINT.md) — full product identity, capability map, release boundaries and honest completion criteria.
+2. [Version 1.0 / Version 2.0 release contract](docs/RELEASE_V1_V2.md) — authoritative module-completion rule, 16-institute cohort, full V1 through HR/payroll, safe 40k import and full-only V2 modules.
 2. [UI Personalization, localization and PWA specification](docs/UI_PERSONALIZATION.md) — user-controlled workspace with safe tenant-scoped preferences, smart help, mobile UX and performance requirements.
 3. [Scalability and engineering quality standard](docs/architecture/SCALABILITY_AND_QUALITY.md) — single-database decision, million-user scale strategy, tenant security, clean-code gates and production evidence.
 4. [Current pilot staging checklist](docs/deployment/SCHOOL_PILOT_STAGING_RELEASE.md) — staging-only operational gates, **not** a production certificate.
@@ -997,6 +998,8 @@ A feature is complete only when:
 
 ## 18. Implementation roadmap
 
+**Historical implementation workstreams, not the V1/V2 product-release split.** Phase numbers below describe prior build sequencing and verified partial progress; they do **not** authorize deferring advanced Result, LMS, Accounts, HR/Payroll, Academic or any other accepted V1 features to V2. The authoritative freeze is [the V1/V2 release contract](docs/RELEASE_V1_V2.md).
+
 ### Phase 0 — Security and repository foundation ✅
 
 - Tenant isolation.
@@ -1090,24 +1093,19 @@ Acceptance:
 
 ---
 
-## 19. Suggested first production pilot
+## 19. Production release strategy — complete V1, then new-module V2
 
-Do not start with every module. A safe pilot should include:
+**The launch cohort is 16 real institutes**: 2 primary-through-college, 3 madrasa, 2 training, 1 coaching, 3 online LMS, 3 university and 2 private teachers. Approximately 40,000 student records require validated, reconciled, resumable per-tenant bulk import. One verified global learner may have separate tenant-owned student/enrolment history in two or three institutes; private records never become cross-tenant-visible merely because a person matches.
 
-1. One institution type preset.
-2. Signup, subscription/trial and onboarding.
-3. Campus, academic year, programme/level/batch.
-4. Users, roles and invitations.
-5. Student/guardian/enrolment.
-6. Attendance.
-7. Basic fee invoice/payment/receipt.
-8. Notices and dashboards.
-9. Audit, backup, monitoring and support process.
+**Version 1.0 must be 100% of its frozen module scope before real-user release:** complete SaaS, identity/roles/privacy, institute configuration, academic/admission/student, routines/attendance, exam/result/certification, full LMS, fees/finance/accounts, **full HR and Payroll**, relevant portals/reports, bilingual professionally polished UI, safe customizable PWA, import/reconciliation and operational/security release gates. Every institute category must pass its applicable end-to-end acceptance journey. No placeholder, fake dashboard, unfinished button or Basic-only V1 module is production complete.
 
-After real users validate the workflow, expand into examination/results, accounting, HR/payroll, LMS and operational modules.
+**Version 2.0 starts only new modules and finishes each fully:** Library, Hostel, Transport, Inventory/Procurement, Assets/Facilities, or separately agreed other business areas. V2 is **not** the place for Advanced Results, Advanced LMS, Advanced Accounts, Advanced HR/Payroll, deferred V1 Reports or deferred V1 design polish. Normal bug fixes, security patches and additive compatibility changes continue as maintenance.
+
+Use a **single codebase and one default production SQL Server database**. Upgrade real institution records safely from V1 to V2. Any preview/staging link uses an isolated test database and non-live/anonymized data. Separate simultaneous production databases for the same institute would create conflicting financial and student history and are not the approved design.
+
+Full preproduction scope, acceptance, migration, finance/payroll reconciliation, tenancy, backups/restore, concurrency, performance, actual institutional sign-off and go/no-go criteria: [RELEASE_V1_V2.md](docs/RELEASE_V1_V2.md). The older [school/college staging checklist](docs/deployment/SCHOOL_PILOT_STAGING_RELEASE.md) documents a narrower staging-only switch and is not the new V1 production scope.
 
 ---
-
 ## 20. Repository map
 
 ~~~text
