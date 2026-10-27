@@ -16,6 +16,7 @@ public sealed partial class AccountingReportingService : IAccountingReportingSer
     public AccountingReportingService(EduOSDbContext db, ICurrentUserService user) { this.db = db; this.user = user; }
     private bool Allowed => user.IsAuthenticated && user.TenantId > 0 && db.CurrentTenantId == user.TenantId &&
         (user.IsTenantAdmin || user.IsInRole("Principal") || user.IsInRole("Accountant"));
+    private bool TenantWideAllowed => Allowed && user.IsTenantAdmin;
     private IQueryable<Journal> Posted => db.Journals.AsNoTracking().Where(x => x.TenantId == user.TenantId &&
         !x.IsDeleted && (x.State == JournalState.Posted || x.State == JournalState.Reversed));
     private IQueryable<JournalLine> Lines => db.JournalLines.AsNoTracking().Where(x => x.TenantId == user.TenantId && !x.IsDeleted);
@@ -116,7 +117,7 @@ public sealed partial class AccountingReportingService : IAccountingReportingSer
     // only TenantAdmin can see the combined result; no SaaS subscription data is queried.
     public async Task<ApiResponse<IncomeStatementDto>> GetIncomeStatementAsync(DateOnly fromDate, DateOnly toDate, CancellationToken ct = default)
     {
-        if (!user.IsAuthenticated || user.TenantId <= 0 || !user.IsTenantAdmin)
+        if (!TenantWideAllowed)
             return ApiResponse<IncomeStatementDto>.ErrorResponse("Tenant administrator access required for the institution-wide income statement.", 403);
         if (!Dates(fromDate, toDate))
             return ApiResponse<IncomeStatementDto>.ErrorResponse("Valid date range (up to ten years) required.", 400);
@@ -177,7 +178,7 @@ public sealed partial class AccountingReportingService : IAccountingReportingSer
     // This does not assume an accounting year-end: posted closing entries move surplus into equity.
     public async Task<ApiResponse<BalanceSheetDto>> GetBalanceSheetAsync(DateOnly asOfDate, CancellationToken ct = default)
     {
-        if (!user.IsAuthenticated || user.TenantId <= 0 || !user.IsTenantAdmin)
+        if (!TenantWideAllowed)
             return ApiResponse<BalanceSheetDto>.ErrorResponse("Tenant administrator access required for the institution-wide balance sheet.", 403);
         if (asOfDate == default)
             return ApiResponse<BalanceSheetDto>.ErrorResponse("Valid as-of date required.", 400);

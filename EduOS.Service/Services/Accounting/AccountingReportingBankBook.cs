@@ -12,7 +12,7 @@ public sealed partial class AccountingReportingService
     public async Task<ApiResponse<BankBookDto>> GetBankBookAsync(
         long bankAccountId, DateOnly fromDate, DateOnly toDate, CancellationToken ct = default)
     {
-        if (!user.IsAuthenticated || user.TenantId <= 0 || !user.IsTenantAdmin)
+        if (!TenantWideAllowed)
             return ApiResponse<BankBookDto>.ErrorResponse("Tenant administrator access required for the institution-wide bank book.", 403);
         if (bankAccountId <= 0 || !Dates(fromDate, toDate))
             return ApiResponse<BankBookDto>.ErrorResponse("Valid bank account and date range (up to ten years) required.", 400);

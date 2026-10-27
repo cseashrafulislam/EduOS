@@ -20,7 +20,8 @@ public sealed partial class FinanceAdjustmentService : IFinanceAdjustmentService
     private readonly TimeProvider clock;
     public FinanceAdjustmentService(EduOSDbContext db, ICurrentUserService user, TimeProvider clock)
     { this.db = db; this.user = user; this.clock = clock; }
-    private bool Authorized => user.IsAuthenticated && user.TenantId > 0 && user.IsTenantAdmin;
+    private bool Authorized => user.IsAuthenticated && user.TenantId > 0 && user.IsTenantAdmin &&
+        db.CurrentTenantId == user.TenantId;
     private static ApiResponse<T> Error<T>(string message, int status = 400) => ApiResponse<T>.ErrorResponse(message, status);
     private static string Version(byte[] value) => Convert.ToBase64String(value);
     private static bool Matches(byte[] actual, string? version)

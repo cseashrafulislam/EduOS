@@ -13,7 +13,7 @@ public sealed partial class AccountingReportingService
     public async Task<ApiResponse<BankLiquidityDto>> GetBankLiquidityAsync(
         DateOnly fromDate, DateOnly toDate, CancellationToken ct = default)
     {
-        if (!user.IsAuthenticated || user.TenantId <= 0 || !user.IsTenantAdmin)
+        if (!TenantWideAllowed)
             return ApiResponse<BankLiquidityDto>.ErrorResponse("Tenant administrator access required.", 403);
         if (!Dates(fromDate, toDate))
             return ApiResponse<BankLiquidityDto>.ErrorResponse("Valid reporting dates (up to ten years) required.", 400);
