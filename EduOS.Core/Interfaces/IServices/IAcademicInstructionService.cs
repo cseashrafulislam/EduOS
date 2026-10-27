@@ -15,4 +15,6 @@ public interface IAcademicInstructionService
     Task<ApiResponse<LessonPlanDto>> UpdateLessonPlanAsync(long id, SaveLessonPlanRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<LessonPlanDto>> SubmitLessonPlanAsync(long id, string rowVersion, CancellationToken cancellationToken = default);
     Task<ApiResponse<LessonPlanDto>> ReviewLessonPlanAsync(long id, ReviewLessonPlanRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<LessonPlanDto>> StartLessonPlanAsync(long id, AdvanceLessonPlanRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<LessonPlanDto>> CompleteLessonPlanAsync(long id, AdvanceLessonPlanRequestDto request, CancellationToken cancellationToken = default);
 }

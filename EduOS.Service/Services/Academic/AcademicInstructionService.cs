@@ -444,6 +444,68 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
         });
     }
 
+    public Task<ApiResponse<LessonPlanDto>> StartLessonPlanAsync(
+        long id, AdvanceLessonPlanRequestDto request, CancellationToken ct = default) =>
+        AdvanceLessonPlanAsync(id, request, LessonPlanState.Approved, LessonPlanState.InProgress, ct);
+
+    public Task<ApiResponse<LessonPlanDto>> CompleteLessonPlanAsync(
+        long id, AdvanceLessonPlanRequestDto request, CancellationToken ct = default) =>
+        AdvanceLessonPlanAsync(id, request, LessonPlanState.InProgress, LessonPlanState.Completed, ct);
+
+    private Task<ApiResponse<LessonPlanDto>> AdvanceLessonPlanAsync(
+        long id, AdvanceLessonPlanRequestDto request, LessonPlanState requiredState,
+        LessonPlanState targetState, CancellationToken ct)
+    {
+        // Administrative review does not authorize an administrator to claim a lesson was taught.
+        if (!CanRead() || !_currentUser.IsInRole("Teacher"))
+            return Task.FromResult(Denied<LessonPlanDto>());
+        if (id <= 0 || request == null || !TryDecodeRowVersion(request.RowVersion, out var expected))
+            return Task.FromResult(Error<LessonPlanDto>("Lesson plan and row version are required."));
+
+        return ExecuteWriteAsync("advance lesson delivery", async () =>
+        {
+            var tenant = _currentUser.TenantId;
+            var teacherId = await GetLinkedTeacherIdAsync(ct);
+            var row = await _lessonPlans.GetQueryable().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.Id == id && !x.IsDeleted, ct);
+            if (row == null || !teacherId.HasValue || row.EmployeeId != teacherId.Value)
+                return Error<LessonPlanDto>("Lesson plan not found.", 404);
+
+            // Repeated delivery of an already-applied transition is read-only and retry safe.
+            if (row.State == targetState)
+                return ApiResponse<LessonPlanDto>.SuccessResponse(
+                    (await MapLessonPlansAsync([row], ct))[0], "Lesson transition already applied.");
+            if (!VersionsMatch(row.RowVersion, expected)) return Stale<LessonPlanDto>();
+            if (row.State != requiredState)
+                return Error<LessonPlanDto>("Lesson delivery requires the preceding approved state.", 409);
+            var now = _clock.GetUtcNow().UtcDateTime;
+            if (row.LessonDate > DateOnly.FromDateTime(now))
+                return Error<LessonPlanDto>("Future lessons cannot be started or completed.", 409);
+
+            var offering = await _subjectOfferings.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.Id == row.SubjectOfferingId && !x.IsDeleted, ct);
+            if (offering == null) return Error<LessonPlanDto>("Subject offering not found.", 404);
+            var dateError = await ValidateAcademicDateAsync(offering.AcademicYearId, offering.AcademicTermId,
+                row.LessonDate, row.LessonDate, ct);
+            if (dateError != null) return Error<LessonPlanDto>(dateError, 409);
+            var assigned = await _instructorAssignments.GetQueryable().AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenant && x.SubjectOfferingId == row.SubjectOfferingId &&
+                x.EmployeeId == teacherId.Value && x.IsActive && !x.IsDeleted &&
+                x.EffectiveFrom <= row.LessonDate &&
+                (!x.EffectiveTo.HasValue || x.EffectiveTo >= row.LessonDate), ct);
+            if (!assigned) return Error<LessonPlanDto>("Instructor is not eligible for this lesson date.", 409);
+
+            row.State = targetState;
+            if (targetState == LessonPlanState.Completed) row.CompletedAt = now;
+            Touch(row);
+            _lessonPlans.Update(row);
+            await _unitOfWork.SaveChangesAsync(ct);
+            return ApiResponse<LessonPlanDto>.SuccessResponse(
+                (await MapLessonPlansAsync([row], ct))[0],
+                targetState == LessonPlanState.Completed ? "Lesson completed." : "Lesson started.");
+        });
+    }
+
     private async Task<bool> HasInstructorConflictAsync(
         long employeeId, long targetRoutineEntryId, long targetSlotId, DateOnly date, CancellationToken cancellationToken)
     {

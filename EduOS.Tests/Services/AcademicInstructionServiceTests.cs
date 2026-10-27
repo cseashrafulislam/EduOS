@@ -90,6 +90,84 @@ public sealed class AcademicInstructionServiceTests
     }
 
     [Fact]
+    public async Task Approved_teacher_starts_and_completes_lesson_with_audit_and_retry_safety()
+    {
+        var options = Options();
+        var seed = await SeedAsync(options);
+        long id;
+        await using (var db = Context(options, 101, 70, "Teacher"))
+        {
+            var teacher = Service(db, 101, 70, "Teacher");
+            id = (await teacher.CreateLessonPlanAsync(Lesson(seed.OfferingReference))).Data!.Id;
+            var beforeReview = await VersionAsync(options, id, [1, 2, 3, 4, 5, 6, 7, 8]);
+            (await teacher.SubmitLessonPlanAsync(id, beforeReview)).Success.Should().BeTrue();
+        }
+        await using (var db = Context(options, 101, 7, "TenantAdmin"))
+        {
+            var manager = Service(db, 101, 7, "TenantAdmin");
+            var reviewVersion = await VersionAsync(options, id, [2, 3, 4, 5, 6, 7, 8, 9]);
+            (await manager.ReviewLessonPlanAsync(id, new ReviewLessonPlanRequestDto
+            {
+                Approve = true, RowVersion = reviewVersion
+            })).Success.Should().BeTrue();
+            (await manager.StartLessonPlanAsync(id, new AdvanceLessonPlanRequestDto
+            {
+                RowVersion = reviewVersion
+            })).StatusCode.Should().Be(403);
+        }
+        var startVersion = await VersionAsync(options, id, [3, 4, 5, 6, 7, 8, 9, 10]);
+        await using (var db = Context(options, 101, 70, "Teacher"))
+        {
+            var teacher = Service(db, 101, 70, "Teacher");
+            var start = await teacher.StartLessonPlanAsync(id, new AdvanceLessonPlanRequestDto { RowVersion = startVersion });
+            start.Success.Should().BeTrue();
+            start.Data!.State.Should().Be(LessonPlanState.InProgress);
+            start.Data.CompletedAt.Should().BeNull();
+            var retry = await teacher.StartLessonPlanAsync(id, new AdvanceLessonPlanRequestDto { RowVersion = startVersion });
+            retry.Success.Should().BeTrue();
+            retry.Data!.State.Should().Be(LessonPlanState.InProgress);
+        }
+        var completionVersion = await VersionAsync(options, id, [4, 5, 6, 7, 8, 9, 10, 11]);
+        await using (var db = Context(options, 101, 70, "Teacher"))
+        {
+            var teacher = Service(db, 101, 70, "Teacher");
+            var completed = await teacher.CompleteLessonPlanAsync(id,
+                new AdvanceLessonPlanRequestDto { RowVersion = completionVersion });
+            completed.Success.Should().BeTrue();
+            completed.Data!.State.Should().Be(LessonPlanState.Completed);
+            completed.Data.CompletedAt.Should().NotBeNull();
+            (await teacher.CompleteLessonPlanAsync(id,
+                new AdvanceLessonPlanRequestDto { RowVersion = completionVersion })).Success.Should().BeTrue();
+            (await teacher.StartLessonPlanAsync(id,
+                new AdvanceLessonPlanRequestDto { RowVersion = startVersion })).StatusCode.Should().Be(409);
+        }
+        await using (var db = Context(options, 202, 8, "Teacher"))
+        {
+            (await Service(db, 202, 8, "Teacher").CompleteLessonPlanAsync(id,
+                new AdvanceLessonPlanRequestDto { RowVersion = completionVersion })).StatusCode.Should().Be(404);
+        }
+    }
+
+    [Fact]
+    public async Task Unapproved_or_future_lesson_cannot_enter_delivery()
+    {
+        var options = Options();
+        var seed = await SeedAsync(options);
+        await using var db = Context(options, 101, 70, "Teacher");
+        var teacher = Service(db, 101, 70, "Teacher");
+        var request = Lesson(seed.OfferingReference);
+        request.LessonDate = new DateOnly(2026, 12, 1);
+        var created = await teacher.CreateLessonPlanAsync(request);
+        created.Success.Should().BeTrue();
+        var id = created.Data!.Id;
+        var version = await VersionAsync(options, id, [1, 2, 3, 4, 5, 6, 7, 8]);
+        (await teacher.StartLessonPlanAsync(id,
+            new AdvanceLessonPlanRequestDto { RowVersion = version })).StatusCode.Should().Be(409);
+        (await teacher.CompleteLessonPlanAsync(id,
+            new AdvanceLessonPlanRequestDto { RowVersion = version })).StatusCode.Should().Be(409);
+    }
+
+    [Fact]
     public async Task Substitution_is_retry_safe_tenant_scoped_and_cancellable_with_rowversion()
     {
         var options = Options();

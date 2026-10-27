@@ -4,6 +4,7 @@
     if (!root) return;
     const get = id => document.getElementById(id);
     const manager = root.dataset.canManage === 'true';
+    const teacher = root.dataset.canTeach === 'true';
     const statuses = {1:'Draft',2:'Submitted',3:'Approved',4:'Rejected',5:'In progress',6:'Completed'};
     const state = { batches: [], offerings: [], instructors: [], routines: [], lessons: [], substitutions: [], editingId: null, lessonPage: 1, lessonPages: 1, lessonCount: 0, requestSeq: 0, draftRequestId: null, substitutionRequestId: null };
     const dateOnly = value => value ? String(value).slice(0,10) : '';
@@ -145,7 +146,8 @@
             const st=Number(row.state);
             if(st===1||st===4){td.append(actionButton('Edit','editLesson',row.id),actionButton('Submit','submitLesson',row.id));}
             if(manager&&st===2){td.append(actionButton('Approve','approveLesson',row.id),actionButton('Reject','rejectLesson',row.id));}
-            // Approved plans remain read-only; no progress endpoint exists in the canonical API.
+            if(teacher&&st===3) td.append(actionButton('Start','startLesson',row.id));
+            if(teacher&&st===5) td.append(actionButton('Complete','completeLesson',row.id));
             if(!td.childNodes.length)td.textContent='—';
             tr.append(td);body.append(tr);
         }
@@ -229,6 +231,9 @@
             if (!approve && note === null) return;
             if (!approve && !note?.trim()) { status('danger', 'A rejection reason is required.'); return; }
             body = { approve, note: note?.trim() || null, rowVersion: row.rowVersion };
+        } else if (teacher && (action === 'startLesson' || action === 'completeLesson')) {
+            endpoint = action === 'startLesson' ? 'start' : 'complete';
+            body = { rowVersion: row.rowVersion };
         } else return;
         try {
             await api('/api/academic-instruction/lesson-plans/' + id + '/' + endpoint, 'POST', body);
@@ -290,9 +295,9 @@
         setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
     function exportLessons() {
-        const headers = ['Lesson date', 'Subject', 'Title', 'Teacher', 'State', 'Objectives', 'Content', 'Resources'];
+        const headers = ['Lesson date', 'Subject', 'Title', 'Teacher', 'State', 'Completed UTC', 'Objectives', 'Content', 'Resources'];
         const rows = state.lessons.map(x => [dateOnly(x.lessonDate), x.subjectName, x.title,
-            x.employeeName, statuses[Number(x.state)] || x.state, x.objectives, x.content, x.resources]);
+            x.employeeName, statuses[Number(x.state)] || x.state, x.completedAt || '', x.objectives, x.content, x.resources]);
         const safe = value => {
             let s = String(value ?? '');
             if (/^[=+@\-\t\r]/.test(s)) s = "'" + s;

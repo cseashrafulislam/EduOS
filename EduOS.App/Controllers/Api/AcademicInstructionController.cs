@@ -61,5 +61,15 @@ public sealed class AcademicInstructionController : ControllerBase
     public async Task<IActionResult> ReviewLessonPlan(long id, [FromBody] ReviewLessonPlanRequestDto request, CancellationToken cancellationToken) =>
         ToAction(await _service.ReviewLessonPlanAsync(id, request, cancellationToken));
 
+    [HttpPost("lesson-plans/{id:long}/start")]
+    [Authorize(Roles = "Teacher")]
+    public async Task<IActionResult> StartLessonPlan(long id, [FromBody] AdvanceLessonPlanRequestDto request, CancellationToken cancellationToken) =>
+        ToAction(await _service.StartLessonPlanAsync(id, request, cancellationToken));
+
+    [HttpPost("lesson-plans/{id:long}/complete")]
+    [Authorize(Roles = "Teacher")]
+    public async Task<IActionResult> CompleteLessonPlan(long id, [FromBody] AdvanceLessonPlanRequestDto request, CancellationToken cancellationToken) =>
+        ToAction(await _service.CompleteLessonPlanAsync(id, request, cancellationToken));
+
     private IActionResult ToAction<T>(ApiResponse<T> response) => StatusCode(response.StatusCode, response);
 }

@@ -41,6 +41,21 @@ public sealed class AcademicInstructionUiContractTests
     }
 
     [Fact]
+    public void Teacher_delivery_endpoints_require_teacher_role_and_antiforgery()
+    {
+        var type = typeof(AcademicInstructionController);
+        foreach (var name in new[] { nameof(AcademicInstructionController.StartLessonPlan),
+            nameof(AcademicInstructionController.CompleteLessonPlan) })
+        {
+            var method = type.GetMethod(name)!;
+            method.GetCustomAttributes(typeof(AuthorizeAttribute), true)
+                .Cast<AuthorizeAttribute>().Single().Roles.Should().Be("Teacher");
+            method.GetCustomAttributes(typeof(HttpPostAttribute), true).Should().ContainSingle();
+        }
+        type.GetCustomAttributes(typeof(AutoValidateAntiforgeryTokenAttribute), true).Should().NotBeEmpty();
+    }
+
+    [Fact]
     public void Instruction_workspace_uses_paged_lesson_results_and_canonical_write_payloads()
     {
         var js = File.ReadAllText(FindFile("EduOS.App", "wwwroot", "js", "academic", "instruction.js"));
@@ -58,6 +73,14 @@ public sealed class AcademicInstructionUiContractTests
         js.Should().NotContain("chapterName:");
         js.Should().NotContain("progressPercent");
         js.Should().NotContain("substituteTeacherId");
+        view.Should().Contain("data-can-teach=");
+        js.Should().Contain("startLesson");
+        js.Should().Contain("completeLesson");
+        js.Should().Contain("x.completedAt");
+        typeof(IAcademicInstructionService).GetMethod(nameof(IAcademicInstructionService.StartLessonPlanAsync))
+            .Should().NotBeNull();
+        typeof(IAcademicInstructionService).GetMethod(nameof(IAcademicInstructionService.CompleteLessonPlanAsync))
+            .Should().NotBeNull();
         view.Should().Contain("id=\"lessonPrevious\"");
         view.Should().Contain("id=\"lessonNext\"");
         view.Should().Contain("id=\"lessonCsv\"");

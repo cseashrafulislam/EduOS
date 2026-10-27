@@ -701,6 +701,12 @@ public class ReviewLessonPlanRequestDto
     [Required] public string RowVersion { get; set; } = string.Empty;
 }
 
+/// <summary>Optimistic-concurrency token for approved lesson delivery transitions.</summary>
+public class AdvanceLessonPlanRequestDto
+{
+    [Required] public string RowVersion { get; set; } = string.Empty;
+}
+
 public class AcademicCalendarPolicyDto
 {
     public long Id { get; set; }

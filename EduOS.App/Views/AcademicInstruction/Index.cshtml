@@ -2,7 +2,7 @@
     ViewData["Title"] = "Academic Instruction";
     var canManage = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal");
 }
-<section id="instructionApp" data-can-manage="@canManage.ToString().ToLowerInvariant()" class="container-fluid py-3">
+<section id="instructionApp" data-can-manage="@canManage.ToString().ToLowerInvariant()" data-can-teach="@User.IsInRole("Teacher").ToString().ToLowerInvariant()" class="container-fluid py-3">
     <header class="mb-3"><h2 class="h4 mb-1">Academic Instruction</h2><p class="text-muted mb-0">Lesson planning, review, teaching progress and teacher substitutions.</p></header>
     <div id="instructionAlert" class="d-none" tabindex="-1" role="alert" aria-live="polite"></div>
     <form id="instructionFilters" class="card card-body mb-3">
@@ -15,7 +15,7 @@
     </form>
     <div class="card mb-3">
         <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
-            <h3 class="h6 mb-0">Lesson plans</h3><div class="d-flex gap-2">
+            <h3 class="h6 mb-0">Lesson plans <small class="text-muted fw-normal">Approved → In progress → Completed (assigned teacher only)</small></h3><div class="d-flex gap-2">
                 <button id="lessonCsv" class="btn btn-sm btn-outline-secondary" type="button" disabled>CSV (current page)</button>
                 <button id="lessonPrint" class="btn btn-sm btn-outline-secondary" type="button">Print</button>
                 <button id="lessonNew" class="btn btn-sm btn-primary" type="button" disabled>New lesson plan</button>
