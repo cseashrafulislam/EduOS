@@ -160,6 +160,52 @@ public sealed class InstitutionRegistrationServiceTests
         (await service.GetCampusAsync(1)).StatusCode.Should().Be(404);
     }
 
+    [Theory]
+    [InlineData("route")]
+    [InlineData("vehicle")]
+    [InlineData("hostel")]
+    [InlineData("enrollment")]
+    [InlineData("fee")]
+    [InlineData("inventory")]
+    [InlineData("library")]
+    public async Task Campus_archive_rejects_cross_module_references_without_changing_head_office(string domain)
+    {
+        var options = Options();
+        await SeedTenant(options, 101);
+        await using var db = Context(options, 101);
+        db.Campuses.AddRange(
+            new Campus { Id = 1001, TenantId = 101, Code = "A", Name = "Main", IsActive = true,
+                IsHeadOffice = true, RowVersion = [1, 2, 3] },
+            new Campus { Id = 1002, TenantId = 101, Code = "B", Name = "Other", IsActive = true,
+                RowVersion = [4, 5, 6] });
+        await db.SaveChangesAsync();
+        switch (domain)
+        {
+            case "route": db.Routes.Add(new EduOS.Core.Entities.Transport.Route
+                { TenantId = 101, CampusId = 1001, Code = "R1", Name = "Route" }); break;
+            case "vehicle": db.Vehicles.Add(new EduOS.Core.Entities.Transport.Vehicle
+                { TenantId = 101, CampusId = 1001, VehicleNumber = "V1", Capacity = 10 }); break;
+            case "hostel": db.Hostels.Add(new EduOS.Core.Entities.Hostel.Hostel
+                { TenantId = 101, CampusId = 1001, Code = "H1", Name = "Hostel" }); break;
+            case "enrollment": db.StudentEnrollments.Add(new StudentEnrollment
+                { TenantId = 101, CampusId = 1001, RollNo = "S1" }); break;
+            case "fee": db.FeeStructures.Add(new EduOS.Core.Entities.Finance.FeeStructure
+                { TenantId = 101, CampusId = 1001, Name = "Fee" }); break;
+            case "inventory": db.InventoryLocations.Add(new EduOS.Core.Entities.Inventory.InventoryLocation
+                { TenantId = 101, CampusId = 1001, Code = "L1", Name = "Store" }); break;
+            case "library": db.LibraryBranches.Add(new EduOS.Core.Entities.Library.LibraryBranch
+                { TenantId = 101, CampusId = 1001, Code = "LB1", Name = "Library" }); break;
+        }
+        await db.SaveChangesAsync();
+        var result = await Foundation(db, new TestUser(101))
+            .ArchiveCampusAsync(1001, Convert.ToBase64String(new byte[] { 1, 2, 3 }));
+        result.StatusCode.Should().Be(409);
+        result.Message.Should().Contain("operational records");
+        (await db.Campuses.SingleAsync(x => x.Id == 1001)).IsDeleted.Should().BeFalse();
+        (await db.Campuses.SingleAsync(x => x.Id == 1001)).IsHeadOffice.Should().BeTrue();
+        (await db.Campuses.SingleAsync(x => x.Id == 1002)).IsHeadOffice.Should().BeFalse();
+    }
+
     [Fact]
     public void Canonical_institution_registration_and_foundation_contracts_are_registered()
     {
@@ -180,7 +226,7 @@ public sealed class InstitutionRegistrationServiceTests
         new GenericRepository<AcademicYear>(db), new GenericRepository<AcademicTerm>(db),
         new GenericRepository<AcademicBatch>(db), new GenericRepository<AdmissionIntakeForm>(db),
         new GenericRepository<TenantSubscription>(db), new GenericRepository<SubscriptionPlan>(db),
-        db, user, TimeProvider.System, NullLogger<InstitutionFoundationService>.Instance);
+        db, db, user, TimeProvider.System, NullLogger<InstitutionFoundationService>.Instance);
 
     private static async Task SeedTenant(DbContextOptions<EduOSDbContext> options, long tenantId)
     {

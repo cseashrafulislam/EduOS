@@ -9,6 +9,8 @@ using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
+using EduOS.Persistence.Context;
+using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
@@ -29,6 +31,7 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
     private readonly IGenericRepository<TenantSubscription> _subscriptions;
     private readonly IGenericRepository<SubscriptionPlan> _plans;
     private readonly IUnitOfWork _uow;
+    private readonly EduOSDbContext _db;
     private readonly ICurrentUserService _user;
     private readonly TimeProvider _clock;
     private readonly ILogger<InstitutionFoundationService> _logger;
@@ -40,13 +43,13 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
         IGenericRepository<AcademicTerm> terms, IGenericRepository<AcademicBatch> batches,
         IGenericRepository<AdmissionIntakeForm> admissions,
         IGenericRepository<TenantSubscription> subscriptions, IGenericRepository<SubscriptionPlan> plans,
-        IUnitOfWork uow, ICurrentUserService user, TimeProvider clock,
+        IUnitOfWork uow, EduOSDbContext db, ICurrentUserService user, TimeProvider clock,
         ILogger<InstitutionFoundationService> logger)
     {
         _tenants = tenants; _campuses = campuses; _settings = settings;
         _memberships = memberships; _campusAccess = campusAccess; _years = years; _terms = terms;
         _batches = batches; _admissions = admissions; _subscriptions = subscriptions;
-        _plans = plans; _uow = uow; _user = user; _clock = clock; _logger = logger;
+        _plans = plans; _uow = uow; _db = db; _user = user; _clock = clock; _logger = logger;
     }
 
     public async Task<ApiResponse<IReadOnlyList<CampusDto>>> GetCampusesAsync(CancellationToken ct = default)
@@ -198,6 +201,10 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
                 await _admissions.GetQueryable().AsNoTracking().AnyAsync(x =>
                 x.TenantId == tenant && x.CampusId == id && !x.IsDeleted, token))
                 return Error<bool>("Campus has academic or admission records.", 409);
+            // Campus references outside foundation setup must be reconciled by their owning
+            // workflows. Never orphan transport, hostel, learner, HR, inventory or finance data.
+            if (await HasOperationalCampusReferencesAsync(tenant, id, token))
+                return Error<bool>("Campus has linked operational records. Reassign or retire those records in their owning modules first.", 409);
             var replacement = row.IsHeadOffice ? await _campuses.GetQueryable()
                 .Where(x => x.TenantId == tenant && x.Id != id && x.IsActive && !x.IsDeleted)
                 .OrderBy(x => x.Id).FirstOrDefaultAsync(token) : null;
@@ -214,8 +221,28 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
             if (head != null) TouchTenant(head, now);
             await _uow.SaveChangesAsync(token);
             return ApiResponse<bool>.SuccessResponse(true, "Campus archived.");
-        }, ct);
+        }, ct, IsolationLevel.Serializable);
     }
+
+    // Explicit tenant predicates protect this administrative operation even when the
+    // current DbContext has a privileged or temporarily disabled tenant query filter.
+    // Non-deleted historical records also count: archiving must not sever readback.
+    private async Task<bool> HasOperationalCampusReferencesAsync(long tenant, long campus, CancellationToken ct) =>
+        await _db.ProgramCampuses.AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.CampusId == campus && !x.IsDeleted, ct) ||
+        await _db.Rooms.AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.CampusId == campus && !x.IsDeleted, ct) ||
+        await _db.StudentEnrollments.AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.CampusId == campus && !x.IsDeleted, ct) ||
+        await _db.AcademicCalendarPolicies.AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.CampusId == campus && !x.IsDeleted, ct) ||
+        await _db.AcademicCalendarEvents.AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.CampusId == campus && !x.IsDeleted, ct) ||
+        await _db.OrganizationUnits.AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.CampusId == campus && !x.IsDeleted, ct) ||
+        await _db.EmployeeCampusAssignments.AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.CampusId == campus && !x.IsDeleted, ct) ||
+        await _db.EmployeeAssignmentHistories.AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.CampusId == campus && !x.IsDeleted, ct) ||
+        await _db.FeeStructures.AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.CampusId == campus && !x.IsDeleted, ct) ||
+        await _db.InventoryLocations.AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.CampusId == campus && !x.IsDeleted, ct) ||
+        await _db.Assets.AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.CampusId == campus && !x.IsDeleted, ct) ||
+        await _db.LibraryBranches.AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.CampusId == campus && !x.IsDeleted, ct) ||
+        await _db.Routes.AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.CampusId == campus && !x.IsDeleted, ct) ||
+        await _db.Vehicles.AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.CampusId == campus && !x.IsDeleted, ct) ||
+        await _db.Hostels.AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.CampusId == campus && !x.IsDeleted, ct);
 
     public async Task<ApiResponse<IReadOnlyList<AcademicYearDto>>> GetAcademicYearsAsync(CancellationToken ct = default)
     {
@@ -486,9 +513,15 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
         tenant.UpdatedAt = now; tenant.UpdatedBy = _user.UserId; _tenants.Update(tenant);
     }
     private async Task<ApiResponse<T>> WriteAsync<T>(
-        string operation, Func<CancellationToken, Task<ApiResponse<T>>> call, CancellationToken ct)
+        string operation, Func<CancellationToken, Task<ApiResponse<T>>> call, CancellationToken ct,
+        IsolationLevel? isolationLevel = null)
     {
-        try { return await _uow.ExecuteInTransactionAsync(call, ct); }
+        try
+        {
+            return isolationLevel.HasValue
+                ? await _uow.ExecuteInTransactionAsync(call, isolationLevel.Value, ct)
+                : await _uow.ExecuteInTransactionAsync(call, ct);
+        }
         catch (DbUpdateConcurrencyException) { return Error<T>("Record changed concurrently.", 409); }
         catch (DbUpdateException ex)
         {

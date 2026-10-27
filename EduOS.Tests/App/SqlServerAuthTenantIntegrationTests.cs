@@ -175,7 +175,7 @@ public sealed class SqlServerAuthTenantIntegrationTests
             new GenericRepository<AcademicYear>(db), new GenericRepository<AcademicTerm>(db),
             new GenericRepository<AcademicBatch>(db), new GenericRepository<AdmissionIntakeForm>(db),
             new GenericRepository<TenantSubscription>(db), new GenericRepository<SubscriptionPlan>(db),
-            db, new CampusAdminTestUser(tenantId), TimeProvider.System,
+            db, db, new CampusAdminTestUser(tenantId), TimeProvider.System,
             NullLogger<InstitutionFoundationService>.Instance);
         var version = await db.Campuses.AsNoTracking().Where(x => x.Id == campusId)
             .Select(x => x.RowVersion).SingleAsync();

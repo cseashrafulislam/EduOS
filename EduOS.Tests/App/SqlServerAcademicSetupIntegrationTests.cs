@@ -109,7 +109,7 @@ public sealed class SqlServerAcademicSetupIntegrationTests
             new GenericRepository<AcademicTerm>(db), new GenericRepository<AcademicBatch>(db),
             new GenericRepository<AdmissionIntakeForm>(db),
             new GenericRepository<TenantSubscription>(db), new GenericRepository<SubscriptionPlan>(db),
-            db, new AcademicAdmin(tenantId), TimeProvider.System,
+            db, db, new AcademicAdmin(tenantId), TimeProvider.System,
             NullLogger<InstitutionFoundationService>.Instance);
         var start = new DateOnly(2026, 1, 1);
         var end = new DateOnly(2026, 12, 31);
