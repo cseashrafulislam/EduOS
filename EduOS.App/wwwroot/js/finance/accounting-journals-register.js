@@ -42,10 +42,11 @@ export function setupJournalRegister(ctx){
   $('journalDetailDebit').textContent=Number(j.totalDebit).toFixed(2);
   $('journalDetailCredit').textContent=Number(j.totalCredit).toFixed(2);
   const manual=j.sourceType==='Manual'&&!j.reversalOfJournalId&&ctx.writable;
+  const reversal=j.sourceType==='ManualReversal'&&Boolean(j.reversalOfJournalId)&&ctx.writable;
   setButton('journalSubmit',manual&&j.state===1);
-  setButton('journalApprove',manual&&j.state===2);
-  setButton('journalReject',manual&&j.state===2);
-  setButton('journalPost',manual&&j.state===3);
+  setButton('journalApprove',(manual||reversal)&&j.state===2);
+  setButton('journalReject',(manual||reversal)&&j.state===2);
+  setButton('journalPost',(manual||reversal)&&j.state===3);
   setButton('journalReverseForm',manual&&j.state===4);
   if(ctx.writable)$('journalReverseDate').value=ctx.today();
  }
@@ -71,7 +72,7 @@ export function setupJournalRegister(ctx){
   if(!reason||!reversalDate)throw new Error('Reversal date and reason required.');
   const key=reversalKey;
   await action('reverse',{clientRequestId:key,reversalDate,reason,rowVersion:selected.rowVersion},
-   'Post an immutable compensating reversal?');
+   'Submit a compensating reversal for independent approval? No ledger posting occurs yet.');
   if(reversalKey===key)reversalKey=crypto.randomUUID();
  });});
 }

@@ -30,9 +30,12 @@ public sealed partial class AccountingPostingService
                     return ApiResponse<JournalDto>.ErrorResponse("Idempotency key belongs to another operation.", 409);
                 return ApiResponse<JournalDto>.SuccessResponse(await DetailAsync(existingKey, ct), "Existing reversal returned.");
             }
+            if (request.ReversalDate < original.JournalDate)
+                return ApiResponse<JournalDto>.ErrorResponse("A reversal cannot predate its original posting.", 409);
             if (!Version(original.RowVersion, request.RowVersion))
                 return ApiResponse<JournalDto>.ErrorResponse("Journal changed; reload.", 409);
-            if (await Journals.AnyAsync(x => x.ReversalOfJournalId == original.Id, ct))
+            if (await Journals.AnyAsync(x => x.ReversalOfJournalId == original.Id &&
+                x.State != JournalState.Rejected && x.State != JournalState.Cancelled, ct))
                 return ApiResponse<JournalDto>.ErrorResponse("Journal already has a reversal.", 409);
             var period = await Periods.FirstOrDefaultAsync(x => !x.IsClosed &&
                 x.StartDate <= request.ReversalDate && x.EndDate >= request.ReversalDate, ct);
@@ -48,9 +51,8 @@ public sealed partial class AccountingPostingService
                 JournalNumber = "REV-" + Guid.NewGuid().ToString("N").ToUpperInvariant(),
                 JournalDate = request.ReversalDate, AccountingPeriodId = period.Id, CurrencyCode = "BDT",
                 SourceType = "ManualReversal", SourceId = original.Id, ReversalOfJournalId = original.Id,
-                Description = Clean(request.Reason), State = JournalState.Posted,
-                ApprovedByUserId = user.UserId, ApprovedAt = now,
-                PostedByUserId = user.UserId, PostedAt = now, CreatedAt = now, CreatedBy = user.UserId
+                Description = Clean(request.Reason), State = JournalState.Submitted,
+                CreatedAt = now, CreatedBy = user.UserId
             };
             db.Journals.Add(reversal);
             await db.SaveChangesAsync(ct);
@@ -64,7 +66,7 @@ public sealed partial class AccountingPostingService
             }).ToList();
             db.JournalLines.AddRange(reversedLines);
             await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
-            return ApiResponse<JournalDto>.SuccessResponse(await DetailAsync(reversal, ct), "Compensating reversal posted.");
+            return ApiResponse<JournalDto>.SuccessResponse(await DetailAsync(reversal, ct), "Reversal submitted for independent approval; no ledger posting occurred.");
         }
         catch (DbUpdateConcurrencyException) { return ApiResponse<JournalDto>.ErrorResponse("Journal changed; reload.", 409); }
         catch (DbUpdateException) { return ApiResponse<JournalDto>.ErrorResponse("Reversal conflict; retry same request key.", 409); }
