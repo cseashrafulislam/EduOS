@@ -499,6 +499,85 @@ public sealed class LibraryServiceTests
         (await db.BookIssues.CountAsync()).Should().Be(0);
     }
 
+
+    [Fact]
+    public async Task Direct_issue_cannot_bypass_active_reservation_for_same_campus()
+    {
+        await using var db = Context(Options(), 101);
+        var (student, copy) = await SeedBorrower(db, 101, true);
+        var waiting = new Student { TenantId = 101, PersonId = 22, StudentCode = "WAIT-1",
+            FullName = "Waiting learner", StatusCode = "Active" };
+        db.Students.Add(waiting);
+        await db.SaveChangesAsync();
+        db.StudentEnrollments.Add(new StudentEnrollment { TenantId = 101, StudentId = waiting.Id,
+            CampusId = 0, IsCurrent = true, State = EnrollmentState.Active, RollNo = "22",
+            EnrollmentDate = new DateOnly(2026, 1, 1) });
+        db.BookReservations.Add(new BookReservation { TenantId = 101, BookId = copy.BookId,
+            StudentId = waiting.Id, ClientRequestId = Guid.NewGuid(), State = BookReservationState.Pending,
+            ReservedAt = DateTime.UtcNow.AddMinutes(-5), ExpiresAt = DateTime.UtcNow.AddHours(1) });
+        await db.SaveChangesAsync();
+
+        var result = await Service(db, 101).IssueAsync(Request(student, copy, Guid.NewGuid()));
+        result.StatusCode.Should().Be(409);
+        result.Message.Should().Contain("reservation");
+        (await db.BookIssues.CountAsync()).Should().Be(0);
+        copy.State.Should().Be(BookCopyState.Available);
+    }
+
+    [Fact]
+    public async Task Direct_issue_respects_campus_queue_and_ignores_expired_or_cancelled_reservations()
+    {
+        await using var db = Context(Options(), 101);
+        var (student, copy) = await SeedBorrower(db, 101, true);
+        var enrollment = await db.StudentEnrollments.SingleAsync();
+        enrollment.CampusId = 11;
+        var branch = new LibraryBranch { TenantId = 101, CampusId = 11, Code = "N",
+            Name = "North", IsActive = true };
+        var other = new Student { TenantId = 101, PersonId = 23, StudentCode = "WAIT-2",
+            FullName = "South learner", StatusCode = "Active" };
+        db.AddRange(branch, other);
+        await db.SaveChangesAsync();
+        copy.LibraryBranchId = branch.Id;
+        db.StudentEnrollments.Add(new StudentEnrollment { TenantId = 101, StudentId = other.Id,
+            CampusId = 22, IsCurrent = true, State = EnrollmentState.Active, RollNo = "23",
+            EnrollmentDate = new DateOnly(2026, 1, 1) });
+        db.BookReservations.AddRange(
+            new BookReservation { TenantId = 101, BookId = copy.BookId, StudentId = other.Id,
+                ClientRequestId = Guid.NewGuid(), State = BookReservationState.Pending,
+                ExpiresAt = DateTime.UtcNow.AddHours(1) },
+            new BookReservation { TenantId = 101, BookId = copy.BookId, StudentId = student.Id,
+                ClientRequestId = Guid.NewGuid(), State = BookReservationState.Pending,
+                ExpiresAt = DateTime.UtcNow.AddMinutes(-1) },
+            new BookReservation { TenantId = 101, BookId = copy.BookId, StudentId = student.Id,
+                ClientRequestId = Guid.NewGuid(), State = BookReservationState.Cancelled,
+                ExpiresAt = DateTime.UtcNow.AddHours(1) });
+        await db.SaveChangesAsync();
+
+        var result = await Service(db, 101).IssueAsync(Request(student, copy, Guid.NewGuid()));
+        result.Success.Should().BeTrue(result.Message);
+        (await db.BookIssues.CountAsync()).Should().Be(1);
+        copy.State.Should().Be(BookCopyState.Issued);
+    }
+
+    [Fact]
+    public async Task Direct_issue_idempotent_replay_remains_valid_after_new_reservation()
+    {
+        await using var db = Context(Options(), 101);
+        var (student, copy) = await SeedBorrower(db, 101, true);
+        var service = Service(db, 101);
+        var request = Request(student, copy, Guid.NewGuid());
+        var issued = await service.IssueAsync(request);
+        issued.Success.Should().BeTrue(issued.Message);
+        db.BookReservations.Add(new BookReservation { TenantId = 101, BookId = copy.BookId,
+            StudentId = student.Id, ClientRequestId = Guid.NewGuid(),
+            State = BookReservationState.Pending, ExpiresAt = DateTime.UtcNow.AddHours(1) });
+        await db.SaveChangesAsync();
+        var replay = await service.IssueAsync(request);
+        replay.Success.Should().BeTrue(replay.Message);
+        replay.Data!.Reference.Should().Be(issued.Data!.Reference);
+        (await db.BookIssues.CountAsync()).Should().Be(1);
+    }
+
     private static IssueBookRequestDto Request(Student student, BookCopy copy, Guid key) => new()
     {
         ClientRequestId = key, BookCopyId = copy.Id, StudentReference = student.PublicId,
@@ -528,7 +607,8 @@ public sealed class LibraryServiceTests
         db, new TestUser(tenant, role), TimeProvider.System, NullLogger<LibraryService>.Instance,
         new GenericRepository<LibraryBranch>(db),
         new GenericRepository<Employee>(db),
-        new GenericRepository<EmployeeCampusAssignment>(db));
+        new GenericRepository<EmployeeCampusAssignment>(db), null, null,
+        new GenericRepository<BookReservation>(db));
 
     private static DbContextOptions<EduOSDbContext> Options() => new DbContextOptionsBuilder<EduOSDbContext>()
         .UseInMemoryDatabase("library-" + Guid.NewGuid().ToString("N")).Options;

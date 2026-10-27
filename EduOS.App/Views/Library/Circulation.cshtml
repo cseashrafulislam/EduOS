@@ -8,6 +8,40 @@
         <a asp-controller="Library" asp-action="Index" class="btn btn-outline-secondary">Back to catalog</a>
     </header>
     <div id="circulationAlert" class="d-none" role="alert" tabindex="-1" aria-live="polite"></div>
+    <section class="card mb-3" aria-labelledby="directIssueTitle">
+        <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <h3 id="directIssueTitle" class="h6 mb-0">Issue an available copy</h3>
+            <a asp-controller="Library" asp-action="Reservations" class="btn btn-outline-primary btn-sm">Fulfill reservations</a>
+        </div>
+        <div class="card-body">
+            <p class="small text-muted">Search an active student and book, then select a copy from an authorized campus branch. Active reservations take priority; use the reservation queue instead of direct issue when a queue exists.</p>
+            <div class="row g-2 mb-2">
+                <div class="col-md-7"><label for="directIssueStudentQuery" class="form-label">Active student name or code</label>
+                    <input id="directIssueStudentQuery" type="search" class="form-control" minlength="2" maxlength="100" autocomplete="off" /></div>
+                <div class="col-md-3 d-flex align-items-end"><button id="directIssueStudentSearch" type="button" class="btn btn-outline-secondary w-100">Find students</button></div>
+                <div class="col-md-2 d-flex align-items-end"><button id="directIssueStudentMore" type="button" class="btn btn-outline-secondary w-100" hidden>More students</button></div>
+                <div class="col-12"><label for="directIssueStudent" class="form-label">Student *</label>
+                    <select id="directIssueStudent" class="form-select" required><option value="">Select an eligible student</option></select></div>
+            </div>
+            <div class="row g-2 mb-2">
+                <div class="col-md-7"><label for="directIssueBookQuery" class="form-label">Book title, author or ISBN</label>
+                    <input id="directIssueBookQuery" type="search" class="form-control" maxlength="150" autocomplete="off" /></div>
+                <div class="col-md-3 d-flex align-items-end"><button id="directIssueBookSearch" type="button" class="btn btn-outline-secondary w-100">Find books</button></div>
+                <div class="col-md-2 d-flex align-items-end"><button id="directIssueBookMore" type="button" class="btn btn-outline-secondary w-100" hidden>More books</button></div>
+                <div class="col-12"><label for="directIssueBook" class="form-label">Book *</label>
+                    <select id="directIssueBook" class="form-select" required><option value="">Select a book</option></select></div>
+            </div>
+            <form id="directIssueForm" class="row g-2 align-items-end">
+                <div class="col-md-6"><label for="directIssueCopy" class="form-label">Available copy *</label>
+                    <select id="directIssueCopy" class="form-select" required><option value="">Select a book first</option></select></div>
+                <div class="col-md-2"><button id="directIssueCopyMore" type="button" class="btn btn-outline-secondary w-100" hidden>More copies</button></div>
+                <div class="col-md-2"><label for="directIssueDueDate" class="form-label">Due date *</label>
+                    <input id="directIssueDueDate" type="date" class="form-control" required /></div>
+                <div class="col-md-2"><button id="directIssueSubmit" type="submit" class="btn btn-primary w-100">Issue copy</button></div>
+            </form>
+            <p id="directIssueStatus" class="small text-muted mt-2 mb-0" role="status" aria-live="polite"></p>
+        </div>
+    </section>
     <form id="circulationFilters" class="card card-body row g-2 align-items-end mb-3">
         <div class="col-lg-4"><label for="circulationSearch" class="form-label">Student name/code, book or accession</label>
             <input id="circulationSearch" class="form-control" maxlength="100" autocomplete="off" /></div>

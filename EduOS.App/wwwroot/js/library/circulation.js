@@ -75,6 +75,110 @@ function csv(){
  const a=document.createElement('a');a.href=url;a.download='library-circulation.csv';a.click();
  setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
+
+const direct={key:crypto.randomUUID(),studentPage:0,bookPage:0,copyPage:0,
+ studentSeq:0,bookSeq:0,copySeq:0,studentTerm:'',bookTerm:'',bookReference:'',busy:false};
+const issueStatus=text=>{el('directIssueStatus').textContent=text;};
+function newIssueKey(){direct.key=crypto.randomUUID();}
+function clearIssueCopies(){
+ ++direct.copySeq;direct.copyPage=0;
+ el('directIssueCopy').replaceChildren(new Option('Select an available copy',''));
+ el('directIssueCopyMore').hidden=true;
+}
+async function findIssueStudents(page=1){
+ const term=el('directIssueStudentQuery').value.trim();
+ if(term.length<2||term.length>100){issueStatus('Enter at least 2 characters to find a student.');return;}
+ const seq=++direct.studentSeq;
+ if(page===1){el('directIssueStudent').replaceChildren(new Option('Select an eligible student',''));direct.studentPage=0;}
+ el('directIssueStudentMore').hidden=true;
+ try{
+  const data=await api('/api/library/reservations/eligible-students?'+new URLSearchParams({search:term,page:String(page),pageSize:'20'}));
+  if(seq!==direct.studentSeq||el('directIssueStudentQuery').value.trim()!==term)return;
+  for(const s of data?.items||[])el('directIssueStudent').add(new Option(s.studentCode+' — '+s.studentName,s.studentReference));
+  direct.studentPage=page;direct.studentTerm=term;
+  el('directIssueStudentMore').hidden=!data?.hasNextPage;
+  issueStatus((data?.totalCount||0)+' eligible student(s) found.');
+ }catch(e){if(seq===direct.studentSeq){issueStatus('Student search failed.');message(e.message);}}
+}
+async function findIssueBooks(page=1){
+ const term=el('directIssueBookQuery').value.trim();
+ const seq=++direct.bookSeq;
+ if(page===1){el('directIssueBook').replaceChildren(new Option('Select a book',''));direct.bookPage=0;clearIssueCopies();}
+ el('directIssueBookMore').hidden=true;
+ try{
+  const data=await api('/api/library/catalog?'+new URLSearchParams({search:term,page:String(page),pageSize:'20'}));
+  if(seq!==direct.bookSeq||el('directIssueBookQuery').value.trim()!==term)return;
+  for(const b of data?.items||[])el('directIssueBook').add(new Option(b.title+' ('+b.availableCopies+' available)',b.reference));
+  direct.bookPage=page;direct.bookTerm=term;
+  el('directIssueBookMore').hidden=!data?.hasNextPage;
+  issueStatus((data?.totalCount||0)+' matching book(s).');
+ }catch(e){if(seq===direct.bookSeq){issueStatus('Book search failed.');message(e.message);}}
+}
+async function findIssueCopies(page=1){
+ const book=el('directIssueBook').value;
+ if(!book){clearIssueCopies();return;}
+ if(page===1){clearIssueCopies();direct.bookReference=book;}
+ const seq=++direct.copySeq;
+ el('directIssueCopyMore').hidden=true;
+ try{
+  const data=await api('/api/library/books/'+encodeURIComponent(book)+'/copies?'+
+   new URLSearchParams({page:String(page),pageSize:'50'}));
+  if(seq!==direct.copySeq||el('directIssueBook').value!==book)return;
+  let added=0;
+  for(const copy of data?.items||[]){
+   if(Number(copy.state)!==1)continue;
+   el('directIssueCopy').add(new Option(copy.accessionNumber+
+    (copy.libraryBranchId?' (branch '+copy.libraryBranchId+')':' (unassigned)'),String(copy.id)));
+   added++;
+  }
+  direct.copyPage=page;
+  el('directIssueCopyMore').hidden=!data?.hasNextPage;
+  issueStatus('Available copies on this page: '+added+'. Select the correct campus branch; the server validates student eligibility.');
+ }catch(e){if(seq===direct.copySeq){issueStatus('Copy lookup failed.');message(e.message);}}
+}
+el('directIssueStudentSearch').addEventListener('click',()=>findIssueStudents(1));
+el('directIssueStudentMore').addEventListener('click',()=>findIssueStudents(direct.studentPage+1));
+el('directIssueBookSearch').addEventListener('click',()=>findIssueBooks(1));
+el('directIssueBookMore').addEventListener('click',()=>findIssueBooks(direct.bookPage+1));
+el('directIssueCopyMore').addEventListener('click',()=>findIssueCopies(direct.copyPage+1));
+el('directIssueStudentQuery').addEventListener('input',()=>{
+ ++direct.studentSeq;direct.studentPage=0;newIssueKey();
+ el('directIssueStudent').replaceChildren(new Option('Select an eligible student',''));
+ el('directIssueStudentMore').hidden=true;
+});
+el('directIssueBookQuery').addEventListener('input',()=>{
+ ++direct.bookSeq;direct.bookPage=0;newIssueKey();
+ el('directIssueBook').replaceChildren(new Option('Select a book',''));
+ el('directIssueBookMore').hidden=true;clearIssueCopies();
+});
+el('directIssueStudent').addEventListener('change',newIssueKey);
+el('directIssueBook').addEventListener('change',()=>{newIssueKey();findIssueCopies(1);});
+el('directIssueCopy').addEventListener('change',newIssueKey);
+el('directIssueDueDate').addEventListener('change',newIssueKey);
+const utcToday=new Date().toISOString().slice(0,10);
+el('directIssueDueDate').min=utcToday;
+el('directIssueDueDate').value=new Date(Date.now()+14*86400000).toISOString().slice(0,10);
+el('directIssueForm').addEventListener('submit',async e=>{
+ e.preventDefault();
+ if(direct.busy)return;
+ const studentReference=el('directIssueStudent').value,copyValue=Number(el('directIssueCopy').value);
+ const dueDate=el('directIssueDueDate').value;
+ if(!studentReference||!Number.isSafeInteger(copyValue)||copyValue<=0||!dueDate){
+  message('Choose an eligible student, an available copy and a due date.');return;
+ }
+ if(dueDate<new Date().toISOString().slice(0,10)){
+  message('Due date cannot be before the current UTC date.');return;
+ }
+ direct.busy=true;el('directIssueSubmit').disabled=true;
+ try{
+  await api('/api/library/issues','POST',{clientRequestId:direct.key,
+   studentReference,bookCopyId:copyValue,dueDate});
+  newIssueKey();message('Copy issued successfully.',true);
+  await Promise.all([findIssueCopies(1),load()]);
+ }catch(error){message(error.message);issueStatus('If this book has an active reservation, fulfill it from the reservation queue.');}
+ finally{direct.busy=false;el('directIssueSubmit').disabled=false;}
+});
+
 el('circulationFilters').addEventListener('submit',e=>{e.preventDefault();state.page=1;load();});
 el('circulationPrevious').addEventListener('click',()=>{if(state.page>1){state.page--;load();}});
 el('circulationNext').addEventListener('click',()=>{if(state.page<state.pages){state.page++;load();}});

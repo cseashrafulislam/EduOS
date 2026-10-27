@@ -21,6 +21,7 @@ public sealed partial class LibraryService : ILibraryService
     private readonly IGenericRepository<Book> _books;
     private readonly IGenericRepository<BookCopy> _copies;
     private readonly IGenericRepository<BookIssue> _issues;
+    private readonly IGenericRepository<BookReservation>? _reservations;
     private readonly IGenericRepository<BookCategory> _categories;
     private readonly IGenericRepository<LibraryBranch>? _branches;
     private readonly IGenericRepository<Employee>? _staffEmployees;
@@ -42,12 +43,13 @@ public sealed partial class LibraryService : ILibraryService
         IGenericRepository<Employee>? staffEmployees = null,
         IGenericRepository<EmployeeCampusAssignment>? staffCampusAssignments = null,
         IGenericRepository<UserCampusAccess>? campusAccesses = null,
-        IGenericRepository<Campus>? campuses = null)
+        IGenericRepository<Campus>? campuses = null,
+        IGenericRepository<BookReservation>? reservations = null)
     {
         _books = books; _copies = copies; _issues = issues; _categories = categories;
         _students = students; _enrollments = enrollments; _uow = unitOfWork; _user = currentUser; _clock = clock; _logger = logger;
         _branches = branches; _staffEmployees = staffEmployees; _staffCampusAssignments = staffCampusAssignments;
-        _campusAccesses = campusAccesses; _campuses = campuses;
+        _campusAccesses = campusAccesses; _campuses = campuses; _reservations = reservations;
     }
 
 
@@ -446,6 +448,7 @@ public sealed partial class LibraryService : ILibraryService
                 return Error("Copy is outside your assigned campus.", 403);
             if (!await _books.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.Id == copy.BookId && x.IsActive && !x.IsDeleted, ct))
                 return Error("Book is archived or unavailable.", 409);
+            long? issueCampusId = null;
             if (copy.LibraryBranchId.HasValue)
             {
                 var branch = _branches == null ? null : await _branches.GetQueryable().AsNoTracking()
@@ -455,11 +458,29 @@ public sealed partial class LibraryService : ILibraryService
                     x.TenantId == tenant && x.StudentId == student.Id && x.IsCurrent &&
                     x.State == EnrollmentState.Active && x.CampusId == branch.CampusId && !x.IsDeleted, ct))
                     return Error("Copy branch and active student enrollment campus do not match.", 409);
+                issueCampusId = branch.CampusId;
             }
             if (await _issues.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
                 x.BookCopyId == copy.Id && x.State == BookIssueState.Issued, ct))
                 return Error("The selected copy has an outstanding issue.", 409);
+            // Direct issue cannot bypass the campus FIFO reservation workflow. Keep this
+            // check inside the same serializable transaction that claims the physical copy.
+            // Legacy branchless copies are shared, so any campus's pending queue blocks them.
+            if (_reservations == null)
+                return Error("Reservation priority validation is unavailable.", 503);
             var now = _clock.GetUtcNow().UtcDateTime;
+            var campusForQueue = issueCampusId;
+            var pendingQueue = _reservations.GetQueryable().AsNoTracking().Where(r =>
+                r.TenantId == tenant && r.BookId == copy.BookId && !r.IsDeleted &&
+                r.State == BookReservationState.Pending && r.ExpiresAt > now &&
+                _students.GetQueryable().Any(s => s.TenantId == tenant && s.Id == r.StudentId &&
+                    !s.IsDeleted && s.StatusCode == "Active") &&
+                _enrollments.GetQueryable().Any(e => e.TenantId == tenant &&
+                    e.StudentId == r.StudentId && e.IsCurrent && !e.IsDeleted &&
+                    e.State == EnrollmentState.Active &&
+                    (!campusForQueue.HasValue || e.CampusId == campusForQueue.Value)));
+            if (await pendingQueue.AnyAsync(ct))
+                return Error("An active reservation has priority. Issue this book through the reservation queue.", 409);
             var entity = new BookIssue
             {
                 TenantId = tenant, ClientRequestId = request.ClientRequestId, BookCopyId = copy.Id,

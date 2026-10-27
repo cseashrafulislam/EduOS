@@ -141,7 +141,8 @@ public sealed class LibraryPrincipalCampusAccessTests
         db, new User(role), TimeProvider.System, NullLogger<LibraryService>.Instance,
         new GenericRepository<LibraryBranch>(db), new GenericRepository<Employee>(db),
         new GenericRepository<EmployeeCampusAssignment>(db),
-        new GenericRepository<UserCampusAccess>(db), new GenericRepository<Campus>(db));
+        new GenericRepository<UserCampusAccess>(db), new GenericRepository<Campus>(db),
+        new GenericRepository<BookReservation>(db));
     private sealed class User(string role) : ICurrentUserService
     {
         public bool IsAuthenticated => true;
