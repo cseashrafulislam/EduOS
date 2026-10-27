@@ -34,7 +34,8 @@ fabricated version.
    the term. Reparenting a term to another academic year is blocked while any
    of these references exist.
 3. Editing a year cannot exclude existing term/batch dates, calendar event
-   dates or recorded enrollment dates. Editing a term cannot exclude its
+   dates or original enrollment dates (an enrollment's end may span
+   multiple academic years). Editing a term cannot exclude its
    existing batch dates or calendar event dates.
 4. A command does not rewrite, delete or migrate another module's records.
    Academic/Student/Admissions owners must provide a separately authorized

@@ -109,6 +109,21 @@ public sealed class InstitutionFoundationReferenceIntegrityTests
     }
 
     [Fact]
+    public async Task Multi_year_enrollment_end_does_not_block_ordinary_year_metadata_edit()
+    {
+        await using var scope = await SetupAsync(false);
+        await AddReferenceAsync(scope.Db, scope.Year.Id, null, "enrollment");
+        var enrollment = await scope.Db.StudentEnrollments.SingleAsync();
+        enrollment.EndDate = new DateOnly(2027, 6, 30);
+        await scope.Db.SaveChangesAsync();
+        var request = YearRequest(scope.Year, scope.North.Id);
+        request.Name = "Academic year 2026";
+        var result = await scope.Service.SaveAcademicYearAsync(scope.Year.Id, request);
+        Assert.True(result.Success, result.Message);
+        Assert.Equal("Academic year 2026", scope.Year.Name);
+    }
+
+    [Fact]
     public async Task Unreferenced_academic_year_can_change_campus()
     {
         await using var scope = await SetupAsync(false);

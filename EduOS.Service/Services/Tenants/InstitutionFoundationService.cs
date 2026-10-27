@@ -322,14 +322,18 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
                     x.TenantId == tenant && x.AcademicYearId == row.Id && !x.IsDeleted, token) ||
                  await HasAcademicYearOperationalReferencesAsync(tenant, row.Id, token)))
                 return Error<AcademicYearDto>("Academic year has linked records; campus cannot be changed.", 409);
-            if (row != null && await _db.AcademicCalendarEvents.AsNoTracking().AnyAsync(x =>
-                x.TenantId == tenant && x.AcademicYearId == row.Id && !x.IsDeleted &&
-                (x.StartDate < request.StartDate || x.EndDate > request.EndDate), token))
+            if (row != null && (row.StartDate != request.StartDate || row.EndDate != request.EndDate) &&
+                await _db.AcademicCalendarEvents.AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.AcademicYearId == row.Id && !x.IsDeleted &&
+                    (x.StartDate < request.StartDate || x.EndDate > request.EndDate), token))
                 return Error<AcademicYearDto>("Academic year cannot exclude existing calendar events.", 409);
-            if (row != null && await _db.StudentEnrollments.AsNoTracking().AnyAsync(x =>
-                x.TenantId == tenant && x.AcademicYearId == row.Id && !x.IsDeleted &&
-                (x.EnrollmentDate < request.StartDate ||
-                 (x.EndDate.HasValue && x.EndDate.Value > request.EndDate)), token))
+            // Enrollment.EndDate may describe a multi-year program, not this
+            // academic year's end. Only guard the original enrollment date
+            // when the year start is actually being moved forward.
+            if (row != null && row.StartDate != request.StartDate &&
+                await _db.StudentEnrollments.AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.AcademicYearId == row.Id && !x.IsDeleted &&
+                    x.EnrollmentDate < request.StartDate, token))
                 return Error<AcademicYearDto>("Academic year cannot exclude existing enrollment dates.", 409);
             if (row != null &&
                 await _terms.GetQueryable().AsNoTracking().AnyAsync(x =>
@@ -463,9 +467,10 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
             if (row != null && row.AcademicYearId != year.Id &&
                 await HasAcademicTermOperationalReferencesAsync(tenant, row.Id, token))
                 return Error<AcademicTermDto>("Term has linked records; academic year cannot be changed.", 409);
-            if (row != null && await _db.AcademicCalendarEvents.AsNoTracking().AnyAsync(x =>
-                x.TenantId == tenant && x.AcademicTermId == row.Id && !x.IsDeleted &&
-                (x.StartDate < request.StartDate || x.EndDate > request.EndDate), token))
+            if (row != null && (row.StartDate != request.StartDate || row.EndDate != request.EndDate) &&
+                await _db.AcademicCalendarEvents.AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.AcademicTermId == row.Id && !x.IsDeleted &&
+                    (x.StartDate < request.StartDate || x.EndDate > request.EndDate), token))
                 return Error<AcademicTermDto>("Term cannot exclude existing calendar events.", 409);
             if (await _terms.GetQueryable().AsNoTracking().AnyAsync(x =>
                 x.TenantId == tenant && x.AcademicYearId == year.Id &&
