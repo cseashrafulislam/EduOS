@@ -255,9 +255,9 @@ function exportContent(kind){
  const rows=kind==='lessons'
   ?[['Order','Title','Content','Resource','Published'],...(state.detail?.lessons||[]).map(x=>[x.displayOrder,x.title,x.content||'',x.contentUrl||'',x.isPublished?'Yes':'No'])]
   :[['Title','Due date','Maximum marks','Published'],...(state.detail?.assignments||[]).map(x=>[x.title,x.dueAt||'',x.maxMarks,x.isPublished?'Yes':'No'])];
- const safe=value=>{let s=String(value??'');if(/^[=+@\\-\\t\\r]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"';};
- const csv=rows.map(row=>row.map(safe).join(',')).join('\\r\\n');
- const url=URL.createObjectURL(new Blob(['\\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
+ const safe=value=>{let s=String(value??'');if(/^[=+@\-\t\r]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"';};
+ const csv=rows.map(row=>row.map(safe).join(',')).join('\r\n');
+ const url=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
  const a=document.createElement('a');a.href=url;a.download='lms-'+kind+'-visible-page-'+(kind==='lessons'?state.lessonPage:state.assignmentPage)+'.csv';
  a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
