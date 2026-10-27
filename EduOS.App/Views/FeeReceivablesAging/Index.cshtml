@@ -87,5 +87,44 @@
             </div>
         </div>
     </section>
+    <section class="card mt-3" id="dailyCashCollections">
+        <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <strong>Daily cash collection register</strong>
+            <details class="position-relative">
+                <summary class="btn btn-outline-secondary btn-sm" aria-label="Cash collection report help" title="Report help">ⓘ</summary>
+                <div class="small p-2 border bg-body rounded" style="max-width: 22rem">
+                    Gross successful/refunded cash receipts with intact, fully allocated single-campus evidence.
+                    Refund deductions, GL verification and unallocated/mixed-campus exceptions are reviewed in
+                    the receipt reconciliation register above. Export contains only the visible page.
+                </div>
+            </details>
+        </div>
+        <form id="dailyCashFilters" class="card-body row g-2 align-items-end">
+            <div class="col-md-3"><label class="form-label" for="dailyCashFrom">From</label><input id="dailyCashFrom" type="date" class="form-control" required /></div>
+            <div class="col-md-3"><label class="form-label" for="dailyCashTo">To</label><input id="dailyCashTo" type="date" class="form-control" required /></div>
+            <div class="col-md-4"><label class="form-label" for="dailyCashCampus">Campus</label><select id="dailyCashCampus" class="form-select"><option value="">All accessible campuses</option></select></div>
+            <div class="col-md-2 d-grid"><button id="dailyCashRun" type="submit" class="btn btn-primary">Run report</button></div>
+        </form>
+        <div id="dailyCashNotice" class="alert d-none mx-3" role="status" aria-live="polite"></div>
+        <div class="card-body pt-0">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <strong>Gross collection by campus</strong>
+                <button id="dailyCashExport" type="button" class="btn btn-outline-primary btn-sm" disabled>Export visible page CSV</button>
+            </div>
+            <div class="table-responsive"><table class="table table-sm table-striped">
+                <thead><tr><th>Campus</th><th>Currency</th><th class="text-end">Receipts</th><th class="text-end">Gross collected</th></tr></thead>
+                <tbody id="dailyCashSummary"></tbody>
+            </table></div>
+            <div class="table-responsive"><table class="table table-sm table-striped">
+                <thead><tr><th>Date</th><th>Receipt</th><th>Student code</th><th>Campus</th><th>Cashier ID</th><th class="text-end">Gross BDT</th><th>Payment state</th><th>GL link (not verification)</th></tr></thead>
+                <tbody id="dailyCashRows"></tbody>
+            </table></div>
+            <div class="d-flex align-items-center gap-2">
+                <button id="dailyCashPrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous</button>
+                <span id="dailyCashPage" class="small text-muted">—</span>
+                <button id="dailyCashNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next</button>
+            </div>
+        </div>
+    </section>
 </section>
-@section Scripts { <script src="~/js/finance/fee-receivables-aging.js" asp-append-version="true"></script> <script src="~/js/finance/fee-reconciliation.js" asp-append-version="true"></script> <script src="~/js/finance/fee-payment-reconciliation.js" asp-append-version="true"></script> }
+@section Scripts { <script src="~/js/finance/fee-receivables-aging.js" asp-append-version="true"></script> <script src="~/js/finance/fee-reconciliation.js" asp-append-version="true"></script> <script src="~/js/finance/fee-payment-reconciliation.js" asp-append-version="true"></script> <script src="~/js/finance/daily-cash-collections.js" asp-append-version="true"></script> }
