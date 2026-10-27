@@ -167,6 +167,11 @@
                         <h3 class="h6" id="lifecycleTimelineTitle">Lifecycle history</h3>
                         <p class="small text-muted">Historical status, progression and exit events. Visible to institution administrators only.</p>
                         <div id="studentLifecycleTimeline" aria-live="polite"></div>
+                        <nav class="d-flex align-items-center gap-2 mt-2" aria-label="Lifecycle history pages">
+                            <button id="studentLifecyclePrevious" class="btn btn-sm btn-outline-secondary" type="button" disabled>Previous</button>
+                            <span id="studentLifecyclePage" class="small text-muted" aria-live="polite"></span>
+                            <button id="studentLifecycleNext" class="btn btn-sm btn-outline-secondary" type="button" disabled>Next</button>
+                        </nav>
                     </section>
                 }
             </div>

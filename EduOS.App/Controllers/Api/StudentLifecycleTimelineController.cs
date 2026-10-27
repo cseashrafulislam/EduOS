@@ -19,9 +19,10 @@ public sealed class StudentLifecycleTimelineController : ControllerBase
     public StudentLifecycleTimelineController(IStudentLifecycleTimelineService service) => _service = service;
 
     [HttpGet]
-    public async Task<IActionResult> Get(Guid studentReference, CancellationToken cancellationToken)
+    public async Task<IActionResult> Get(Guid studentReference, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, CancellationToken cancellationToken = default)
     {
-        var result = await _service.GetAsync(studentReference, cancellationToken);
+        var result = await _service.GetPageAsync(studentReference, page, pageSize, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 }

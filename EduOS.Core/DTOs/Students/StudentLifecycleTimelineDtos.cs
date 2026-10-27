@@ -6,6 +6,8 @@ public sealed class StudentLifecycleTimelineDto
     public Guid StudentReference { get; set; }
     public string StudentCode { get; set; } = string.Empty;
     public string CurrentStatus { get; set; } = string.Empty;
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 20;
     public bool HasMore { get; set; }
     public IReadOnlyList<StudentLifecycleEventDto> Events { get; set; } = Array.Empty<StudentLifecycleEventDto>();
 }
