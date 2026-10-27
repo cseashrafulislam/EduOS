@@ -3,24 +3,25 @@
     var canPublish = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal") || User.IsInRole("ExamController");
 }
 <section class="container-fluid py-3" id="examWorkflow" data-can-publish="@canPublish.ToString().ToLowerInvariant()">
-    <header class="mb-3"><h2 class="h4 mb-1">Exam Marks & Results</h2><p class="text-muted mb-0">Enter subject marks, generate result sheets and publish approved results.</p></header>
+    @Html.AntiForgeryToken()
+    <header class="mb-3"><h2 class="h4 mb-1">Exam Marks & Results</h2><p class="text-muted mb-0">Enter subject marks, preview draft results and publish an immutable result snapshot.</p></header>
     <div id="examAlert" class="d-none" tabindex="-1" role="alert" aria-live="polite"></div>
     <form id="examFilters" class="card card-body mb-3">
         <div class="row g-3 align-items-end">
             <div class="col-lg-4"><label for="examExam" class="form-label">Assessment</label><select id="examExam" class="form-select" required><option value="">Loading assessments…</option></select></div>
             <div class="col-lg-4"><label for="examBatch" class="form-label">Batch / Section</label><select id="examBatch" class="form-select" required><option value="">Select assessment first</option></select></div>
             <div class="col-lg-4"><label for="examSubject" class="form-label">Subject</label><select id="examSubject" class="form-select" required><option value="">Select batch first</option></select></div>
-            <div class="col-12 d-flex flex-wrap gap-2"><button id="examLoadRoster" type="submit" class="btn btn-primary">Load marks register</button>@if (canPublish) { <button id="examLoadResults" type="button" class="btn btn-outline-primary">View results</button> }</div>
+            <div class="col-12 d-flex flex-wrap gap-2"><button id="examLoadRoster" type="submit" class="btn btn-primary">Load marks register</button>@if (canPublish) { <button id="examLoadResults" type="button" class="btn btn-outline-primary" disabled>View published results</button> }</div>
         </div>
     </form>
     <section class="card mb-3" aria-labelledby="examRosterHeading">
         <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
-            <h3 id="examRosterHeading" class="h6 m-0">Subject marks register</h3><span id="examRosterInfo" class="small text-muted"></span>
+            <h3 id="examRosterHeading" class="h6 m-0">Subject marks register</h3><div class="d-flex flex-wrap gap-2 align-items-center"><span id="examRosterInfo" class="small text-muted"></span><button id="examMarksCsv" type="button" class="btn btn-sm btn-outline-secondary">Marks CSV</button></div>
         </div>
         <div class="table-responsive">
             <table class="table table-hover table-sm align-middle mb-0">
-                <thead><tr><th scope="col">Roll</th><th scope="col">Student code</th><th scope="col">Student</th><th scope="col">Mark</th><th scope="col">Absent</th><th scope="col">Grade</th></tr></thead>
-                <tbody id="examRoster"><tr><td colspan="6" class="text-center text-muted p-4">Choose assessment, batch and subject.</td></tr></tbody>
+                <thead><tr><th scope="col">Roll</th><th scope="col">Student code</th><th scope="col">Student</th><th scope="col">Mark</th><th scope="col">Absent</th><th scope="col">Withheld</th><th scope="col">Grade</th></tr></thead>
+                <tbody id="examRoster"><tr><td colspan="7" class="text-center text-muted p-4">Choose assessment, batch and subject.</td></tr></tbody>
             </table>
         </div>
         <div class="card-footer d-flex flex-wrap justify-content-between gap-2">
@@ -31,11 +32,19 @@
     @if (canPublish)
     {
         <section class="card mb-3" aria-labelledby="examResultsHeading">
-            <div class="card-header d-flex justify-content-between flex-wrap align-items-center gap-2"><h3 class="h6 m-0" id="examResultsHeading">Result sheet</h3><div class="d-flex gap-2"><button id="examGenerate" type="button" class="btn btn-outline-primary" disabled>Generate results</button><button id="examPublish" type="button" class="btn btn-danger" disabled>Publish results</button></div></div>
-            <div class="card-body"><p id="examResultSummary" class="small text-muted mb-2">Choose a batch to view or generate results.</p>
+            <div class="card-header d-flex justify-content-between flex-wrap align-items-center gap-2"><h3 class="h6 m-0" id="examResultsHeading">Result sheet</h3><div class="d-flex flex-wrap gap-2"><button id="examGenerate" type="button" class="btn btn-outline-primary" disabled>Preview draft</button><button id="examResultsCsv" type="button" class="btn btn-outline-secondary">Results CSV</button><button id="examPublish" type="button" class="btn btn-danger" disabled>Publish results</button></div></div>
+            <div class="card-body"><p id="examResultSummary" class="small text-muted mb-2">Choose a batch to preview draft results or view a published snapshot.</p>
+                <div class="row g-2 mb-3"><div class="col-auto form-check ms-2"><input id="examVisibleStudent" type="checkbox" class="form-check-input" checked /><label for="examVisibleStudent" class="form-check-label">Visible to students</label></div><div class="col-auto form-check ms-2"><input id="examVisibleGuardian" type="checkbox" class="form-check-input" checked /><label for="examVisibleGuardian" class="form-check-label">Visible to guardians</label></div><div class="col-md-5"><label for="examPublishNote" class="form-label">Publication note (optional)</label><input id="examPublishNote" class="form-control" maxlength="1000" /></div></div>
                 <div class="table-responsive"><table class="table table-sm table-hover"><thead><tr><th>Position</th><th>Roll</th><th>Student</th><th>Marks</th><th>Percentage</th><th>GPA</th><th>Grade</th><th>Status</th></tr></thead><tbody id="examResults"></tbody></table></div>
             </div>
         </section>
     }
+    <div class="d-flex justify-content-end mb-3"><button id="examPrint" type="button" class="btn btn-outline-secondary">Print current register</button></div>
 </section>
+<style>
+@@media print {
+    #examFilters, #examAlert, #examSaveMarks, #examPublish, #examGenerate,
+    #examLoadResults, #examMarksCsv, #examResultsCsv, #examPrint { display:none!important; }
+}
+</style>
 @section Scripts { <script src="~/js/assessment/workflow.js" asp-append-version="true"></script> }

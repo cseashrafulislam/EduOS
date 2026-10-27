@@ -72,6 +72,7 @@ public sealed class AssessmentResultSheetDto
 public sealed class AssessmentScopeOptionDto
 {
     public long AssessmentId { get; set; }
+    public Guid AssessmentReference { get; set; }
     public string AssessmentName { get; set; } = string.Empty;
     public long AcademicYearId { get; set; }
     public long AcademicBatchId { get; set; }

@@ -111,7 +111,8 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
             .ThenBy(x => x.exam.Id).ThenBy(x => x.batch.Id).ThenBy(x => x.sub.Id)
             .Take(500).Select(x => new AssessmentScopeOptionDto
             {
-                AssessmentId = x.exam.Id, AssessmentName = x.exam.Name,
+                AssessmentId = x.exam.Id, AssessmentReference = x.exam.PublicId,
+                AssessmentName = x.exam.Name,
                 AcademicYearId = x.exam.AcademicYearId, AcademicBatchId = x.batch.Id,
                 AcademicBatchName = x.batch.Name, AssessmentSubjectId = x.sub.Id,
                 SubjectName = x.subject.Name, State = x.exam.State
