@@ -6,6 +6,30 @@ EduOS is a configurable, multi-tenant SaaS platform for the Bangladesh education
 
 একটি প্রতিষ্ঠান signup করবে, plan/trial বেছে নেবে, payment করবে, নিজের campus, academic structure, branding, terminology, workflow ও enabled modules configure করবে এবং ব্যবহার শুরু করবে। কোনো নির্দিষ্ট প্রতিষ্ঠানের নাম, class structure, fee rule, grading rule বা approval flow shared code-এ hard-code করা যাবে না।
 
+## Product decisions and engineering specifications (2026-10-27)
+
+**EduOS is an institution-agnostic, multi-tenant Education ERP + LMS + Finance + Administration platform.** The initial real-user release can prioritize essential education workflows without renaming domain models for any school/college preset or deleting existing optional modules.
+
+| Area | Current decision |
+| --- | --- |
+| Product scope | Preserve the complete cross-institution module catalogue; deliver real end-to-end workflows, not model/API/UI scaffolds marketed as completed features. |
+| Data architecture | Keep the existing **single SQL Server database** and existing **EduOSDbContext**. No database routing, sharding, registry or schema changes are authorized by these documents. Evaluate multi-database only later on measured capacity/operational evidence. |
+| Tenant and security | Tenant/campus/membership/role/ownership/entitlement isolation across API, UI, report, file, cache and background work; audited, atomic high-risk transactions. |
+| User experience | Clean responsive bilingual (`bn-BD` / `en-BD`) UI, header help icon, global language selection, PWA, and **per-user-per-institute saved design** (sidebar top/left/right, safe themes/colors/fonts/density, allowed menu/dashboard layout). Personalization is a **target requirement**, not yet a verified completed workflow. |
+| Release order | Finish critical admission/student, academic/attendance/result, finance/fees, LMS and platform UX slices for a real pilot; preserve existing Hostel, Transport, Library, HR, Inventory and other module code/data and securely gate unfinished flows. |
+| Quality | No duplicate/dead speculative code, fake dashboards, unbounded queries, silent posting/editing, incomplete layer chains or untested claims. CI, security, migration/restore, concurrency and real-user acceptance are required. |
+| Scale promise | Architecture targets millions of learners; **no million-concurrent-user or production-capacity claim** without measured load tests and recovery evidence. |
+
+### Read before planning, coding or reporting status
+
+1. [Product Blueprint and delivery rules](docs/PRODUCT_BLUEPRINT.md) — full product identity, capability map, release boundaries and honest completion criteria.
+2. [UI Personalization, localization and PWA specification](docs/UI_PERSONALIZATION.md) — user-controlled workspace with safe tenant-scoped preferences, smart help, mobile UX and performance requirements.
+3. [Scalability and engineering quality standard](docs/architecture/SCALABILITY_AND_QUALITY.md) — single-database decision, million-user scale strategy, tenant security, clean-code gates and production evidence.
+4. [Current pilot staging checklist](docs/deployment/SCHOOL_PILOT_STAGING_RELEASE.md) — staging-only operational gates, **not** a production certificate.
+
+**Status discipline:** The detailed module catalogue below distinguishes operational slices from foundation/planned capabilities. Historical `docs/DELIVERY_STATUS.md` and `docs/ROADMAP_STATUS.md` refer to their recorded branch/commit baselines; they must not be mistaken for verification of the latest `Ashraful` commit. Read active code/CI before calling a feature implemented. These specification changes do not update application code, database schema or background task schedules.
+
+---
 > **Current status:** foundation under active development. Phase 0 security work, institution/module entitlement, privacy-safe learner identity, canonical programme/level/track/curriculum/batch setup, canonical student batch enrolment and subject registration, collision-safe academic routines with owned student/guardian timetable projection, configurable academic calendar policy/events/working days, date-specific instructor substitution, lesson-plan approval/progress, configurable public admission forms and private document verification, admission assessment/merit publication, intake/review, approved applicant-to-student/guardian/enrolment conversion, annual student promotion/repeat, and manager-controlled student transfer/completion/dropout finalization are implemented and tested. The implemented write workflows are tenant-scoped, transactional, retry-safe and concurrency-protected. Admission eligibility/quota, applicant accounts, offer/payment, bulk import, scoped learner-history projection, legacy identifier migration, transfer request/approval/destination acceptance, readmission, and many other module workflows remain planned and must not be treated as production-complete.
 
 TOTP MFA is opt-in from Profile for all roles: password login reaches the authorized dashboard or onboarding flow without an MFA setup gate for users who have not enabled MFA. If MFA is already enabled, login produces a short-lived encrypted verification challenge. Recovery codes are displayed once. This is a working security control, not a substitute for production key custody, administrator recovery operations, or penetration testing.
@@ -647,6 +671,8 @@ Module-owned controllers/actions must use `[RequireModule("MODULE_CODE")]`. Avai
 ## 10. Architecture
 
 EduOS starts as a modular monolith. This keeps transactions and development manageable while preserving bounded contexts that can later be extracted when measurements justify it.
+
+**Diagram below is an evolution target, not proof of deployed infrastructure.** The current persistence registration uses one SQL Server DefaultConnection and one EduOSDbContext. Redis, durable workers, object storage, multiple app nodes and database splitting must be introduced only when actual operational needs, security and measurements justify them. See [architecture decisions and scalability](docs/architecture/SCALABILITY_AND_QUALITY.md).
 
 ~~~mermaid
 flowchart TD
