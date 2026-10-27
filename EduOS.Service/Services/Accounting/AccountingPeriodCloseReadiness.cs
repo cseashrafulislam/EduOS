@@ -24,6 +24,17 @@ public sealed partial class AccountingSetupService
         var historicalDeletedCount = await db.Journals.IgnoreQueryFilters().AsNoTracking()
             .CountAsync(x => x.TenantId == user.TenantId && x.AccountingPeriodId == periodId && x.IsDeleted, ct);
 
+        // Deleted journal lines remain financial history, even if the visible
+        // portion of a posted journal still balances. Scope both join sides.
+        var historicalDeletedLineCount = await (
+            from line in db.JournalLines.IgnoreQueryFilters().AsNoTracking()
+            join journal in db.Journals.IgnoreQueryFilters().AsNoTracking()
+                on new { line.TenantId, Id = line.JournalId }
+                equals new { journal.TenantId, journal.Id }
+            where line.TenantId == user.TenantId && journal.TenantId == user.TenantId &&
+                journal.AccountingPeriodId == periodId && line.IsDeleted
+            select line.Id).CountAsync(ct);
+
         var journals = await db.Journals.AsNoTracking()
             .Where(x => x.TenantId == user.TenantId && !x.IsDeleted && x.AccountingPeriodId == periodId)
             .Select(x => new { x.Id, x.JournalDate, x.State, x.CurrencyCode, x.CampusId })
@@ -41,12 +52,15 @@ public sealed partial class AccountingSetupService
             ApprovedCount = journals.Count(x => x.State == JournalState.Approved),
             PostedCount = journals.Count(x => x.State == JournalState.Posted),
             ReversedCount = journals.Count(x => x.State == JournalState.Reversed),
-            HistoricalDeletedJournalCount = historicalDeletedCount
+            HistoricalDeletedJournalCount = historicalDeletedCount,
+            HistoricalDeletedJournalLineCount = historicalDeletedLineCount
         };
         var blockers = new List<string>();
         if (period.IsClosed) blockers.Add("This accounting period is already closed.");
         if (historicalDeletedCount > 0)
             blockers.Add("Legacy soft-deleted journals exist in this period; reconcile immutable journal history before closure.");
+        if (historicalDeletedLineCount > 0)
+            blockers.Add("Legacy soft-deleted journal lines exist in this period; reconcile immutable posting lines before closure.");
         if (result.DraftCount + result.SubmittedCount + result.ApprovedCount > 0)
             blockers.Add("Draft, submitted or approved journals must be resolved before closure.");
 

@@ -44,6 +44,52 @@ public sealed class TrialBalanceIntegrityTests
     }
 
     [Fact]
+    public async Task Balanced_visible_posting_with_deleted_lines_is_rejected()
+    {
+        await using var db = Database();
+        SeedAccounts(db);
+        AddJournal(db, 1, JournalState.Posted, 100m, 100m);
+        db.JournalLines.AddRange(
+            new JournalLine { Id = 13, TenantId = 41, JournalId = 1, AccountId = 1,
+                LineNo = 3, DebitAmount = 25m, IsDeleted = true },
+            new JournalLine { Id = 14, TenantId = 41, JournalId = 1, AccountId = 2,
+                LineNo = 4, CreditAmount = 25m, IsDeleted = true });
+        await db.SaveChangesAsync();
+
+        var result = await Service(db).GetTrialBalanceAsync(AsOf);
+        result.StatusCode.Should().Be(409);
+        result.Message.Should().Contain("Soft-deleted posted journal lines");
+    }
+
+    [Fact]
+    public async Task Soft_deleted_posted_header_is_not_silently_omitted()
+    {
+        await using var db = Database();
+        SeedAccounts(db);
+        AddJournal(db, 1, JournalState.Posted, 100m, 100m);
+        AddJournal(db, 2, JournalState.Posted, 25m, 25m);
+        db.Journals.Local.Single(x => x.Id == 2).IsDeleted = true;
+        await db.SaveChangesAsync();
+
+        var result = await Service(db).GetTrialBalanceAsync(AsOf);
+        result.StatusCode.Should().Be(409);
+        result.Message.Should().Contain("Soft-deleted posted journals");
+    }
+
+    [Fact]
+    public async Task Deleted_draft_history_does_not_block_valid_posted_trial_balance()
+    {
+        await using var db = Database();
+        SeedAccounts(db);
+        AddJournal(db, 1, JournalState.Posted, 100m, 100m);
+        AddJournal(db, 2, JournalState.Draft, 25m, 25m);
+        db.Journals.Local.Single(x => x.Id == 2).IsDeleted = true;
+        await db.SaveChangesAsync();
+
+        (await Service(db).GetTrialBalanceAsync(AsOf)).StatusCode.Should().Be(200);
+    }
+
+    [Fact]
     public async Task Double_sided_line_is_rejected()
     {
         await using var db = Database();

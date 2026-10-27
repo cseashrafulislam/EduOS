@@ -108,6 +108,51 @@ public sealed class AccountingPeriodCloseReadinessTests
     }
 
     [Fact]
+    public async Task Soft_deleted_posting_lines_block_close_even_when_visible_lines_balance()
+    {
+        await using var db = Database();
+        var period = await AddPeriod(db);
+        await AddPostedJournal(db, period.Id, 125m, 125m);
+        var journal = await db.Journals.SingleAsync(x => x.AccountingPeriodId == period.Id);
+        var accounts = await db.Accounts.OrderBy(x => x.Id).ToArrayAsync();
+        db.JournalLines.AddRange(
+            new JournalLine { TenantId = 41, JournalId = journal.Id, LineNo = 3,
+                AccountId = accounts[0].Id, DebitAmount = 25m, IsDeleted = true },
+            new JournalLine { TenantId = 41, JournalId = journal.Id, LineNo = 4,
+                AccountId = accounts[1].Id, CreditAmount = 25m, IsDeleted = true });
+        await db.SaveChangesAsync();
+
+        var result = await Service(db).GetPeriodCloseReadinessAsync(period.Id);
+        result.StatusCode.Should().Be(200);
+        result.Data!.CanClose.Should().BeFalse();
+        result.Data.HistoricalDeletedJournalLineCount.Should().Be(2);
+        result.Data.UnbalancedJournalCount.Should().Be(0);
+        result.Data.Blockers.Should().Contain(x => x.Contains("soft-deleted journal lines"));
+    }
+
+    [Fact]
+    public async Task Soft_deleted_lines_in_another_period_do_not_block_close()
+    {
+        await using var db = Database();
+        var target = await AddPeriod(db);
+        var other = new AccountingPeriod { TenantId = 41, Name = "FY 2027",
+            StartDate = new DateOnly(2027, 1, 1), EndDate = new DateOnly(2027, 12, 31) };
+        db.AccountingPeriods.Add(other);
+        await db.SaveChangesAsync();
+        await AddPostedJournal(db, other.Id, 10m, 10m, new DateOnly(2027, 2, 1));
+        var journal = await db.Journals.SingleAsync(x => x.AccountingPeriodId == other.Id);
+        var account = await db.Accounts.FirstAsync(x => x.TenantId == 41);
+        db.JournalLines.Add(new JournalLine { TenantId = 41, JournalId = journal.Id,
+            LineNo = 3, AccountId = account.Id, DebitAmount = 1m, IsDeleted = true });
+        await db.SaveChangesAsync();
+
+        var result = await Service(db).GetPeriodCloseReadinessAsync(target.Id);
+        result.StatusCode.Should().Be(200);
+        result.Data!.CanClose.Should().BeTrue();
+        result.Data.HistoricalDeletedJournalLineCount.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Legacy_soft_deleted_journal_prevents_editing_accounting_period()
     {
         await using var db = Database();

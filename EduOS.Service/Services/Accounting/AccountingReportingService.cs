@@ -65,6 +65,17 @@ public sealed partial class AccountingReportingService : IAccountingReportingSer
         // Validate the posted source records before presenting or exporting a trial balance.
         // Keep all checks tenant-scoped and server-side; do not materialize the journal ledger.
         var journals = Posted.Where(j => j.JournalDate <= asOfDate);
+        // Historical soft-deletes must never silently remove posted GL evidence.
+        if (await db.Journals.IgnoreQueryFilters().AsNoTracking().AnyAsync(j =>
+            j.TenantId == user.TenantId && j.IsDeleted && j.JournalDate <= asOfDate &&
+            (j.State == JournalState.Posted || j.State == JournalState.Reversed), ct))
+            return ApiResponse<IReadOnlyList<TrialBalanceRowDto>>.ErrorResponse(
+                "Soft-deleted posted journals require historical ledger reconciliation.", 409);
+        if (await db.JournalLines.IgnoreQueryFilters().AsNoTracking().AnyAsync(l =>
+            l.TenantId == user.TenantId && l.IsDeleted &&
+            journals.Any(j => j.Id == l.JournalId), ct))
+            return ApiResponse<IReadOnlyList<TrialBalanceRowDto>>.ErrorResponse(
+                "Soft-deleted posted journal lines require historical ledger reconciliation.", 409);
         if (await journals.AnyAsync(j => j.CurrencyCode != "BDT", ct))
             return ApiResponse<IReadOnlyList<TrialBalanceRowDto>>.ErrorResponse("Mixed-currency journals require an approved FX policy.", 409);
         if (await journals.AnyAsync(j => !Lines.Any(l => l.JournalId == j.Id), ct))

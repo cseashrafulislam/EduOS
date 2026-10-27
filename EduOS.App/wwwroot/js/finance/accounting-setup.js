@@ -55,7 +55,8 @@ if (root) {
         panel.className = 'alert ' + (data.canClose ? 'alert-success' : 'alert-warning');
         panel.textContent = data.periodName + ': ' + (data.canClose ? 'Ready to close.' : 'Not ready.') +
             ' Posted: ' + data.postedCount + ', reversed: ' + data.reversedCount +
-            ', historical deleted: ' + data.historicalDeletedJournalCount +
+            ', deleted journals: ' + data.historicalDeletedJournalCount +
+            ', deleted journal lines: ' + data.historicalDeletedJournalLineCount +
             ', drafts: ' + data.draftCount + ', submitted: ' + data.submittedCount +
             ', approved: ' + data.approvedCount + ', invalid journals: ' + data.invalidJournalCount +
             ', invalid lines: ' + data.invalidLineCount + ', unbalanced journals: ' + data.unbalancedJournalCount +
