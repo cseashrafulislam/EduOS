@@ -1,6 +1,8 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Academic;
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Auth;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.HR;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
@@ -25,6 +27,8 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
     private readonly IGenericRepository<Subject> _subjects;
     private readonly IGenericRepository<Employee> _employees;
     private readonly IGenericRepository<Room> _rooms;
+    private readonly IGenericRepository<UserCampusAccess> _campusAccesses;
+    private readonly IGenericRepository<Campus> _campuses;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUser;
     private readonly TimeProvider _clock;
@@ -42,6 +46,8 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
         IGenericRepository<Subject> subjects,
         IGenericRepository<Employee> employees,
         IGenericRepository<Room> rooms,
+        IGenericRepository<UserCampusAccess> campusAccesses,
+        IGenericRepository<Campus> campuses,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUser,
         TimeProvider clock,
@@ -58,6 +64,8 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
         _subjects = subjects;
         _employees = employees;
         _rooms = rooms;
+        _campusAccesses = campusAccesses;
+        _campuses = campuses;
         _unitOfWork = unitOfWork;
         _currentUser = currentUser;
         _clock = clock;
@@ -264,9 +272,13 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
                            x.AcademicYearId == academicYearId && x.IsActive, cancellationToken))
             return Error<IReadOnlyList<RoutineEntryDto>>("Academic term does not belong to the selected academic year.");
 
-        var offeringIds = await _offerings.GetQueryable().AsNoTracking()
+        // Filter before Take: a restricted manager must not see or crowd out another campus.
+        var offeringQuery = _offerings.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == tenantId && x.AcademicYearId == academicYearId &&
-                        x.AcademicTermId == academicTermId && x.IsActive)
+                        x.AcademicTermId == academicTermId && x.IsActive);
+        if (IsRestrictedManager())
+            offeringQuery = offeringQuery.Where(x => AllowedManagerBatchIds(tenantId).Contains(x.AcademicBatchId));
+        var offeringIds = await offeringQuery.OrderBy(x => x.Id)
             .Select(x => x.Id).Take(1000).ToListAsync(cancellationToken);
         var assignmentIds = await _assignments.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == tenantId && offeringIds.Contains(x.SubjectOfferingId) &&
@@ -411,7 +423,8 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
         if (version.Length == 0) return Error<RoutineEntryDto>("Invalid row version.");
         var row = await _entries.GetQueryable().FirstOrDefaultAsync(x =>
             x.TenantId == _currentUser.TenantId && x.Id == id, ct);
-        if (row == null) return Error<RoutineEntryDto>("Routine entry not found.", 404);
+        if (row == null || (IsRestrictedManager() && !await CanManageOfferingAsync(row.SubjectOfferingId, ct)))
+            return Error<RoutineEntryDto>("Routine entry not found.", 404);
         if (row.RowVersion.Length != version.Length ||
             !CryptographicOperations.FixedTimeEquals(row.RowVersion, version))
             return Error<RoutineEntryDto>("Routine entry was changed. Reload and retry.", 409);
@@ -426,9 +439,42 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
         return ApiResponse<RoutineEntryDto>.SuccessResponse((await MapEntriesAsync([row], ct))[0], "Routine entry deactivated.");
     }
 
-    private async Task<AcademicBatch?> GetBatchAsync(long id, CancellationToken cancellationToken) =>
-        id <= 0 ? null : await _batches.GetQueryable().AsNoTracking()
-            .FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId && x.Id == id && x.IsActive, cancellationToken);
+    private async Task<AcademicBatch?> GetBatchAsync(long id, CancellationToken cancellationToken)
+    {
+        if (id <= 0) return null;
+        var tenant = _currentUser.TenantId;
+        var query = _batches.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && x.Id == id && x.IsActive);
+        if (IsRestrictedManager())
+            query = query.Where(x => AllowedManagerCampusIds(tenant).Contains(x.CampusId));
+        return await query.FirstOrDefaultAsync(cancellationToken);
+    }
+
+    // Campus grants are checked on the server for each request, including revocations.
+    // TenantAdmin retains tenant-wide access; Teacher retains assignment-based read access.
+    private bool IsRestrictedManager() => IsManager() && !_currentUser.IsTenantAdmin;
+
+    private IQueryable<long> AllowedManagerCampusIds(long tenant) =>
+        from access in _campusAccesses.GetQueryable().AsNoTracking()
+        join campus in _campuses.GetQueryable().AsNoTracking() on access.CampusId equals campus.Id
+        where access.TenantId == tenant && campus.TenantId == tenant &&
+              access.UserId == _currentUser.UserId && access.IsActive && !access.IsDeleted &&
+              campus.IsActive && !campus.IsDeleted
+        select campus.Id;
+
+    private IQueryable<long> AllowedManagerBatchIds(long tenant) =>
+        _batches.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && !x.IsDeleted &&
+                        AllowedManagerCampusIds(tenant).Contains(x.CampusId))
+            .Select(x => x.Id);
+
+    private Task<bool> CanManageOfferingAsync(long offeringId, CancellationToken ct)
+    {
+        var tenant = _currentUser.TenantId;
+        return _offerings.GetQueryable().AsNoTracking()
+            .AnyAsync(x => x.TenantId == tenant && x.Id == offeringId && !x.IsDeleted &&
+                           AllowedManagerBatchIds(tenant).Contains(x.AcademicBatchId), ct);
+    }
 
     private async Task<List<long>> GetOfferingIdsAsync(long batchId, long academicYearId, long? termId, CancellationToken cancellationToken) =>
         await _offerings.GetQueryable().AsNoTracking()
