@@ -1,6 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Hostel;
 using EduOS.Core.Enums.Domain;
+using EduOS.Service.Services.Finance;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -109,6 +110,9 @@ public sealed partial class HostelService
                 if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
                     allocation.StudentId, allocation.StudentEnrollmentId, ct))
                     return Error("Posted finance activity requires an approved Finance adjustment before bed change.", 409);
+                if (ReservationFinancePolicy.HasChargeableTerms(
+                    allocation.MonthlyRent, allocation.SecurityDeposit, allocation.FeeHeadId.HasValue))
+                    return Error("Charged Hostel bed changes require an approved Finance adjustment.", 409);
                 if (!source.Room.IsActive || !source.Hostel.IsActive || !source.Bed.IsActive)
                     return Error("Current hostel room or bed is inactive.", 409);
                 var target = await _beds.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>

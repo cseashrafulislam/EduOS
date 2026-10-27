@@ -762,6 +762,117 @@ public class TransportServiceTests
         (await db.Set<StudentTransport>().CountAsync()).Should().Be(0);
     }
 
+
+    [Fact]
+    public async Task Charged_rider_stop_changes_are_blocked_before_and_during_service()
+    {
+        await using var db = CreateContext(CreateOptions(), 101);
+        var rider = await SeedAssignmentAsync(db, 101, true, [1,2,3,4,5,6,7,8]);
+        var service = CreateService(db, 101);
+        var request = new CorrectUpcomingTransportStopsRequestDto
+        {
+            PickupStopId = 1, DropStopId = 2, RowVersion = Convert.ToBase64String(rider.RowVersion)
+        };
+        var active = await service.CorrectActiveStopsAsync(rider.PublicId, request);
+        active.Success.Should().BeFalse();
+        active.StatusCode.Should().Be(409);
+        rider.StartDate = DateOnly.FromDateTime(DateTime.Today.AddDays(10));
+        rider.EndDate = rider.StartDate.AddDays(10);
+        await db.SaveChangesAsync();
+        var upcoming = await service.CorrectUpcomingStopsAsync(rider.PublicId, request);
+        upcoming.Success.Should().BeFalse();
+        upcoming.StatusCode.Should().Be(409);
+        rider.PickupStopId.Should().BeNull();
+        rider.DropStopId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Issued_invoice_blocks_zero_fare_active_stop_correction()
+    {
+        await using var db = CreateContext(CreateOptions(), 101);
+        var rider = await SeedAssignmentAsync(db, 101, true, [1,2,3,4,5,6,7,8]);
+        rider.MonthlyFare = 0m;
+        db.StudentInvoices.Add(new StudentInvoice
+        {
+            TenantId = 101, StudentEnrollmentId = rider.StudentEnrollmentId,
+            ClientRequestId = Guid.NewGuid(), InvoiceNumber = "STOP-ISSUED",
+            InvoiceDate = DateOnly.FromDateTime(DateTime.Today),
+            DueDate = DateOnly.FromDateTime(DateTime.Today.AddDays(10)),
+            State = InvoiceState.Issued
+        });
+        await db.SaveChangesAsync();
+        var response = await CreateService(db, 101).CorrectActiveStopsAsync(rider.PublicId,
+            new CorrectUpcomingTransportStopsRequestDto
+            {
+                PickupStopId = 1, DropStopId = 2, RowVersion = Convert.ToBase64String(rider.RowVersion)
+            });
+        response.Success.Should().BeFalse();
+        response.StatusCode.Should().Be(409);
+        rider.PickupStopId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Charged_upcoming_vehicle_change_requires_finance_approval()
+    {
+        await using var db = CreateContext(CreateOptions(), 101);
+        var rider = await SeedAssignmentAsync(db, 101, true, [1,2,3,4,5,6,7,8]);
+        var route = await db.Routes.SingleAsync();
+        var original = await db.Vehicles.SingleAsync();
+        var enrollment = await db.StudentEnrollments.SingleAsync();
+        route.CampusId = enrollment.CampusId;
+        original.CampusId = enrollment.CampusId;
+        rider.StartDate = DateOnly.FromDateTime(DateTime.Today.AddDays(10));
+        rider.EndDate = rider.StartDate.AddDays(10);
+        var destination = new Vehicle
+        {
+            TenantId = 101, PublicId = Guid.NewGuid(), VehicleNumber = "BUS-02",
+            VehicleType = "Bus", Capacity = 30, IsActive = true, CampusId = enrollment.CampusId
+        };
+        db.Vehicles.Add(destination);
+        await db.SaveChangesAsync();
+        db.RouteVehicleAssignments.Add(new RouteVehicleAssignment
+        {
+            TenantId = 101, RouteId = route.Id, VehicleId = destination.Id,
+            EffectiveFrom = rider.StartDate.AddDays(-1), EffectiveTo = rider.EndDate,
+            IsCurrent = true
+        });
+        await db.SaveChangesAsync();
+        var response = await CreateService(db, 101).ChangeUpcomingVehicleAsync(rider.PublicId,
+            new ChangeUpcomingTransportVehicleRequestDto
+            {
+                VehicleReference = destination.PublicId, RowVersion = Convert.ToBase64String(rider.RowVersion)
+            });
+        response.Success.Should().BeFalse();
+        response.StatusCode.Should().Be(409);
+        rider.VehicleId.Should().Be(original.Id);
+    }
+
+    [Fact]
+    public async Task Charged_operating_vehicle_transfer_preserves_source_without_finance_approval()
+    {
+        await using var db = CreateContext(CreateOptions(), 101);
+        var rider = await SeedAssignmentAsync(db, 101, true, [1,2,3,4,5,6,7,8]);
+        var destination = new Vehicle
+        {
+            TenantId = 101, PublicId = Guid.NewGuid(), VehicleNumber = "BUS-TRANSFER",
+            VehicleType = "Bus", Capacity = 30, IsActive = true
+        };
+        db.Vehicles.Add(destination);
+        await db.SaveChangesAsync();
+        var response = await CreateService(db, 101).TransferOperatingRiderAsync(rider.PublicId,
+            new TransferOperatingTransportVehicleRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), VehicleReference = destination.PublicId,
+                EffectiveDate = DateOnly.FromDateTime(DateTime.Today),
+                RowVersion = Convert.ToBase64String(rider.RowVersion)
+            });
+        response.Success.Should().BeFalse();
+        response.StatusCode.Should().Be(409);
+        (await db.StudentTransports.CountAsync()).Should().Be(1);
+        rider.EndDate.Should().BeNull();
+        (await db.IdempotencyRecords.CountAsync()).Should().Be(0);
+    }
+
     private static TransportService CreateService(EduOSDbContext context, long tenant, bool canManage = true, string? role = null) => new(
         new GenericRepository<TransportRoute>(context),
         new GenericRepository<RouteStop>(context),

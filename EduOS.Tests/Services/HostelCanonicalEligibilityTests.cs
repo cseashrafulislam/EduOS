@@ -320,6 +320,67 @@ public sealed class HostelCanonicalEligibilityTests
         (await Service(db).GetRoomsAsync()).Success.Should().BeTrue();
     }
 
+
+    [Fact]
+    public async Task Charged_upcoming_hostel_bed_and_room_changes_require_finance_adjustment()
+    {
+        var options = new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("hostel-charged-reassignment-" + Guid.NewGuid().ToString("N")).Options;
+        await using var db = Context(101, options);
+        var campus = new Campus { TenantId = 101, Name = "Main", Code = "HCR", IsActive = true };
+        var student = Student(101, "Active", "charged-reassignment");
+        db.AddRange(campus, student);
+        await db.SaveChangesAsync();
+        var enrollment = Enrollment(student, true);
+        enrollment.CampusId = campus.Id;
+        var hostel = new EduOS.Core.Entities.Hostel.Hostel
+        {
+            TenantId = 101, CampusId = campus.Id, Name = "Main Hostel",
+            Code = "HCR", IsActive = true
+        };
+        db.AddRange(enrollment, hostel);
+        await db.SaveChangesAsync();
+        var sourceRoom = new HostelRoom
+        {
+            TenantId = 101, HostelId = hostel.Id, RoomNumber = "101",
+            Capacity = 2, RentPerBed = 100m, IsActive = true
+        };
+        var otherRoom = new HostelRoom
+        {
+            TenantId = 101, HostelId = hostel.Id, RoomNumber = "102",
+            Capacity = 2, RentPerBed = 100m, IsActive = true
+        };
+        db.AddRange(sourceRoom, otherRoom);
+        await db.SaveChangesAsync();
+        var sourceBed = new HostelBed { TenantId = 101, HostelRoomId = sourceRoom.Id, BedNumber = "A", IsActive = true };
+        var sameRoomBed = new HostelBed { TenantId = 101, HostelRoomId = sourceRoom.Id, BedNumber = "B", IsActive = true };
+        var otherRoomBed = new HostelBed { TenantId = 101, HostelRoomId = otherRoom.Id, BedNumber = "A", IsActive = true };
+        db.AddRange(sourceBed, sameRoomBed, otherRoomBed);
+        await db.SaveChangesAsync();
+        var allocation = new StudentHostelAllocation
+        {
+            TenantId = 101, StudentId = student.Id, StudentEnrollmentId = enrollment.Id,
+            HostelBedId = sourceBed.Id, ClientRequestId = Guid.NewGuid(),
+            StartDate = DateOnly.FromDateTime(DateTime.Today.AddDays(10)),
+            EndDate = DateOnly.FromDateTime(DateTime.Today.AddDays(20)),
+            MonthlyRent = 100m, State = HostelAllocationState.Active,
+            RowVersion = [1,2,3,4,5,6,7,8]
+        };
+        db.StudentHostelAllocations.Add(allocation);
+        await db.SaveChangesAsync();
+        var service = Service(db);
+        var version = Convert.ToBase64String(allocation.RowVersion);
+        var bedResult = await service.ReassignUpcomingBedAsync(allocation.Id,
+            new ReassignUpcomingHostelBedRequestDto { TargetBedId = sameRoomBed.Id, RowVersion = version });
+        var roomResult = await service.ReassignUpcomingRoomAsync(allocation.Id,
+            new ReassignUpcomingHostelRoomRequestDto { TargetBedId = otherRoomBed.Id, RowVersion = version });
+        bedResult.Success.Should().BeFalse();
+        bedResult.StatusCode.Should().Be(409);
+        roomResult.Success.Should().BeFalse();
+        roomResult.StatusCode.Should().Be(409);
+        allocation.HostelBedId.Should().Be(sourceBed.Id);
+    }
+
     private static HostelService Service(EduOSDbContext db, bool canManage = true, string? role = null) => new(
         new GenericRepository<EduOS.Core.Entities.Hostel.Hostel>(db),
         new GenericRepository<HostelRoom>(db), new GenericRepository<HostelBed>(db),

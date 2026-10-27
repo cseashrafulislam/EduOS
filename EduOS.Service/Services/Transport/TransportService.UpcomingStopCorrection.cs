@@ -1,6 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Transport;
 using EduOS.Core.Enums.Domain;
+using EduOS.Service.Services.Finance;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -51,6 +52,11 @@ public sealed partial class TransportService
                         await MapAsync(assignment, ct), "Stops already match the requested assignment.");
                 if (!assignment.RowVersion.AsSpan().SequenceEqual(version))
                     return Error("Assignment changed. Reload and retry.", 409);
+                if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
+                    assignment.StudentId, assignment.StudentEnrollmentId, ct))
+                    return Error("Posted finance activity requires an approved Finance adjustment before stop correction.", 409);
+                if (ReservationFinancePolicy.HasChargeableTerms(assignment.MonthlyFare))
+                    return Error("Charged Transport stop changes require an approved Finance adjustment.", 409);
                 if (!await _vehicleRoutes.GetQueryable().AsNoTracking().AnyAsync(x =>
                     x.TenantId == tenant && !x.IsDeleted && x.RouteId == route.Id && x.VehicleId == vehicle.Id &&
                     x.IsCurrent && x.EffectiveFrom <= assignment.StartDate &&

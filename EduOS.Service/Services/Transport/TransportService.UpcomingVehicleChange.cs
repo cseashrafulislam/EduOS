@@ -1,6 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Transport;
 using EduOS.Core.Enums.Domain;
+using EduOS.Service.Services.Finance;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -128,6 +129,11 @@ public sealed partial class TransportService
                         await MapAsync(assignment, token), "Vehicle already matches this reservation.");
                 if (!assignment.RowVersion.AsSpan().SequenceEqual(version))
                     return Error("Assignment changed. Reload and retry.", 409);
+                if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
+                    assignment.StudentId, assignment.StudentEnrollmentId, token))
+                    return Error("Posted finance activity requires an approved Finance adjustment before vehicle change.", 409);
+                if (ReservationFinancePolicy.HasChargeableTerms(assignment.MonthlyFare))
+                    return Error("Charged Transport vehicle changes require an approved Finance adjustment.", 409);
                 // Recheck under the serializable write transaction: disjoint bookings
                 // do not occupy a seat simultaneously, but inclusive overlaps do.
                 var requestedEnd = assignment.EndDate ?? DateOnly.MaxValue;

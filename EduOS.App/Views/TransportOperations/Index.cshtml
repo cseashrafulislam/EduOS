@@ -148,7 +148,7 @@
                 <div class="col-md-5"><label for="transportCorrectDrop" class="form-label">Drop stop</label><select id="transportCorrectDrop" class="form-select"></select></div>
                 <div class="col-md-2 d-flex align-items-end gap-2"><button id="transportCorrectSave" class="btn btn-primary" type="submit">Save</button><button id="transportCorrectCancel" class="btn btn-outline-secondary" type="button">Cancel</button></div>
             </form>
-            <p class="small text-muted mt-2 mb-0" id="transportStopCorrectionHelp">For future or currently operating assignments. Route, vehicle and monthly fare remain unchanged; campus, stops and capacity are revalidated.</p>
+            <p class="small text-muted mt-2 mb-0" id="transportStopCorrectionHelp">For future or currently operating assignments. Only zero-fare reservations without issued or posted Finance activity can change stops. Campus, route and stops are revalidated.</p>
         </div></section>
         <section id="transportOperatingTransferPanel" class="card mt-3" hidden><div class="card-body">
             <h3 class="h5">Transfer an operating rider to another vehicle</h3>
@@ -168,7 +168,7 @@
                 <span id="transportOperatingTransferPageInfo" class="small text-muted"></span>
                 <button id="transportOperatingTransferNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
             </div>
-            <p class="small text-muted mt-2 mb-0">Same route and stops, unchanged monthly fare. Original reservation ends the day before transfer; destination reservation begins on the effective date. No ledger writes.</p>
+            <p class="small text-muted mt-2 mb-0">Only zero-fare reservations without issued or posted Finance activity may transfer here. The predecessor ends the day before the successor starts; charged transfers require Finance-approved adjustment. No ledger writes.</p>
         </div></section>
         <section id="transportVehicleChangePanel" class="card mt-3" hidden><div class="card-body">
             <h3 class="h5">Change vehicle for upcoming rider</h3>
@@ -184,7 +184,7 @@
                 <span id="transportVehicleChangePageInfo" class="small text-muted"></span>
                 <button id="transportVehicleChangeNext" type="button" class="btn btn-outline-secondary btn-sm">Next vehicles</button>
             </div>
-            <p class="small text-muted mt-2 mb-0">Only future reservations. Route, pickup/drop stops and monthly fare are unchanged; seat capacity is rechecked when saving.</p>
+            <p class="small text-muted mt-2 mb-0">Only future zero-fare reservations without issued or posted Finance activity can change vehicles. Charged changes require Finance-approved adjustment; seat capacity is rechecked.</p>
         </div></section>
     }
     @if (canManage) {
