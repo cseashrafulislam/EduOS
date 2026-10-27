@@ -306,7 +306,7 @@ public sealed class TenantProfileService : ITenantProfileService
         page = Math.Clamp(page, 1, 10000);
         pageSize = Math.Clamp(pageSize, 1, 100);
         var tenantId = _user.TenantId;
-        var query = _auditLogs.GetQueryable().AsNoTracking().Where(x =>
+        var query = _auditLogs.GetQueryable().IgnoreQueryFilters().AsNoTracking().Where(x =>
             !x.IsDeleted && x.TenantId == tenantId && x.EntityName == nameof(Tenant) &&
             x.EntityId == tenantId &&
             (x.Action == "TenantProfileUpdated" || x.Action == "TenantRegionalSettingsUpdated" ||
