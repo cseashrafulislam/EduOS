@@ -426,6 +426,10 @@ public class TransportServiceTests
     {
         await using var context = CreateContext(CreateOptions(), 101);
         var assignment = await SeedAssignmentAsync(context, 101, true, [1,2,3,4,5,6,7,8]);
+        // An unbilled charged rider must not be closed until Finance adjustment approval exists.
+        // This test covers the explicitly no-charge closure path.
+        assignment.MonthlyFare = 0m;
+        await context.SaveChangesAsync();
         var service = CreateService(context, 101);
         var response = await service.CloseAsync(assignment.PublicId, new CloseStudentTransportRequestDto
         {
@@ -436,6 +440,29 @@ public class TransportServiceTests
         var saved = await context.Set<StudentTransport>().IgnoreQueryFilters().SingleAsync(x => x.Id == assignment.Id);
         saved.State.Should().Be(TransportAssignmentState.Closed);
         saved.EndDate.Should().Be(DateOnly.FromDateTime(DateTime.Today));
+    }
+
+    [Fact]
+    public async Task Unbilled_charged_transport_closure_requires_finance_approval()
+    {
+        await using var context = CreateContext(CreateOptions(), 101);
+        var assignment = await SeedAssignmentAsync(context, 101, true, [1,2,3,4,5,6,7,8]);
+        var originalFare = assignment.MonthlyFare;
+        originalFare.Should().BeGreaterThan(0m);
+
+        var response = await CreateService(context, 101).CloseAsync(assignment.PublicId,
+            new CloseStudentTransportRequestDto
+            {
+                EndDate = DateOnly.FromDateTime(DateTime.Today),
+                RowVersion = Convert.ToBase64String(assignment.RowVersion)
+            });
+
+        response.Success.Should().BeFalse();
+        response.StatusCode.Should().Be(409);
+        var saved = await context.StudentTransports.SingleAsync(x => x.Id == assignment.Id);
+        saved.State.Should().Be(TransportAssignmentState.Active);
+        saved.EndDate.Should().BeNull();
+        saved.MonthlyFare.Should().Be(originalFare);
     }
 
     [Fact]
