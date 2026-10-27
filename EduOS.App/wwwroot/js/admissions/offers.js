@@ -1,5 +1,8 @@
 import { el, val, num, ctx, base, notice, api, render, refresh, load } from './offers-core.js';
 import { initializeOfferSearch } from './offers-search.js';
+const offerRetry = window.EduOSAdmissionOffers.createRetryTracker(
+    window.EduOSAdmissionRetry, window.crypto, () => window.sessionStorage);
+let issuingOffer = false;
 async function issue() {
     const batch = num(val('offerBatch')), expiry = new Date(val('offerExpiry'));
     if (!batch || !Number.isFinite(expiry.getTime()) || expiry.getTime() <= Date.now())

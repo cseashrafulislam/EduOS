@@ -859,9 +859,10 @@
         let verifiedDocumentId = null, decisionVersion = null, currentOfferState = 0;
         const refreshAcceptanceButton = () => { acceptButton.disabled = currentOfferState !== 2 || !verifiedDocumentId || !attestation.checked; };
         attestation.addEventListener('change', refreshAcceptanceButton);
-        let requestId = null;
+        const offerRetry = window.EduOSAdmissionOffers.createRetryTracker(
+            window.EduOSAdmissionRetry, window.crypto, () => window.sessionStorage);
+        let issuingOffer = false;
         modal.addEventListener('shown.bs.modal', async () => {
-            requestId = createRequestId();
             verifiedDocumentId = null; decisionVersion = null; currentOfferState = 0;
             attestation.checked = false; refreshAcceptanceButton();
             const future = new Date(Date.now() + 7 * 86400000);
@@ -882,8 +883,8 @@
                     const docsResponse = await fetch(`/api/admission-intake/applications/${encodeURIComponent(reference)}/documents`, apiOptions());
                     const docsPayload = await docsResponse.json().catch(() => null);
                     if (docsResponse.ok && docsPayload?.success && Array.isArray(docsPayload.data)) {
-                        const evidence = docsPayload.data.filter(x => x.documentTypeCode === 'OFFER_ACCEPTANCE' && x.isVerified)
-                            .sort((a, b) => Number(b.versionNo) - Number(a.versionNo))[0];
+                        const evidence = (window.EduOSAdmissionOffers?.eligibleEvidence(
+                            docsPayload.data, decision?.offeredAt) || [])[0];
                         verifiedDocumentId = evidence?.id || null;
                     }
                 }
@@ -1005,6 +1006,11 @@
 
     function apiOptions(method = 'GET', body = null) {
         const options = { method, cache: 'no-store', credentials: 'same-origin', headers: { Accept: 'application/json' } };
+        if (method !== 'GET') {
+            const csrf = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+            if (!csrf) throw new Error('Security token missing. Reload the page.');
+            options.headers.RequestVerificationToken = csrf;
+        }
         if (body !== null) {
             options.headers['Content-Type'] = 'application/json';
             options.body = JSON.stringify(body);
