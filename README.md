@@ -6,9 +6,9 @@ EduOS is a configurable, multi-tenant SaaS platform for the Bangladesh education
 
 একটি প্রতিষ্ঠান signup করবে, plan/trial বেছে নেবে, payment করবে, নিজের campus, academic structure, branding, terminology, workflow ও enabled modules configure করবে এবং ব্যবহার শুরু করবে। কোনো নির্দিষ্ট প্রতিষ্ঠানের নাম, class structure, fee rule, grading rule বা approval flow shared code-এ hard-code করা যাবে না।
 
-## Product decisions and engineering specifications (2026-10-27)
+## Product decisions and engineering specifications (2026-10-28)
 
-**EduOS is an institution-agnostic, multi-tenant Education ERP + LMS + Finance + Administration platform.** Version 1.0 is a **fully completed, production-accepted education ERP through advanced HR and Payroll** for 16 launch institutes spanning seven categories and approximately 40,000 initial student records. Version 2.0 adds only **new, fully completed modules**, never a deferred 'advanced' edition of V1's Results, LMS, Finance, HR, Academic or other accepted modules. Canonical models remain generic for all institution presets.
+**EduOS is an institution-agnostic, multi-tenant Education ERP + LMS + Finance + Administration platform.** **Version 1.0 covers the complete Education & Finance scope**; **Version 2.0 completes LMS, HR/Payroll, Library, Hostel and Transport**; **Version 3.0 completes Inventory/Procurement, Assets/Facilities and other approved enterprise modules**. Across 16 potential launch institutes and approximately 40,000 initial student records, enable only fully accepted workflows; online-only LMS providers require V2 before claiming their full online learning operations are production ready. Canonical models remain generic for all institution presets.
 
 | Area | Current decision |
 | --- | --- |
@@ -16,17 +16,18 @@ EduOS is a configurable, multi-tenant SaaS platform for the Bangladesh education
 | Data architecture | Keep the existing **single SQL Server database** and existing **EduOSDbContext**. No database routing, sharding, registry or schema changes are authorized by these documents. Evaluate multi-database only later on measured capacity/operational evidence. |
 | Tenant and security | Tenant/campus/membership/role/ownership/entitlement isolation across API, UI, report, file, cache and background work; audited, atomic high-risk transactions. |
 | User experience | Clean responsive bilingual (`bn-BD` / `en-BD`) UI, header help icon, global language selection, PWA, and **per-user-per-institute saved design** (sidebar top/left/right, safe themes/colors/fonts/density, allowed menu/dashboard layout). Personalization is a **target requirement**, not yet a verified completed workflow. |
-| Release order | **V1:** full platform, admission/student/global identity, academic/routine/attendance, examination/results/credentials, LMS, fees/full finance, full HR/payroll, portals, professional bilingual UI/PWA, reporting and 40k-record import across 16 institutes. **V2:** only separately complete Library, Hostel, Transport, Inventory/Procurement, Assets/Facilities and other approved new modules. |
+| Release order | **V1:** full SaaS/security, admission/students/import, academic/routine/attendance, complete examination/results/credentials, complete fees/accounts/finance, role portals, bilingual polished UI/PWA. **V2:** complete LMS, HR/Payroll, Library, Hostel and Transport. **V3:** complete Inventory/Procurement, Assets/Facilities, Visitor/Campus and approved enterprise modules. Existing partial later-version code/data is preserved and gated. |
 | Quality | No duplicate/dead speculative code, fake dashboards, unbounded queries, silent posting/editing, incomplete layer chains or untested claims. CI, security, migration/restore, concurrency and real-user acceptance are required. |
 | Scale promise | Architecture targets millions of learners; **no million-concurrent-user or production-capacity claim** without measured load tests and recovery evidence. |
 
 ### Read before planning, coding or reporting status
 
-1. [Product Blueprint and delivery rules](docs/PRODUCT_BLUEPRINT.md) — full product identity, capability map, release boundaries and honest completion criteria.
-2. [Version 1.0 / Version 2.0 release contract](docs/RELEASE_V1_V2.md) — authoritative module-completion rule, 16-institute cohort, full V1 through HR/payroll, safe 40k import and full-only V2 modules.
-3. [UI Personalization, localization and PWA specification](docs/UI_PERSONALIZATION.md) — user-controlled workspace with safe tenant-scoped preferences, smart help, mobile UX and performance requirements.
-4. [Scalability and engineering quality standard](docs/architecture/SCALABILITY_AND_QUALITY.md) — single-database decision, million-user scale strategy, tenant security, clean-code gates and production evidence.
-5. [Current pilot staging checklist](docs/deployment/SCHOOL_PILOT_STAGING_RELEASE.md) — staging-only operational gates, **not** a production certificate.
+1. [Mandatory engineering instructions for every AI/chat/task](AGENTS.md) — automatic current-code inventory, secure and fast multi-tenant module completion, anti-loop, quality gate and shared UI rules.
+2. [Authoritative V1/V2/V3 complete-module release contract](docs/RELEASE_V1_V2_V3.md) — the **latest** business scope; the older two-version file is historical.
+3. [Product Blueprint and module catalogue](docs/PRODUCT_BLUEPRINT.md) — generic education product identity and module ownership.
+4. [UI Personalization, localization and PWA specification](docs/UI_PERSONALIZATION.md) — common clean UI, compact header help and saved user/institute design.
+5. [Scalability and engineering quality standard](docs/architecture/SCALABILITY_AND_QUALITY.md) — one database now, privacy boundaries, scalable queries, measured performance and operational evidence.
+6. [Pilot staging checklist](docs/deployment/SCHOOL_PILOT_STAGING_RELEASE.md) — staging-only operational gates, **not** production certification.
 
 **Status discipline:** The detailed module catalogue below distinguishes operational slices from foundation/planned capabilities. Historical `docs/DELIVERY_STATUS.md` and `docs/ROADMAP_STATUS.md` refer to their recorded branch/commit baselines; they must not be mistaken for verification of the latest `Ashraful` commit. Read active code/CI before calling a feature implemented. These specification changes do not update application code, database schema or background task schedules.
 
