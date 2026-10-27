@@ -28,7 +28,8 @@ public sealed class StudentAttendanceReportService(
         if (query == null || query.AcademicBatchId <= 0 || query.FromDate == default ||
             query.ToDate == default || query.ToDate < query.FromDate ||
             query.ToDate.DayNumber - query.FromDate.DayNumber > 30 ||
-            query.Page < 1 || query.PageSize is < 1 or > 100)
+            query.Page < 1 || query.PageSize is < 1 or > 100 ||
+            query.Page > int.MaxValue / query.PageSize)
             return ApiResponse<PagedResult<StudentAttendanceReportRowDto>>.ErrorResponse(
                 "Select a valid batch and a date range of at most 31 days, with page size 1–100.");
 
@@ -42,6 +43,20 @@ public sealed class StudentAttendanceReportService(
             if (batch == null)
                 return ApiResponse<PagedResult<StudentAttendanceReportRowDto>>.ErrorResponse(
                     "Academic batch not found.", 404);
+
+            // Live campus grants apply to every manager report read, including after revocation.
+            if (!user.IsTenantAdmin)
+            {
+                var allowed = await (from access in db.UserCampusAccesses.AsNoTracking()
+                    join campus in db.Campuses.AsNoTracking() on access.CampusId equals campus.Id
+                    where access.TenantId == tenant && campus.TenantId == tenant &&
+                          access.UserId == user.UserId && access.CampusId == batch.CampusId &&
+                          access.IsActive && !access.IsDeleted && campus.IsActive && !campus.IsDeleted
+                    select access.Id).AnyAsync(cancellationToken);
+                if (!allowed)
+                    return ApiResponse<PagedResult<StudentAttendanceReportRowDto>>.ErrorResponse(
+                        "Academic batch not found.", 404);
+            }
 
             // Do not use Student.IsCurrent or current roll: old posted marks retain
             // the enrollment and roll that existed when attendance was recorded.

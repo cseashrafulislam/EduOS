@@ -2,6 +2,8 @@ using EduOS.App.Authorization;
 using EduOS.App.Controllers.Api;
 using EduOS.Core.DTOs.Attendance;
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Auth;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Attendance;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Enums.Domain;
@@ -113,13 +115,52 @@ public sealed class StudentLeavePeriodReportWorkflowTests
         Assert.Single(type.GetCustomAttributes(typeof(AutoValidateAntiforgeryTokenAttribute), true));
     }
 
+
+    [Fact]
+    public async Task Principal_report_requires_live_campus_grant_and_revocation_is_immediate()
+    {
+        await using var db = Context(71);
+        db.AcademicBatches.Add(new AcademicBatch { Id = 10, TenantId = 71, CampusId = 8,
+            Name = "Batch", Code = "B" });
+        db.Campuses.AddRange(
+            new Campus { Id = 8, TenantId = 71, Name = "North", Code = "N", IsActive = true },
+            new Campus { Id = 9, TenantId = 71, Name = "South", Code = "S", IsActive = true });
+        db.UserCampusAccesses.Add(new UserCampusAccess { Id = 101, TenantId = 71,
+            UserId = 7, CampusId = 9, IsActive = true });
+        await db.SaveChangesAsync();
+        var principal = Service(db, 71, manager: false, principal: true);
+        Assert.Equal(404, (await principal.GetAsync(Query())).StatusCode);
+        var grant = new UserCampusAccess { Id = 102, TenantId = 71,
+            UserId = 7, CampusId = 8, IsActive = true };
+        db.UserCampusAccesses.Add(grant);
+        await db.SaveChangesAsync();
+        Assert.True((await principal.GetAsync(Query())).Success);
+        grant.IsActive = false;
+        await db.SaveChangesAsync();
+        Assert.Equal(404, (await principal.GetAsync(Query())).StatusCode);
+    }
+
+    [Fact]
+    public async Task Principal_report_rejects_inactive_campus_and_other_tenant_grants()
+    {
+        await using var db = Context(71);
+        db.AcademicBatches.Add(new AcademicBatch { Id = 10, TenantId = 71, CampusId = 8,
+            Name = "Batch", Code = "B" });
+        db.Campuses.Add(new Campus { Id = 8, TenantId = 71, Name = "North", Code = "N", IsActive = false });
+        db.UserCampusAccesses.Add(new UserCampusAccess { Id = 101, TenantId = 72,
+            UserId = 7, CampusId = 8, IsActive = true });
+        await db.SaveChangesAsync();
+        Assert.Equal(404, (await Service(db, 71, manager: false, principal: true)
+            .GetAsync(Query())).StatusCode);
+    }
+
     private static StudentLeavePeriodReportQueryDto Query() => new() {
         AcademicBatchId = 10, FromDate = new DateOnly(2026, 10, 1),
         ToDate = new DateOnly(2026, 10, 10)
     };
 
-    private static StudentLeavePeriodReportService Service(EduOSDbContext db, long tenant, bool manager = true) =>
-        new(db, new Actor(tenant, manager), NullLogger<StudentLeavePeriodReportService>.Instance);
+    private static StudentLeavePeriodReportService Service(EduOSDbContext db, long tenant, bool manager = true, bool principal = false) =>
+        new(db, new Actor(tenant, manager, principal), NullLogger<StudentLeavePeriodReportService>.Instance);
 
     private static EduOSDbContext Context(long tenant)
     {
@@ -136,7 +177,7 @@ public sealed class StudentLeavePeriodReportWorkflowTests
         return new EduOSDbContext(options, new HttpContextAccessor { HttpContext = http });
     }
 
-    private sealed class Actor(long tenant, bool manager) : ICurrentUserService
+    private sealed class Actor(long tenant, bool manager, bool principal) : ICurrentUserService
     {
         public bool IsAuthenticated => true;
         public long UserId => 7;
@@ -145,7 +186,8 @@ public sealed class StudentLeavePeriodReportWorkflowTests
         public string? Email => null;
         public bool IsSuperAdmin => false;
         public bool IsTenantAdmin => manager;
-        public IReadOnlyList<string> Roles => manager ? new[] { "TenantAdmin" } : new[] { "Teacher" };
+        public IReadOnlyList<string> Roles => manager ? new[] { "TenantAdmin" } :
+            principal ? new[] { "Principal" } : new[] { "Teacher" };
         public bool IsInRole(string role) => Roles.Contains(role);
         public string? IpAddress => null;
         public string? UserAgent => null;

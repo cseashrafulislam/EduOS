@@ -45,6 +45,20 @@ public sealed class StudentLeavePeriodReportService(
                 return ApiResponse<PagedResult<StudentLeavePeriodReportRowDto>>.ErrorResponse(
                     "Academic batch not found.", 404);
 
+            // Live campus grants apply to every manager report read, including after revocation.
+            if (!user.IsTenantAdmin)
+            {
+                var allowed = await (from access in db.UserCampusAccesses.AsNoTracking()
+                    join campus in db.Campuses.AsNoTracking() on access.CampusId equals campus.Id
+                    where access.TenantId == tenant && campus.TenantId == tenant &&
+                          access.UserId == user.UserId && access.CampusId == batch.CampusId &&
+                          access.IsActive && !access.IsDeleted && campus.IsActive && !campus.IsDeleted
+                    select access.Id).AnyAsync(cancellationToken);
+                if (!allowed)
+                    return ApiResponse<PagedResult<StudentLeavePeriodReportRowDto>>.ErrorResponse(
+                        "Academic batch not found.", 404);
+            }
+
             // Enrollment and roll are the original leave application's identity,
             // never the student's latest/current enrollment or roll number.
             var matches =
