@@ -225,6 +225,13 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
                 if (assignmentReference.HasValue && row == null) return Error<AssignmentDto>("Assignment not found.", 404);
                 if (row != null && !Matches(row.RowVersion, request.RowVersion))
                     return Error<AssignmentDto>("Assignment changed. Reload and retry.", 409);
+                // Once learners have submitted work, the rubric, deadline and publication state
+                // are evidence. A revised task must be issued as a new assignment.
+                if (row != null && await _submissions.GetQueryable().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == _user.TenantId && x.AssignmentId == row.Id &&
+                    !x.IsDeleted && x.State != LearningSubmissionState.Draft, token))
+                    return Error<AssignmentDto>(
+                        "Assignment has submissions and cannot be edited. Create a new assignment.", 409);
                 var now = _clock.GetUtcNow().UtcDateTime;
                 if (row == null)
                 {
@@ -580,35 +587,52 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
             request.Marks < 0 || request.Marks > 100000m || request.Feedback?.Length > 2000)
             return Error<AssignmentSubmissionDto>("Invalid marks, feedback or row version.");
         var tenant = _user.TenantId;
-        var row = await _submissions.GetQueryable().FirstOrDefaultAsync(x =>
-            x.TenantId == tenant && x.Id == submissionId && !x.IsDeleted, ct);
-        if (row == null) return Error<AssignmentSubmissionDto>("Submission not found.", 404);
-        var assignment = await _assignments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-            x.TenantId == tenant && x.Id == row.AssignmentId && !x.IsDeleted, ct);
-        if (assignment == null) return Error<AssignmentSubmissionDto>("Assignment not found.", 404);
-        var course = await _courses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-            x.TenantId == tenant && x.Id == assignment.CourseId && !x.IsDeleted, ct);
-        if (course == null || !await CanEditAsync(course, ct))
-            return Error<AssignmentSubmissionDto>("Instructor may not grade this course.", 403);
-        if (!Matches(row.RowVersion, request.RowVersion))
-            return Error<AssignmentSubmissionDto>("Submission changed. Reload and retry.", 409);
-        if (request.Marks > assignment.MaxMarks)
-            return Error<AssignmentSubmissionDto>("Marks cannot exceed assignment maximum.", 409);
-        if (row.State != LearningSubmissionState.Submitted && row.State != LearningSubmissionState.Returned)
-            return Error<AssignmentSubmissionDto>("Only submitted assignments may be graded.", 409);
-        row.Marks = request.Marks; row.Feedback = Trim(request.Feedback);
-        row.State = LearningSubmissionState.Graded;
-        row.GradedAt = _clock.GetUtcNow().UtcDateTime; row.GradedByUserId = _user.UserId;
-        row.UpdatedAt = row.GradedAt; row.UpdatedBy = _user.UserId;
-        _submissions.Update(row);
         try
         {
-            await _uow.SaveChangesAsync(ct);
-            return ApiResponse<AssignmentSubmissionDto>.SuccessResponse(
-                MapSubmission(row, assignment.PublicId), "Assignment graded.");
+            // Serialize grading against course-completion publication. Completed learners'
+            // grade evidence is immutable, while other active learners remain gradeable.
+            return await _uow.ExecuteInTransactionAsync(async token =>
+            {
+                var row = await _submissions.GetQueryable().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Id == submissionId && !x.IsDeleted, token);
+                if (row == null) return Error<AssignmentSubmissionDto>("Submission not found.", 404);
+                var assignment = await _assignments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Id == row.AssignmentId && !x.IsDeleted, token);
+                if (assignment == null) return Error<AssignmentSubmissionDto>("Assignment not found.", 404);
+                var course = await _courses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Id == assignment.CourseId && !x.IsDeleted, token);
+                if (course == null || !await CanEditAsync(course, token))
+                    return Error<AssignmentSubmissionDto>("Instructor may not grade this course.", 403);
+                var enrollment = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Id == row.CourseEnrollmentId &&
+                    x.CourseId == course.Id && !x.IsDeleted, token);
+                if (enrollment == null) return Error<AssignmentSubmissionDto>("Course enrollment not found.", 404);
+                if (enrollment.State == CourseEnrollmentState.Completed)
+                    return Error<AssignmentSubmissionDto>(
+                        "Completed course results are immutable. Use an approved correction workflow.", 409);
+                if (!Matches(row.RowVersion, request.RowVersion))
+                    return Error<AssignmentSubmissionDto>("Submission changed. Reload and retry.", 409);
+                if (request.Marks > assignment.MaxMarks)
+                    return Error<AssignmentSubmissionDto>("Marks cannot exceed assignment maximum.", 409);
+                if (row.State != LearningSubmissionState.Submitted && row.State != LearningSubmissionState.Returned)
+                    return Error<AssignmentSubmissionDto>("Only submitted assignments may be graded.", 409);
+                row.Marks = request.Marks; row.Feedback = Trim(request.Feedback);
+                row.State = LearningSubmissionState.Graded;
+                row.GradedAt = _clock.GetUtcNow().UtcDateTime; row.GradedByUserId = _user.UserId;
+                row.UpdatedAt = row.GradedAt; row.UpdatedBy = _user.UserId;
+                _submissions.Update(row);
+                await _uow.SaveChangesAsync(token);
+                return ApiResponse<AssignmentSubmissionDto>.SuccessResponse(
+                    MapSubmission(row, assignment.PublicId), "Assignment graded.");
+            }, IsolationLevel.Serializable, ct);
         }
         catch (DbUpdateConcurrencyException)
         { return Error<AssignmentSubmissionDto>("Submission changed concurrently.", 409); }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "LMS grading conflict tenant {TenantId}", tenant);
+            return Error<AssignmentSubmissionDto>("Submission grading conflicts with existing data.", 409);
+        }
     }
 
     public async Task<ApiResponse<LessonProgressDto>> UpdateLessonProgressAsync(
@@ -630,6 +654,12 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
             x.TenantId == tenant && x.CourseId == lesson.CourseId && x.StudentId == studentId &&
             x.State == CourseEnrollmentState.Active && !x.IsDeleted, ct);
         if (enrollment == null) return Error<LessonProgressDto>("Active course enrollment not found.", 409);
+        var course = await _courses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.Id == lesson.CourseId && x.IsActive && !x.IsDeleted, ct);
+        if (course == null || !await SubmissionAcademicEligibleAsync(
+                course, enrollment, _clock.GetUtcNow().UtcDateTime, ct))
+            return Error<LessonProgressDto>(
+                "Academic enrollment, campus, term or curriculum is ineligible.", 409);
         try
         {
             return await _uow.ExecuteInTransactionAsync(async token =>

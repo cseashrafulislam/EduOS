@@ -116,6 +116,90 @@ public sealed class LmsCourseCompletionWorkflowTests
         Assert.Equal(403, (await Service(db, "Student").GetCourseAuthoringLockAsync(course.PublicId)).StatusCode);
     }
 
+    [Fact]
+    public async Task Assignment_evidence_prevents_rewriting_deadline_and_maximum_marks()
+    {
+        await using var db = Db();
+        var (course, _, enrollment, _) = await Seed(db);
+        var assignment = new Assignment
+        {
+            TenantId = 101, CourseId = course.Id, Title = "Original task",
+            MaxMarks = 20, IsPublished = true, RowVersion = [1, 2, 3]
+        };
+        db.Add(assignment);
+        await db.SaveChangesAsync();
+        db.Add(new AssignmentSubmission
+        {
+            TenantId = 101, AssignmentId = assignment.Id,
+            CourseEnrollmentId = enrollment.Id,
+            State = EduOS.Core.Enums.Domain.LearningSubmissionState.Submitted,
+            SubmissionText = "Submitted evidence"
+        });
+        await db.SaveChangesAsync();
+
+        var result = await Service(db).SaveAssignmentAsync(assignment.PublicId,
+            new SaveAssignmentRequestDto
+            {
+                CourseReference = course.PublicId, Title = "Changed task",
+                MaxMarks = 100, IsPublished = false,
+                RowVersion = Convert.ToBase64String(assignment.RowVersion)
+            });
+        Assert.Equal(409, result.StatusCode);
+        Assert.Equal("Original task", assignment.Title);
+        Assert.Equal(20m, assignment.MaxMarks);
+        Assert.True(assignment.IsPublished);
+    }
+
+    [Fact]
+    public async Task Completed_learner_marks_are_immutable_but_other_enrollments_are_not_frozen()
+    {
+        await using var db = Db();
+        var (course, _, enrollment, _) = await Seed(db);
+        var assignment = new Assignment
+        {
+            TenantId = 101, CourseId = course.Id, Title = "Assessment",
+            IsPublished = true, MaxMarks = 20
+        };
+        db.Add(assignment);
+        await db.SaveChangesAsync();
+        var submission = new AssignmentSubmission
+        {
+            TenantId = 101, AssignmentId = assignment.Id,
+            CourseEnrollmentId = enrollment.Id, RowVersion = [1, 2, 3],
+            State = EduOS.Core.Enums.Domain.LearningSubmissionState.Submitted
+        };
+        db.Add(submission);
+        await db.SaveChangesAsync();
+        enrollment.State = EduOS.Core.Enums.Domain.CourseEnrollmentState.Completed;
+        await db.SaveChangesAsync();
+
+        var result = await Service(db).GradeSubmissionAsync(submission.Id,
+            new GradeAssignmentSubmissionRequestDto
+            {
+                Marks = 18, RowVersion = Convert.ToBase64String(submission.RowVersion)
+            });
+        Assert.Equal(409, result.StatusCode);
+        Assert.Null(submission.Marks);
+        Assert.Equal(EduOS.Core.Enums.Domain.LearningSubmissionState.Submitted, submission.State);
+    }
+
+    [Fact]
+    public async Task Lesson_progress_rejects_ineligible_academic_enrollment()
+    {
+        await using var db = Db();
+        var (course, _, _, lesson) = await Seed(db);
+        course.AcademicProgramId = 9001;
+        await db.SaveChangesAsync();
+
+        var result = await Service(db, "Student").UpdateLessonProgressAsync(
+            new UpdateLessonProgressRequestDto
+            {
+                LessonReference = lesson.PublicId, ProgressPercent = 100, IsCompleted = true
+            });
+        Assert.Equal(409, result.StatusCode);
+        Assert.Empty(await db.Set<LessonProgress>().ToListAsync());
+    }
+
     private static async Task<(Course Course, Student Student, CourseEnrollment Enrollment, Lesson Lesson)> Seed(EduOSDbContext db)
     {
         var course = new Course { TenantId = 101, Code = "LMS-COMP", Title = "Completion", IsActive = true };
