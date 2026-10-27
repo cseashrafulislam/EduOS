@@ -9,6 +9,10 @@ public sealed partial class InventoryMovementsController
         => Reply(await service.GetMovementsAsync(fromUtc, toUtc, page, pageSize, ct));
     [HttpGet("{reference:guid}"), Authorize(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper,Accountant")]
     public async Task<IActionResult> Detail(Guid reference, CancellationToken ct) => Reply(await service.GetMovementAsync(reference, ct));
+    [HttpGet("item-history"), Authorize(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper,Accountant")]
+    public async Task<IActionResult> ItemHistory(long itemId, long locationId, DateTime? fromUtc, DateTime? toUtc,
+        string? lot, int page = 1, int pageSize = 50, CancellationToken ct = default)
+        => Reply(await service.GetItemHistoryAsync(itemId, locationId, fromUtc, toUtc, lot, page, pageSize, ct));
     [HttpGet("balance"), Authorize(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper,Accountant")]
     public async Task<IActionResult> Balance(long itemId, long locationId, DateTime? asOfUtc, CancellationToken ct)
         => Reply(await service.GetItemBalanceAsync(itemId, locationId, asOfUtc, ct));

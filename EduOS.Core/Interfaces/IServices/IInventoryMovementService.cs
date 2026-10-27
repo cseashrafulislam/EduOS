@@ -13,4 +13,5 @@ public interface IInventoryMovementService
     Task<ApiResponse<InventoryReorderReportDto>> GetReorderAlertsAsync(long locationId, CancellationToken cancellationToken = default);
     Task<ApiResponse<InventoryStockPositionReportDto>> GetStockPositionAsync(long locationId, DateTime? asOfUtc, string? search, bool includeZeroStock, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<InventoryBalanceDto>> GetItemBalanceAsync(long itemId, long locationId, DateTime? asOfUtc, CancellationToken cancellationToken = default);
+    Task<ApiResponse<InventoryItemHistoryReportDto>> GetItemHistoryAsync(long itemId, long locationId, DateTime? fromUtc, DateTime? toUtc, string? lot, int page, int pageSize, CancellationToken cancellationToken = default);
 }

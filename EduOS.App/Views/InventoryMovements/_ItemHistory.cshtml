@@ -1,0 +1,29 @@
+<section class="card mb-3" aria-label="Posted item movement history">
+    <div class="card-body">
+        <h3 class="h5">Item history and stock provenance</h3>
+        <p class="small text-muted">Posted receipts, issues, transfers and compensating reversals for one authorized location. Opening/closing are net posted movement quantities and recorded costs, not an approved financial inventory valuation.</p>
+        <form id="itemHistoryForm" class="row g-2 align-items-end mb-3">
+            <div class="col-md-3">
+                <label for="itemHistorySearch" class="form-label">Find item by code/name</label>
+                <div class="input-group"><input id="itemHistorySearch" class="form-control" maxlength="100" placeholder="Item search" /><button id="itemHistoryFind" type="button" class="btn btn-outline-secondary">Find</button></div>
+            </div>
+            <div class="col-md-3"><label for="itemHistoryItem" class="form-label">Stock item</label><select id="itemHistoryItem" class="form-select" required></select></div>
+            <div class="col-md-3"><label for="itemHistoryLocation" class="form-label">Location</label><select id="itemHistoryLocation" class="form-select" required></select></div>
+            <div class="col-md-3"><label for="itemHistoryLot" class="form-label">Lot/batch (exact, optional)</label><input id="itemHistoryLot" class="form-control" maxlength="100" /></div>
+            <div class="col-md-3"><label for="itemHistoryFrom" class="form-label">Posted from (UTC date)</label><input id="itemHistoryFrom" type="date" class="form-control" /></div>
+            <div class="col-md-3"><label for="itemHistoryTo" class="form-label">Posted through (UTC date)</label><input id="itemHistoryTo" type="date" class="form-control" /></div>
+            <div class="col-md-3"><button type="submit" class="btn btn-outline-primary">Load item history</button></div>
+        </form>
+        <div id="itemHistoryAlert" class="alert d-none" role="status" aria-live="polite"></div>
+        <div id="itemHistorySummary" class="small mb-3" aria-live="polite"></div>
+        <div class="table-responsive"><table class="table table-sm table-striped">
+            <thead><tr><th>Posted UTC</th><th>Movement</th><th>Type</th><th>Lot</th><th>In</th><th>Out</th><th>Cost in</th><th>Cost out</th><th>Source / reversal</th></tr></thead>
+            <tbody id="itemHistoryRows"></tbody>
+        </table></div>
+        <div class="d-flex gap-2 align-items-center">
+            <button id="itemHistoryPrev" type="button" class="btn btn-sm btn-outline-secondary" disabled>Previous</button>
+            <span id="itemHistoryPage">Not loaded</span>
+            <button id="itemHistoryNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>Next</button>
+        </div>
+    </div>
+</section>
