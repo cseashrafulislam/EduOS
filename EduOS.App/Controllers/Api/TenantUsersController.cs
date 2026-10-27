@@ -96,6 +96,14 @@ public sealed class TenantUsersController(ITenantUserAdministrationService servi
         return StatusCode(r.StatusCode, r);
     }
 
+    [HttpGet("{membershipId:long}/access-history")]
+    public async Task<IActionResult> MemberAccessHistory(long membershipId, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, CancellationToken ct = default)
+    {
+        var r = await service.GetMemberAccessHistoryAsync(membershipId, page, pageSize, ct);
+        return StatusCode(r.StatusCode, r);
+    }
+
     [HttpGet("{membershipId:long}/campuses")]
     public async Task<IActionResult> GetCampuses(long membershipId, CancellationToken ct)
     {

@@ -22,15 +22,19 @@
                 <h5>Invite a user</h5>
                 <p class="small text-muted">An email invitation lets the user choose a password or authenticate an existing account. No password is shared with administrators.</p>
                 <form id="inviteUserForm" class="row g-2">
-                    <div class="col-md-5">
+                    <div class="col-md-4">
                         <label class="form-label" for="inviteEmail">Email address</label>
                         <input id="inviteEmail" class="form-control" type="email" maxlength="200" required autocomplete="off" />
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label class="form-label" for="inviteRole">Initial institution role (optional)</label>
                         <select id="inviteRole" class="form-select"></select>
                     </div>
-                    <div class="col-md-3 d-flex align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label" for="inviteCampus">Initial campus (optional)</label>
+                        <select id="inviteCampus" class="form-select" aria-label="Initial campus"><option value="">No campus (assign later)</option></select>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
                         <button class="btn btn-primary" type="submit">Send Invitation</button>
                     </div>
                 </form>
@@ -67,6 +71,20 @@
             <div class="card-body">
                 <h5 id="memberEditorTitle"></h5>
                 <p class="small text-muted">Changes revoke the selected user's old sessions. Ownership cannot be changed here.</p>
+                <button id="memberHistoryButton" type="button" class="btn btn-outline-secondary btn-sm mb-3">View access history</button>
+                <div id="memberHistoryPanel" class="border rounded p-3 mb-3 d-none">
+                    <h6>Member access history</h6>
+                    <p class="small text-muted">Institution-scoped role, campus and membership-status changes, newest first.</p>
+                    <div class="table-responsive"><table class="table table-sm align-middle">
+                        <thead><tr><th>When</th><th>Change</th><th>Actor</th><th>Previous</th><th>New</th></tr></thead>
+                        <tbody id="memberHistoryRows"></tbody>
+                    </table></div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small id="memberHistoryCount" class="text-muted"></small>
+                        <div><button id="memberHistoryPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+                        <button id="memberHistoryNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button></div>
+                    </div>
+                </div>
                 <div id="memberUnscopedIdentityRoleNotice" class="alert alert-warning d-none" role="status"></div>
                 <form id="saveMemberRolesForm">
                     <div id="memberRoleOptions" class="row row-cols-1 row-cols-md-3 g-2 mb-3"></div>

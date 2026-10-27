@@ -1,5 +1,6 @@
 using EduOS.App.Controllers.Api;
 using EduOS.Core.Entities.Auth;
+using EduOS.Core.Entities.System;
 using EduOS.Core.DTOs.Auth;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IServices;
@@ -204,6 +205,50 @@ public sealed class TenantUserAdministrationTests
         var action = typeof(TenantUsersController).GetMethod(nameof(TenantUsersController.AcceptInvitation))!;
         Assert.NotEmpty(action.GetCustomAttributes(typeof(AllowAnonymousAttribute), true));
         Assert.NotEmpty(action.GetCustomAttributes(typeof(Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute), true));
+    }
+
+    [Fact]
+    public async Task Member_access_history_is_tenant_scoped_paged_and_limited_to_access_events()
+    {
+        var access = ContextFor(100, isAdmin: true);
+        await using var db = access.Db;
+        db.Users.Add(new ApplicationUser { Id = 210, FullName = "Staff", Email = "staff@example.test" });
+        db.TenantMemberships.Add(new TenantMembership { Id = 300, TenantId = 100, UserId = 210 });
+        var now = DateTime.UtcNow;
+        db.AuditLogs.AddRange(
+            new AuditLog { Id = 1, TenantId = 100, EntityName = nameof(TenantMembership), EntityId = 300,
+                Action = "TenantMemberRolesChanged", UserName = "Admin", OldValue = "[1]", NewValue = "[2]",
+                OccurredAt = now.AddMinutes(-2) },
+            new AuditLog { Id = 2, TenantId = 100, EntityName = nameof(TenantMembership), EntityId = 300,
+                Action = "TenantMemberCampusesChanged", NewValue = "{\\\"campuses\\\":[10]}", OccurredAt = now.AddMinutes(-1) },
+            new AuditLog { Id = 3, TenantId = 200, EntityName = nameof(TenantMembership), EntityId = 300,
+                Action = "TenantMemberRolesChanged" },
+            new AuditLog { Id = 4, TenantId = 100, EntityName = "Student", EntityId = 300,
+                Action = "TenantMemberRolesChanged" },
+            new AuditLog { Id = 5, TenantId = 100, EntityName = nameof(TenantMembership), EntityId = 300,
+                Action = "TenantMemberStatusChanged", IsSuccess = false },
+            new AuditLog { Id = 6, TenantId = 100, EntityName = nameof(TenantMembership), EntityId = 300,
+                Action = "UnrelatedAction" });
+        await db.SaveChangesAsync();
+        var service = Service(db, access.User, access.Email);
+        var first = await service.GetMemberAccessHistoryAsync(300, 1, 1);
+        Assert.True(first.Success, first.Message);
+        Assert.Equal(2, first.Data!.TotalCount);
+        Assert.Equal("TenantMemberCampusesChanged", Assert.Single(first.Data.Items).Action);
+        var second = await service.GetMemberAccessHistoryAsync(300, 2, 1);
+        Assert.Equal("TenantMemberRolesChanged", Assert.Single(second.Data!.Items).Action);
+        Assert.Equal(400, (await service.GetMemberAccessHistoryAsync(300, int.MaxValue, 100)).StatusCode);
+        Assert.Equal(404, (await service.GetMemberAccessHistoryAsync(999, 1, 20)).StatusCode);
+        Assert.Equal(403, (await Service(db, ContextFor(100, false).User, access.Email)
+            .GetMemberAccessHistoryAsync(300, 1, 20)).StatusCode);
+    }
+
+    [Fact]
+    public void Member_history_api_is_authorized_and_exposes_paged_readback()
+    {
+        var method = typeof(TenantUsersController).GetMethod(nameof(TenantUsersController.MemberAccessHistory))!;
+        Assert.Empty(method.GetCustomAttributes(typeof(AllowAnonymousAttribute), true));
+        Assert.NotEmpty(method.GetCustomAttributes(typeof(Microsoft.AspNetCore.Mvc.HttpGetAttribute), true));
     }
 
     private static (EduOSDbContext Db, Mock<ICurrentUserService> User, Mock<IEmailService> Email, HttpContextAccessor Accessor)

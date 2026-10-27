@@ -3,7 +3,8 @@
     const root = document.getElementById('tenantUsersApp');
     if (!root) return;
     const $ = id => document.getElementById(id);
-    const state = { page: 1, pageSize: 20, total: 0, members: [], roles: [], permissions: [], selected: null };
+    const state = { page: 1, pageSize: 20, total: 0, members: [], roles: [], permissions: [], selected: null,
+        historyPage: 1, historyTotal: 0 };
     const endpoint = '/api/tenant-users';
 
     function message(text, danger = false) {
@@ -64,6 +65,21 @@
         if (state.selected) renderMemberEditor();
     }
 
+    async function loadInviteCampuses() {
+        const response = await fetch('/api/institution-onboarding/campus-list', {
+            credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' }
+        });
+        const result = await response.json().catch(() => null);
+        if (!response.ok || result?.success !== true)
+            throw new Error(result?.message || 'Unable to load institution campuses.');
+        const selector = $('inviteCampus');
+        const selected = selector.value;
+        selector.replaceChildren(new Option('No campus (assign later)', ''));
+        (result.data || []).filter(x => x.isActive).forEach(campus =>
+            selector.append(new Option(campus.name, String(campus.id))));
+        if ([...selector.options].some(x => x.value === selected)) selector.value = selected;
+    }
+
     async function loadMembers() {
         const query = new URLSearchParams({
             page: state.page, pageSize: state.pageSize, search: $('memberSearch').value.trim()
@@ -94,7 +110,9 @@
             const button = textNode('button', 'Manage', 'btn btn-outline-primary btn-sm');
             button.type = 'button';
             button.addEventListener('click', () => {
-                state.selected = member; renderMemberEditor(); loadMemberCampuses(member);
+                state.selected = member; state.historyPage = 1; state.historyTotal = 0;
+                $('memberHistoryPanel').classList.add('d-none');
+                renderMemberEditor(); loadMemberCampuses(member);
             });
             actions.append(button); tr.append(actions); tbody.append(tr);
         });
@@ -152,6 +170,43 @@
         }
     }
 
+    async function loadMemberHistory(memberId) {
+        const page = state.historyPage;
+        const body = $('memberHistoryRows');
+        body.replaceChildren();
+        const loading = document.createElement('tr');
+        const loadingCell = textNode('td', 'Loading history...');
+        loadingCell.colSpan = 5; loading.append(loadingCell); body.append(loading);
+        const result = await request('/' + memberId + '/access-history?page=' + page + '&pageSize=10');
+        if (state.selected?.membershipId !== memberId || state.historyPage !== page) return;
+        state.historyTotal = result.totalCount || 0;
+        body.replaceChildren();
+        const names = { TenantMemberRolesChanged: 'Roles', TenantMemberCampusesChanged: 'Campuses',
+            TenantMemberStatusChanged: 'Membership status' };
+        for (const item of result.items || []) {
+            const tr = document.createElement('tr');
+            const when = item.occurredAt ? new Date(item.occurredAt).toLocaleString() : 'Unknown';
+            [when, names[item.action] || item.action, item.actor, item.previousValue || '—',
+                item.newValue || '—'].forEach(value => tr.append(textNode('td', value, 'small text-break')));
+            body.append(tr);
+        }
+        if (!body.children.length) {
+            const tr = document.createElement('tr'); const td = textNode('td', 'No access changes recorded.');
+            td.colSpan = 5; tr.append(td); body.append(tr);
+        }
+        $('memberHistoryCount').textContent = 'Page ' + page + ' • ' + state.historyTotal + ' changes';
+        $('memberHistoryPrev').disabled = page <= 1;
+        $('memberHistoryNext').disabled = page * 10 >= state.historyTotal;
+    }
+
+    async function showMemberHistory() {
+        if (!state.selected) return;
+        const memberId = state.selected.membershipId;
+        $('memberHistoryPanel').classList.remove('d-none');
+        try { await loadMemberHistory(memberId); }
+        catch (error) { if (state.selected?.membershipId === memberId) message(error.message, true); }
+    }
+
     function renderPermissions() {
         const role = state.roles.find(x => String(x.id) === $('permissionRole').value);
         $('editRoleDescription').value = role?.description || '';
@@ -175,6 +230,13 @@
         finally { button.disabled = false; }
     }
 
+    $('memberHistoryButton').addEventListener('click', showMemberHistory);
+    $('memberHistoryPrev').addEventListener('click', () => {
+        if (state.historyPage > 1) { state.historyPage--; showMemberHistory(); }
+    });
+    $('memberHistoryNext').addEventListener('click', () => {
+        if (state.historyPage * 10 < state.historyTotal) { state.historyPage++; showMemberHistory(); }
+    });
     $('tabUsers').addEventListener('click', () => switchTab(false));
     $('tabRoles').addEventListener('click', () => switchTab(true));
     function switchTab(roles) {
@@ -205,7 +267,8 @@
             await request('/invitations', { method: 'POST', body: JSON.stringify({
                 clientRequestId: crypto.randomUUID(),
                 email: $('inviteEmail').value.trim(),
-                roleId: $('inviteRole').value ? Number($('inviteRole').value) : null
+                roleId: $('inviteRole').value ? Number($('inviteRole').value) : null,
+                campusId: $('inviteCampus').value ? Number($('inviteCampus').value) : null
             }) });
             e.target.reset();
             message('An invitation email has been sent. The user must accept it before appearing here.');
@@ -309,7 +372,7 @@
     });
 
     (async () => {
-        try { await loadCatalog(); await loadMembers(); }
+        try { await Promise.all([loadCatalog(), loadInviteCampuses()]); await loadMembers(); }
         catch (error) { message(error.message, true); }
     })();
 })();

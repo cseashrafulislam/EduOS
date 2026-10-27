@@ -4,7 +4,7 @@
   if (!app) return;
   const el = id => document.getElementById(id);
   const csrf = app.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
-  let page = 1, total = 0, roles = [], sequence = 0;
+  let page = 1, total = 0, roles = [], campuses = [], sequence = 0;
   const cell = value => { const td = document.createElement('td'); td.textContent = String(value ?? ''); return td; };
   const alert = (message, failed = false) => {
     const box = el('invitationNotice');
@@ -40,6 +40,7 @@
     for (const item of data.items || []) {
       const row = document.createElement('tr');
       row.append(cell(item.email), cell(roles.find(r => r.id === item.roleId)?.name || 'No initial role'),
+        cell(item.campusId ? (campuses.find(c => c.id === item.campusId)?.name || 'Campus #' + item.campusId) : 'No initial campus'),
         cell(utc(item.expiresAt).toLocaleString()), cell(state(item)));
       const action = document.createElement('td');
       if (state(item) === 'Pending') {
@@ -62,7 +63,7 @@
     }
     if (!body.children.length) {
       const row = document.createElement('tr'), td = cell('No invitations found.');
-      td.colSpan = 5; row.append(td); body.append(row);
+      td.colSpan = 6; row.append(td); body.append(row);
     }
     el('invitationCount').textContent = 'Page ' + page + ' • ' + total + ' invitations';
     el('prevInvitations').disabled = page <= 1;
@@ -72,5 +73,15 @@
   el('refreshInvitations').addEventListener('click', refresh);
   el('prevInvitations').addEventListener('click', () => { if (page > 1) { page--; refresh(); } });
   el('nextInvitations').addEventListener('click', () => { if (page * 20 < total) { page++; refresh(); } });
-  request('/roles').then(data => { roles = data; refresh(); }).catch(error => alert(error.message, true));
+  const campusCatalog = fetch('/api/institution-onboarding/campus-list', {
+    credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' }
+  }).then(async response => {
+    const result = await response.json().catch(() => null);
+    if (!response.ok || result?.success !== true) throw Error(result?.message || 'Campus catalogue unavailable');
+    return result.data || [];
+  });
+  Promise.all([request('/roles'), campusCatalog])
+    .then(([availableRoles, availableCampuses]) => {
+      roles = availableRoles; campuses = availableCampuses; refresh();
+    }).catch(error => alert(error.message, true));
 })();
