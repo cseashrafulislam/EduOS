@@ -319,6 +319,23 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
         var applicant = await _applicants.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == tenant.Id && x.PublicId == reference && x.Phone == mobile, ct);
         if (applicant == null) return Error<AdmissionApplicantDocumentDto>("Applicant could not be verified.", 404);
+        // A committed upload must be acknowledged even after verification or a final
+        // admission decision. The same key with different bytes or ownership is a conflict.
+        string hash;
+        await using (var stream = checkedFile.OpenReadStream())
+            hash = Convert.ToHexString(await SHA256.HashDataAsync(stream, ct));
+        var replay = await _assets.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant.Id &&
+            x.PublicId == request.ClientRequestId, ct);
+        if (replay != null)
+        {
+            if (replay.Sha256 != hash || replay.SizeBytes != file.Length)
+                return Error<AdmissionApplicantDocumentDto>("Request ID was already used for different content.", 409);
+            var linked = await _documents.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant.Id && x.AdmissionApplicantId == applicant.Id && x.FileAssetId == replay.Id &&
+                x.DocumentTypeCode == kind, ct);
+            if (linked == null) return Error<AdmissionApplicantDocumentDto>("Document request ID was reused.", 409);
+            return ApiResponse<AdmissionApplicantDocumentDto>.SuccessResponse(MapDocument(linked), "Document already received.");
+        }
         var intake = await _forms.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == tenant.Id && x.Id == applicant.AdmissionIntakeFormId, ct);
         if (intake == null) return Error<AdmissionApplicantDocumentDto>("Admission form is unavailable.", 404);
@@ -342,21 +359,6 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
         else if (applicant.State is AdmissionApplicantState.Admitted or AdmissionApplicantState.Rejected or
             AdmissionApplicantState.Withdrawn or AdmissionApplicantState.Qualified)
             return Error<AdmissionApplicantDocumentDto>("Documents cannot be modified after the final decision.", 409);
-        string hash;
-        await using (var stream = checkedFile.OpenReadStream())
-            hash = Convert.ToHexString(await SHA256.HashDataAsync(stream, ct));
-        var replay = await _assets.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant.Id &&
-            x.PublicId == request.ClientRequestId, ct);
-        if (replay != null)
-        {
-            if (replay.Sha256 != hash || replay.SizeBytes != file.Length)
-                return Error<AdmissionApplicantDocumentDto>("Request ID was already used for different content.", 409);
-            var linked = await _documents.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                x.TenantId == tenant.Id && x.AdmissionApplicantId == applicant.Id && x.FileAssetId == replay.Id &&
-                x.DocumentTypeCode == kind, ct);
-            if (linked == null) return Error<AdmissionApplicantDocumentDto>("Document request ID was reused.", 409);
-            return ApiResponse<AdmissionApplicantDocumentDto>.SuccessResponse(MapDocument(linked), "Document already received.");
-        }
         var prior = await _documents.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant.Id &&
             x.AdmissionApplicantId == applicant.Id && x.DocumentTypeCode == kind)
             .OrderByDescending(x => x.VersionNo).FirstOrDefaultAsync(ct);
@@ -437,6 +439,10 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
         var a = await _applicants.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == tenant.Id && x.PublicId == reference && x.Phone == phone, ct);
         if (a == null) return Error<PublicAdmissionStatusDto>("Application could not be verified.", 404);
+        var intake = await _forms.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant.Id && x.Id == a.AdmissionIntakeFormId, ct);
+        var requirements = intake == null ? new List<AdmissionDocumentRequirementDto>() :
+            AdmissionIntakeRules.ReadRequirements(intake.DocumentRequirementsJson);
         var assessment = await (from result in _results.GetQueryable().AsNoTracking()
             join test in _tests.GetQueryable().AsNoTracking() on result.AdmissionTestId equals test.Id
             where result.TenantId == tenant.Id && test.TenantId == tenant.Id &&
@@ -464,6 +470,10 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
         {
             Reference = a.PublicId, ApplicationNumber = a.ApplicationNumber, ApplicantName = a.FullName,
             MaskedMobile = Mask(a.Phone), State = a.State, CanUploadOfferAcceptance = offerOpen,
+            CanUploadDocuments = a.State is not (AdmissionApplicantState.Admitted or
+                AdmissionApplicantState.Qualified or AdmissionApplicantState.Rejected or
+                AdmissionApplicantState.Withdrawn),
+            DocumentRequirements = requirements,
             SubmittedAtUtc = a.SubmittedAt ?? DateTime.MinValue,
             DecisionNote = a.State == AdmissionApplicantState.Rejected ? note : null,
             Assessment = assessment, Documents = docs.Select(MapDocument).ToList()

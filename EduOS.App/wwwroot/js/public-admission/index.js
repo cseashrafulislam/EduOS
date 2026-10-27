@@ -35,14 +35,18 @@
     const setMessage = (element, text, success = false) => { element.className = `message ${success ? 'ok' : 'error'}`; element.textContent = text; };
     const clearMessage = element => { element.className = 'message'; element.textContent = ''; };
     const createRequestId = () => crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-0000-4000-8000-${Math.random().toString(16).slice(2).padEnd(12, '0').slice(0, 12)}`;
+    const sha256Hex = async bytes => {
+        const hash = await crypto.subtle.digest('SHA-256', bytes);
+        return Array.from(new Uint8Array(hash), x => x.toString(16).padStart(2, '0')).join('');
+    };
+    const hashFile = async file => sha256Hex(await file.arrayBuffer());
     const retry = window.EduOSAdmissionRetry.createPersistentTracker(
         createRequestId,
         () => window.sessionStorage,
         async raw => {
             // Never persist a raw form or a reversible/non-cryptographic fingerprint.
             const bytes = new TextEncoder().encode(raw);
-            const hash = await crypto.subtle.digest('SHA-256', bytes);
-            return Array.from(new Uint8Array(hash), x => x.toString(16).padStart(2, '0')).join('');
+            return sha256Hex(bytes);
         },
         tenant
     );
@@ -131,6 +135,10 @@
             const help = document.createElement('span');
             help.className = 'muted';
             help.textContent = `Maximum ${requirement.maxFileSizeMb} MB`;
+            if (uploadedDocumentTypes.has(String(requirement.documentType).toUpperCase())) {
+                input.disabled = true;
+                help.textContent += ' · Already received (pending verification or verified)';
+            }
             wrapper.append(help);
             documentFields.append(wrapper);
         }
@@ -293,7 +301,7 @@
                 const data = new FormData();
                 const file = input.files[0];
                 const key = `document:${activeSubmission.reference}:${input.dataset.documentType}`;
-                data.append('clientRequestId', retry.forFile(key, file));
+                data.append('clientRequestId', await retry.forFileDigest(key, file, hashFile));
                 data.append('mobile', activeSubmission.mobile);
                 data.append('documentType', input.dataset.documentType);
                 data.append('file', input.files[0]);
@@ -353,7 +361,7 @@
                 try {
                     const payload = new FormData();
                     const key = `replacement:${reference}:${doc.documentTypeCode}`;
-                    payload.append('clientRequestId', retry.forFile(key, input.files[0]));
+                    payload.append('clientRequestId', await retry.forFileDigest(key, input.files[0], hashFile));
                     payload.append('mobile', mobile);
                     payload.append('documentType', doc.documentTypeCode);
                     payload.append('file', input.files[0]);
@@ -384,6 +392,19 @@
         try {
             const body = await readResponse(await fetch(`${apiBase}/applications/${encodeURIComponent(reference)}/status?mobile=${encodeURIComponent(mobile)}`, { headers: { Accept: 'application/json' } }));
             const data = body.data;
+            // Recover only after the server verifies the reference and mobile. Never
+            // trust localStorage as proof of ownership or persist uploaded document bytes.
+            activeSubmission = null;
+            uploadedDocumentTypes.clear();
+            documentPanel.hidden = true;
+            if (data.canUploadDocuments && (data.documentRequirements || []).length) {
+                activeSubmission = { reference, mobile };
+                const recovered = window.EduOSAdmissionDocuments.recover(
+                    data.documentRequirements, data.documents || []);
+                for (const type of recovered.completedTypes) uploadedDocumentTypes.add(type);
+                renderDocumentFields(data.documentRequirements);
+                documentPanel.hidden = false;
+            }
             const status = statusNames[data.state] || `Status ${data.state}`;
             const note = data.decisionNote ? ` — ${data.decisionNote}` : '';
             const assessment = data.assessment;
@@ -413,7 +434,7 @@
         if (!file || !reference || !mobile) { setMessage(message, 'Check status and select a signed acceptance document.'); return; }
         const key = `offer:${reference}:${mobile}`;
         const body = new FormData();
-        body.append('clientRequestId', retry.forFile(key, file)); body.append('mobile', mobile);
+        body.append('clientRequestId', await retry.forFileDigest(key, file, hashFile)); body.append('mobile', mobile);
         body.append('documentType', 'OFFER_ACCEPTANCE'); body.append('file', file);
         button.disabled = true;
         try {

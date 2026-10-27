@@ -40,7 +40,7 @@ test('all public document types preserve file identity across retries and clear 
     tracker.clear('document:app:ID');
     assert.equal(tracker.forFile('document:app:ID', file), 'id-5');
     for (const key of ['document:', 'replacement:', 'offer:']) assert.ok(js.includes(key));
-    assert.equal((js.match(/retry\.forFile\(/g) || []).length, 3);
+    assert.equal((js.match(/retry\.forFileDigest\(/g) || []).length, 3);
     assert.match(js, /input\.value = ''; \/\/ Completed files/);
     assert.match(js, /retry\.clear\(key\)/);
     assert.match(service, /IsolationLevel\.Serializable/);

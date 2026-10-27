@@ -65,10 +65,39 @@
                 return id;
             },
             forFile(key, file) { return files.forFile(key, file); },
+            async forFileDigest(key, file, hashFile) {
+                if (!file) throw new TypeError('A file is required.');
+                if (typeof hashFile !== 'function') return files.forFile(key, file);
+                let fingerprint;
+                try { fingerprint = await hashFile(file); }
+                catch { return files.forFile(key, file); }
+                if (typeof fingerprint !== 'string' || !/^[a-f0-9]{64}$/i.test(fingerprint))
+                    return files.forFile(key, file);
+                const scopedKey = 'file:' + key;
+                touched.add(scopedKey);
+                const previous = entries.get(scopedKey);
+                if (previous?.fingerprint === fingerprint) return previous.id;
+                const store = storage();
+                const storageKey = prefix + ':' + scopedKey;
+                let saved = null;
+                try { saved = JSON.parse(store?.getItem(storageKey) || 'null'); } catch { /* unavailable */ }
+                const id = saved?.fingerprint === fingerprint &&
+                    typeof saved.id === 'string' && saved.expiresAt > now()
+                    ? saved.id : createId();
+                entries.set(scopedKey, { fingerprint, id });
+                try {
+                    store?.setItem(storageKey, JSON.stringify({
+                        fingerprint, id, expiresAt: now() + 24 * 60 * 60 * 1000
+                    }));
+                } catch { /* Memory-only fallback. */ }
+                return id;
+            },
             clear(key) {
                 files.clear(key);
                 entries.delete(key);
+                entries.delete('file:' + key);
                 try { storage()?.removeItem(prefix + ':' + key); } catch { }
+                try { storage()?.removeItem(prefix + ':file:' + key); } catch { }
             },
             clearAll() {
                 files.clearAll();

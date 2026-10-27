@@ -201,6 +201,74 @@ public sealed class PublicAdmissionServiceTests
         (await fixture.Db.AdmissionApplicants.CountAsync()).Should().Be(1);
     }
 
+    [Fact]
+    public async Task Document_status_recovers_intake_requirements_and_replay_survives_final_decision()
+    {
+        await using var fixture = await Fixture.CreateAsync("document-recovery");
+        fixture.Form.DocumentRequirementsJson = System.Text.Json.JsonSerializer.Serialize(
+            new List<AdmissionDocumentRequirementDto>
+            {
+                new()
+                {
+                    DocumentType = "BIRTH-CERTIFICATE", Label = "Birth certificate",
+                    IsRequired = true, MaxFileSizeMb = 5,
+                    AllowedExtensions = new List<string> { ".pdf" }
+                }
+            });
+        fixture.Db.Add(new DocumentTypeDefinition
+        {
+            TenantId = fixture.Tenant.Id, Code = "BIRTH-CERTIFICATE",
+            Name = "Birth certificate", RequiresVerification = true, IsActive = true
+        });
+        await fixture.Db.SaveChangesAsync();
+        var applicant = await fixture.CreateApplicantAsync(AdmissionApplicantState.UnderReview);
+        var bytes = "%PDF-1.7\nrecovery test"u8.ToArray();
+        fixture.Storage.Setup(x => x.ValidateFile(It.IsAny<IFormFile>())).Returns(true);
+        fixture.Storage.Setup(x => x.UploadPrivateForTenantAsync(
+                It.IsAny<IFormFile>(), It.IsAny<string>(), fixture.Tenant.Id))
+            .ReturnsAsync(new FileUploadResult
+            {
+                Success = true, FileUrl = $"tenant-{fixture.Tenant.Id}/admissions/recovery.pdf"
+            });
+        var key = Guid.NewGuid();
+        AdmissionDocumentUploadDto Request(byte[] content, Guid requestId) => new()
+        {
+            ClientRequestId = requestId, Mobile = "01712345678",
+            DocumentType = "BIRTH-CERTIFICATE",
+            File = new PrivateFileUploadDto
+            {
+                FileName = "birth.pdf", ContentType = "application/pdf",
+                Length = content.Length, Content = new MemoryStream(content)
+            }
+        };
+        var initial = await fixture.Service.GetStatusAsync(fixture.Tenant.Code,
+            applicant.PublicId, "01712345678");
+        initial.Data!.CanUploadDocuments.Should().BeTrue();
+        initial.Data.DocumentRequirements.Should().ContainSingle(x =>
+            x.DocumentType == "BIRTH-CERTIFICATE" && x.IsRequired);
+        var uploaded = await fixture.Service.UploadDocumentAsync(fixture.Tenant.Code,
+            applicant.PublicId, Request(bytes, key));
+        uploaded.StatusCode.Should().Be(201);
+
+        applicant.State = AdmissionApplicantState.Admitted;
+        await fixture.Db.SaveChangesAsync();
+        var finalStatus = await fixture.Service.GetStatusAsync(fixture.Tenant.Code,
+            applicant.PublicId, "01712345678");
+        finalStatus.Data!.CanUploadDocuments.Should().BeFalse();
+        finalStatus.Data.Documents.Should().ContainSingle();
+        var replay = await fixture.Service.UploadDocumentAsync(fixture.Tenant.Code,
+            applicant.PublicId, Request(bytes, key));
+        replay.Success.Should().BeTrue();
+        replay.Data!.Id.Should().Be(uploaded.Data!.Id);
+        (await fixture.Service.UploadDocumentAsync(fixture.Tenant.Code,
+            applicant.PublicId, Request("%PDF-1.7\nchanged"u8.ToArray(), key))).StatusCode.Should().Be(409);
+        (await fixture.Service.UploadDocumentAsync(fixture.Tenant.Code,
+            applicant.PublicId, Request(bytes, Guid.NewGuid()))).StatusCode.Should().Be(409);
+        (await fixture.Db.AdmissionApplicantDocuments.CountAsync()).Should().Be(1);
+        fixture.Storage.Verify(x => x.UploadPrivateForTenantAsync(
+            It.IsAny<IFormFile>(), It.IsAny<string>(), fixture.Tenant.Id), Times.Once);
+    }
+
     private sealed class Fixture : IAsyncDisposable
     {
         public EduOSDbContext Db { get; }
