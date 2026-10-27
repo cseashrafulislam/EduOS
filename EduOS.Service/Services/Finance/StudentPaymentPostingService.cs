@@ -21,9 +21,9 @@ public sealed partial class StudentPaymentPostingService : IStudentPaymentPostin
     public StudentPaymentPostingService(EduOSDbContext db, ICurrentUserService user, TimeProvider clock)
     { this.db = db; this.user = user; this.clock = clock; }
 
-    private bool CanRead => user.IsAuthenticated && user.TenantId > 0 &&
+    private bool CanRead => user.IsAuthenticated && user.TenantId > 0 && db.CurrentTenantId == user.TenantId &&
         (user.IsTenantAdmin || user.IsInRole("Principal") || user.IsInRole("Accountant"));
-    private bool CanPost => user.IsAuthenticated && user.TenantId > 0 &&
+    private bool CanPost => user.IsAuthenticated && user.TenantId > 0 && db.CurrentTenantId == user.TenantId &&
         (user.IsTenantAdmin || user.IsInRole("Principal"));
     private IQueryable<long> AllowedCampuses => db.UserCampusAccesses.AsNoTracking()
         .Where(x => x.TenantId == user.TenantId && x.UserId == user.UserId && x.IsActive && !x.IsDeleted)

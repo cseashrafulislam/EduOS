@@ -49,10 +49,18 @@ public sealed class StudentPaymentPostingServiceTests
     }
     private static PostStudentPaymentJournalRequestDto ValidRequest() =>
         new() { AccountingPeriodId = 1, CashAccountId = 1, RowVersion = "AQ==" };
-    private static EduOSDbContext Database()
+    [Fact]
+    public async Task Mismatched_request_and_DbContext_tenant_denies_register_and_post()
+    {
+        await using var db = Database(42);
+        var service = new StudentPaymentPostingService(db, new TestUser("TenantAdmin"), TimeProvider.System);
+        (await service.GetRegisterAsync(null, null, true, 1, 25)).StatusCode.Should().Be(403);
+        (await service.PostAsync(Guid.NewGuid(), ValidRequest())).StatusCode.Should().Be(403);
+    }
+    private static EduOSDbContext Database(long contextTenantId = 41)
     {
         var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
-        accessor.HttpContext.Items["TenantId"] = 41L;
+        accessor.HttpContext.Items["TenantId"] = contextTenantId;
         return new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase("payment-gl-" + Guid.NewGuid().ToString("N")).Options, accessor);
     }

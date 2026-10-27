@@ -18,9 +18,9 @@ public sealed partial class StudentInvoicePostingService : IStudentInvoicePostin
     private readonly TimeProvider clock;
     public StudentInvoicePostingService(EduOSDbContext db, ICurrentUserService user, TimeProvider clock)
     { this.db = db; this.user = user; this.clock = clock; }
-    private bool CanRead => user.IsAuthenticated && user.TenantId > 0 &&
+    private bool CanRead => user.IsAuthenticated && user.TenantId > 0 && db.CurrentTenantId == user.TenantId &&
         (user.IsTenantAdmin || user.IsInRole("Principal") || user.IsInRole("Accountant"));
-    private bool CanPost => user.IsAuthenticated && user.TenantId > 0 &&
+    private bool CanPost => user.IsAuthenticated && user.TenantId > 0 && db.CurrentTenantId == user.TenantId &&
         (user.IsTenantAdmin || user.IsInRole("Principal"));
     private static ApiResponse<T> Error<T>(string message, int code = 400) =>
         ApiResponse<T>.ErrorResponse(message, code);

@@ -27,15 +27,17 @@ public sealed partial class StudentPaymentPostingService
             {
                 var prior = await db.Journals.AsNoTracking().SingleOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == payment.JournalId.Value && !x.IsDeleted, ct);
-                if (prior == null || prior.SourceType != "StudentPayment" || prior.SourceId != payment.Id ||
-                    prior.State != JournalState.Posted || prior.AccountingPeriodId != request.AccountingPeriodId)
+                var priorLines = await db.JournalLines.IgnoreQueryFilters().AsNoTracking()
+                    .Where(x => x.TenantId == tenant && x.JournalId == payment.JournalId.Value)
+                    .ToListAsync(ct);
+                var reversed = prior != null && await db.Journals.IgnoreQueryFilters().AsNoTracking()
+                    .AnyAsync(x => x.TenantId == tenant && x.ReversalOfJournalId == prior.Id &&
+                        x.State == JournalState.Posted, ct);
+                if (prior == null || reversed || prior.AccountingPeriodId != request.AccountingPeriodId ||
+                    !InstitutionalPostingJournalIntegrity.Matches(prior, priorLines, tenant,
+                        "StudentPayment", payment.Id, prior.CampusId ?? 0, payment.StudentId,
+                        payment.Amount, request.CashAccountId))
                     return Error<PostStudentPaymentJournalResultDto>("Linked receipt journal requires reconciliation.", 409);
-                var debit = await db.JournalLines.AsNoTracking().Where(x => x.TenantId == tenant &&
-                    x.JournalId == prior.Id && !x.IsDeleted && x.DebitAmount > 0m)
-                    .Select(x => new { x.AccountId, x.DebitAmount }).ToListAsync(ct);
-                if (debit.Count != 1 || debit[0].AccountId != request.CashAccountId ||
-                    debit[0].DebitAmount != payment.Amount)
-                    return Error<PostStudentPaymentJournalResultDto>("Receipt was posted to a different cash ledger.", 409);
                 return ApiResponse<PostStudentPaymentJournalResultDto>.SuccessResponse(
                     new PostStudentPaymentJournalResultDto { PaymentReference = payment.PublicId,
                         JournalReference = prior.PublicId, JournalNumber = prior.JournalNumber,
@@ -57,11 +59,14 @@ public sealed partial class StudentPaymentPostingService
             if (cash == null || !CashLedger(cash) || await db.BankAccounts.AsNoTracking().AnyAsync(x =>
                 x.TenantId == tenant && !x.IsDeleted && x.AccountId == cash.Id, ct))
                 return Error<PostStudentPaymentJournalResultDto>("Select an active BDT cash-in-hand asset ledger, not a bank ledger.", 409);
-            if (await db.Journals.AsNoTracking().AnyAsync(x => x.TenantId == tenant && !x.IsDeleted &&
+            if (await db.Journals.IgnoreQueryFilters().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
                 ((x.SourceType == "StudentPayment" && x.SourceId == payment.Id) ||
                 x.IdempotencyKey == PostingKey(tenant, payment.PublicId)), ct))
                 return Error<PostStudentPaymentJournalResultDto>("Unlinked receipt journal exists; reconcile first.", 409);
 
+            if (await db.PaymentAllocations.IgnoreQueryFilters().AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenant && x.StudentPaymentId == payment.Id && x.IsDeleted, ct))
+                return Error<PostStudentPaymentJournalResultDto>("Historical receipt allocations require reconciliation.", 409);
             var allocations = await db.PaymentAllocations.AsNoTracking().Where(x =>
                 x.TenantId == tenant && x.StudentPaymentId == payment.Id && !x.IsDeleted)
                 .OrderBy(x => x.Id).ToListAsync(ct);
@@ -93,15 +98,15 @@ public sealed partial class StudentPaymentPostingService
             if (invoiceRows.Any(x => x.CampusId != campusId))
                 return Error<PostStudentPaymentJournalResultDto>("Split cross-campus cash receipts before posting.", 409);
             var journalIds = invoiceRows.Select(x => x.Invoice.JournalId!.Value).Distinct().ToArray();
-            var sourceJournals = await db.Journals.AsNoTracking().Where(x => x.TenantId == tenant &&
-                journalIds.Contains(x.Id) && !x.IsDeleted).ToListAsync(ct);
-            if (sourceJournals.Count != journalIds.Length || await db.Journals.AsNoTracking().AnyAsync(x =>
-                x.TenantId == tenant && !x.IsDeleted && x.ReversalOfJournalId.HasValue &&
-                journalIds.Contains(x.ReversalOfJournalId.Value) && x.State == JournalState.Posted, ct))
+            var sourceJournals = await db.Journals.IgnoreQueryFilters().AsNoTracking()
+                .Where(x => x.TenantId == tenant && journalIds.Contains(x.Id)).ToListAsync(ct);
+            if (sourceJournals.Count != journalIds.Length || await db.Journals.IgnoreQueryFilters()
+                .AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.ReversalOfJournalId.HasValue &&
+                    journalIds.Contains(x.ReversalOfJournalId.Value) && x.State == JournalState.Posted, ct))
                 return Error<PostStudentPaymentJournalResultDto>("An invoice journal is missing or reversed.", 409);
             var byJournal = sourceJournals.ToDictionary(x => x.Id);
-            var invoiceJournalLines = await db.JournalLines.AsNoTracking().Where(x =>
-                x.TenantId == tenant && !x.IsDeleted && journalIds.Contains(x.JournalId))
+            var invoiceJournalLines = await db.JournalLines.IgnoreQueryFilters().AsNoTracking().Where(x =>
+                x.TenantId == tenant && journalIds.Contains(x.JournalId))
                 .ToListAsync(ct);
             var credits = new List<(long AccountId, long ProgramId, decimal Amount)>();
             foreach (var allocation in allocations)
@@ -109,13 +114,11 @@ public sealed partial class StudentPaymentPostingService
                 var row = invoiceRows.Single(x => x.Invoice.Id == allocation.StudentInvoiceId);
                 var invoice = row.Invoice;
                 var journal = byJournal[invoice.JournalId!.Value];
-                if (journal.SourceType != "StudentInvoice" || journal.SourceId != invoice.Id ||
-                    journal.State != JournalState.Posted || journal.CampusId != campusId ||
-                    journal.CurrencyCode != "BDT" || journal.ReversalOfJournalId.HasValue ||
-                    !Money(invoice.TotalAmount) || invoice.TotalAmount <= 0m ||
+                var lines = invoiceJournalLines.Where(x => x.JournalId == journal.Id).ToArray();
+                if (!InstitutionalPostingJournalIntegrity.Matches(journal, lines, tenant,
+                        "StudentInvoice", invoice.Id, campusId, payment.StudentId, invoice.TotalAmount) ||
                     invoice.PaidAmount < allocation.Amount)
                     return Error<PostStudentPaymentJournalResultDto>("Invoice GL provenance or balances invalid.", 409);
-                var lines = invoiceJournalLines.Where(x => x.JournalId == journal.Id).ToArray();
                 var receivables = lines.Where(x => x.DebitAmount > 0m).ToArray();
                 if (receivables.Length == 0 || receivables.Select(x => x.AccountId).Distinct().Count() != 1 ||
                     receivables.Any(x => x.StudentId != payment.StudentId || x.CampusId != campusId) ||

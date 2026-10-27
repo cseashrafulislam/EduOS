@@ -69,11 +69,19 @@ public sealed partial class StudentPaymentPostingService
             .Select(x => new { x.payment.PublicId, x.payment.ReceiptNumber,
                 x.student.StudentCode, x.student.FullName, x.CampusId,
                 x.payment.PaymentDate, x.payment.Amount, x.payment.CurrencyCode,
+                x.payment.Id, x.payment.StudentId,
                 x.payment.JournalId, x.payment.RowVersion }).ToListAsync(ct);
         var ids = rows.Where(x => x.JournalId.HasValue).Select(x => x.JournalId!.Value).Distinct().ToArray();
-        var journals = await db.Journals.AsNoTracking().Where(x => x.TenantId == tenant &&
-            !x.IsDeleted && ids.Contains(x.Id)).Select(x => new { x.Id, x.PublicId, x.State }).ToListAsync(ct);
+        var journals = await db.Journals.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenant && ids.Contains(x.Id)).ToListAsync(ct);
         var byId = journals.ToDictionary(x => x.Id);
+        var lines = await db.JournalLines.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenant && ids.Contains(x.JournalId)).ToListAsync(ct);
+        var linesByJournal = lines.ToLookup(x => x.JournalId);
+        var reversedIds = (await db.Journals.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenant && x.ReversalOfJournalId.HasValue &&
+                ids.Contains(x.ReversalOfJournalId.Value) && x.State == JournalState.Posted)
+            .Select(x => x.ReversalOfJournalId!.Value).ToListAsync(ct)).ToHashSet();
         return ApiResponse<StudentPaymentPostingRegisterDto>.SuccessResponse(new StudentPaymentPostingRegisterDto
         {
             OpenPeriods = periods, Campuses = campuses, CashAccounts = cashAccounts,
@@ -84,7 +92,13 @@ public sealed partial class StudentPaymentPostingService
                 StudentCode = x.StudentCode, StudentName = x.FullName, CampusId = x.CampusId,
                 PaymentDate = x.PaymentDate, Amount = x.Amount, CurrencyCode = x.CurrencyCode,
                 Posted = x.JournalId.HasValue && byId.TryGetValue(x.JournalId.Value, out var posted) &&
-                    posted.State == JournalState.Posted,
+                    !reversedIds.Contains(posted.Id) &&
+                    linesByJournal[posted.Id].Count(l => l.DebitAmount > 0m) == 1 &&
+                    InstitutionalPostingJournalIntegrity.Matches(posted,
+                        linesByJournal[posted.Id].ToArray(), tenant, "StudentPayment", x.Id,
+                        x.CampusId, x.StudentId, x.Amount,
+                        linesByJournal[posted.Id].Where(l => l.DebitAmount > 0m)
+                            .Select(l => (long?)l.AccountId).FirstOrDefault()),
                 JournalReference = x.JournalId.HasValue && byId.TryGetValue(x.JournalId.Value, out var journal)
                     ? journal.PublicId : null,
                 RowVersion = Convert.ToBase64String(x.RowVersion)

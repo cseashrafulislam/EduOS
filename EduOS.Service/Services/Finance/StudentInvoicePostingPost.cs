@@ -37,8 +37,16 @@ public sealed partial class StudentInvoicePostingService
             {
                 var prior = await db.Journals.AsNoTracking().SingleOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == invoice.JournalId.Value && !x.IsDeleted, ct);
-                if (prior == null || prior.SourceType != "StudentInvoice" || prior.SourceId != invoice.Id ||
-                    prior.State != JournalState.Posted)
+                var priorLines = await db.JournalLines.IgnoreQueryFilters().AsNoTracking()
+                    .Where(x => x.TenantId == tenant && x.JournalId == invoice.JournalId.Value)
+                    .ToListAsync(ct);
+                var reversed = prior != null && await db.Journals.IgnoreQueryFilters().AsNoTracking()
+                    .AnyAsync(x => x.TenantId == tenant && x.ReversalOfJournalId == prior.Id &&
+                        x.State == JournalState.Posted, ct);
+                if (prior == null || reversed || prior.AccountingPeriodId != request.AccountingPeriodId ||
+                    !InstitutionalPostingJournalIntegrity.Matches(prior, priorLines, tenant,
+                        "StudentInvoice", invoice.Id, source.CampusId, source.StudentId,
+                        invoice.TotalAmount))
                     return Error<PostStudentInvoiceJournalResultDto>("Linked journal requires reconciliation.", 409);
                 return ApiResponse<PostStudentInvoiceJournalResultDto>.SuccessResponse(
                     new PostStudentInvoiceJournalResultDto { InvoiceReference = invoice.PublicId,
@@ -57,7 +65,7 @@ public sealed partial class StudentInvoicePostingService
                 !x.IsDeleted && !x.IsClosed && x.StartDate <= invoice.InvoiceDate &&
                 x.EndDate >= invoice.InvoiceDate, ct);
             if (period == null) return Error<PostStudentInvoiceJournalResultDto>("Open period must cover invoice date.", 409);
-            if (await db.Journals.AsNoTracking().AnyAsync(x => x.TenantId == tenant && !x.IsDeleted &&
+            if (await db.Journals.IgnoreQueryFilters().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
                 ((x.SourceType == "StudentInvoice" && x.SourceId == invoice.Id) ||
                 x.IdempotencyKey == PostingKey(tenant, invoice.PublicId)), ct))
                 return Error<PostStudentInvoiceJournalResultDto>("Unlinked source journal exists; reconcile first.", 409);

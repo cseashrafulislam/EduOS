@@ -48,12 +48,19 @@ public sealed partial class StudentInvoicePostingService
             .Select(x => new { x.invoice.PublicId, x.invoice.InvoiceNumber,
                 x.student.StudentCode, x.student.FullName, x.enrollment.CampusId,
                 x.invoice.InvoiceDate, x.invoice.TotalAmount, x.invoice.CurrencyCode,
+                x.invoice.Id, x.enrollment.StudentId,
                 x.invoice.JournalId, x.invoice.RowVersion }).ToListAsync(ct);
         var journalIds = rows.Where(x => x.JournalId.HasValue).Select(x => x.JournalId!.Value).Distinct().ToArray();
-        var journals = await db.Journals.AsNoTracking().Where(x => x.TenantId == tenant &&
-            !x.IsDeleted && journalIds.Contains(x.Id))
-            .Select(x => new { x.Id, x.PublicId, x.State }).ToListAsync(ct);
+        var journals = await db.Journals.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenant && journalIds.Contains(x.Id)).ToListAsync(ct);
         var byId = journals.ToDictionary(x => x.Id);
+        var lines = await db.JournalLines.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenant && journalIds.Contains(x.JournalId)).ToListAsync(ct);
+        var linesByJournal = lines.ToLookup(x => x.JournalId);
+        var reversedIds = (await db.Journals.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenant && x.ReversalOfJournalId.HasValue &&
+                journalIds.Contains(x.ReversalOfJournalId.Value) && x.State == JournalState.Posted)
+            .Select(x => x.ReversalOfJournalId!.Value).ToListAsync(ct)).ToHashSet();
         return ApiResponse<StudentInvoicePostingRegisterDto>.SuccessResponse(new StudentInvoicePostingRegisterDto
         {
             OpenPeriods = periods, Campuses = campuses, Page = page, PageSize = pageSize, TotalCount = count,
@@ -62,7 +69,10 @@ public sealed partial class StudentInvoicePostingService
                 StudentCode = x.StudentCode, StudentName = x.FullName, CampusId = x.CampusId,
                 InvoiceDate = x.InvoiceDate, TotalAmount = x.TotalAmount, CurrencyCode = x.CurrencyCode,
                 Posted = x.JournalId.HasValue && byId.TryGetValue(x.JournalId.Value, out var posted) &&
-                    posted.State == JournalState.Posted,
+                    !reversedIds.Contains(posted.Id) &&
+                    InstitutionalPostingJournalIntegrity.Matches(posted,
+                        linesByJournal[posted.Id].ToArray(), tenant, "StudentInvoice", x.Id,
+                        x.CampusId, x.StudentId, x.TotalAmount),
                 JournalReference = x.JournalId.HasValue && byId.TryGetValue(x.JournalId.Value, out var journal)
                     ? journal.PublicId : null,
                 RowVersion = Convert.ToBase64String(x.RowVersion)
