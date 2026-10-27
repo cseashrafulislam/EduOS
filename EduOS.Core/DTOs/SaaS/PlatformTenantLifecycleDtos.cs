@@ -26,3 +26,15 @@ public sealed class ChangePlatformTenantStateRequestDto
     [Required] public string RowVersion { get; set; } = string.Empty;
     public Guid RequestId { get; set; }
 }
+
+/// <summary>SuperAdmin-only readback of an institution state transition; never exposes raw audit JSON.</summary>
+public sealed class PlatformTenantStateHistoryDto
+{
+    public long Id { get; set; }
+    public DateTime OccurredAt { get; set; }
+    public string Actor { get; set; } = string.Empty;
+    public string PreviousState { get; set; } = string.Empty;
+    public string TargetState { get; set; } = string.Empty;
+    public string Reason { get; set; } = string.Empty;
+    public string? RequestId { get; set; }
+}

@@ -8,6 +8,8 @@ public interface IPlatformTenantLifecycleService
 {
     Task<ApiResponse<PagedResult<PlatformTenantLifecycleDto>>> SearchAsync(
         string? search, TenantState? state, int page, int pageSize, CancellationToken ct = default);
+    Task<ApiResponse<PagedResult<PlatformTenantStateHistoryDto>>> GetStateHistoryAsync(
+        long tenantId, int page, int pageSize, CancellationToken ct = default);
     Task<ApiResponse<PlatformTenantLifecycleDto>> ChangeStateAsync(
         long tenantId, ChangePlatformTenantStateRequestDto request, CancellationToken ct = default);
 }

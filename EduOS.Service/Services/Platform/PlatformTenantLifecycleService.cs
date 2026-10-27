@@ -76,6 +76,66 @@ public sealed class PlatformTenantLifecycleService(
         }
     }
 
+    private static PlatformTenantStateHistoryDto MapStateHistory(AuditLog row)
+    {
+        var target = "Unknown";
+        var reason = "Unavailable";
+        try
+        {
+            using var json = JsonDocument.Parse(row.NewValue ?? "{}");
+            if (json.RootElement.ValueKind == JsonValueKind.Object)
+            {
+                if (json.RootElement.TryGetProperty("State", out var state) && state.ValueKind == JsonValueKind.String)
+                    target = state.GetString() ?? target;
+                if (json.RootElement.TryGetProperty("Reason", out var value) && value.ValueKind == JsonValueKind.String)
+                    reason = value.GetString() ?? reason;
+            }
+        }
+        catch (JsonException) { /* Older malformed audit payloads remain visible without raw JSON. */ }
+        return new PlatformTenantStateHistoryDto
+        {
+            Id = row.Id, OccurredAt = row.OccurredAt,
+            Actor = row.UserName ?? (row.UserId.HasValue ? $"User #{row.UserId}" : "System"),
+            PreviousState = row.OldValue ?? "Unknown", TargetState = target,
+            Reason = reason, RequestId = row.RequestId
+        };
+    }
+
+    public async Task<ApiResponse<PagedResult<PlatformTenantStateHistoryDto>>> GetStateHistoryAsync(
+        long tenantId, int page, int pageSize, CancellationToken ct = default)
+    {
+        if (!CanManage)
+            return ApiResponse<PagedResult<PlatformTenantStateHistoryDto>>.ErrorResponse("Platform administrator required.", 403);
+        if (tenantId <= 0 || page < 1 || pageSize is < 1 or > 100 || page > int.MaxValue / pageSize)
+            return ApiResponse<PagedResult<PlatformTenantStateHistoryDto>>.ErrorResponse("Invalid institution or paging parameters.");
+        try
+        {
+            var found = await tenants.GetQueryable().IgnoreQueryFilters().AsNoTracking()
+                .AnyAsync(x => x.Id == tenantId && !x.IsDeleted, ct);
+            if (!found)
+                return ApiResponse<PagedResult<PlatformTenantStateHistoryDto>>.ErrorResponse("Institution not found.", 404);
+            // IgnoreQueryFilters is restricted to this host-only service. Every audit row
+            // must match tenant, canonical entity ID, action, and successful state change.
+            var query = audits.GetQueryable().IgnoreQueryFilters().AsNoTracking().Where(x =>
+                x.TenantId == tenantId && x.EntityName == "Tenant" && x.EntityId == tenantId &&
+                x.Action == "StateChange" && x.IsSuccess && !x.IsDeleted);
+            var count = await query.CountAsync(ct);
+            var history = await query.OrderByDescending(x => x.OccurredAt).ThenByDescending(x => x.Id)
+                .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+            return ApiResponse<PagedResult<PlatformTenantStateHistoryDto>>.SuccessResponse(new()
+            {
+                Items = history.Select(MapStateHistory).ToList(),
+                TotalCount = count, Page = page, PageSize = pageSize
+            });
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Platform state history failed for tenant {TenantId}", tenantId);
+            return ApiResponse<PagedResult<PlatformTenantStateHistoryDto>>.ErrorResponse("Institution history is unavailable.", 500);
+        }
+    }
+
     public async Task<ApiResponse<PlatformTenantLifecycleDto>> ChangeStateAsync(
         long tenantId, ChangePlatformTenantStateRequestDto request, CancellationToken ct = default)
     {

@@ -23,6 +23,14 @@ public sealed class PlatformTenantsApiController(IPlatformTenantLifecycleService
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("{tenantId:long}/history")]
+    public async Task<IActionResult> History(long tenantId, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20, CancellationToken ct = default)
+    {
+        var result = await service.GetStateHistoryAsync(tenantId, page, pageSize, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("{tenantId:long}/state")]
     public async Task<IActionResult> ChangeState(long tenantId,
         [FromBody] ChangePlatformTenantStateRequestDto request, CancellationToken ct)
