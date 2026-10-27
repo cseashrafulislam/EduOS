@@ -22,6 +22,15 @@
         return nativeFetch(new Request(request, { headers }));
     };
 
+    // Clear only public runtime PWA assets when signing out; never delay or replace server logout.
+    document.querySelectorAll('form[method="post"]').forEach(form => {
+        const action = new URL(form.action, window.location.href);
+        if (action.origin !== window.location.origin || action.pathname.toLowerCase() !== '/account/logout') return;
+        form.addEventListener('submit', () => {
+            navigator.serviceWorker?.controller?.postMessage({ type: 'EDUOS_CLEAR_RUNTIME_STATIC' });
+        });
+    });
+
     const sidebar = document.getElementById('sidebarMenu');
     const sidebarToggle = document.querySelector('[data-sidebar-toggle], #btnSidebarToggle');
     const sidebarClosers = document.querySelectorAll('[data-sidebar-close]');

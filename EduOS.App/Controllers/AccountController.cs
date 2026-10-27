@@ -165,6 +165,7 @@ namespace EduOS.App.Controllers
                     await AuthSessionRegistry.RevokeAsync(_db, _currentUser.UserId, sid);
             }
             await _signInManager.SignOutAsync();
+            Response.Headers["Clear-Site-Data"] = "\"cache\"";
             return RedirectToAction(nameof(Login), "Account");
         }
     }

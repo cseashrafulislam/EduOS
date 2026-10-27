@@ -62,3 +62,63 @@ test('service worker excludes private, redirected, authenticated and non-static 
     request.headers.set('Authorization', 'Bearer test');
     assert.equal(context.isPublicStaticResponse(request, response()), false);
 });
+
+test('logout clears runtime cache without removing public offline shell', async () => {
+    const handlers = {};
+    const removed = [];
+    const entries = [
+        { url: 'https://eduos.example.test/offline.html' },
+        { url: 'https://eduos.example.test/css/site.css' },
+        { url: 'https://eduos.example.test/js/platform/page-context-help.js?v=abc' }
+    ];
+    const cache = {
+        keys: async () => entries,
+        delete: async request => { removed.push(request.url); return true; }
+    };
+    const context = {
+        self: {
+            addEventListener: (name, callback) => { handlers[name] = callback; },
+            location: { origin: 'https://eduos.example.test' }
+        },
+        caches: { open: async () => cache }, URL
+    };
+    vm.runInNewContext(read('EduOS.App/wwwroot/service-worker.js'), context);
+    let pending;
+    handlers.message({ data: { type: 'EDUOS_CLEAR_RUNTIME_STATIC' }, waitUntil: promise => { pending = promise; } });
+    await pending;
+    assert.deepEqual(removed, ['https://eduos.example.test/js/platform/page-context-help.js?v=abc']);
+    assert.equal(handlers.message({ data: { type: 'UNTRUSTED' }, waitUntil: () => { throw Error('Unexpected purge'); } }), undefined);
+    const pageLogout = read('EduOS.App/Controllers/AccountController.cs');
+    const apiLogout = read('EduOS.App/Controllers/Api/AuthController.cs');
+    assert.match(pageLogout, /Clear-Site-Data/);
+    assert.match(apiLogout, /Clear-Site-Data/);
+    assert.match(read('EduOS.App/wwwroot/js/site.js'), /EDUOS_CLEAR_RUNTIME_STATIC/);
+});
+
+test('authenticated and no-store static requests bypass existing CacheStorage hits', () => {
+    const handlers = {};
+    const context = {
+        self: { addEventListener: (name, fn) => { handlers[name] = fn; },
+            location: { origin: 'https://eduos.example.test' } },
+        caches: { match: () => { throw Error('Cache must not be read'); } }, URL,
+        fetch: () => { throw Error('Fetch is browser-owned without respondWith'); }
+    };
+    vm.runInNewContext(read('EduOS.App/wwwroot/service-worker.js'), context);
+    for (const cacheMode of ['no-store', 'reload']) {
+        let handled = false;
+        handlers.fetch({ request: { method: 'GET', url: 'https://eduos.example.test/css/site.css',
+            headers: new Headers(), cache: cacheMode, mode: 'cors' },
+            respondWith: () => { handled = true; } });
+        assert.equal(handled, false);
+    }
+    let handled = false;
+    handlers.fetch({ request: { method: 'GET', url: 'https://eduos.example.test/css/site.css',
+        headers: new Headers({ Authorization: 'Bearer test' }), cache: 'default', mode: 'cors' },
+        respondWith: () => { handled = true; } });
+    assert.equal(handled, false);
+    const request = { url: 'https://eduos.example.test/css/site.css',
+        headers: new Headers(), cache: 'default' };
+    const response = { ok: true, type: 'basic', redirected: false,
+        headers: new Headers({ 'Cache-Control': 'public', 'Content-Type': 'text/css', Vary: 'Cookie' }) };
+    assert.equal(context.isPublicStaticResponse(request, response), false);
+});

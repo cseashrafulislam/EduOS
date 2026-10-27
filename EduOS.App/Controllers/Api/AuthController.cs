@@ -648,6 +648,7 @@ namespace EduOS.App.Controllers.Api
             if (long.TryParse(userId, out var id) && sid != null)
                 await AuthSessionRegistry.RevokeAsync(_db, id, sid);
             await _signInManager.SignOutAsync();
+            Response.Headers["Clear-Site-Data"] = "\"cache\"";
             return Ok(new { success = true, message = "Logged out successfully." });
         }
 

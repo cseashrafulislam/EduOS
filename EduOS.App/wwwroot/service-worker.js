@@ -46,6 +46,8 @@ function isPublicStaticResponse(request, response) {
     if (request.headers.has('Authorization') || request.cache === 'no-store') return false;
     const cacheControl = response.headers.get('Cache-Control') || '';
     if (/\b(?:private|no-store|no-cache)\b/i.test(cacheControl)) return false;
+    const vary = response.headers.get('Vary') || '';
+    if (/(?:^|,)\s*(?:cookie|authorization)\s*(?:,|$)/i.test(vary)) return false;
     const contentType = (response.headers.get('Content-Type') || '').toLowerCase();
     const path = new URL(request.url).pathname;
     if (path.endsWith('.css')) return contentType.includes('text/css');
@@ -58,9 +60,20 @@ function isPublicStaticResponse(request, response) {
     return false;
 }
 
+// Logout discards runtime assets without deleting the public offline shell.
+self.addEventListener('message', event => {
+    if (event.data?.type !== 'EDUOS_CLEAR_RUNTIME_STATIC') return;
+    event.waitUntil(caches.open(CACHE_NAME).then(cache =>
+        cache.keys().then(requests => Promise.all(requests
+            .filter(request => !CORE_ASSETS.includes(new URL(request.url).pathname))
+            .map(request => cache.delete(request))))));
+});
+
 self.addEventListener('fetch', event => {
     const request = event.request;
     if (request.method !== 'GET') return;
+    // A personalized/explicit-refresh request must never receive an earlier public cache hit.
+    if (request.headers.has('Authorization') || request.cache === 'no-store' || request.cache === 'reload') return;
 
     const url = new URL(request.url);
     if (url.origin !== self.location.origin) return;
