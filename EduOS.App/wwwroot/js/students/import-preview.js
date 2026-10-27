@@ -220,15 +220,18 @@
             const mappingJson = chosenMapping();
             const fp = await jobTools.fingerprint(file, mappingJson);
             const saved = await matchingCheckpoint();
-            if (continuing && (!saved || saved.totalRows < 1 || saved.totalRows > 5000))
-                throw new Error('No matching unfinished import found.');
             if (!continuing && (!validated || validated.invalidRows !== 0 ||
                 validated.totalRows < 1 || validated.totalRows > 5000))
                 throw new Error('Complete a valid dry-run before starting.');
-            const totalRows = continuing ? saved.totalRows : validated.totalRows;
+            // Server-confirmed windows permit recovery even when local storage was cleared.
+            // A fresh preview may flag already committed rows as duplicates.
+            const totalRows = continuing
+                ? jobTools.resumeRowCount(saved, validated) : validated.totalRows;
             const status = await getJobStatus(fp, totalRows);
             showJobStatus(fp, status);
             if (status.isComplete) { message('This file is fully reconciled.', false); return; }
+            if (continuing && status.committedRows < 1)
+                throw new Error('No committed windows exist for this file and mapping.');
             if (!confirm('Commit or resume ' + totalRows + ' rows in 100-row atomic transactions?')) return;
             const completed = new Set((status.batches || []).map(x => x.rowOffset));
             let committedRows = status.committedRows;
@@ -308,17 +311,30 @@
         } catch (error) { message(error.message, true); }
         finally { busy = false; jobExport.disabled = false; }
     });
-    download.addEventListener('click', () => {
-        const escape = value => {
-            let s = String(value ?? '');
-            if (/^[\s\x00-\x1f]*[=+\-@]/.test(s)) s = "'" + s;
-            return '"' + s.replaceAll('"', '""') + '"';
-        };
-        const lines = ['RowNumber,SourceKey,StudentCode,Issues', ...errors.map(row =>
-            [row.rowNumber, row.sourceKey, row.studentCode, (row.issues || []).join('; ')].map(escape).join(','))];
-        const url = URL.createObjectURL(new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
-        const a = document.createElement('a');
-        a.href = url; a.download = 'student-import-preview-errors.csv'; a.click();
-        URL.revokeObjectURL(url);
+    download.addEventListener('click', async () => {
+        if (busy) return;
+        busy = true; download.disabled = true;
+        try {
+            if (!validated || validated.invalidRows < 1)
+                throw new Error('Run a preview with validation errors first.');
+            const token = form.querySelector('input[name="__RequestVerificationToken"]')?.value;
+            if (!token) throw new Error('Session verification token is missing. Refresh the page.');
+            const data = new FormData();
+            data.append('file', selectedFile());
+            data.append('mappingJson', chosenMapping());
+            const response = await fetch('/api/student-imports/errors', {
+                method: 'POST', body: data, credentials: 'same-origin', cache: 'no-store',
+                headers: { 'RequestVerificationToken': token }
+            });
+            if (!response.ok) {
+                const body = await response.json().catch(() => null);
+                throw new Error(body?.message || 'Full validation error export failed.');
+            }
+            const url = URL.createObjectURL(await response.blob());
+            const a = document.createElement('a');
+            a.href = url; a.download = 'student-import-errors.csv'; a.click();
+            URL.revokeObjectURL(url);
+        } catch (error) { message(error.message, true); }
+        finally { busy = false; download.disabled = false; }
     });
 })();

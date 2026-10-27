@@ -13,6 +13,9 @@ test('student import execution is an authorized atomic bounded workflow', () => 
     assert.match(api, /\[AutoValidateAntiforgeryToken\]/);
     assert.match(api, /\[HttpPost\("execute"\)\]/);
     assert.match(api, /ExecuteSliceAsync/);
+    assert.ok(api.includes('[HttpPost("errors")]'));
+    assert.match(api, /PreviewAllErrorsAsync/);
+    assert.match(api, /SafeCsvCell/);
     assert.match(api, /job-status/);
     const job = read('EduOS.Service/Services/Students/StudentImportExecutionService.JobStatus.cs');
     assert.match(job, /GetJobStatusAsync/);
@@ -49,6 +52,8 @@ test('import UI requires preview and token, offers reconciliation, avoids raw ht
     assert.match(js, /localStorage\.setItem/);
     assert.match(js, /loadReconciliation/);
     assert.match(js, /getJobStatus/);
+    assert.ok(js.includes('/api/student-imports/errors'));
+    assert.match(js, /resumeRowCount/);
     assert.match(js, /status\.nextOffset/);
     assert.match(js, /student-import-reconciliation\.csv/);
     assert.match(js, /textContent/);

@@ -19,7 +19,15 @@
         return hex.slice(0, 8) + '-' + hex.slice(8, 12) + '-' + hex.slice(12, 16) +
             '-' + hex.slice(16, 20) + '-' + hex.slice(20);
     }
-    const api = { fingerprint, requestId };
+    function resumeRowCount(checkpoint, preview) {
+        const total = checkpoint?.totalRows ?? preview?.totalRows;
+        if (!Number.isInteger(total) || total < 1 || total > 5000)
+            throw new Error('Inspect and preview the source file before resuming.');
+        if (checkpoint && preview && checkpoint.totalRows !== preview.totalRows)
+            throw new Error('Import row count changed. Re-select and preview the original file.');
+        return total;
+    }
+    const api = { fingerprint, requestId, resumeRowCount };
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     else root.EduOSStudentImportJob = api;
 })(typeof window !== 'undefined' ? window : globalThis);

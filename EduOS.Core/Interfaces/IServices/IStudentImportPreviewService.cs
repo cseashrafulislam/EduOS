@@ -12,4 +12,7 @@ public interface IStudentImportPreviewService
     Task<ApiResponse<StudentImportPreviewDto>> PreviewAsync(
         Stream content, string extension, IReadOnlyDictionary<string, string> mapping,
         CancellationToken cancellationToken = default);
+    Task<ApiResponse<StudentImportPreviewDto>> PreviewAllErrorsAsync(
+        Stream content, string extension, IReadOnlyDictionary<string, string> mapping,
+        CancellationToken cancellationToken = default);
 }

@@ -14,6 +14,14 @@ test('same file/mapping/window yields stable UUID across reloads', async () => {
     assert.notEqual(id, await requestId(a.fileHash, a.mappingHash, 0, webcrypto));
     assert.notEqual(id, await requestId(a.fileHash, a.mappingHash, 200, webcrypto));
 });
+test('resume recovers from server-confirmed preview without local storage', () => {
+    const { resumeRowCount } = require('../../EduOS.App/wwwroot/js/students/import-job.js');
+    assert.equal(resumeRowCount(null, { totalRows: 250, invalidRows: 100 }), 250);
+    assert.equal(resumeRowCount({ totalRows: 250 }, null), 250);
+    assert.throws(() => resumeRowCount(null, null), /preview/);
+    assert.throws(() => resumeRowCount({ totalRows: 250 }, { totalRows: 249 }), /changed/);
+    assert.throws(() => resumeRowCount(null, { totalRows: 5001 }), /preview/);
+});
 test('changed file or mapping cannot silently reuse a chunk request', async () => {
     const a = await fingerprint(file('file-A'), '{"SourceKey":"key"}', webcrypto);
     const changed = await fingerprint(file('file-B'), '{"SourceKey":"key"}', webcrypto);

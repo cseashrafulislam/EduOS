@@ -76,9 +76,19 @@ public sealed class StudentImportPreviewService : IStudentImportPreviewService
         }
     }
 
-    public async Task<ApiResponse<StudentImportPreviewDto>> PreviewAsync(
+    public Task<ApiResponse<StudentImportPreviewDto>> PreviewAsync(
         Stream content, string extension, IReadOnlyDictionary<string, string> mapping,
         CancellationToken cancellationToken = default)
+        => PreviewCoreAsync(content, extension, mapping, MaxReportedErrors, cancellationToken);
+
+    public Task<ApiResponse<StudentImportPreviewDto>> PreviewAllErrorsAsync(
+        Stream content, string extension, IReadOnlyDictionary<string, string> mapping,
+        CancellationToken cancellationToken = default)
+        => PreviewCoreAsync(content, extension, mapping, MaxRows, cancellationToken);
+
+    private async Task<ApiResponse<StudentImportPreviewDto>> PreviewCoreAsync(
+        Stream content, string extension, IReadOnlyDictionary<string, string> mapping,
+        int errorLimit, CancellationToken cancellationToken)
     {
         if (!CanManage()) return ApiResponse<StudentImportPreviewDto>.ErrorResponse("Student import access denied.", 403);
         if (mapping == null) return ApiResponse<StudentImportPreviewDto>.ErrorResponse("Column mapping is required.", 400);
@@ -221,7 +231,7 @@ public sealed class StudentImportPreviewService : IStudentImportPreviewService
                 else
                 {
                     result.InvalidRows++;
-                    if (result.Errors.Count < MaxReportedErrors)
+                    if (result.Errors.Count < errorLimit)
                         result.Errors.Add(new StudentImportRowIssueDto
                         {
                             RowNumber = row.RowNumber,

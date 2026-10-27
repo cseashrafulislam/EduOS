@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using EduOS.App.Authorization;
 using EduOS.Core.Interfaces.IServices;
@@ -53,6 +54,44 @@ public sealed class StudentImportsController : ControllerBase
         await file!.CopyToAsync(stream, cancellationToken);
         var result = await _service.PreviewAsync(stream, Path.GetExtension(file.FileName), mapping, cancellationToken);
         return StatusCode(result.StatusCode, result);
+    }
+
+    /// <summary>Tenant-scoped, bounded full validation error CSV. No data is committed.</summary>
+    [HttpPost("errors")]
+    public async Task<IActionResult> ExportErrors([FromForm] IFormFile? file,
+        [FromForm] string? mappingJson, CancellationToken cancellationToken)
+    {
+        var invalid = ValidateFile(file);
+        if (invalid != null) return invalid;
+        Dictionary<string, string>? mapping;
+        try { mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(mappingJson ?? ""); }
+        catch (JsonException) { return BadRequest("Invalid column mapping."); }
+        if (mapping == null || mapping.Count is < 6 or > 9)
+            return BadRequest("Required import column mapping is missing.");
+        await using var stream = new MemoryStream();
+        await file!.CopyToAsync(stream, cancellationToken);
+        var result = await _service.PreviewAllErrorsAsync(stream, Path.GetExtension(file.FileName),
+            mapping, cancellationToken);
+        if (!result.Success || result.Data == null)
+            return StatusCode(result.StatusCode, result);
+        var csv = new StringBuilder("RowNumber,SourceKey,StudentCode,Issues\r\n");
+        foreach (var row in result.Data.Errors)
+            csv.Append(row.RowNumber).Append(',')
+                .Append(SafeCsvCell(row.SourceKey)).Append(',')
+                .Append(SafeCsvCell(row.StudentCode)).Append(',')
+                .Append(SafeCsvCell(string.Join("; ", row.Issues))).Append("\r\n");
+        // UTF-8 BOM for Excel; neutralize spreadsheet formulas in all user-controlled cells.
+        var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv.ToString())).ToArray();
+        return File(bytes, "text/csv; charset=utf-8", "student-import-errors.csv");
+    }
+
+    private static string SafeCsvCell(string? input)
+    {
+        var value = input ?? string.Empty;
+        var i = 0;
+        while (i < value.Length && (char.IsWhiteSpace(value[i]) || char.IsControl(value[i]))) i++;
+        if (i < value.Length && "=+-@".Contains(value[i])) value = "'" + value;
+        return "\"" + value.Replace("\"", "\"\"") + "\"";
     }
 
     [HttpPost("execute")]

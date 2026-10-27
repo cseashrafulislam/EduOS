@@ -130,6 +130,40 @@ public sealed class StudentImportPreviewServiceTests
     }
 
     [Fact]
+    public async Task Full_error_export_revalidates_all_rows_and_neutralizes_spreadsheet_formulas()
+    {
+        var options = Options();
+        await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var service = Service(db, new User(101, true));
+        var rows = Header + string.Concat(Enumerable.Range(1, 125)
+            .Select(i => $"=SRC-{i},+STU-{i},Learner {i},999,20,{i},,\n"));
+        using var source = Csv(rows);
+        var limited = await service.PreviewAsync(source, ".csv", Mapping);
+        Assert.True(limited.Success);
+        Assert.Equal(125, limited.Data!.InvalidRows);
+        Assert.Equal(100, limited.Data.Errors.Count);
+        Assert.True(limited.Data.HasMoreErrors);
+        var all = await service.PreviewAllErrorsAsync(source, ".csv", Mapping);
+        Assert.True(all.Success);
+        Assert.Equal(125, all.Data!.Errors.Count);
+        Assert.False(all.Data.HasMoreErrors);
+        Assert.Empty(await db.ImportLogs.ToListAsync());
+
+        using var exportSource = Csv(rows);
+        var upload = new FormFile(exportSource, 0, exportSource.Length, "file", "students.csv");
+        var controller = new StudentImportsController(service, null!);
+        var response = await controller.ExportErrors(upload,
+            System.Text.Json.JsonSerializer.Serialize(Mapping), CancellationToken.None);
+        var file = Assert.IsType<FileContentResult>(response);
+        var csv = Encoding.UTF8.GetString(file.FileContents);
+        Assert.Contains("\"'=SRC-1\"", csv);
+        Assert.Contains("\"'+STU-125\"", csv);
+        Assert.Equal(126, csv.Split("\r\n", StringSplitOptions.RemoveEmptyEntries).Length);
+        Assert.Empty(await db.ImportLogs.ToListAsync());
+    }
+
+    [Fact]
     public void Preview_api_requires_admin_module_and_antiforgery()
     {
         var controller = typeof(StudentImportsController);
