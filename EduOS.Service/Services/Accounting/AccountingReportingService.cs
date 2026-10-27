@@ -14,7 +14,7 @@ public sealed partial class AccountingReportingService : IAccountingReportingSer
     private readonly EduOSDbContext db;
     private readonly ICurrentUserService user;
     public AccountingReportingService(EduOSDbContext db, ICurrentUserService user) { this.db = db; this.user = user; }
-    private bool Allowed => user.IsAuthenticated && user.TenantId > 0 &&
+    private bool Allowed => user.IsAuthenticated && user.TenantId > 0 && db.CurrentTenantId == user.TenantId &&
         (user.IsTenantAdmin || user.IsInRole("Principal") || user.IsInRole("Accountant"));
     private IQueryable<Journal> Posted => db.Journals.AsNoTracking().Where(x => x.TenantId == user.TenantId &&
         !x.IsDeleted && (x.State == JournalState.Posted || x.State == JournalState.Reversed));
@@ -59,28 +59,54 @@ public sealed partial class AccountingReportingService : IAccountingReportingSer
     {
         if (!Allowed) return ApiResponse<IReadOnlyList<TrialBalanceRowDto>>.ErrorResponse("Institutional accounting access denied.", 403);
         if (asOfDate == default) return ApiResponse<IReadOnlyList<TrialBalanceRowDto>>.ErrorResponse("Valid as-of date required.");
-        var balances = from l in Lines
-            join j in Posted on l.JournalId equals j.Id
-            where j.JournalDate <= asOfDate
+
+        // A globally balanced total can conceal two individually unbalanced journals.
+        // Validate the posted source records before presenting or exporting a trial balance.
+        // Keep all checks tenant-scoped and server-side; do not materialize the journal ledger.
+        var journals = Posted.Where(j => j.JournalDate <= asOfDate);
+        if (await journals.AnyAsync(j => j.CurrencyCode != "BDT", ct))
+            return ApiResponse<IReadOnlyList<TrialBalanceRowDto>>.ErrorResponse("Mixed-currency journals require an approved FX policy.", 409);
+        if (await journals.AnyAsync(j => !Lines.Any(l => l.JournalId == j.Id), ct))
+            return ApiResponse<IReadOnlyList<TrialBalanceRowDto>>.ErrorResponse("A posted journal has no lines; reconcile the ledger first.", 409);
+
+        var entries = from l in Lines
+            join j in journals on l.JournalId equals j.Id
+            select new { JournalId = j.Id, l.AccountId, l.DebitAmount, l.CreditAmount };
+        if (await entries.AnyAsync(l => l.DebitAmount < 0m || l.CreditAmount < 0m ||
+            (l.DebitAmount > 0m && l.CreditAmount > 0m) ||
+            (l.DebitAmount == 0m && l.CreditAmount == 0m), ct))
+            return ApiResponse<IReadOnlyList<TrialBalanceRowDto>>.ErrorResponse("Invalid debit/credit journal line prevents reporting.", 409);
+        if (await (from l in entries
+            group l by l.JournalId into g
+            select new { Debit = g.Sum(x => x.DebitAmount), Credit = g.Sum(x => x.CreditAmount) })
+            .AnyAsync(x => x.Debit != x.Credit, ct))
+            return ApiResponse<IReadOnlyList<TrialBalanceRowDto>>.ErrorResponse("An unbalanced posted journal prevents reporting.", 409);
+
+        var balances = from l in entries
             group l by l.AccountId into g
             select new { AccountId = g.Key, Debit = g.Sum(x => x.DebitAmount), Credit = g.Sum(x => x.CreditAmount) };
-        var query = from b in balances
-            join a in db.Accounts.AsNoTracking().Where(x => x.TenantId == user.TenantId && !x.IsDeleted)
-                on b.AccountId equals a.Id
-            orderby a.Code, a.Id
-            select new { b.AccountId, a.Code, a.Name, b.Debit, b.Credit };
-        if (await query.CountAsync(ct) > 5000)
+        if (await balances.CountAsync(ct) > 5000)
             return ApiResponse<IReadOnlyList<TrialBalanceRowDto>>.ErrorResponse("More than 5,000 accounts; reporting export integration required.", 422);
-        var groupedAccountCount = await balances.CountAsync(ct);
-        var rows = await query.ToListAsync(ct);
-        if (rows.Count != groupedAccountCount)
+        var accountIds = await balances.Select(x => x.AccountId).ToArrayAsync(ct);
+        var accounts = await db.Accounts.AsNoTracking()
+            .Where(a => a.TenantId == user.TenantId && !a.IsDeleted && accountIds.Contains(a.Id))
+            .Select(a => new { a.Id, a.Code, a.Name, a.CurrencyCode, a.IsGroup, a.AllowsPosting })
+            .ToListAsync(ct);
+        if (accounts.Count != accountIds.Length)
             return ApiResponse<IReadOnlyList<TrialBalanceRowDto>>.ErrorResponse("Posted ledger contains missing or deleted account references.", 409);
-        var result = rows.Select(x => new TrialBalanceRowDto
-        {
-            AccountId = x.AccountId, AccountCode = x.Code, AccountName = x.Name,
-            DebitBalance = Math.Max(0m, x.Debit - x.Credit),
-            CreditBalance = Math.Max(0m, x.Credit - x.Debit)
-        }).ToArray();
+        if (accounts.Any(a => a.CurrencyCode != "BDT" || a.IsGroup || !a.AllowsPosting))
+            return ApiResponse<IReadOnlyList<TrialBalanceRowDto>>.ErrorResponse("A posting account has invalid currency or posting configuration.", 409);
+
+        var byId = accounts.ToDictionary(a => a.Id);
+        var sums = await balances.ToListAsync(ct);
+        var result = sums.OrderBy(x => byId[x.AccountId].Code).ThenBy(x => x.AccountId)
+            .Select(x => new TrialBalanceRowDto
+            {
+                AccountId = x.AccountId, AccountCode = byId[x.AccountId].Code,
+                AccountName = byId[x.AccountId].Name,
+                DebitBalance = Math.Max(0m, x.Debit - x.Credit),
+                CreditBalance = Math.Max(0m, x.Credit - x.Debit)
+            }).ToArray();
         if (result.Sum(x => x.DebitBalance) != result.Sum(x => x.CreditBalance))
             return ApiResponse<IReadOnlyList<TrialBalanceRowDto>>.ErrorResponse("Trial balance is not balanced; investigate posted journals.", 409);
         return ApiResponse<IReadOnlyList<TrialBalanceRowDto>>.SuccessResponse(result);
