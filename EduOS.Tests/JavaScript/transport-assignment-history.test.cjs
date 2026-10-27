@@ -17,9 +17,12 @@ for (const marker of ['assignment.TenantId == tenant','enrollment.TenantId == te
     'pageSize is < 1 or > 100','fromDate.Value > toDate.Value',
     'route.CampusId.Value == enrollment.CampusId','vehicle.CampusId.Value == enrollment.CampusId'])
     assert.ok(service.includes(marker),marker);
-// Exclude soft-deleted canonical records before paging and CSV export.
+// Preserve canonical reservation/student visibility and tenant/campus authorization;
+// retired routes, vehicles and campuses remain available for historical readback.
 for (const marker of ['!assignment.IsDeleted','!enrollment.IsDeleted','!student.IsDeleted',
-    '!route.IsDeleted','!vehicle.IsDeleted','!campus.IsDeleted','campus.IsActive'])
+    '_routes.GetQueryable().IgnoreQueryFilters().AsNoTracking()',
+    '_vehicles.GetQueryable().IgnoreQueryFilters().AsNoTracking()',
+    '_campuses.GetQueryable().IgnoreQueryFilters().AsNoTracking()'])
     assert.ok(service.includes(marker), marker);
 assert.match(iface,/GetAssignmentHistoryAsync/);
 assert.match(api,/\[HttpGet\("assignment-history"\)\][\s\S]*?\[Authorize\(Roles = "TenantAdmin,Principal,TransportManager"\)\]/);
