@@ -540,6 +540,131 @@ public sealed class SqlServerTransportSeatCapacityIntegrationTests
         Assert.Equal(winner.Data.RowVersion, replay.Data.RowVersion);
     }
 
+    [Fact]
+    public async Task Competing_active_driver_replacements_preserve_predecessor_and_one_successor()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var fixture = await SeedAsync(connection);
+        var today = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
+        var yesterday = today.AddDays(-1);
+        long sourceId, originalDriverId, firstDriverId, secondDriverId;
+        ReplaceActiveVehicleDriverRequestDto first, second;
+
+        await using (var setup = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var suffix = Guid.NewGuid().ToString("N")[..12];
+            var original = new TransportDriver
+            {
+                TenantId = fixture.TenantId, FullName = "Operating source driver",
+                LicenseNumber = "ACTIVE-ORIG-" + suffix,
+                LicenseExpiresOn = today.AddDays(60), IsActive = true
+            };
+            var targetA = new TransportDriver
+            {
+                TenantId = fixture.TenantId, FullName = "Operating replacement A",
+                LicenseNumber = "ACTIVE-NEW-A-" + suffix,
+                LicenseExpiresOn = today.AddDays(60), IsActive = true
+            };
+            var targetB = new TransportDriver
+            {
+                TenantId = fixture.TenantId, FullName = "Operating replacement B",
+                LicenseNumber = "ACTIVE-NEW-B-" + suffix,
+                LicenseExpiresOn = today.AddDays(60), IsActive = true
+            };
+            setup.AddRange(original, targetA, targetB);
+            await setup.SaveChangesAsync();
+            originalDriverId = original.Id;
+            firstDriverId = targetA.Id;
+            secondDriverId = targetB.Id;
+            var source = new VehicleDriverAssignment
+            {
+                TenantId = fixture.TenantId, VehicleId = fixture.VehicleId,
+                TransportDriverId = original.Id, EffectiveFrom = today.AddDays(-7),
+                EffectiveTo = today.AddDays(10), IsCurrent = true
+            };
+            setup.Add(source);
+            await setup.SaveChangesAsync();
+            sourceId = source.Id;
+            var version = Convert.ToBase64String(source.RowVersion);
+            first = new ReplaceActiveVehicleDriverRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), NewDriverId = targetA.Id,
+                AssignmentRowVersion = version,
+                DriverRowVersion = Convert.ToBase64String(targetA.RowVersion)
+            };
+            second = new ReplaceActiveVehicleDriverRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), NewDriverId = targetB.Id,
+                AssignmentRowVersion = version,
+                DriverRowVersion = Convert.ToBase64String(targetB.RowVersion)
+            };
+        }
+
+        async Task<ApiResponse<VehicleDriverAssignmentDto>> ReplaceAsync(
+            ReplaceActiveVehicleDriverRequestDto request)
+        {
+            await using var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+            return await DriverService(db, fixture.TenantId, fixture.UserId)
+                .ReplaceActiveDriverAsync(sourceId, request);
+        }
+
+        // Two independent SQL Server contexts race on one source rowversion.
+        // At most one successor can be committed, even if one transaction deadlocks.
+        var responses = await Task.WhenAll(ReplaceAsync(first), ReplaceAsync(second));
+        Assert.Single(responses, x => x.Success);
+        Assert.Single(responses, x => !x.Success && x.StatusCode == 409);
+        var winning = responses.Single(x => x.Success);
+        var winningRequest = responses[0].Success ? first : second;
+        var winningDriverId = responses[0].Success ? firstDriverId : secondDriverId;
+
+        await using (var verify = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var history = await verify.Set<VehicleDriverAssignment>().AsNoTracking()
+                .Where(x => x.TenantId == fixture.TenantId && !x.IsDeleted &&
+                    x.VehicleId == fixture.VehicleId &&
+                    (x.Id == sourceId || x.EffectiveFrom == today))
+                .OrderBy(x => x.Id).ToListAsync();
+            Assert.Equal(2, history.Count);
+            var predecessor = Assert.Single(history, x => x.Id == sourceId);
+            Assert.False(predecessor.IsCurrent);
+            Assert.Equal(originalDriverId, predecessor.TransportDriverId);
+            Assert.Equal(today.AddDays(-7), predecessor.EffectiveFrom);
+            Assert.Equal(yesterday, predecessor.EffectiveTo);
+            var successor = Assert.Single(history, x => x.Id != sourceId);
+            Assert.True(successor.IsCurrent);
+            Assert.Equal(today, successor.EffectiveFrom);
+            Assert.Equal(winningDriverId, successor.TransportDriverId);
+            Assert.Equal(winning.Data!.Id, successor.Id);
+            Assert.Equal(1, await verify.Set<VehicleDriverAssignment>().CountAsync(x =>
+                x.TenantId == fixture.TenantId && !x.IsDeleted &&
+                x.VehicleId == fixture.VehicleId && x.IsCurrent));
+        }
+
+        // Durable replay must return the original successor without rewriting
+        // the retired source, successor audit or SQL rowversion.
+        var replay = await ReplaceAsync(winningRequest);
+        Assert.True(replay.Success, replay.Message);
+        Assert.Equal(winning.Data!.Id, replay.Data!.Id);
+        Assert.Equal(winning.Data.RowVersion, replay.Data.RowVersion);
+
+        var reusedKey = new ReplaceActiveVehicleDriverRequestDto
+        {
+            ClientRequestId = winningRequest.ClientRequestId,
+            NewDriverId = winningDriverId == firstDriverId ? secondDriverId : firstDriverId,
+            AssignmentRowVersion = winningRequest.AssignmentRowVersion,
+            DriverRowVersion = winningRequest.DriverRowVersion
+        };
+        var conflict = await ReplaceAsync(reusedKey);
+        Assert.False(conflict.Success);
+        Assert.Equal(409, conflict.StatusCode);
+
+        await using var final = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+        Assert.Equal(1, await final.Set<VehicleDriverAssignment>().CountAsync(x =>
+            x.TenantId == fixture.TenantId && !x.IsDeleted &&
+            x.VehicleId == fixture.VehicleId && x.IsCurrent));
+    }
+
     private static AssignStudentTransportRequestDto Request(
         Fixture fixture, int student, DateOnly from, DateOnly to) => new()
     {

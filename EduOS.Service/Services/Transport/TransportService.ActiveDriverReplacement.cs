@@ -137,6 +137,16 @@ public sealed partial class TransportService
             _logger.LogWarning(ex, "Driver replacement transaction aborted for tenant {TenantId}", tenant);
             return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse("Concurrent driver assignment conflict.", 409);
         }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 1205 or 1222 or 3960 or 2601 or 2627)
+        {
+            _logger.LogWarning(ex, "Driver replacement SQL concurrency conflict for tenant {TenantId}", tenant);
+            return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse("Concurrent driver assignment conflict.", 409);
+        }
+        catch (InvalidOperationException ex) when (HasSqlSerializationConflict(ex))
+        {
+            _logger.LogWarning(ex, "Driver replacement SQL serialization conflict for tenant {TenantId}", tenant);
+            return ApiResponse<VehicleDriverAssignmentDto>.ErrorResponse("Concurrent driver assignment conflict.", 409);
+        }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogError(ex, "Driver replacement failed for tenant {TenantId}", tenant);
