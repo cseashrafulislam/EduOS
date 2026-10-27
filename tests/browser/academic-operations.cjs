@@ -140,7 +140,9 @@ async function attendance(browser) {
 }
 async function routine(browser) {
     const page = await browser.newPage();
-    const posted = [];
+    const posted = [], assignmentPosts = [], entryPosts = [];
+    const offeringReference = '11111111-2222-4333-8444-555555555555';
+    const teacherReference = '22222222-3333-4444-8555-666666666666';
     page.on('dialog', d => d.accept());
     await page.route('http://eduos.test/**', async route => {
         const request = route.request(), url = new URL(request.url());
@@ -160,10 +162,40 @@ async function routine(browser) {
                 id: 99, reference: '11111111-2222-4333-8444-555555555555',
                 subjectName: 'Math', subjectCode: 'MATH', code: 'MATH-A', isActive: true
             }] });
-        if (url.pathname === '/api/academic-routines/instructors') return response(route, 200, []);
-        if (url.pathname.endsWith('/assignments')) return response(route, 200, []);
+        if (url.pathname === '/api/academic-routines/instructors')
+            return response(route, 200, [{ employeeReference: teacherReference,
+                employeeCode: 'T-001', name: 'Teacher One' }]);
+        if (url.pathname === '/api/academic-routines/assignments' && request.method() === 'POST') {
+            tokenOk(request);
+            const data = request.postDataJSON();
+            assert.equal(data.subjectOfferingReference, offeringReference);
+            assert.equal(data.employeeReference, teacherReference);
+            assert.equal(data.effectiveFrom, '2026-10-01');
+            assert.match(data.clientRequestId, /^[0-9a-f-]{36}$/i);
+            assignmentPosts.push(data);
+            return response(route, 200, { id: 80, subjectOfferingId: 99,
+                subjectOfferingReference: offeringReference, employeeId: 5,
+                employeeName: 'Teacher One', employeeCode: 'T-001', isActive: true });
+        }
+        if (url.pathname.endsWith('/assignments'))
+            return response(route, 200, assignmentPosts.length ? [{ id: 80, subjectOfferingId: 99,
+                subjectOfferingReference: offeringReference, employeeId: 5,
+                employeeName: 'Teacher One', employeeCode: 'T-001', isActive: true }] : []);
+        if (url.pathname === '/api/academic-routines/entries' && request.method() === 'POST') {
+            tokenOk(request);
+            const data = request.postDataJSON();
+            assert.equal(data.subjectOfferingReference, offeringReference);
+            assert.equal(data.instructorAssignmentId, 80);
+            assert.equal(data.effectiveFrom, '2026-10-01');
+            assert.match(data.clientRequestId, /^[0-9a-f-]{36}$/i);
+            entryPosts.push(data);
+            return response(route, 200, { id: 71, rowVersion: 'AQIDBAUGBwg=' });
+        }
         if (url.pathname === '/api/academic-routines/batches/10')
-            return response(route, 200, posted.length ? [] : [{
+            return response(route, 200, entryPosts.length ? [{
+                id: 71, rowVersion: 'AQIDBAUGBwg=', dayOfWeek: 1, timeSlotName: 'Morning',
+                subjectName: 'Math', effectiveFrom: '2026-10-01', isActive: true
+            }] : posted.length ? [] : [{
                 id: 70, rowVersion: 'AQIDBAUGBwg=', dayOfWeek: 1, timeSlotName: 'Morning',
                 subjectName: 'Math', effectiveFrom: '2026-10-01', isActive: true
             }]);
@@ -184,8 +216,23 @@ async function routine(browser) {
     await page.locator('#routineEntries button[data-deactivate-id="70"]').click();
     await page.waitForFunction(() => document.querySelector('#routineAlert')?.textContent.includes('Routine entry deactivated.'));
     assert.equal(posted.length, 1);
+    await page.locator('#routineTeacher option[value="' + teacherReference + '"]').waitFor({ state: 'attached' });
+    await page.locator('#routineTeacher').selectOption(teacherReference);
+    await page.locator('#routineSubject').selectOption(offeringReference);
+    await page.locator('#routineAssignFrom').fill('2026-10-01');
+    await page.locator('#routineAssignmentForm button[type="submit"]').click();
+    await page.waitForFunction(() => document.querySelector('#routineAlert')?.textContent.includes('Instructor assigned.'));
+    assert.equal(assignmentPosts.length, 1);
+    await page.locator('#routineAssignment option[value="80"]').waitFor({ state: 'attached' });
+    await page.locator('#routineAssignment').selectOption('80');
+    await page.locator('#routineSlot').selectOption('5');
+    await page.locator('#routineDay').selectOption('1');
+    await page.locator('#routineEntryFrom').fill('2026-10-01');
+    await page.locator('#routineEntryForm button[type="submit"]').click();
+    await page.waitForFunction(() => document.querySelector('#routineAlert')?.textContent.includes('Class routine saved.'));
+    assert.equal(entryPosts.length, 1);
     await page.close();
-    console.log('Timetable browser: PASS — rowversion deactivation, CSRF and refresh.');
+    console.log('Timetable browser: PASS — campus-scoped offering selector, canonical writes, CSRF, rowversion and refresh.');
 }
 async function leaves(browser) {
     const page = await browser.newPage();

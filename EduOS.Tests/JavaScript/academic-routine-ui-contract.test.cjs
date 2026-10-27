@@ -12,7 +12,8 @@ test('routine assignment and entry submit canonical offering and instructor refe
     assert.match(script,/subjectOfferingReference:offering/);
     assert.match(script,/subjectOfferingReference:assignment\.subjectOfferingReference/);
     assert.match(script,/effectiveFrom:from,effectiveTo:to\|\|null/);
-    assert.match(script,/clientRequestId:crypto\.randomUUID\(\)/);
+    assert.match(script,/clientRequestId:clientId\(\)/);
+    assert.match(script,/random\.getRandomValues\(new Uint8Array\(16\)\)/);
     assert.doesNotMatch(script,/academicBatchId:Number\(batch\.id\),subjectId/);
     assert.doesNotMatch(script,/remarks:null/);
     assert.match(view,/id="routineAssignFrom"/);

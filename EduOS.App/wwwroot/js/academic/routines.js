@@ -6,6 +6,15 @@
     const state={batches:[],rooms:[],assignments:[],entries:[],slots:[],instructors:[],offerings:[],offeringPage:1,offeringTotal:0,teacherEntries:[]};
     const option=(id,name)=>{const v=document.createElement('option');v.value=String(id);v.textContent=name;return v;};
     const dateOnly=x=>x?String(x).slice(0,10):'';
+    function clientId(){
+        const random=globalThis.crypto;
+        if(typeof random?.randomUUID==='function')return random.randomUUID();
+        if(!random?.getRandomValues)throw new Error('Secure request identifier is unavailable.');
+        const bytes=random.getRandomValues(new Uint8Array(16));
+        bytes[6]=(bytes[6]&15)|64;bytes[8]=(bytes[8]&63)|128;
+        const hex=Array.from(bytes,x=>x.toString(16).padStart(2,'0')).join('');
+        return hex.slice(0,8)+'-'+hex.slice(8,12)+'-'+hex.slice(12,16)+'-'+hex.slice(16,20)+'-'+hex.slice(20);
+    }
     const cell=x=>{const y=document.createElement('td');y.textContent=x===undefined||x===null?'':String(x);return y;};
     function status(type,message){const x=el('routineAlert');x.className='alert alert-'+type;x.textContent=message;x.focus();}
     function clearStatus(){const x=el('routineAlert');x.className='d-none';x.textContent='';}
@@ -124,7 +133,7 @@
         if(!offering||!employee)return status('danger','Choose an offered subject and an active teacher.');
         const btn=el('routineAssign');btn.disabled=true;
         try{await api('/api/academic-routines/assignments','POST',{
-            clientRequestId:crypto.randomUUID(),subjectOfferingReference:offering,employeeReference:employee,
+            clientRequestId:clientId(),subjectOfferingReference:offering,employeeReference:employee,
             effectiveFrom:from,effectiveTo:to||null,isPrimary:el('routinePrimary').checked,isActive:true
         });
             await load();status('success','Instructor assigned.');}
@@ -138,7 +147,7 @@
         if(to&&to<from)return status('danger','Routine end date must not precede start date.');
         const btn=el('routineAddEntry');btn.disabled=true;
         try{await api('/api/academic-routines/entries','POST',{
-            clientRequestId:crypto.randomUUID(),subjectOfferingReference:assignment.subjectOfferingReference,
+            clientRequestId:clientId(),subjectOfferingReference:assignment.subjectOfferingReference,
             instructorAssignmentId:assignment.id,routineTimeSlotId:Number(el('routineSlot').value),
             dayOfWeek:Number(el('routineDay').value),roomId:el('routineRoom').value?Number(el('routineRoom').value):null,
             effectiveFrom:from,effectiveTo:to||null,isActive:true
