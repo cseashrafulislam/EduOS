@@ -57,7 +57,8 @@ public sealed class StudentImportsController : ControllerBase
 
     [HttpPost("execute")]
     public async Task<IActionResult> Execute([FromForm] IFormFile? file,
-        [FromForm] string? mappingJson, [FromForm] Guid clientRequestId, CancellationToken cancellationToken)
+        [FromForm] string? mappingJson, [FromForm] Guid clientRequestId,
+        [FromForm] int? rowOffset, CancellationToken cancellationToken)
     {
         var invalid = ValidateFile(file);
         if (invalid != null) return invalid;
@@ -68,8 +69,11 @@ public sealed class StudentImportsController : ControllerBase
             return BadRequest("Valid column mapping and import request ID are required.");
         await using var stream = new MemoryStream();
         await file!.CopyToAsync(stream, cancellationToken);
-        var result = await _execution.ExecuteAsync(stream, Path.GetExtension(file.FileName),
-            mapping, clientRequestId, cancellationToken);
+        var result = rowOffset.HasValue
+            ? await _execution.ExecuteSliceAsync(stream, Path.GetExtension(file.FileName),
+                mapping, clientRequestId, rowOffset.Value, cancellationToken)
+            : await _execution.ExecuteAsync(stream, Path.GetExtension(file.FileName),
+                mapping, clientRequestId, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 

@@ -1,10 +1,15 @@
+@inject EduOS.Core.Interfaces.ICurrentUserService CurrentUser
 @{
     ViewData["Title"] = "Student Import Preflight";
 }
-<section class="container-fluid py-3" aria-labelledby="studentImportTitle">
+<section class="container-fluid py-3" aria-labelledby="studentImportTitle" data-import-tenant="@CurrentUser.TenantId">
     <header class="mb-3">
-        <h2 id="studentImportTitle">Student Import — Preview & Commit</h2>
-        <p class="text-muted">Inspect source columns, map your institution's student fields, then validate codes, current rolls, campus, batch capacity and previously imported source keys. Preview is read-only (up to 5,000 rows). To commit, submit a validated file of 1–100 rows. Each batch is atomic and retry-safe; repeat for larger migrations. No global learner identity is auto-merged.</p>
+        <div class="d-flex align-items-center gap-2">
+            <h2 id="studentImportTitle" class="h4 mb-0">Student Import</h2>
+            <details class="small"><summary class="btn btn-sm btn-outline-secondary" aria-label="Import help">ⓘ</summary>
+                <div class="border rounded p-2 mt-2">Map columns, preview up to 5,000 rows, then commit in atomic 100-row windows. Re-select the same file to resume. Global learner identities are never auto-merged.</div>
+            </details>
+        </div>
         <a class="btn btn-outline-secondary btn-sm" asp-controller="Students" asp-action="Index">Back to Student Directory</a>
     </header>
     <div id="studentImportAlert" class="alert d-none" role="alert" aria-live="polite"></div>
@@ -15,7 +20,7 @@
             <input id="studentImportFile" class="form-control mb-3" type="file" accept=".csv,.xlsx" required />
             <button id="studentImportInspect" class="btn btn-outline-primary" type="button">Inspect columns</button>
             <div id="studentImportMapping" class="row g-3 mt-2 d-none" aria-label="Map source columns">
-                <p class="small text-muted mb-0">Choose a different source column for every required field. Optional guardian details are validated only; no guardian or global Person will be automatically linked.</p>
+                <div class="col-12"></div>
                 @foreach (var field in new[] { "SourceKey", "StudentCode", "FullName", "CampusId", "AcademicBatchId", "RollNo", "DateOfBirth", "GuardianName", "GuardianPhone" })
                 {
                     <div class="col-md-4">
@@ -25,6 +30,7 @@
                 }
                 <div class="col-12">
                     <button id="studentImportPreview" class="btn btn-primary" type="submit">Run dry-run validation</button>
+                    <button id="studentImportResume" class="btn btn-outline-primary d-none" type="button">Resume previous import</button>
                 </div>
             </div>
         </div>
@@ -33,8 +39,8 @@
         <div class="card-body">
             <h3 id="studentImportResultsTitle" class="h5">Preflight results</h3>
             <p id="studentImportSummary" aria-live="polite"></p>
-            <p class="small text-muted">Errors are limited to the first 100 invalid rows. Preview is not a seat reservation or an import commit. The actual import must revalidate all data transactionally.</p>
-            <button id="studentImportCommit" type="button" class="btn btn-success btn-sm mb-2 d-none">Commit validated batch (maximum 100)</button>
+            <button id="studentImportCommit" type="button" class="btn btn-success btn-sm mb-2 d-none">Commit validated file (100-row transactions)</button>
+            <p id="studentImportProgress" class="small" role="status" aria-live="polite"></p>
             <button id="studentImportDownloadErrors" type="button" class="btn btn-outline-secondary btn-sm mb-2">Download shown errors CSV</button>
             <div class="table-responsive">
                 <table class="table table-sm table-striped">
@@ -58,5 +64,6 @@
     </section>
 </section>
 @section Scripts {
+    <script src="~/js/students/import-job.js" asp-append-version="true"></script>
     <script src="~/js/students/import-preview.js" asp-append-version="true"></script>
 }

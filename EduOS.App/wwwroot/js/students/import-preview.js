@@ -12,15 +12,18 @@
     const errorRows = document.getElementById('studentImportErrorRows');
     const download = document.getElementById('studentImportDownloadErrors');
     const commit = document.getElementById('studentImportCommit');
+    const resume = document.getElementById('studentImportResume');
+    const progress = document.getElementById('studentImportProgress');
+    const tenant = document.querySelector('[data-import-tenant]')?.dataset.importTenant;
+    const checkpointKey = 'eduos.student-import.v1.' + tenant;
+    const jobTools = window.EduOSStudentImportJob;
     const committed = document.getElementById('studentImportCommitted');
     const committedSummary = document.getElementById('studentImportCommittedSummary');
     const committedRows = document.getElementById('studentImportCommittedRows');
     const reload = document.getElementById('studentImportReload');
     const more = document.getElementById('studentImportMore');
-    let requestId = crypto.randomUUID();
-    let validated = null;
-    let lastMapping = null;
-    let importReference = null;
+     let validated = null;
+     let importReference = null;
     let reconciliationPage = 1;
     const fields = Array.from(mapping.querySelectorAll('[data-import-field]'));
     const required = new Set(['SourceKey', 'StudentCode', 'FullName', 'CampusId', 'AcademicBatchId', 'RollNo']);
@@ -37,8 +40,7 @@
         errors = [];
         validated = null;
         lastMapping = null;
-        requestId = crypto.randomUUID();
-        commit.classList.add('d-none');
+         commit.classList.add('d-none');
         committed.classList.add('d-none');
         alert.classList.add('d-none');
     }
@@ -48,6 +50,7 @@
         lastMapping = null;
         commit.classList.add('d-none');
         results.classList.add('d-none');
+        refreshResume().catch(() => resume.classList.add('d-none'));
     });
     async function send(path, data) {
         const token = form.querySelector('input[name="__RequestVerificationToken"]')?.value;
@@ -85,30 +88,52 @@
             }
             mapping.classList.remove('d-none');
             results.classList.add('d-none');
+            await refreshResume();
             message('Columns inspected. Review each mapping before validation.', false);
         } catch (error) { message(error.message, true); }
         finally { busy = false; inspect.disabled = false; }
     });
+    function chosenMapping() {
+        const chosen = {};
+        for (const select of fields) {
+            if (select.value) chosen[select.dataset.importField] = select.value;
+            else if (required.has(select.dataset.importField))
+                throw new Error('Required mapping missing: ' + select.dataset.importField);
+        }
+        if (new Set(Object.values(chosen)).size !== Object.keys(chosen).length)
+            throw new Error('Each field must use a different source column.');
+        return JSON.stringify(chosen);
+    }
+    function readCheckpoint() {
+        if (!tenant) return null;
+        try {
+            const data = JSON.parse(localStorage.getItem(checkpointKey) || 'null');
+            return data && Number.isInteger(data.offset) && Number.isInteger(data.totalRows) ? data : null;
+        } catch { return null; }
+    }
+    async function matchingCheckpoint() {
+        const saved = readCheckpoint();
+        if (!saved || !jobTools) return null;
+        const fp = await jobTools.fingerprint(selectedFile(), chosenMapping());
+        return fp.fileHash === saved.fileHash && fp.mappingHash === saved.mappingHash ? saved : null;
+    }
+    async function refreshResume() {
+        resume.classList.add('d-none');
+        const saved = await matchingCheckpoint();
+        if (saved && saved.offset < saved.totalRows) resume.classList.remove('d-none');
+    }
     form.addEventListener('submit', async event => {
         event.preventDefault();
         if (busy || mapping.classList.contains('d-none')) return;
         busy = true; preview.disabled = true;
         try {
-            const chosen = {};
-            for (const select of fields) {
-                if (select.value) chosen[select.dataset.importField] = select.value;
-                else if (required.has(select.dataset.importField)) throw new Error('Required mapping missing: ' + select.dataset.importField);
-            }
-            if (new Set(Object.values(chosen)).size !== Object.keys(chosen).length)
-                throw new Error('Each field must use a different source column.');
             const data = new FormData();
             data.append('file', selectedFile());
-            data.append('mappingJson', JSON.stringify(chosen));
+            data.append('mappingJson', chosenMapping());
             const report = await send('/api/student-imports/preview', data);
-            lastMapping = JSON.stringify(chosen);
+            lastMapping = chosenMapping();
             validated = report;
-            requestId = crypto.randomUUID();
-            commit.classList.toggle('d-none', report.invalidRows !== 0 || report.validRows < 1 || report.validRows > 100);
+            commit.classList.toggle('d-none', report.invalidRows !== 0 || report.validRows < 1 || report.validRows > 5000);
             errors = Array.isArray(report.errors) ? report.errors : [];
             summary.textContent = 'Rows: ' + report.totalRows + ' | Valid: ' + report.validRows +
                 ' | Invalid: ' + report.invalidRows + (report.hasMoreErrors ? ' | More errors not shown' : '');
@@ -150,24 +175,55 @@
         more.classList.toggle('d-none', reconciliationPage * 50 >= report.totalItems);
         committed.classList.remove('d-none');
     }
-    commit.addEventListener('click', async () => {
-        if (busy || !validated || validated.invalidRows !== 0 || validated.validRows > 100 || !lastMapping) return;
-        if (!confirm('Commit ' + validated.validRows + ' student records and their enrollment/guardian links? This cannot be undone by a normal delete.')) return;
-        busy = true; commit.disabled = true;
+    async function runImport(continuing) {
+        if (busy || !jobTools) return;
+        let state;
         try {
-            const data = new FormData();
-            data.append('file', selectedFile());
-            data.append('mappingJson', lastMapping);
-            data.append('clientRequestId', requestId);
-            const result = await send('/api/student-imports/execute', data);
-            importReference = result.importReference;
+            const file = selectedFile();
+            const mappingJson = chosenMapping();
+            const fp = await jobTools.fingerprint(file, mappingJson);
+            const saved = await matchingCheckpoint();
+            if (continuing) {
+                if (!saved || saved.offset >= saved.totalRows) throw new Error('No matching unfinished import found.');
+                state = saved;
+            } else {
+                if (!validated || validated.invalidRows !== 0 || validated.totalRows < 1 || validated.totalRows > 5000)
+                    throw new Error('Complete a valid dry-run before starting.');
+                state = saved && saved.totalRows === validated.totalRows ? saved :
+                    { ...fp, totalRows: validated.totalRows, offset: 0, lastReference: null };
+            }
+            if (!confirm('Commit or resume ' + state.totalRows + ' source rows, in 100-row atomic transactions?'))
+                return;
+            busy = true; commit.disabled = true; resume.disabled = true;
+            localStorage.setItem(checkpointKey, JSON.stringify(state));
+            while (state.offset < state.totalRows) {
+                const offset = state.offset;
+                progress.textContent = 'Committed ' + offset + ' of ' + state.totalRows + ' rows.';
+                const data = new FormData();
+                data.append('file', file);
+                data.append('mappingJson', mappingJson);
+                data.append('rowOffset', String(offset));
+                data.append('clientRequestId', await jobTools.requestId(fp.fileHash, fp.mappingHash, offset));
+                const result = await send('/api/student-imports/execute', data);
+                state.offset = Math.min(state.totalRows, offset + result.importedRows);
+                if (state.offset <= offset) throw new Error('Import did not advance; stopped safely.');
+                state.lastReference = result.importReference;
+                localStorage.setItem(checkpointKey, JSON.stringify(state));
+                importReference = result.importReference;
+            }
+            progress.textContent = 'Committed ' + state.offset + ' of ' + state.totalRows + ' rows.';
             reconciliationPage = 1;
             await loadReconciliation();
             commit.classList.add('d-none');
-            message(result.replayed ? 'Previously committed batch recovered.' : 'Batch committed successfully.', false);
-        } catch (error) { message(error.message, true); }
-        finally { busy = false; commit.disabled = false; }
-    });
+            resume.classList.add('d-none');
+            message('All file windows committed. Review each batch log for reconciliation.', false);
+        } catch (error) {
+            message(error.message + ' Re-select the same file and mapping to resume.', true);
+            await refreshResume().catch(() => {});
+        } finally { busy = false; commit.disabled = false; resume.disabled = false; }
+    }
+    commit.addEventListener('click', () => runImport(false));
+    resume.addEventListener('click', () => runImport(true));
     reload.addEventListener('click', async () => {
         reconciliationPage = 1;
         try { await loadReconciliation(); } catch (error) { message(error.message, true); }

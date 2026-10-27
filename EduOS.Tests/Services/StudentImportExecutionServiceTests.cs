@@ -141,6 +141,38 @@ public sealed class StudentImportExecutionServiceTests
     }
 
     [Fact]
+    public async Task Source_file_windows_preserve_original_row_numbers_and_replay_safely()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var service = Service(db, new User(101, true));
+        var request = Guid.NewGuid();
+        var rows = Header + string.Concat(Enumerable.Range(1, 101)
+            .Select(i => $"SRC-{i},STU-{i},Learner {i},10,20,{i},,\\n"));
+        using (var file = Csv(rows))
+        {
+            var committed = await service.ExecuteSliceAsync(file, ".csv", Mapping, request, 100);
+            Assert.True(committed.Success, committed.Message);
+            Assert.Equal(1, committed.Data!.ImportedRows);
+            Assert.Equal(102, Assert.Single(await db.ImportLogItems.ToListAsync()).RowNumber);
+        }
+        using (var file = Csv(rows))
+        {
+            var replay = await service.ExecuteSliceAsync(file, ".csv", Mapping, request, 100);
+            Assert.True(replay.Success, replay.Message);
+            Assert.True(replay.Data!.Replayed);
+        }
+        using (var file = Csv(rows.Replace("Learner 1,", "Changed learner 1,")))
+            Assert.Equal(409, (await service.ExecuteSliceAsync(file, ".csv", Mapping, request, 100)).StatusCode);
+        using (var file = Csv(rows))
+        {
+            Assert.Equal(400, (await service.ExecuteSliceAsync(file, ".csv", Mapping, Guid.NewGuid(), 1)).StatusCode);
+            Assert.Equal(400, (await service.ExecuteSliceAsync(file, ".csv", Mapping, Guid.NewGuid(), 200)).StatusCode);
+        }
+        Assert.Single(await db.Students.ToListAsync());
+    }
+
+    [Fact]
     public async Task Rejects_unbounded_execution_before_any_mutation()
     {
         var options = Options(); await SeedAsync(options);

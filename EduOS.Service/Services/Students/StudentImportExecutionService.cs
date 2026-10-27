@@ -62,8 +62,79 @@ public sealed class StudentImportExecutionService : IStudentImportExecutionServi
         _user = user; _logger = logger;
     }
 
-    public async Task<ApiResponse<StudentImportExecutionDto>> ExecuteAsync(Stream content, string extension,
+    public Task<ApiResponse<StudentImportExecutionDto>> ExecuteAsync(Stream content, string extension,
         IReadOnlyDictionary<string, string> mapping, Guid clientRequestId, CancellationToken cancellationToken = default)
+        => ExecuteInternalAsync(content, extension, mapping, clientRequestId, 0, null, cancellationToken);
+
+    /// <summary>
+    /// Execute one 100-row window from a validated, at-most-5,000-row CSV/XLSX.
+    /// The entire original file hash is part of the idempotency contract: changing
+    /// any row after a partial import cannot silently resume an old request.
+    /// No file or raw learner information is persisted between HTTP requests.
+    /// </summary>
+    public async Task<ApiResponse<StudentImportExecutionDto>> ExecuteSliceAsync(Stream content, string extension,
+        IReadOnlyDictionary<string, string> mapping, Guid clientRequestId, int rowOffset,
+        CancellationToken cancellationToken = default)
+    {
+        if (!CanManage()) return ApiResponse<StudentImportExecutionDto>.ErrorResponse("Student import access denied.", 403);
+        if (clientRequestId == Guid.Empty || mapping == null || content == null || !content.CanRead || !content.CanSeek ||
+            rowOffset < 0 || rowOffset >= 5000 || rowOffset % MaxBatchRows != 0)
+            return ApiResponse<StudentImportExecutionDto>.ErrorResponse("Invalid file, mapping, request ID or 100-row offset.", 400);
+        try
+        {
+            using var buffer = new MemoryStream();
+            content.Position = 0;
+            await content.CopyToAsync(buffer, cancellationToken);
+            if (buffer.Length is <= 0 or > 6291456)
+                return ApiResponse<StudentImportExecutionDto>.ErrorResponse("File must be at most 6 MB.", 413);
+            var bytes = buffer.ToArray();
+            var allRows = ReadRows(bytes, extension, mapping, 5000);
+            if (rowOffset >= allRows.Count)
+                return ApiResponse<StudentImportExecutionDto>.ErrorResponse("Offset is beyond the end of the source file.", 400);
+            var slice = allRows.Skip(rowOffset).Take(MaxBatchRows).ToArray();
+            using var csv = new MemoryStream(BuildCsvSlice(slice), writable: false);
+            var originHash = Convert.ToHexString(SHA256.HashData(bytes));
+            return await ExecuteInternalAsync(csv, ".csv", CanonicalMapping, clientRequestId,
+                rowOffset, originHash, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception ex) when (ex is FormatException or InvalidDataException or ArgumentException)
+        {
+            return ApiResponse<StudentImportExecutionDto>.ErrorResponse("Invalid source file or mapping: " + ex.Message, 400);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Student import source slicing failed for tenant {TenantId}", _user.TenantId);
+            return ApiResponse<StudentImportExecutionDto>.ErrorResponse("Unable to read this source-file batch.", 500);
+        }
+    }
+
+    private static readonly string[] CanonicalFields =
+        ["SourceKey", "StudentCode", "FullName", "CampusId", "AcademicBatchId", "RollNo",
+         "DateOfBirth", "GuardianName", "GuardianPhone"];
+    private static readonly IReadOnlyDictionary<string, string> CanonicalMapping =
+        CanonicalFields.ToDictionary(x => x, x => x, StringComparer.OrdinalIgnoreCase);
+
+    private static byte[] BuildCsvSlice(IEnumerable<ImportRow> rows)
+    {
+        var builder = new StringBuilder(string.Join(",", CanonicalFields)).Append('\n');
+        foreach (var row in rows)
+        {
+            var cells = new[]
+            {
+                row.SourceKey, row.StudentCode, row.FullName, row.CampusId,
+                row.BatchId.ToString(CultureInfo.InvariantCulture), row.RollNo,
+                row.DateOfBirth, row.GuardianName, row.GuardianPhone
+            };
+            builder.AppendJoin(",", cells.Select(value => "\"" + value.Replace("\"", "\"\"") + "\""))
+                .Append('\n');
+        }
+        return new UTF8Encoding(false).GetBytes(builder.ToString());
+    }
+
+    private async Task<ApiResponse<StudentImportExecutionDto>> ExecuteInternalAsync(Stream content, string extension,
+        IReadOnlyDictionary<string, string> mapping, Guid clientRequestId, int sourceRowOffset,
+        string? originalFileHash, CancellationToken cancellationToken)
     {
         if (!CanManage()) return ApiResponse<StudentImportExecutionDto>.ErrorResponse("Student import access denied.", 403);
         if (clientRequestId == Guid.Empty || mapping == null || !content.CanSeek || !content.CanRead)
@@ -78,8 +149,10 @@ public sealed class StudentImportExecutionService : IStudentImportExecutionServi
             var bytes = buffer.ToArray();
             var canonicalMapping = JsonSerializer.Serialize(mapping.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
                 .Select(x => new { Field = x.Key.ToUpperInvariant(), Column = x.Value?.Trim() }));
-            var hash = Convert.ToHexString(SHA256.HashData(
-                Encoding.UTF8.GetBytes(Convert.ToHexString(SHA256.HashData(bytes)) + "|" + extension.ToLowerInvariant() + "|" + canonicalMapping)));
+            var hashInput = Convert.ToHexString(SHA256.HashData(bytes)) + "|" + extension.ToLowerInvariant() + "|" + canonicalMapping;
+            if (originalFileHash != null)
+                hashInput += "|" + originalFileHash + "|" + sourceRowOffset.ToString(CultureInfo.InvariantCulture);
+            var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(hashInput)));
             var rows = ReadRows(bytes, extension, mapping);
             if (rows.Count is < 1 or > MaxBatchRows)
                 return ApiResponse<StudentImportExecutionDto>.ErrorResponse("Execution requires 1–100 rows per batch. Split the source file into bounded batches.", 400);
@@ -236,7 +309,7 @@ public sealed class StudentImportExecutionService : IStudentImportExecutionServi
                     }
                     await _items.AddAsync(new ImportLogItem
                     {
-                        TenantId = tenant, ImportLogId = log.Id, RowNumber = row.RowNumber,
+                        TenantId = tenant, ImportLogId = log.Id, RowNumber = row.RowNumber + sourceRowOffset,
                         BusinessKey = row.SourceKey, IsSuccess = true,
                         CreatedAt = now, CreatedBy = _user.UserId
                     });
@@ -321,7 +394,7 @@ public sealed class StudentImportExecutionService : IStudentImportExecutionServi
         return new Guid(digest.AsSpan(0, 16));
     }
 
-    private static List<ImportRow> ReadRows(byte[] bytes, string extension, IReadOnlyDictionary<string, string> mapping)
+    private static List<ImportRow> ReadRows(byte[] bytes, string extension, IReadOnlyDictionary<string, string> mapping, int maxRows = MaxBatchRows)
     {
         using var stream = new MemoryStream(bytes, writable: false);
         string[] headers;
@@ -334,8 +407,10 @@ public sealed class StudentImportExecutionService : IStudentImportExecutionServi
             headers = parser.ReadFields() ?? [];
             while (!parser.EndOfData)
             {
-                if (cells.Count >= MaxBatchRows + 1) throw new FormatException("Maximum 100 rows per execution.");
-                cells.Add(parser.ReadFields() ?? []);
+                if (cells.Count >= maxRows) throw new FormatException("Source exceeds the bounded row limit.");
+                var fields = parser.ReadFields() ?? [];
+                if (fields.Length != headers.Length) throw new FormatException("CSV column count mismatch.");
+                cells.Add(fields);
             }
         }
         else if (extension.Equals(".xlsx", StringComparison.OrdinalIgnoreCase))
@@ -344,13 +419,20 @@ public sealed class StudentImportExecutionService : IStudentImportExecutionServi
             var sheet = workbook.Worksheets.FirstOrDefault() ?? throw new FormatException("Workbook has no worksheet.");
             var count = sheet.LastColumnUsed()?.ColumnNumber() ?? 0;
             var last = sheet.LastRowUsed()?.RowNumber() ?? 1;
-            if (last > MaxBatchRows + 2) throw new FormatException("Maximum 100 rows per execution.");
+            if (last > maxRows + 1) throw new FormatException("Source exceeds the bounded row limit.");
             headers = sheet.Row(1).Cells(1, Math.Max(1, count)).Select(x => SafeCell(x)).ToArray();
             for (var i = 2; i <= last; i++)
                 cells.Add(sheet.Row(i).Cells(1, count).Select(x => SafeCell(x)).ToArray());
         }
         else throw new FormatException("Only CSV/XLSX are supported.");
         headers = headers.Select(x => x.Trim().TrimStart('\uFEFF')).ToArray();
+        if (headers.Length is < 1 or > 32 || headers.Any(string.IsNullOrWhiteSpace) ||
+            headers.Distinct(StringComparer.OrdinalIgnoreCase).Count() != headers.Length)
+            throw new FormatException("Headers must be unique, non-empty and at most 32 columns.");
+        if (mapping.Count is < 6 or > 9 ||
+            CanonicalFields.Take(6).Any(required => !mapping.ContainsKey(required)) ||
+            mapping.Keys.Any(key => !CanonicalFields.Contains(key, StringComparer.OrdinalIgnoreCase)))
+            throw new FormatException("Required mapped fields are missing or unsupported.");
         var positions = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         foreach (var pair in mapping)
         {
@@ -358,10 +440,12 @@ public sealed class StudentImportExecutionService : IStudentImportExecutionServi
             if (index < 0 || !positions.TryAdd(pair.Key, index))
                 throw new FormatException("Invalid mapped column.");
         }
+        if (positions.Values.Distinct().Count() != positions.Count)
+            throw new FormatException("Mapped columns must be distinct.");
         string Cell(string[] values, string key) => positions.TryGetValue(key, out var i) && i < values.Length
             ? values[i].Trim() : string.Empty;
         return cells.Select((x, i) => new ImportRow(i + 2, Cell(x, "SourceKey"),
-            Cell(x, "StudentCode"), Cell(x, "FullName"),
+            Cell(x, "StudentCode"), Cell(x, "FullName"), Cell(x, "CampusId"),
             long.TryParse(Cell(x, "AcademicBatchId"), out var batchId) ? batchId : 0,
             Cell(x, "RollNo"), Cell(x, "DateOfBirth"),
             Cell(x, "GuardianName"), Cell(x, "GuardianPhone"))).ToList();
@@ -372,7 +456,7 @@ public sealed class StudentImportExecutionService : IStudentImportExecutionServi
         : cell.GetFormattedString().Trim();
 
     private sealed record ImportRow(int RowNumber, string SourceKey, string StudentCode,
-        string FullName, long BatchId, string RollNo, string DateOfBirth,
+        string FullName, string CampusId, long BatchId, string RollNo, string DateOfBirth,
         string GuardianName, string GuardianPhone);
     private sealed class ImportConflictException(string message) : Exception(message);
 }

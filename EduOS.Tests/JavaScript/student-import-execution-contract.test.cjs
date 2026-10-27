@@ -12,6 +12,9 @@ test('student import execution is an authorized atomic bounded workflow', () => 
     assert.match(api, /\[RequireModule\("STUDENT"\)\]/);
     assert.match(api, /\[AutoValidateAntiforgeryToken\]/);
     assert.match(api, /\[HttpPost\("execute"\)\]/);
+    assert.match(api, /ExecuteSliceAsync/);
+    assert.match(service, /BuildCsvSlice/);
+    assert.match(service, /sourceRowOffset/);
     assert.match(api, /\[HttpGet\("\{reference:guid\}"\)\]/);
     assert.match(service, /IsolationLevel\.Serializable/);
     assert.match(service, /MaxBatchRows = 100/);
@@ -29,11 +32,15 @@ test('import UI requires preview and token, offers reconciliation, avoids raw ht
     const js = read('EduOS.App/wwwroot/js/students/import-preview.js');
     assert.match(view, /@Html\.AntiForgeryToken\(\)/);
     assert.match(view, /studentImportCommit/);
+    assert.match(view, /studentImportResume/);
+    assert.match(view, /data-import-tenant/);
     assert.match(view, /studentImportCommittedRows/);
     assert.match(js, /RequestVerificationToken/);
     assert.match(js, /credentials: 'same-origin'/);
     assert.match(js, /report\.invalidRows !== 0/);
     assert.match(js, /\/api\/student-imports\/execute/);
+    assert.match(js, /rowOffset/);
+    assert.match(js, /localStorage\.setItem/);
     assert.match(js, /loadReconciliation/);
     assert.match(js, /textContent/);
     assert.doesNotMatch(js, /innerHTML\s*=/);
