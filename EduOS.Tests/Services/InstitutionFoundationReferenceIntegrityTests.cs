@@ -204,7 +204,7 @@ public sealed class InstitutionFoundationReferenceIntegrityTests
             new Claim(ClaimTypes.Role, "TenantAdmin"),
             new Claim("TenantId", "101")
         }, "TestAuthentication"));
-        var accessor = new HttpContextAccessor { HttpContext = http };
+        var accessor = new FixedHttpContextAccessor { HttpContext = http };
         var options = new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase("foundation-references-" + Guid.NewGuid().ToString("N")).Options;
         var db = new EduOSDbContext(options, accessor);
@@ -256,6 +256,13 @@ public sealed class InstitutionFoundationReferenceIntegrityTests
         AcademicYear Year, AcademicYear OtherYear, AcademicTerm? Term, Campus North, Campus South) : IAsyncDisposable
     {
         public ValueTask DisposeAsync() => Db.DisposeAsync();
+    }
+
+    // Unlike the AsyncLocal-backed HttpContextAccessor, this fixture preserves
+    // tenant scope when SetupAsync returns to the calling async test.
+    private sealed class FixedHttpContextAccessor : IHttpContextAccessor
+    {
+        public HttpContext? HttpContext { get; set; }
     }
 
     private sealed class CurrentUser : ICurrentUserService
