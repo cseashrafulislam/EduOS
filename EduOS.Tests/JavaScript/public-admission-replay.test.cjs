@@ -57,11 +57,11 @@ test('public form uses the actual API AcademicLevelId and AcademicLevels contrac
     const intake = fs.readFileSync(path.join(root, 'EduOS.Core/DTOs/Admission/AdmissionIntakeDtos.cs'), 'utf8');
     assert.match(dto, /public long AcademicLevelId/);
     assert.match(dto, /List<AdmissionReferenceOptionDto> AcademicLevels/);
-    assert.match(intake, /class PublicAdmissionIntakeFormDto[\\s\\S]*?public long AcademicLevelId/);
-    assert.match(js, /data\\.academicLevels \\|\\| \\[\\]/);
-    assert.match(js, /selected\\.academicLevelId/);
-    assert.match(js, /academicLevelId: Number\\(value\\('academicUnitId'\\)\\)/);
-    assert.doesNotMatch(js, /data\\.academicUnits|selected\\.academicUnitId|academicUnitId: Number/);
+    assert.match(intake, /class PublicAdmissionIntakeFormDto[\s\S]*?public long AcademicLevelId/);
+    assert.match(js, /data\.academicLevels \|\| \[\]/);
+    assert.match(js, /selected\.academicLevelId/);
+    assert.match(js, /academicLevelId: Number\(value\('academicUnitId'\)\)/);
+    assert.doesNotMatch(js, /data\.academicUnits|selected\.academicUnitId|academicUnitId: Number/);
 });
 
 test('page reload reuses the same opaque request ID without persisting applicant details', async () => {
@@ -87,7 +87,7 @@ test('page reload reuses the same opaque request ID without persisting applicant
     const otherTenant = createPersistentTracker(factory, storage, digest, 'tenant-b', () => 2000);
     assert.notEqual(await otherTenant.forPayload('application', payload), id);
     assert.match(js, /submissionInFlight/);
-    assert.match(js, /await retry\\.forPayload\\('application', request\\)/);
+    assert.match(js, /await retry\.forPayload\('application', request\)/);
 });
 
 test('closed intake replay is resolved inside the serializable transaction', () => {
