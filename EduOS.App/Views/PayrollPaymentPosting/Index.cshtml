@@ -4,7 +4,7 @@
 }
 <section class="container-fluid py-3" id="payrollPaymentPosting" data-post="@canPost.ToString().ToLowerInvariant()">
     <h2 class="h4">Payroll payments → Institutional GL</h2>
-    <p class="text-muted">Verify pending cash or bank-transfer disbursements against posted salary payable. Maker and verifier must differ; no platform subscription billing is involved.</p>
+    <p class="text-muted">Verify pending cash or bank-transfer disbursements against posted salary payable. The register reconciles employee net pay, all successful settlements and immutable GL evidence before enabling a new posting. Maker and verifier must differ; no platform subscription billing is involved.</p>
     <p><a class="btn btn-sm btn-outline-secondary" href="/PayrollOperations/Index">Payroll operations</a>
        <a class="btn btn-sm btn-outline-secondary" href="/PayrollJournalPosting/Index">Payroll accrual posting</a></p>
     @Html.AntiForgeryToken()
@@ -18,7 +18,7 @@
     </form>
     <div class="card card-body">
         <div class="table-responsive"><table class="table table-sm table-striped align-middle">
-            <thead><tr><th>Payroll run</th><th>Employee</th><th>Campus</th><th>Payment date</th><th>Method</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead>
+            <thead><tr><th>Payroll run</th><th>Employee</th><th>Campus</th><th>Payment date</th><th>Method</th><th>Amount</th><th>Net salary</th><th>Settled</th><th>Remaining</th><th>Status</th><th>Reconciliation</th><th>Action</th></tr></thead>
             <tbody id="payrollPaymentRows"></tbody>
         </table></div>
         <div class="d-flex gap-2 align-items-center">
