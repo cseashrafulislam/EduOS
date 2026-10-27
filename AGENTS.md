@@ -1,38 +1,57 @@
-# EduOS agent working rules
+# EduOS — mandatory engineering instructions for every coding agent
 
-EduOS is a configurable, multi-tenant Bangladesh education SaaS. Changes must preserve tenant isolation, privacy, auditability, and backward compatibility.
+**Current owner decision (2026-10-28).** This file is the first read for **every new chat, coding task, automated run, review and module-completion request** in EduOS. It applies whether the user says only “what remains in Exam/HR/Hostel?” or gives detailed steps. Do not make the owner repeat architecture, security, UI or release requirements. **A document describes requirements, not proof that its functionality is implemented.**
 
-## Delivery rules
+## Source of truth and precedence
 
-- Work in a feature branch and open a pull request; do not commit directly to `master`.
-- Keep each implementation batch small: normally two or three related tables or one end-to-end workflow.
-- Include tests for every security boundary, business rule, and bug fix.
-- Do not add placeholder controllers, services, entities, or UI that are not wired end to end.
-- Do not silently change existing migrations after they may have been deployed. Add a new migration and document rollback impact.
-- Never run destructive data commands or force-update a shared branch.
+1. Owner's latest explicit request; then this AGENTS.md; then [current three-version release contract](docs/RELEASE_V1_V2_V3.md); [architecture and scale](docs/architecture/SCALABILITY_AND_QUALITY.md); [UI/PWA](docs/UI_PERSONALIZATION.md); [product blueprint](docs/PRODUCT_BLUEPRINT.md); followed by current code/schema/tests and module-specific docs. If reality conflicts, document the gap and correct safely, without inventing APIs.
+2. The old docs/RELEASE_V1_V2.md is historical and **superseded**. It must never reassign V1 HR/LMS or V2 Inventory. Respect the current V1/V2/V3 contract.
+3. Work only against the owner's **Ashraful** branch when making owner-requested updates; never modify master. Read current HEAD, git history, CI, open work and AGENTS.md before edits. When a normal review/PR workflow is required, use an appropriate feature branch targeting Ashraful; do not invent a reason to write to master. Do not force-push, reset, rewrite history, drop user changes or create duplicated work. If working in an automation authorized to push Ashraful, commit only coherent, verified changes.
+4. One codebase, current modular monolith, **one existing SQL Server database and EduOSDbContext**. No speculative multi-DB/sharding/microservices or school-specific model renaming. Preserve working old/optional modules and historical data; gate incomplete modules as Under Construction.
 
-## Security rules
+## How to complete a named model or module (without further prompting)
 
-- Never commit credentials, tokens, connection passwords, private keys, or production personal data.
-- Use environment variables or a managed secret store. Local development uses .NET user-secrets.
-- Every tenant-owned `BaseEntity` must implement `ITenantScopedEntity` (normally by inheriting `BaseTenantEntity`).
-- Tenant-owned queries must use the global filter. `IgnoreQueryFilters()` is allowed only in an explicitly reviewed platform-admin or background process with an explicit target tenant and audit trail.
-- Never accept `TenantId` from a normal request body as authorization. Resolve it from authenticated tenant context.
-- Do not expose NID, birth registration number, guardian data, health data, or academic history in logs or API error messages.
-- Government identifiers are external identifiers, never database primary keys. Store encrypted values and use a keyed lookup index.
+1. **Inventory actual state:** examine relevant entity/configuration/migrations, service/repository, controller/API, validation/authorization, Razor/JS, localization, reports, tests and all consumers. Identify completed, incomplete, duplicated, legacy and unsafe paths with evidence; do not mistake model existence for feature completion.
+2. **Fix the business contract:** define ownership, source of truth, required roles, status transitions, setup, create/edit/delete or reversal, approval, exception/correction, reporting, history and exactly which release owns the *whole* module. Preserve stable behavior and naming unless demonstrably unsafe or explicitly changed.
+3. **Implement a cohesive end-to-end workflow:** correct model/mapping/migration only if needed; server validation, service, API, UI, reports/exports, tests and security in the same deliverable. Prefer meaningful completed vertical slices, not cosmetic microcommits, unconnected scaffolds or placeholder screens. Never mark partial module “100%”.
+4. **Check upstream/downstream:** identity, academic, student, finance, notifications, documents, report consumers and existing integrations. Avoid duplicate entity/DTO/service/routes and endless rename/fix loops.
+5. **Verify and report accurately:** run available restore/build/test plus target integration tests; state exact branch/commit, changed files, passed/failed checks, migration/rollback impact and remaining work. Never fabricate PASS, release approval or claims of production load capacity.
 
-## Architecture rules
+## Non-negotiable privacy, authorization and tenant isolation
 
-- Prefer a modular monolith with clear bounded contexts before extracting microservices.
-- Keep platform-global identity separate from institution-owned enrollment and academic records.
-- Core transactions stay relational. Institution-specific fields and workflows use validated configuration/schema definitions.
-- Background work must be idempotent. Cross-module side effects use an outbox/event pattern.
-- Production schema migrations run as a controlled deployment step, not automatically on every application startup.
+- Every institution-owned record has an authoritative tenant ownership. Existing tenant entities implement ITenantScopedEntity (normally BaseTenantEntity) and current query filters remain effective. Validate **tenant, campus, membership, permission, ownership, sensitivity and enabled-plan/module** on *every* request, write, query, report, export, file access, cache key and background job. Never trust request-body TenantId, menu visibility or a guessed row ID as authorization.
+- Test direct ID enumeration/IDOR, guessed download URL, report/export parameters, cross-campus access, API postback, role switching, parallel sessions, two-institute membership, cache/session bleed and support/admin access. Cross-tenant matches/analytics must not disclose another institute's private information.
+- Keep platform Person/identity separate from tenant-owned Student/Enrolment/marks/fees; one learner may attend 2–3 institutes. **No automatic merge or private data exposure** based only on names, phone numbers or birthday. Use verified, consented, time-scoped, audited linking when authorized.
+- Least privilege, CSRF protection on cookie writes, secure sessions/MFA, rate limits for abuse-sensitive actions, safe upload validation, restricted encrypted files, prepared queries/encoded output, secrets from secure configuration, audit of privileged access. Never log NID, birth registration, guardian/health records, secrets or raw personal data. IgnoreQueryFilters() requires explicit privileged scope and audit.
 
-## Pull request quality gate
+## Data, transactions, migrations and consistency
 
-- `dotnet restore EduOS.slnx`
-- `dotnet build EduOS.slnx --configuration Release --no-restore`
-- `dotnet test EduOS.slnx --configuration Release --no-build`
-- Confirm no secret-like value was introduced.
-- Document tenant/privacy impact and migration/rollback steps.
+- One editable source of truth per business fact; normalized practical SQL with real PK/FK, tenant-aware uniqueness, constraints, correct delete policy and tenant-leading indexes. Use decimal precision for money and quantities; date-only semantics for business dates, UTC for instants.
+- Critical approval, result publish/correction, fee posting, invoice/payment/refund, attendance lock, inventory movement and payroll are **server-enforced, atomic and retry/concurrency safe**. Use transaction boundaries, unique keys/idempotency, rowversion where needed, revalidate authorization and state. Avoid MAX()+1 numbers and double-posting.
+- Posted vouchers, paid invoices, published results and other auditable records must not be silently changed/deleted. Use approved reversal/amendment/correction with immutable history and balanced ledgers. Protect old snapshots against current master edits.
+- Existing migrations/data are production-relevant: additive schema changes, preflight/backfill, compatibility window, index cost, rehearsed migration and rollback plan. Never rewrite a deployed migration; no destructive deletion without exact-target review and authorization. Production database migrations require controlled deployment, not routine app startup.
+
+## Performance and operations at millions-of-record scale
+
+- **Millions of total learners/institutes is a planning target, NOT a demonstrated concurrent-user claim.** First cohort: 16 institutions and ~40,000 student records, potentially repeated across memberships. Prove throughput with representative p95/p99 latency, throughput, SQL waits/IO, errors, peak-hour workloads and recoverability before promising capacity.
+- All growing lists: server-side tenant-filtered search/sort/paging and narrow projections; avoid GetAll().ToList() filtering, unbounded Includes, N+1 queries and scanning all tenants. Index real tenant/date/status/filter keys, measure plans, bound bulk operations and exports, use cancellation/async I/O.
+- Bound import and report batches with checkpoints, authorized row-level errors, idempotent retries, reconciliation and no cross-institute leakage. Avoid one giant import transaction; account for payment and historic-result integrity.
+- Stateless web tier and separate SQL host are deployment options, not magical speed guarantees. Use cache only for safely stale and correctly tenant/user-keyed data; no critical stock/fee/approval authoritative cache. Add Redis, workers, queues, outbox, replicas or separate databases **only when failure modes and measurements justify them**.
+- Use observability: structured privacy-safe logs, trace/correlation IDs, health/readiness, alerting, backup/restore drill, security review and staged rollback. Avoid one tenant's expensive report starving others.
+
+## Mandatory UI/UX contract — every existing and new page
+
+- Follow docs/UI_PERSONALIZATION.md on **all** page types: create/edit/detail/list, dialogs, dashboard, authorization errors, status actions, print/PDF/Excel/reports and mobile/PWA. Reuse existing shared components/tokens rather than inventing a new isolated design per module.
+- Clean, compact, professional office/mobile screens. Correct labels, grouping, required state and genuine validation errors. **No repetitive explanatory paragraphs, notes, captions or field instructions below inputs or long form footers.**
+- One small page-header information icon for concise contextual field/action guide. Desktop hover/click, mobile tap and keyboard access; user-initiated, dismissible and non-intrusive. No auto tutorial, intrusive toast, repeated popups or giant manuals. Necessary safety/legal disclosures and real validation still appear where required.
+- Modals/popups must be focused, appropriately sized, responsive, accessible, with predictable Save/Cancel and no modal chains. Quiet success feedback, useful field errors and no infinite loading. Reports have accurate scopes/totals and permission-aware exports.
+- Global bn-BD/en-BD selection persists across all pages, navigation and reports where feasible; theme/navigation/font/density/allowed dashboard personalization is **per-user-per-institute**, persisted, safe, versioned, small and fast. Only whitelisted design tokens/layout—not arbitrary CSS/JS. Preference loading cannot bypass security or create cross-tenant leak.
+- PWA must preserve auth/data security: no offline cache of private records by default, invalidate caches on logout/tenant switch, sensitive writes need online server validation. Keyboard/touch, accessibility and fast mobile flows are part of done.
+
+## Quality gate, no-loop rule and release ownership
+
+- Use root solution commands when supported: dotnet restore EduOS.slnx; dotnet build EduOS.slnx --configuration Release --no-restore; dotnet test EduOS.slnx --configuration Release --no-build. Add and run domain security/tenant, invalid-input, duplicate/retry, concurrency, finance reconciliation, historical-data and UI regression tests where appropriate. Document environment limitations honestly.
+- A single error must not consume an entire scheduled run: attempt at most **two materially different fixes or about ten minutes** on the same non-critical blocker, record root cause and move to other independent valuable work in the assigned V1 domain. Never bypass a critical shared data-integrity/security blocker or push unverified unsafe changes. Next run checks recent commits and blockers before retrying: no duplicate work and no infinite loops.
+- **V1:** complete Platform/Security/Institution, Admission/Students/Import, Academic/Routine/Attendance, complete Examination/Results/Credentials, complete Fees/Accounts/Finance, required role portals, reporting and UI/PWA. **V2:** complete LMS, HR & Payroll, Library, Hostel and Transport. **V3:** complete Inventory/Procurement, Assets/Facilities, Visitor/Campus and separately approved enterprise modules. A module's agreed advanced workflows belong to the SAME version; no “Basic Results V1 / Advanced Results V2”.
+- Previously coded V2/V3 entities/views/data remain intact but gated until their release quality checks pass; **never erase prior work because release order changed**. Bug/security maintenance in any version is still permitted.
+- 100% means *all agreed acceptance tests and pilot sign-offs passed*—not a green build or absence of visible TODOs. Production rollout needs restored-data migration rehearsal, load/security evidence, backup and rollback, real users and owner go/no-go. Automated tasks continue on their existing approved schedule until owner explicitly says OFF; this file does not itself change schedules.
