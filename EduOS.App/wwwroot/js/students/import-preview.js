@@ -14,6 +14,8 @@
     const commit = document.getElementById('studentImportCommit');
     const resume = document.getElementById('studentImportResume');
     const progress = document.getElementById('studentImportProgress');
+    const jobSummary = document.getElementById('studentImportJobSummary');
+    const jobExport = document.getElementById('studentImportJobExport');
     const tenant = document.querySelector('[data-import-tenant]')?.dataset.importTenant;
     const checkpointKey = 'eduos.student-import.v1.' + tenant;
     const jobTools = window.EduOSStudentImportJob;
@@ -26,6 +28,8 @@
     let lastMapping = null;
     let importReference = null;
     let reconciliationPage = 1;
+    let currentJob = null;
+    let currentFingerprint = null;
     const fields = Array.from(mapping.querySelectorAll('[data-import-field]'));
     const required = new Set(['SourceKey', 'StudentCode', 'FullName', 'CampusId', 'AcademicBatchId', 'RollNo']);
     let busy = false;
@@ -39,6 +43,10 @@
         mapping.classList.add('d-none');
         results.classList.add('d-none');
         errors = [];
+        currentJob = null;
+        currentFingerprint = null;
+        jobSummary.textContent = '';
+        jobExport.classList.add('d-none');
         validated = null;
         lastMapping = null;
         commit.classList.add('d-none');
@@ -47,6 +55,10 @@
     }
     fileInput.addEventListener('change', reset);
     mapping.addEventListener('change', () => {
+        currentJob = null;
+        currentFingerprint = null;
+        jobSummary.textContent = '';
+        jobExport.classList.add('d-none');
         validated = null;
         lastMapping = null;
         commit.classList.add('d-none');
@@ -118,10 +130,32 @@
         const fp = await jobTools.fingerprint(selectedFile(), chosenMapping());
         return fp.fileHash === saved.fileHash && fp.mappingHash === saved.mappingHash ? saved : null;
     }
+
+    async function getJobStatus(fp, totalRows) {
+        const query = new URLSearchParams({
+            fileHash: fp.fileHash, mappingHash: fp.mappingHash, totalRows: String(totalRows)
+        });
+        const response = await fetch('/api/student-imports/job-status?' + query, {
+            credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' }
+        });
+        const body = await response.json().catch(() => null);
+        if (!response.ok || !body?.success)
+            throw new Error(body?.message || 'Server reconciliation failed.');
+        return body.data;
+    }
+    function showJobStatus(fp, status) {
+        currentFingerprint = fp;
+        currentJob = status;
+        jobSummary.textContent = 'Source-file reconciliation: ' + status.committedRows +
+            ' / ' + status.totalRows + ' rows committed.';
+        jobExport.classList.toggle('d-none', !(status.batches || []).length);
+        resume.classList.toggle('d-none', status.isComplete || !status.committedRows);
+    }
     async function refreshResume() {
         resume.classList.add('d-none');
         const saved = await matchingCheckpoint();
-        if (saved && saved.offset < saved.totalRows) resume.classList.remove('d-none');
+        if (saved && saved.totalRows > 0 && saved.totalRows <= 5000)
+            showJobStatus(saved, await getJobStatus(saved, saved.totalRows));
     }
     form.addEventListener('submit', async event => {
         event.preventDefault();
@@ -134,6 +168,8 @@
             const report = await send('/api/student-imports/preview', data);
             lastMapping = chosenMapping();
             validated = report;
+            const fp = await jobTools.fingerprint(selectedFile(), lastMapping);
+            showJobStatus(fp, await getJobStatus(fp, report.totalRows));
             commit.classList.toggle('d-none', report.invalidRows !== 0 || report.validRows < 1 || report.validRows > 5000);
             errors = Array.isArray(report.errors) ? report.errors : [];
             summary.textContent = 'Rows: ' + report.totalRows + ' | Valid: ' + report.validRows +
@@ -178,48 +214,52 @@
     }
     async function runImport(continuing) {
         if (busy || !jobTools) return;
-        busy = true;
-        commit.disabled = true;
-        resume.disabled = true;
-        let state;
+        busy = true; commit.disabled = true; resume.disabled = true;
         try {
             const file = selectedFile();
             const mappingJson = chosenMapping();
             const fp = await jobTools.fingerprint(file, mappingJson);
             const saved = await matchingCheckpoint();
-            if (continuing) {
-                if (!saved || saved.offset >= saved.totalRows) throw new Error('No matching unfinished import found.');
-                state = saved;
-            } else {
-                if (!validated || validated.invalidRows !== 0 || validated.totalRows < 1 || validated.totalRows > 5000)
-                    throw new Error('Complete a valid dry-run before starting.');
-                state = saved && saved.totalRows === validated.totalRows ? saved :
-                    { ...fp, totalRows: validated.totalRows, offset: 0, lastReference: null };
-            }
-            if (!confirm('Commit or resume ' + state.totalRows + ' source rows, in 100-row atomic transactions?'))
-                return;
+            if (continuing && (!saved || saved.totalRows < 1 || saved.totalRows > 5000))
+                throw new Error('No matching unfinished import found.');
+            if (!continuing && (!validated || validated.invalidRows !== 0 ||
+                validated.totalRows < 1 || validated.totalRows > 5000))
+                throw new Error('Complete a valid dry-run before starting.');
+            const totalRows = continuing ? saved.totalRows : validated.totalRows;
+            const status = await getJobStatus(fp, totalRows);
+            showJobStatus(fp, status);
+            if (status.isComplete) { message('This file is fully reconciled.', false); return; }
+            if (!confirm('Commit or resume ' + totalRows + ' rows in 100-row atomic transactions?')) return;
+            const completed = new Set((status.batches || []).map(x => x.rowOffset));
+            let committedRows = status.committedRows;
+            const state = { ...fp, totalRows, offset: status.nextOffset, lastReference: null };
             localStorage.setItem(checkpointKey, JSON.stringify(state));
-            while (state.offset < state.totalRows) {
-                const offset = state.offset;
-                progress.textContent = 'Committed ' + offset + ' of ' + state.totalRows + ' rows.';
+            for (let offset = 0; offset < totalRows; offset += 100) {
+                if (completed.has(offset)) continue;
+                progress.textContent = 'Committed ' + committedRows + ' of ' + totalRows + ' rows.';
                 const data = new FormData();
                 data.append('file', file);
                 data.append('mappingJson', mappingJson);
                 data.append('rowOffset', String(offset));
-                data.append('clientRequestId', await jobTools.requestId(fp.fileHash, fp.mappingHash, offset));
+                data.append('clientRequestId',
+                    await jobTools.requestId(fp.fileHash, fp.mappingHash, offset));
                 const result = await send('/api/student-imports/execute', data);
-                state.offset = Math.min(state.totalRows, offset + result.importedRows);
-                if (state.offset <= offset) throw new Error('Import did not advance; stopped safely.');
+                if (result.importedRows !== Math.min(100, totalRows - offset))
+                    throw new Error('Import row count mismatch; stopped safely.');
+                committedRows += result.importedRows;
+                state.offset = offset + result.importedRows;
                 state.lastReference = result.importReference;
                 localStorage.setItem(checkpointKey, JSON.stringify(state));
                 importReference = result.importReference;
             }
-            progress.textContent = 'Committed ' + state.offset + ' of ' + state.totalRows + ' rows.';
+            const finalStatus = await getJobStatus(fp, totalRows);
+            showJobStatus(fp, finalStatus);
+            if (!finalStatus.isComplete) throw new Error('Some source windows remain unreconciled.');
+            progress.textContent = 'Committed ' + finalStatus.committedRows + ' of ' + totalRows + ' rows.';
             reconciliationPage = 1;
             await loadReconciliation();
-            commit.classList.add('d-none');
-            resume.classList.add('d-none');
-            message('All file windows committed. Review each batch log for reconciliation.', false);
+            commit.classList.add('d-none'); resume.classList.add('d-none');
+            message('All source windows committed and reconciled.', false);
         } catch (error) {
             message(error.message + ' Re-select the same file and mapping to resume.', true);
             await refreshResume().catch(() => {});
@@ -235,6 +275,38 @@
         reconciliationPage++;
         try { await loadReconciliation(true); }
         catch (error) { reconciliationPage--; message(error.message, true); }
+    });
+
+    jobExport.addEventListener('click', async () => {
+        if (busy || !currentJob || !currentFingerprint) return;
+        busy = true; jobExport.disabled = true;
+        try {
+            const status = await getJobStatus(currentFingerprint, currentJob.totalRows);
+            const escape = value => {
+                let s = String(value ?? '');
+                if (/^[\s\x00-\x1f]*[=+\-@]/.test(s)) s = "'" + s;
+                return '"' + s.replaceAll('"', '""') + '"';
+            };
+            const lines = ['RowNumber,SourceKey,Status'];
+            for (const batch of status.batches || []) {
+                const response = await fetch('/api/student-imports/' +
+                    encodeURIComponent(batch.importReference) + '?page=1&pageSize=100',
+                    { credentials: 'same-origin', cache: 'no-store' });
+                const body = await response.json().catch(() => null);
+                if (!response.ok || !body?.success || body.data?.totalItems !== batch.importedRows)
+                    throw new Error('A batch changed during reconciliation. Export stopped.');
+                for (const row of body.data.items || [])
+                    lines.push([row.rowNumber, row.sourceKey,
+                        row.isSuccess ? 'Imported' : (row.errorMessage || 'Failed')].map(escape).join(','));
+            }
+            const url = URL.createObjectURL(new Blob([lines.join('\r\n')],
+                { type: 'text/csv;charset=utf-8' }));
+            const a = document.createElement('a');
+            a.href = url; a.download = 'student-import-reconciliation.csv'; a.click();
+            URL.revokeObjectURL(url);
+            showJobStatus(currentFingerprint, status);
+        } catch (error) { message(error.message, true); }
+        finally { busy = false; jobExport.disabled = false; }
     });
     download.addEventListener('click', () => {
         const escape = value => {

@@ -13,6 +13,11 @@ test('student import execution is an authorized atomic bounded workflow', () => 
     assert.match(api, /\[AutoValidateAntiforgeryToken\]/);
     assert.match(api, /\[HttpPost\("execute"\)\]/);
     assert.match(api, /ExecuteSliceAsync/);
+    assert.match(api, /job-status/);
+    const job = read('EduOS.Service/Services/Students/StudentImportExecutionService.JobStatus.cs');
+    assert.match(job, /GetJobStatusAsync/);
+    assert.match(job, /x\.TenantId == tenant/);
+    assert.match(job, /ids\.Contains\(x\.RequestId\)/);
     assert.match(service, /BuildCsvSlice/);
     assert.match(service, /sourceRowOffset/);
     assert.match(api, /\[HttpGet\("\{reference:guid\}"\)\]/);
@@ -35,6 +40,7 @@ test('import UI requires preview and token, offers reconciliation, avoids raw ht
     assert.match(view, /studentImportResume/);
     assert.match(view, /data-import-tenant/);
     assert.match(view, /studentImportCommittedRows/);
+    assert.match(view, /studentImportJobExport/);
     assert.match(js, /RequestVerificationToken/);
     assert.match(js, /credentials: 'same-origin'/);
     assert.match(js, /report\.invalidRows !== 0/);
@@ -42,6 +48,9 @@ test('import UI requires preview and token, offers reconciliation, avoids raw ht
     assert.match(js, /rowOffset/);
     assert.match(js, /localStorage\.setItem/);
     assert.match(js, /loadReconciliation/);
+    assert.match(js, /getJobStatus/);
+    assert.match(js, /status\.nextOffset/);
+    assert.match(js, /student-import-reconciliation\.csv/);
     assert.match(js, /textContent/);
     assert.doesNotMatch(js, /innerHTML\s*=/);
 });

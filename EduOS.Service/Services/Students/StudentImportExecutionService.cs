@@ -25,7 +25,7 @@ namespace EduOS.Service.Services.Students;
 /// resume by submitting successive source-key-disjoint batches; no global Person matching
 /// is performed without a separately verified, consent-governed identity workflow.
 /// </summary>
-public sealed class StudentImportExecutionService : IStudentImportExecutionService
+public sealed partial class StudentImportExecutionService : IStudentImportExecutionService
 {
     private const int MaxBatchRows = 100;
     private const string BatchScope = "StudentImportBatch";

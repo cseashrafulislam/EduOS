@@ -1,4 +1,6 @@
 using System.Data;
+using System.Security.Cryptography;
+using System.Text.Json;
 using System.Text;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Learners;
@@ -183,6 +185,46 @@ public sealed class StudentImportExecutionServiceTests
         Assert.Equal(400, (await Service(db, new User(101, true))
             .ExecuteAsync(file, ".csv", Mapping, Guid.NewGuid())).StatusCode);
         Assert.Empty(await db.Students.ToListAsync());
+    }
+
+
+    [Fact]
+    public async Task Durable_job_status_recovers_committed_window_without_cross_tenant_disclosure()
+    {
+        var options = Options(); await SeedAsync(options);
+        var rows = Header + string.Concat(Enumerable.Range(1, 101)
+            .Select(i => $"SRC-{i},STU-{i},Learner {i},10,20,{i},,\n"));
+        var fileHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(rows))).ToLowerInvariant();
+        var mappingHash = Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(JsonSerializer.Serialize(Mapping)))).ToLowerInvariant();
+        var digest = SHA256.HashData(Encoding.UTF8.GetBytes(fileHash + ":" + mappingHash + ":100"));
+        digest[6] = (byte)((digest[6] & 0x0f) | 0x50);
+        digest[8] = (byte)((digest[8] & 0x3f) | 0x80);
+        var hex = Convert.ToHexString(digest.AsSpan(0, 16));
+        var id = Guid.ParseExact(
+            $"{hex[..8]}-{hex[8..12]}-{hex[12..16]}-{hex[16..20]}-{hex[20..]}", "D");
+        await using var db = Context(options, 101);
+        var service = Service(db, new User(101, true));
+        Assert.Equal(0, (await service.GetJobStatusAsync(fileHash, mappingHash, 101)).Data!.CommittedRows);
+        using (var file = Csv(rows))
+            Assert.True((await service.ExecuteSliceAsync(file, ".csv", Mapping, id, 100)).Success);
+        var status = await service.GetJobStatusAsync(fileHash, mappingHash, 101);
+        Assert.True(status.Success);
+        Assert.Equal(1, status.Data!.CommittedRows);
+        Assert.Equal(0, status.Data.NextOffset);
+        Assert.False(status.Data.IsComplete);
+        var batch = Assert.Single(status.Data.Batches);
+        Assert.Equal(100, batch.RowOffset);
+        Assert.True((await service.GetAsync(batch.ImportReference, 1, 100)).Success);
+        Assert.Equal(400, (await service.GetJobStatusAsync("bad", mappingHash, 101)).StatusCode);
+        Assert.Equal(400, (await service.GetJobStatusAsync(fileHash, mappingHash, 5001)).StatusCode);
+        Assert.Equal(403, (await Service(db, new User(101, false))
+            .GetJobStatusAsync(fileHash, mappingHash, 101)).StatusCode);
+        await using var foreign = Context(options, 202);
+        var isolated = await Service(foreign, new User(202, true))
+            .GetJobStatusAsync(fileHash, mappingHash, 101);
+        Assert.True(isolated.Success);
+        Assert.Empty(isolated.Data!.Batches);
     }
 
     private sealed class InMemoryUow(EduOSDbContext db) : IUnitOfWork

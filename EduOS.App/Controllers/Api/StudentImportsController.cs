@@ -77,6 +77,15 @@ public sealed class StudentImportsController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("job-status")]
+    public async Task<IActionResult> JobStatus([FromQuery] string fileHash,
+        [FromQuery] string mappingHash, [FromQuery] int totalRows,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _execution.GetJobStatusAsync(fileHash, mappingHash, totalRows, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet("{reference:guid}")]
     public async Task<IActionResult> Reconciliation(Guid reference, [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50, CancellationToken cancellationToken = default)

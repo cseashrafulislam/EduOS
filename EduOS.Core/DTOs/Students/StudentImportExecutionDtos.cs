@@ -30,3 +30,19 @@ public sealed class StudentImportReconciliationItemDto
     public bool IsSuccess { get; set; }
     public string? ErrorMessage { get; set; }
 }
+
+/** Database-reconciled source-file windows; never a browser-only checkpoint. */
+public sealed class StudentImportJobStatusDto
+{
+    public int TotalRows { get; set; }
+    public int CommittedRows { get; set; }
+    public int NextOffset { get; set; }
+    public bool IsComplete => CommittedRows == TotalRows;
+    public List<StudentImportJobBatchDto> Batches { get; set; } = new();
+}
+public sealed class StudentImportJobBatchDto
+{
+    public int RowOffset { get; set; }
+    public int ImportedRows { get; set; }
+    public Guid ImportReference { get; set; }
+}
