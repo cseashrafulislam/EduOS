@@ -27,6 +27,15 @@ test('LMS view and JS have matching unique element ids',()=>{
  for(const id of ['learningCode','learningProgram','learningCoursePage','learningLessonPublished','learningAssignmentPublished'])
   assert.ok(ids.includes(id));
 });
+test('LMS content page navigation and exports use canonical paged endpoint',()=>{
+ assert.ok(js.includes('/content-page?lessonPage='));
+ assert.ok(js.includes('assignmentPage='));
+ for(const id of ['learningLessonPrev','learningLessonNext','learningAssignmentPrev','learningAssignmentNext','learningLessonExport','learningAssignmentExport'])
+  assert.ok(view.includes('id="'+id+'"'));
+ assert.ok(js.includes('d.lessons?.totalCount'));
+ assert.ok(js.includes('d.assignments?.items'));
+ new Function(js);
+});
 test('Student progress uses canonical endpoint without sending arbitrary enrollment id',()=>{
  assert.ok(js.includes("'/api/lms/lessons/progress','POST'"));
  assert.ok(js.includes('lessonReference:lesson.reference'));

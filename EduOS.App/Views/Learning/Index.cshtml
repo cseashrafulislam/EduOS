@@ -40,6 +40,12 @@
     <section class="card mb-3">
         <div class="card-header d-flex justify-content-between align-items-center"><h3 class="h6 m-0">Lessons</h3><span id="learningProgress" class="small text-muted"></span></div>
         <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0"><thead><tr><th>Order</th><th>Lesson</th><th>Content / resource</th><th>Action</th></tr></thead><tbody id="learningLessons"><tr><td colspan="4" class="text-muted text-center p-3">Choose a course.</td></tr></tbody></table></div>
+        <div class="card-footer d-flex flex-wrap align-items-center gap-2">
+            <button id="learningLessonPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+            <span id="learningLessonPage" class="small text-muted">Page 1</span>
+            <button id="learningLessonNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+            <button id="learningLessonExport" type="button" class="btn btn-outline-secondary btn-sm ms-auto">Export visible lessons (CSV)</button>
+        </div>
         @if(canAuthor)
         {
             <form id="learningLessonForm" class="card-body border-top row g-2 align-items-end">
@@ -54,6 +60,12 @@
     <section class="card mb-3">
         <div class="card-header"><h3 class="h6 m-0">Assignments</h3></div>
         <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0"><thead><tr><th>Assignment</th><th>Due date</th><th>Full marks</th><th>Submission</th><th>Action</th></tr></thead><tbody id="learningAssignments"><tr><td colspan="5" class="text-muted text-center p-3">Choose a course.</td></tr></tbody></table></div>
+        <div class="card-footer d-flex flex-wrap align-items-center gap-2">
+            <button id="learningAssignmentPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+            <span id="learningAssignmentPage" class="small text-muted">Page 1</span>
+            <button id="learningAssignmentNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+            <button id="learningAssignmentExport" type="button" class="btn btn-outline-secondary btn-sm ms-auto">Export visible assignments (CSV)</button>
+        </div>
         @if(canAuthor)
         {
             <form id="learningAssignmentForm" class="card-body border-top row g-2 align-items-end">

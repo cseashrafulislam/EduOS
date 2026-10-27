@@ -2,7 +2,7 @@
 'use strict';
 const root=document.getElementById('learningApp');if(!root)return;
 const $=id=>document.getElementById(id),author=root.dataset.author==='true',student=root.dataset.student==='true',manager=root.dataset.manager==='true';
-const state={courses:[],detail:null,programs:[],subjects:[],page:1,pages:1,editingCourse:null,editingLesson:null,editingAssignment:null,loadId:0,reviewPage:1,reviewPages:1,reviewLoadId:0,authoringLocked:true,includeArchived:false};
+const state={courses:[],detail:null,programs:[],subjects:[],page:1,pages:1,editingCourse:null,editingLesson:null,editingAssignment:null,loadId:0,lessonPage:1,lessonPages:1,assignmentPage:1,assignmentPages:1,reviewPage:1,reviewPages:1,reviewLoadId:0,authoringLocked:true,includeArchived:false};
 const opt=(value,label)=>{const x=document.createElement('option');x.value=String(value);x.textContent=label;return x;};
 const cell=value=>{const x=document.createElement('td');x.textContent=value==null?'':String(value);return x;};
 const notice=(type,message)=>{const x=$('learningAlert');x.className='alert alert-'+type;x.textContent=message;x.focus();};
@@ -28,6 +28,7 @@ async function courses(){
   state.courses=data?.items||[];state.pages=Math.max(1,data?.totalPages||1);
   select('learningCourse',state.courses.map(x=>({id:x.reference,name:(x.isActive?'':'[Archived] ')+x.title+' — '+(x.subjectName||x.code)})),'Select course');
   if(state.courses.some(x=>x.reference===old))$('learningCourse').value=old;
+   else{state.lessonPage=1;state.assignmentPage=1;state.lessonPages=1;state.assignmentPages=1;}
   $('learningCoursePage').textContent='Page '+state.page+' / '+state.pages;
   $('learningCoursePrev').disabled=state.page<=1;$('learningCourseNext').disabled=state.page>=state.pages;
   if($('learningCourse').value)await load();
@@ -84,8 +85,12 @@ async function load(){
    if(request!==state.loadId)return;
    state.authoringLocked=!!status.isLocked;
   }
-  const d=await api('/api/lms/courses/'+encodeURIComponent(x.reference));if(request!==state.loadId)return;
-  state.detail=d;$('learningProgress').textContent=(d.lessons||[]).length+' lessons';render();
+  const d=await api('/api/lms/courses/'+encodeURIComponent(x.reference)+'/content-page?lessonPage='+state.lessonPage+'&assignmentPage='+state.assignmentPage+'&pageSize=20');
+  if(request!==state.loadId)return;
+  state.lessonPages=Math.max(1,d.lessons?.totalPages||1);
+  state.assignmentPages=Math.max(1,d.assignments?.totalPages||1);
+  state.detail={course:d.course,lessons:d.lessons?.items||[],assignments:d.assignments?.items||[]};
+  $('learningProgress').textContent=(d.lessons?.totalCount||0)+' lessons';render();
  }catch(e){if(request!==state.loadId)return;state.detail=null;render();notice('danger',e.message);}
 }
 function render(){
@@ -103,6 +108,12 @@ function render(){
   $('learningSaveAssignment').disabled=locked;
  }
  const lessons=$('learningLessons'),assignments=$('learningAssignments');lessons.replaceChildren();assignments.replaceChildren();
+  $('learningLessonPage').textContent='Page '+state.lessonPage+' / '+state.lessonPages;
+  $('learningLessonPrev').disabled=state.lessonPage<=1;
+  $('learningLessonNext').disabled=state.lessonPage>=state.lessonPages;
+  $('learningAssignmentPage').textContent='Page '+state.assignmentPage+' / '+state.assignmentPages;
+  $('learningAssignmentPrev').disabled=state.assignmentPage<=1;
+  $('learningAssignmentNext').disabled=state.assignmentPage>=state.assignmentPages;
  for(const x of state.detail?.lessons||[]){
   const tr=document.createElement('tr'),content=cell((x.content||'').slice(0,180)),action=document.createElement('td');
   if(x.contentUrl){try{const url=new URL(x.contentUrl);if(['http:','https:'].includes(url.protocol)){
@@ -136,7 +147,7 @@ async function saveLesson(e){
   displayOrder:Number($('learningOrder').value),isPublished:$('learningLessonPublished').checked,rowVersion:x?.rowVersion||null};
  $('learningSaveLesson').disabled=true;
  try{await api('/api/lms/lessons'+(x?'/'+encodeURIComponent(x.reference):''),x?'PUT':'POST',body);
-  resetLesson();await load();notice('success','Lesson saved.');
+  resetLesson();state.lessonPage=1;await load();notice('success','Lesson saved.');
  }catch(err){notice('danger',err.message);}finally{$('learningSaveLesson').disabled=false;}
 }
 function resetAssignment(){state.editingAssignment=null;$('learningAssignmentForm')?.reset();}
@@ -156,7 +167,7 @@ async function saveAssignment(e){
   type:1,rowVersion:x?.rowVersion||null};
  $('learningSaveAssignment').disabled=true;
  try{await api('/api/lms/assignments'+(x?'/'+encodeURIComponent(x.reference):''),x?'PUT':'POST',body);
-  resetAssignment();await load();notice('success','Assignment saved.');
+  resetAssignment();state.assignmentPage=1;await load();notice('success','Assignment saved.');
  }catch(err){notice('danger',err.message);}finally{$('learningSaveAssignment').disabled=false;}
 }
 function reviewChoices(){
@@ -233,9 +244,25 @@ if(student){
  });
 }
 $('learningRefresh').addEventListener('click',()=>courses());
-$('learningCourse').addEventListener('change',()=>load());
+$('learningCourse').addEventListener('change',()=>{state.lessonPage=1;state.assignmentPage=1;load();});
 $('learningCoursePrev').addEventListener('click',()=>{if(state.page>1){state.page--;courses();}});
 $('learningCourseNext').addEventListener('click',()=>{if(state.page<state.pages){state.page++;courses();}});
+$('learningLessonPrev').addEventListener('click',()=>{if(state.lessonPage>1){state.lessonPage--;load();}});
+$('learningLessonNext').addEventListener('click',()=>{if(state.lessonPage<state.lessonPages){state.lessonPage++;load();}});
+$('learningAssignmentPrev').addEventListener('click',()=>{if(state.assignmentPage>1){state.assignmentPage--;load();}});
+$('learningAssignmentNext').addEventListener('click',()=>{if(state.assignmentPage<state.assignmentPages){state.assignmentPage++;load();}});
+function exportContent(kind){
+ const rows=kind==='lessons'
+  ?[['Order','Title','Content','Resource','Published'],...(state.detail?.lessons||[]).map(x=>[x.displayOrder,x.title,x.content||'',x.contentUrl||'',x.isPublished?'Yes':'No'])]
+  :[['Title','Due date','Maximum marks','Published'],...(state.detail?.assignments||[]).map(x=>[x.title,x.dueAt||'',x.maxMarks,x.isPublished?'Yes':'No'])];
+ const safe=value=>{let s=String(value??'');if(/^[=+@\\-\\t\\r]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"';};
+ const csv=rows.map(row=>row.map(safe).join(',')).join('\\r\\n');
+ const url=URL.createObjectURL(new Blob(['\\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
+ const a=document.createElement('a');a.href=url;a.download='lms-'+kind+'-visible-page-'+(kind==='lessons'?state.lessonPage:state.assignmentPage)+'.csv';
+ a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+$('learningLessonExport').addEventListener('click',()=>exportContent('lessons'));
+$('learningAssignmentExport').addEventListener('click',()=>exportContent('assignments'));
 if(author){
  $('learningCourseForm').addEventListener('submit',saveCourse);$('learningEditCourse').addEventListener('click',editCourse);
  $('learningResetCourse').addEventListener('click',resetCourse);
