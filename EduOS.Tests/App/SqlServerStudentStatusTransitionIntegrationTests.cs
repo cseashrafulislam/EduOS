@@ -97,8 +97,8 @@ public sealed class SqlServerStudentStatusTransitionIntegrationTests
         var responses = await Task.WhenAll(
             first.ChangeAsync(studentReference, a),
             second.ChangeAsync(studentReference, b));
-        Assert.Single(responses.Where(x => x.Success));
-        Assert.Single(responses.Where(x => x.StatusCode == 409));
+        Assert.Single(responses, x => x.Success);
+        Assert.Single(responses, x => x.StatusCode == 409);
         var winner = responses[0].Success ? a : b;
 
         await using var replayDb = TenantDb(options, tenantId);
