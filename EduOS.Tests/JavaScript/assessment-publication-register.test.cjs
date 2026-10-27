@@ -21,6 +21,9 @@ test('publication history and tabulation are integrated in the existing authoriz
     assert.match(api, /Authorize\(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController"\)/);
     assert.match(js, /results\/publications\?' \+ params/);
     assert.match(js, /results\/tabulation\?' \+ params/);
+    assert.match(js, /integrityStatus === 'Reconciled'/);
+    assert.match(js, /!finalized\(row\) \|\| !reconciled\(row\)/);
+    assert.match(js, /requires reconciliation before tabulation or export/);
 });
 
 test('withdrawal requires reason, rowversion, confirmation and a scoped server action', () => {

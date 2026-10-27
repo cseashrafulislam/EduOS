@@ -81,6 +81,9 @@ public sealed class AssessmentPublicationRegisterTests
         Assert.Contains("summary.PublicationVersionNo == publication.VersionNo", source);
         Assert.Contains("enrollment.CampusId == scope.CampusId", source);
         Assert.Contains("valid.CountAsync(ct) != snapshotCount", source);
+        Assert.Contains("GetPublicationEvidenceAsync", source);
+        Assert.Contains("!proof.IsReconciled", source);
+        Assert.Contains("IntegrityStatus", source);
         Assert.Contains(".Skip((request.Page - 1) * request.PageSize).Take(request.PageSize)", source);
         Assert.DoesNotContain("CalculateAsync(", source);
     }

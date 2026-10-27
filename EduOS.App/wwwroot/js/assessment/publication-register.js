@@ -15,6 +15,9 @@
     const published = row => row && (row.state === 2 || row.state === 'Published');
     const withdrawn = row => row && (row.state === 3 || row.state === 'Withdrawn');
     const finalized = row => published(row) || withdrawn(row);
+    const reconciled = row => row?.integrityStatus === 'Reconciled';
+    const integrityLabel = row => row?.integrityStatus === 'RequiresReview'
+        ? 'Requires reconciliation' : reconciled(row) ? 'Reconciled' : 'Not finalized';
     const stateLabel = row => published(row) ? 'Published' : withdrawn(row) ? 'Withdrawn' : 'Draft';
     function notify(message, error = false) {
         const box = el('examAlert');
@@ -56,11 +59,11 @@
     function versionChanged() {
         const row = selectedVersion();
         clearTabulation();
-        el('examTabulationLoad').disabled = !finalized(row);
+        el('examTabulationLoad').disabled = !finalized(row) || !reconciled(row);
         el('examHistoryWithdraw').disabled = !published(row);
         el('examHistoryDetails').textContent = row
             ? 'Version ' + row.versionNo + ' · ' + stateLabel(row) +
-              ' · ' + row.snapshotCount + ' saved rows · ' +
+              ' · ' + row.snapshotCount + ' saved rows · ' + integrityLabel(row) + ' · ' +
               (row.publishedAt ? new Date(row.publishedAt).toLocaleString() : 'Date unavailable') +
               ' · Student access: ' + (row.visibleToStudent ? 'yes' : 'no') +
               ' · Guardian access: ' + (row.visibleToGuardian ? 'yes' : 'no') +
@@ -91,7 +94,8 @@
             el('examHistoryVersion').replaceChildren(option('', 'Select version'));
             for (const row of data.items || [])
                 el('examHistoryVersion').add(option(row.id,
-                    'Version ' + row.versionNo + ' — ' + stateLabel(row)));
+                    'Version ' + row.versionNo + ' — ' + stateLabel(row) +
+                    ' — ' + integrityLabel(row)));
             if ((data.items || []).some(row => String(row.id) === previous))
                 el('examHistoryVersion').value = previous;
             else if (data.items?.length) el('examHistoryVersion').value = String(data.items[0].id);
@@ -115,6 +119,10 @@
         if (state.busy || page < 1) return;
         const version = selectedVersion();
         if (!version) { notify('Load and select a publication version.', true); return; }
+        if (!reconciled(version)) {
+            notify('This saved version requires reconciliation before tabulation or export.', true);
+            return;
+        }
         state.busy = true;
         el('examTabulationLoad').disabled = true;
         try {

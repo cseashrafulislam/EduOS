@@ -24,7 +24,7 @@ public sealed partial class AssessmentAdministrationService
                 equals new { batch.TenantId, CampusId = batch.CampusId, YearId = batch.AcademicYearId }
             where exam.TenantId == tenant && exam.Id == request.AssessmentId &&
                 batch.Id == request.AcademicBatchId && !exam.IsDeleted && !batch.IsDeleted
-            select new { exam.CampusId }).FirstOrDefaultAsync(ct);
+            select new { exam.CampusId, exam.AcademicYearId }).FirstOrDefaultAsync(ct);
         if (scope == null) return Error<AssessmentPublicationHistoryPageDto>("Assessment or batch not found.", 404);
         if (!await CanAccessCampusAsync(scope.CampusId, ct))
             return Error<AssessmentPublicationHistoryPageDto>("Campus access denied.", 403);
@@ -38,22 +38,28 @@ public sealed partial class AssessmentAdministrationService
             .Select(x => new
             {
                 x.Id, x.VersionNo, x.State, x.PublishedAt, x.PublishedByUserId,
-                x.VisibleToStudent, x.VisibleToGuardian, x.PublishNote, x.RowVersion,
-                SnapshotCount = _summaries.GetQueryable().AsNoTracking().Count(summary =>
-                    summary.TenantId == tenant && summary.ResultPublicationId == x.Id &&
-                    summary.PublicationVersionNo == x.VersionNo && !summary.IsDeleted)
+                x.VisibleToStudent, x.VisibleToGuardian, x.PublishNote, x.RowVersion
             }).ToListAsync(ct);
+        var evidence = await GetPublicationEvidenceAsync(raw.Select(x => x.Id).ToArray(),
+            scope.CampusId, scope.AcademicYearId, ct);
         return ApiResponse<AssessmentPublicationHistoryPageDto>.SuccessResponse(new()
         {
             AssessmentId = request.AssessmentId, AcademicBatchId = request.AcademicBatchId,
             TotalCount = total, Page = request.Page, PageSize = request.PageSize,
-            Items = raw.Select(x => new AssessmentPublicationHistoryRowDto
+            Items = raw.Select(x =>
             {
-                Id = x.Id, VersionNo = x.VersionNo, State = x.State,
-                PublishedAt = x.PublishedAt, PublishedByUserId = x.PublishedByUserId,
-                VisibleToStudent = x.VisibleToStudent, VisibleToGuardian = x.VisibleToGuardian,
-                PublishNote = x.PublishNote, SnapshotCount = x.SnapshotCount,
-                RowVersion = Version(x.RowVersion)
+                var proof = evidence.GetValueOrDefault(x.Id);
+                return new AssessmentPublicationHistoryRowDto
+                {
+                    Id = x.Id, VersionNo = x.VersionNo, State = x.State,
+                    PublishedAt = x.PublishedAt, PublishedByUserId = x.PublishedByUserId,
+                    VisibleToStudent = x.VisibleToStudent, VisibleToGuardian = x.VisibleToGuardian,
+                    PublishNote = x.PublishNote, SnapshotCount = proof?.ActiveCount ?? 0,
+                    IntegrityStatus = x.State is ResultPublicationState.Published or ResultPublicationState.Withdrawn
+                        ? proof?.IsReconciled == true ? "Reconciled" : "RequiresReview"
+                        : "NotFinalized",
+                    RowVersion = Version(x.RowVersion)
+                };
             }).ToList()
         });
     }
@@ -84,6 +90,13 @@ public sealed partial class AssessmentAdministrationService
         if (scope == null) return Error<PublishedTabulationPageDto>("Publication scope is inconsistent.", 409);
         if (!await CanAccessCampusAsync(scope.CampusId, ct))
             return Error<PublishedTabulationPageDto>("Campus access denied.", 403);
+
+        // Reject malformed or duplicated historical snapshots before search, paging or export.
+        var evidence = await GetPublicationEvidenceAsync([publication.Id],
+            scope.CampusId, scope.AcademicYearId, ct);
+        if (!evidence.TryGetValue(publication.Id, out var proof) || !proof.IsReconciled)
+            return Error<PublishedTabulationPageDto>(
+                "Publication snapshot requires reconciliation before tabulation or export.", 409);
 
         // Validate the entire visible snapshot's enrollment provenance before applying a search filter.
         // A malformed cross-batch or cross-campus summary must not disappear behind paging/search.

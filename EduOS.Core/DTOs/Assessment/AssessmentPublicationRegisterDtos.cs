@@ -20,6 +20,7 @@ public sealed class AssessmentPublicationHistoryRowDto
     public bool VisibleToGuardian { get; set; }
     public string? PublishNote { get; set; }
     public int SnapshotCount { get; set; }
+    public string IntegrityStatus { get; set; } = "NotFinalized";
     public string RowVersion { get; set; } = string.Empty;
 }
 
