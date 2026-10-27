@@ -11,6 +11,17 @@
     const summary = document.getElementById('studentImportSummary');
     const errorRows = document.getElementById('studentImportErrorRows');
     const download = document.getElementById('studentImportDownloadErrors');
+    const commit = document.getElementById('studentImportCommit');
+    const committed = document.getElementById('studentImportCommitted');
+    const committedSummary = document.getElementById('studentImportCommittedSummary');
+    const committedRows = document.getElementById('studentImportCommittedRows');
+    const reload = document.getElementById('studentImportReload');
+    const more = document.getElementById('studentImportMore');
+    let requestId = crypto.randomUUID();
+    let validated = null;
+    let lastMapping = null;
+    let importReference = null;
+    let reconciliationPage = 1;
     const fields = Array.from(mapping.querySelectorAll('[data-import-field]'));
     const required = new Set(['SourceKey', 'StudentCode', 'FullName', 'CampusId', 'AcademicBatchId', 'RollNo']);
     let busy = false;
@@ -24,9 +35,20 @@
         mapping.classList.add('d-none');
         results.classList.add('d-none');
         errors = [];
+        validated = null;
+        lastMapping = null;
+        requestId = crypto.randomUUID();
+        commit.classList.add('d-none');
+        committed.classList.add('d-none');
         alert.classList.add('d-none');
     }
     fileInput.addEventListener('change', reset);
+    mapping.addEventListener('change', () => {
+        validated = null;
+        lastMapping = null;
+        commit.classList.add('d-none');
+        results.classList.add('d-none');
+    });
     async function send(path, data) {
         const token = form.querySelector('input[name="__RequestVerificationToken"]')?.value;
         if (!token) throw new Error('Session verification token is missing. Refresh the page.');
@@ -83,6 +105,10 @@
             data.append('file', selectedFile());
             data.append('mappingJson', JSON.stringify(chosen));
             const report = await send('/api/student-imports/preview', data);
+            lastMapping = JSON.stringify(chosen);
+            validated = report;
+            requestId = crypto.randomUUID();
+            commit.classList.toggle('d-none', report.invalidRows !== 0 || report.validRows < 1 || report.validRows > 100);
             errors = Array.isArray(report.errors) ? report.errors : [];
             summary.textContent = 'Rows: ' + report.totalRows + ' | Valid: ' + report.validRows +
                 ' | Invalid: ' + report.invalidRows + (report.hasMoreErrors ? ' | More errors not shown' : '');
@@ -98,8 +124,58 @@
             }
             results.classList.remove('d-none');
             message('Read-only preflight completed. No student records were created.', false);
-        } catch (error) { results.classList.add('d-none'); message(error.message, true); }
+         } catch (error) {
+            results.classList.add('d-none'); commit.classList.add('d-none');
+            validated = null; message(error.message, true);
+        }
         finally { busy = false; preview.disabled = false; }
+    });
+    async function loadReconciliation(append = false) {
+        if (!importReference) return;
+        const response = await fetch('/api/student-imports/' + encodeURIComponent(importReference) +
+            '?page=' + reconciliationPage + '&pageSize=50', { credentials: 'same-origin', cache: 'no-store' });
+        const body = await response.json().catch(() => null);
+        if (!response.ok || !body?.success) throw new Error(body?.message || 'Reconciliation could not be loaded.');
+        const report = body.data;
+        if (!append) committedRows.replaceChildren();
+        committedSummary.textContent = 'Import: ' + report.importReference + ' | Total: ' +
+            report.totalRows + ' | Committed: ' + report.successRows + ' | Failed: ' + report.failedRows;
+        for (const row of report.items || []) {
+            const tr = document.createElement('tr');
+            for (const value of [row.rowNumber, row.sourceKey, row.isSuccess ? 'Imported' : (row.errorMessage || 'Failed')]) {
+                const td = document.createElement('td'); td.textContent = String(value ?? ''); tr.appendChild(td);
+            }
+            committedRows.appendChild(tr);
+        }
+        more.classList.toggle('d-none', reconciliationPage * 50 >= report.totalItems);
+        committed.classList.remove('d-none');
+    }
+    commit.addEventListener('click', async () => {
+        if (busy || !validated || validated.invalidRows !== 0 || validated.validRows > 100 || !lastMapping) return;
+        if (!confirm('Commit ' + validated.validRows + ' student records and their enrollment/guardian links? This cannot be undone by a normal delete.')) return;
+        busy = true; commit.disabled = true;
+        try {
+            const data = new FormData();
+            data.append('file', selectedFile());
+            data.append('mappingJson', lastMapping);
+            data.append('clientRequestId', requestId);
+            const result = await send('/api/student-imports/execute', data);
+            importReference = result.importReference;
+            reconciliationPage = 1;
+            await loadReconciliation();
+            commit.classList.add('d-none');
+            message(result.replayed ? 'Previously committed batch recovered.' : 'Batch committed successfully.', false);
+        } catch (error) { message(error.message, true); }
+        finally { busy = false; commit.disabled = false; }
+    });
+    reload.addEventListener('click', async () => {
+        reconciliationPage = 1;
+        try { await loadReconciliation(); } catch (error) { message(error.message, true); }
+    });
+    more.addEventListener('click', async () => {
+        reconciliationPage++;
+        try { await loadReconciliation(true); }
+        catch (error) { reconciliationPage--; message(error.message, true); }
     });
     download.addEventListener('click', () => {
         const escape = value => {

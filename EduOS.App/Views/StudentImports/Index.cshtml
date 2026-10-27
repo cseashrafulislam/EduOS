@@ -3,8 +3,8 @@
 }
 <section class="container-fluid py-3" aria-labelledby="studentImportTitle">
     <header class="mb-3">
-        <h2 id="studentImportTitle">Student Import — CSV / XLSX Dry Run</h2>
-        <p class="text-muted">Inspect source columns, map your institution's student fields, then validate codes, current rolls, campus, batch capacity and previously imported source keys. <strong>No data is written.</strong> Maximum 5,000 rows and 6 MB per preview.</p>
+        <h2 id="studentImportTitle">Student Import — Preview & Commit</h2>
+        <p class="text-muted">Inspect source columns, map your institution's student fields, then validate codes, current rolls, campus, batch capacity and previously imported source keys. Preview is read-only (up to 5,000 rows). To commit, submit a validated file of 1–100 rows. Each batch is atomic and retry-safe; repeat for larger migrations. No global learner identity is auto-merged.</p>
         <a class="btn btn-outline-secondary btn-sm" asp-controller="Students" asp-action="Index">Back to Student Directory</a>
     </header>
     <div id="studentImportAlert" class="alert d-none" role="alert" aria-live="polite"></div>
@@ -34,6 +34,7 @@
             <h3 id="studentImportResultsTitle" class="h5">Preflight results</h3>
             <p id="studentImportSummary" aria-live="polite"></p>
             <p class="small text-muted">Errors are limited to the first 100 invalid rows. Preview is not a seat reservation or an import commit. The actual import must revalidate all data transactionally.</p>
+            <button id="studentImportCommit" type="button" class="btn btn-success btn-sm mb-2 d-none">Commit validated batch (maximum 100)</button>
             <button id="studentImportDownloadErrors" type="button" class="btn btn-outline-secondary btn-sm mb-2">Download shown errors CSV</button>
             <div class="table-responsive">
                 <table class="table table-sm table-striped">
@@ -41,6 +42,18 @@
                     <tbody id="studentImportErrorRows"></tbody>
                 </table>
             </div>
+        </div>
+    </section>
+    <section id="studentImportCommitted" class="card mt-3 d-none" aria-labelledby="studentImportCommittedTitle">
+        <div class="card-body">
+            <h3 id="studentImportCommittedTitle" class="h5">Committed batch reconciliation</h3>
+            <p id="studentImportCommittedSummary"></p>
+            <button id="studentImportReload" type="button" class="btn btn-outline-primary btn-sm">Refresh reconciliation</button>
+            <div class="table-responsive mt-2">
+                <table class="table table-sm"><thead><tr><th>Row</th><th>Source key</th><th>Status</th></tr></thead>
+                    <tbody id="studentImportCommittedRows"></tbody></table>
+            </div>
+            <button id="studentImportMore" type="button" class="btn btn-outline-secondary btn-sm d-none">Next 50 rows</button>
         </div>
     </section>
 </section>
