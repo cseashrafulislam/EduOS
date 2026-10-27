@@ -67,6 +67,57 @@ public sealed class StudentDirectoryServiceTests
         (await service.GetPageAsync(new StudentDirectoryQueryDto())).StatusCode.Should().Be(403);
     }
 
+
+    [Fact]
+    public async Task Directory_keeps_historical_roll_in_history_without_presenting_it_as_current()
+    {
+        var options = Options();
+        await using var db = Context(options, 101);
+        var student = await SeedAsync(db, 101);
+        var enrollment = await db.Set<StudentEnrollment>().SingleAsync();
+        enrollment.IsCurrent = false;
+        enrollment.State = EduOS.Core.Enums.Domain.EnrollmentState.Transferred;
+        enrollment.EndDate = new DateOnly(2026, 10, 1);
+        student.StatusCode = "Transferred";
+        await db.SaveChangesAsync();
+
+        var service = Service(db, 101);
+        var page = await service.GetPageAsync(new StudentDirectoryQueryDto { Search = student.StudentCode });
+        var details = await service.GetAsync(student.PublicId);
+
+        page.Success.Should().BeTrue();
+        page.Data!.Items.Should().ContainSingle();
+        page.Data.Items[0].RollNo.Should().BeEmpty();
+        page.Data.Items[0].AcademicLevelName.Should().BeEmpty();
+        page.Data.Items[0].AcademicBatchName.Should().BeEmpty();
+        details.Success.Should().BeTrue();
+        details.Data!.RollNo.Should().BeEmpty();
+        details.Data.AcademicLevelName.Should().BeEmpty();
+        details.Data.Enrollments.Should().ContainSingle();
+        details.Data.Enrollments[0].RollNo.Should().Be("12");
+        details.Data.Enrollments[0].State.Should().Be(EduOS.Core.Enums.Domain.EnrollmentState.Transferred);
+    }
+
+    [Fact]
+    public async Task Directory_never_uses_a_non_current_active_enrollment_as_current_identity()
+    {
+        var options = Options();
+        await using var db = Context(options, 101);
+        var student = await SeedAsync(db, 101);
+        var enrollment = await db.Set<StudentEnrollment>().SingleAsync();
+        enrollment.IsCurrent = false;
+        await db.SaveChangesAsync();
+
+        var service = Service(db, 101);
+        var page = await service.GetPageAsync(new StudentDirectoryQueryDto { Search = student.StudentCode });
+        var details = await service.GetAsync(student.PublicId);
+
+        page.Data!.Items.Should().ContainSingle();
+        page.Data.Items[0].RollNo.Should().BeEmpty();
+        details.Data!.RollNo.Should().BeEmpty();
+        details.Data.Enrollments.Should().ContainSingle(x => x.RollNo == "12");
+    }
+
     private static StudentDirectoryService Service(EduOSDbContext db, long tenant, string role = "TenantAdmin") => new(
         new GenericRepository<Student>(db),
         new GenericRepository<StudentEnrollment>(db),

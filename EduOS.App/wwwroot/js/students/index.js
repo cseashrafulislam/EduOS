@@ -63,6 +63,12 @@
             card.append(heading, line(i18n.studentCode, item.studentCode), line(i18n.roll, item.rollNo),
                 line(i18n.academicUnit, [item.academicLevelName, item.academicBatchName, item.academicYear].filter(Boolean).join(' · ')),
                 line(i18n.fullContact, item.maskedMobile), button);
+            if (!item.rollNo) {
+                const notice = document.createElement('p');
+                notice.className = 'small text-muted';
+                notice.textContent = 'No current active enrollment; see the student profile for historical rolls.';
+                card.append(notice);
+            }
             const promotionLink = document.querySelector('[data-student-promotion-link]');
             if (promotionLink && item.status === 'Active') {
                 const promote = document.createElement('a');
@@ -127,6 +133,7 @@
         const nodes = [];
         rows.filter(x => x[1]).forEach(x => { const dt = document.createElement('dt'); const dd = document.createElement('dd'); dt.textContent = x[0] || ''; dd.textContent = x[1] || ''; nodes.push(dt, dd); });
         document.getElementById('studentDetails').replaceChildren(...nodes);
+        document.getElementById('studentCurrentEnrollmentNotice').classList.toggle('d-none', Boolean(item.rollNo));
         renderRelated('studentGuardians', item.guardians, x => [x.name, x.relation, x.phone].filter(Boolean).join(' · '));
         renderRelated('studentEnrollments', item.enrollments, x => [x.academicYear, x.academicTerm, x.academicLevelName, x.academicBatchName, x.academicTrackName, x.rollNo].filter(Boolean).join(' · '));
     }

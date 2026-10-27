@@ -93,6 +93,7 @@
             </div>
             <div class="modal-body">
                 <dl id="studentDetails" class="admission-details"></dl>
+                <p id="studentCurrentEnrollmentNotice" class="small text-muted d-none">No current active enrollment. Previous rolls remain visible only in Enrollment History below.</p>
                 @if (User.IsInRole("TenantAdmin"))
                 {
                     <section class="border rounded p-3 mb-3" aria-labelledby="studentPhotoTitle">

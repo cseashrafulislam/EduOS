@@ -175,7 +175,9 @@ public sealed class StudentDirectoryService : IStudentDirectoryService
             .ThenByDescending(x => x.EnrollmentDate)
             .ThenByDescending(x => x.Id)
             .ToListAsync(cancellationToken);
-        var current = enrollmentRows.GroupBy(x => x.StudentId).ToDictionary(g => g.Key, g => g.First());
+        var current = enrollmentRows
+            .Where(x => x.IsCurrent && x.IsActive && x.State == EnrollmentState.Active)
+            .GroupBy(x => x.StudentId).ToDictionary(g => g.Key, g => g.First());
         var lookups = await LoadEnrollmentLookupsAsync(enrollmentRows, cancellationToken);
 
         return students.Select(x =>
@@ -205,8 +207,7 @@ public sealed class StudentDirectoryService : IStudentDirectoryService
         CancellationToken cancellationToken)
     {
         var lookups = await LoadEnrollmentLookupsAsync(enrollments, cancellationToken);
-        var current = enrollments.FirstOrDefault(x => x.IsCurrent && x.State == EnrollmentState.Active) ??
-            enrollments.FirstOrDefault(x => x.State == EnrollmentState.Active) ?? enrollments.FirstOrDefault();
+        var current = enrollments.FirstOrDefault(x => x.IsCurrent && x.IsActive && x.State == EnrollmentState.Active);
 
         return new StudentDirectoryDetailsDto
         {

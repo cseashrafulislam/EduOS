@@ -1,0 +1,16 @@
+'use strict';
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.resolve(__dirname, '../../');
+const read = file => fs.readFileSync(path.join(root, file), 'utf8');
+const service = read('EduOS.Service/Services/Students/StudentDirectoryService.cs');
+const view = read('EduOS.App/Views/Students/Index.cshtml');
+const script = read('EduOS.App/wwwroot/js/students/index.js');
+assert.match(service, /\.Where\(x => x\.IsCurrent && x\.IsActive && x\.State == EnrollmentState\.Active\)/);
+assert.match(service, /var current = enrollments\.FirstOrDefault\(x => x\.IsCurrent && x\.IsActive && x\.State == EnrollmentState\.Active\);/);
+assert.doesNotMatch(service, /enrollments\.FirstOrDefault\(x => x\.State == EnrollmentState\.Active\) \?\?/);
+assert.match(view, /id="studentCurrentEnrollmentNotice"/);
+assert.match(script, /studentCurrentEnrollmentNotice/);
+assert.match(script, /No current active enrollment/);
+assert.doesNotMatch(script, /innerHTML\s*=/);
