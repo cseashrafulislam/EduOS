@@ -111,10 +111,14 @@ public sealed class LocalizationPreferenceTests
             manager.Setup(x => x.FindByIdAsync(user.Id.ToString())).ReturnsAsync(user);
         }
 
+        var urls = new Mock<IUrlHelper>();
+        urls.Setup(x => x.IsLocalUrl(It.IsAny<string>()))
+            .Returns((string url) => url.StartsWith("/", StringComparison.Ordinal) &&
+                !url.StartsWith("//", StringComparison.Ordinal));
         var controller = new LocalizationController(manager.Object)
         {
             ControllerContext = new ControllerContext { HttpContext = context },
-            Url = new Mock<IUrlHelper>().Object
+            Url = urls.Object
         };
         return (controller, manager);
     }
