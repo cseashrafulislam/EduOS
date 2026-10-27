@@ -99,7 +99,11 @@ public sealed class AcademicInstructionServiceTests
         {
             var teacher = Service(db, 101, 70, "Teacher");
             id = (await teacher.CreateLessonPlanAsync(Lesson(seed.OfferingReference))).Data!.Id;
-            var beforeReview = await VersionAsync(options, id, [1, 2, 3, 4, 5, 6, 7, 8]);
+        }
+        var beforeReview = await VersionAsync(options, id, [1, 2, 3, 4, 5, 6, 7, 8]);
+        await using (var db = Context(options, 101, 70, "Teacher"))
+        {
+            var teacher = Service(db, 101, 70, "Teacher");
             (await teacher.SubmitLessonPlanAsync(id, beforeReview)).Success.Should().BeTrue();
         }
         await using (var db = Context(options, 101, 7, "TenantAdmin"))
