@@ -110,7 +110,7 @@ public sealed partial class TransportService : ITransportService
         var ids = vehicles.Select(x => x.Id).ToArray();
         var counts = await _assignments.GetQueryable().AsNoTracking().Where(x => x.TenantId == tenant &&
             x.State == TransportAssignmentState.Active && ids.Contains(x.VehicleId) &&
-            (!x.EndDate.HasValue || x.EndDate.Value >= today))
+            x.StartDate <= today && (!x.EndDate.HasValue || x.EndDate.Value >= today))
             .GroupBy(x => x.VehicleId).Select(g => new { VehicleId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.VehicleId, x => x.Count, cancellationToken);
         IReadOnlyList<VehicleDto> result = vehicles.Select(x => new VehicleDto
@@ -124,12 +124,18 @@ public sealed partial class TransportService : ITransportService
     }
 
     public async Task<ApiResponse<PagedResult<TransportStudentOptionDto>>> GetEligibleStudentsAsync(
-        int page, int pageSize, string? search, CancellationToken cancellationToken = default)
+        int page, int pageSize, string? search, DateOnly? startDate = null, DateOnly? endDate = null,
+        CancellationToken cancellationToken = default)
     {
         if (!CanManage()) return Denied<PagedResult<TransportStudentOptionDto>>();
-        if (page < 1 || pageSize is < 1 or > 100) return ApiResponse<PagedResult<TransportStudentOptionDto>>.ErrorResponse("Invalid paging parameters.");
+        if (page < 1 || pageSize is < 1 or > 100 || (long)(page - 1) * pageSize > int.MaxValue)
+            return ApiResponse<PagedResult<TransportStudentOptionDto>>.ErrorResponse("Invalid paging parameters.");
         var tenant = _currentUser.TenantId;
         var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
+        var requestedStart = startDate ?? today;
+        var requestedEnd = endDate ?? DateOnly.MaxValue;
+        if (requestedEnd < requestedStart)
+            return ApiResponse<PagedResult<TransportStudentOptionDto>>.ErrorResponse("Reservation end date cannot precede start date.");
         var query = from enrollment in _enrollments.GetQueryable().AsNoTracking()
                     join student in _students.GetQueryable().AsNoTracking() on enrollment.StudentId equals student.Id
                     where enrollment.TenantId == tenant && student.TenantId == tenant && student.StatusCode == "Active" &&
@@ -137,7 +143,8 @@ public sealed partial class TransportService : ITransportService
                           _campuses.GetQueryable().Any(c => c.TenantId == tenant && c.Id == enrollment.CampusId && c.IsActive) &&
                           !_assignments.GetQueryable().Any(x => x.TenantId == tenant && x.StudentId == student.Id &&
                               x.State == TransportAssignmentState.Active &&
-                              (!x.EndDate.HasValue || x.EndDate.Value >= today))
+                              x.StartDate <= requestedEnd &&
+                              (!x.EndDate.HasValue || x.EndDate.Value >= requestedStart))
                     select new { enrollment.PublicId, enrollment.CampusId, student.FullName, student.StudentCode, enrollment.RollNo };
         if (!_currentUser.IsTenantAdmin)
         {

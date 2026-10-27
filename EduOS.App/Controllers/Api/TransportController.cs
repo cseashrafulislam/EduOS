@@ -42,8 +42,9 @@ public sealed class TransportController : ControllerBase
     [HttpGet("eligible-students")]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]
     public async Task<IActionResult> EligibleStudents([FromQuery] int page = 1, [FromQuery] int pageSize = 25,
-        [FromQuery] string? search = null, CancellationToken cancellationToken = default) =>
-        ToAction(await _service.GetEligibleStudentsAsync(page, pageSize, search, cancellationToken));
+        [FromQuery] string? search = null, [FromQuery] DateOnly? startDate = null,
+        [FromQuery] DateOnly? endDate = null, CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetEligibleStudentsAsync(page, pageSize, search, startDate, endDate, cancellationToken));
 
     [HttpGet("active-assignments")]
     [Authorize(Roles = "TenantAdmin,Principal,TransportManager")]

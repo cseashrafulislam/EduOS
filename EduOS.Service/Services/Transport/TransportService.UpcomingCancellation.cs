@@ -57,8 +57,9 @@ public sealed partial class TransportService
                 if (assignment.State != TransportAssignmentState.Active)
                     return Error("Only active upcoming reservations can be cancelled.", 409);
                 var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
-                if (assignment.StartDate <= today || assignment.EndDate.HasValue)
-                    return Error("This reservation has started or already ended. Use closure instead.", 409);
+                if (assignment.StartDate <= today ||
+                    (assignment.EndDate.HasValue && assignment.EndDate.Value < assignment.StartDate))
+                    return Error("This reservation has started or has invalid dates. Use closure instead.", 409);
                 if (!assignment.RowVersion.AsSpan().SequenceEqual(version))
                     return Error("Assignment changed. Reload and retry.", 409);
                 if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
@@ -85,6 +86,12 @@ public sealed partial class TransportService
         {
             _logger.LogWarning(ex, "Transport cancellation conflict for tenant {TenantId}", tenant);
             return Error("Reservation cancellation conflicts with another update.", 409);
+        }
+        catch (Exception ex) when (ex is System.Transactions.TransactionAbortedException ||
+            HasSqlSerializationConflict(ex))
+        {
+            _logger.LogWarning(ex, "Transport cancellation SQL concurrency conflict for tenant {TenantId}", tenant);
+            return Error("Concurrent reservation cancellation. Reload and retry.", 409);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

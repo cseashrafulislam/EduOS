@@ -27,6 +27,91 @@ public class TransportServiceTests
 {
 
     [Fact]
+    public async Task Eligible_students_respect_requested_period_including_same_day_overlap()
+    {
+        await using var db = CreateContext(CreateOptions(), 101);
+        var reservation = await SeedAssignmentAsync(db, 101, true, [1, 2, 3, 4, 5, 6, 7, 8]);
+        var today = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
+        reservation.StartDate = today.AddDays(5);
+        reservation.EndDate = today.AddDays(10);
+        await db.SaveChangesAsync();
+        var service = CreateService(db, 101);
+
+        var before = await service.GetEligibleStudentsAsync(1, 25, null, today, today.AddDays(4));
+        before.Success.Should().BeTrue(before.Message);
+        before.Data!.Items.Should().ContainSingle();
+
+        var touching = await service.GetEligibleStudentsAsync(1, 25, null, today.AddDays(10), today.AddDays(11));
+        touching.Data!.Items.Should().BeEmpty();
+
+        var after = await service.GetEligibleStudentsAsync(1, 25, null, today.AddDays(11), today.AddDays(20));
+        after.Data!.Items.Should().ContainSingle();
+        var openEnded = await service.GetEligibleStudentsAsync(1, 25, null, today.AddDays(11));
+        openEnded.Data!.Items.Should().ContainSingle();
+        (await service.GetEligibleStudentsAsync(1, 25, null)).Data!.Items.Should().BeEmpty();
+
+        var invalid = await service.GetEligibleStudentsAsync(1, 25, null, today.AddDays(20), today.AddDays(10));
+        invalid.StatusCode.Should().Be(400);
+    }
+
+    [Fact]
+    public async Task Vehicle_catalogue_counts_only_riders_on_current_day_not_future_bookings()
+    {
+        await using var db = CreateContext(CreateOptions(), 101);
+        var reservation = await SeedAssignmentAsync(db, 101, true, [1, 2, 3, 4, 5, 6, 7, 8]);
+        var today = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
+        var service = CreateService(db, 101);
+        reservation.StartDate = today.AddDays(10);
+        reservation.EndDate = today.AddDays(20);
+        await db.SaveChangesAsync();
+        (await service.GetVehiclesAsync()).Data!.Single().ActiveAssignments.Should().Be(0);
+
+        reservation.StartDate = today;
+        await db.SaveChangesAsync();
+        (await service.GetVehiclesAsync()).Data!.Single().ActiveAssignments.Should().Be(1);
+
+        reservation.EndDate = today.AddDays(-1);
+        await db.SaveChangesAsync();
+        (await service.GetVehiclesAsync()).Data!.Single().ActiveAssignments.Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Future_finite_transport_cancellation_releases_seat_only_when_no_charge(bool charged)
+    {
+        await using var db = CreateContext(CreateOptions(), 101);
+        var reservation = await SeedAssignmentAsync(db, 101, true, [1, 2, 3, 4, 5, 6, 7, 8]);
+        var today = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
+        reservation.StartDate = today.AddDays(10);
+        reservation.EndDate = today.AddDays(20);
+        reservation.MonthlyFare = charged ? 200m : 0m;
+        await db.SaveChangesAsync();
+        var service = CreateService(db, 101);
+        var request = new CancelUpcomingTransportAssignmentRequestDto
+        {
+            RowVersion = Convert.ToBase64String(reservation.RowVersion)
+        };
+        var first = await service.CancelUpcomingAsync(reservation.PublicId, request);
+        if (charged)
+        {
+            first.StatusCode.Should().Be(409);
+            reservation.State.Should().Be(TransportAssignmentState.Active);
+            reservation.EndDate.Should().Be(today.AddDays(20));
+            return;
+        }
+        first.Success.Should().BeTrue(first.Message);
+        reservation.State.Should().Be(TransportAssignmentState.Cancelled);
+        reservation.EndDate.Should().Be(reservation.StartDate);
+        var updatedAt = reservation.UpdatedAt;
+        var rowVersion = Convert.ToBase64String(reservation.RowVersion);
+        var replay = await service.CancelUpcomingAsync(reservation.PublicId, request);
+        replay.Success.Should().BeTrue(replay.Message);
+        reservation.UpdatedAt.Should().Be(updatedAt);
+        Convert.ToBase64String(reservation.RowVersion).Should().Be(rowVersion);
+    }
+
+    [Fact]
     public async Task Assignment_history_and_export_retain_retired_route_vehicle_and_inactive_campus()
     {
         await using var db = CreateContext(CreateOptions(), 101);

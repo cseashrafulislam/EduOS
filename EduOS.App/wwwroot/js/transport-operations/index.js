@@ -47,10 +47,10 @@
             const [routeData, vehicleData] = await Promise.all([api('/api/transport/routes'), api('/api/transport/vehicles')]);
             routes = routeData || []; vehicles = vehicleData || [];
             renderList('transportRouteList', routes, x => x.name + ' · Default fare ' + x.defaultFare + ' · ' + (x.stops?.length || 0) + ' stops');
-            renderList('transportVehicleList', vehicles, x => x.vehicleNumber + ' · Capacity ' + x.capacity + ' · Assigned students ' + x.activeAssignments);
+            renderList('transportVehicleList', vehicles, x => x.vehicleNumber + ' · Capacity ' + x.capacity + ' · Riding today ' + x.activeAssignments);
             if (canManage) {
                 fillSelect('transportRoute', routes, 'Select route', x => x.name);
-                fillSelect('transportVehicle', vehicles, 'Select vehicle', x => x.vehicleNumber + ' (' + x.activeAssignments + '/' + x.capacity + ')');
+                fillSelect('transportVehicle', vehicles, 'Select vehicle', x => x.vehicleNumber + ' (today ' + x.activeAssignments + '/' + x.capacity + ')');
                 updateStops();
             }
         } catch (err) { notify(err.message); }
@@ -64,7 +64,10 @@
     async function loadStudents() {
         try {
             const term = el('transportStudentSearch').value.trim();
-            const q = new URLSearchParams({ page: String(studentPage), pageSize: '25' });
+            const q = new URLSearchParams({ page: String(studentPage), pageSize: '25',
+                startDate: el('transportStart').value || localDate() });
+            const endDate = el('transportEnd').value;
+            if (endDate) q.set('endDate', endDate);
             if (term) q.set('search', term);
             const data = await api('/api/transport/eligible-students?' + q);
             const select = el('transportStudent'); select.replaceChildren(); option(select, '', 'Select eligible student');
@@ -264,6 +267,13 @@
     if (canManage) {
         el('transportStart').value = localDate();
         el('transportRoute').addEventListener('change', updateStops);
+        for (const id of ['transportStart', 'transportEnd']) {
+            el(id).addEventListener('change', () => {
+                studentPage = 1;
+                el('transportStudent').replaceChildren();
+                loadStudents();
+            });
+        }
         el('transportFindStudents').addEventListener('click', () => { studentPage = 1; loadStudents(); });
         el('transportMoreStudents').addEventListener('click', () => { studentPage++; loadStudents(); });
         el('transportAssignmentForm').addEventListener('submit', assign);
