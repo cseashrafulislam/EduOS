@@ -4,7 +4,7 @@
     if (!root) return;
     const el = id => document.getElementById(id);
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value;
-    const state = { enrollment: null, page: 1, pages: 1, requestId: null, uploadId: null, attachmentId: null, saving: false };
+    const state = { enrollment: null, page: 1, pages: 1, studentPage: 1, studentPages: 1, requestId: null, uploadId: null, attachmentId: null, saving: false };
     const val = id => el(id).value.trim();
     function info(text, failed = false) {
         const box = el('leaveNotice'); box.className = 'alert ' + (failed ? 'alert-danger' : 'alert-success');
@@ -29,35 +29,35 @@
         return [h.slice(0, 8), h.slice(8, 12), h.slice(12, 16), h.slice(16, 20), h.slice(20)].join('-');
     }
     function available() { el('leaveSubmit').disabled = state.saving || !state.enrollment; }
-    async function search(e) {
-        e.preventDefault();
+    async function searchStudents(pageNumber) {
         if (val('leaveStudentTerm').length < 2) return info('Enter at least two characters.', true);
         try {
-            const page = await api('/api/students?' + new URLSearchParams({
-                search: val('leaveStudentTerm'), page: 1, pageSize: 20
+            const page = await api('/api/student-leaves/eligible-enrollments?' + new URLSearchParams({
+                search: val('leaveStudentTerm'), page: pageNumber, pageSize: 20
             }));
+            state.studentPage = pageNumber;
+            state.studentPages = Math.max(1, page.totalPages || 1);
             const list = el('leaveStudentResults'); list.replaceChildren();
             for (const item of page.items || []) {
-                const b = document.createElement('button');
-                b.type = 'button'; b.className = 'list-group-item list-group-item-action';
-                b.textContent = item.fullName + ' — ' + item.studentCode;
-                b.addEventListener('click', () => choose(item));
-                list.append(b);
+                const button = document.createElement('button');
+                button.type = 'button'; button.className = 'list-group-item list-group-item-action';
+                button.textContent = item.fullName + ' — ' + item.studentCode + ' / Roll ' + (item.rollNo || '—');
+                button.addEventListener('click', () => choose(item));
+                list.append(button);
             }
-            if (!page.items?.length) list.textContent = 'No matching students.';
+            if (!page.items?.length) list.textContent = 'No matching active enrollments in your campuses.';
+            el('leaveStudentPageText').textContent = 'Page ' + state.studentPage + ' of ' +
+                state.studentPages + ' · ' + page.totalCount + ' enrollments';
+            el('leaveStudentPrevious').disabled = state.studentPage <= 1;
+            el('leaveStudentNext').disabled = state.studentPage >= state.studentPages;
         } catch (e) { info(e.message, true); }
     }
-    async function choose(student) {
-        state.enrollment = null; state.requestId = null; state.uploadId = null; state.attachmentId = null; available();
-        el('leaveStudentLabel').textContent = 'Checking ' + student.studentCode + '...';
-        try {
-            const current = await api('/api/academic-enrollments/students/' +
-                encodeURIComponent(student.reference) + '/current');
-            state.enrollment = current;
-            el('leaveStudentLabel').textContent = student.fullName + ' / ' + student.studentCode +
-                ' / Roll ' + (current.rollNo || '—');
-            available(); state.page = 1; await load();
-        } catch (e) { el('leaveStudentLabel').textContent = 'No active enrollment.'; info(e.message, true); }
+    function choose(student) {
+        state.enrollment = { reference: student.reference, rollNo: student.rollNo };
+        state.requestId = null; state.uploadId = null; state.attachmentId = null;
+        el('leaveStudentLabel').textContent = student.fullName + ' / ' + student.studentCode +
+            ' / Roll ' + (student.rollNo || '—');
+        available(); state.page = 1; load();
     }
     async function load() {
         try {
@@ -177,7 +177,13 @@
         } catch (e) { info(e.message, true); }
         finally { button.disabled = false; }
     }
-    el('leaveStudentSearch').addEventListener('submit', search);
+    el('leaveStudentSearch').addEventListener('submit', e => { e.preventDefault(); searchStudents(1); });
+    el('leaveStudentPrevious').addEventListener('click', () => {
+        if (state.studentPage > 1) searchStudents(state.studentPage - 1);
+    });
+    el('leaveStudentNext').addEventListener('click', () => {
+        if (state.studentPage < state.studentPages) searchStudents(state.studentPage + 1);
+    });
     el('leaveApplyForm').addEventListener('submit', apply);
     el('leaveRefresh').addEventListener('click', load);
     el('leaveFilter').addEventListener('change', () => { state.page = 1; load(); });

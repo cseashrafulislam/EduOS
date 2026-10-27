@@ -1,5 +1,7 @@
 using EduOS.Core.DTOs.Attendance;
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Auth;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Attendance;
 using EduOS.Core.Entities.Files;
 using EduOS.Core.Entities.Students;
@@ -251,6 +253,78 @@ public sealed class StudentLeaveServiceTests
         await db.SaveChangesAsync();
         (await service.ApplyAsync(request)).StatusCode.Should().Be(404);
         (await db.StudentLeaveApplications.CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Principal_leave_workspace_enforces_live_campus_grants_for_search_queue_and_mutations()
+    {
+        var options = Options();
+        var (mine, foreign) = await Seed(options);
+        await using var db = Context(options, 101);
+        var ownCampus = new Campus { TenantId = 101, Name = "North", Code = "NORTH" };
+        var foreignCampus = new Campus { TenantId = 101, Name = "South", Code = "SOUTH" };
+        db.AddRange(ownCampus, foreignCampus);
+        await db.SaveChangesAsync();
+        var enrollments = await db.StudentEnrollments.ToListAsync();
+        enrollments.Single(x => x.PublicId == mine).CampusId = ownCampus.Id;
+        enrollments.Single(x => x.PublicId == foreign).CampusId = foreignCampus.Id;
+        var grant = new UserCampusAccess { TenantId = 101, UserId = 7,
+            CampusId = ownCampus.Id, IsActive = true };
+        db.UserCampusAccesses.Add(grant);
+        await db.SaveChangesAsync();
+        var principal = Service(db, new Actor(101, 7, "Principal"));
+        var admin = Service(db, new Actor(101, 8, "TenantAdmin"));
+        var choices = await principal.GetEligibleEnrollmentsAsync("Student", 1, 20);
+        choices.Success.Should().BeTrue(choices.Message);
+        choices.Data!.TotalCount.Should().Be(1);
+        choices.Data.Items.Single().Reference.Should().Be(mine);
+        (await principal.GetEligibleEnrollmentsAsync("Student", 0, 20)).StatusCode.Should().Be(400);
+        (await admin.GetEligibleEnrollmentsAsync("Student", 1, 20)).Data!.TotalCount.Should().Be(2);
+        var foreignLeave = await admin.ApplyAsync(new CreateStudentLeaveApplicationRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), StudentEnrollmentReference = foreign,
+            FromDate = From, ToDate = To, Reason = "Foreign campus"
+        });
+        foreignLeave.Success.Should().BeTrue(foreignLeave.Message);
+        var mineLeave = await principal.ApplyAsync(new CreateStudentLeaveApplicationRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), StudentEnrollmentReference = mine,
+            FromDate = From, ToDate = To, Reason = "Own campus"
+        });
+        mineLeave.Success.Should().BeTrue(mineLeave.Message);
+        (await principal.ApplyAsync(new CreateStudentLeaveApplicationRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), StudentEnrollmentReference = foreign,
+            FromDate = new DateOnly(2026, 9, 20), ToDate = new DateOnly(2026, 9, 21),
+            Reason = "Forbidden campus"
+        })).StatusCode.Should().Be(404);
+        var queue = await principal.GetApplicationsAsync(null, null, 1, 20);
+        queue.Data!.TotalCount.Should().Be(1);
+        queue.Data.Items.Single().StudentEnrollmentReference.Should().Be(mine);
+        (await principal.GetApplicationsAsync(foreign, null, 1, 20)).StatusCode.Should().Be(404);
+        (await principal.ReviewAsync(foreignLeave.Data!.Id, new ReviewStudentLeaveRequestDto
+        {
+            State = LeaveState.Approved, RowVersion = "AQIDBA=="
+        })).StatusCode.Should().Be(404);
+        (await principal.CancelAsync(foreignLeave.Data.Id, new CancelStudentLeaveRequestDto
+        {
+            Reason = "Not mine", RowVersion = "AQIDBA=="
+        })).StatusCode.Should().Be(404);
+        grant.IsActive = false;
+        await db.SaveChangesAsync();
+        (await principal.GetEligibleEnrollmentsAsync("Student", 1, 20)).Data!.TotalCount.Should().Be(0);
+        (await principal.GetApplicationsAsync(mine, null, 1, 20)).StatusCode.Should().Be(404);
+        (await principal.GetApplicationsAsync(null, null, 1, 20)).Data!.TotalCount.Should().Be(0);
+        (await principal.ApplyAsync(new CreateStudentLeaveApplicationRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), StudentEnrollmentReference = mine,
+            FromDate = new DateOnly(2026, 9, 22), ToDate = new DateOnly(2026, 9, 23),
+            Reason = "After revocation"
+        })).StatusCode.Should().Be(404);
+        ownCampus.IsActive = false;
+        grant.IsActive = true;
+        await db.SaveChangesAsync();
+        (await principal.GetEligibleEnrollmentsAsync("Student", 1, 20)).Data!.TotalCount.Should().Be(0);
     }
 
     private static StudentLeaveService Service(EduOSDbContext db, ICurrentUserService user) => new(

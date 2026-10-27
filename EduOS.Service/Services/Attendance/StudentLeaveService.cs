@@ -50,6 +50,46 @@ public sealed class StudentLeaveService : IStudentLeaveService
         _db = db; _fileService = fileService; _storage = storage;
     }
 
+    /// <summary>SQL-paged active enrollment picker scoped to the manager's live campus grants.</summary>
+    public async Task<ApiResponse<PagedResult<StudentLeaveEnrollmentChoiceDto>>> GetEligibleEnrollmentsAsync(
+        string search, int page, int pageSize, CancellationToken ct = default)
+    {
+        if (!CanManage())
+            return Error<PagedResult<StudentLeaveEnrollmentChoiceDto>>("Student leave review permission denied.", 403);
+        search = search?.Trim() ?? string.Empty;
+        if (search.Length is < 2 or > 100 || page < 1 || pageSize is < 1 or > 100 ||
+            page > int.MaxValue / pageSize)
+            return Error<PagedResult<StudentLeaveEnrollmentChoiceDto>>("Provide 2–100 search characters and valid paging.");
+        var tenant = _user.TenantId;
+        var query = from enrollment in _enrollments.GetQueryable().AsNoTracking()
+                    join student in _students.GetQueryable().AsNoTracking()
+                        on enrollment.StudentId equals student.Id
+                    where enrollment.TenantId == tenant && student.TenantId == tenant &&
+                          !enrollment.IsDeleted && !student.IsDeleted &&
+                          enrollment.IsCurrent && enrollment.State == EnrollmentState.Active &&
+                          student.StatusCode == "Active" &&
+                          (student.FullName.Contains(search) || student.StudentCode.Contains(search))
+                    select new { enrollment, student };
+        if (!_user.IsTenantAdmin)
+        {
+            var campuses = AccessibleCampusIds();
+            query = query.Where(x => campuses.Contains(x.enrollment.CampusId));
+        }
+        var total = await query.CountAsync(ct);
+        var items = await query.OrderBy(x => x.student.FullName).ThenBy(x => x.student.StudentCode)
+            .ThenBy(x => x.enrollment.Id).Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(x => new StudentLeaveEnrollmentChoiceDto
+            {
+                Reference = x.enrollment.PublicId, FullName = x.student.FullName,
+                StudentCode = x.student.StudentCode, RollNo = x.enrollment.RollNo
+            }).ToListAsync(ct);
+        return ApiResponse<PagedResult<StudentLeaveEnrollmentChoiceDto>>.SuccessResponse(
+            new PagedResult<StudentLeaveEnrollmentChoiceDto>
+            {
+                Items = items, TotalCount = total, Page = page, PageSize = pageSize
+            });
+    }
+
     public async Task<ApiResponse<PagedResult<StudentLeaveApplicationDto>>> GetApplicationsAsync(
         Guid? enrollmentReference, LeaveState? state, int page, int pageSize, CancellationToken ct = default)
     {
@@ -64,9 +104,17 @@ public sealed class StudentLeaveService : IStudentLeaveService
             var enrollment = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.PublicId == enrollmentReference.Value && !x.IsDeleted, ct);
             if (enrollment == null) return Error<PagedResult<StudentLeaveApplicationDto>>("Enrollment not found.", 404);
-            if (!CanManage() && !await OwnsEnrollmentAsync(enrollment, ct))
+            if (!await CanAccessEnrollmentAsync(enrollment, ct))
                 return Error<PagedResult<StudentLeaveApplicationDto>>("Enrollment not accessible.", 404);
             query = query.Where(x => x.StudentEnrollmentId == enrollment.Id);
+        }
+        else if (CanManage() && !_user.IsTenantAdmin)
+        {
+            var campuses = AccessibleCampusIds();
+            var scopedEnrollmentIds = _enrollments.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenant && !x.IsDeleted && campuses.Contains(x.CampusId))
+                .Select(x => x.Id);
+            query = query.Where(x => scopedEnrollmentIds.Contains(x.StudentEnrollmentId));
         }
         else if (!CanManage())
         {
@@ -110,7 +158,7 @@ public sealed class StudentLeaveService : IStudentLeaveService
         var enrollment = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == tenant && x.PublicId == enrollmentReference &&
             x.IsCurrent && x.State == EnrollmentState.Active && !x.IsDeleted, ct);
-        if (enrollment == null || (!CanManage() && !await OwnsEnrollmentAsync(enrollment, ct)))
+        if (enrollment == null || !await CanAccessEnrollmentAsync(enrollment, ct))
             return Error<FileAssetDto>("Active enrollment not found.", 404);
         if (CanManage()) return await _fileService.UploadForLeaveAsync(uploadRequestId, upload, ct);
         var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
@@ -132,7 +180,7 @@ public sealed class StudentLeaveService : IStudentLeaveService
             return Error<DocumentFileDownloadDto>("Attachment not found.", 404);
         var enrollment = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == tenant && x.Id == leave.StudentEnrollmentId && !x.IsDeleted, ct);
-        if (enrollment == null || (!CanManage() && !await OwnsEnrollmentAsync(enrollment, ct)))
+        if (enrollment == null || !await CanAccessEnrollmentAsync(enrollment, ct))
             return Error<DocumentFileDownloadDto>("Attachment not found.", 404);
         var file = await _db.FileAssets.AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == tenant && x.Id == fileId && !x.IsDeleted &&
@@ -182,7 +230,7 @@ public sealed class StudentLeaveService : IStudentLeaveService
                         replay.FromDate != request.FromDate || replay.ToDate != request.ToDate ||
                         replay.Reason != reason || replay.AttachmentFileId != request.AttachmentFileId)
                         return Error<StudentLeaveApplicationDto>("Request ID already used for different leave details.", 409);
-                    if (!CanManage() && !await OwnsEnrollmentAsync(old, token))
+                    if (!await CanAccessEnrollmentAsync(old, token))
                         return Error<StudentLeaveApplicationDto>("Enrollment not accessible.", 404);
                     return ApiResponse<StudentLeaveApplicationDto>.SuccessResponse(Map(replay, old.PublicId), "Leave already submitted.");
                 }
@@ -190,7 +238,7 @@ public sealed class StudentLeaveService : IStudentLeaveService
                     x.TenantId == tenant && x.PublicId == request.StudentEnrollmentReference &&
                     x.IsCurrent && x.State == EnrollmentState.Active && !x.IsDeleted, token);
                 if (enrollment == null) return Error<StudentLeaveApplicationDto>("Active current enrollment not found.", 404);
-                if (!CanManage() && !await OwnsEnrollmentAsync(enrollment, token))
+                if (!await CanAccessEnrollmentAsync(enrollment, token))
                     return Error<StudentLeaveApplicationDto>("Enrollment not accessible.", 404);
                 var year = await _years.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == enrollment.AcademicYearId && !x.IsDeleted, token);
@@ -271,7 +319,7 @@ public sealed class StudentLeaveService : IStudentLeaveService
                 if (row == null) return Error<StudentLeaveApplicationDto>("Leave application not found.", 404);
                 var enrollment = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == row.StudentEnrollmentId && !x.IsDeleted, token);
-                if (enrollment == null || (!CanManage() && !await OwnsEnrollmentAsync(enrollment, token)))
+                if (enrollment == null || !await CanAccessEnrollmentAsync(enrollment, token))
                     return Error<StudentLeaveApplicationDto>("Leave application not found.", 404);
                 if (row.State == LeaveState.Cancelled)
                     return row.ReviewNote == note
@@ -317,13 +365,14 @@ public sealed class StudentLeaveService : IStudentLeaveService
                 var row = await _leaves.GetQueryable().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == applicationId && !x.IsDeleted, token);
                 if (row == null) return Error<StudentLeaveApplicationDto>("Leave application not found.", 404);
+                var enrollment = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Id == row.StudentEnrollmentId && !x.IsDeleted, token);
+                if (enrollment == null || !await CanManageEnrollmentAsync(enrollment, token))
+                    return Error<StudentLeaveApplicationDto>("Leave application not found.", 404);
                 if (!VersionsMatch(row.RowVersion, version))
                     return Error<StudentLeaveApplicationDto>("Leave changed. Reload before approval.", 409);
                 if (row.State != LeaveState.Submitted)
                     return Error<StudentLeaveApplicationDto>("Only submitted leave can be reviewed.", 409);
-                var enrollment = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                    x.TenantId == tenant && x.Id == row.StudentEnrollmentId && !x.IsDeleted, token);
-                if (enrollment == null) return Error<StudentLeaveApplicationDto>("Enrollment no longer exists.", 409);
                 if (request.State == LeaveState.Approved)
                 {
                     if (!enrollment.IsCurrent || enrollment.State != EnrollmentState.Active)
@@ -351,6 +400,23 @@ public sealed class StudentLeaveService : IStudentLeaveService
             return Error<StudentLeaveApplicationDto>("Leave review conflicts with another update.", 409);
         }
     }
+
+    // Every manager read, mutation and idempotent retry rechecks live campus access.
+    private IQueryable<long> AccessibleCampusIds() =>
+        from access in _db.UserCampusAccesses.AsNoTracking()
+        join campus in _db.Campuses.AsNoTracking() on access.CampusId equals campus.Id
+        where access.TenantId == _user.TenantId && campus.TenantId == _user.TenantId &&
+              access.UserId == _user.UserId && access.IsActive && !access.IsDeleted &&
+              campus.IsActive && !campus.IsDeleted
+        select access.CampusId;
+
+    private async Task<bool> CanManageEnrollmentAsync(StudentEnrollment enrollment, CancellationToken ct) =>
+        CanManage() && (_user.IsTenantAdmin ||
+            await AccessibleCampusIds().AnyAsync(x => x == enrollment.CampusId, ct));
+
+    private async Task<bool> CanAccessEnrollmentAsync(StudentEnrollment enrollment, CancellationToken ct) =>
+        CanManage() ? await CanManageEnrollmentAsync(enrollment, ct) :
+            await OwnsEnrollmentAsync(enrollment, ct);
 
     private async Task<bool> OwnsEnrollmentAsync(StudentEnrollment enrollment, CancellationToken ct)
     {

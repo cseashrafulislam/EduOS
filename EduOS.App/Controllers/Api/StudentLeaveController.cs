@@ -21,6 +21,16 @@ public sealed class StudentLeaveController : ControllerBase
     private readonly IStudentLeaveService _service;
     public StudentLeaveController(IStudentLeaveService service) => _service = service;
 
+    [HttpGet("eligible-enrollments")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
+    public async Task<IActionResult> EligibleEnrollments([FromQuery] string search,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _service.GetEligibleEnrollmentsAsync(search, page, pageSize, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet]
     public async Task<IActionResult> List([FromQuery] Guid? enrollmentReference,
         [FromQuery] LeaveState? state, [FromQuery] int page = 1,

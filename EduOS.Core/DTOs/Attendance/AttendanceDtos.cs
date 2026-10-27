@@ -210,6 +210,15 @@ public sealed class StudentLeaveApplicationDto
     public string RowVersion { get; set; } = string.Empty;
 }
 
+/// <summary>Active campus-authorized enrollment option for leave management.</summary>
+public sealed class StudentLeaveEnrollmentChoiceDto
+{
+    public Guid Reference { get; set; }
+    public string StudentCode { get; set; } = string.Empty;
+    public string FullName { get; set; } = string.Empty;
+    public string RollNo { get; set; } = string.Empty;
+}
+
 public sealed class CreateStudentLeaveApplicationRequestDto
 {
     public Guid ClientRequestId { get; set; }
