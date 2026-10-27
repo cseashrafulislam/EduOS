@@ -27,6 +27,12 @@ public sealed partial class LibraryReservationService
                 var book = await _books.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.PublicId == request.BookReference && x.IsActive && !x.IsDeleted, token);
                 if (book == null) return Error<BookReservationDto>("Active book not found.", 404);
+                var enrollment = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.StudentId == student.Id && x.IsCurrent &&
+                    x.State == EnrollmentState.Active && !x.IsDeleted, token);
+                if (enrollment == null) return Error<BookReservationDto>("Current active enrollment is required.", 409);
+                if (CanManage() && !await CanManageCampusAsync(enrollment.CampusId, token))
+                    return Denied<BookReservationDto>();
                 var replay = await _reservations.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.ClientRequestId == request.ClientRequestId, token);
                 if (replay != null)
@@ -35,10 +41,6 @@ public sealed partial class LibraryReservationService
                         return Error<BookReservationDto>("Client request ID was reused with different details.", 409);
                     return ApiResponse<BookReservationDto>.SuccessResponse(Map(replay, book, student, Now), "Reservation already processed.");
                 }
-                var enrollment = await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                    x.TenantId == tenant && x.StudentId == student.Id && x.IsCurrent &&
-                    x.State == EnrollmentState.Active && !x.IsDeleted, token);
-                if (enrollment == null) return Error<BookReservationDto>("Current active enrollment is required.", 409);
                 var branchIds = await _branches.GetQueryable().AsNoTracking().Where(x =>
                     x.TenantId == tenant && x.CampusId == enrollment.CampusId && x.IsActive && !x.IsDeleted)
                     .Select(x => x.Id).ToArrayAsync(token);
@@ -86,7 +88,11 @@ public sealed partial class LibraryReservationService
                 var row = await _reservations.GetQueryable().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == reservationId && !x.IsDeleted, token);
                 if (row == null) return Error<BookReservationDto>("Reservation not found.", 404);
-                if (!CanManage() && !await _students.GetQueryable().AsNoTracking().AnyAsync(x =>
+                if (CanManage())
+                {
+                    if (!await CanManageReservationAsync(row.StudentId, token)) return Denied<BookReservationDto>();
+                }
+                else if (!await _students.GetQueryable().AsNoTracking().AnyAsync(x =>
                     x.TenantId == tenant && x.Id == row.StudentId && x.UserId == _user.UserId, token))
                     return Denied<BookReservationDto>();
                 if (row.State == BookReservationState.Cancelled)

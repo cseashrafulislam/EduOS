@@ -21,6 +21,7 @@ public sealed partial class LibraryReservationService
                 var row = await _reservations.GetQueryable().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == reservationId && !x.IsDeleted, token);
                 if (row == null) return Error<BookReservationDto>("Reservation not found.", 404);
+                if (!await CanManageReservationAsync(row.StudentId, token)) return Denied<BookReservationDto>();
                 var prior = await _issues.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.ClientRequestId == row.ClientRequestId, token);
                 if (row.State == BookReservationState.Fulfilled)
@@ -34,11 +35,7 @@ public sealed partial class LibraryReservationService
                     return Error<BookReservationDto>("Reservation is no longer pending.", 409);
                 if (!Matches(row.RowVersion, rowVersion))
                     return Error<BookReservationDto>("Reservation changed. Reload and retry.", 409);
-                var first = await _reservations.GetQueryable().AsNoTracking()
-                    .Where(x => x.TenantId == tenant && x.BookId == row.BookId && !x.IsDeleted &&
-                        x.State == BookReservationState.Pending && x.ExpiresAt > now)
-                    .OrderBy(x => x.ReservedAt).ThenBy(x => x.Id).Select(x => x.Id).FirstOrDefaultAsync(token);
-                if (first != row.Id) return Error<BookReservationDto>("Fulfill the oldest active reservation first.", 409);
+
                 if (prior != null) return Error<BookReservationDto>("Circulation request ID already exists.", 409);
                 var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == row.StudentId && x.StatusCode == "Active" && !x.IsDeleted, token);
@@ -47,6 +44,16 @@ public sealed partial class LibraryReservationService
                     x.TenantId == tenant && x.StudentId == student.Id && x.IsCurrent &&
                     x.State == EnrollmentState.Active && !x.IsDeleted, token);
                 if (enrollment == null) return Error<BookReservationDto>("Current active enrollment required.", 409);
+                if (!await CanManageCampusAsync(enrollment.CampusId, token)) return Denied<BookReservationDto>();
+                // FIFO applies within the student's campus, not to another campus's independent stock pool.
+                var first = await _reservations.GetQueryable().AsNoTracking()
+                    .Where(x => x.TenantId == tenant && x.BookId == row.BookId && !x.IsDeleted &&
+                        x.State == BookReservationState.Pending && x.ExpiresAt > now &&
+                        _enrollments.GetQueryable().Any(e => e.TenantId == tenant && !e.IsDeleted &&
+                            e.StudentId == x.StudentId && e.IsCurrent &&
+                            e.State == EnrollmentState.Active && e.CampusId == enrollment.CampusId))
+                    .OrderBy(x => x.ReservedAt).ThenBy(x => x.Id).Select(x => x.Id).FirstOrDefaultAsync(token);
+                if (first != row.Id) return Error<BookReservationDto>("Fulfill the oldest active campus reservation first.", 409);
                 var book = await _books.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == row.BookId && x.IsActive && !x.IsDeleted, token);
                 if (book == null) return Error<BookReservationDto>("Book is inactive.", 409);
@@ -54,6 +61,8 @@ public sealed partial class LibraryReservationService
                     x.TenantId == tenant && x.Id == bookCopyId && x.BookId == book.Id && !x.IsDeleted, token);
                 if (copy == null || copy.State != BookCopyState.Available)
                     return Error<BookReservationDto>("Selected copy is not available.", 409);
+                if (!_user.IsTenantAdmin && !copy.LibraryBranchId.HasValue)
+                    return Error<BookReservationDto>("A campus branch is required for staff fulfillment.", 409);
                 if (copy.LibraryBranchId.HasValue && !await _branches.GetQueryable().AsNoTracking().AnyAsync(x =>
                     x.TenantId == tenant && x.Id == copy.LibraryBranchId.Value && x.CampusId == enrollment.CampusId &&
                     x.IsActive && !x.IsDeleted, token))

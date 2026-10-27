@@ -25,6 +25,14 @@ public sealed partial class LibraryReservationService
                 enrollment.StudentId == student.Id && enrollment.IsCurrent &&
                 enrollment.State == EnrollmentState.Active));
 
+        if (!_user.IsTenantAdmin)
+        {
+            var allowed = AllowedStaffCampuses(tenant);
+            if (allowed == null) return Denied<PagedResult<BookReservationStudentOptionDto>>();
+            query = query.Where(student => _enrollments.GetQueryable().Any(e =>
+                e.TenantId == tenant && e.StudentId == student.Id && !e.IsDeleted && e.IsCurrent &&
+                e.State == EnrollmentState.Active && allowed.Contains(e.CampusId)));
+        }
         var total = await query.CountAsync(ct);
         var items = await query.OrderBy(x => x.StudentCode).ThenBy(x => x.Id)
             .Skip((page - 1) * pageSize).Take(pageSize)

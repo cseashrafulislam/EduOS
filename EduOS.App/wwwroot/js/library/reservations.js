@@ -4,7 +4,7 @@
     const root = el('reservationApp');
     if (!root) return;
     const staff = root.dataset.staff === 'true', state = {
-        mine: 1, queue: 1, book: '', copies: [], key: crypto.randomUUID(), search: 0,
+        mine: 1, queue: 1, book: '', key: crypto.randomUUID(), search: 0,
         queueRequest: 0, studentRequest: 0, studentPage: 1
     };
     const stateNames = { 1: 'Pending', 2: 'Fulfilled', 3: 'Cancelled', 4: 'Expired' };
@@ -128,22 +128,40 @@
         state.book = book;
         if (!book) { empty('reservationQueueRows', 5, 'Select a book to view its queue.'); return; }
         try {
-            const [queue, copies] = await Promise.all([
-                api('/api/library/reservations/books/' + encodeURIComponent(book) + '/queue?' +
-                    new URLSearchParams({ page: state.queue, pageSize: 20 })),
-                api('/api/library/books/' + encodeURIComponent(book) + '/copies?' +
-                    new URLSearchParams({ page: 1, pageSize: 100 }))
-            ]);
+            const queue = await api('/api/library/reservations/books/' + encodeURIComponent(book) + '/queue?' +
+                new URLSearchParams({ page: state.queue, pageSize: 20 }));
             if (seq !== state.queueRequest || el('reservationBook').value !== book) return;
-            state.copies = (copies?.items || []).filter(x => x.state === 1 || x.state === 'Available');
             const target = el('reservationQueueRows'); target.replaceChildren();
             (queue?.items || []).forEach(item => {
                 const row = document.createElement('tr');
                 [item.studentName, date(item.reservedAt), date(item.expiresAt)].forEach(x => row.append(td(x)));
                 const cell = td(''), select = document.createElement('select');
-                select.className = 'form-select form-select-sm'; select.setAttribute('aria-label', 'Available copy');
-                select.add(new Option('Select copy', ''));
-                state.copies.forEach(copy => select.add(new Option(copy.accessionNumber, String(copy.id))));
+                select.className = 'form-select form-select-sm'; select.setAttribute('aria-label', 'Available campus copy');
+                select.add(new Option('Focus to load eligible campus copies', ''));
+                let loadedPage = 0, loading = false, more = true;
+                const loadCopies = async () => {
+                    if (loading || !more || seq !== state.queueRequest) return;
+                    loading = true; select.disabled = true;
+                    try {
+                        const data = await api('/api/library/reservations/' + item.id + '/eligible-copies?' +
+                            new URLSearchParams({ page: loadedPage + 1, pageSize: 50 }));
+                        if (seq !== state.queueRequest) return;
+                        if (loadedPage === 0) select.replaceChildren(new Option('Select eligible copy', ''));
+                        [...select.options].filter(x => x.value === '__more__').forEach(x => x.remove());
+                        (data?.items || []).forEach(copy =>
+                            select.add(new Option(copy.accessionNumber, String(copy.id))));
+                        loadedPage++;
+                        more = !!data?.hasNextPage;
+                        if (more) select.add(new Option('Load more eligible copies…', '__more__'));
+                        if (!data?.totalCount) select.options[0].textContent = 'No available copies in this campus';
+                        select.value = '';
+                    } catch (error) { alertUser(error.message); }
+                    finally { loading = false; select.disabled = false; }
+                };
+                select.addEventListener('focus', () => { if (!loadedPage) loadCopies(); });
+                select.addEventListener('change', () => {
+                    if (select.value === '__more__') { select.value = ''; loadCopies(); }
+                });
                 cell.append(select); row.append(cell);
                 const actions = td(''), button = document.createElement('button');
                 button.type = 'button'; button.className = 'btn btn-success btn-sm'; button.textContent = 'Issue copy';

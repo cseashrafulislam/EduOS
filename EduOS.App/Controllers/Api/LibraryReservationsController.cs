@@ -49,6 +49,12 @@ public sealed class LibraryReservationsController : ControllerBase
         return Reply(await _service.CancelReservationAsync(id, request.RowVersion, ct));
     }
 
+    [HttpGet("{id:long}/eligible-copies")]
+    [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
+    public async Task<IActionResult> EligibleCopies(long id, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50, CancellationToken ct = default) =>
+        Reply(await _service.GetEligibleCopiesAsync(id, page, pageSize, ct));
+
     [HttpPost("{id:long}/fulfill")]
     [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
     public async Task<IActionResult> Fulfill(long id, [FromBody] FulfillReservationRequest request, CancellationToken ct)

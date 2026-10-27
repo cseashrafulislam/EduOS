@@ -110,6 +110,7 @@ public class ReturnBookRequestDto
 public class BookReservationDto
 {
     public long Id { get; set; }
+    public long? CampusId { get; set; }
     public Guid BookReference { get; set; }
     public string BookTitle { get; set; } = string.Empty;
     public Guid StudentReference { get; set; }
