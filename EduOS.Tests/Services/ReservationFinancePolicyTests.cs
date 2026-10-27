@@ -110,6 +110,47 @@ public sealed class ReservationFinancePolicyTests
         Assert.False(await new ReservationFinancePolicy(db).HasPostedActivityAsync(101, 10, 11));
     }
 
+
+    [Fact]
+    public async Task Legacy_soft_deleted_posted_invoice_and_payment_still_block_changes()
+    {
+        await using var db = Context(101);
+        db.StudentInvoices.Add(new StudentInvoice
+        {
+            TenantId = 101, StudentEnrollmentId = 11, ClientRequestId = Guid.NewGuid(),
+            InvoiceNumber = "LEGACY-POSTED", InvoiceDate = new DateOnly(2026, 10, 1),
+            DueDate = new DateOnly(2026, 10, 31), State = InvoiceState.Cancelled,
+            JournalId = 73, IsDeleted = true
+        });
+        db.StudentPayments.Add(new StudentPayment
+        {
+            TenantId = 101, StudentId = 20, ClientRequestId = Guid.NewGuid(),
+            ReceiptNumber = "LEGACY-RECEIPT", PaymentDate = new DateOnly(2026, 10, 2),
+            ReceivedByUserId = 7, Amount = 25m, State = PaymentState.Successful,
+            IsDeleted = true
+        });
+        await db.SaveChangesAsync();
+        var policy = new ReservationFinancePolicy(db);
+        Assert.True(await policy.HasPostedActivityAsync(101, 10, 11));
+        Assert.True(await policy.HasPostedActivityAsync(101, 20, 12));
+        Assert.False(await policy.HasPostedActivityAsync(101, 10, 12));
+    }
+
+    [Fact]
+    public async Task Soft_deleted_unposted_issued_invoice_does_not_recreate_a_billing_commitment()
+    {
+        await using var db = Context(101);
+        db.StudentInvoices.Add(new StudentInvoice
+        {
+            TenantId = 101, StudentEnrollmentId = 11, ClientRequestId = Guid.NewGuid(),
+            InvoiceNumber = "LEGACY-VOID", InvoiceDate = new DateOnly(2026, 10, 1),
+            DueDate = new DateOnly(2026, 10, 31), State = InvoiceState.Issued,
+            IsDeleted = true
+        });
+        await db.SaveChangesAsync();
+        Assert.False(await new ReservationFinancePolicy(db).HasPostedActivityAsync(101, 10, 11));
+    }
+
     private static EduOSDbContext Context(long tenant, DbContextOptions<EduOSDbContext>? options = null)
     {
         options ??= new DbContextOptionsBuilder<EduOSDbContext>()

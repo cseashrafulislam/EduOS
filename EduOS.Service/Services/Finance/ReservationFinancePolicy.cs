@@ -12,6 +12,8 @@ namespace EduOS.Service.Services.Finance;
 /// invoice text or silently change posted obligations. Issued-but-unposted
 /// invoices also block: they represent billing commitments that must be reconciled
 /// before a no-charge reservation date/term mutation.
+/// Tenant-filtered posting history must remain blocking even when a legacy
+/// import marked a previously posted invoice or receipt as soft-deleted.
 /// </summary>
 public sealed class ReservationFinancePolicy : IReservationFinancePolicy
 {
@@ -25,16 +27,16 @@ public sealed class ReservationFinancePolicy : IReservationFinancePolicy
         if (tenantId <= 0 || studentId <= 0 || studentEnrollmentId <= 0)
             return true;
 
-        if (await _db.StudentInvoices.AsNoTracking().AnyAsync(x =>
-                x.TenantId == tenantId && !x.IsDeleted &&
+        if (await _db.StudentInvoices.IgnoreQueryFilters().AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenantId &&
                 x.StudentEnrollmentId == studentEnrollmentId &&
-                (x.State == InvoiceState.Issued || x.JournalId.HasValue || x.PaidAmount > 0m ||
+                ((!x.IsDeleted && x.State == InvoiceState.Issued) || x.JournalId.HasValue || x.PaidAmount > 0m ||
                  x.State == InvoiceState.PartiallyPaid || x.State == InvoiceState.Paid ||
                  x.State == InvoiceState.Refunded), cancellationToken))
             return true;
 
-        return await _db.StudentPayments.AsNoTracking().AnyAsync(x =>
-            x.TenantId == tenantId && !x.IsDeleted && x.StudentId == studentId &&
+        return await _db.StudentPayments.IgnoreQueryFilters().AsNoTracking().AnyAsync(x =>
+            x.TenantId == tenantId && x.StudentId == studentId &&
             (x.JournalId.HasValue || x.State == PaymentState.Successful ||
              x.State == PaymentState.Refunded), cancellationToken);
     }

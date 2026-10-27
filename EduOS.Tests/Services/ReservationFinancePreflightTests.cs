@@ -260,6 +260,28 @@ public sealed class ReservationFinancePreflightTests
             Change = "occupied-transfer" })).StatusCode.Should().Be(400);
     }
 
+
+    [Fact]
+    public async Task Legacy_soft_deleted_posted_invoice_is_still_reported_as_blocking()
+    {
+        await using var db = Database();
+        var stay = await SeedHostel(db, 41, 7);
+        db.StudentInvoices.Add(new StudentInvoice
+        {
+            TenantId = 41, StudentEnrollmentId = stay.StudentEnrollmentId,
+            InvoiceNumber = "H-LEGACY", InvoiceDate = new DateOnly(2026, 10, 1),
+            DueDate = new DateOnly(2026, 10, 31), State = InvoiceState.Cancelled,
+            JournalId = 91, IsDeleted = true
+        });
+        await db.SaveChangesAsync();
+        var result = await new FinanceAdjustmentService(db, new TestUser(true), TimeProvider.System)
+            .GetReservationFinancePreflightAsync("hostel", stay.Id);
+        result.Success.Should().BeTrue();
+        result.Data!.HasPostedInvoiceActivity.Should().BeTrue();
+        result.Data.RequiresApprovedFinanceAdjustment.Should().BeTrue();
+        result.Data.FinancialMutationApproved.Should().BeFalse();
+    }
+
     private static async Task<StudentHostelAllocation> SeedHostel(EduOSDbContext db, long tenant, long hostelCampus)
     {
         var enrollment = new StudentEnrollment { TenantId = tenant, StudentId = 10, CampusId = 7, RollNo = "H-10" };

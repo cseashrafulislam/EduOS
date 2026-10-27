@@ -41,7 +41,7 @@ function render(data) {
         cell(tr, item.paidAmount);
         cell(tr, item.dueAmount);
         cell(tr, item.journalId);
-        cell(tr, item.hasPostedActivity ? 'Posted' :
+        cell(tr, item.hasPostedActivity ? (item.isHistoricalSoftDeleted ? 'Historical posted record (soft-deleted)' : 'Posted') :
             item.isUnpostedIssuedInvoice ? 'Issued, not posted' : 'No posting detected');
         rows.appendChild(tr);
     }

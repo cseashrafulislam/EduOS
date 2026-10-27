@@ -150,6 +150,34 @@ public sealed class ReservationFinanceWorklistTests
         result.Data.Reservations.Items.Single().RequiresFinanceReview.Should().BeFalse();
     }
 
+
+    [Fact]
+    public async Task Zero_fare_reservation_with_legacy_deleted_posting_stays_in_finance_review_queue()
+    {
+        await using var db = Database();
+        var enrollment = await Enrollment(db, 41, 10, 7);
+        db.StudentTransports.Add(new StudentTransport
+        {
+            TenantId = 41, StudentId = 10, StudentEnrollmentId = enrollment.Id,
+            RouteId = 1, VehicleId = 2, StartDate = new DateOnly(2026, 11, 1)
+        });
+        db.StudentPayments.Add(new StudentPayment
+        {
+            TenantId = 41, StudentId = 10, ReceiptNumber = "HISTORY-PAID",
+            PaymentDate = new DateOnly(2026, 10, 1), Amount = 40m,
+            State = PaymentState.Refunded, IsDeleted = true
+        });
+        await db.SaveChangesAsync();
+        var result = await new FinanceAdjustmentService(db, new User(true), TimeProvider.System)
+            .GetReservationFinanceWorklistAsync(new() { Kind = "transport" });
+        result.Success.Should().BeTrue();
+        result.Data!.Reservations.TotalCount.Should().Be(1);
+        var row = result.Data.Reservations.Items.Single();
+        row.HasPostedPaymentActivity.Should().BeTrue();
+        row.RequiresFinanceReview.Should().BeTrue();
+        row.FinancialMutationApproved.Should().BeFalse();
+    }
+
     private static async Task<StudentEnrollment> Enrollment(EduOSDbContext db,
         long tenant, long student, long campus)
     {

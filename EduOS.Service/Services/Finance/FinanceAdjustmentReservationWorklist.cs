@@ -92,13 +92,13 @@ public sealed partial class FinanceAdjustmentService
         if (request.OnlyReviewRequired)
             query = query.Where(x =>
                 x.MonthlyCharge != 0m || x.SecurityDeposit != 0m || x.HasFeeHead ||
-                db.StudentInvoices.AsNoTracking().Any(i => i.TenantId == tenant &&
-                    !i.IsDeleted && i.StudentEnrollmentId == x.StudentEnrollmentId &&
-                    (i.State == InvoiceState.Issued || i.JournalId.HasValue ||
+                db.StudentInvoices.IgnoreQueryFilters().AsNoTracking().Any(i => i.TenantId == tenant &&
+                    i.StudentEnrollmentId == x.StudentEnrollmentId &&
+                    ((!i.IsDeleted && i.State == InvoiceState.Issued) || i.JournalId.HasValue ||
                      i.PaidAmount > 0m || i.State == InvoiceState.PartiallyPaid ||
                      i.State == InvoiceState.Paid || i.State == InvoiceState.Refunded)) ||
-                db.StudentPayments.AsNoTracking().Any(p => p.TenantId == tenant &&
-                    !p.IsDeleted && p.StudentId == x.StudentId &&
+                db.StudentPayments.IgnoreQueryFilters().AsNoTracking().Any(p => p.TenantId == tenant &&
+                    p.StudentId == x.StudentId &&
                     (p.JournalId.HasValue || p.State == PaymentState.Successful ||
                      p.State == PaymentState.Refunded)));
 
@@ -108,8 +108,8 @@ public sealed partial class FinanceAdjustmentService
 
         var enrollmentIds = page.Select(x => x.StudentEnrollmentId).Distinct().ToArray();
         var studentIds = page.Select(x => x.StudentId).Distinct().ToArray();
-        var invoiceFlags = await db.StudentInvoices.AsNoTracking()
-            .Where(x => x.TenantId == tenant && !x.IsDeleted &&
+        var invoiceFlags = await db.StudentInvoices.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenant &&
                 enrollmentIds.Contains(x.StudentEnrollmentId))
             .GroupBy(x => x.StudentEnrollmentId)
             .Select(g => new
@@ -118,11 +118,11 @@ public sealed partial class FinanceAdjustmentService
                 Posted = g.Any(x => x.JournalId.HasValue || x.PaidAmount > 0m ||
                     x.State == InvoiceState.PartiallyPaid || x.State == InvoiceState.Paid ||
                     x.State == InvoiceState.Refunded),
-                Issued = g.Any(x => x.State == InvoiceState.Issued &&
+                Issued = g.Any(x => !x.IsDeleted && x.State == InvoiceState.Issued &&
                     !x.JournalId.HasValue && x.PaidAmount == 0m)
             }).ToListAsync(ct);
-        var paymentFlags = await db.StudentPayments.AsNoTracking()
-            .Where(x => x.TenantId == tenant && !x.IsDeleted &&
+        var paymentFlags = await db.StudentPayments.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenant &&
                 studentIds.Contains(x.StudentId))
             .GroupBy(x => x.StudentId)
             .Select(g => new

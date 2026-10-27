@@ -131,6 +131,42 @@ public sealed class ReservationFinanceEvidenceTests
             { Kind = "transport", ReservationId = ride.Id })).StatusCode.Should().Be(409);
     }
 
+
+    [Fact]
+    public async Task Historical_soft_deleted_postings_are_visible_but_unposted_tombstones_are_not()
+    {
+        await using var db = Database();
+        var stay = await SeedHostel(db);
+        db.StudentInvoices.AddRange(
+            new StudentInvoice { TenantId = 41, StudentEnrollmentId = stay.StudentEnrollmentId,
+                InvoiceNumber = "HISTORY-POST", InvoiceDate = new DateOnly(2026, 10, 1),
+                DueDate = new DateOnly(2026, 10, 31), State = InvoiceState.Cancelled,
+                JournalId = 55, IsDeleted = true },
+            new StudentInvoice { TenantId = 41, StudentEnrollmentId = stay.StudentEnrollmentId,
+                InvoiceNumber = "HISTORY-VOID", InvoiceDate = new DateOnly(2026, 10, 2),
+                DueDate = new DateOnly(2026, 10, 31), State = InvoiceState.Issued,
+                IsDeleted = true });
+        db.StudentPayments.Add(new StudentPayment { TenantId = 41, StudentId = stay.StudentId,
+            ReceiptNumber = "HISTORY-RECEIPT", PaymentDate = new DateOnly(2026, 10, 3),
+            State = PaymentState.Successful, Amount = 10m, IsDeleted = true });
+        await db.SaveChangesAsync();
+        var service = Service(db);
+        var invoices = await service.GetReservationFinanceEvidenceAsync(new()
+            { Kind = "hostel", ReservationId = stay.Id, Source = "invoice" });
+        invoices.Data!.Evidence.TotalCount.Should().Be(1);
+        var invoice = invoices.Data.Evidence.Items.Single();
+        invoice.Reference.Should().Be("HISTORY-POST");
+        invoice.HasPostedActivity.Should().BeTrue();
+        invoice.IsHistoricalSoftDeleted.Should().BeTrue();
+        invoice.IsUnpostedIssuedInvoice.Should().BeFalse();
+        var payments = await service.GetReservationFinanceEvidenceAsync(new()
+            { Kind = "hostel", ReservationId = stay.Id, Source = "payment" });
+        payments.Data!.Evidence.Items.Should().ContainSingle();
+        payments.Data.Evidence.Items[0].IsHistoricalSoftDeleted.Should().BeTrue();
+        payments.Data.Evidence.Items[0].HasPostedActivity.Should().BeTrue();
+        payments.Data.FinancialMutationApproved.Should().BeFalse();
+    }
+
     private static FinanceAdjustmentService Service(EduOSDbContext db, bool admin = true) =>
         new(db, new User(admin), TimeProvider.System);
 

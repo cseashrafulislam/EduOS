@@ -27,6 +27,7 @@ public sealed class ReservationFinanceEvidenceRowDto
     public decimal? DueAmount { get; set; }
     public long? JournalId { get; set; }
     public bool HasPostedActivity { get; set; }
+    public bool IsHistoricalSoftDeleted { get; set; }
     public bool IsUnpostedIssuedInvoice { get; set; }
 }
 
@@ -42,5 +43,6 @@ public sealed class ReservationFinanceEvidenceDto
     public bool FinancialMutationApproved { get; set; } = false;
     public string Notice { get; set; } =
         "Evidence is enrollment-wide for invoices and student-wide for payments. " +
+        "Legacy soft-deleted posted history is shown for reconciliation. " +
         "No invoice or payment is proven to originate from this reservation; this is not Finance approval.";
 }

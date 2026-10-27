@@ -50,3 +50,18 @@ The authorized `GET /api/finance/adjustments/reservations/evidence?kind=hostel|t
 ## Occupied Hostel transfer Finance proposal review (#45)
 
 `GET /api/finance/adjustments/reservations/hostel-transfer-review?reservationId=<id>&destinationBedId=<id>&effectiveDate=YYYY-MM-DD` is a TenantAdmin/FINANCE **read-only** review of an already-started, active canonical Hostel stay. It verifies the source through existing tenant/campus preflight, the destination bed/room/hostel tenant and campus, current effective-date bounds, absence of an existing successor, and an obvious active destination-bed overlap. A successful response is still **NOT** capacity certification, transfer approval, proration, deposit settlement or a mutation command. It reports the original monthly rent/deposit and enrollment/student-wide invoice/payment exposure without attributing charges to the stay. Operations must revalidate capacity, concurrency, lineage and Finance approval atomically before any occupied transfer can be enabled. No posted financial history may be rewritten.
+
+## Historical posting tombstones (Finance integrity)
+
+The Finance mutation gate, reservation preflight, review worklist and evidence
+readback examine tenant-filtered posting history even when a legacy import
+marked a financial record soft-deleted. Journal-linked, paid or refunded invoices,
+and successful/refunded receipts, must not cease blocking reservation changes
+merely because `IsDeleted` was set. Unposted soft-deleted issued invoices
+do not represent live billing commitments and are not resurrected.
+
+Evidence labels such posted historical records `isHistoricalSoftDeleted` for
+reconciliation. Only invoice/payment history bypasses global query filters,
+with an explicit tenant predicate. No approval, mutation, proration or GL
+posting is introduced. Ordinary transactional deletion remains prohibited by
+the shared DbContext; this protects historical anomalies.

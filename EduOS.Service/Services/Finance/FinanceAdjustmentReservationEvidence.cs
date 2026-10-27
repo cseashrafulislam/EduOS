@@ -38,43 +38,49 @@ public sealed partial class FinanceAdjustmentService
 
         if (source == "invoice")
         {
-            var query = db.StudentInvoices.AsNoTracking().Where(x =>
-                x.TenantId == tenant && !x.IsDeleted &&
-                x.StudentEnrollmentId == scope.StudentEnrollmentId);
+            var query = db.StudentInvoices.IgnoreQueryFilters().AsNoTracking().Where(x =>
+                x.TenantId == tenant && x.StudentEnrollmentId == scope.StudentEnrollmentId &&
+                (!x.IsDeleted || x.JournalId.HasValue || x.PaidAmount > 0m ||
+                 x.State == InvoiceState.PartiallyPaid || x.State == InvoiceState.Paid ||
+                 x.State == InvoiceState.Refunded));
             total = await query.CountAsync(ct);
             var page = await query.OrderByDescending(x => x.InvoiceDate).ThenByDescending(x => x.Id)
                 .Skip(offset).Take(request.PageSize)
                 .Select(x => new
                 {
                     x.Id, x.InvoiceNumber, x.InvoiceDate, x.State, x.TotalAmount,
-                    x.PaidAmount, x.DueAmount, x.JournalId
+                    x.PaidAmount, x.DueAmount, x.JournalId, x.IsDeleted
                 }).ToListAsync(ct);
             rows = page.Select(x => new ReservationFinanceEvidenceRowDto
             {
                 Id = x.Id, Reference = x.InvoiceNumber, ActivityDate = x.InvoiceDate,
                 State = x.State.ToString(), Amount = x.TotalAmount,
                 PaidAmount = x.PaidAmount, DueAmount = x.DueAmount, JournalId = x.JournalId,
+                IsHistoricalSoftDeleted = x.IsDeleted,
                 HasPostedActivity = x.JournalId.HasValue || x.PaidAmount > 0m ||
                     x.State is InvoiceState.PartiallyPaid or InvoiceState.Paid or InvoiceState.Refunded,
-                IsUnpostedIssuedInvoice = x.State == InvoiceState.Issued &&
+                IsUnpostedIssuedInvoice = !x.IsDeleted && x.State == InvoiceState.Issued &&
                     !x.JournalId.HasValue && x.PaidAmount == 0m
             }).ToList();
         }
         else
         {
-            var query = db.StudentPayments.AsNoTracking().Where(x =>
-                x.TenantId == tenant && !x.IsDeleted && x.StudentId == scope.StudentId);
+            var query = db.StudentPayments.IgnoreQueryFilters().AsNoTracking().Where(x =>
+                x.TenantId == tenant && x.StudentId == scope.StudentId &&
+                (!x.IsDeleted || x.JournalId.HasValue ||
+                 x.State == PaymentState.Successful || x.State == PaymentState.Refunded));
             total = await query.CountAsync(ct);
             var page = await query.OrderByDescending(x => x.PaymentDate).ThenByDescending(x => x.Id)
                 .Skip(offset).Take(request.PageSize)
                 .Select(x => new
                 {
-                    x.Id, x.ReceiptNumber, x.PaymentDate, x.State, x.Amount, x.JournalId
+                    x.Id, x.ReceiptNumber, x.PaymentDate, x.State, x.Amount, x.JournalId, x.IsDeleted
                 }).ToListAsync(ct);
             rows = page.Select(x => new ReservationFinanceEvidenceRowDto
             {
                 Id = x.Id, Reference = x.ReceiptNumber, ActivityDate = x.PaymentDate,
                 State = x.State.ToString(), Amount = x.Amount, JournalId = x.JournalId,
+                IsHistoricalSoftDeleted = x.IsDeleted,
                 HasPostedActivity = x.JournalId.HasValue ||
                     x.State is PaymentState.Successful or PaymentState.Refunded
             }).ToList();

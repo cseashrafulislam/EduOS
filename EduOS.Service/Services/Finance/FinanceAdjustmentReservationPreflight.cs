@@ -104,18 +104,18 @@ public sealed partial class FinanceAdjustmentService
 
         // No canonical reservation-to-invoice source FK exists. Conservatively include
         // ALL posted activity for the enrollment, and ALL successful student payments.
-        var postedInvoice = await db.StudentInvoices.AsNoTracking().AnyAsync(x =>
-            x.TenantId == tenant && !x.IsDeleted && x.StudentEnrollmentId == enrollmentId &&
+        var postedInvoice = await db.StudentInvoices.IgnoreQueryFilters().AsNoTracking().AnyAsync(x =>
+            x.TenantId == tenant && x.StudentEnrollmentId == enrollmentId &&
             (x.JournalId.HasValue || x.PaidAmount > 0m ||
              x.State == InvoiceState.PartiallyPaid || x.State == InvoiceState.Paid ||
              x.State == InvoiceState.Refunded), ct);
-        var postedPayment = await db.StudentPayments.AsNoTracking().AnyAsync(x =>
-            x.TenantId == tenant && !x.IsDeleted && x.StudentId == studentId &&
+        var postedPayment = await db.StudentPayments.IgnoreQueryFilters().AsNoTracking().AnyAsync(x =>
+            x.TenantId == tenant && x.StudentId == studentId &&
             (x.JournalId.HasValue || x.State == PaymentState.Successful ||
              x.State == PaymentState.Refunded), ct);
-        var issuedUnposted = await db.StudentInvoices.AsNoTracking().AnyAsync(x =>
-            x.TenantId == tenant && !x.IsDeleted && x.StudentEnrollmentId == enrollmentId &&
-            x.State == InvoiceState.Issued && !x.JournalId.HasValue && x.PaidAmount == 0m, ct);
+        var issuedUnposted = await db.StudentInvoices.IgnoreQueryFilters().AsNoTracking().AnyAsync(x =>
+            x.TenantId == tenant && x.StudentEnrollmentId == enrollmentId &&
+            !x.IsDeleted && x.State == InvoiceState.Issued && !x.JournalId.HasValue && x.PaidAmount == 0m, ct);
         var posted = postedInvoice || postedPayment;
         var charged = charge != 0m || deposit != 0m || hasFeeHead;
         var decision = posted
