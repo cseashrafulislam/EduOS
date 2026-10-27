@@ -1,6 +1,8 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Academic;
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Auth;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.HR;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
@@ -22,6 +24,8 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
     private readonly IGenericRepository<CurriculumSubject> _curriculumSubjects;
     private readonly IGenericRepository<Subject> _subjects;
     private readonly IGenericRepository<AcademicBatch> _academicBatches;
+    private readonly IGenericRepository<UserCampusAccess> _campusAccesses;
+    private readonly IGenericRepository<Campus> _campuses;
     private readonly IGenericRepository<Employee> _employees;
     private readonly IGenericRepository<AcademicYear> _years;
     private readonly IGenericRepository<AcademicTerm> _terms;
@@ -40,6 +44,8 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
         IGenericRepository<CurriculumSubject> curriculumSubjects,
         IGenericRepository<Subject> subjects,
         IGenericRepository<AcademicBatch> academicBatches,
+        IGenericRepository<UserCampusAccess> campusAccesses,
+        IGenericRepository<Campus> campuses,
         IGenericRepository<Employee> employees,
         IGenericRepository<AcademicYear> years,
         IGenericRepository<AcademicTerm> terms,
@@ -57,6 +63,8 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
         _curriculumSubjects = curriculumSubjects;
         _subjects = subjects;
         _academicBatches = academicBatches;
+        _campusAccesses = campusAccesses;
+        _campuses = campuses;
         _employees = employees;
         _years = years;
         _terms = terms;
@@ -77,6 +85,8 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
         if (!await _academicBatches.GetQueryable().AsNoTracking().AnyAsync(x =>
             x.TenantId == tenant && x.Id == academicBatchId && x.IsActive && !x.IsDeleted, ct))
             return Error<PagedResult<LessonOfferingOptionDto>>("Active academic batch not found.", 404);
+        if (IsRestrictedManager() && !await AllowedManagerBatchIds(tenant).AnyAsync(x => x == academicBatchId, ct))
+            return Denied<PagedResult<LessonOfferingOptionDto>>();
 
         var offerings = _subjectOfferings.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == tenant && x.AcademicBatchId == academicBatchId && x.IsActive && !x.IsDeleted);
@@ -151,6 +161,17 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
                 select routine.Id;
             q = q.Where(x => ids.Contains(x.RoutineEntryId));
         }
+        if (IsRestrictedManager())
+        {
+            var permittedRoutines =
+                from routine in _routineEntries.GetQueryable().AsNoTracking()
+                join offering in _subjectOfferings.GetQueryable().AsNoTracking()
+                    on routine.SubjectOfferingId equals offering.Id
+                where routine.TenantId == tenant && offering.TenantId == tenant &&
+                    AllowedManagerBatchIds(tenant).Contains(offering.AcademicBatchId)
+                select routine.Id;
+            q = q.Where(x => permittedRoutines.Contains(x.RoutineEntryId));
+        }
         var teacherId = !IsManager() ? await GetLinkedTeacherIdAsync(ct) : null;
         if (!IsManager() && !teacherId.HasValue) return Denied<PagedResult<SubstitutionDto>>();
         if (!IsManager())
@@ -218,6 +239,8 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
                 x.TenantId == tenant && x.ClientRequestId == request.ClientRequestId && !x.IsDeleted, ct);
             if (replay != null)
             {
+                if (IsRestrictedManager() && !await CanManageRoutineAsync(replay.RoutineEntryId, ct))
+                    return Denied<SubstitutionDto>();
                 if (replay.RoutineEntryId != request.RoutineEntryId || replay.Date != request.Date ||
                     replay.SubstituteEmployeeId != employee.Id || replay.Reason != Trim(request.Reason))
                     return Error<SubstitutionDto>("Request ID was used for different substitution details.", 409);
@@ -227,6 +250,8 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
             var routine = await _routineEntries.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Id == request.RoutineEntryId && x.IsActive && !x.IsDeleted, ct);
             if (routine == null) return Error<SubstitutionDto>("Active routine entry not found.", 404);
+            if (IsRestrictedManager() && !await CanManageOfferingAsync(routine.SubjectOfferingId, ct))
+                return Denied<SubstitutionDto>();
             if (routine.DayOfWeek != request.Date.DayOfWeek || routine.EffectiveFrom > request.Date ||
                 routine.EffectiveTo.HasValue && routine.EffectiveTo.Value < request.Date)
                 return Error<SubstitutionDto>("Substitution date is outside the routine schedule.", 409);
@@ -269,6 +294,8 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
             var row = await _substitutions.GetQueryable().FirstOrDefaultAsync(x =>
                 x.TenantId == _currentUser.TenantId && x.Id == id && !x.IsDeleted, ct);
             if (row == null) return Error<SubstitutionDto>("Substitution not found.", 404);
+            if (IsRestrictedManager() && !await CanManageRoutineAsync(row.RoutineEntryId, ct))
+                return Denied<SubstitutionDto>();
             if (!VersionsMatch(row.RowVersion, version)) return Stale<SubstitutionDto>();
             var instructor = await _employees.GetQueryable().AsNoTracking()
                 .Where(x => x.TenantId == _currentUser.TenantId && x.Id == row.SubstituteEmployeeId)
@@ -305,6 +332,14 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
             q = q.Where(x => ids.Contains(x.SubjectOfferingId));
         }
         if (fromDate.HasValue) q = q.Where(x => x.LessonDate >= fromDate.Value && x.LessonDate <= toDate!.Value);
+        if (IsRestrictedManager())
+        {
+            var allowedOfferingIds = _subjectOfferings.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenant &&
+                    AllowedManagerBatchIds(tenant).Contains(x.AcademicBatchId))
+                .Select(x => x.Id);
+            q = q.Where(x => allowedOfferingIds.Contains(x.SubjectOfferingId));
+        }
         if (!IsManager())
         {
             var teacherId = await GetLinkedTeacherIdAsync(ct);
@@ -337,6 +372,8 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
                 x.TenantId == tenant && x.PublicId == request.SubjectOfferingReference &&
                 x.IsActive && !x.IsDeleted, ct);
             if (offering == null) return Error<LessonPlanDto>("Subject offering not found.", 404);
+            if (IsRestrictedManager() && !await CanManageOfferingAsync(offering.Id, ct))
+                return Denied<LessonPlanDto>();
             var dateError = await ValidateAcademicDateAsync(offering.AcademicYearId, offering.AcademicTermId,
                 request.LessonDate, request.LessonDate, ct);
             if (dateError != null) return Error<LessonPlanDto>(dateError, 409);
@@ -393,6 +430,8 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
                 x.TenantId == _currentUser.TenantId && x.Id == id && !x.IsDeleted, ct);
             if (row == null || !await OwnsTeacherAsync(row.EmployeeId, ct))
                 return Error<LessonPlanDto>("Lesson plan not found.", 404);
+            if (IsRestrictedManager() && !await CanManageOfferingAsync(row.SubjectOfferingId, ct))
+                return Denied<LessonPlanDto>();
             if (!VersionsMatch(row.RowVersion, version)) return Stale<LessonPlanDto>();
             if (row.State is not (LessonPlanState.Draft or LessonPlanState.Rejected))
                 return Error<LessonPlanDto>("Only draft or rejected lesson plans may be edited.", 409);
@@ -432,6 +471,8 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
                 x.TenantId == _currentUser.TenantId && x.Id == id && !x.IsDeleted, ct);
             if (row == null || !await OwnsTeacherAsync(row.EmployeeId, ct))
                 return Error<LessonPlanDto>("Lesson plan not found.", 404);
+            if (IsRestrictedManager() && !await CanManageOfferingAsync(row.SubjectOfferingId, ct))
+                return Denied<LessonPlanDto>();
             if (!VersionsMatch(row.RowVersion, expected)) return Stale<LessonPlanDto>();
             if (row.State is not (LessonPlanState.Draft or LessonPlanState.Rejected))
                 return Error<LessonPlanDto>("Only draft or rejected plans can be submitted.", 409);
@@ -455,6 +496,8 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
             var row = await _lessonPlans.GetQueryable().FirstOrDefaultAsync(x =>
                 x.TenantId == _currentUser.TenantId && x.Id == id && !x.IsDeleted, ct);
             if (row == null) return Error<LessonPlanDto>("Lesson plan not found.", 404);
+            if (IsRestrictedManager() && !await CanManageOfferingAsync(row.SubjectOfferingId, ct))
+                return Denied<LessonPlanDto>();
             if (!VersionsMatch(row.RowVersion, version)) return Stale<LessonPlanDto>();
             if (row.State != LessonPlanState.Submitted)
                 return Error<LessonPlanDto>("Only submitted lesson plans can be reviewed.", 409);
@@ -694,6 +737,41 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
                                       x.AcademicYearId == academicYearId && x.IsActive, cancellationToken);
         if (term == null) return "Academic term not found in this academic year.";
         return start < term.StartDate || end > term.EndDate ? "Date range is outside the academic term." : null;
+    }
+
+    // Principal and VicePrincipal permissions are constrained by explicit active campus grants.
+    private bool IsRestrictedManager() => IsManager() && !_currentUser.IsTenantAdmin;
+
+    private IQueryable<long> AllowedManagerCampusIds(long tenant) =>
+        from access in _campusAccesses.GetQueryable().AsNoTracking()
+        join campus in _campuses.GetQueryable().AsNoTracking() on access.CampusId equals campus.Id
+        where access.TenantId == tenant && campus.TenantId == tenant &&
+            access.UserId == _currentUser.UserId && access.IsActive && !access.IsDeleted &&
+            campus.IsActive && !campus.IsDeleted
+        select campus.Id;
+
+    private IQueryable<long> AllowedManagerBatchIds(long tenant) =>
+        _academicBatches.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && !x.IsDeleted &&
+                AllowedManagerCampusIds(tenant).Contains(x.CampusId))
+            .Select(x => x.Id);
+
+    private Task<bool> CanManageOfferingAsync(long offeringId, CancellationToken ct)
+    {
+        if (!IsRestrictedManager()) return Task.FromResult(true);
+        var tenant = _currentUser.TenantId;
+        return _subjectOfferings.GetQueryable().AsNoTracking()
+            .AnyAsync(x => x.TenantId == tenant && x.Id == offeringId && !x.IsDeleted &&
+                AllowedManagerBatchIds(tenant).Contains(x.AcademicBatchId), ct);
+    }
+
+    private async Task<bool> CanManageRoutineAsync(long routineId, CancellationToken ct)
+    {
+        if (!IsRestrictedManager()) return true;
+        var offeringId = await _routineEntries.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == _currentUser.TenantId && x.Id == routineId && !x.IsDeleted)
+            .Select(x => (long?)x.SubjectOfferingId).FirstOrDefaultAsync(ct);
+        return offeringId.HasValue && await CanManageOfferingAsync(offeringId.Value, ct);
     }
 
     private async Task<bool> OwnsTeacherAsync(long employeeId, CancellationToken cancellationToken)

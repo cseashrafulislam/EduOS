@@ -1,5 +1,7 @@
 using EduOS.Core.DTOs.Academic;
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Auth;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.HR;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
@@ -449,6 +451,78 @@ public sealed class AcademicInstructionServiceTests
         }
     }
 
+    [Fact]
+    public async Task Principal_is_limited_to_explicit_active_campus_grants()
+    {
+        var options = Options();
+        var seed = await SeedAsync(options);
+        await using var db = Context(options, 101, 9, "Principal");
+        var otherCampus = new Campus { TenantId = 101, Name = "Other", Code = "OTHER" };
+        db.Campuses.Add(otherCampus);
+        await db.SaveChangesAsync();
+        db.UserCampusAccesses.Add(new UserCampusAccess
+        {
+            TenantId = 101, UserId = 9, CampusId = otherCampus.Id, IsActive = true
+        });
+        await db.SaveChangesAsync();
+        var admin = Service(db, 101, 7, "TenantAdmin");
+        var lesson = await admin.CreateLessonPlanAsync(Lesson(seed.OfferingReference));
+        lesson.StatusCode.Should().Be(201);
+        var substitution = await admin.CreateSubstitutionAsync(new CreateSubstitutionRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), RoutineEntryId = seed.RoutineEntryId,
+            Date = LessonDate, SubstituteEmployeeReference = seed.SubstituteReference
+        });
+        substitution.StatusCode.Should().Be(201);
+        var principal = Service(db, 101, 9, "Principal");
+        (await principal.GetLessonOfferingChoicesAsync(seed.BatchId, null, 1, 20)).StatusCode.Should().Be(403);
+        (await principal.GetLessonPlansAsync(null, null, null, 1, 20)).Data!.TotalCount.Should().Be(0);
+        (await principal.GetSubstitutionsPageAsync(LessonDate, LessonDate, null, 1, 20)).Data!.TotalCount.Should().Be(0);
+        (await principal.CreateLessonPlanAsync(Lesson(seed.OfferingReference))).StatusCode.Should().Be(403);
+        (await principal.CreateSubstitutionAsync(new CreateSubstitutionRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), RoutineEntryId = seed.RoutineEntryId,
+            Date = LessonDate, SubstituteEmployeeReference = seed.SubstituteReference
+        })).StatusCode.Should().Be(403);
+        (await principal.ReviewLessonPlanAsync(lesson.Data!.Id, new ReviewLessonPlanRequestDto
+        {
+            Approve = true, RowVersion = Convert.ToBase64String(new byte[] { 1, 2, 3, 4 })
+        })).StatusCode.Should().Be(403);
+        (await principal.CancelSubstitutionAsync(substitution.Data!.Id,
+            new CancelSubstitutionRequestDto
+            {
+                RowVersion = Convert.ToBase64String(new byte[] { 1, 2, 3, 4 })
+            })).StatusCode.Should().Be(403);
+        var campusId = await db.AcademicBatches.Where(x => x.Id == seed.BatchId)
+            .Select(x => x.CampusId).SingleAsync();
+        db.UserCampusAccesses.Add(new UserCampusAccess
+        {
+            TenantId = 101, UserId = 9, CampusId = campusId, IsActive = true
+        });
+        await db.SaveChangesAsync();
+        (await principal.GetLessonOfferingChoicesAsync(seed.BatchId, null, 1, 20)).Success.Should().BeTrue();
+        (await principal.GetLessonPlansAsync(null, null, null, 1, 20)).Data!.TotalCount.Should().Be(1);
+        (await principal.GetSubstitutionsPageAsync(LessonDate, LessonDate, null, 1, 20)).Data!.TotalCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Inactive_grant_does_not_authorize_vice_principal()
+    {
+        var options = Options();
+        var seed = await SeedAsync(options);
+        await using var db = Context(options, 101, 10, "VicePrincipal");
+        var campusId = await db.AcademicBatches.Where(x => x.Id == seed.BatchId)
+            .Select(x => x.CampusId).SingleAsync();
+        db.UserCampusAccesses.Add(new UserCampusAccess
+        {
+            TenantId = 101, UserId = 10, CampusId = campusId, IsActive = false
+        });
+        await db.SaveChangesAsync();
+        var manager = Service(db, 101, 10, "VicePrincipal");
+        (await manager.GetLessonOfferingChoicesAsync(seed.BatchId, null, 1, 20)).StatusCode.Should().Be(403);
+        (await manager.GetLessonPlansAsync(null, null, null, 1, 20)).Data!.TotalCount.Should().Be(0);
+    }
+
     private static AcademicInstructionService Service(EduOSDbContext db, long tenant, long user, string role, TimeProvider? clock = null) => new(
         new GenericRepository<Substitution>(db),
         new GenericRepository<LessonPlan>(db),
@@ -459,6 +533,8 @@ public sealed class AcademicInstructionServiceTests
         new GenericRepository<CurriculumSubject>(db),
         new GenericRepository<Subject>(db),
         new GenericRepository<AcademicBatch>(db),
+        new GenericRepository<UserCampusAccess>(db),
+        new GenericRepository<Campus>(db),
         new GenericRepository<Employee>(db),
         new GenericRepository<AcademicYear>(db),
         new GenericRepository<AcademicTerm>(db),
