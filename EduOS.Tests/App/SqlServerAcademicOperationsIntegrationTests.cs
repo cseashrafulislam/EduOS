@@ -431,6 +431,46 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
         Assert.All(await db.StudentAttendances.AsNoTracking()
             .Where(x => x.AttendanceSessionId == newSession.Data.AttendanceSessionId).ToListAsync(),
             row => Assert.Equal(AttendanceState.Present, row.State));
+
+        // Competing finalizers must not double-finalize, and a lost-response replay
+        // must remain idempotent even when its original rowversion is stale.
+        var draftSession = await db.AttendanceSessions.AsNoTracking()
+            .SingleAsync(x => x.Id == newSession.Data.AttendanceSessionId);
+        var finalizeVersion = Convert.ToBase64String(draftSession.RowVersion);
+        await using (var firstDb = TenantDb(options, tenantId))
+        await using (var secondDb = TenantDb(options, tenantId))
+        {
+            var firstFinalizer = AttendanceService(firstDb, new Actor(tenantId, managerId, "TenantAdmin"));
+            var secondFinalizer = AttendanceService(secondDb, new Actor(tenantId, managerId, "TenantAdmin"));
+            var results = await Task.WhenAll(
+                firstFinalizer.FinalizeSessionAsync(draftSession.Id, finalizeVersion),
+                secondFinalizer.FinalizeSessionAsync(draftSession.Id, finalizeVersion));
+            Assert.Contains(results, x => x.Success);
+            Assert.All(results, x => Assert.True(x.Success || x.StatusCode == 409,
+                $"Unexpected concurrent finalization response: {x.StatusCode} {x.Message}"));
+        }
+        db.ChangeTracker.Clear();
+        var finalizedOnce = await db.AttendanceSessions.AsNoTracking()
+            .SingleAsync(x => x.Id == draftSession.Id);
+        Assert.True(finalizedOnce.IsFinalized);
+        Assert.Equal(managerId, finalizedOnce.FinalizedByUserId);
+        var finalizationReplay = await attendance.FinalizeSessionAsync(draftSession.Id, finalizeVersion);
+        Assert.True(finalizationReplay.Success, finalizationReplay.Message);
+        Assert.True(finalizationReplay.Data!.IsFinalized);
+        Assert.Equal(409, (await attendance.SaveAsync(new SaveAttendanceRegisterRequestDto
+        {
+            AttendanceSessionId = draftSession.Id, SessionRowVersion = finalizeVersion,
+            Students =
+            [
+                new SaveStudentAttendanceRequestDto
+                {
+                    StudentEnrollmentReference = enrollmentReference, State = AttendanceState.Absent,
+                    RowVersion = Convert.ToBase64String(firstMark.RowVersion)
+                }
+            ]
+        })).StatusCode);
+        Assert.Equal(2, await db.StudentAttendances.AsNoTracking()
+            .CountAsync(x => x.AttendanceSessionId == draftSession.Id));
     }
 
     private static EduOSDbContext TenantDb(DbContextOptions<EduOSDbContext> options, long tenantId)
