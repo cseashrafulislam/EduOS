@@ -21,6 +21,15 @@ public sealed class FeeReceivablesAgingController : ControllerBase
     private readonly IFeeReceivablesAgingService _service;
     public FeeReceivablesAgingController(IFeeReceivablesAgingService implementation) => _service = implementation;
 
+    [HttpGet("payment-reconciliation")]
+    public async Task<IActionResult> PaymentReconciliation([FromQuery] long? campusId,
+        [FromQuery] string? search, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25, CancellationToken ct = default)
+    {
+        var result = await _service.GetPaymentReconciliationAsync(campusId, search, page, pageSize, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet("reconciliation")]
     public async Task<IActionResult> Reconciliation([FromQuery] long? campusId,
         [FromQuery] string? search, [FromQuery] int page = 1,
