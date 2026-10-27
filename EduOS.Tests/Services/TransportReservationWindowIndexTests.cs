@@ -55,6 +55,48 @@ public sealed class TransportReservationWindowIndexTests
     }
 
     [Fact]
+    public async Task Sql_server_normalized_identity_indexes_use_legal_base_column_filters()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
+        await using var db = new EduOSDbContext(options);
+
+        // SQL Server permits a persisted computed column as an index key, but
+        // rejects a filtered index whose filter references a computed column.
+        // Inspect the deployed schema, not just EF metadata or migration source.
+        var count = await db.Database.SqlQueryRaw<int>(@"
+SELECT COUNT(*) AS [Value]
+FROM sys.indexes AS i
+JOIN sys.computed_columns AS c ON c.object_id = i.object_id
+WHERE i.is_unique = 1 AND i.has_filter = 1 AND c.is_persisted = 1
+  AND EXISTS (
+      SELECT 1 FROM sys.index_columns AS ic
+      WHERE ic.object_id = i.object_id AND ic.index_id = i.index_id
+        AND ic.column_id = c.column_id AND ic.key_ordinal > 0
+  )
+  AND NOT EXISTS (
+      SELECT 1 FROM sys.computed_columns AS other
+      WHERE other.object_id = i.object_id
+        AND CHARINDEX(N'[' + other.name + N']', i.filter_definition) > 0
+  )
+  AND (
+      (i.object_id = OBJECT_ID(N'dbo.Vehicles')
+       AND i.name = N'IX_Vehicles_TenantId_NormalizedVehicleNumber'
+       AND c.name = N'NormalizedVehicleNumber'
+       AND CHARINDEX(N'[IsDeleted]', i.filter_definition) > 0)
+      OR
+      (i.object_id = OBJECT_ID(N'dbo.TransportDrivers')
+       AND i.name = N'IX_TransportDrivers_TenantId_NormalizedLicenseNumber'
+       AND c.name = N'NormalizedLicenseNumber'
+       AND CHARINDEX(N'[LicenseNumber]', i.filter_definition) > 0
+       AND CHARINDEX(N'[IsDeleted]', i.filter_definition) > 0)
+  )").SingleAsync();
+
+        Assert.Equal(2, count);
+    }
+
+    [Fact]
     public async Task Sql_server_migration_installs_all_five_filtered_window_indexes()
     {
         var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");

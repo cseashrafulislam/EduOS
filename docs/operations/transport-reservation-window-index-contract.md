@@ -34,6 +34,22 @@ and
 
 Use distinct operation scopes (e.g. `transport.route-vehicle-change`, `transport.upcoming-driver-change`, `transport.rider-extend-upcoming`) and SHA-256 of a canonical full request including original row versions. This migration does **not** wire receipt replay into Operations commands; exact-state retries are not equivalent to durable request-key idempotency.
 
+## SQL Server computed-column index legality (#36/#37)
+
+The deployed normalized vehicle and driver identity indexes use persisted computed
+columns as **index keys**, not in their filtered predicates. The vehicle filter
+uses the ordinary `IsDeleted` column; the driver filter uses ordinary
+`LicenseNumber` and `IsDeleted` columns. An index filter referencing
+`NormalizedLicenseNumber` or `NormalizedVehicleNumber` would fail SQL Server
+DDL even though those computed columns are persisted.
+
+`TransportReservationWindowIndexTests.Sql_server_normalized_identity_indexes_use_legal_base_column_filters`
+now checks the **deployed SQL Server catalog**: both unique filtered indexes
+exist, their normalized key columns are persisted and indexed, and neither
+predicate references any computed column. The existing SQL migration smoke
+already executes this test class. This is an index-regression guard, not
+proof of scheduled-driver service behavior or a change to historical data.
+
 ## Verification / remaining acceptance
 
 Platform test `TransportReservationWindowIndexTests` asserts EF model metadata and, when `EDUOS_SQL_AUTH_TEST_CONNECTION` is set, checks five SQL Server indexes after migration. Existing `SqlServerTransportIdentityIntegrationTests` covers real rowversion, normalized uniqueness, filtered current links and concurrent request-key uniqueness. Remaining: two-DbContext competing **service command** races for vehicle capacity/deactivation, overlapping route/driver scheduling, rider extension and durable request replay; Operations owns these command tests and integration. Finance owns paid-period billing and #45 transfer charges. Do not mark Issues #36/#37/#50/#51 fully closed from this persistence-only change.
