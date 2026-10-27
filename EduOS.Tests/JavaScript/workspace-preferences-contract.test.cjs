@@ -38,3 +38,25 @@ test('shell applies only whitelisted server preferences without cross-tenant bro
     assert.match(css, /data-workspace-navigation="top"/);
     assert.match(css, /data-workspace-theme="dark"/);
 });
+
+test('dashboard panel arrangement stays private, allowlisted and never hides mandatory content', () => {
+    const service = read('EduOS.Service/Services/Tenants/WorkspacePreferencesService.cs');
+    const dto = read('EduOS.Core/DTOs/SaaS/WorkspacePreferencesDtos.cs');
+    const view = read('EduOS.App/Views/Dashboard/Index.cshtml');
+    const appearance = read('EduOS.App/Views/WorkspacePreferences/Index.cshtml');
+    const script = read('EduOS.App/wwwroot/js/platform/dashboard-panel-preferences.js');
+    const shell = read('EduOS.App/wwwroot/js/site.js');
+    assert.match(service, /ValidPanels\(request\.DashboardPanels\)/);
+    assert.match(service, /Distinct\(StringComparer\.Ordinal\)/);
+    assert.match(dto, /DashboardPanelPreferenceDto/);
+    assert.match(appearance, /workspaceDashboardPanels/);
+    assert.match(view, /data-dashboard-panels/);
+    assert.match(view, /data-dashboard-panel="capacity"/);
+    assert.match(view, /data-dashboard-panel="quick-actions"/);
+    assert.match(view, /data-dashboard-panel="setup-checklist"/);
+    assert.match(view, /dashboard-account-status/);
+    assert.match(view, /dashboard-panel-preferences\.js/);
+    assert.match(script, /eduos:workspace-preferences/);
+    assert.match(shell, /EduOSWorkspacePreferences/);
+    assert.doesNotMatch(script, /localStorage|sessionStorage|innerHTML/);
+});

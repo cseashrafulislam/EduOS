@@ -9,6 +9,7 @@ public sealed class WorkspacePreferencesDto
     public string Navigation { get; set; } = "left";
     public string Density { get; set; } = "comfortable";
     public string FontScale { get; set; } = "normal";
+    public List<DashboardPanelPreferenceDto> DashboardPanels { get; set; } = DashboardPanelPreferenceDto.Defaults();
     public string RowVersion { get; set; } = string.Empty;
 }
 
@@ -20,7 +21,21 @@ public sealed class SaveWorkspacePreferencesRequestDto
     public string Navigation { get; set; } = "left";
     public string Density { get; set; } = "comfortable";
     public string FontScale { get; set; } = "normal";
+    public List<DashboardPanelPreferenceDto> DashboardPanels { get; set; } = DashboardPanelPreferenceDto.Defaults();
     public string? RowVersion { get; set; }
+}
+
+public sealed class DashboardPanelPreferenceDto
+{
+    public string Id { get; set; } = string.Empty;
+    public bool Visible { get; set; } = true;
+
+    public static List<DashboardPanelPreferenceDto> Defaults() =>
+    [
+        new() { Id = "capacity" },
+        new() { Id = "quick-actions" },
+        new() { Id = "setup-checklist" }
+    ];
 }
 
 public sealed class ResetWorkspacePreferencesRequestDto

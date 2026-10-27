@@ -3,7 +3,35 @@
     const form = document.getElementById('workspacePreferencesForm');
     if (!form) return;
     const fields = ['theme', 'palette', 'navigation', 'density', 'fontScale'];
-    const defaults = { theme: 'system', palette: 'blue', navigation: 'left', density: 'comfortable', fontScale: 'normal' };
+    const panelIds = ['capacity', 'quick-actions', 'setup-checklist'];
+    const panelList = document.getElementById('workspaceDashboardPanels');
+    const defaultPanels = () => panelIds.map(id => ({ id, visible: true }));
+    const defaults = { theme: 'system', palette: 'blue', navigation: 'left', density: 'comfortable', fontScale: 'normal', dashboardPanels: defaultPanels() };
+    function validPanels(panels) {
+        return Array.isArray(panels) && panels.length === panelIds.length
+            && panels.every(p => p && panelIds.includes(p.id) && typeof p.visible === 'boolean')
+            && new Set(panels.map(p => p.id)).size === panelIds.length;
+    }
+    function panelRows() { return [...panelList.querySelectorAll('[data-panel-row]')]; }
+    function readPanels() {
+        return panelRows().map(row => ({ id: row.dataset.panelRow, visible: row.querySelector('input[type="checkbox"]').checked }));
+    }
+    function updateMoveButtons() {
+        panelRows().forEach((row, index) => {
+            row.querySelector('[data-panel-move="up"]').disabled = busy || index === 0;
+            row.querySelector('[data-panel-move="down"]').disabled = busy || index === panelIds.length - 1;
+        });
+    }
+    function fillPanels(panels) {
+        const safe = validPanels(panels) ? panels : defaultPanels();
+        const byId = new Map(panelRows().map(row => [row.dataset.panelRow, row]));
+        safe.forEach(panel => {
+            const row = byId.get(panel.id);
+            row.querySelector('input[type="checkbox"]').checked = panel.visible;
+            panelList.appendChild(row);
+        });
+        updateMoveButtons();
+    }
     const status = document.getElementById('workspaceStatus');
     const save = document.getElementById('workspaceSave');
     const reset = document.getElementById('workspaceReset');
@@ -22,9 +50,10 @@
             const candidate = preferences?.[name] ?? defaults[name];
             select.value = [...select.options].some(option => option.value === candidate) ? candidate : defaults[name];
         });
+        fillPanels(preferences?.dashboardPanels);
     }
     function values() {
-        return Object.fromEntries(fields.map(name => [name, form.elements.namedItem(name).value]));
+        return { ...Object.fromEntries(fields.map(name => [name, form.elements.namedItem(name).value])), dashboardPanels: readPanels() };
     }
     function preview() {
         window.EduOSApplyWorkspacePreferences?.(values());
@@ -34,6 +63,8 @@
         save.disabled = value;
         reset.disabled = value;
         fields.forEach(name => { form.elements.namedItem(name).disabled = value; });
+        panelRows().forEach(row => { row.querySelector('input[type="checkbox"]').disabled = value; });
+        updateMoveButtons();
     }
     async function request(url, method, payload) {
         const response = await fetch(url, {
@@ -84,6 +115,19 @@
         } finally { setBusy(false); }
     }
     form.addEventListener('change', preview);
+    panelList.addEventListener('click', event => {
+        const button = event.target.closest('[data-panel-move]');
+        if (!button || busy) return;
+        const row = button.closest('[data-panel-row]');
+        const rows = panelRows();
+        const index = rows.indexOf(row);
+        if (button.dataset.panelMove === 'up' && index > 0)
+            panelList.insertBefore(row, rows[index - 1]);
+        else if (button.dataset.panelMove === 'down' && index < rows.length - 1)
+            panelList.insertBefore(rows[index + 1], row);
+        updateMoveButtons();
+        button.focus();
+    });
     form.addEventListener('submit', event => {
         event.preventDefault();
         commit('/api/workspace-preferences', { schemaVersion: 1, ...values(), rowVersion });

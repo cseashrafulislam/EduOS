@@ -3321,3 +3321,16 @@ select,
 }
 .page-context-help-popover strong { display: block; margin-bottom: .35rem; }
 .page-context-help-popover p { margin: 0; }
+
+/* Private dashboard panel arrangement; account status, alerts and overview are never optional. */
+.dashboard-account-status { margin-top: 1rem; }
+.dashboard-custom-panels {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: 1rem;
+}
+.dashboard-custom-panels > .setup-checklist-panel { grid-column: 1 / -1; }
+.dashboard-custom-panels > [hidden] { display: none !important; }
+@media (max-width: 991.98px) {
+    .dashboard-custom-panels { grid-template-columns: minmax(0, 1fr); }
+    .dashboard-custom-panels > .setup-checklist-panel { grid-column: auto; }
+}

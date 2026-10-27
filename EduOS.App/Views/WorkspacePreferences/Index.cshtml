@@ -41,7 +41,28 @@
                             <option value="large">@(bn ? "বড়" : "Large")</option>
                         </select></div>
                 </div>
-                <p class="small text-muted mt-3">@(bn ? "পরিবর্তন করলে আগে প্রিভিউ দেখাবে; সংরক্ষণ করলে অন্য ডিভাইসেও কার্যকর হবে।" : "Changes preview immediately. Save to use the same design on another device.")</p>
+                <fieldset class="mt-4" aria-labelledby="workspacePanelsTitle">
+                    <legend class="fs-6 fw-bold mb-2" id="workspacePanelsTitle">@(bn ? "ড্যাশবোর্ড প্যানেল" : "Dashboard panels")</legend>
+                    <div class="list-group" id="workspaceDashboardPanels">
+                        @foreach (var panel in new[] {
+                            (Id: "capacity", En: "Capacity usage", Bn: "ব্যবহারের সীমা"),
+                            (Id: "quick-actions", En: "Quick actions", Bn: "দ্রুত কাজ"),
+                            (Id: "setup-checklist", En: "Setup checklist", Bn: "সেটআপ তালিকা")
+                        })
+                        {
+                            <div class="list-group-item d-flex flex-wrap align-items-center gap-2" data-panel-row="@panel.Id">
+                                <label class="form-check flex-grow-1 mb-0">
+                                    <input type="checkbox" class="form-check-input me-2" checked />
+                                    <span class="form-check-label">@(bn ? panel.Bn : panel.En)</span>
+                                </label>
+                                <div class="btn-group btn-group-sm" role="group" aria-label="@(bn ? panel.Bn : panel.En)">
+                                    <button type="button" class="btn btn-outline-secondary" data-panel-move="up" aria-label="@(bn ? panel.Bn + " উপরে" : "Move " + panel.En + " up")">↑</button>
+                                    <button type="button" class="btn btn-outline-secondary" data-panel-move="down" aria-label="@(bn ? panel.Bn + " নিচে" : "Move " + panel.En + " down")">↓</button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </fieldset>
                 <div class="d-flex flex-wrap gap-2 mt-3">
                     <button class="btn btn-primary" type="submit" id="workspaceSave">@(bn ? "ডিজাইন সংরক্ষণ" : "Save appearance")</button>
                     <button class="btn btn-outline-secondary" type="button" id="workspaceReset">@(bn ? "ডিফল্টে ফিরুন" : "Reset to defaults")</button>

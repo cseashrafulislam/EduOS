@@ -126,6 +126,14 @@
         density: new Set(['comfortable', 'compact']),
         fontScale: new Set(['normal', 'large'])
     };
+    const dashboardPanelIds = ['capacity', 'quick-actions', 'setup-checklist'];
+    function safeDashboardPanels(panels) {
+        if (!Array.isArray(panels) || panels.length !== 3
+            || !panels.every(p => p && dashboardPanelIds.includes(p.id) && typeof p.visible === 'boolean')
+            || new Set(panels.map(p => p.id)).size !== 3)
+            return dashboardPanelIds.map(id => ({ id, visible: true }));
+        return panels.map(p => ({ id: p.id, visible: p.visible }));
+    }
     window.EduOSApplyWorkspacePreferences = preferences => {
         const html = document.documentElement;
         for (const [name, allowed] of Object.entries(workspaceChoices)) {
@@ -134,6 +142,10 @@
             const attr = name === 'fontScale' ? 'workspaceFontScale' : 'workspace' + name[0].toUpperCase() + name.slice(1);
             html.dataset[attr] = safe;
         }
+        // Ephemeral page-only state: never persist or share across institution sessions.
+        const detail = { dashboardPanels: safeDashboardPanels(preferences?.dashboardPanels) };
+        window.EduOSWorkspacePreferences = detail;
+        window.dispatchEvent(new CustomEvent('eduos:workspace-preferences', { detail }));
     };
     if (document.body.dataset.workspacePreferences === 'enabled') {
         fetch('/api/workspace-preferences', { credentials: 'same-origin', cache: 'no-store' })

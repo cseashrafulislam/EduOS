@@ -80,7 +80,11 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
                 Palette = request.Palette == "blue" ? null : request.Palette,
                 Navigation = request.Navigation == "left" ? null : request.Navigation,
                 Density = request.Density == "comfortable" ? null : request.Density,
-                FontScale = request.FontScale == "normal" ? null : request.FontScale
+                FontScale = request.FontScale == "normal" ? null : request.FontScale,
+                DashboardPanels = request.DashboardPanels.Select(x => new DashboardPanelPreferenceDto
+                {
+                    Id = x.Id, Visible = x.Visible
+                }).ToList()
             };
             if (row == null)
             {
@@ -142,7 +146,12 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
         IsOneOf(request.Navigation, "left", "right", "top") &&
         IsOneOf(request.Density, "comfortable", "compact") &&
         IsOneOf(request.FontScale, "normal", "large") &&
-        (request.RowVersion?.Length ?? 0) <= 100;
+        (request.RowVersion?.Length ?? 0) <= 100 && ValidPanels(request.DashboardPanels);
+
+    private static bool ValidPanels(List<DashboardPanelPreferenceDto>? panels) =>
+        panels is { Count: 3 } &&
+        panels.All(x => x != null && x.Id is "capacity" or "quick-actions" or "setup-checklist") &&
+        panels.Select(x => x.Id).Distinct(StringComparer.Ordinal).Count() == 3;
 
     private static bool IsOneOf(string? value, params string[] allowed) =>
         value != null && allowed.Contains(value, StringComparer.Ordinal);
@@ -169,6 +178,11 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
             result.Navigation = IsOneOf(stored.Navigation, "right", "top") ? stored.Navigation! : "left";
             result.Density = stored.Density == "compact" ? "compact" : "comfortable";
             result.FontScale = stored.FontScale == "large" ? "large" : "normal";
+            if (ValidPanels(stored.DashboardPanels))
+                result.DashboardPanels = stored.DashboardPanels!.Select(x => new DashboardPanelPreferenceDto
+                {
+                    Id = x.Id, Visible = x.Visible
+                }).ToList();
         }
         catch (JsonException) { /* Retired or corrupt preferences fall back to safe defaults. */ }
         return result;
@@ -182,5 +196,6 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
         public string? Navigation { get; set; }
         public string? Density { get; set; }
         public string? FontScale { get; set; }
+        public List<DashboardPanelPreferenceDto>? DashboardPanels { get; set; }
     }
 }

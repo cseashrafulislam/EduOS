@@ -21,7 +21,13 @@ public sealed class WorkspacePreferencesServiceTests
         var owner = Service(test.Db, 101, 71);
         var saved = await owner.SaveAsync(new SaveWorkspacePreferencesRequestDto
         {
-            Theme = "dark", Palette = "teal", Navigation = "right", Density = "compact", FontScale = "large"
+            Theme = "dark", Palette = "teal", Navigation = "right", Density = "compact", FontScale = "large",
+            DashboardPanels =
+            [
+                new() { Id = "quick-actions", Visible = false },
+                new() { Id = "setup-checklist" },
+                new() { Id = "capacity" }
+            ]
         });
         Assert.True(saved.Success, saved.Message);
         var row = await test.Db.TenantSettings.SingleAsync();
@@ -29,6 +35,10 @@ public sealed class WorkspacePreferencesServiceTests
         Assert.Equal("UserWorkspace", row.Category);
         Assert.DoesNotContain("UserId", row.Value);
         Assert.Equal("dark", (await owner.GetAsync()).Data!.Theme);
+        Assert.Equal(new[] { "quick-actions", "setup-checklist", "capacity" },
+            (await owner.GetAsync()).Data!.DashboardPanels.Select(x => x.Id));
+        Assert.False((await owner.GetAsync()).Data!.DashboardPanels[0].Visible);
+        Assert.True((await Service(test.Db, 101, 72).GetAsync()).Data!.DashboardPanels.All(x => x.Visible));
         Assert.Equal("system", (await Service(test.Db, 101, 72).GetAsync()).Data!.Theme);
         Assert.Equal("system", (await Service(test.Db, 202, 71).GetAsync()).Data!.Theme);
 
@@ -102,6 +112,8 @@ public sealed class WorkspacePreferencesServiceTests
         Assert.True(reset.Success, reset.Message);
         Assert.Equal("system", reset.Data!.Theme);
         Assert.Equal("blue", reset.Data.Palette);
+        Assert.Equal(new[] { "capacity", "quick-actions", "setup-checklist" }, reset.Data.DashboardPanels.Select(x => x.Id));
+        Assert.All(reset.Data.DashboardPanels, x => Assert.True(x.Visible));
         Assert.Single(await test.Db.TenantSettings.ToListAsync());
     }
 
@@ -111,6 +123,47 @@ public sealed class WorkspacePreferencesServiceTests
         await using var test = Create();
         Assert.Equal(403, (await Service(test.Db, 0, 71).GetAsync()).StatusCode);
         Assert.Equal(403, (await Service(test.Db, 0, 71).SaveAsync(new SaveWorkspacePreferencesRequestDto())).StatusCode);
+    }
+
+    [Fact]
+    public async Task Dashboard_panels_reject_duplicate_unknown_partial_and_null_payloads()
+    {
+        await using var test = Create();
+        var service = Service(test.Db, 101, 71);
+        List<DashboardPanelPreferenceDto>?[] invalid =
+        [
+            null,
+            [],
+            [new() { Id = "capacity" }],
+            [new() { Id = "capacity" }, new() { Id = "capacity" }, new() { Id = "setup-checklist" }],
+            [new() { Id = "capacity" }, new() { Id = "quick-actions" }, new() { Id = "external" }]
+        ];
+        foreach (var panels in invalid)
+        {
+            var response = await service.SaveAsync(new SaveWorkspacePreferencesRequestDto
+            {
+                DashboardPanels = panels!
+            });
+            Assert.Equal(400, response.StatusCode);
+        }
+        Assert.Empty(await test.Db.TenantSettings.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Corrupted_stored_panel_configuration_falls_back_to_safe_defaults()
+    {
+        await using var test = Create();
+        var service = Service(test.Db, 101, 71);
+        Assert.True((await service.SaveAsync(new SaveWorkspacePreferencesRequestDto())).Success);
+        var row = await test.Db.TenantSettings.SingleAsync();
+        row.Value = """{"SchemaVersion":1,"Theme":"dark","DashboardPanels":[{"Id":"capacity","Visible":false},{"Id":"capacity","Visible":false},{"Id":"external","Visible":false}]}""";
+        await test.Db.SaveChangesAsync();
+        var response = await service.GetAsync();
+        Assert.True(response.Success);
+        Assert.Equal("dark", response.Data!.Theme);
+        Assert.Equal(new[] { "capacity", "quick-actions", "setup-checklist" },
+            response.Data.DashboardPanels.Select(x => x.Id));
+        Assert.All(response.Data.DashboardPanels, x => Assert.True(x.Visible));
     }
 
     private static TestSetup Create()

@@ -209,8 +209,24 @@
         </div>
     </section>
 
-    <div class="dashboard-main-grid">
-        <section class="dashboard-panel" aria-labelledby="capacityTitle">
+            <section class="dashboard-panel dashboard-account-status" aria-labelledby="systemStatusTitle">
+                <div class="dashboard-section-heading">
+                    <h2 id="systemStatusTitle">@T["AccountStatus"]</h2>
+                </div>
+                <dl class="dashboard-status-list">
+                    <div>
+                        <dt>@T["EmailVerification"]</dt>
+                        <dd class="@(Model.EmailVerified ? "text-success" : "text-warning-emphasis")">
+                            @(Model.EmailVerified ? T["Completed"] : T["Pending"])
+                        </dd>
+                    </div>
+                    <div><dt>@T["Subscription"]</dt><dd>@planName</dd></div>
+                    <div><dt>@T["SetupProgress"]</dt><dd>@progress%</dd></div>
+                </dl>
+            </section>
+
+    <div class="dashboard-main-grid dashboard-custom-panels" data-dashboard-panels>
+        <section class="dashboard-panel" data-dashboard-panel="capacity" aria-labelledby="capacityTitle">
             <div class="dashboard-section-heading">
                 <div>
                     <p class="dashboard-eyebrow">@T["PlanUsage"]</p>
@@ -254,8 +270,7 @@
             </dl>
         </section>
 
-        <aside class="dashboard-side-stack">
-            <section class="dashboard-panel" aria-labelledby="quickActionsTitle">
+            <section class="dashboard-panel" data-dashboard-panel="quick-actions" aria-labelledby="quickActionsTitle">
                 <div class="dashboard-section-heading">
                     <h2 id="quickActionsTitle">@T["QuickActions"]</h2>
                 </div>
@@ -268,25 +283,7 @@
                 </nav>
             </section>
 
-            <section class="dashboard-panel" aria-labelledby="systemStatusTitle">
-                <div class="dashboard-section-heading">
-                    <h2 id="systemStatusTitle">@T["AccountStatus"]</h2>
-                </div>
-                <dl class="dashboard-status-list">
-                    <div>
-                        <dt>@T["EmailVerification"]</dt>
-                        <dd class="@(Model.EmailVerified ? "text-success" : "text-warning-emphasis")">
-                            @(Model.EmailVerified ? T["Completed"] : T["Pending"])
-                        </dd>
-                    </div>
-                    <div><dt>@T["Subscription"]</dt><dd>@planName</dd></div>
-                    <div><dt>@T["SetupProgress"]</dt><dd>@progress%</dd></div>
-                </dl>
-            </section>
-        </aside>
-    </div>
-
-    <section class="dashboard-panel setup-checklist-panel" aria-labelledby="checklistTitle">
+    <section class="dashboard-panel setup-checklist-panel" data-dashboard-panel="setup-checklist" aria-labelledby="checklistTitle">
         <div class="dashboard-section-heading">
             <div>
                 <p class="dashboard-eyebrow">@T["GuidedSetup"]</p>
@@ -311,4 +308,8 @@
             }
         </ol>
     </section>
+    </div>
 </div>
+@section Scripts {
+    <script src="~/js/platform/dashboard-panel-preferences.js" asp-append-version="true"></script>
+}
