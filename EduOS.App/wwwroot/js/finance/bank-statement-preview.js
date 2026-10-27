@@ -89,7 +89,7 @@ if (panel) {
     el('bankStatementForm').addEventListener('submit', async event => {
         event.preventDefault(); report = null; el('statementExport').disabled = true;
         const bank = el('statementBank').value, from = el('statementFrom').value, to = el('statementTo').value;
-        if (!/^\d+$/.test(bank) || BigInt(bank) <= 0n || !from || !to || from > to)
+        if (!/^\d+$/.test(bank) || BigInt(bank) <= 0n || !Number.isSafeInteger(Number(bank)) || !from || !to || from > to)
             return show('Choose a bank and valid date range.', true);
         el('statementRun').disabled = true;
         try {

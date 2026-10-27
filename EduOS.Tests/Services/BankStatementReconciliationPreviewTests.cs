@@ -56,15 +56,18 @@ public sealed class BankStatementReconciliationPreviewTests
         await using var db = Database();
         Seed(db);
         var request = Request("DEP-1");
+        request.ClosingBalance = 200m;
         request.Movements = new[]
         {
-            new BankStatementMovementDto { Date = Day, Reference = "DEP-1", Deposit = 50m },
-            new BankStatementMovementDto { Date = Day, Reference = "DEP-1", Deposit = 50m }
+            new BankStatementMovementDto { Date = Day, Reference = "DEP-1", Deposit = 100m },
+            new BankStatementMovementDto { Date = Day, Reference = "DEP-1", Deposit = 100m }
         };
         var response = await new AccountingReportingService(db, new User())
             .PreviewBankStatementAsync(request);
         response.Data!.MatchedCount.Should().Be(0);
         response.Data.UnmatchedStatementCount.Should().Be(2);
+        response.Data.UnmatchedLedgerCount.Should().Be(1);
+        response.Data.Exceptions.Should().OnlyContain(x => x.Reason.Contains("Duplicate key"));
     }
     private static BankStatementPreviewRequestDto Request(string reference) => new()
     {
