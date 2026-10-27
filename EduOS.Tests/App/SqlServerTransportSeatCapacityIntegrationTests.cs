@@ -324,6 +324,116 @@ public sealed class SqlServerTransportSeatCapacityIntegrationTests
             !x.IsDeleted && x.IsCurrent));
     }
 
+    [Fact]
+    public async Task Upcoming_route_vehicle_replacement_racing_rider_booking_preserves_route_history()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var fixture = await SeedAsync(connection);
+        long linkId, originalVehicleId, replacementVehicleId;
+        ChangeUpcomingRouteVehicleRequestDto change;
+        AssignStudentTransportRequestDto booking;
+
+        await using (var setup = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var route = await setup.Set<TransportRoute>().AsNoTracking()
+                .SingleAsync(x => x.PublicId == fixture.RouteReference);
+            var suffix = Guid.NewGuid().ToString("N")[..12];
+            var original = new Vehicle
+            {
+                TenantId = fixture.TenantId, CampusId = route.CampusId,
+                VehicleNumber = "CAP-SWAP-OLD-" + suffix, Capacity = 1, IsActive = true
+            };
+            var replacement = new Vehicle
+            {
+                TenantId = fixture.TenantId, CampusId = route.CampusId,
+                VehicleNumber = "CAP-SWAP-NEW-" + suffix, Capacity = 1, IsActive = true
+            };
+            setup.Vehicles.AddRange(original, replacement);
+            await setup.SaveChangesAsync();
+            originalVehicleId = original.Id;
+            replacementVehicleId = replacement.Id;
+            var link = new RouteVehicleAssignment
+            {
+                TenantId = fixture.TenantId, RouteId = route.Id, VehicleId = original.Id,
+                EffectiveFrom = fixture.Start.AddDays(1),
+                EffectiveTo = fixture.Start.AddDays(6), IsCurrent = true
+            };
+            setup.RouteVehicleAssignments.Add(link);
+            await setup.SaveChangesAsync();
+            linkId = link.Id;
+            change = new ChangeUpcomingRouteVehicleRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), NewVehicleId = replacement.Id,
+                AssignmentRowVersion = Convert.ToBase64String(link.RowVersion),
+                VehicleRowVersion = Convert.ToBase64String(replacement.RowVersion)
+            };
+            booking = new AssignStudentTransportRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(),
+                StudentEnrollmentReference = fixture.Enrollments[0],
+                RouteReference = fixture.RouteReference, VehicleReference = original.PublicId,
+                StartDate = fixture.Start.AddDays(2), EndDate = fixture.Start.AddDays(5),
+                MonthlyFare = 0m
+            };
+        }
+
+        async Task<ApiResponse<RouteVehicleAssignmentDto>> ChangeAsync()
+        {
+            await using var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+            return await Service(db, fixture.TenantId, fixture.UserId)
+                .ChangeUpcomingRouteVehicleAsync(linkId, change);
+        }
+        async Task<ApiResponse<StudentTransportDto>> BookAsync()
+        {
+            await using var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+            return await Service(db, fixture.TenantId, fixture.UserId).AssignAsync(booking);
+        }
+
+        // Separate SQL connections must serialize the route-link rewrite against
+        // the rider's route-coverage check and canonical reservation insertion.
+        var changeTask = ChangeAsync();
+        var bookingTask = BookAsync();
+        await Task.WhenAll(changeTask, bookingTask);
+        var changed = await changeTask;
+        var booked = await bookingTask;
+        Assert.True(changed.Success || booked.Success,
+            "Both competing operations failed: change=" + changed.Message + "; booking=" + booked.Message);
+        Assert.False(changed.Success && booked.Success,
+            "A rider cannot commit against a route link whose vehicle was simultaneously replaced.");
+        Assert.True(changed.Success || changed.StatusCode == 409, changed.Message);
+        Assert.True(booked.Success || booked.StatusCode == 409, booked.Message);
+
+        await using (var verify = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var persisted = await verify.RouteVehicleAssignments.AsNoTracking()
+                .SingleAsync(x => x.TenantId == fixture.TenantId && x.Id == linkId);
+            Assert.Equal(changed.Success ? replacementVehicleId : originalVehicleId, persisted.VehicleId);
+            var riders = await verify.StudentTransports.AsNoTracking().Where(x =>
+                x.TenantId == fixture.TenantId && !x.IsDeleted &&
+                x.State == TransportAssignmentState.Active &&
+                x.RouteVehicleAssignmentId == linkId).ToListAsync();
+            Assert.Equal(booked.Success ? 1 : 0, riders.Count);
+            if (booked.Success)
+                Assert.Equal(originalVehicleId, Assert.Single(riders).VehicleId);
+        }
+
+        // Whichever command won must retain its durable request-key outcome.
+        if (changed.Success)
+        {
+            var replay = await ChangeAsync();
+            Assert.True(replay.Success, replay.Message);
+            Assert.Equal(changed.Data!.Id, replay.Data!.Id);
+            Assert.Equal(changed.Data.RowVersion, replay.Data.RowVersion);
+        }
+        else
+        {
+            var replay = await BookAsync();
+            Assert.True(replay.Success, replay.Message);
+            Assert.Equal(booked.Data!.Reference, replay.Data!.Reference);
+        }
+    }
+
     private static AssignStudentTransportRequestDto Request(
         Fixture fixture, int student, DateOnly from, DateOnly to) => new()
     {
