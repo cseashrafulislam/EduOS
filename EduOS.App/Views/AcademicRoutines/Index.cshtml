@@ -8,8 +8,9 @@
     <div id="routineAlert" role="alert" tabindex="-1" aria-live="polite" class="d-none"></div>
     <form id="routineFilters" class="card card-body mb-3">
         <div class="row g-3 align-items-end">
-            <div class="col-lg-9"><label for="routineBatch" class="form-label">Active academic batch</label><select id="routineBatch" class="form-select" required><option value="">Loading academic batches…</option></select></div>
-            <div class="col-lg-3"><button type="submit" id="routineLoad" class="btn btn-primary w-100">Load routine</button></div>
+            <div class="col-lg-3"><label for="routineBatchSearch" class="form-label">Find batch by name/code</label><div class="input-group"><input id="routineBatchSearch" class="form-control" maxlength="100" placeholder="Search" /><button id="routineFindBatches" type="button" class="btn btn-outline-secondary">Find</button></div></div>
+            <div class="col-lg-7"><label for="routineBatch" class="form-label">Active academic batch</label><select id="routineBatch" class="form-select" required><option value="">Loading academic batches…</option></select></div>
+            <div class="col-lg-2"><button type="submit" id="routineLoad" class="btn btn-primary w-100">Load routine</button></div>
         </div>
     </form>
     <div class="card mb-3">
@@ -36,16 +37,20 @@
                 <div class="row g-2 align-items-end">
                     <div class="col-lg-3"><label for="routineTeacherSearch" class="form-label">Search teacher</label><div class="input-group"><input id="routineTeacherSearch" class="form-control" maxlength="100" placeholder="Name/code prefix" /><button id="routineFindTeachers" class="btn btn-outline-secondary" type="button">Find</button></div></div>
                     <div class="col-lg-3"><label for="routineTeacher" class="form-label">Active teacher</label><select id="routineTeacher" class="form-select" required><option value="">Search teachers</option></select></div>
-                    <div class="col-lg-3"><label for="routineSubject" class="form-label">Subject</label><select id="routineSubject" class="form-select" required><option value="">Select batch</option></select></div>
+                    <div class="col-lg-3"><label for="routineSubject" class="form-label">Offered subject</label><select id="routineSubject" class="form-select" required><option value="">Load a batch</option></select></div>
                     <div class="col-lg-2"><label class="form-check"><input type="checkbox" class="form-check-input" id="routinePrimary" checked /><span class="form-check-label">Primary</span></label></div>
                     <div class="col-lg-1"><button id="routineAssign" class="btn btn-primary w-100" type="submit">Assign</button></div>
+                    <div class="col-lg-4"><label for="routineOfferingSearch" class="form-label">Find offered subject</label><div class="input-group"><input id="routineOfferingSearch" class="form-control" maxlength="100" placeholder="Subject/code prefix" /><button id="routineFindOfferings" type="button" class="btn btn-outline-secondary">Find</button></div></div>
+                    <div class="col-lg-4 d-flex align-items-end gap-2"><button id="routineOfferingsPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button><span id="routineOfferingPage" class="small text-muted" aria-live="polite">No offerings loaded</span><button id="routineOfferingsNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button></div>
+                    <div class="col-lg-2"><label for="routineAssignFrom" class="form-label">Assignment from</label><input id="routineAssignFrom" type="date" class="form-control" required /></div>
+                    <div class="col-lg-2"><label for="routineAssignTo" class="form-label">Assignment to (optional)</label><input id="routineAssignTo" type="date" class="form-control" /></div>
                 </div>
             </form>
         }
         <div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th>Teacher</th><th>Employee code</th><th>Offering ID</th><th>Role</th></tr></thead><tbody id="routineAssignments"><tr><td colspan="4" class="text-muted text-center p-3">Load a batch.</td></tr></tbody></table></div>
     </div>
     <div class="card mb-3">
-        <div class="card-header"><h3 class="h6 m-0">Class timetable</h3></div>
+        <div class="card-header d-flex justify-content-between align-items-center"><h3 class="h6 m-0">Class timetable</h3><button id="routineExportBatch" type="button" class="btn btn-sm btn-outline-secondary">Export CSV</button></div>
         @if(canManage)
         {
             <form id="routineEntryForm" class="card-body border-bottom row g-2 align-items-end">
@@ -54,12 +59,14 @@
                 <div class="col-lg-2"><label for="routineDay" class="form-label">Day</label><select id="routineDay" class="form-select">@foreach(var day in Enum.GetValues<DayOfWeek>()){<option value="@((int)day)">@day</option>}</select></div>
                 <div class="col-lg-3"><label for="routineRoom" class="form-label">Room (optional)</label><select id="routineRoom" class="form-select"><option value="">No room</option></select></div>
                 <div class="col-lg-2"><button id="routineAddEntry" type="submit" class="btn btn-primary w-100">Add class</button></div>
+                <div class="col-lg-3"><label for="routineEntryFrom" class="form-label">Routine effective from</label><input id="routineEntryFrom" type="date" class="form-control" required /></div>
+                <div class="col-lg-3"><label for="routineEntryTo" class="form-label">Routine effective to (optional)</label><input id="routineEntryTo" type="date" class="form-control" /></div>
             </form>
         }
         <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0"><thead><tr><th>Day</th><th>Time slot</th><th>Subject</th><th>Room</th><th>Effective</th>@if(canManage){<th>Action</th>}</tr></thead><tbody id="routineEntries"><tr><td colspan="6" class="text-muted text-center p-3">Load a batch.</td></tr></tbody></table></div>
     </div>
     <div class="card mb-3">
-        <div class="card-header"><h3 class="h6 m-0">Teacher timetable</h3></div>
+        <div class="card-header d-flex justify-content-between align-items-center"><h3 class="h6 m-0">Teacher timetable</h3><button id="routineExportTeacher" type="button" class="btn btn-sm btn-outline-secondary">Export CSV</button></div>
         <div class="card-body">
             <div class="row g-2 align-items-end mb-3"><div class="col-lg-8"><label for="routineTeacherTimetable" class="form-label">Teacher assigned to this batch</label><select id="routineTeacherTimetable" class="form-select"><option value="">Select batch</option></select></div><div class="col-lg-4"><button id="routineShowTeacher" class="btn btn-outline-primary w-100" type="button">View schedule</button></div></div>
             <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Day</th><th>Slot</th><th>Subject</th><th>Room</th></tr></thead><tbody id="routineTeacherEntries"></tbody></table></div>

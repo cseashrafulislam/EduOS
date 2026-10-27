@@ -554,6 +554,7 @@ public class InstructorAssignmentDto
 {
     public long Id { get; set; }
     public long SubjectOfferingId { get; set; }
+    public Guid SubjectOfferingReference { get; set; }
     public long EmployeeId { get; set; }
     public Guid EmployeeReference { get; set; }
     public string EmployeeCode { get; set; } = string.Empty;

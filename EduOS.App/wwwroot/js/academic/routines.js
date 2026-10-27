@@ -3,7 +3,7 @@
     const root=document.getElementById('routineApp');if(!root)return;
     const el=id=>document.getElementById(id),manager=root.dataset.canManage==='true';
     const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-    const state={batches:[],rooms:[],subjects:[],curricula:[],curriculumSubjects:[],assignments:[],entries:[],slots:[],instructors:[]};
+    const state={batches:[],rooms:[],assignments:[],entries:[],slots:[],instructors:[],offerings:[],offeringPage:1,offeringTotal:0,teacherEntries:[]};
     const option=(id,name)=>{const v=document.createElement('option');v.value=String(id);v.textContent=name;return v;};
     const dateOnly=x=>x?String(x).slice(0,10):'';
     const cell=x=>{const y=document.createElement('td');y.textContent=x===undefined||x===null?'':String(x);return y;};
@@ -26,17 +26,17 @@
         items.forEach(item=>{const tr=document.createElement('tr');map(tr,item);body.append(tr);});
     }
     function selectedBatch(){return state.batches.find(x=>String(x.id)===el('routineBatch').value);}
+    async function loadCatalog(search){
+        const q='?take=100'+(search?'&search='+encodeURIComponent(search):'');
+        const data=await api('/api/academic-setup/catalog'+q);
+        state.batches=(data.batches||[]).filter(x=>x.isActive).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+        state.rooms=(data.rooms||[]).filter(x=>x.isActive);
+        select('routineBatch',state.batches.map(x=>({id:x.id,name:[x.academicYearName,x.academicProgramName,x.name].filter(Boolean).join(' / ')})),'Select academic batch');
+        if(state.batches.length===100)status('warning','Showing up to 100 batches. Search by name or code to find more.');
+        else if(!state.batches.length)status('warning','No matching active academic batches.');
+    }
     async function init(){
-        try{
-            const data=await api('/api/academic-setup/catalog');
-            state.batches=(data.batches||[]).filter(x=>x.isActive).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
-            state.rooms=(data.rooms||[]).filter(x=>x.isActive);
-            state.subjects=(data.subjects||[]).filter(x=>x.isActive);
-            state.curricula=(data.curricula||[]).filter(x=>x.isActive);
-            state.curriculumSubjects=(data.curriculumSubjects||[]).filter(x=>x.isActive);
-            select('routineBatch',state.batches.map(x=>({id:x.id,name:[x.academicYearName,x.academicProgramName,x.name].filter(Boolean).join(' / ')})),'Select academic batch');
-            if(!state.batches.length)status('warning','No academic batch found; create one in Academic Setup.');
-        }catch(e){status('danger',e.message);}
+        try{await loadCatalog('');}catch(e){status('danger',e.message);}
         await loadSlots();
         if(manager)await loadTeachers();
     }
@@ -50,27 +50,47 @@
         const search=el('routineTeacherSearch').value.trim(),q=search?'?search='+encodeURIComponent(search):'';
         try{
             state.instructors=await api('/api/academic-routines/instructors'+q)||[];
-            select('routineTeacher',state.instructors.map(x=>({id:x.id,name:x.name+' ('+x.employeeCode+')'})),'Select active teacher');
-            if(state.instructors.length===100)status('warning','Showing the first 100 teachers. Search by name or employee code to narrow the list.');
+            select('routineTeacher',state.instructors.map(x=>({id:x.employeeReference,name:x.name+' ('+x.employeeCode+')'})),'Select active teacher');
+            if(state.instructors.length>=50)status('warning','Showing up to 50 teachers. Search by name or employee code to narrow the list.');
         }catch(e){status('danger',e.message);}
-    }
-    function filterSubjects(batch){
-        if(!batch)return state.subjects;
-        const validCurricula=new Set(state.curricula.filter(x=>Number(x.academicProgramId)===Number(batch.academicProgramId)).map(x=>Number(x.id)));
-        const allowed=new Set(state.curriculumSubjects.filter(x=>validCurricula.has(Number(x.academicCurriculumId))&&Number(x.academicLevelId)===Number(batch.academicLevelId)).map(x=>Number(x.subjectId)));
-        return state.subjects.filter(x=>allowed.has(Number(x.id)));
     }
     function populateScopedOptions(){
         const batch=selectedBatch();if(!batch)return;
-        select('routineSubject',filterSubjects(batch).map(x=>({id:x.id,name:x.name+' ('+x.code+')'})),'Select offered subject');
-        select('routineRoom',state.rooms.filter(x=>Number(x.campusId)===Number(batch.campusId)).map(x=>({id:x.id,name:x.name+' ('+x.code+')'})),'No room');
+        select('routineRoom',state.rooms.filter(x=>Number(x.campusId)===Number(batch.campusId))
+            .map(x=>({id:x.id,name:x.name+' ('+x.code+')'})),'No room');
+    }
+    async function loadOfferings(page=1){
+        if(!manager)return;
+        const batch=selectedBatch();if(!batch)return;
+        const search=el('routineOfferingSearch').value.trim();
+        const q=new URLSearchParams({page:String(page),pageSize:'50'});
+        if(search)q.set('search',search);
+        const data=await api('/api/academic-instruction/batches/'+batch.id+'/lesson-offerings?'+q);
+        state.offerings=data.items||[];
+        state.offeringPage=data.page||page;
+        state.offeringTotal=data.totalCount||0;
+        select('routineSubject',state.offerings.filter(x=>x.isActive).map(x=>({
+            id:x.reference,name:x.subjectName+' ('+x.subjectCode+') / '+x.code
+        })),'Select active offered subject');
+        const pages=Math.max(1,Math.ceil(state.offeringTotal/50));
+        el('routineOfferingPage').textContent='Page '+state.offeringPage+' of '+pages+' ('+state.offeringTotal+' offerings)';
+        el('routineOfferingsPrev').disabled=state.offeringPage<=1;
+        el('routineOfferingsNext').disabled=state.offeringPage>=pages;
     }
     async function load(){
         const batch=selectedBatch();if(!batch){status('warning','Select an active academic batch.');return;}
         clearStatus();const btn=el('routineLoad');btn.disabled=true;populateScopedOptions();
+        if(manager){
+            for(const id of ['routineAssignFrom','routineEntryFrom'])el(id).value=batch.startDate||'';
+            for(const id of ['routineAssignTo','routineEntryTo'])el(id).value=batch.endDate||'';
+        }
         try{
+            if(manager)await loadOfferings(1);
             const results=await Promise.all([api('/api/academic-routines/batches/'+batch.id+'/assignments'),api('/api/academic-routines/batches/'+batch.id)]);
             state.assignments=results[0]||[];state.entries=results[1]||[];
+            state.teacherEntries=[];
+            renderTable('routineTeacherEntries',[],()=>{},4);
+            if(state.assignments.length>=500)status('warning','Showing at most 500 assignments; narrow the selected batch where possible.');
             renderTable('routineAssignments',state.assignments,(tr,x)=>tr.append(cell(x.employeeName),cell(x.employeeCode),cell(x.subjectOfferingId),cell(x.isPrimary?'Primary':'Assistant')),4);
             renderTable('routineEntries',state.entries,(tr,x)=>{
                 tr.append(cell(days[Number(x.dayOfWeek)]||String(x.dayOfWeek)),cell(x.timeSlotName),cell(x.subjectName),cell(x.roomName||'—'),cell(dateOnly(x.effectiveFrom)+(x.effectiveTo?' – '+dateOnly(x.effectiveTo):'')));
@@ -84,27 +104,42 @@
     }
     async function saveSlot(e){
         e.preventDefault();if(!e.currentTarget.reportValidity())return;
+        const form=e.currentTarget;
         const start=el('routineStartTime').value,end=el('routineEndTime').value;
         if(start>=end){status('danger','End time must be after start time.');return;}
         const button=el('routineSaveSlot');button.disabled=true;
         try{await api('/api/academic-routines/time-slots','POST',{name:el('routineSlotName').value.trim(),startTime:start+':00',endTime:end+':00',isBreak:el('routineIsBreak').checked});
-            e.currentTarget.reset();await loadSlots();status('success','Time slot saved.');}
+            form.reset();await loadSlots();status('success','Time slot saved.');}
         catch(error){status('danger',error.message);}finally{button.disabled=false;}
     }
     async function saveAssignment(e){
         e.preventDefault();if(!e.currentTarget.reportValidity())return;
         const batch=selectedBatch();if(!batch)return status('danger','Select a batch first.');
         const btn=el('routineAssign');btn.disabled=true;
-        try{await api('/api/academic-routines/assignments','POST',{academicBatchId:Number(batch.id),subjectId:Number(el('routineSubject').value),
-            employeeId:Number(el('routineTeacher').value),academicTermId:batch.academicTermId||null,isPrimary:el('routinePrimary').checked,isClassAdvisor:false});
+        const from=el('routineAssignFrom').value,to=el('routineAssignTo').value;
+        if(to&&to<from)return status('danger','Assignment end date must not precede start date.');
+        const offering=el('routineSubject').value,employee=el('routineTeacher').value;
+        if(!offering||!employee)return status('danger','Choose an offered subject and an active teacher.');
+        try{await api('/api/academic-routines/assignments','POST',{
+            clientRequestId:crypto.randomUUID(),subjectOfferingReference:offering,employeeReference:employee,
+            effectiveFrom:from,effectiveTo:to||null,isPrimary:el('routinePrimary').checked,isActive:true
+        });
             await load();status('success','Instructor assigned.');}
         catch(error){status('danger',error.message);}finally{btn.disabled=false;}
     }
     async function saveEntry(e){
         e.preventDefault();if(!e.currentTarget.reportValidity())return;
+        const assignment=state.assignments.find(x=>Number(x.id)===Number(el('routineAssignment').value));
+        if(!assignment?.subjectOfferingReference)return status('danger','Choose an active instructor assignment. Reload the batch.');
+        const from=el('routineEntryFrom').value,to=el('routineEntryTo').value;
+        if(to&&to<from)return status('danger','Routine end date must not precede start date.');
         const btn=el('routineAddEntry');btn.disabled=true;
-        try{await api('/api/academic-routines/entries','POST',{instructorAssignmentId:Number(el('routineAssignment').value),
-            routineTimeSlotId:Number(el('routineSlot').value),dayOfWeek:Number(el('routineDay').value),roomId:el('routineRoom').value?Number(el('routineRoom').value):null,remarks:null});
+        try{await api('/api/academic-routines/entries','POST',{
+            clientRequestId:crypto.randomUUID(),subjectOfferingReference:assignment.subjectOfferingReference,
+            instructorAssignmentId:assignment.id,routineTimeSlotId:Number(el('routineSlot').value),
+            dayOfWeek:Number(el('routineDay').value),roomId:el('routineRoom').value?Number(el('routineRoom').value):null,
+            effectiveFrom:from,effectiveTo:to||null,isActive:true
+        });
             await load();status('success','Class routine saved.');}
         catch(error){status('danger',error.message);}finally{btn.disabled=false;}
     }
@@ -121,11 +156,50 @@
         const q=new URLSearchParams({academicYearId:String(batch.academicYearId)});
         if(batch.academicTermId)q.set('academicTermId',String(batch.academicTermId));
         try{const rows=await api('/api/academic-routines/teachers/'+id+'?'+q)||[];
+            state.teacherEntries=rows;
             renderTable('routineTeacherEntries',rows,(tr,x)=>tr.append(cell(days[Number(x.dayOfWeek)]||String(x.dayOfWeek)),cell(x.timeSlotName),cell(x.subjectName),cell(x.roomName||'—')),4);
         }catch(e){status('danger',e.message);}
     }
+    function csvEscape(value){
+        let text=String(value===null||value===undefined?'':value);
+        if(/^[\\s]*[=+@-]/.test(text))text="'"+text;
+        return '"'+text.replace(/"/g,'""')+'"';
+    }
+    function exportCsv(filename,headers,rows){
+        if(!rows.length)return status('warning','Load a timetable with records before exporting.');
+        const csv='\\uFEFF'+[headers,...rows].map(row=>row.map(csvEscape).join(',')).join('\\r\\n');
+        const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+        const a=document.createElement('a');a.href=url;a.download=filename;document.body.append(a);a.click();a.remove();
+        setTimeout(()=>URL.revokeObjectURL(url),1000);
+    }
+    function exportBatch(){
+        const batch=selectedBatch();if(!batch)return status('warning','Select a batch.');
+        exportCsv('routine-batch-'+batch.id+'.csv',['Day','Slot','Subject','Room','From','To','Active'],
+            state.entries.map(x=>[days[Number(x.dayOfWeek)]||x.dayOfWeek,x.timeSlotName,x.subjectName,x.roomName||'',
+                dateOnly(x.effectiveFrom),dateOnly(x.effectiveTo),x.isActive?'Yes':'No']));
+    }
+    function exportTeacher(){
+        const id=el('routineTeacherTimetable').value;
+        exportCsv('routine-teacher-'+id+'.csv',['Day','Slot','Subject','Room','From','To'],
+            state.teacherEntries.map(x=>[days[Number(x.dayOfWeek)]||x.dayOfWeek,x.timeSlotName,x.subjectName,
+                x.roomName||'',dateOnly(x.effectiveFrom),dateOnly(x.effectiveTo)]));
+    }
     el('routineFilters').addEventListener('submit',e=>{e.preventDefault();load();});
     el('routineBatch').addEventListener('change',load);
+    el('routineFindBatches').addEventListener('click',async()=>{
+        try{await loadCatalog(el('routineBatchSearch').value.trim());}catch(e){status('danger',e.message);}
+    });
+    el('routineFindOfferings')?.addEventListener('click',async()=>{
+        try{await loadOfferings(1);}catch(e){status('danger',e.message);}
+    });
+    el('routineOfferingsPrev')?.addEventListener('click',async()=>{
+        try{await loadOfferings(state.offeringPage-1);}catch(e){status('danger',e.message);}
+    });
+    el('routineOfferingsNext')?.addEventListener('click',async()=>{
+        try{await loadOfferings(state.offeringPage+1);}catch(e){status('danger',e.message);}
+    });
+    el('routineExportBatch').addEventListener('click',exportBatch);
+    el('routineExportTeacher').addEventListener('click',exportTeacher);
     el('routineSlotForm')?.addEventListener('submit',saveSlot);
     el('routineAssignmentForm')?.addEventListener('submit',saveAssignment);
     el('routineEntryForm')?.addEventListener('submit',saveEntry);

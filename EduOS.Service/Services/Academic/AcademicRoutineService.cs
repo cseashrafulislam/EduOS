@@ -536,6 +536,10 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
         if (assignments.Count == 0) return [];
         var tenantId = _currentUser.TenantId;
         var employeeIds = assignments.Select(x => x.EmployeeId).Distinct().ToArray();
+        var offeringIds = assignments.Select(x => x.SubjectOfferingId).Distinct().ToArray();
+        var offeringReferences = await _offerings.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenantId && offeringIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, x => x.PublicId, cancellationToken);
         var employees = await _employees.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == tenantId && employeeIds.Contains(x.Id))
             .ToDictionaryAsync(x => x.Id, cancellationToken);
@@ -546,6 +550,8 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
             {
                 Id = x.Id,
                 SubjectOfferingId = x.SubjectOfferingId,
+                SubjectOfferingReference = offeringReferences.TryGetValue(x.SubjectOfferingId, out var reference)
+                    ? reference : Guid.Empty,
                 EmployeeId = x.EmployeeId,
                 EmployeeReference = employee?.PublicId ?? Guid.Empty,
                 EmployeeCode = employee?.EmployeeCode ?? string.Empty,
