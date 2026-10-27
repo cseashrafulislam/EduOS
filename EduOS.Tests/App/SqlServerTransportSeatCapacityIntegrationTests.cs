@@ -90,6 +90,98 @@ public sealed class SqlServerTransportSeatCapacityIntegrationTests
             !x.IsDeleted && x.State == TransportAssignmentState.Active));
     }
 
+    [Fact]
+    public async Task Capacity_reduction_racing_a_new_rider_never_overbooks_the_vehicle()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var fixture = await SeedAsync(connection);
+
+        // Begin with two seats and one future rider. The competing operations
+        // must serialize: either the second rider wins or capacity becomes one.
+        await using (var setup = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var vehicle = await setup.Vehicles.SingleAsync(x => x.Id == fixture.VehicleId);
+            vehicle.Capacity = 2;
+            await setup.SaveChangesAsync();
+        }
+        var first = await AssignAsync(fixture, Request(fixture, 0, fixture.Start, fixture.Start.AddDays(6)));
+        Assert.True(first.Success, first.Message);
+
+        string rowVersion;
+        await using (var snapshot = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var vehicle = await snapshot.Vehicles.AsNoTracking().SingleAsync(x => x.Id == fixture.VehicleId);
+            rowVersion = Convert.ToBase64String(vehicle.RowVersion);
+        }
+
+        var secondRequest = Request(fixture, 1, fixture.Start, fixture.Start.AddDays(6));
+        var bookingTask = AssignAsync(fixture, secondRequest);
+        var reductionTask = UpdateCapacityAsync(fixture, new UpdateTransportVehicleRequestDto
+        {
+            Capacity = 1, IsActive = true, RowVersion = rowVersion
+        });
+        await Task.WhenAll(bookingTask, reductionTask);
+        var booking = await bookingTask;
+        var reduction = await reductionTask;
+
+        Assert.True(booking.Success || booking.StatusCode == 409,
+            "Rider booking should succeed or return a concurrency/capacity conflict: " + booking.Message);
+        Assert.True(reduction.Success || reduction.StatusCode == 409,
+            "Capacity reduction should succeed or return a concurrency/capacity conflict: " + reduction.Message);
+        Assert.False(booking.Success && reduction.Success,
+            "A second overlapping rider and a one-seat capacity reduction cannot both commit.");
+
+        await using var verify = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+        var persistedVehicle = await verify.Vehicles.AsNoTracking()
+            .SingleAsync(x => x.Id == fixture.VehicleId);
+        var reservations = await verify.StudentTransports.AsNoTracking()
+            .Where(x => x.TenantId == fixture.TenantId && x.VehicleId == fixture.VehicleId &&
+                !x.IsDeleted && x.State == TransportAssignmentState.Active &&
+                x.StartDate <= fixture.Start.AddDays(6) &&
+                (!x.EndDate.HasValue || x.EndDate.Value >= fixture.Start))
+            .ToListAsync();
+        Assert.Equal(reduction.Success ? 1 : 2, persistedVehicle.Capacity);
+        Assert.Equal(booking.Success ? 2 : 1, reservations.Count);
+        Assert.True(reservations.Count <= persistedVehicle.Capacity,
+            "Committed reservations exceeded the final physical seat capacity.");
+    }
+
+    [Fact]
+    public async Task Capacity_reduction_rejects_two_overlapping_future_riders()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var fixture = await SeedAsync(connection);
+        await using (var setup = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var vehicle = await setup.Vehicles.SingleAsync(x => x.Id == fixture.VehicleId);
+            vehicle.Capacity = 2;
+            await setup.SaveChangesAsync();
+        }
+
+        var first = await AssignAsync(fixture, Request(fixture, 0, fixture.Start, fixture.Start.AddDays(6)));
+        var second = await AssignAsync(fixture, Request(fixture, 1, fixture.Start, fixture.Start.AddDays(6)));
+        Assert.True(first.Success, first.Message);
+        Assert.True(second.Success, second.Message);
+
+        await using var snapshot = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+        var vehicleBefore = await snapshot.Vehicles.AsNoTracking()
+            .SingleAsync(x => x.Id == fixture.VehicleId);
+        var reduced = await UpdateCapacityAsync(fixture, new UpdateTransportVehicleRequestDto
+        {
+            Capacity = 1, IsActive = true,
+            RowVersion = Convert.ToBase64String(vehicleBefore.RowVersion)
+        });
+        Assert.False(reduced.Success);
+        Assert.Equal(409, reduced.StatusCode);
+
+        await using var verify = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+        var vehicleAfter = await verify.Vehicles.AsNoTracking()
+            .SingleAsync(x => x.Id == fixture.VehicleId);
+        Assert.Equal(2, vehicleAfter.Capacity);
+    }
+
     private static AssignStudentTransportRequestDto Request(
         Fixture fixture, int student, DateOnly from, DateOnly to) => new()
     {
@@ -107,6 +199,14 @@ public sealed class SqlServerTransportSeatCapacityIntegrationTests
     {
         await using var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
         return await Service(db, fixture.TenantId, fixture.UserId).AssignAsync(request);
+    }
+
+    private static async Task<ApiResponse<TransportVehicleSetupRowDto>> UpdateCapacityAsync(
+        Fixture fixture, UpdateTransportVehicleRequestDto request)
+    {
+        await using var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+        return await Service(db, fixture.TenantId, fixture.UserId)
+            .UpdateVehicleSetupAsync(fixture.VehicleReference, request);
     }
 
     private static TransportService Service(EduOSDbContext db, long tenant, long user) => new(

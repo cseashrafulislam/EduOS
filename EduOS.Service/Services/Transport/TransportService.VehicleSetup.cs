@@ -222,6 +222,21 @@ public sealed partial class TransportService
             _logger.LogWarning(ex, "Vehicle update conflict for tenant {TenantId}", tenant);
             return ApiResponse<TransportVehicleSetupRowDto>.ErrorResponse("Vehicle update conflicts with another change.", 409);
         }
+        catch (System.Transactions.TransactionAbortedException ex)
+        {
+            _logger.LogWarning(ex, "Vehicle update transaction aborted for tenant {TenantId}", tenant);
+            return ApiResponse<TransportVehicleSetupRowDto>.ErrorResponse("Vehicle update conflicts with another change.", 409);
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 1205 or 1222 or 3960)
+        {
+            _logger.LogWarning(ex, "Vehicle update SQL serialization conflict for tenant {TenantId}", tenant);
+            return ApiResponse<TransportVehicleSetupRowDto>.ErrorResponse("Vehicle update conflicts with another change.", 409);
+        }
+        catch (InvalidOperationException ex) when (HasSqlSerializationConflict(ex))
+        {
+            _logger.LogWarning(ex, "Vehicle update SQL serialization conflict for tenant {TenantId}", tenant);
+            return ApiResponse<TransportVehicleSetupRowDto>.ErrorResponse("Vehicle update conflicts with another change.", 409);
+        }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogError(ex, "Vehicle update failed for tenant {TenantId}", tenant);
