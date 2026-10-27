@@ -1,4 +1,5 @@
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Students;
@@ -125,6 +126,29 @@ public sealed class FeePaymentReconciliationWorkflowTests
         result.StatusCode.Should().Be(200);
         result.Data!.Rows[0].GrossAllocated.Should().Be(120m);
         result.Data.Rows[0].Issues.Should().Contain("differs from allocated");
+    }
+
+    [Fact]
+    public async Task Orphan_allocation_cannot_bypass_campus_scoped_receipt_visibility()
+    {
+        await using var db = Database();
+        Seed(db);
+        db.UserCampusAccesses.Add(new UserCampusAccess
+        { Id = 50, TenantId = 41, UserId = 9, CampusId = 7, IsActive = true });
+        db.PaymentAllocations.AddRange(
+            new PaymentAllocation
+            { Id = 30, TenantId = 41, StudentPaymentId = 20, StudentInvoiceId = 10, Amount = 50m },
+            new PaymentAllocation
+            { Id = 31, TenantId = 41, StudentPaymentId = 20, StudentInvoiceId = 999, Amount = 50m });
+        await db.SaveChangesAsync();
+        var service = new FeeReceivablesAgingService(db, new TestUser(false));
+        var scoped = await service.GetPaymentReconciliationAsync(null, null, 1, 25);
+        scoped.StatusCode.Should().Be(200);
+        scoped.Data!.Rows.Should().BeEmpty();
+        var admin = await new FeeReceivablesAgingService(db, new TestUser())
+            .GetPaymentReconciliationAsync(null, null, 1, 25);
+        admin.Data!.Rows.Should().ContainSingle();
+        admin.Data.Rows[0].Issues.Should().Contain("Unresolved allocation campus provenance");
     }
 
     private static void Seed(EduOSDbContext db)

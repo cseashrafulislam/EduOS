@@ -43,7 +43,12 @@ public sealed partial class FeeReceivablesAgingService
                 equals new { enrollment.TenantId, enrollment.Id }
             where allocation.TenantId == tenant
             group enrollment.CampusId by allocation.StudentPaymentId into g
-            select new { PaymentId = g.Key, MinCampusId = g.Min(), MaxCampusId = g.Max() };
+            select new { PaymentId = g.Key, MinCampusId = g.Min(), MaxCampusId = g.Max(),
+                MatchedCount = g.Count() };
+        var allocationCounts = _db.PaymentAllocations.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenant)
+            .GroupBy(x => x.StudentPaymentId)
+            .Select(g => new { PaymentId = g.Key, TotalCount = g.Count() });
 
         var query =
             from payment in _db.StudentPayments.AsNoTracking()
@@ -52,16 +57,21 @@ public sealed partial class FeeReceivablesAgingService
                 equals new { student.TenantId, student.Id }
             join scope in receiptCampuses on payment.Id equals scope.PaymentId into scopes
             from scope in scopes.DefaultIfEmpty()
+            join total in allocationCounts on payment.Id equals total.PaymentId into totals
+            from total in totals.DefaultIfEmpty()
             where payment.TenantId == tenant && !payment.IsDeleted && !student.IsDeleted &&
                 (payment.State == PaymentState.Successful || payment.State == PaymentState.Refunded)
             select new
             {
                 payment, student,
                 CampusId = scope == null ? (long?)null : scope.MinCampusId,
-                MaxCampusId = scope == null ? (long?)null : scope.MaxCampusId
+                MaxCampusId = scope == null ? (long?)null : scope.MaxCampusId,
+                ResolvedCount = scope == null ? 0 : scope.MatchedCount,
+                AllocationCount = total == null ? 0 : total.TotalCount
             };
         if (!_user.IsTenantAdmin)
             query = query.Where(x => x.CampusId.HasValue && x.CampusId == x.MaxCampusId &&
+                x.ResolvedCount == x.AllocationCount &&
                 allowedCampuses.Any(c => c.Id == x.CampusId.Value));
         if (campusId.HasValue)
             query = query.Where(x => x.CampusId == campusId.Value &&
@@ -79,7 +89,8 @@ public sealed partial class FeeReceivablesAgingService
                 x.payment.Id, x.payment.PublicId, x.payment.ReceiptNumber,
                 x.payment.Amount, x.payment.CurrencyCode, x.payment.JournalId,
                 x.payment.StudentId, x.payment.State, x.student.StudentCode,
-                x.student.FullName, x.CampusId, x.MaxCampusId
+                x.student.FullName, x.CampusId, x.MaxCampusId,
+                x.ResolvedCount, x.AllocationCount
             }).ToListAsync(ct);
         var paymentIds = rows.Select(x => x.Id).ToArray();
         var allocations = await _db.PaymentAllocations.IgnoreQueryFilters().AsNoTracking()
@@ -145,6 +156,8 @@ public sealed partial class FeeReceivablesAgingService
                 issues.Add("Receipt has no invoice allocation or campus provenance");
             else if (payment.CampusId != payment.MaxCampusId)
                 issues.Add("Receipt allocations span multiple campuses");
+            if (payment.ResolvedCount != payment.AllocationCount)
+                issues.Add("Unresolved allocation campus provenance");
             decimal gross = 0m, paidRefunds = 0m;
             foreach (var allocation in byPayment[payment.Id])
             {
