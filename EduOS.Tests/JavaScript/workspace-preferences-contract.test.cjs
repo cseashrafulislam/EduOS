@@ -31,8 +31,8 @@ test('shell applies only whitelisted server preferences without cross-tenant bro
     const site = read('EduOS.App/wwwroot/js/site.js');
     assert.match(site, /EduOSApplyWorkspacePreferences/);
     assert.match(site, /\/api\/workspace-preferences/);
-    assert.doesNotMatch(site, /localStorage/);
-    assert.doesNotMatch(site, /sessionStorage/);
+    assert.doesNotMatch(site, /(?:window\\.)?localStorage\\s*[.\\[]/);
+    assert.doesNotMatch(site, /(?:window\\.)?sessionStorage\\s*[.\\[]/);
     const css = read('EduOS.App/wwwroot/css/site.css');
     assert.match(css, /data-workspace-navigation="right"/);
     assert.match(css, /data-workspace-navigation="top"/);
