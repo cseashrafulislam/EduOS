@@ -99,7 +99,7 @@ public sealed partial class AssessmentAdministrationService
                 return Error<StudentAssessmentComponentMarkDto>("Component and student mark do not match.", 409);
             var subject = await _subjects.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Id == component.AssessmentSubjectId && !x.IsDeleted, token);
-            var exam = subject == null ? null : await _assessments.GetQueryable().AsNoTracking()
+            var exam = subject == null ? null : await _assessments.GetQueryable()
                 .FirstOrDefaultAsync(x => x.TenantId == tenant && x.Id == subject.AssessmentId &&
                     !x.IsDeleted, token);
             if (exam != null && !await CanAccessCampusAsync(exam.CampusId, token))
@@ -162,6 +162,9 @@ public sealed partial class AssessmentAdministrationService
                 _componentMarks.Update(row);
             }
             else await _componentMarks.AddAsync(row);
+            // Component marks and lock share the assessment rowversion conflict boundary.
+            exam.UpdatedAt = now; exam.UpdatedBy = _user.UserId;
+            _assessments.Update(exam);
             await _uow.SaveChangesAsync(token);
             return ApiResponse<StudentAssessmentComponentMarkDto>.SuccessResponse(MapComponentMark(row),
                 "Component mark saved.");

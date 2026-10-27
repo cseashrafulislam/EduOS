@@ -4,7 +4,15 @@
 }
 <section class="container-fluid py-3" id="examWorkflow" data-can-publish="@canPublish.ToString().ToLowerInvariant()">
     @Html.AntiForgeryToken()
-    <header class="mb-3"><h2 class="h4 mb-1">Exam Marks & Results</h2><p class="text-muted mb-0">Enter subject marks, preview draft results and publish an immutable result snapshot.</p></header>
+    <header class="mb-3 d-flex flex-wrap align-items-start gap-2">
+        <h2 class="h4 mb-0">Exam Marks & Results</h2>
+        <details class="ms-auto small">
+            <summary class="btn btn-sm btn-outline-secondary" aria-label="Exam workflow help">ⓘ</summary>
+            <div class="border rounded p-2 mt-1" style="max-width: 22rem" role="note">
+                Enter marks while open. Controllers verify every batch before locking; locked results are read-only.
+            </div>
+        </details>
+    </header>
     <div id="examAlert" class="d-none" tabindex="-1" role="alert" aria-live="polite"></div>
     <form id="examScopeSearch" class="card card-body mb-2" role="search">
         <div class="row g-2 align-items-end">
@@ -22,6 +30,16 @@
             <div class="col-12 d-flex flex-wrap gap-2"><button id="examLoadRoster" type="submit" class="btn btn-primary">Load marks register</button>@if (canPublish) { <button id="examLoadResults" type="button" class="btn btn-outline-primary" disabled>View published results</button> }</div>
         </div>
     </form>
+    @if (canPublish)
+    {
+        <section class="card mb-3" aria-labelledby="examStateHeading">
+            <div class="card-body d-flex flex-wrap align-items-center gap-2">
+                <h3 id="examStateHeading" class="h6 mb-0">Assessment approval &amp; lock</h3>
+                <span id="examStateCurrent" class="badge text-bg-secondary" role="status" aria-live="polite">Select an assessment</span>
+                <button id="examStateAdvance" type="button" class="btn btn-sm btn-outline-primary ms-auto" disabled>Next stage</button>
+            </div>
+        </section>
+    }
     <section class="card mb-3" aria-labelledby="examRosterHeading">
         <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
             <h3 id="examRosterHeading" class="h6 m-0">Subject marks register</h3><div class="d-flex flex-wrap gap-2 align-items-center"><span id="examRosterInfo" class="small text-muted"></span><button id="examMarksCsv" type="button" class="btn btn-sm btn-outline-secondary">Marks CSV</button></div>
@@ -98,7 +116,7 @@
 </section>
 <style>
 @@media print {
-    #examScopeSearch, #examFilters, #examAlert, #examSaveMarks, #examPublish, #examGenerate,
+    #examScopeSearch, #examFilters, #examAlert, #examStateAdvance, #examSaveMarks, #examPublish, #examGenerate,
     #examLoadResults, #examMarksCsv, #examResultsCsv, #examPrint, #examReadinessLoad,
     #examReadinessCsv, #examReadinessPrev, #examReadinessNext,
     #examHistoryFilters, #examTabulationFilters, #examHistoryInfo, #examHistoryDetails,

@@ -73,7 +73,57 @@
         el('examResultSummary').textContent = 'Preview draft calculations or view the immutable published snapshot.';
         el('examResults').replaceChildren();
     }
+
+    const assessmentStages = { 1: ['Draft', 2, 'Schedule assessment'],
+        2: ['Scheduled', 3, 'Start assessment'],
+        3: ['In progress', 4, 'Open marks entry'],
+        4: ['Marks entry', 5, 'Verify and lock'] };
+    const stageNames = { 5: 'Locked', 6: 'Published', 7: 'Cancelled' };
+    function currentAssessment() {
+        return state.scopes.find(x => String(x.assessmentId) === el('examExam').value) || null;
+    }
+    function renderAssessmentState() {
+        if (!canPublish) return;
+        const s = currentAssessment();
+        const stage = s && assessmentStages[Number(s.state)];
+        el('examStateCurrent').textContent = s
+            ? (stage?.[0] || stageNames[Number(s.state)] || 'Unknown state')
+            : 'Select an assessment';
+        el('examStateAdvance').textContent = stage?.[2] || 'No further stage';
+        el('examStateAdvance').disabled = state.busy || !s || !stage;
+    }
+    async function advanceAssessmentState() {
+        if (!canPublish || state.busy) return;
+        const s = currentAssessment(), next = s && assessmentStages[Number(s.state)];
+        if (!next) return;
+        if (next[1] === 5 && !window.confirm(
+            'Lock all batches only after marks and component evidence are complete?')) return;
+        state.busy = true;
+        renderAssessmentState();
+        try {
+            const url = '/api/assessment-administration/assessments/' +
+                encodeURIComponent(s.assessmentReference);
+            const latest = await api(url);
+            if (Number(latest.state) !== Number(s.state))
+                throw new Error('Assessment state changed. Reload the register before proceeding.');
+            const updated = await api(url + '/state', 'POST', {
+                state: next[1], rowVersion: latest.rowVersion
+            });
+            for (const row of state.scopes)
+                if (row.assessmentId === s.assessmentId) row.state = updated.state;
+            resetRoster(); resetResults();
+            message('success', 'Assessment advanced to ' +
+                (stageNames[Number(updated.state)] || assessmentStages[Number(updated.state)]?.[0] || 'next stage') + '.');
+            await loadScopes(state.scopePage);
+        } catch (error) {
+            message('danger', error.message);
+        } finally {
+            state.busy = false;
+            renderAssessmentState();
+        }
+    }
     function examChanged() {
+        renderAssessmentState();
         const rows = state.scopes.filter(x => String(x.assessmentId) === el('examExam').value);
         select('examBatch', rows, 'academicBatchId', 'academicBatchName', 'Select batch');
         batchChanged();
@@ -366,6 +416,7 @@
         mark.disabled = absent.checked || withheld.checked || !marksOpen(selected()) || !!state.roster?.isResultPublished;
     });
     el('examSaveMarks').addEventListener('click', saveMarks);
+    el('examStateAdvance')?.addEventListener('click', advanceAssessmentState);
     el('examReadinessLoad')?.addEventListener('click', () => loadReadiness(1));
     el('examReadinessPrev')?.addEventListener('click', () => loadReadiness(state.readinessPage - 1));
     el('examReadinessNext')?.addEventListener('click', () => loadReadiness(state.readinessPage + 1));

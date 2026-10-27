@@ -231,7 +231,7 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
                 var sub = await _subjects.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == request.AssessmentSubjectId && !x.IsDeleted, token);
                 if (sub == null) return Error<bool>("Assessment subject not found.", 404);
-                var exam = await _assessments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                var exam = await _assessments.GetQueryable().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == sub.AssessmentId && !x.IsDeleted, token);
                 if (exam != null && !await CanAccessCampusAsync(exam.CampusId, token))
                     return Error<bool>("Campus access denied.", 403);
@@ -292,6 +292,9 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
                     row.GradeLetter = grade?.GradeLetter; row.GradePoint = grade?.GradePoint;
                     row.EnteredByUserId = _user.UserId; row.EnteredAt = now;
                 }
+                // A concurrent lock and mark edit must conflict on the assessment rowversion.
+                exam.UpdatedAt = now; exam.UpdatedBy = _user.UserId;
+                _assessments.Update(exam);
                 await _uow.SaveChangesAsync(token);
                 return ApiResponse<bool>.SuccessResponse(true, "Marks saved.");
             }, ct);

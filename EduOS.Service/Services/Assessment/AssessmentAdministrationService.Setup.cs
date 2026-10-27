@@ -147,10 +147,37 @@ public sealed partial class AssessmentAdministrationService
             if (!allowed) return Error<AssessmentDto>("Assessment status transition is forbidden.", 409);
             if (request.State == AssessmentState.Locked)
             {
-                var offerings = await _subjects.GetQueryable().AsNoTracking().Where(x =>
+                // Reconcile every batch before the same transaction advances the rowversion.
+                var subjects = await _subjects.GetQueryable().AsNoTracking().Where(x =>
                     x.TenantId == _user.TenantId && x.AssessmentId == row.Id && !x.IsDeleted)
-                    .Select(x => x.Id).ToArrayAsync(token);
-                if (offerings.Length == 0) return Error<AssessmentDto>("Assessment has no subjects.", 409);
+                    .Select(x => new { x.Id, x.SubjectOfferingId }).Take(201).ToListAsync(token);
+                if (subjects.Count == 0 || subjects.Count > 200)
+                    return Error<AssessmentDto>("Assessment has no subjects or exceeds the lock review limit.", 409);
+                var offeringIds = subjects.Select(x => x.SubjectOfferingId).Distinct().ToArray();
+                if (offeringIds.Length != subjects.Count)
+                    return Error<AssessmentDto>("Duplicate assessment subject offerings require reconciliation.", 409);
+                var offerings = await _offerings.GetQueryable().AsNoTracking().Where(x =>
+                    x.TenantId == _user.TenantId && offeringIds.Contains(x.Id) &&
+                    x.IsActive && !x.IsDeleted).ToListAsync(token);
+                if (offerings.Count != offeringIds.Length ||
+                    offerings.Any(x => x.AcademicYearId != row.AcademicYearId))
+                    return Error<AssessmentDto>("Assessment offerings are inactive or outside the academic year.", 409);
+                var batchIds = offerings.Select(x => x.AcademicBatchId).Distinct().ToArray();
+                if (batchIds.Length > 20)
+                    return Error<AssessmentDto>("Assessment spans more than 20 batches; use a reviewed asynchronous lock workflow.", 409);
+                var batches = await _batches.GetQueryable().AsNoTracking().Where(x =>
+                    x.TenantId == _user.TenantId && batchIds.Contains(x.Id) &&
+                    x.IsActive && !x.IsDeleted && x.CampusId == row.CampusId &&
+                    x.AcademicYearId == row.AcademicYearId).ToListAsync(token);
+                if (batches.Count != batchIds.Length)
+                    return Error<AssessmentDto>("Assessment batches have invalid campus or academic year provenance.", 409);
+                foreach (var batch in batches)
+                {
+                    var (sheet, error) = await CalculateAsync(row, batch, token);
+                    if (error != null || sheet == null || sheet.Results.Count == 0)
+                        return Error<AssessmentDto>(
+                            $"Batch {batch.Id} is not ready to lock: {error ?? "No eligible results."}", 409);
+                }
             }
             row.State = request.State;
             row.UpdatedAt = _clock.GetUtcNow().UtcDateTime; row.UpdatedBy = _user.UserId;
