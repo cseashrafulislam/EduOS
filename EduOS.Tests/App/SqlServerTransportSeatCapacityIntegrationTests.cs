@@ -210,6 +210,38 @@ public sealed class SqlServerTransportSeatCapacityIntegrationTests
             !x.IsDeleted && x.State == HostelAllocationState.Active));
     }
 
+
+    [Fact]
+    public async Task Concurrent_room_capacity_reduction_and_bed_creation_cannot_exceed_physical_capacity()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var fixture = await SeedAsync(connection);
+        var firstBed = (await SeedHostelBedsAsync(fixture, 2, 1))[0];
+        long roomId;
+        string version;
+        await using (var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var bed = await db.Set<HostelBed>().AsNoTracking().SingleAsync(x => x.Id == firstBed);
+            var room = await db.Set<HostelRoom>().AsNoTracking().SingleAsync(x => x.Id == bed.HostelRoomId);
+            roomId = room.Id;
+            version = Convert.ToBase64String(room.RowVersion);
+        }
+        var provisionTask = HostelCreateBedAsync(fixture, roomId, version);
+        var reduceTask = HostelSetRoomCapacityAsync(fixture, roomId, version, 1);
+        await Task.WhenAll(provisionTask, reduceTask);
+        Assert.NotEqual(provisionTask.Result.Success, reduceTask.Result.Success);
+        Assert.Equal(409, provisionTask.Result.Success ? reduceTask.Result.StatusCode :
+            provisionTask.Result.StatusCode);
+        await using var verify = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+        var persisted = await verify.Set<HostelRoom>().AsNoTracking().SingleAsync(x => x.Id == roomId);
+        var physical = await verify.Set<HostelBed>().CountAsync(x =>
+            x.TenantId == fixture.TenantId && !x.IsDeleted && x.HostelRoomId == roomId);
+        Assert.True(physical <= persisted.Capacity);
+        Assert.Equal(provisionTask.Result.Success ? 2 : 1, physical);
+        Assert.Equal(reduceTask.Result.Success ? 1 : 2, persisted.Capacity);
+    }
+
     [Fact]
     public async Task Two_concurrent_future_riders_cannot_reserve_the_same_last_seat()
     {
@@ -1209,6 +1241,26 @@ public sealed class SqlServerTransportSeatCapacityIntegrationTests
         await using var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
         return await HostelServiceFor(db, fixture).SetRoomStateAsync(roomId,
             new SetHostelRoomStateRequestDto { IsActive = false, RowVersion = version });
+    }
+
+
+    private static async Task<ApiResponse<HostelBedInventoryDto>> HostelCreateBedAsync(
+        Fixture fixture, long roomId, string version)
+    {
+        await using var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+        return await HostelServiceFor(db, fixture).CreateBedAsync(new CreateHostelBedRequestDto
+        {
+            HostelRoomId = roomId, BedNumber = "RACE-BED-" + Guid.NewGuid().ToString("N")[..8],
+            RoomRowVersion = version
+        });
+    }
+
+    private static async Task<ApiResponse<HostelRoomInventoryDto>> HostelSetRoomCapacityAsync(
+        Fixture fixture, long roomId, string version, int capacity)
+    {
+        await using var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+        return await HostelServiceFor(db, fixture).SetRoomCapacityAsync(roomId,
+            new SetHostelRoomCapacityRequestDto { Capacity = capacity, RowVersion = version });
     }
 
     private static HostelService HostelServiceFor(EduOSDbContext db, Fixture fixture) => new(

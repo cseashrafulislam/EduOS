@@ -85,6 +85,11 @@ public sealed partial class HostelService
             _logger.LogWarning(ex, "Hostel bed creation conflict for tenant {TenantId}", tenant);
             return ApiResponse<HostelBedInventoryDto>.ErrorResponse("Bed creation conflicts with another change.", 409);
         }
+        catch (Exception ex) when (ex is System.Transactions.TransactionAbortedException || HasHostelSqlSerializationConflict(ex))
+        {
+            _logger.LogWarning(ex, "Hostel bed creation SQL concurrency conflict for tenant {TenantId}", tenant);
+            return ApiResponse<HostelBedInventoryDto>.ErrorResponse("Concurrent bed provisioning change. Reload and retry.", 409);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Hostel bed creation failed for tenant {TenantId}", tenant);
