@@ -28,6 +28,7 @@
                     <div class="mt-2"><button class="btn btn-primary" type="submit">Save account</button><button id="accountReset" class="btn btn-outline-secondary" type="button">New</button></div>
                 </form>
             }
+            <p class="small text-muted">Posted ledger accounts retain their code, type, parent and active posting status. Groups with child accounts cannot be reclassified or moved. Account names can still be corrected.</p>
             <div class="table-responsive"><table class="table table-sm table-striped"><thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Parent</th><th>Group</th><th>Active</th>@if(canWrite){<th>Action</th>}</tr></thead><tbody id="accountRows"></tbody></table></div>
             <div class="d-flex gap-2"><button id="accountPrev" type="button" class="btn btn-outline-secondary">Previous</button><span id="accountPage"></span><button id="accountNext" type="button" class="btn btn-outline-secondary">Next</button></div>
         </div>

@@ -16,9 +16,11 @@ public sealed partial class AccountingSetupService : IAccountingSetupService
     private readonly TimeProvider clock;
     public AccountingSetupService(EduOSDbContext db, ICurrentUserService user, TimeProvider clock)
     { this.db = db; this.user = user; this.clock = clock; }
-    private bool Readable => user.IsAuthenticated && user.TenantId > 0 &&
+    private bool TenantMatched => user.IsAuthenticated && user.TenantId > 0 &&
+        db.CurrentTenantId == user.TenantId;
+    private bool Readable => TenantMatched &&
         (user.IsTenantAdmin || user.IsInRole("Principal") || user.IsInRole("Accountant"));
-    private bool Writable => user.IsAuthenticated && user.TenantId > 0 &&
+    private bool Writable => TenantMatched &&
         (user.IsTenantAdmin || user.IsInRole("Principal"));
     private static ApiResponse<T> Denied<T>() => ApiResponse<T>.ErrorResponse("Institutional accounting access denied.", 403);
     private static bool Version(byte[] actual, string? supplied)
@@ -87,6 +89,7 @@ public sealed partial class AccountingSetupService : IAccountingSetupService
         if (code.Length > 50 || name.Length > 200) return ApiResponse<AccountDto>.ErrorResponse("Account code or name is too long.");
         try
         {
+            await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, ct);
             var row = accountId.HasValue ? await Accounts.FirstOrDefaultAsync(x => x.Id == accountId.Value, ct) : null;
             if (accountId.HasValue && row == null) return ApiResponse<AccountDto>.ErrorResponse("Account not found.", 404);
             if (row != null && !Version(row.RowVersion, request.RowVersion)) return ApiResponse<AccountDto>.ErrorResponse("Account changed; reload.", 409);
@@ -94,11 +97,29 @@ public sealed partial class AccountingSetupService : IAccountingSetupService
                 return ApiResponse<AccountDto>.ErrorResponse("Account code already exists.", 409);
             if (row != null)
             {
-                var used = await db.JournalLines.AsNoTracking().AnyAsync(x => x.TenantId == user.TenantId && x.AccountId == row.Id && !x.IsDeleted, ct);
-                if (used && (row.Code != code || row.AccountType != request.AccountType || request.IsGroup))
-                    return ApiResponse<AccountDto>.ErrorResponse("Referenced account code, type and posting capability cannot change.", 409);
-                if ((!request.IsGroup || !request.IsActive) && await Accounts.AnyAsync(x => x.ParentAccountId == row.Id, ct))
-                    return ApiResponse<AccountDto>.ErrorResponse("Account with child accounts must remain an active group.", 409);
+                // Include legacy soft-deleted lines: journal history must never be
+                // reclassified by editing the current chart of accounts.
+                var hasHistory = await db.JournalLines.IgnoreQueryFilters().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == user.TenantId && x.AccountId == row.Id, ct);
+                if (hasHistory && (row.Code != code || row.AccountType != request.AccountType ||
+                    row.ParentAccountId != request.ParentAccountId || request.IsGroup || !request.IsActive))
+                    return ApiResponse<AccountDto>.ErrorResponse(
+                        "Account has journal history; code, type, parent and active posting status are locked.", 409);
+
+                // Moving or reclassifying a populated group would silently change
+                // historical report classification for all of its descendants.
+                var hasChildren = await db.Accounts.IgnoreQueryFilters().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == user.TenantId && x.ParentAccountId == row.Id, ct);
+                if (hasChildren && (row.Code != code || row.AccountType != request.AccountType ||
+                    row.ParentAccountId != request.ParentAccountId || !request.IsGroup || !request.IsActive))
+                    return ApiResponse<AccountDto>.ErrorResponse(
+                        "Account group has children; code, type, parent and group status are locked.", 409);
+
+                var hasBankLink = await db.BankAccounts.AsNoTracking().AnyAsync(x =>
+                    x.TenantId == user.TenantId && x.AccountId == row.Id && !x.IsDeleted, ct);
+                if (hasBankLink && (request.IsGroup || !request.IsActive))
+                    return ApiResponse<AccountDto>.ErrorResponse(
+                        "Bank-linked ledger must remain an active posting account.", 409);
             }
             if (request.ParentAccountId.HasValue)
             {
@@ -125,6 +146,7 @@ public sealed partial class AccountingSetupService : IAccountingSetupService
             row.Code = code; row.Name = name; row.ParentAccountId = request.ParentAccountId;
             row.AccountType = request.AccountType; row.IsGroup = request.IsGroup; row.AllowsPosting = !request.IsGroup; row.IsActive = request.IsActive;
             await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
             return ApiResponse<AccountDto>.SuccessResponse(AccountMap(row), "Account saved.");
         }
         catch (DbUpdateConcurrencyException) { return ApiResponse<AccountDto>.ErrorResponse("Account changed; reload.", 409); }
