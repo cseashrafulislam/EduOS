@@ -7,7 +7,7 @@ namespace EduOS.Service.Services.Transport;
 
 public sealed partial class TransportService
 {
-    /// <summary>Campus-authorized, paged historical read over canonical StudentTransport records.</summary>
+    /// <summary>Campus-authorized historical read; retired routes, vehicles and campuses retain their past records.</summary>
     public async Task<ApiResponse<PagedResult<TransportAssignmentHistoryRowDto>>> GetAssignmentHistoryAsync(
         long? campusId, int page, int pageSize, string? search, TransportAssignmentState? state,
         DateOnly? fromDate, DateOnly? toDate, Guid? routeReference, Guid? vehicleReference,
@@ -29,14 +29,13 @@ public sealed partial class TransportService
             join enrollment in _enrollments.GetQueryable().AsNoTracking()
                 on assignment.StudentEnrollmentId equals enrollment.Id
             join student in _students.GetQueryable().AsNoTracking() on assignment.StudentId equals student.Id
-            join route in _routes.GetQueryable().AsNoTracking() on assignment.RouteId equals route.Id
-            join vehicle in _vehicles.GetQueryable().AsNoTracking() on assignment.VehicleId equals vehicle.Id
-            join campus in _campuses.GetQueryable().AsNoTracking() on enrollment.CampusId equals campus.Id
+            join route in _routes.GetQueryable().IgnoreQueryFilters().AsNoTracking() on assignment.RouteId equals route.Id
+            join vehicle in _vehicles.GetQueryable().IgnoreQueryFilters().AsNoTracking() on assignment.VehicleId equals vehicle.Id
+            join campus in _campuses.GetQueryable().IgnoreQueryFilters().AsNoTracking() on enrollment.CampusId equals campus.Id
             where assignment.TenantId == tenant && enrollment.TenantId == tenant &&
                 student.TenantId == tenant && route.TenantId == tenant &&
                 vehicle.TenantId == tenant && campus.TenantId == tenant &&
                 !assignment.IsDeleted && !enrollment.IsDeleted && !student.IsDeleted &&
-                !route.IsDeleted && !vehicle.IsDeleted && !campus.IsDeleted && campus.IsActive &&
                 enrollment.StudentId == assignment.StudentId &&
                 (!route.CampusId.HasValue || route.CampusId.Value == enrollment.CampusId) &&
                 (!vehicle.CampusId.HasValue || vehicle.CampusId.Value == enrollment.CampusId) &&

@@ -7,7 +7,7 @@ namespace EduOS.Service.Services.Hostel;
 
 public sealed partial class HostelService
 {
-    /// <summary>Campus-authorized, paged historical read over the canonical allocation aggregate.</summary>
+    /// <summary>Campus-authorized historical read. Retired rooms/beds/facilities remain visible in past stays.</summary>
     public async Task<ApiResponse<PagedResult<HostelAllocationHistoryRowDto>>> GetAllocationHistoryAsync(
         long? campusId, int page, int pageSize, string? search, HostelAllocationState? state,
         DateOnly? fromDate, DateOnly? toDate, CancellationToken cancellationToken = default)
@@ -25,16 +25,15 @@ public sealed partial class HostelService
             join enrollment in _enrollments.GetQueryable().AsNoTracking()
                 on allocation.StudentEnrollmentId equals enrollment.Id
             join student in _students.GetQueryable().AsNoTracking() on allocation.StudentId equals student.Id
-            join bed in _beds.GetQueryable().AsNoTracking() on allocation.HostelBedId equals bed.Id
-            join room in _rooms.GetQueryable().AsNoTracking() on bed.HostelRoomId equals room.Id
-            join hostel in _hostels.GetQueryable().AsNoTracking() on room.HostelId equals hostel.Id
-            join campus in _campuses.GetQueryable().AsNoTracking() on hostel.CampusId equals campus.Id
+            join bed in _beds.GetQueryable().IgnoreQueryFilters().AsNoTracking() on allocation.HostelBedId equals bed.Id
+            join room in _rooms.GetQueryable().IgnoreQueryFilters().AsNoTracking() on bed.HostelRoomId equals room.Id
+            join hostel in _hostels.GetQueryable().IgnoreQueryFilters().AsNoTracking() on room.HostelId equals hostel.Id
+            join campus in _campuses.GetQueryable().IgnoreQueryFilters().AsNoTracking() on hostel.CampusId equals campus.Id
             where allocation.TenantId == tenant && enrollment.TenantId == tenant &&
                 student.TenantId == tenant && bed.TenantId == tenant && room.TenantId == tenant &&
                 hostel.TenantId == tenant && campus.TenantId == tenant &&
                 !allocation.IsDeleted && !enrollment.IsDeleted && !student.IsDeleted &&
-                !bed.IsDeleted && !room.IsDeleted && !hostel.IsDeleted && !campus.IsDeleted &&
-                campus.IsActive && enrollment.StudentId == allocation.StudentId &&
+                enrollment.StudentId == allocation.StudentId &&
                 enrollment.CampusId == hostel.CampusId &&
                 (!campusId.HasValue || hostel.CampusId == campusId.Value)
             select new

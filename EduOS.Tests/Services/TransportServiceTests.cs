@@ -25,6 +25,35 @@ namespace EduOS.Tests.Services;
 
 public class TransportServiceTests
 {
+
+    [Fact]
+    public async Task Assignment_history_and_export_retain_retired_route_vehicle_and_inactive_campus()
+    {
+        await using var db = CreateContext(CreateOptions(), 101);
+        var assignment = await SeedAssignmentAsync(db, 101, false, [1, 2, 3, 4, 5, 6, 7, 8]);
+        var route = await db.Routes.SingleAsync();
+        var vehicle = await db.Vehicles.SingleAsync();
+        var campus = await db.Campuses.SingleAsync();
+        route.IsDeleted = true;
+        vehicle.IsDeleted = true;
+        campus.IsActive = false;
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, 101);
+        var history = await service.GetAssignmentHistoryAsync(campus.Id, 1, 25, null,
+            TransportAssignmentState.Closed, null, null, null, null);
+        history.Success.Should().BeTrue(history.Message);
+        history.Data!.Items.Should().ContainSingle(x => x.Reference == assignment.PublicId &&
+            x.RouteName == "Route A" && x.VehicleNumber == "BUS-01");
+        var export = await service.ExportAssignmentHistoryCsvAsync(campus.Id, null,
+            TransportAssignmentState.Closed, null, null, null, null);
+        export.Success.Should().BeTrue(export.Message);
+        export.Data.Should().Contain("BUS-01").And.Contain("Route A");
+        export.Data.Should().NotContain("Transport Student");
+        (await CreateService(db, 202).GetAssignmentHistoryAsync(null, 1, 25, null,
+            null, null, null, null, null)).Data!.Items.Should().BeEmpty();
+    }
+
     [Fact]
     public async Task Legacy_campus_repair_requires_review_and_applies_only_unlinked_institution_records()
     {

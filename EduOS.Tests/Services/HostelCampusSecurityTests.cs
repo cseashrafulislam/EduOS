@@ -22,6 +22,71 @@ namespace EduOS.Tests.Services;
 
 public sealed class HostelCampusSecurityTests
 {
+
+    [Fact]
+    public async Task Allocation_history_and_export_retain_retired_physical_inventory_without_leaking_other_campuses()
+    {
+        var options = new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("hostel-retired-history-" + Guid.NewGuid().ToString("N")).Options;
+        var http = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity([
+                new Claim(ClaimTypes.NameIdentifier, "7"),
+                new Claim(ClaimTypes.Role, "HostelWarden"),
+                new Claim("TenantId", "101")
+            ], "TestAuthentication"))
+        };
+        http.Items["TenantId"] = 101L;
+        await using var db = new EduOSDbContext(options, new HttpContextAccessor { HttpContext = http });
+        var campus = new Campus { TenantId = 101, Name = "Historic campus", Code = "HIS" };
+        var other = new Campus { TenantId = 101, Name = "Other campus", Code = "OTH" };
+        db.AddRange(campus, other);
+        await db.SaveChangesAsync();
+        db.Add(new UserCampusAccess { TenantId = 101, UserId = 7, CampusId = campus.Id });
+        var hostel = new Hostel { TenantId = 101, CampusId = campus.Id, Name = "Historic hostel", Code = "HH" };
+        var student = new Student { TenantId = 101, PersonId = 11, StudentCode = "HIST-STU",
+            FullName = "Historical Student", StatusCode = "Active" };
+        db.AddRange(hostel, student);
+        await db.SaveChangesAsync();
+        var room = new HostelRoom { TenantId = 101, HostelId = hostel.Id, RoomNumber = "101", Capacity = 1 };
+        var enrollment = new StudentEnrollment
+        {
+            TenantId = 101, StudentId = student.Id, CampusId = campus.Id,
+            ClientRequestId = Guid.NewGuid(), IsCurrent = false, State = EnrollmentState.Active,
+            AcademicYearId = 1, AcademicProgramId = 1, AcademicLevelId = 1,
+            AcademicBatchId = 1, AcademicCurriculumId = 1, RollNo = "11"
+        };
+        db.AddRange(room, enrollment);
+        await db.SaveChangesAsync();
+        var bed = new HostelBed { TenantId = 101, HostelRoomId = room.Id, BedNumber = "A" };
+        db.Add(bed);
+        await db.SaveChangesAsync();
+        db.Add(new StudentHostelAllocation
+        {
+            TenantId = 101, ClientRequestId = Guid.NewGuid(), StudentId = student.Id,
+            StudentEnrollmentId = enrollment.Id, HostelBedId = bed.Id,
+            StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 2, 1),
+            State = HostelAllocationState.Closed
+        });
+        await db.SaveChangesAsync();
+        hostel.IsDeleted = true;
+        room.IsDeleted = true;
+        bed.IsDeleted = true;
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var history = await service.GetAllocationHistoryAsync(campus.Id, 1, 25, null, null, null, null);
+        history.Success.Should().BeTrue(history.Message);
+        history.Data!.Items.Should().ContainSingle(x => x.StudentCode == "HIST-STU" &&
+            x.HostelName == "Historic hostel" && x.RoomNumber == "101" && x.BedNumber == "A");
+        var export = await service.ExportAllocationHistoryCsvAsync(campus.Id, null, null, null, null);
+        export.Success.Should().BeTrue(export.Message);
+        export.Data.Should().Contain("Historic hostel").And.Contain("HIST-STU");
+        export.Data.Should().NotContain("Historical Student");
+        (await service.GetAllocationHistoryAsync(other.Id, 1, 25, null, null, null, null))
+            .Data!.Items.Should().BeEmpty();
+    }
+
     [Fact]
     public async Task Warden_rooms_require_active_campus_grant()
     {
