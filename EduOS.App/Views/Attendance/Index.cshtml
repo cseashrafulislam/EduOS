@@ -18,9 +18,16 @@
         <div class="content-card-heading"><h3 id="attendanceFilterTitle">Attendance register</h3></div>
         <form id="attendanceFilters" class="row g-3 align-items-end">
             <div class="col-md-3"><label class="form-label" for="attendanceDate">Date</label><input id="attendanceDate" class="form-control" type="date" required /></div>
-            <div class="col-md-3"><label class="form-label" for="academicYearId">Academic year</label><select id="academicYearId" class="form-select" required><option value="">Loading academic years…</option></select></div>
-            <div class="col-md-3"><label class="form-label" for="classId">Academic level</label><select id="classId" class="form-select" required disabled><option value="">Select a year first</option></select></div>
-            <div class="col-md-3"><label class="form-label" for="sectionId">Academic batch / section</label><select id="sectionId" class="form-select" required disabled><option value="">Select a level first</option></select></div>
+            <div class="col-md-3"><label class="form-label" for="attendanceBatchSearch">Find academic batch</label>
+                <div class="input-group"><input id="attendanceBatchSearch" class="form-control" maxlength="100" placeholder="Name, code, year or level" />
+                    <button id="attendanceBatchFind" class="btn btn-outline-secondary" type="button">Search</button></div></div>
+            <div class="col-md-4"><label class="form-label" for="sectionId">Academic batch / section</label>
+                <select id="sectionId" class="form-select" required disabled><option value="">Loading authorized batches…</option></select>
+                <div class="d-flex justify-content-between align-items-center mt-1">
+                    <button id="attendanceBatchPrevious" class="btn btn-sm btn-outline-secondary" type="button" disabled>Previous</button>
+                    <span id="attendanceBatchPage" class="small text-muted" aria-live="polite"></span>
+                    <button id="attendanceBatchNext" class="btn btn-sm btn-outline-secondary" type="button" disabled>Next</button>
+                </div></div>
             <div class="col-12 d-flex gap-2 flex-wrap">
                 <button class="btn btn-primary" type="submit">Load roster</button>
                 <button id="markAllPresent" class="btn btn-outline-success" type="button" disabled>Mark all present</button>
@@ -53,8 +60,16 @@
     <section class="content-card mt-3" aria-labelledby="attendanceReportTitle">
         <div class="content-card-heading"><h3 id="attendanceReportTitle">Finalized attendance report</h3></div>
         <form id="attendanceReportFilters" class="row g-3 align-items-end">
-            <div class="col-md-4"><label for="attendanceReportBatch" class="form-label">Academic batch</label>
-                <select id="attendanceReportBatch" class="form-select" required><option value="">Loading batches…</option></select></div>
+            <div class="col-md-4"><label for="attendanceReportBatchSearch" class="form-label">Find historical batch</label>
+                <div class="input-group"><input id="attendanceReportBatchSearch" class="form-control" maxlength="100" placeholder="Batch, year or level" />
+                    <button id="attendanceReportBatchFind" class="btn btn-outline-secondary" type="button">Search</button></div>
+                <label for="attendanceReportBatch" class="form-label mt-2">Academic batch</label>
+                <select id="attendanceReportBatch" class="form-select" required disabled><option value="">Loading authorized batches…</option></select>
+                <div class="d-flex justify-content-between align-items-center mt-1">
+                    <button id="attendanceReportBatchPrevious" class="btn btn-sm btn-outline-secondary" type="button" disabled>Previous</button>
+                    <span id="attendanceReportBatchPage" class="small text-muted" aria-live="polite"></span>
+                    <button id="attendanceReportBatchNext" class="btn btn-sm btn-outline-secondary" type="button" disabled>Next</button>
+                </div></div>
             <div class="col-md-3"><label for="attendanceReportFrom" class="form-label">From</label>
                 <input id="attendanceReportFrom" class="form-control" type="date" required /></div>
             <div class="col-md-3"><label for="attendanceReportTo" class="form-label">To</label>

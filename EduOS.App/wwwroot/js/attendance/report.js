@@ -6,6 +6,7 @@
     const status = el('attendanceReportStatus'), pageLabel = el('attendanceReportPage');
     const previous = el('attendanceReportPrevious'), next = el('attendanceReportNext');
     let page = 1, totalPages = 0, pending = 0;
+    let batchPage = 1, batchPages = 0, batchPending = 0;
     let visibleItems = [];
     const csvButton = el('attendanceReportCsv');
     const today = new Date();
@@ -52,15 +53,43 @@
         return data.data;
     }
     async function loadBatches() {
+        const request = ++batchPending;
+        const select = el('attendanceReportBatch');
+        select.replaceChildren(new Option('Loading authorized batches…', ''));
+        select.disabled = true;
+        el('attendanceReportBatchPrevious').disabled = true;
+        el('attendanceReportBatchNext').disabled = true;
+        el('attendanceReportBatchPage').textContent = '';
+        pending++;
+        page = 1; totalPages = 0;
+        previous.disabled = next.disabled = true;
+        visibleItems = []; csvButton.disabled = true; body.replaceChildren();
+        pageLabel.textContent = '';
         try {
-            const data = await fetchJson('/api/academic-setup/catalog');
-            const select = el('attendanceReportBatch');
+            const params = new URLSearchParams({
+                search: el('attendanceReportBatchSearch').value.trim(),
+                page: String(batchPage), pageSize: '25'
+            });
+            const data = await fetchJson('/api/student-attendance/batches?' + params);
+            if (request !== batchPending) return;
             select.replaceChildren(new Option('Select academic batch', ''));
-            for (const batch of (data?.batches || []).filter(x => x.isActive)) {
+            for (const batch of data.items || []) {
                 select.add(new Option([batch.academicYearName, batch.academicLevelName, batch.name]
                     .filter(Boolean).join(' / '), String(batch.id)));
             }
-        } catch (error) { message(error.message); }
+            select.disabled = !(data.items || []).length;
+            batchPages = data.totalPages || 0;
+            el('attendanceReportBatchPage').textContent = 'Page ' + batchPage + ' of ' +
+                batchPages + ' · ' + (data.totalCount || 0) + ' batches';
+            el('attendanceReportBatchPrevious').disabled = batchPage <= 1;
+            el('attendanceReportBatchNext').disabled = batchPage >= batchPages;
+            message(select.disabled ? 'No authorized historical batches found.' : 'Select a batch and report dates.');
+        } catch (error) {
+            if (request === batchPending) {
+                select.replaceChildren(new Option('Unable to load batches', ''));
+                message(error.message);
+            }
+        }
     }
     async function load() {
         if (!form.reportValidity()) return;
@@ -112,5 +141,15 @@
             previous.disabled = next.disabled = true;
         visibleItems = []; csvButton.disabled = true; body.replaceChildren();
             pageLabel.textContent = ''; message('Load report for the selected filters.'); });
+    el('attendanceReportBatchFind').addEventListener('click', () => { batchPage = 1; loadBatches(); });
+    el('attendanceReportBatchSearch').addEventListener('keydown', event => {
+        if (event.key === 'Enter') { event.preventDefault(); batchPage = 1; loadBatches(); }
+    });
+    el('attendanceReportBatchPrevious').addEventListener('click', () => {
+        if (batchPage > 1) { batchPage--; loadBatches(); }
+    });
+    el('attendanceReportBatchNext').addEventListener('click', () => {
+        if (batchPage < batchPages) { batchPage++; loadBatches(); }
+    });
     loadBatches();
 })();

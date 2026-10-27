@@ -4,6 +4,7 @@ using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Attendance;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Entities.HR;
+using EduOS.Persistence.Context;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
@@ -29,6 +30,7 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
     private readonly IGenericRepository<InstructorAssignment> _instructors;
     private readonly IGenericRepository<SubjectOffering> _offerings;
     private readonly IUnitOfWork _uow;
+    private readonly EduOSDbContext _db;
     private readonly ICurrentUserService _user;
     private readonly TimeProvider _clock;
     private readonly ILogger<StudentAttendanceService> _logger;
@@ -41,7 +43,7 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
         IGenericRepository<Student> students, IGenericRepository<AcademicBatch> batches,
         IGenericRepository<AcademicYear> years, IGenericRepository<Employee> employees,
         IGenericRepository<InstructorAssignment> instructors, IGenericRepository<SubjectOffering> offerings,
-        IUnitOfWork uow, ICurrentUserService user, TimeProvider clock,
+        EduOSDbContext db, IUnitOfWork uow, ICurrentUserService user, TimeProvider clock,
         ILogger<StudentAttendanceService> logger)
     {
         _attendances = attendances;
@@ -57,9 +59,114 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
         _instructors = instructors;
         _offerings = offerings;
         _uow = uow;
+        _db = db;
         _user = user;
         _clock = clock;
         _logger = logger;
+    }
+
+
+    /// <summary>
+    /// SQL-paged attendance batch picker. Managers may select historical batches for
+    /// finalized reports; active register selection additionally validates the date.
+    /// Teacher choices are restricted to effective subject assignments for that date.
+    /// </summary>
+    public async Task<ApiResponse<PagedResult<StudentAttendanceBatchChoiceDto>>> GetBatchChoicesAsync(
+        DateOnly? attendanceDate, string? search, int page = 1, int pageSize = 25,
+        CancellationToken ct = default)
+    {
+        if (!CanWrite())
+            return Error<PagedResult<StudentAttendanceBatchChoiceDto>>("Attendance permission is required.", 403);
+        if (page < 1 || pageSize is < 1 or > 100 || (long)(page - 1) * pageSize > int.MaxValue ||
+            search?.Length > 100 || (attendanceDate.HasValue &&
+            (attendanceDate.Value < new DateOnly(2000, 1, 1) ||
+             attendanceDate.Value > DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime.AddDays(1)))))
+            return Error<PagedResult<StudentAttendanceBatchChoiceDto>>("Invalid batch search, date or page.");
+        if (!_user.IsTenantAdmin && !_user.IsInRole("Principal") &&
+            !_user.IsInRole("VicePrincipal") && !attendanceDate.HasValue)
+            return Error<PagedResult<StudentAttendanceBatchChoiceDto>>("Attendance date is required.");
+
+        var tenant = _user.TenantId;
+        var batches = _batches.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && !x.IsDeleted);
+        if (attendanceDate.HasValue)
+        {
+            var date = attendanceDate.Value;
+            batches = batches.Where(x => x.IsActive &&
+                (!x.StartDate.HasValue || x.StartDate.Value <= date) &&
+                (!x.EndDate.HasValue || x.EndDate.Value >= date));
+        }
+        if (!_user.IsTenantAdmin)
+        {
+            if (_user.IsInRole("Principal") || _user.IsInRole("VicePrincipal"))
+            {
+                var campuses = AccessibleManagerCampusIds();
+                batches = batches.Where(x => campuses.Contains(x.CampusId));
+            }
+            else
+            {
+                var date = attendanceDate!.Value;
+                var assignedBatchIds = from employee in _employees.GetQueryable().AsNoTracking()
+                    join assignment in _instructors.GetQueryable().AsNoTracking()
+                        on employee.Id equals assignment.EmployeeId
+                    join offering in _offerings.GetQueryable().AsNoTracking()
+                        on assignment.SubjectOfferingId equals offering.Id
+                    where employee.TenantId == tenant && assignment.TenantId == tenant &&
+                        offering.TenantId == tenant && !employee.IsDeleted &&
+                        !assignment.IsDeleted && !offering.IsDeleted &&
+                        employee.UserId == _user.UserId && employee.State == EmployeeState.Active &&
+                        assignment.IsActive && offering.IsActive &&
+                        assignment.EffectiveFrom <= date &&
+                        (!assignment.EffectiveTo.HasValue || assignment.EffectiveTo.Value >= date)
+                    select offering.AcademicBatchId;
+                batches = batches.Where(x => assignedBatchIds.Contains(x.Id));
+            }
+        }
+
+        var query = from batch in batches
+            join year in _years.GetQueryable().AsNoTracking() on batch.AcademicYearId equals year.Id
+            join level in _db.AcademicLevels.AsNoTracking() on batch.AcademicLevelId equals level.Id
+            where year.TenantId == tenant && level.TenantId == tenant &&
+                !year.IsDeleted && !level.IsDeleted &&
+                (!attendanceDate.HasValue || (year.IsActive &&
+                    year.StartDate <= attendanceDate.Value && year.EndDate >= attendanceDate.Value))
+            select new StudentAttendanceBatchChoiceDto
+            {
+                Id = batch.Id, Name = batch.Name, Code = batch.Code,
+                AcademicYearName = year.Name, AcademicLevelName = level.Name
+            };
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            query = query.Where(x => x.Name.Contains(term) || x.Code.Contains(term) ||
+                x.AcademicYearName.Contains(term) || x.AcademicLevelName.Contains(term));
+        }
+        var total = await query.CountAsync(ct);
+        var items = await query.OrderBy(x => x.AcademicYearName).ThenBy(x => x.AcademicLevelName)
+            .ThenBy(x => x.Name).ThenBy(x => x.Id)
+            .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        return ApiResponse<PagedResult<StudentAttendanceBatchChoiceDto>>.SuccessResponse(
+            new PagedResult<StudentAttendanceBatchChoiceDto>
+            {
+                Items = items, TotalCount = total, Page = page, PageSize = pageSize
+            });
+    }
+
+    private IQueryable<long> AccessibleManagerCampusIds() =>
+        from access in _db.UserCampusAccesses.AsNoTracking()
+        join campus in _db.Campuses.AsNoTracking() on access.CampusId equals campus.Id
+        where access.TenantId == _user.TenantId && campus.TenantId == _user.TenantId &&
+            access.UserId == _user.UserId && access.IsActive && !access.IsDeleted &&
+            campus.IsActive && !campus.IsDeleted
+        select access.CampusId;
+
+    private async Task<bool> CanAccessBatchAsync(long batchId, CancellationToken ct)
+    {
+        if (_user.IsTenantAdmin) return true;
+        if (!_user.IsInRole("Principal") && !_user.IsInRole("VicePrincipal")) return false;
+        return await _batches.GetQueryable().AsNoTracking().AnyAsync(x =>
+            x.TenantId == _user.TenantId && x.Id == batchId && !x.IsDeleted &&
+            AccessibleManagerCampusIds().Contains(x.CampusId), ct);
     }
 
     public async Task<ApiResponse<StudentAttendanceRosterDto>> GetRosterAsync(StudentAttendanceRosterQueryDto query,
@@ -156,10 +263,12 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                 var requested = request.Students.Select(x => x.StudentEnrollmentReference).ToArray();
                 var enrollments = await (from enrollment in _enrollments.GetQueryable().AsNoTracking()
                     join student in _students.GetQueryable().AsNoTracking() on enrollment.StudentId equals student.Id
+                    join batch in _batches.GetQueryable().AsNoTracking() on enrollment.AcademicBatchId equals batch.Id
                     where enrollment.TenantId == _user.TenantId && student.TenantId == _user.TenantId &&
                         enrollment.AcademicBatchId == session.AcademicBatchId &&
                         enrollment.State == EnrollmentState.Active && enrollment.IsCurrent &&
-                        student.StatusCode == "Active" && requested.Contains(enrollment.PublicId)
+                        student.StatusCode == "Active" && batch.TenantId == _user.TenantId &&
+                        enrollment.CampusId == batch.CampusId && requested.Contains(enrollment.PublicId)
                     select new { enrollment.Id, enrollment.PublicId }).ToListAsync(token);
                 if (enrollments.Count != requested.Length)
                     return Error<StudentAttendanceRosterDto>("One or more enrollments are not active in this batch.", 409);
@@ -243,6 +352,8 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                 var session = await _sessions.GetQueryable().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == sessionId && !x.IsDeleted, token);
                 if (session == null) return Error<StudentAttendanceRosterDto>("Attendance session not found.", 404);
+                if (!await CanAccessBatchAsync(session.AcademicBatchId, token))
+                    return Error<StudentAttendanceRosterDto>("Attendance session not found.", 404);
                 // Finalization is idempotent: a retry after a lost HTTP response
                 // must return the posted register even if SQL rowversion advanced.
                 if (session.IsFinalized)
@@ -295,18 +406,21 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                 var row = await _attendances.GetQueryable().FirstOrDefaultAsync(x =>
                     x.TenantId == _user.TenantId && x.Id == attendanceId && !x.IsDeleted, token);
                 if (row == null) return Error<StudentAttendanceDto>("Attendance record not found.", 404);
-                if (!Matches(row.RowVersion, expected))
-                    return Error<StudentAttendanceDto>("Attendance record changed. Reload and retry.", 409);
                 var session = await _sessions.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == _user.TenantId && x.Id == row.AttendanceSessionId && !x.IsDeleted, token);
-                if (session == null) return Error<StudentAttendanceDto>("Attendance session not found.", 404);
+                if (session == null || !await CanAccessBatchAsync(session.AcademicBatchId, token))
+                    return Error<StudentAttendanceDto>("Attendance record not found.", 404);
+                if (!Matches(row.RowVersion, expected))
+                    return Error<StudentAttendanceDto>("Attendance record changed. Reload and retry.", 409);
                 if (!session.IsFinalized)
                     return Error<StudentAttendanceDto>("Only finalized attendance can be corrected. Edit the draft register instead.", 409);
                 var ownsEnrollment = await (from enrollment in _enrollments.GetQueryable().AsNoTracking()
                     join student in _students.GetQueryable().AsNoTracking() on enrollment.StudentId equals student.Id
+                    join batch in _batches.GetQueryable().AsNoTracking() on enrollment.AcademicBatchId equals batch.Id
                     where enrollment.TenantId == _user.TenantId && student.TenantId == _user.TenantId &&
                         enrollment.Id == row.StudentEnrollmentId && !enrollment.IsDeleted && !student.IsDeleted &&
-                        enrollment.AcademicBatchId == session.AcademicBatchId
+                        enrollment.AcademicBatchId == session.AcademicBatchId &&
+                        batch.TenantId == _user.TenantId && enrollment.CampusId == batch.CampusId
                     select enrollment.Id).AnyAsync(token);
                 if (!ownsEnrollment)
                     return Error<StudentAttendanceDto>("Historical enrollment ownership mismatch.", 409);
@@ -366,13 +480,16 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                     on enrollment.StudentId equals student.Id
                 join session in _sessions.GetQueryable().AsNoTracking()
                     on attendance.AttendanceSessionId equals session.Id
+                join batch in _batches.GetQueryable().AsNoTracking()
+                    on session.AcademicBatchId equals batch.Id
                 where attendance.TenantId == tenant && enrollment.TenantId == tenant &&
-                    student.TenantId == tenant && session.TenantId == tenant &&
+                    student.TenantId == tenant && session.TenantId == tenant && batch.TenantId == tenant &&
                     attendance.Id == attendanceId && !attendance.IsDeleted &&
                     !enrollment.IsDeleted && !student.IsDeleted && !session.IsDeleted &&
-                    enrollment.AcademicBatchId == session.AcademicBatchId
-                select attendance.Id).AnyAsync(ct);
-            if (!exists)
+                    enrollment.AcademicBatchId == session.AcademicBatchId &&
+                    enrollment.CampusId == batch.CampusId
+                select session.AcademicBatchId).FirstOrDefaultAsync(ct);
+            if (exists <= 0 || !await CanAccessBatchAsync(exists, ct))
                 return Error<PagedResult<StudentAttendanceAdjustmentDto>>("Attendance record not found.", 404);
 
             var query = _adjustments.GetQueryable().AsNoTracking().Where(x =>
@@ -408,9 +525,11 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
             x.SubjectOfferingId == offeringId && !x.IsDeleted, ct);
         var students = await (from enrollment in _enrollments.GetQueryable().AsNoTracking()
             join student in _students.GetQueryable().AsNoTracking() on enrollment.StudentId equals student.Id
+            join batch in _batches.GetQueryable().AsNoTracking() on enrollment.AcademicBatchId equals batch.Id
             where enrollment.TenantId == tenant && student.TenantId == tenant &&
                 enrollment.AcademicBatchId == batchId && enrollment.State == EnrollmentState.Active &&
-                enrollment.IsCurrent && student.StatusCode == "Active" && !student.IsDeleted
+                enrollment.IsCurrent && student.StatusCode == "Active" && !student.IsDeleted &&
+                batch.TenantId == tenant && enrollment.CampusId == batch.CampusId
             orderby enrollment.RollNo, student.FullName
             select new { enrollment.Id, enrollment.PublicId, enrollment.RollNo,
                 StudentReference = student.PublicId, student.StudentCode, student.FullName }).Take(2000).ToListAsync(ct);
@@ -498,7 +617,8 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
         var tenant = _user.TenantId;
         var batch = await _batches.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == tenant && x.Id == batchId && x.IsActive && !x.IsDeleted, ct);
-        if (batch == null) return "Academic batch is unavailable.";
+        if (batch == null || ((_user.IsInRole("Principal") || _user.IsInRole("VicePrincipal")) &&
+            !await CanAccessBatchAsync(batchId, ct))) return "Academic batch is unavailable.";
         var year = await _years.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == tenant && x.Id == batch.AcademicYearId && x.IsActive && !x.IsDeleted, ct);
         if (year == null || date < year.StartDate || date > year.EndDate ||

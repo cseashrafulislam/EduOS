@@ -23,6 +23,15 @@ public sealed class StudentAttendanceController : ControllerBase
         _service = service;
     }
 
+    [HttpGet("batches")]
+    public async Task<IActionResult> GetBatchChoices([FromQuery] DateOnly? attendanceDate,
+        [FromQuery] string? search, [FromQuery] int page = 1, [FromQuery] int pageSize = 25,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _service.GetBatchChoicesAsync(attendanceDate, search, page, pageSize, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet("roster")]
     public async Task<IActionResult> GetRoster([FromQuery] StudentAttendanceRosterQueryDto query, CancellationToken cancellationToken)
     {

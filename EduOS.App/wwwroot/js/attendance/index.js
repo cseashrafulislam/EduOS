@@ -6,7 +6,8 @@
     const saveButton = el('saveAttendance'), markAllButton = el('markAllPresent');
     const finalizeButton = el('finalizeAttendance'), summary = el('attendanceSummary');
     if (!form || !rows || !date) return;
-    let loaded = false, batches = [], roster = null;
+    let loaded = false, roster = null;
+    let batchPage = 1, batchPages = 0, batchRequest = 0;
     const local = new Date();
     date.value = [local.getFullYear(), String(local.getMonth() + 1).padStart(2, '0'), String(local.getDate()).padStart(2, '0')].join('-');
     function status(type, message) {
@@ -37,35 +38,38 @@
         select.disabled = !items.length;
     }
     async function loadBatches() {
+        const request = ++batchRequest;
+        invalidate();
+        selectOptions('sectionId', [], 'Loading authorized batches…');
+        el('attendanceBatchPrevious').disabled = true;
+        el('attendanceBatchNext').disabled = true;
+        el('attendanceBatchPage').textContent = '';
         try {
-            const response = await api('/api/academic-setup/catalog');
-            batches = (response.data?.batches || []).filter(x => x.isActive);
-            const years = new Map();
-            batches.forEach(x => years.set(x.academicYearId, x.academicYearName || 'Year ' + x.academicYearId));
-            selectOptions('academicYearId', [...years].map(([id, name]) => ({ id, name })).sort((a,b) => b.id - a.id), 'Select academic year');
-            selectOptions('classId', [], 'Select a year first');
-            selectOptions('sectionId', [], 'Select a level first');
-            if (!batches.length) status('warning', 'No active academic batches exist. Create a batch before recording attendance.');
+            const params = new URLSearchParams({
+                attendanceDate: date.value, search: el('attendanceBatchSearch').value.trim(),
+                page: String(batchPage), pageSize: '25'
+            });
+            const result = await api('/api/student-attendance/batches?' + params);
+            if (request !== batchRequest) return;
+            const data = result.data || {};
+            const choices = (data.items || []).map(x => ({
+                id: x.id,
+                name: [x.academicYearName, x.academicLevelName, x.name + (x.code ? ' (' + x.code + ')' : '')]
+                    .filter(Boolean).join(' / ')
+            }));
+            selectOptions('sectionId', choices, 'Select authorized academic batch');
+            batchPages = data.totalPages || 0;
+            el('attendanceBatchPage').textContent = 'Page ' + batchPage + ' of ' + batchPages +
+                ' · ' + (data.totalCount || 0) + ' batches';
+            el('attendanceBatchPrevious').disabled = batchPage <= 1;
+            el('attendanceBatchNext').disabled = batchPage >= batchPages;
+            if (!choices.length) status('warning', 'No eligible academic batches for this date and search.');
         } catch (error) {
-            selectOptions('academicYearId', [], 'Unable to load years');
-            status('danger', error.message);
+            if (request === batchRequest) {
+                selectOptions('sectionId', [], 'Unable to load batches');
+                status('danger', error.message);
+            }
         }
-    }
-    function yearChanged() {
-        invalidate();
-        const year = Number(el('academicYearId').value);
-        const levels = new Map();
-        batches.filter(x => x.academicYearId === year).forEach(x =>
-            levels.set(x.academicLevelId, x.academicLevelName || 'Level ' + x.academicLevelId));
-        selectOptions('classId', [...levels].map(([id,name]) => ({ id,name })).sort((a,b) => a.name.localeCompare(b.name)), 'Select level');
-        selectOptions('sectionId', [], 'Select a level first');
-    }
-    function levelChanged() {
-        invalidate();
-        const year = Number(el('academicYearId').value), level = Number(el('classId').value);
-        const options = batches.filter(x => x.academicYearId === year && x.academicLevelId === level)
-            .map(x => ({ id: x.id, name: x.name + (x.code ? ' (' + x.code + ')' : '') }));
-        selectOptions('sectionId', options, 'Select batch / section');
     }
     function invalidate() {
         loaded = false; roster = null; saveButton.disabled = true; markAllButton.disabled = true;
@@ -235,10 +239,18 @@
             ' · Absent ' + count('2') + ' · Late ' + count('3') + ' · Leave ' + count('4') +
             ' · Excused ' + count('5') + ' · Unmarked ' + count('') : '';
     }
-    el('academicYearId').addEventListener('change', yearChanged);
-    el('classId').addEventListener('change', levelChanged);
     el('sectionId').addEventListener('change', invalidate);
-    date.addEventListener('change', invalidate);
+    date.addEventListener('change', () => { batchPage = 1; loadBatches(); });
+    el('attendanceBatchFind').addEventListener('click', () => { batchPage = 1; loadBatches(); });
+    el('attendanceBatchSearch').addEventListener('keydown', event => {
+        if (event.key === 'Enter') { event.preventDefault(); batchPage = 1; loadBatches(); }
+    });
+    el('attendanceBatchPrevious').addEventListener('click', () => {
+        if (batchPage > 1) { batchPage--; loadBatches(); }
+    });
+    el('attendanceBatchNext').addEventListener('click', () => {
+        if (batchPage < batchPages) { batchPage++; loadBatches(); }
+    });
     form.addEventListener('submit', loadRoster);
     rows.addEventListener('change', updateSummary);
     saveButton.addEventListener('click', saveAttendance);

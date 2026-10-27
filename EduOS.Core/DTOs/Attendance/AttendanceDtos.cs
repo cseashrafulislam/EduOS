@@ -137,6 +137,16 @@ public class LeaveBalanceDto
     public decimal RemainingDays { get; set; }
 }
 
+/// <summary>Server-paged, campus-authorized academic batch choice for attendance and historical reports.</summary>
+public sealed class StudentAttendanceBatchChoiceDto
+{
+    public long Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+    public string AcademicYearName { get; set; } = string.Empty;
+    public string AcademicLevelName { get; set; } = string.Empty;
+}
+
 public sealed class StudentAttendanceRosterQueryDto
 {
     [Range(1, long.MaxValue)] public long AcademicBatchId { get; set; }

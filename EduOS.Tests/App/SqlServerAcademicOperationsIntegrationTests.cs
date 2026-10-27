@@ -29,7 +29,7 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
         if (string.IsNullOrWhiteSpace(connection)) return;
         var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
         var suffix = Guid.NewGuid().ToString("N")[..10];
-        long tenantId, managerId, studentUserId, batchId;
+        long tenantId, managerId, studentUserId, batchId, campusId;
         Guid enrollmentReference;
         await using (var setup = new EduOSDbContext(options))
         {
@@ -64,6 +64,7 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
                     AdmissionDate = new DateOnly(2026, 1, 1) };
                 setup.AddRange(campus, year, program, student);
                 await setup.SaveChangesAsync();
+                campusId = campus.Id;
                 var level = new AcademicLevel { TenantId = tenantId, AcademicProgramId = program.Id,
                     Name = "Nine", Code = "G9", LevelNo = 9 };
                 var curriculum = new AcademicCurriculum { TenantId = tenantId,
@@ -221,6 +222,36 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
         Assert.Equal(AttendanceState.Absent, eventRow.NewState);
         Assert.Equal(managerId, eventRow.ChangedByUserId);
         Assert.Equal(adjustment.Reason, eventRow.Reason);
+
+        // SQL Server translation and live-grant enforcement across the complete
+        // register lifecycle: picker, roster, finalized replay and audit history.
+        var principal = AttendanceService(db, new Actor(tenantId, managerId, "Principal"));
+        var scopedRoster = new StudentAttendanceRosterQueryDto
+        {
+            AcademicBatchId = batchId, AttendanceDate = new DateOnly(2026, 10, 10)
+        };
+        Assert.Empty((await principal.GetBatchChoicesAsync(scopedRoster.AttendanceDate, null)).Data!.Items);
+        Assert.Equal(409, (await principal.GetRosterAsync(scopedRoster)).StatusCode);
+        Assert.Equal(404, (await principal.GetCorrectionsAsync(leaveMark.Id)).StatusCode);
+        Assert.Equal(404, (await principal.FinalizeSessionAsync(
+            finalized.Data.AttendanceSessionId, saved.Data.SessionRowVersion)).StatusCode);
+        var grant = new UserCampusAccess
+        {
+            TenantId = tenantId, UserId = managerId, CampusId = campusId, IsActive = true
+        };
+        db.UserCampusAccesses.Add(grant);
+        await db.SaveChangesAsync();
+        Assert.Equal(1, (await principal.GetBatchChoicesAsync(scopedRoster.AttendanceDate, null)).Data!.TotalCount);
+        Assert.True((await principal.GetRosterAsync(scopedRoster)).Success);
+        Assert.True((await principal.GetCorrectionsAsync(leaveMark.Id)).Success);
+        Assert.True((await principal.FinalizeSessionAsync(
+            finalized.Data.AttendanceSessionId, saved.Data.SessionRowVersion)).Success);
+        grant.IsActive = false;
+        await db.SaveChangesAsync();
+        Assert.Equal(404, (await principal.GetCorrectionsAsync(leaveMark.Id)).StatusCode);
+        Assert.Equal(404, (await principal.FinalizeSessionAsync(
+            finalized.Data.AttendanceSessionId, saved.Data.SessionRowVersion)).StatusCode);
+
         var paged = await attendance.GetCorrectionsAsync(leaveMark.Id, page: 2, pageSize: 1);
         Assert.True(paged.Success, paged.Message);
         Assert.Empty(paged.Data!.Items);
@@ -293,7 +324,7 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
         new GenericRepository<Student>(db), new GenericRepository<AcademicBatch>(db),
         new GenericRepository<AcademicYear>(db), new GenericRepository<Employee>(db),
         new GenericRepository<InstructorAssignment>(db), new GenericRepository<SubjectOffering>(db),
-        db, user, TimeProvider.System, NullLogger<StudentAttendanceService>.Instance);
+        db, db, user, TimeProvider.System, NullLogger<StudentAttendanceService>.Instance);
 
     private sealed class Actor(long tenant, long userId, string role) : ICurrentUserService
     {
