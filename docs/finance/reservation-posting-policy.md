@@ -65,3 +65,7 @@ reconciliation. Only invoice/payment history bypasses global query filters,
 with an explicit tenant predicate. No approval, mutation, proration or GL
 posting is introduced. Ordinary transactional deletion remains prohibited by
 the shared DbContext; this protects historical anomalies.
+
+## Charged-term mutation boundary (Finance-owned policy)
+
+The Finance-owned `ReservationFinancePolicy.HasChargeableTerms` rejects any nonzero monthly rent/fare, nonzero Hostel deposit or linked Hostel fee head **even when no invoice or payment exists**. Existing authorized Hostel cancellation/checkout and Transport pre-arrival start reschedule, operating extension, upcoming cancellation and closure commands now call this rule inside their serializable write transactions, after the posted/issued invoice gate and before changing canonical reservation dates/state. Exact-state retries remain read-only. This closes an unbilled-but-chargeable amendment gap; it is not approval, invoice generation or proration. No Finance or Operations ledger writes are introduced. Posted/issued exposure remains a separate mandatory gate, including for zero-charge reservations.

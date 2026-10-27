@@ -1,6 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Hostel;
 using EduOS.Core.Enums.Domain;
+using EduOS.Service.Services.Finance;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Transactions;
@@ -75,6 +76,9 @@ public sealed partial class HostelService
                 if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
                     allocation.StudentId, allocation.StudentEnrollmentId, ct))
                     return Error("Posted finance activity requires an approved Finance adjustment before checkout.", 409);
+                if (ReservationFinancePolicy.HasChargeableTerms(allocation.MonthlyRent, allocation.SecurityDeposit,
+                    allocation.FeeHeadId.HasValue))
+                    return Error("Charged Hostel reservation changes require an approved Finance billing adjustment.", 409);
 
                 allocation.EndDate = end;
                 allocation.State = HostelAllocationState.Closed;

@@ -21,6 +21,14 @@ public sealed class ReservationFinancePolicy : IReservationFinancePolicy
 
     public ReservationFinancePolicy(EduOSDbContext db) => _db = db;
 
+    /// <summary>
+    /// Chargeable reservation terms require Finance approval even before an invoice
+    /// is issued. This is a pure eligibility rule, not approval or proration.
+    /// </summary>
+    public static bool HasChargeableTerms(decimal monthlyCharge, decimal securityDeposit = 0m,
+        bool hasFeeHead = false) =>
+        monthlyCharge != 0m || securityDeposit != 0m || hasFeeHead;
+
     public async Task<bool> HasPostedActivityAsync(long tenantId, long studentId,
         long studentEnrollmentId, CancellationToken cancellationToken = default)
     {

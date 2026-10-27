@@ -1,6 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Transport;
 using EduOS.Core.Enums.Domain;
+using EduOS.Service.Services.Finance;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Transactions;
@@ -53,6 +54,8 @@ public sealed partial class TransportService
                 if (await _reservationFinancePolicy.HasPostedActivityAsync(tenant,
                     assignment.StudentId, assignment.StudentEnrollmentId, token))
                     return Error("Posted finance activity requires an approved Finance adjustment before rescheduling.", 409);
+                if (ReservationFinancePolicy.HasChargeableTerms(assignment.MonthlyFare))
+                    return Error("Charged Transport reservation changes require an approved Finance billing adjustment.", 409);
                 var studentIsActive = await _students.GetQueryable().AsNoTracking().AnyAsync(x =>
                     x.TenantId == tenant && !x.IsDeleted && x.Id == assignment.StudentId &&
                     x.StatusCode == "Active", token);
