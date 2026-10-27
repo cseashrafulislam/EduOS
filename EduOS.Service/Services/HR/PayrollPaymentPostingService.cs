@@ -77,6 +77,41 @@ public sealed class PayrollPaymentPostingService : IPayrollPaymentPostingService
             .Select(x => x.Payment.JournalId!.Value).Distinct().ToArray();
         var journals = await db.Journals.AsNoTracking().Where(x => x.TenantId == tenant &&
             journalIds.Contains(x.Id) && !x.IsDeleted).ToDictionaryAsync(x => x.Id, ct);
+
+        // Reconcile the complete successful settlement history for employees on this page.
+        // Deleted historical postings are deliberately included: they cannot silently free payable.
+        var employeeIds = records.Select(x => x.Employee.Id).Distinct().ToArray();
+        var successfulHistory = await db.PayrollPayments.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenant && employeeIds.Contains(x.PayrollEmployeeId) &&
+                x.State == PaymentState.Successful)
+            .Take(501).ToListAsync(ct);
+        if (successfulHistory.Count > 500)
+            return Error<PayrollPaymentPostingRegisterDto>("Payroll settlement history exceeds the safe reconciliation limit.", 409);
+        var settlementJournalIds = successfulHistory.Where(x => x.JournalId.HasValue)
+            .Select(x => x.JournalId!.Value).Distinct().ToArray();
+        var relatedJournalIds = settlementJournalIds.Concat(records
+            .Where(x => x.Run.JournalId.HasValue).Select(x => x.Run.JournalId!.Value))
+            .Distinct().ToArray();
+        var relatedJournals = await db.Journals.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenant && relatedJournalIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, ct);
+        var relatedLines = await db.JournalLines.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenant && relatedJournalIds.Contains(x.JournalId) &&
+                (settlementJournalIds.Contains(x.JournalId) || x.IsDeleted ||
+                    x.Description == "Payroll net payable"))
+            .Take(3001).ToListAsync(ct);
+        if (relatedLines.Count > 3000)
+            return Error<PayrollPaymentPostingRegisterDto>("Payroll journal history exceeds the safe reconciliation limit.", 409);
+        var reversalIds = await db.Journals.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenant && x.ReversalOfJournalId.HasValue &&
+                relatedJournalIds.Contains(x.ReversalOfJournalId.Value) &&
+                (x.State == JournalState.Posted || x.State == JournalState.Reversed))
+            .Select(x => x.ReversalOfJournalId!.Value).Take(501).ToListAsync(ct);
+        if (reversalIds.Count > 500)
+            return Error<PayrollPaymentPostingRegisterDto>("Payroll reversal history exceeds the safe reconciliation limit.", 409);
+        var reversed = reversalIds.ToHashSet();
+        var historyByEmployee = successfulHistory.ToLookup(x => x.PayrollEmployeeId);
+        var linesByJournal = relatedLines.ToLookup(x => x.JournalId);
         var periods = await db.AccountingPeriods.AsNoTracking().Where(x => x.TenantId == tenant &&
             !x.IsDeleted && !x.IsClosed).OrderByDescending(x => x.StartDate).Take(101)
             .Select(x => new PayrollPostingPeriodDto { Id = x.Id, Name = x.Name,
@@ -92,18 +127,84 @@ public sealed class PayrollPaymentPostingService : IPayrollPaymentPostingService
             Page = page, PageSize = pageSize, TotalCount = total, OpenPeriods = periods,
             Accounts = accounts.Select(x => new PayrollPostingAccountDto
                 { Id = x.Id, Code = x.Code, Name = x.Name, AccountType = x.AccountType.ToString() }).ToArray(),
-            Payments = records.Select(x => new PayrollPaymentPostingRowDto
+            Payments = records.Select(x =>
             {
-                Reference = x.Payment.PublicId, RunNumber = x.Run.RunNumber,
-                EmployeeName = x.Employee.EmployeeNameSnapshot ?? x.Employee.EmployeeCodeSnapshot ?? "Employee",
-                CampusId = x.Run.CampusId, PaymentDate = x.Payment.PaymentDate,
-                PaymentMethod = x.Payment.PaymentMethod, State = x.Payment.State,
-                Amount = x.Payment.Amount, BankAccountId = x.Payment.BankAccountId,
-                BankLedgerId = x.Payment.BankAccountId.HasValue &&
-                    banks.TryGetValue(x.Payment.BankAccountId.Value, out var bank) ? bank.AccountId : null,
-                JournalReference = x.Payment.JournalId.HasValue &&
-                    journals.TryGetValue(x.Payment.JournalId.Value, out var journal) ? journal.PublicId : null,
-                RowVersion = Convert.ToBase64String(x.Payment.RowVersion)
+                var history = historyByEmployee[x.Employee.Id].ToArray();
+                var settled = history.Sum(p => p.Amount);
+                var remaining = x.Employee.NetAmount - settled;
+                string? issue = null;
+                var accrual = x.Run.JournalId.HasValue
+                    ? relatedJournals.GetValueOrDefault(x.Run.JournalId.Value) : null;
+                var payableLines = accrual == null ? Array.Empty<JournalLine>() :
+                    linesByJournal[accrual.Id].Where(l => !l.IsDeleted &&
+                        l.Description == "Payroll net payable" &&
+                        l.CreditAmount > 0m && l.DebitAmount == 0m).ToArray();
+                if (!Money(x.Employee.NetAmount) || x.Employee.NetAmount <= 0m)
+                    issue = "Employee net salary snapshot is invalid.";
+                else if (accrual == null || accrual.IsDeleted ||
+                    accrual.SourceType != "PayrollRun" || accrual.SourceId != x.Run.Id ||
+                    accrual.State != JournalState.Posted || accrual.ReversalOfJournalId.HasValue ||
+                    accrual.CampusId != x.Run.CampusId || accrual.CurrencyCode != "BDT" ||
+                    reversed.Contains(accrual.Id) ||
+                    linesByJournal[accrual.Id].Any(l => l.IsDeleted) || payableLines.Length != 1)
+                    issue = "Payroll accrual or salary payable provenance needs reconciliation.";
+                else if (history.Any(p => p.IsDeleted || !Money(p.Amount) || p.Amount <= 0m))
+                    issue = "Deleted or invalid successful payment history requires reconciliation.";
+                else if (settled > x.Employee.NetAmount)
+                    issue = "Successful settlements exceed the employee net salary.";
+                else
+                {
+                    foreach (var paid in history)
+                    {
+                        var posted = paid.JournalId.HasValue
+                            ? relatedJournals.GetValueOrDefault(paid.JournalId.Value) : null;
+                        var entries = posted == null ? Array.Empty<JournalLine>() :
+                            linesByJournal[posted.Id].ToArray();
+                        if (posted == null || posted.IsDeleted || posted.SourceType != "PayrollPayment" ||
+                            posted.SourceId != paid.Id || posted.State != JournalState.Posted ||
+                            posted.ReversalOfJournalId.HasValue || reversed.Contains(posted.Id) ||
+                            posted.CampusId != x.Run.CampusId || posted.CurrencyCode != "BDT" ||
+                            posted.JournalDate != paid.PaymentDate || paid.CurrencyCode != "BDT" ||
+                            entries.Length != 2 || entries.Any(l => l.IsDeleted) ||
+                            entries.Count(l => l.Description == "Salary payable settlement" &&
+                                l.AccountId == payableLines[0].AccountId &&
+                                l.EmployeeId == x.Employee.EmployeeId && l.CampusId == x.Run.CampusId &&
+                                l.DebitAmount == paid.Amount && l.CreditAmount == 0m) != 1 ||
+                            entries.Count(l => l.Description == "Cash/bank payroll disbursement" &&
+                                l.EmployeeId == x.Employee.EmployeeId && l.CampusId == x.Run.CampusId &&
+                                l.AccountId != payableLines[0].AccountId &&
+                                l.CreditAmount == paid.Amount && l.DebitAmount == 0m) != 1)
+                        {
+                            issue = "A successful payment has missing, reversed or inconsistent GL evidence.";
+                            break;
+                        }
+                    }
+                }
+                if (issue == null && x.Payment.State == PaymentState.Successful &&
+                    !history.Any(p => p.Id == x.Payment.Id))
+                    issue = "Successful payment is absent from its settlement history.";
+                if (issue == null && x.Payment.State == PaymentState.AwaitingVerification &&
+                    (x.Payment.JournalId.HasValue || !Money(x.Payment.Amount) ||
+                        x.Payment.Amount <= 0m || x.Payment.Amount > remaining))
+                    issue = "Pending payment exceeds remaining salary or has invalid posting state.";
+                return new PayrollPaymentPostingRowDto
+                {
+                    Reference = x.Payment.PublicId, RunNumber = x.Run.RunNumber,
+                    EmployeeName = x.Employee.EmployeeNameSnapshot ?? x.Employee.EmployeeCodeSnapshot ?? "Employee",
+                    CampusId = x.Run.CampusId, PaymentDate = x.Payment.PaymentDate,
+                    PaymentMethod = x.Payment.PaymentMethod, State = x.Payment.State,
+                    Amount = x.Payment.Amount, NetSalaryAmount = x.Employee.NetAmount,
+                    SettledAmount = settled, RemainingAmount = remaining,
+                    ReconciliationStatus = issue != null ? "RequiresReview" :
+                        x.Payment.State == PaymentState.Successful ? "Reconciled" : "Pending",
+                    ReconciliationIssue = issue,
+                    BankAccountId = x.Payment.BankAccountId,
+                    BankLedgerId = x.Payment.BankAccountId.HasValue &&
+                        banks.TryGetValue(x.Payment.BankAccountId.Value, out var bank) ? bank.AccountId : null,
+                    JournalReference = x.Payment.JournalId.HasValue &&
+                        journals.TryGetValue(x.Payment.JournalId.Value, out var journal) ? journal.PublicId : null,
+                    RowVersion = Convert.ToBase64String(x.Payment.RowVersion)
+                };
             }).ToArray()
         });
     }
