@@ -1,3 +1,5 @@
+> **SUPERSEDED — HISTORICAL CONTRACT ONLY (2026-10-28).** The owner replaced this two-version scope with the [authoritative V1/V2/V3 release contract](RELEASE_V1_V2_V3.md). Do **not** use the V1 HR/LMS or V2 Inventory assignments below when planning, coding or giving release status. This file is retained only to preserve historical decisions and links.
+
 # EduOS — Version 1.0 and Version 2.0 Release Contract
 
 **Decision baseline:** 2026-10-28 | **Owner-provided launch cohort:** 16 institutions, seven institution categories, approximately 40,000 initial student records. **Status: requirements / release gate, not a claim of current implementation or deployment approval.**
