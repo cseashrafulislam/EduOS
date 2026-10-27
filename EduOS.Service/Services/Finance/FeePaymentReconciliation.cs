@@ -104,9 +104,16 @@ public sealed partial class FeeReceivablesAgingService
             return ApiResponse<FeePaymentReconciliationRegisterDto>.ErrorResponse(
                 "Too many refund allocations on this page; narrow the filters.", 409);
         var refundIds = portions.Select(x => x.RefundId).Distinct().ToArray();
-        var refunds = await _db.Refunds.IgnoreQueryFilters().AsNoTracking()
-            .Where(x => x.TenantId == tenant && refundIds.Contains(x.Id))
-            .ToDictionaryAsync(x => x.Id, ct);
+        // Read all refunds belonging to the selected receipts, including paid refunds
+        // with no allocation rows, plus foreign-linked refund evidence.
+        var refundRows = await _db.Refunds.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenant &&
+                (paymentIds.Contains(x.StudentPaymentId) || refundIds.Contains(x.Id)))
+            .ToListAsync(ct);
+        if (refundRows.Count > 20000)
+            return ApiResponse<FeePaymentReconciliationRegisterDto>.ErrorResponse(
+                "Too many refunds on this page; narrow the filters.", 409);
+        var refunds = refundRows.ToDictionary(x => x.Id);
         var journalIds = rows.Where(x => x.JournalId.HasValue)
             .Select(x => x.JournalId!.Value).Distinct().ToArray();
         var journals = await _db.Journals.IgnoreQueryFilters().AsNoTracking()
@@ -176,8 +183,8 @@ public sealed partial class FeeReceivablesAgingService
             {
                 var allocated = portions.Where(x => x.RefundId == refund.Id && !x.IsDeleted)
                     .Sum(x => x.Amount);
-                if (allocated != refund.Amount)
-                    issues.Add("Paid refund total differs from refund allocations");
+                if (allocated != refund.Amount || !refund.ReversalJournalId.HasValue)
+                    issues.Add("Paid refund total or reversal provenance invalid");
             }
             if (payment.JournalId.HasValue &&
                 (!payment.CampusId.HasValue || payment.CampusId != payment.MaxCampusId ||

@@ -93,6 +93,39 @@ public sealed class FeePaymentReconciliationWorkflowTests
         result.Data!.Rows.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task Paid_refund_without_allocation_is_flagged()
+    {
+        await using var db = Database();
+        Seed(db);
+        db.PaymentAllocations.Add(new PaymentAllocation
+        { Id = 30, TenantId = 41, StudentPaymentId = 20, StudentInvoiceId = 10, Amount = 100m });
+        db.Refunds.Add(new Refund
+        { Id = 40, TenantId = 41, StudentPaymentId = 20, Amount = 20m,
+          State = RefundState.Paid, ReversalJournalId = 99, Reason = "Return" });
+        await db.SaveChangesAsync();
+        var result = await new FeeReceivablesAgingService(db, new TestUser())
+            .GetPaymentReconciliationAsync(null, null, 1, 25);
+        result.StatusCode.Should().Be(200);
+        result.Data!.Rows[0].Status.Should().Be("Requires review");
+        result.Data.Rows[0].Issues.Should().Contain("Paid refund total");
+    }
+
+    [Fact]
+    public async Task Overallocated_receipt_is_flagged()
+    {
+        await using var db = Database();
+        Seed(db);
+        db.PaymentAllocations.Add(new PaymentAllocation
+        { Id = 30, TenantId = 41, StudentPaymentId = 20, StudentInvoiceId = 10, Amount = 120m });
+        await db.SaveChangesAsync();
+        var result = await new FeeReceivablesAgingService(db, new TestUser())
+            .GetPaymentReconciliationAsync(null, null, 1, 25);
+        result.StatusCode.Should().Be(200);
+        result.Data!.Rows[0].GrossAllocated.Should().Be(120m);
+        result.Data.Rows[0].Issues.Should().Contain("differs from allocated");
+    }
+
     private static void Seed(EduOSDbContext db)
     {
         db.Campuses.Add(new Campus { Id = 7, TenantId = 41, Name = "Main", IsActive = true });
