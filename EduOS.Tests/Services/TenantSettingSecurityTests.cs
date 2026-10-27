@@ -55,6 +55,28 @@ public sealed class TenantSettingSecurityTests
         (await setup.Db.TenantSettings.CountAsync()).Should().Be(0);
     }
 
+    [Theory]
+    [InlineData("branding.primarycolor")]
+    [InlineData("BRANDING.SECONDARYCOLOR")]
+    [InlineData("Branding.aCcEnTcOlOr")]
+    public async Task Branding_color_validation_cannot_be_bypassed_by_key_casing(string key)
+    {
+        await using var setup = Create();
+        var invalid = await setup.Service.SaveSettingAsync(null, new SaveTenantSettingRequestDto
+        {
+            Key = key, Category = "Branding", Value = "not-a-color"
+        });
+        Assert.False(invalid.Success);
+        Assert.Equal(0, await setup.Db.TenantSettings.CountAsync());
+
+        var valid = await setup.Service.SaveSettingAsync(null, new SaveTenantSettingRequestDto
+        {
+            Key = key, Category = "Branding", Value = "#aBc123"
+        });
+        Assert.True(valid.Success, valid.Message);
+        Assert.Equal("#aBc123", (await setup.Db.TenantSettings.SingleAsync()).Value);
+    }
+
     [Fact]
     public async Task Tenant_setting_reads_are_scoped_to_current_tenant()
     {

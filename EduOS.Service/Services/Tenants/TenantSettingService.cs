@@ -73,8 +73,9 @@ public sealed class TenantSettingService : ITenantSettingService
             request.Category?.Length > 100)
             return ApiResponse<TenantSettingDto>.ErrorResponse("Setting key or category is invalid.");
         var key = request.Key.Trim();
-        if (key.StartsWith("Branding.", StringComparison.OrdinalIgnoreCase) &&
-            key is "Branding.PrimaryColor" or "Branding.SecondaryColor" or "Branding.AccentColor" &&
+        if ((key.Equals("Branding.PrimaryColor", StringComparison.OrdinalIgnoreCase) ||
+             key.Equals("Branding.SecondaryColor", StringComparison.OrdinalIgnoreCase) ||
+             key.Equals("Branding.AccentColor", StringComparison.OrdinalIgnoreCase)) &&
             !Regex.IsMatch(request.Value ?? "", "^#[0-9A-Fa-f]{6}$"))
             return ApiResponse<TenantSettingDto>.ErrorResponse("Branding color must use #RRGGBB.");
         try
