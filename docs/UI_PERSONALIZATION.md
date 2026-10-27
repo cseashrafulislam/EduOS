@@ -10,6 +10,28 @@
 - **One compact information icon in each page header** opens concise, context-aware page/field guidance on desktop hover or click and mobile tap; keyboard/screen-reader users can access the same help. Guidance must not obstruct the form or replace essential legal/error information.
 - Appropriate defaults and dependent selects; never auto-derive financial or historical facts that could silently be wrong.
 
+## 1.1. Non-intrusive help and truly clean screens
+
+- Every operational page has at most **one small page-header info/help entry** for normal guidance. Never fill the form with repeated hints, instructional paragraphs, footnotes or decorative banners. Labels, required markers, genuine validation errors and legally essential explanations remain visible when necessary.
+- Help is **user-initiated**, not an automatic overlay: desktop hover after a modest delay or explicit click; mobile tap; keyboard Enter/Space. It closes naturally on mouse leave, outside click, Escape or navigation and never reopens itself after every visit/save/field focus.
+- Content is a compact page-specific field/action map: concise title, what the important controls mean, any genuinely surprising rule, and a short example only when helpful. It should fit a small popover or scroll-limited panel, never force a long full-screen manual or interrupt a task.
+- Use ordinary inline validation *only when input is invalid*; guide text is not a substitute for useful field labels, correct defaults, server-side checks or safe error feedback.
+- Optional first-run tours, if ever added, are strictly opt-in/dismissible and remember the dismissal. Avoid repeated auto tooltips, forced tutorials, sound, motion, flashing elements and confirmation popups for ordinary success.
+
+## 1.2. Form, list, popup and report polish — common contract
+
+| Surface | Expected professional behavior |
+| --- | --- |
+| Page header | Short meaningful title, compact help icon and only the highest-value contextual actions; no long introductory text or repeated breadcrumbs/cards. |
+| Form | Related fields grouped logically, consistent alignment/width, defaults and dependent inputs; few clicks, clear required state, no permanent notes under every field. |
+| List/table | Relevant columns, consistent status chips, search/filter/sort/page controls, actionable empty state, sticky essentials on large lists, responsive mobile view and permission-aware actions. |
+| Dialog/popup | Open only for requested work, consequential confirmation or genuine blocking errors; concise heading/body/actions, appropriate sizing, no nested modal chains, keyboard focus management and mobile-fit layout. |
+| Confirm/cancel | Name the actual consequence; confirm only destructive/high-impact operations. Unsaved edits require a targeted leave warning, not repetitive dialogs. Financial/result state transitions still require server approval gates. |
+| Feedback | Quiet success toast/inline state rather than success modal; clear, accessible errors linked to affected fields; no noisy alerts for routine navigation. |
+| Report | Compact title and filters, clear date/tenant/campus scope, readable totals and grouping, authorized PDF/Excel/Print actions, consistent A4/landscape print layout, pagination/async export for large histories and no misleading blank/zero totals. |
+| Loading/empty/error | Stable skeleton or progress state, cancel/retry where safe, helpful empty state, clean permission-denied state and no infinite spinners or silently failed requests. |
+
+All of the above reuse the same design system for admin, teacher, student and parent portals; changing role, institute, language, theme or device must not produce a visibly disconnected application. Quality review includes dashboard, create/edit/view, approval dialog, print/PDF, export, and error states—not only the default form screenshot.
 ## 2. Supported user controls
 
 | Surface | Controlled, supported choices |
