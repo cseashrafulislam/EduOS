@@ -137,6 +137,11 @@ public sealed class StudentStatusTransitionService(
         {
             return Fail<StudentStatusTransitionDto>("Student changed. Reload and retry.", 409);
         }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 1205)
+        {
+            logger.LogWarning(ex, "Concurrent student status transition deadlock in tenant {TenantId}", user.TenantId);
+            return Fail<StudentStatusTransitionDto>("Concurrent status transition. Reload and retry.", 409);
+        }
         catch (DbUpdateException ex)
         {
             logger.LogWarning(ex, "Student status conflict in tenant {TenantId}", user.TenantId);
