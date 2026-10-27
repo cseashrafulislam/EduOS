@@ -28,6 +28,15 @@ test('driver registry preserves row-version and safe DOM rendering', () => {
     new Function(js);
 });
 
+test('driver registry maps SQL serialization and unique-index races to conflict, not HTTP 500', () => {
+    for (const token of [
+        'SqlException ex) when (ex.Number is 1205 or 1222 or 3960 or 2601 or 2627)',
+        'InvalidOperationException ex) when (HasSqlSerializationConflict(ex))',
+        'Driver registry SQL conflict',
+        'Driver registry serialization conflict'
+    ]) assert.ok(service.includes(token), token);
+});
+
 test('driver license expiry cannot invalidate active or future assignments', () => {
     for (const token of [
         'existing.LicenseExpiresOn != request.LicenseExpiresOn',

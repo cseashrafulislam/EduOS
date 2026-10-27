@@ -785,6 +785,94 @@ public sealed class SqlServerTransportSeatCapacityIntegrationTests
             x.TransportDriverId == replacementDriverId && x.IsCurrent));
     }
 
+
+    [Fact]
+    public async Task Driver_license_shortening_racing_future_driver_assignment_cannot_strand_coverage()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var fixture = await SeedAsync(connection);
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        var suffix = Guid.NewGuid().ToString("N")[..12];
+        long driverId;
+        string vehicleVersion;
+        string driverVersion;
+
+        await using (var setup = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId))
+        {
+            var driver = new TransportDriver
+            {
+                TenantId = fixture.TenantId, FullName = "License race driver",
+                LicenseNumber = "LIC-RACE-" + suffix,
+                LicenseExpiresOn = today.AddDays(60), IsActive = true
+            };
+            setup.TransportDrivers.Add(driver);
+            await setup.SaveChangesAsync();
+            driverId = driver.Id;
+            driverVersion = Convert.ToBase64String(driver.RowVersion);
+            var vehicle = await setup.Vehicles.AsNoTracking()
+                .SingleAsync(x => x.Id == fixture.VehicleId);
+            vehicleVersion = Convert.ToBase64String(vehicle.RowVersion);
+        }
+
+        var expiryChange = new SaveTransportDriverRequestDto
+        {
+            FullName = "License race driver", LicenseNumber = "LIC-RACE-" + suffix,
+            LicenseExpiresOn = today.AddDays(5), IsActive = true,
+            RowVersion = driverVersion
+        };
+        var assignment = new AssignVehicleDriverRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), VehicleId = fixture.VehicleId,
+            TransportDriverId = driverId, EffectiveFrom = today.AddDays(1),
+            EffectiveTo = today.AddDays(20),
+            VehicleRowVersion = vehicleVersion, DriverRowVersion = driverVersion
+        };
+
+        async Task<ApiResponse<TransportDriverDto>> ShortenLicenseAsync()
+        {
+            await using var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+            return await DriverService(db, fixture.TenantId, fixture.UserId)
+                .SaveDriverAsync(driverId, expiryChange);
+        }
+
+        async Task<ApiResponse<VehicleDriverAssignmentDto>> AssignDriverAsync()
+        {
+            await using var db = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+            return await DriverService(db, fixture.TenantId, fixture.UserId)
+                .AssignDriverAsync(assignment);
+        }
+
+        var shortenTask = ShortenLicenseAsync();
+        var assignTask = AssignDriverAsync();
+        await Task.WhenAll(shortenTask, assignTask);
+        var shorten = await shortenTask;
+        var assign = await assignTask;
+        Assert.Single(new[] { shorten.Success, assign.Success }, success => success);
+        Assert.Equal(409, shorten.Success ? assign.StatusCode : shorten.StatusCode);
+
+        await using var verify = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
+        var persistedDriver = await verify.TransportDrivers.AsNoTracking()
+            .SingleAsync(x => x.Id == driverId);
+        var links = await verify.Set<VehicleDriverAssignment>().AsNoTracking()
+            .Where(x => x.TenantId == fixture.TenantId && !x.IsDeleted &&
+                x.TransportDriverId == driverId && x.IsCurrent).ToListAsync();
+        Assert.Equal(assign.Success ? 1 : 0, links.Count);
+        Assert.Equal(shorten.Success ? today.AddDays(5) : today.AddDays(60),
+            persistedDriver.LicenseExpiresOn);
+        Assert.All(links, link =>
+            Assert.True(link.EffectiveTo.HasValue &&
+                link.EffectiveTo.Value <= persistedDriver.LicenseExpiresOn!.Value));
+
+        if (assign.Success)
+        {
+            var replay = await AssignDriverAsync();
+            Assert.True(replay.Success, replay.Message);
+            Assert.Equal(assign.Data!.Id, replay.Data!.Id);
+            Assert.Equal(assign.Data.RowVersion, replay.Data.RowVersion);
+        }
+    }
+
     private static AssignStudentTransportRequestDto Request(
         Fixture fixture, int student, DateOnly from, DateOnly to) => new()
     {
