@@ -252,12 +252,15 @@ async function leaves(browser) {
         const req = route.request(), url = new URL(req.url());
         if (!url.pathname.startsWith('/api/'))
             return route.fulfill({ status: 200, contentType: 'text/html', body: leavesHtml });
-        if (url.pathname === '/api/students')
-            return response(route, 200, { items: [{
-                reference: studentRef, fullName: 'Leave Student', studentCode: 'S-100'
-            }] });
-        if (url.pathname === '/api/academic-enrollments/students/' + studentRef + '/current')
-            return response(route, 200, { reference: enrollmentRef, rollNo: '10' });
+        if (url.pathname === '/api/student-leaves/eligible-enrollments') {
+            assert.equal(url.searchParams.get('search'), 'Leave Student');
+            assert.equal(url.searchParams.get('page'), '1');
+            return response(route, 200, { page: 1, pageSize: 20,
+                totalCount: 1, totalPages: 1, items: [{
+                    reference: enrollmentRef, fullName: 'Leave Student',
+                    studentCode: 'S-100', rollNo: '10'
+                }] });
+        }
         if (url.pathname === '/api/student-leaves' && req.method() === 'GET')
             return response(route, 200, {
                 items: posts.length < 2 ? [] : [{
