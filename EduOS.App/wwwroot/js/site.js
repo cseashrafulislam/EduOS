@@ -71,6 +71,15 @@
         event.currentTarget.form?.requestSubmit();
     });
 
+    // Connectivity is advisory: never queue authenticated academic or financial writes offline.
+    const connectivityNotice = document.querySelector('[data-connectivity-notice]');
+    function updateConnectivityNotice() {
+        if (connectivityNotice) connectivityNotice.hidden = navigator.onLine !== false;
+    }
+    window.addEventListener('offline', updateConnectivityNotice);
+    window.addEventListener('online', updateConnectivityNotice);
+    updateConnectivityNotice();
+
     let installPrompt = null;
     const installButton = document.querySelector('[data-install-app]');
 

@@ -550,6 +550,11 @@
                 </div>
             </header>
 
+            <div class="connectivity-notice" data-connectivity-notice hidden role="status" aria-live="polite">
+                @(currentCulture == "bn-BD"
+                    ? "ইন্টারনেট সংযোগ পাওয়া যাচ্ছে না। সংযোগ ফিরে এলে আবার চেষ্টা করুন; অফলাইনে তথ্য সংরক্ষণ করা হবে না।"
+                    : "You appear to be offline. Reconnect before saving; changes are not queued offline.")
+            </div>
             <main class="page-body" id="main-content" tabindex="-1">
                 @RenderBody()
             </main>

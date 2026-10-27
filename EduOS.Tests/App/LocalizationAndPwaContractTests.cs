@@ -45,6 +45,11 @@ public class LocalizationAndPwaContractTests
         serviceWorker.Should().Contain("request.mode === 'navigate'");
         serviceWorker.Should().Contain("cache: 'no-store'");
         serviceWorker.Should().Contain("url.origin !== self.location.origin");
+        serviceWorker.Should().Contain("isPublicStaticResponse(request, response)");
+        serviceWorker.Should().Contain("response.redirected");
+        serviceWorker.Should().Contain("request.headers.has('Authorization')");
+        serviceWorker.Should().Contain("private|no-store|no-cache");
+        serviceWorker.Should().Contain("contentType.includes('text/css')");
     }
 
     [Fact]
@@ -59,6 +64,11 @@ public class LocalizationAndPwaContractTests
         onboardingLayout.Should().NotContain("https://");
         layout.Should().Contain("~/manifest.webmanifest");
         layout.Should().Contain("data-language-selector");
+        layout.Should().Contain("data-connectivity-notice");
+        var siteScript = File.ReadAllText(Asset("site.js"));
+        siteScript.Should().Contain("navigator.onLine !== false");
+        siteScript.Should().Contain("addEventListener('offline'");
+        siteScript.Should().Contain("addEventListener('online'");
         manifest.RootElement.GetProperty("display").GetString().Should().Be("standalone");
         manifest.RootElement.GetProperty("icons").GetArrayLength().Should().BeGreaterThan(0);
     }

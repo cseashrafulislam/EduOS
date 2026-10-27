@@ -3294,3 +3294,14 @@ select,
     :root[data-workspace-navigation="top"] .sidebar .nav-link { white-space: nowrap; }
     :root[data-workspace-navigation="top"] .main-area { width: 100%; margin: 0; }
 }
+
+/* Non-blocking PWA connectivity status. No offline write queue or sensitive data cache. */
+.connectivity-notice {
+    padding: .65rem 1.5rem;
+    border-bottom: 1px solid #fcd34d;
+    background: #fffbeb;
+    color: #92400e;
+    font-size: .84rem;
+    font-weight: 600;
+}
+.connectivity-notice[hidden] { display: none !important; }
