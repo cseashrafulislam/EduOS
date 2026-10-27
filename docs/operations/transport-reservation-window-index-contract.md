@@ -90,3 +90,17 @@ resource locking and HTTP 409 mapping. No migration, index change or new receipt
 ## Atomic durable-receipt SQL Server regression (2026-10-27)
 
 `SqlServerTransportIdentityIntegrationTests.Canonical_vehicle_update_and_durable_command_receipt_commit_or_rollback_together` uses the deployed SQL Server schema, the existing `ReservationCommandReceiptStore`, and one canonical `Vehicle` row. It verifies that a serializable transaction rolling back after both `SaveChanges` calls preserves neither the vehicle mutation nor its command receipt. A subsequent committed transaction persists both, and a fresh tenant-scoped DbContext can replay the exact original response; changed request hashes and actors return conflict. This is **shared persistence contract coverage**, not a replacement for Operations' command-level authorization, audit, capacity, or cross-aggregate race tests. The existing SQL migration smoke test filter already includes this test class; no migration or DI change is required.
+
+## Tenant and soft-delete identity lifecycle regression (2026-10-27)
+
+`SqlServerTransportConcurrentUniquenessTests.Normalized_transport_identity_keys_are_tenant_scoped_and_reusable_after_soft_delete`
+tests the **deployed SQL Server** filtered normalized vehicle-number and driver-license
+indexes across two tenant contexts. Both tenants may independently register the same
+case/whitespace-equivalent identifiers; after soft-deleting an original vehicle and
+driver, the original tenant may register replacements with the same normalized keys.
+The deleted records remain stored, and one active identity per tenant remains.
+This complements the existing same-tenant concurrent duplicate rejection tests.
+It does **not** authorize assignment of legacy campus-null vehicles: Operations must
+require explicit active-campus reconciliation before any new assignment. No schema
+migration, backfill, identity merge or change to the existing computed-column
+filtered predicates is needed.

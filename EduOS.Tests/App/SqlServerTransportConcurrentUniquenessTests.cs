@@ -46,6 +46,97 @@ public sealed class SqlServerTransportConcurrentUniquenessTests
     }
 
     [Fact]
+    public async Task Normalized_transport_identity_keys_are_tenant_scoped_and_reusable_after_soft_delete()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var state = await SeedAsync(connection);
+
+        string vehicleNumber, licenseNumber;
+        await using (var original = ScopedContext(state.Options, state.TenantId))
+        {
+            vehicleNumber = (await original.Vehicles.AsNoTracking()
+                .SingleAsync(x => x.Id == state.Vehicle1Id)).VehicleNumber;
+            licenseNumber = (await original.TransportDrivers.AsNoTracking()
+                .SingleAsync(x => x.Id == state.DriverId)).LicenseNumber!;
+        }
+
+        // The unique keys are tenant-scoped, not global.
+        long otherTenantId;
+        await using (var seed = new EduOSDbContext(state.Options))
+        {
+            var tenant = new Tenant
+            {
+                Code = "CI-OTHER-" + state.Suffix,
+                Name = "Independent transport identity CI",
+                Email = "other-" + state.Suffix + "@example.test",
+                State = TenantState.Active
+            };
+            seed.Tenants.Add(tenant);
+            await seed.SaveChangesAsync();
+            otherTenantId = tenant.Id;
+        }
+        await using (var other = ScopedContext(state.Options, otherTenantId))
+        {
+            var campus = new Campus
+            {
+                TenantId = otherTenantId, Code = "OTHER-" + state.Suffix,
+                Name = "Other tenant campus", IsActive = true
+            };
+            other.Campuses.Add(campus);
+            await other.SaveChangesAsync();
+            other.Vehicles.Add(new Vehicle
+            {
+                TenantId = otherTenantId, CampusId = campus.Id,
+                VehicleNumber = "  " + vehicleNumber.ToLowerInvariant() + " ",
+                Capacity = 20, IsActive = true
+            });
+            other.TransportDrivers.Add(new TransportDriver
+            {
+                TenantId = otherTenantId, FullName = "Other tenant driver",
+                LicenseNumber = " " + licenseNumber.ToLowerInvariant() + " ",
+                IsActive = true
+            });
+            await other.SaveChangesAsync();
+        }
+
+        // Soft deletion releases the identity within its original tenant;
+        // historical rows remain stored and are never merged or renumbered.
+        await using (var original = ScopedContext(state.Options, state.TenantId))
+        {
+            var vehicle = await original.Vehicles.SingleAsync(x => x.Id == state.Vehicle1Id);
+            var driver = await original.TransportDrivers.SingleAsync(x => x.Id == state.DriverId);
+            vehicle.IsDeleted = true;
+            driver.IsDeleted = true;
+            await original.SaveChangesAsync();
+            original.Vehicles.Add(new Vehicle
+            {
+                TenantId = state.TenantId, CampusId = state.CampusId,
+                VehicleNumber = " " + vehicleNumber.ToLowerInvariant() + " ",
+                Capacity = 20, IsActive = true
+            });
+            original.TransportDrivers.Add(new TransportDriver
+            {
+                TenantId = state.TenantId, FullName = "Replacement driver",
+                LicenseNumber = "  " + licenseNumber.ToLowerInvariant() + " ",
+                IsActive = true
+            });
+            await original.SaveChangesAsync();
+        }
+
+        foreach (var tenantId in new[] { state.TenantId, otherTenantId })
+        {
+            await using var verify = ScopedContext(state.Options, tenantId);
+            Assert.Equal(1, await verify.Vehicles.CountAsync(x =>
+                !x.IsDeleted && EF.Property<string>(x, "NormalizedVehicleNumber") ==
+                    vehicleNumber.ToUpperInvariant()));
+            Assert.Equal(1, await verify.TransportDrivers.CountAsync(x =>
+                !x.IsDeleted && EF.Property<string>(x, "NormalizedLicenseNumber") ==
+                    licenseNumber.ToUpperInvariant()));
+        }
+    }
+
+    [Fact]
     public async Task Parallel_current_route_and_driver_links_reject_competing_writers()
     {
         var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
