@@ -13,6 +13,10 @@ test('statement preview is authorized, anti-forgery protected and read-only', ()
   assert.doesNotMatch(service, /SaveChanges|ExecuteSql|AddAsync/);
   assert.match(script, /RequestVerificationToken/);
   assert.match(script, /statementExport/);
+  assert.match(script, /statementMatches/);
+  assert.match(script, /Unique exact match; not cleared/);
+  assert.match(service, /x.Deposit < 0m \|\| x.Withdrawal < 0m/);
+  assert.match(service, /Matches = matches/);
   assert.match(script, /parseRows/);
   assert.match(script, /CSV header must be/);
 });

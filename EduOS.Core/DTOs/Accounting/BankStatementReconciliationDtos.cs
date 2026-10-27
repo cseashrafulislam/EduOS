@@ -27,6 +27,15 @@ public sealed class BankStatementExceptionDto
     public decimal Withdrawal { get; set; }
     public string Reason { get; set; } = string.Empty;
 }
+// Unique exact matches are review evidence, never clearance or posting.
+public sealed class BankStatementMatchDto
+{
+    public DateOnly Date { get; set; }
+    public string JournalNumber { get; set; } = string.Empty;
+    public string? Reference { get; set; }
+    public decimal Deposit { get; set; }
+    public decimal Withdrawal { get; set; }
+}
 public sealed class BankStatementPreviewDto
 {
     public string BankName { get; set; } = string.Empty;
@@ -36,6 +45,7 @@ public sealed class BankStatementPreviewDto
     public decimal StatementClosingBalance { get; set; }
     public decimal ClosingVariance { get; set; }
     public int MatchedCount { get; set; }
+    public IReadOnlyList<BankStatementMatchDto> Matches { get; set; } = Array.Empty<BankStatementMatchDto>();
     public int UnmatchedLedgerCount { get; set; }
     public int UnmatchedStatementCount { get; set; }
     public IReadOnlyList<BankStatementExceptionDto> Exceptions { get; set; } = Array.Empty<BankStatementExceptionDto>();

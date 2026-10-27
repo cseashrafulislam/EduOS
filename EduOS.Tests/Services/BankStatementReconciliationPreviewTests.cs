@@ -26,9 +26,32 @@ public sealed class BankStatementReconciliationPreviewTests
             .PreviewBankStatementAsync(Request(reference));
         response.StatusCode.Should().Be(200);
         response.Data!.MatchedCount.Should().Be(matched);
+        response.Data.Matches.Should().HaveCount(matched);
+        if (matched == 1)
+        {
+            response.Data.Matches[0].JournalNumber.Should().Be("J-1");
+            response.Data.Matches[0].Deposit.Should().Be(100m);
+        }
         response.Data.Exceptions.Should().HaveCount(exceptions);
         response.Data.ClosingVariance.Should().Be(0m);
         (await db.Journals.SingleAsync()).State.Should().Be(JournalState.Posted);
+    }
+    [Theory]
+    [InlineData(-1, 0)]
+    [InlineData(100, -1)]
+    [InlineData(-1, 100)]
+    public async Task Direct_api_rejects_negative_deposit_or_withdrawal(decimal deposit, decimal withdrawal)
+    {
+        await using var db = Database();
+        Seed(db);
+        var request = Request("DEP-1");
+        request.Movements = new[]
+        {
+            new BankStatementMovementDto { Date = Day, Reference = "DEP-1",
+                Deposit = deposit, Withdrawal = withdrawal }
+        };
+        (await new AccountingReportingService(db, new User())
+            .PreviewBankStatementAsync(request)).StatusCode.Should().Be(400);
     }
     [Fact]
     public async Task Invalid_statement_balance_is_rejected()
@@ -65,6 +88,7 @@ public sealed class BankStatementReconciliationPreviewTests
         var response = await new AccountingReportingService(db, new User())
             .PreviewBankStatementAsync(request);
         response.Data!.MatchedCount.Should().Be(0);
+        response.Data.Matches.Should().BeEmpty();
         response.Data.UnmatchedStatementCount.Should().Be(2);
         response.Data.UnmatchedLedgerCount.Should().Be(1);
         response.Data.Exceptions.Should().OnlyContain(x => x.Reason.Contains("Duplicate key"));

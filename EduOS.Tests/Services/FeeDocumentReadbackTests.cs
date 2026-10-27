@@ -45,9 +45,11 @@ public sealed class FeeDocumentReadbackTests
         result.Data.Payment.Allocations.Should().ContainSingle().Which.InvoiceNumber.Should().Be("INV-41");
         (await service.GetStudentPaymentDocumentAsync(data.otherStudent, data.payment)).StatusCode.Should().Be(404);
         (await service.GetStudentPaymentDocumentAsync(data.student, data.foreignPayment)).StatusCode.Should().Be(404);
+        // Posted receipts remain readable: the tenant guard rejects successful-payment deletion.
         db.StudentPayments.Single(x => x.PublicId == data.payment).IsDeleted = true;
-        await db.SaveChangesAsync();
-        (await service.GetStudentPaymentDocumentAsync(data.student, data.payment)).StatusCode.Should().Be(404);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+        db.ChangeTracker.Clear();
+        (await service.GetStudentPaymentDocumentAsync(data.student, data.payment)).StatusCode.Should().Be(200);
     }
 
     [Fact]

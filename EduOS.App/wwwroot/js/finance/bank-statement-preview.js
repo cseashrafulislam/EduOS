@@ -103,6 +103,13 @@ if (panel) {
                     openingBalance:opening,closingBalance:closing,movements})
             });
             report = result;
+            el('statementMatchCount').textContent = String((result.matches || []).length);
+            el('statementMatches').innerHTML = (result.matches || []).map(x =>
+                '<tr><td>' + escapeHtml(x.date) + '</td><td>' + escapeHtml(x.journalNumber) +
+                '</td><td>' + escapeHtml(x.reference) + '</td><td class="text-end">' +
+                money(x.deposit) + '</td><td class="text-end">' + money(x.withdrawal) +
+                '</td></tr>').join('') ||
+                '<tr><td colspan="5">No unique exact matches.</td></tr>';
             el('statementSummary').textContent = result.bankName + ': ' + result.matchedCount +
                 ' matched; ' + result.unmatchedLedgerCount + ' unmatched ledger; ' +
                 result.unmatchedStatementCount + ' unmatched statement; closing variance BDT ' +
@@ -120,13 +127,15 @@ if (panel) {
     });
     el('statementExport').addEventListener('click', () => {
         if (!report) return;
-        const rows = [['Source','Date','Journal','Reference','Deposit','Withdrawal','Reason'],
-            ...(report.exceptions || []).map(x => [x.source,x.date,x.journalNumber,x.reference,
+        const rows = [['Status','Source','Date','Journal','Reference','Deposit','Withdrawal','Reason'],
+            ...(report.matches || []).map(x => ['Matched','Ledger + Statement',x.date,x.journalNumber,
+                x.reference,money(x.deposit),money(x.withdrawal),'Unique exact match; not cleared']),
+            ...(report.exceptions || []).map(x => ['Unmatched',x.source,x.date,x.journalNumber,x.reference,
                 money(x.deposit),money(x.withdrawal),x.reason])];
         const csv = '\uFEFF' + rows.map(x => x.map(cell).join(',')).join('\r\n') + '\r\n';
         const url = URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
         const a = document.createElement('a'); a.href = url;
-        a.download = 'bank-statement-exceptions-' + el('statementFrom').value + '.csv';
+        a.download = 'bank-statement-comparison-' + el('statementFrom').value + '.csv';
         document.body.appendChild(a); a.click(); a.remove();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
     });

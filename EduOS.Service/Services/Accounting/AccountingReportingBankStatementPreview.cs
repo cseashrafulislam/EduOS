@@ -24,6 +24,7 @@ public sealed partial class AccountingReportingService
         if (!Amount(request.OpeningBalance) || !Amount(request.ClosingBalance) ||
             request.Movements.Any(x => x == null || x.Date < request.FromDate || x.Date > request.ToDate ||
                 x.Reference?.Length > 150 || !Amount(x.Deposit) || !Amount(x.Withdrawal) ||
+                x.Deposit < 0m || x.Withdrawal < 0m ||
                 (x.Deposit > 0m) == (x.Withdrawal > 0m)))
             return ApiResponse<BankStatementPreviewDto>.ErrorResponse("Invalid date, direction or BDT amount in statement.", 400);
         if (request.OpeningBalance + request.Movements.Sum(x => x.Deposit) -
@@ -38,13 +39,24 @@ public sealed partial class AccountingReportingService
             .ToDictionary(x => x.Key, x => x.ToArray());
         var exceptions = new List<BankStatementExceptionDto>();
         int matched = 0, missingLedger = 0, missingStatement = 0;
+        var matches = new List<BankStatementMatchDto>();
         foreach (var key in ledger.Keys.Concat(statement.Keys).Distinct().OrderBy(x => x.Date).ThenBy(x => x.Reference))
         {
             ledger.TryGetValue(key, out var a);
             statement.TryGetValue(key, out var b);
             a ??= Array.Empty<BankBookLineDto>();
             b ??= Array.Empty<BankStatementMovementDto>();
-            if (key.Reference.Length > 0 && a.Length == 1 && b.Length == 1) { matched++; continue; }
+            if (key.Reference.Length > 0 && a.Length == 1 && b.Length == 1)
+            {
+                matched++;
+                matches.Add(new BankStatementMatchDto
+                {
+                    Date = a[0].Date, JournalNumber = a[0].JournalNumber,
+                    Reference = a[0].ReferenceNumber,
+                    Deposit = a[0].DebitAmount, Withdrawal = a[0].CreditAmount
+                });
+                continue;
+            }
             var reason = key.Reference.Length == 0 ? "Missing reference: manual review" :
                 a.Length > 1 || b.Length > 1 ? "Duplicate key: ambiguous" : "No exact counterpart";
             missingLedger += a.Length;
@@ -63,7 +75,7 @@ public sealed partial class AccountingReportingService
             LedgerClosingBalance = book.Data.ClosingBalance,
             StatementOpeningBalance = request.OpeningBalance, StatementClosingBalance = request.ClosingBalance,
             ClosingVariance = book.Data.ClosingBalance - request.ClosingBalance,
-            MatchedCount = matched, UnmatchedLedgerCount = missingLedger,
+            MatchedCount = matched, Matches = matches, UnmatchedLedgerCount = missingLedger,
             UnmatchedStatementCount = missingStatement, Exceptions = exceptions
         });
     }
