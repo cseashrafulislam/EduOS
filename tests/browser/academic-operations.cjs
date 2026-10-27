@@ -226,7 +226,12 @@ async function routine(browser) {
     await page.locator('#routineAssignment option[value="80"]').waitFor({ state: 'attached' });
     await page.locator('#routineAssignment').selectOption('80');
     await page.locator('#routineSlot').selectOption('5');
-    await page.locator('#routineDay').selectOption('1');
+    // The browser fixture extracts raw Razor; populate the @foreach-generated day option.
+    await page.locator('#routineDay').evaluate(select => {
+        const monday = document.createElement('option');
+        monday.value = '1'; monday.textContent = 'Monday';
+        select.append(monday); select.value = '1';
+    });
     await page.locator('#routineEntryFrom').fill('2026-10-01');
     await page.locator('#routineEntryForm button[type="submit"]').click();
     await page.waitForFunction(() => document.querySelector('#routineAlert')?.textContent.includes('Class routine saved.'));
