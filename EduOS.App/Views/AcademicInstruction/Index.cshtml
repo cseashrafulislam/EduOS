@@ -43,7 +43,10 @@
         </form>
     </section>
     <section class="card mb-3">
-        <div class="card-header"><h3 class="h6 m-0">Teacher substitutions</h3></div>
+        <div class="card-header d-flex justify-content-between align-items-center gap-2">
+            <h3 class="h6 m-0">Teacher substitutions</h3>
+            <button id="substitutionCsv" type="button" class="btn btn-sm btn-outline-secondary">CSV (loaded period, max 500)</button>
+        </div>
         @if (canManage)
         {
             <div class="card-body border-bottom">
@@ -60,7 +63,7 @@
                 </form>
             </div>
         }
-        <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0"><thead><tr><th>Date</th><th>Routine entry</th><th>Substitute</th><th>Reason</th><th>Status</th>@if(canManage){<th>Action</th>}</tr></thead><tbody id="substitutionRows"><tr><td colspan="6" class="p-3 text-muted text-center">Choose a batch.</td></tr></tbody></table></div>
+        <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0"><thead><tr><th>Date</th><th>Batch / Subject</th><th>Time slot</th><th>Original teacher</th><th>Substitute</th><th>Reason</th><th>Status</th>@if(canManage){<th>Action</th>}</tr></thead><tbody id="substitutionRows"><tr><td colspan="8" class="p-3 text-muted text-center">Choose a batch.</td></tr></tbody></table></div>
     </section>
     <p class="text-muted small">All updates are authorized on the server. If another user updates a record, reload it before saving.</p>
 </section>

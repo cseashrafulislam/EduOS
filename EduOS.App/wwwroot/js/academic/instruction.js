@@ -154,12 +154,13 @@
         const body = get('substitutionRows'); body.replaceChildren();
         if (!rows.length) {
             const tr = document.createElement('tr'), td = cell('No substitutions in this period.');
-            td.colSpan = manager ? 6 : 5; td.className = 'text-muted text-center p-3';
+            td.colSpan = manager ? 8 : 7; td.className = 'text-muted text-center p-3';
             tr.append(td); body.append(tr); return;
         }
         for (const row of rows) {
             const tr = document.createElement('tr');
-            tr.append(cell(dateOnly(row.date)), cell('Routine #' + row.routineEntryId),
+            tr.append(cell(dateOnly(row.date)), cell([row.batchName, row.subjectName].filter(Boolean).join(' / ')),
+                cell(row.timeSlotName), cell(row.originalTeacherName),
                 cell(row.substituteEmployeeName), cell(row.reason || '—'),
                 cell(row.isCancelled ? 'Cancelled' : 'Active'));
             if (manager) {
@@ -271,6 +272,23 @@
             await load(); status('success', 'Substitution cancelled.');
         } catch (e) { status('danger', e.message); }
     }
+    function exportSubstitutions() {
+        const headers = ['Date', 'Batch', 'Subject', 'Time slot', 'Original teacher', 'Substitute', 'Reason', 'Status'];
+        const rows = state.substitutions.map(x => [dateOnly(x.date), x.batchName, x.subjectName,
+            x.timeSlotName, x.originalTeacherName, x.substituteEmployeeName,
+            x.reason, x.isCancelled ? 'Cancelled' : 'Active']);
+        const safe = value => {
+            let s = String(value ?? '');
+            if (/^[=+@\-\t\r]/.test(s)) s = "'" + s;
+            return '"' + s.replaceAll('"', '""') + '"';
+        };
+        const csv = String.fromCharCode(0xfeff) + [headers, ...rows]
+            .map(x => x.map(safe).join(',')).join('\r\n');
+        const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+        const a = document.createElement('a'); a.href = url;
+        a.download = 'academic-substitutions.csv'; a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
     function exportLessons() {
         const headers = ['Lesson date', 'Subject', 'Title', 'Teacher', 'State', 'Objectives', 'Content', 'Resources'];
         const rows = state.lessons.map(x => [dateOnly(x.lessonDate), x.subjectName, x.title,
@@ -299,6 +317,7 @@
     get('lessonPrevious').addEventListener('click',()=>{if(state.lessonPage>1){state.lessonPage--;load();}});
     get('lessonNext').addEventListener('click',()=>{if(state.lessonPage<state.lessonPages){state.lessonPage++;load();}});
     get('lessonCsv').addEventListener('click',exportLessons);
+    get('substitutionCsv').addEventListener('click',exportSubstitutions);
     get('lessonPrint').addEventListener('click',()=>window.print());
     init();
 })();

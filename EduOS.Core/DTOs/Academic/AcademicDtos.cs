@@ -639,6 +639,10 @@ public class SubstitutionDto
     public DateOnly Date { get; set; }
     public long SubstituteEmployeeId { get; set; }
     public string SubstituteEmployeeName { get; set; } = string.Empty;
+    public string BatchName { get; set; } = string.Empty;
+    public string SubjectName { get; set; } = string.Empty;
+    public string TimeSlotName { get; set; } = string.Empty;
+    public string OriginalTeacherName { get; set; } = string.Empty;
     public string? Reason { get; set; }
     public bool IsCancelled { get; set; }
     public string RowVersion { get; set; } = string.Empty;

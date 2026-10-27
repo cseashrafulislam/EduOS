@@ -61,6 +61,9 @@ public sealed class AcademicInstructionUiContractTests
         view.Should().Contain("id=\"lessonPrevious\"");
         view.Should().Contain("id=\"lessonNext\"");
         view.Should().Contain("id=\"lessonCsv\"");
+        view.Should().Contain("id=\"substitutionCsv\"");
+        js.Should().Contain("function exportSubstitutions()");
+        js.Should().Contain("row.originalTeacherName");
         view.Should().Contain("id=\"substitutionTeacherFind\"");
     }
 

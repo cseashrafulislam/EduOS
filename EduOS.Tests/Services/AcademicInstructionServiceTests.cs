@@ -118,6 +118,10 @@ public sealed class AcademicInstructionServiceTests
             rows.Success.Should().BeTrue();
             rows.Data.Should().ContainSingle();
             rows.Data![0].Id.Should().Be(id);
+            rows.Data[0].BatchName.Should().Be("Batch A");
+            rows.Data[0].SubjectName.Should().Be("Mathematics");
+            rows.Data[0].OriginalTeacherName.Should().Be("Original teacher");
+            rows.Data[0].SubstituteEmployeeName.Should().Be("Substitute teacher");
         }
         await using (var db = Context(options, 101, 70, "Teacher"))
         {

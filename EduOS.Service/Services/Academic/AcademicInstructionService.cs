@@ -161,7 +161,16 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
             x.TenantId == tenant && ids2.Contains(x.Id))
             .ToDictionaryAsync(x => x.Id, x => x.FullName, ct);
         IReadOnlyList<SubstitutionDto> result = rows.Where(x => context.ContainsKey(x.RoutineEntryId))
-            .Select(x => MapSubstitution(x, names.GetValueOrDefault(x.SubstituteEmployeeId)))
+            .Select(x =>
+            {
+                var dto = MapSubstitution(x, names.GetValueOrDefault(x.SubstituteEmployeeId));
+                var info = context[x.RoutineEntryId];
+                dto.BatchName = info.BatchName;
+                dto.SubjectName = info.SubjectName;
+                dto.TimeSlotName = info.SlotName;
+                dto.OriginalTeacherName = info.OriginalEmployeeName;
+                return dto;
+            })
             .OrderBy(x => x.Date).ThenBy(x => x.Id).ToList();
         return ApiResponse<IReadOnlyList<SubstitutionDto>>.SuccessResponse(result);
     }
