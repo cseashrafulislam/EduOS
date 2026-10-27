@@ -94,7 +94,9 @@ public sealed class LibraryReservationServiceTests
             new StudentEnrollment { TenantId = 101, StudentId = inactive.Id, IsCurrent = true,
                 State = EnrollmentState.Active, RollNo = "3", EnrollmentDate = new DateOnly(2026, 1, 1) });
         await db.SaveChangesAsync();
-        var service = Service(db, 101, "Librarian");
+        // Tenant-wide paging is covered here; campus-granted Librarian/Principal cases
+        // are exercised separately by LibraryReservationCampusScopeTests.
+        var service = Service(db, 101, "TenantAdmin");
         var first = await service.SearchEligibleStudentsAsync(" ST- ", 1, 1);
         first.Success.Should().BeTrue();
         first.Data!.TotalCount.Should().Be(2);
