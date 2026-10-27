@@ -114,6 +114,44 @@ public sealed class LibraryServiceTests
     }
 
     [Fact]
+    public async Task Future_issue_date_cannot_consume_a_copy()
+    {
+        var options = Options();
+        await using var db = Context(options, 101);
+        var (student, copy) = await SeedBorrower(db, 101, true);
+        var request = Request(student, copy, Guid.NewGuid());
+        request.IssueDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1);
+        request.DueDate = request.IssueDate.AddDays(7);
+
+        var result = await Service(db, 101).IssueAsync(request);
+        result.StatusCode.Should().Be(409);
+        (await db.BookIssues.CountAsync()).Should().Be(0);
+        copy.State.Should().Be(BookCopyState.Available);
+    }
+
+    [Fact]
+    public async Task Future_return_date_cannot_release_a_copy_early()
+    {
+        var options = Options();
+        await using var db = Context(options, 101);
+        var (student, copy) = await SeedBorrower(db, 101, true);
+        var service = Service(db, 101);
+        (await service.IssueAsync(Request(student, copy, Guid.NewGuid()))).Success.Should().BeTrue();
+        var issue = await db.BookIssues.SingleAsync();
+        issue.RowVersion = [1, 2, 3, 4];
+        await db.SaveChangesAsync();
+
+        var result = await service.CloseAsync(issue.PublicId, new ReturnBookRequestDto
+        {
+            RowVersion = Convert.ToBase64String(issue.RowVersion),
+            ReturnDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1)
+        });
+        result.StatusCode.Should().Be(409);
+        issue.State.Should().Be(BookIssueState.Issued);
+        copy.State.Should().Be(BookCopyState.Issued);
+    }
+
+    [Fact]
     public async Task Issue_is_retry_safe_and_rejects_changed_payload_or_double_issue()
     {
         var options = Options();

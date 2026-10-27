@@ -384,6 +384,10 @@ public sealed partial class LibraryService : ILibraryService
                 tx.Complete();
                 return ApiResponse<BookIssueDto>.SuccessResponse(prior, "Book issue already processed.");
             }
+            // A future-dated issue would consume a physical copy before circulation starts.
+            // Check after replay so pre-existing historical requests remain idempotent.
+            if (issueDate > DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime))
+                return Error("Issue date cannot be in the future.", 409);
             var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenant &&
                 x.PublicId == request.StudentReference && x.StatusCode == "Active", ct);
             if (student == null) return Error("Active student not found.", 404);
@@ -485,6 +489,8 @@ public sealed partial class LibraryService : ILibraryService
                 return Error("Issue changed. Reload and retry.", 409);
             var date = request.ReturnDate == default ? DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime) : request.ReturnDate;
             if (date < issue.IssueDate) return Error("Return date cannot precede issue date.");
+            if (date > DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime))
+                return Error("Return date cannot be in the future.", 409);
             var copy = await _copies.GetQueryable().FirstOrDefaultAsync(x => x.TenantId == tenant && x.Id == issue.BookCopyId, ct);
             if (copy == null || copy.State != BookCopyState.Issued)
                 return Error("Copy state is inconsistent with the outstanding issue.", 409);
