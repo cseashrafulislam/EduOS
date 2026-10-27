@@ -240,6 +240,21 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
     }
 
 
+    public async Task<ApiResponse<StudentAttendanceRosterDto>> GetRosterPageAsync(
+        StudentAttendanceRosterQueryDto query, int page = 1, int pageSize = 50,
+        CancellationToken ct = default)
+    {
+        if (!CanWrite()) return Error<StudentAttendanceRosterDto>("Attendance permission is required.", 403);
+        if (query == null || query.AcademicBatchId <= 0 || query.AttendanceDate == default ||
+            query.SubjectOfferingId is <= 0 || page < 1 || pageSize is < 1 or > 100 ||
+            (long)(page - 1) * pageSize > int.MaxValue)
+            return Error<StudentAttendanceRosterDto>("Invalid attendance roster page.");
+        var error = await ValidateScopeAsync(query.AcademicBatchId, query.AttendanceDate, query.SubjectOfferingId, ct);
+        if (error != null) return Error<StudentAttendanceRosterDto>(error, 409);
+        return ApiResponse<StudentAttendanceRosterDto>.SuccessResponse(
+            await ReadRosterAsync(query.AcademicBatchId, query.AttendanceDate, query.SubjectOfferingId, ct, page, pageSize));
+    }
+
     public async Task<ApiResponse<StudentAttendanceRosterDto>> EnsureSessionAsync(
         EnsureStudentAttendanceSessionDto request, CancellationToken ct = default)
     {
@@ -424,8 +439,8 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                 if (scopeError != null) return Error<StudentAttendanceRosterDto>(scopeError, 409);
                 var roster = await ReadRosterAsync(session.AcademicBatchId, session.AttendanceDate,
                     session.SubjectOfferingId, token);
-                if (roster.Students.Count == 0 || roster.Students.Count >= 2000 ||
-                    roster.Summary.Unmarked != 0 || roster.Summary.Marked != roster.Students.Count)
+                if (roster.Summary.TotalStudents == 0 || roster.Summary.Unmarked != 0 ||
+                    roster.Summary.Marked != roster.Summary.TotalStudents)
                     return Error<StudentAttendanceRosterDto>(
                         "The complete attendance roster must be marked before finalization.", 409);
                 var now = _clock.GetUtcNow().UtcDateTime;
@@ -574,39 +589,49 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
         }
     }
 
-    private async Task<StudentAttendanceRosterDto> ReadRosterAsync(long batchId, DateOnly date, long? offeringId, CancellationToken ct)
+    private async Task<StudentAttendanceRosterDto> ReadRosterAsync(
+        long batchId, DateOnly date, long? offeringId, CancellationToken ct,
+        int page = 1, int pageSize = 2000)
     {
         var tenant = _user.TenantId;
         var session = await _sessions.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == tenant && x.AcademicBatchId == batchId && x.AttendanceDate == date &&
             x.SubjectOfferingId == offeringId && !x.IsDeleted, ct);
-        var students = await (from enrollment in _enrollments.GetQueryable().AsNoTracking()
+        var eligible = from enrollment in _enrollments.GetQueryable().AsNoTracking()
             join student in _students.GetQueryable().AsNoTracking() on enrollment.StudentId equals student.Id
             join batch in _batches.GetQueryable().AsNoTracking() on enrollment.AcademicBatchId equals batch.Id
             where enrollment.TenantId == tenant && student.TenantId == tenant &&
-                enrollment.AcademicBatchId == batchId && enrollment.State == EnrollmentState.Active &&
-                enrollment.IsCurrent && student.StatusCode == "Active" && !student.IsDeleted &&
-                batch.TenantId == tenant && enrollment.CampusId == batch.CampusId
-            orderby enrollment.RollNo, student.FullName
+                batch.TenantId == tenant && enrollment.AcademicBatchId == batchId &&
+                enrollment.State == EnrollmentState.Active && enrollment.IsCurrent &&
+                student.StatusCode == "Active" && !enrollment.IsDeleted &&
+                !student.IsDeleted && !batch.IsDeleted && enrollment.CampusId == batch.CampusId
             select new { enrollment.Id, enrollment.PublicId, enrollment.RollNo,
-                StudentReference = student.PublicId, student.StudentCode, student.FullName }).Take(2000).ToListAsync(ct);
-        if (offeringId.HasValue && students.Count > 0)
+                StudentReference = student.PublicId, student.StudentCode, student.FullName };
+        if (offeringId.HasValue)
         {
-            var eligible = students.Select(x => x.Id).ToArray();
-            var permitted = await _registrations.GetQueryable().AsNoTracking().Where(x =>
-                x.TenantId == tenant && x.SubjectOfferingId == offeringId.Value &&
-                x.State == SubjectRegistrationState.Approved && eligible.Contains(x.StudentEnrollmentId))
-                .Select(x => x.StudentEnrollmentId).ToListAsync(ct);
-            var set = permitted.ToHashSet();
-            students = students.Where(x => set.Contains(x.Id)).ToList();
+            var subjectId = offeringId.Value;
+            eligible = eligible.Where(x => _registrations.GetQueryable().AsNoTracking().Any(r =>
+                r.TenantId == tenant && r.SubjectOfferingId == subjectId &&
+                r.StudentEnrollmentId == x.Id && r.State == SubjectRegistrationState.Approved &&
+                !r.IsDeleted));
         }
+        // Eligibility is evaluated in SQL before paging; the aggregate covers ALL eligible students.
+        var total = await eligible.CountAsync(ct);
+        var students = await eligible.OrderBy(x => x.RollNo).ThenBy(x => x.FullName).ThenBy(x => x.Id)
+            .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
         var ids = students.Select(x => x.Id).ToArray();
-        var rows = session == null || ids.Length == 0 ? new List<StudentAttendance>() :
+        var sessionId = session?.Id ?? 0;
+        var eligibleIds = eligible.Select(x => x.Id);
+        var counts = await _attendances.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.AttendanceSessionId == sessionId &&
+            sessionId > 0 && !x.IsDeleted && eligibleIds.Contains(x.StudentEnrollmentId))
+            .GroupBy(x => x.State)
+            .Select(g => new { State = g.Key, Count = g.Count() }).ToListAsync(ct);
+        var marked = counts.Sum(x => x.Count);
+        var rows = sessionId == 0 || ids.Length == 0 ? new List<StudentAttendance>() :
             await _attendances.GetQueryable().AsNoTracking().Where(x =>
-                x.TenantId == tenant && x.AttendanceSessionId == session.Id &&
+                x.TenantId == tenant && x.AttendanceSessionId == sessionId &&
                 ids.Contains(x.StudentEnrollmentId) && !x.IsDeleted).ToListAsync(ct);
-        // Approved leave is a separate workflow. Surface an indicator only;
-        // never silently overwrite a finalized attendance record or its audit history.
         var approved = ids.Length == 0 ? new HashSet<long>() :
             (await _leaves.GetQueryable().AsNoTracking().Where(x =>
                 x.TenantId == tenant && ids.Contains(x.StudentEnrollmentId) &&
@@ -619,7 +644,7 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
             byId.TryGetValue(x.Id, out var row);
             return new StudentAttendanceDto
             {
-                Id = row?.Id ?? 0, AttendanceSessionId = session?.Id ?? 0,
+                Id = row?.Id ?? 0, AttendanceSessionId = sessionId,
                 HasApprovedLeave = approved.Contains(x.Id),
                 StudentEnrollmentReference = x.PublicId, StudentReference = x.StudentReference,
                 StudentCode = x.StudentCode, StudentName = x.FullName, RollNo = x.RollNo,
@@ -627,20 +652,23 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                 Remarks = row?.Remarks, RowVersion = row == null ? string.Empty : Convert.ToBase64String(row.RowVersion)
             };
         }).ToList();
+        int countState(AttendanceState state) => counts.Where(x => x.State == state).Sum(x => x.Count);
         return new StudentAttendanceRosterDto
         {
-            AttendanceSessionId = session?.Id ?? 0,
-            IsFinalized = session?.IsFinalized ?? false,
+            Page = page, PageSize = pageSize,
+            TotalPages = total == 0 ? 0 : (total - 1) / pageSize + 1,
+            AttendanceSessionId = sessionId, IsFinalized = session?.IsFinalized ?? false,
             SessionRowVersion = session == null ? string.Empty : Convert.ToBase64String(session.RowVersion),
             AcademicBatchId = batchId, AttendanceDate = date,
             Students = dtos, Summary = new StudentAttendanceSummaryDto
             {
-                TotalStudents = dtos.Count, Marked = rows.Count,
-                Present = rows.Count(x => x.State == AttendanceState.Present),
-                Absent = rows.Count(x => x.State == AttendanceState.Absent),
-                Late = rows.Count(x => x.State == AttendanceState.Late),
-                Leave = rows.Count(x => x.State == AttendanceState.Leave),
-                Unmarked = Math.Max(0, dtos.Count - rows.Count)
+                TotalStudents = total, Marked = marked,
+                Present = countState(AttendanceState.Present),
+                Absent = countState(AttendanceState.Absent),
+                Late = countState(AttendanceState.Late),
+                Leave = countState(AttendanceState.Leave),
+                Excused = countState(AttendanceState.Excused),
+                Unmarked = Math.Max(0, total - marked)
             }
         };
     }

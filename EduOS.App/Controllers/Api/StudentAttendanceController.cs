@@ -51,6 +51,16 @@ public sealed class StudentAttendanceController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("roster-page")]
+    public async Task<IActionResult> GetRosterPage([FromQuery] StudentAttendanceRosterQueryDto query,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 50,
+        CancellationToken cancellationToken = default)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await _service.GetRosterPageAsync(query, page, pageSize, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("sessions")]
     public async Task<IActionResult> EnsureSession([FromBody] EnsureStudentAttendanceSessionDto request, CancellationToken cancellationToken)
     {

@@ -12,6 +12,8 @@ public interface IStudentAttendanceService
         long academicBatchId, DateOnly attendanceDate, string? search,
         int page = 1, int pageSize = 25, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentAttendanceRosterDto>> GetRosterAsync(StudentAttendanceRosterQueryDto query, CancellationToken cancellationToken = default);
+    Task<ApiResponse<StudentAttendanceRosterDto>> GetRosterPageAsync(StudentAttendanceRosterQueryDto query,
+        int page = 1, int pageSize = 50, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentAttendanceRosterDto>> EnsureSessionAsync(EnsureStudentAttendanceSessionDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentAttendanceRosterDto>> SaveAsync(SaveAttendanceRegisterRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentAttendanceRosterDto>> FinalizeSessionAsync(long sessionId, string rowVersion, CancellationToken cancellationToken = default);

@@ -162,11 +162,15 @@ public sealed class StudentAttendanceSummaryDto
     public int Absent { get; set; }
     public int Late { get; set; }
     public int Leave { get; set; }
+    public int Excused { get; set; }
     public int Unmarked { get; set; }
 }
 
 public sealed class StudentAttendanceRosterDto
 {
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 2000;
+    public int TotalPages { get; set; }
     public bool IsFinalized { get; set; }
     public long AttendanceSessionId { get; set; }
     public string SessionRowVersion { get; set; } = string.Empty;
