@@ -15,15 +15,24 @@
     </form>
     <div class="card mb-3">
         <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
-            <h3 class="h6 mb-0">Lesson plans</h3><button id="lessonNew" class="btn btn-sm btn-primary" type="button" disabled>New lesson plan</button>
+            <h3 class="h6 mb-0">Lesson plans</h3><div class="d-flex gap-2">
+                <button id="lessonCsv" class="btn btn-sm btn-outline-secondary" type="button" disabled>CSV (current page)</button>
+                <button id="lessonPrint" class="btn btn-sm btn-outline-secondary" type="button">Print</button>
+                <button id="lessonNew" class="btn btn-sm btn-primary" type="button" disabled>New lesson plan</button>
+            </div>
         </div>
         <div class="table-responsive"><table class="table table-hover table-sm align-middle mb-0"><thead><tr><th>Lesson date</th><th>Subject</th><th>Chapter / Title</th><th>Teacher</th><th>Status</th><th>Actions</th></tr></thead><tbody id="lessonRows"><tr><td colspan="6" class="text-muted text-center p-3">Select a batch.</td></tr></tbody></table></div>
+        <div class="card-footer d-flex justify-content-end align-items-center gap-2">
+            <button id="lessonPrevious" type="button" class="btn btn-sm btn-outline-secondary" disabled>Previous</button>
+            <span id="lessonPage" class="small text-muted" aria-live="polite">Page 1 / 1</span>
+            <button id="lessonNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>Next</button>
+        </div>
     </div>
     <section id="lessonEditor" class="card mb-3 d-none">
         <div class="card-header"><h3 id="lessonEditorTitle" class="h6 m-0">New lesson plan</h3></div>
         <form id="lessonForm" class="card-body">
             <div class="row g-3">
-                <div class="col-md-6"><label class="form-label" for="lessonAssignment">Instructor / subject</label><select id="lessonAssignment" class="form-select" required></select></div>
+                <div class="col-md-6"><label class="form-label" for="lessonAssignment">Subject offering</label><select id="lessonAssignment" class="form-select" required></select></div>
                 <div class="col-md-3"><label class="form-label" for="lessonDate">Lesson date</label><input id="lessonDate" type="date" class="form-control" required /></div>
                 <div class="col-md-3"><label class="form-label" for="lessonTitle">Chapter / title</label><input id="lessonTitle" maxlength="250" class="form-control" required /></div>
                 <div class="col-md-12"><label class="form-label" for="lessonObjectives">Learning objectives</label><textarea id="lessonObjectives" rows="2" class="form-control" maxlength="2000"></textarea></div>
@@ -41,14 +50,17 @@
                 <h4 class="h6">Schedule a substitution</h4>
                 <form id="substitutionForm" class="row g-2 align-items-end">
                     <div class="col-lg-4"><label for="substitutionRoutine" class="form-label">Routine entry</label><select id="substitutionRoutine" class="form-select" required><option value="">Choose a batch</option></select></div>
-                    <div class="col-lg-3"><label for="substitutionTeacher" class="form-label">Substitute teacher</label><select id="substitutionTeacher" class="form-select" required><option value="">Choose a batch</option></select></div>
+                    <div class="col-lg-3"><label for="substitutionTeacherSearch" class="form-label">Find substitute teacher</label>
+                        <div class="input-group"><input id="substitutionTeacherSearch" class="form-control" maxlength="100" placeholder="Name or code" />
+                        <button id="substitutionTeacherFind" type="button" class="btn btn-outline-secondary">Find</button></div>
+                        <select id="substitutionTeacher" class="form-select mt-1" required><option value="">Search teachers</option></select></div>
                     <div class="col-lg-2"><label for="substitutionDate" class="form-label">Date</label><input id="substitutionDate" type="date" class="form-control" required /></div>
                     <div class="col-lg-3"><label for="substitutionReason" class="form-label">Reason</label><input id="substitutionReason" class="form-control" maxlength="500" /></div>
                     <div class="col-12"><button id="substitutionSave" class="btn btn-primary" type="submit">Schedule substitution</button></div>
                 </form>
             </div>
         }
-        <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0"><thead><tr><th>Date</th><th>Batch / Subject</th><th>Time slot</th><th>Original teacher</th><th>Substitute</th><th>Reason</th><th>Status</th>@if(canManage){<th>Action</th>}</tr></thead><tbody id="substitutionRows"><tr><td colspan="8" class="p-3 text-muted text-center">Choose a batch.</td></tr></tbody></table></div>
+        <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0"><thead><tr><th>Date</th><th>Routine entry</th><th>Substitute</th><th>Reason</th><th>Status</th>@if(canManage){<th>Action</th>}</tr></thead><tbody id="substitutionRows"><tr><td colspan="6" class="p-3 text-muted text-center">Choose a batch.</td></tr></tbody></table></div>
     </section>
     <p class="text-muted small">All updates are authorized on the server. If another user updates a record, reload it before saving.</p>
 </section>
