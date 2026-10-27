@@ -139,6 +139,43 @@ public sealed class AcademicInstructionServiceTests
     }
 
     [Fact]
+    public async Task Lesson_plan_register_is_paged_date_scoped_and_tenant_isolated()
+    {
+        var options = Options();
+        var seed = await SeedAsync(options);
+        await using (var db = Context(options, 101, 7, "TenantAdmin"))
+        {
+            var manager = Service(db, 101, 7, "TenantAdmin");
+            var first = Lesson(seed.OfferingReference);
+            var second = Lesson(seed.OfferingReference);
+            second.Title = "Quadratic equations";
+            (await manager.CreateLessonPlanAsync(first)).Success.Should().BeTrue();
+            (await manager.CreateLessonPlanAsync(second)).Success.Should().BeTrue();
+
+            var firstPage = await manager.GetLessonPlansAsync(seed.BatchId, LessonDate, LessonDate, 1, 1);
+            var secondPage = await manager.GetLessonPlansAsync(seed.BatchId, LessonDate, LessonDate, 2, 1);
+            firstPage.Success.Should().BeTrue();
+            secondPage.Success.Should().BeTrue();
+            firstPage.Data!.TotalCount.Should().Be(2);
+            firstPage.Data.Items.Should().ContainSingle();
+            secondPage.Data!.Items.Should().ContainSingle();
+            firstPage.Data.Items[0].Id.Should().NotBe(secondPage.Data.Items[0].Id);
+
+            (await manager.GetLessonPlansAsync(seed.BatchId, LessonDate.AddDays(1),
+                LessonDate.AddDays(1), 1, 20)).Data!.Items.Should().BeEmpty();
+            (await manager.GetLessonPlansAsync(seed.BatchId, LessonDate, LessonDate, 1, 101))
+                .StatusCode.Should().Be(400);
+        }
+        await using (var otherDb = Context(options, 202, 8, "TenantAdmin"))
+        {
+            var other = Service(otherDb, 202, 8, "TenantAdmin");
+            var page = await other.GetLessonPlansAsync(null, LessonDate, LessonDate, 1, 20);
+            page.Success.Should().BeTrue();
+            page.Data!.Items.Should().BeEmpty();
+        }
+    }
+
+    [Fact]
     public async Task Unauthorized_user_cannot_create_lesson_plan_or_substitution()
     {
         var options = Options();
