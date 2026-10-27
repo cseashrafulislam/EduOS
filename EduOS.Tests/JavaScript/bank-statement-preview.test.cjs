@@ -19,4 +19,10 @@ test('statement preview is authorized, anti-forgery protected and read-only', ()
   assert.match(service, /Matches = matches/);
   assert.match(script, /parseRows/);
   assert.match(script, /CSV header must be/);
+  assert.match(script, /openingVariance/);
+  assert.match(script, /movementVariance/);
+  assert.match(script, /isExactMatch/);
+  assert.match(service, /Reference reused: ambiguous/);
+  assert.match(service, /Date and amount\/direction differ/);
+  assert.match(service, /missingLedger == 0 && missingStatement == 0/);
 });

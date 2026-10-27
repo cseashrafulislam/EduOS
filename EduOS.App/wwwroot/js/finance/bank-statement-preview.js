@@ -88,6 +88,10 @@ if (panel) {
     });
     el('bankStatementForm').addEventListener('submit', async event => {
         event.preventDefault(); report = null; el('statementExport').disabled = true;
+        el('statementSummary').textContent = '';
+        el('statementMatchCount').textContent = '0';
+        el('statementMatches').replaceChildren();
+        el('statementExceptions').replaceChildren();
         const bank = el('statementBank').value, from = el('statementFrom').value, to = el('statementTo').value;
         if (!/^\d+$/.test(bank) || BigInt(bank) <= 0n || !Number.isSafeInteger(Number(bank)) || !from || !to || from > to)
             return show('Choose a bank and valid date range.', true);
@@ -112,8 +116,12 @@ if (panel) {
                 '<tr><td colspan="5">No unique exact matches.</td></tr>';
             el('statementSummary').textContent = result.bankName + ': ' + result.matchedCount +
                 ' matched; ' + result.unmatchedLedgerCount + ' unmatched ledger; ' +
-                result.unmatchedStatementCount + ' unmatched statement; closing variance BDT ' +
-                money(result.closingVariance) + '. No transactions were changed.';
+                result.unmatchedStatementCount + ' unmatched statement. Opening variance BDT ' +
+                money(result.openingVariance) + '; movement variance BDT ' +
+                money(result.movementVariance) + '; closing variance BDT ' +
+                money(result.closingVariance) + '. ' +
+                (result.isExactMatch ? 'All movements match exactly (not cleared).' :
+                    'Exceptions require manual review (not cleared).');
             el('statementExceptions').innerHTML = (result.exceptions || []).map(x =>
                 '<tr><td>' + escapeHtml(x.source) + '</td><td>' + escapeHtml(x.date) +
                 '</td><td>' + escapeHtml(x.journalNumber) + '</td><td>' +
@@ -128,6 +136,11 @@ if (panel) {
     el('statementExport').addEventListener('click', () => {
         if (!report) return;
         const rows = [['Status','Source','Date','Journal','Reference','Deposit','Withdrawal','Reason'],
+            ['Summary','Bank',el('statementFrom').value,'',report.bankName,'','','Comparison only; not approved or cleared'],
+            ['Summary','Opening variance','','','','', '',money(report.openingVariance)],
+            ['Summary','Movement variance','','','','', '',money(report.movementVariance)],
+            ['Summary','Closing variance','','','','', '',money(report.closingVariance)],
+            ['Summary','Exact match','','','','','',report.isExactMatch ? 'Yes; not cleared' : 'No; manual review'],
             ...(report.matches || []).map(x => ['Matched','Ledger + Statement',x.date,x.journalNumber,
                 x.reference,money(x.deposit),money(x.withdrawal),'Unique exact match; not cleared']),
             ...(report.exceptions || []).map(x => ['Unmatched',x.source,x.date,x.journalNumber,x.reference,

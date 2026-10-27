@@ -37,6 +37,16 @@ public sealed partial class AccountingReportingService
             .ToDictionary(x => x.Key, x => x.ToArray());
         var statement = request.Movements.GroupBy(x => Key(x.Date, x.Deposit, x.Withdrawal, x.Reference))
             .ToDictionary(x => x.Key, x => x.ToArray());
+        // Reference-only candidates explain exceptions, but NEVER become automatic matches.
+        // Reused references cannot identify a unique counterparty even when amounts agree.
+        var ledgerByReference = book.Data.Entries
+            .Where(x => !string.IsNullOrWhiteSpace(x.ReferenceNumber))
+            .GroupBy(x => Key(x.Date, x.DebitAmount, x.CreditAmount, x.ReferenceNumber).Reference)
+            .ToDictionary(x => x.Key, x => x.ToArray());
+        var statementByReference = request.Movements
+            .Where(x => !string.IsNullOrWhiteSpace(x.Reference))
+            .GroupBy(x => Key(x.Date, x.Deposit, x.Withdrawal, x.Reference).Reference)
+            .ToDictionary(x => x.Key, x => x.ToArray());
         var exceptions = new List<BankStatementExceptionDto>();
         int matched = 0, missingLedger = 0, missingStatement = 0;
         var matches = new List<BankStatementMatchDto>();
@@ -57,8 +67,29 @@ public sealed partial class AccountingReportingService
                 });
                 continue;
             }
-            var reason = key.Reference.Length == 0 ? "Missing reference: manual review" :
-                a.Length > 1 || b.Length > 1 ? "Duplicate key: ambiguous" : "No exact counterpart";
+            string reason;
+            if (key.Reference.Length == 0)
+                reason = "Missing reference: manual review";
+            else if (a.Length > 1 || b.Length > 1)
+                reason = "Duplicate key: ambiguous";
+            else if (ledgerByReference.TryGetValue(key.Reference, out var ledgerCandidates) &&
+                statementByReference.TryGetValue(key.Reference, out var statementCandidates))
+            {
+                if (ledgerCandidates.Length != 1 || statementCandidates.Length != 1)
+                    reason = "Reference reused: ambiguous";
+                else
+                {
+                    var l = ledgerCandidates[0];
+                    var s = statementCandidates[0];
+                    bool differentDate = l.Date != s.Date;
+                    bool differentAmount = l.DebitAmount != s.Deposit || l.CreditAmount != s.Withdrawal;
+                    reason = differentDate && differentAmount ? "Date and amount/direction differ: manual review" :
+                        differentDate ? "Date differs: manual review" :
+                        differentAmount ? "Amount/direction differs: manual review" : "No exact counterpart";
+                }
+            }
+            else
+                reason = "No exact counterpart";
             missingLedger += a.Length;
             missingStatement += b.Length;
             foreach (var x in a)
@@ -69,12 +100,20 @@ public sealed partial class AccountingReportingService
                 exceptions.Add(new BankStatementExceptionDto { Source = "Statement", Date = x.Date,
                     Reference = x.Reference, Deposit = x.Deposit, Withdrawal = x.Withdrawal, Reason = reason });
         }
+        var openingVariance = book.Data.OpeningBalance - request.OpeningBalance;
+        var movementVariance = (book.Data.TotalInflows - book.Data.TotalOutflows) -
+            (request.ClosingBalance - request.OpeningBalance);
+        var closingVariance = book.Data.ClosingBalance - request.ClosingBalance;
+        // Both balances and every movement must agree; offsetting differences cannot pass.
+        var isExactMatch = openingVariance == 0m && movementVariance == 0m &&
+            closingVariance == 0m && missingLedger == 0 && missingStatement == 0;
         return ApiResponse<BankStatementPreviewDto>.SuccessResponse(new BankStatementPreviewDto
         {
             BankName = book.Data.BankName, LedgerOpeningBalance = book.Data.OpeningBalance,
             LedgerClosingBalance = book.Data.ClosingBalance,
             StatementOpeningBalance = request.OpeningBalance, StatementClosingBalance = request.ClosingBalance,
-            ClosingVariance = book.Data.ClosingBalance - request.ClosingBalance,
+            ClosingVariance = closingVariance, OpeningVariance = openingVariance,
+            MovementVariance = movementVariance, IsExactMatch = isExactMatch,
             MatchedCount = matched, Matches = matches, UnmatchedLedgerCount = missingLedger,
             UnmatchedStatementCount = missingStatement, Exceptions = exceptions
         });

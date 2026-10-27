@@ -44,6 +44,11 @@ public sealed class BankStatementPreviewDto
     public decimal StatementOpeningBalance { get; set; }
     public decimal StatementClosingBalance { get; set; }
     public decimal ClosingVariance { get; set; }
+    // Variances are ledger minus statement. A zero closing variance alone is not proof of matching.
+    public decimal OpeningVariance { get; set; }
+    public decimal MovementVariance { get; set; }
+    // Read-only evidence only; never signifies approval, clearance or posting.
+    public bool IsExactMatch { get; set; }
     public int MatchedCount { get; set; }
     public IReadOnlyList<BankStatementMatchDto> Matches { get; set; } = Array.Empty<BankStatementMatchDto>();
     public int UnmatchedLedgerCount { get; set; }

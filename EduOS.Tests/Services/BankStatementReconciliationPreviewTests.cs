@@ -34,6 +34,7 @@ public sealed class BankStatementReconciliationPreviewTests
         }
         response.Data.Exceptions.Should().HaveCount(exceptions);
         response.Data.ClosingVariance.Should().Be(0m);
+        response.Data.IsExactMatch.Should().Be(matched == 1);
         (await db.Journals.SingleAsync()).State.Should().Be(JournalState.Posted);
     }
     [Theory]
@@ -93,6 +94,50 @@ public sealed class BankStatementReconciliationPreviewTests
         response.Data.UnmatchedLedgerCount.Should().Be(1);
         response.Data.Exceptions.Should().OnlyContain(x => x.Reason.Contains("Duplicate key"));
     }
+    [Fact]
+    public async Task Equal_closing_balances_cannot_hide_offsetting_opening_and_movement_differences()
+    {
+        await using var db = Database();
+        Seed(db);
+        var request = Request("DEP-1");
+        request.OpeningBalance = 10m;
+        request.ClosingBalance = 100m;
+        request.Movements = new[]
+        {
+            new BankStatementMovementDto { Date = Day, Reference = "DEP-1", Deposit = 90m }
+        };
+        var response = await new AccountingReportingService(db, new User())
+            .PreviewBankStatementAsync(request);
+        response.StatusCode.Should().Be(200);
+        response.Data!.OpeningVariance.Should().Be(-10m);
+        response.Data.MovementVariance.Should().Be(10m);
+        response.Data.ClosingVariance.Should().Be(0m);
+        response.Data.IsExactMatch.Should().BeFalse();
+        response.Data.Exceptions.Should().OnlyContain(x =>
+            x.Reason.Contains("Amount/direction differs"));
+    }
+
+    [Fact]
+    public async Task Same_reference_on_different_day_is_a_review_hint_not_a_match()
+    {
+        await using var db = Database();
+        Seed(db);
+        var request = Request("DEP-1");
+        request.ToDate = Day.AddDays(1);
+        request.Movements = new[]
+        {
+            new BankStatementMovementDto { Date = Day.AddDays(1), Reference = "DEP-1", Deposit = 100m }
+        };
+        var response = await new AccountingReportingService(db, new User())
+            .PreviewBankStatementAsync(request);
+        response.StatusCode.Should().Be(200);
+        response.Data!.MatchedCount.Should().Be(0);
+        response.Data.IsExactMatch.Should().BeFalse();
+        response.Data.Exceptions.Should().HaveCount(2);
+        response.Data.Exceptions.Should().OnlyContain(x => x.Reason == "Date differs: manual review");
+        (await db.Journals.SingleAsync()).State.Should().Be(JournalState.Posted);
+    }
+
     private static BankStatementPreviewRequestDto Request(string reference) => new()
     {
         BankAccountId = 1, FromDate = Day, ToDate = Day, OpeningBalance = 0m, ClosingBalance = 100m,
