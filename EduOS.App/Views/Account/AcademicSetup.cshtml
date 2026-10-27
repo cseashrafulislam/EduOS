@@ -97,6 +97,26 @@
                             <div class="invalid-feedback"></div>
                         </div>
                         <div class="col-md-6">
+                            <label for="yearCode" class="form-label">Year code (optional)</label>
+                            <input id="yearCode" class="form-control" maxlength="30" placeholder="Auto-generated when blank" />
+                        </div>
+                        <div class="col-md-6">
+                            <label for="yearCampusId" class="form-label">Campus</label>
+                            <select id="yearCampusId" class="form-select"><option value="">All campuses (institution-wide)</option></select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="yearCycleType" class="form-label">Academic cycle</label>
+                            <select id="yearCycleType" class="form-select">
+                                <option value="1">Annual</option><option value="2">Semester</option>
+                                <option value="3">Trimester</option><option value="4">Quarterly</option>
+                                <option value="5">Modular</option><option value="6">Batch based</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 d-flex align-items-end">
+                            <label class="form-check"><input id="yearIsActive" type="checkbox" class="form-check-input" checked />
+                                <span class="form-check-label">Active academic year</span></label>
+                        </div>
+                        <div class="col-md-6">
                             <label for="yearStartDate" class="form-label">@T["StartDate"] <span class="required-mark" aria-hidden="true">*</span></label>
                             <input type="date" id="yearStartDate" name="startDate" class="form-control" required aria-required="true" />
                             <div class="invalid-feedback"></div>
@@ -152,6 +172,22 @@
                             <input type="text" id="termName" name="name" class="form-control" maxlength="100"
                                    placeholder="Term 1 / Semester 1" required aria-required="true" />
                             <div class="invalid-feedback"></div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="termCode" class="form-label">Term code (optional)</label>
+                            <input id="termCode" class="form-control" maxlength="30" />
+                        </div>
+                        <div class="col-md-6">
+                            <label for="termDisplayOrder" class="form-label">Display order</label>
+                            <input id="termDisplayOrder" type="number" class="form-control" min="0" step="1" value="0" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-check"><input id="termIsCurrent" type="checkbox" class="form-check-input" />
+                                <span class="form-check-label">Current term</span></label>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-check"><input id="termIsActive" type="checkbox" class="form-check-input" checked />
+                                <span class="form-check-label">Active term</span></label>
                         </div>
                         <div class="col-md-6">
                             <label for="termStartDate" class="form-label">@T["StartDate"] <span class="required-mark" aria-hidden="true">*</span></label>

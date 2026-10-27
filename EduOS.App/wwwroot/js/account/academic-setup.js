@@ -8,6 +8,7 @@
     const yearModal = document.getElementById('academicYearModal');
     const termModal = document.getElementById('termModal');
     let editedYearRowVersion = '';
+    let editedTermRowVersion = '';
 
     document.addEventListener('DOMContentLoaded', async () => {
         if (!list) return;
@@ -27,6 +28,10 @@
             id: positiveInteger(valueOf('yearId')),
             rowVersion: editedYearRowVersion,
             name: valueOf('yearName'),
+            code: valueOf('yearCode'),
+            campusId: positiveInteger(valueOf('yearCampusId')),
+            cycleType: Number(valueOf('yearCycleType')),
+            isActive: document.getElementById('yearIsActive')?.checked ?? true,
             startDate: valueOf('yearStartDate'),
             endDate: valueOf('yearEndDate'),
             isCurrent: document.getElementById('isCurrent')?.checked ?? false
@@ -66,6 +71,11 @@
             id: positiveInteger(valueOf('termId')),
             academicYearId: positiveInteger(valueOf('termYearId')),
             name: valueOf('termName'),
+            code: valueOf('termCode'),
+            rowVersion: editedTermRowVersion,
+            isCurrent: document.getElementById('termIsCurrent')?.checked ?? false,
+            isActive: document.getElementById('termIsActive')?.checked ?? true,
+            displayOrder: Number(valueOf('termDisplayOrder')),
             startDate: valueOf('termStartDate') || null,
             endDate: valueOf('termEndDate') || null
         };
@@ -102,16 +112,19 @@
         if (!list) return;
         list.setAttribute('aria-busy', 'true');
         try {
-            const [yearsResponse, termsResponse] = await Promise.all([
+            const [yearsResponse, termsResponse, campusesResponse] = await Promise.all([
                 fetchJson('/api/institution-onboarding/academic-years'),
-                fetchJson('/api/institution-onboarding/academic-terms')
+                fetchJson('/api/institution-onboarding/academic-terms'),
+                fetchJson('/api/institution-onboarding/campus-list')
             ]);
-            if (!yearsResponse.ok || !termsResponse.ok
-                || !Array.isArray(yearsResponse.data) || !Array.isArray(termsResponse.data)) {
+            if (!yearsResponse.ok || !termsResponse.ok || !campusesResponse.ok
+                || !Array.isArray(yearsResponse.data) || !Array.isArray(termsResponse.data)
+                || !Array.isArray(campusesResponse.data)) {
                 throw new Error('Invalid academic structure response');
             }
-            renderYears(yearsResponse.data, termsResponse.data);
+            renderYears(yearsResponse.data, termsResponse.data, campusesResponse.data);
             populateYearSelect(yearsResponse.data);
+            populateCampusSelect(campusesResponse.data);
             if (continueButton) continueButton.disabled = yearsResponse.data.length === 0;
         } catch (error) {
             console.warn('EduOS academic structure was unavailable.', error);
@@ -122,7 +135,7 @@
         }
     }
 
-    function renderYears(years, terms) {
+    function renderYears(years, terms, campuses) {
         if (!list) return;
         if (!years.length) {
             list.replaceChildren(createEmptyState(i18n.noYears));
@@ -150,7 +163,8 @@
                 heading.append(badge);
             }
             const dates = document.createElement('p');
-            dates.textContent = `${formatDate(year.startDate)} → ${formatDate(year.endDate)}`;
+            const campus = campuses.find(x => Number(x.id) === Number(year.campusId));
+            dates.textContent = `${formatDate(year.startDate)} → ${formatDate(year.endDate)} · ${cycleLabel(year.cycleType)}${campus ? ' · ' + campus.name : ''}`;
             body.append(heading, dates);
 
             const actions = document.createElement('div');
@@ -189,8 +203,10 @@
             ? ` (${formatDate(term.startDate)} → ${formatDate(term.endDate)})`
             : '';
         text.textContent = `${term.name || ''}${dates}`;
+        const edit = createActionButton('edit-term', i18n.edit, 'btn-link');
         const remove = createActionButton('delete-term', i18n.removeTerm, 'btn-link text-danger');
-        row.append(text, remove);
+        if (term.isCurrent) text.textContent += ` · ${i18n.current || 'Current'}`;
+        row.append(text, edit, remove);
         return row;
     }
 
@@ -243,6 +259,26 @@
         select.replaceChildren(placeholder, ...options);
     }
 
+    function populateCampusSelect(campuses) {
+        const select = document.getElementById('yearCampusId');
+        if (!select) return;
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = 'All campuses (institution-wide)';
+        const options = campuses.filter(x => x.isActive).map(campus => {
+            const option = document.createElement('option');
+            option.value = String(campus.id);
+            option.textContent = campus.name || '';
+            return option;
+        });
+        select.replaceChildren(placeholder, ...options);
+    }
+
+    function cycleLabel(value) {
+        return ({ 1: 'Annual', 2: 'Semester', 3: 'Trimester',
+            4: 'Quarterly', 5: 'Modular', 6: 'Batch based' })[Number(value)] || 'Academic year';
+    }
+
     async function handleListAction(event) {
         const button = event.target.closest('button[data-action]');
         if (!button) return;
@@ -255,6 +291,7 @@
         }
         if (button.dataset.action === 'edit-year' && yearId) await editYear(yearId);
         if (button.dataset.action === 'delete-year' && yearId) await deleteYear(yearId);
+        if (button.dataset.action === 'edit-term' && termId) await editTerm(termId);
         if (button.dataset.action === 'delete-term' && termId) await deleteTerm(termId);
     }
 
@@ -266,11 +303,42 @@
             editedYearRowVersion = year.rowVersion || '';
             setValue('yearId', id);
             setValue('yearName', year.name);
+            setValue('yearCode', year.code);
+            setValue('yearCampusId', year.campusId);
+            setValue('yearCycleType', year.cycleType);
+            const active = document.getElementById('yearIsActive');
+            if (active) active.checked = Boolean(year.isActive);
             setValue('yearStartDate', dateInputValue(year.startDate));
             setValue('yearEndDate', dateInputValue(year.endDate));
             const current = document.getElementById('isCurrent');
             if (current) current.checked = Boolean(year.isCurrent);
             openModal(yearModal);
+        } catch {
+            showAlert('danger', i18n.itemLoadFailed);
+        }
+    }
+
+    async function editTerm(id) {
+        try {
+            const response = await fetchJson(`/api/institution-onboarding/academic-term/${encodeURIComponent(id)}`);
+            if (!response.ok || !response.data) throw new Error('Invalid academic term response');
+            const term = response.data;
+            resetTermForm();
+            editedTermRowVersion = term.rowVersion || '';
+            setValue('termId', term.id);
+            setValue('termYearId', term.academicYearId);
+            setValue('termName', term.name);
+            setValue('termCode', term.code);
+            setValue('termStartDate', dateInputValue(term.startDate));
+            setValue('termEndDate', dateInputValue(term.endDate));
+            setValue('termDisplayOrder', term.displayOrder);
+            const current = document.getElementById('termIsCurrent');
+            if (current) current.checked = Boolean(term.isCurrent);
+            const active = document.getElementById('termIsActive');
+            if (active) active.checked = Boolean(term.isActive);
+            const label = document.getElementById('termYearLabel');
+            if (label) label.textContent = term.academicYearName || '';
+            openModal(termModal);
         } catch {
             showAlert('danger', i18n.itemLoadFailed);
         }
@@ -380,6 +448,7 @@
     }
 
     function resetTermForm() {
+        editedTermRowVersion = '';
         document.getElementById('termForm')?.reset();
         setValue('termId', '');
         const label = document.getElementById('termYearLabel');

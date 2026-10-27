@@ -169,7 +169,7 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
             }
             await _uow.SaveChangesAsync(token);
             return ApiResponse<CampusDto>.SuccessResponse(Map(row, Trim(request.HeadName)), "Campus saved.");
-        }, ct);
+        }, ct, IsolationLevel.Serializable);
     }
 
     public Task<ApiResponse<bool>> ArchiveCampusAsync(long id, string version, CancellationToken ct = default)
@@ -326,7 +326,7 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
             if (head != null) TouchTenant(head, now);
             await _uow.SaveChangesAsync(token);
             return ApiResponse<AcademicYearDto>.SuccessResponse(Map(row), "Academic year saved.");
-        }, ct);
+        }, ct, IsolationLevel.Serializable);
     }
 
     public Task<ApiResponse<bool>> ArchiveAcademicYearAsync(long id, string version, CancellationToken ct = default)
@@ -449,7 +449,7 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
             if (id.HasValue) _terms.Update(row);
             await _uow.SaveChangesAsync(token);
             return ApiResponse<AcademicTermDto>.SuccessResponse(Map(row, year.Name), "Academic term saved.");
-        }, ct);
+        }, ct, IsolationLevel.Serializable);
     }
 
     public Task<ApiResponse<bool>> ArchiveAcademicTermAsync(long id, string version, CancellationToken ct = default)

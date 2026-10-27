@@ -207,6 +207,64 @@ public sealed class InstitutionRegistrationServiceTests
     }
 
     [Fact]
+    public async Task Academic_year_and_term_configuration_can_be_edited_with_rowversions()
+    {
+        var options = Options();
+        await SeedTenant(options, 101);
+        await using var db = Context(options, 101);
+        db.Campuses.Add(new Campus { Id = 1001, TenantId = 101,
+            Code = "MAIN", Name = "Main", IsActive = true });
+        await db.SaveChangesAsync();
+        var service = Foundation(db, new TestUser(101));
+        var year = await service.SaveAcademicYearAsync(null, new SaveAcademicYearRequestDto
+        {
+            Name = "Year 2026", Code = "Y26", CampusId = 1001,
+            CycleType = EduOS.Core.Enums.Domain.AcademicCycleType.Semester,
+            StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31)
+        });
+        year.Success.Should().BeTrue(year.Message);
+        var yearRow = await db.AcademicYears.SingleAsync(x => x.Id == year.Data!.Id);
+        yearRow.RowVersion = [1, 2, 3, 4];
+        await db.SaveChangesAsync();
+        var yearEdit = await service.SaveAcademicYearAsync(yearRow.Id, new SaveAcademicYearRequestDto
+        {
+            Name = "Year 2026 revised", Code = "Y26", CampusId = 1001,
+            CycleType = EduOS.Core.Enums.Domain.AcademicCycleType.Semester,
+            StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31),
+            RowVersion = Convert.ToBase64String(yearRow.RowVersion), IsCurrent = true
+        });
+        yearEdit.Success.Should().BeTrue(yearEdit.Message);
+        yearEdit.Data!.CampusId.Should().Be(1001);
+        yearEdit.Data.CycleType.Should().Be(EduOS.Core.Enums.Domain.AcademicCycleType.Semester);
+        var term = await service.SaveAcademicTermAsync(null, new SaveAcademicTermRequestDto
+        {
+            AcademicYearId = yearRow.Id, Name = "First term", Code = "T1",
+            StartDate = new DateOnly(2026, 1, 10), EndDate = new DateOnly(2026, 5, 30)
+        });
+        term.Success.Should().BeTrue(term.Message);
+        var termRow = await db.AcademicTerms.SingleAsync(x => x.Id == term.Data!.Id);
+        termRow.RowVersion = [4, 3, 2, 1];
+        await db.SaveChangesAsync();
+        var termEdit = await service.SaveAcademicTermAsync(termRow.Id, new SaveAcademicTermRequestDto
+        {
+            AcademicYearId = yearRow.Id, Name = "Semester one", Code = "SEM1",
+            StartDate = new DateOnly(2026, 1, 10), EndDate = new DateOnly(2026, 5, 30),
+            IsCurrent = true, DisplayOrder = 3,
+            RowVersion = Convert.ToBase64String(termRow.RowVersion)
+        });
+        termEdit.Success.Should().BeTrue(termEdit.Message);
+        termEdit.Data!.Code.Should().Be("SEM1");
+        termEdit.Data.IsCurrent.Should().BeTrue();
+        termEdit.Data.DisplayOrder.Should().Be(3);
+        (await service.SaveAcademicTermAsync(termRow.Id, new SaveAcademicTermRequestDto
+        {
+            AcademicYearId = yearRow.Id, Name = "Stale", Code = "SEM1",
+            StartDate = new DateOnly(2026, 1, 10), EndDate = new DateOnly(2026, 5, 30),
+            RowVersion = Convert.ToBase64String(new byte[] { 9, 9, 9, 9 })
+        })).StatusCode.Should().Be(409);
+    }
+
+    [Fact]
     public void Canonical_institution_registration_and_foundation_contracts_are_registered()
     {
         typeof(IInstitutionRegistrationService).IsAssignableFrom(typeof(InstitutionRegistrationService))
