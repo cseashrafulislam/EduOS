@@ -86,8 +86,8 @@
     function csv() {
         const data = [['Roll','Student','Subject','State','Evidence'],
             ...state.rows.map(x => [x.rollNo,x.studentName,x.subjectName,completed(x.state)?'Completed':'Approved',x.statusMessage])];
-        const safe = x => /^[=+@\\-\\t\\r]/.test(String(x ?? '')) ? "'" + String(x) : x;
-        const text = data.map(row => row.map(x => '"' + String(safe(x) ?? '').replace(/"/g, '""') + '"').join(',')).join('\\r\\n');
+        const safe = x => /^[=+@\-\t\r]/.test(String(x ?? '')) ? "'" + String(x) : x;
+        const text = data.map(row => row.map(x => '"' + String(safe(x) ?? '').replace(/"/g, '""') + '"').join(',')).join('\r\n');
         const url = URL.createObjectURL(new Blob(['\uFEFF', text], { type: 'text/csv;charset=utf-8' }));
         const a = document.createElement('a'); a.href = url; a.download = 'subject-completions.csv'; a.click();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
