@@ -272,6 +272,71 @@ public sealed class StudentImportExecutionServiceTests
         Assert.Equal(2, await db.Guardians.CountAsync());
     }
 
+
+    [Fact]
+    public async Task Cohort_reconciliation_aggregates_committed_and_missing_windows_without_cross_tenant_leak()
+    {
+        var options = Options(); await SeedAsync(options);
+        const string first = Header + "COHORT-1,STU-C1,Student One,10,20,11,,\n";
+        const string second = Header + "COHORT-2,STU-C2,Student Two,10,20,12,,\n";
+        var fileHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(first))).ToLowerInvariant();
+        var mappingHash = Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(JsonSerializer.Serialize(Mapping)))).ToLowerInvariant();
+        var digest = SHA256.HashData(Encoding.UTF8.GetBytes(fileHash + ":" + mappingHash + ":0"));
+        digest[6] = (byte)((digest[6] & 0x0f) | 0x50);
+        digest[8] = (byte)((digest[8] & 0x3f) | 0x80);
+        var hex = Convert.ToHexString(digest.AsSpan(0, 16));
+        var requestId = Guid.ParseExact(
+            $"{hex[..8]}-{hex[8..12]}-{hex[12..16]}-{hex[16..20]}-{hex[20..]}", "D");
+        await using var db = Context(options, 101);
+        var service = Service(db, new User(101, true));
+        using (var stream = Csv(first))
+            Assert.True((await service.ExecuteSliceAsync(stream, ".csv", Mapping, requestId, 0)).Success);
+        var files = new[]
+        {
+            new EduOS.Core.DTOs.Students.StudentImportCohortFileRequestDto
+                { FileHash = fileHash, MappingHash = mappingHash, TotalRows = 1 },
+            new EduOS.Core.DTOs.Students.StudentImportCohortFileRequestDto
+                { FileHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(second))),
+                    MappingHash = mappingHash, TotalRows = 1 }
+        };
+        var status = await service.GetCohortStatusAsync(files);
+        Assert.True(status.Success, status.Message);
+        Assert.Equal(2, status.Data!.ExpectedRows);
+        Assert.Equal(1, status.Data.CommittedRows);
+        Assert.Equal(1, status.Data.PendingRows);
+        Assert.False(status.Data.IsComplete);
+        Assert.Equal(0, status.Data.Files[0].MissingWindows);
+        Assert.Equal(1, status.Data.Files[1].MissingWindows);
+        await using var otherDb = Context(options, 202);
+        var other = await Service(otherDb, new User(202, true)).GetCohortStatusAsync(files);
+        Assert.True(other.Success);
+        Assert.Equal(0, other.Data!.CommittedRows);
+        Assert.Equal(403, (await Service(db, new User(101, false))
+            .GetCohortStatusAsync(files)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Cohort_reconciliation_rejects_duplicate_fingerprints_invalid_counts_and_unbounded_files()
+    {
+        var options = Options(); await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var service = Service(db, new User(101, true));
+        var file = new EduOS.Core.DTOs.Students.StudentImportCohortFileRequestDto
+        {
+            FileHash = new string('a', 64), MappingHash = new string('b', 64), TotalRows = 5000
+        };
+        Assert.Equal(400, (await service.GetCohortStatusAsync(null)).StatusCode);
+        Assert.Equal(400, (await service.GetCohortStatusAsync([file, file])).StatusCode);
+        Assert.Equal(400, (await service.GetCohortStatusAsync(
+            Enumerable.Repeat(file, 9).ToArray())).StatusCode);
+        Assert.Equal(400, (await service.GetCohortStatusAsync([
+            new EduOS.Core.DTOs.Students.StudentImportCohortFileRequestDto
+                { FileHash = "bad", MappingHash = file.MappingHash, TotalRows = 1 }
+        ])).StatusCode);
+        Assert.Empty(await db.Students.ToListAsync());
+    }
+
     private sealed class InMemoryUow(EduOSDbContext db) : IUnitOfWork
     {
         public Task<int> SaveChangesAsync(CancellationToken token = default) => db.SaveChangesAsync(token);

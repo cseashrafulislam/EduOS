@@ -12,6 +12,9 @@ public interface IStudentImportExecutionService
         CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentImportJobStatusDto>> GetJobStatusAsync(
         string fileHash, string mappingHash, int totalRows, CancellationToken cancellationToken = default);
+    Task<ApiResponse<StudentImportCohortStatusDto>> GetCohortStatusAsync(
+        IReadOnlyList<StudentImportCohortFileRequestDto>? files,
+        CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentImportReconciliationDto>> GetAsync(Guid importReference, int page, int pageSize,
         CancellationToken cancellationToken = default);
 }

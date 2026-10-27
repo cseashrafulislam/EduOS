@@ -46,3 +46,31 @@ public sealed class StudentImportJobBatchDto
     public int ImportedRows { get; set; }
     public Guid ImportReference { get; set; }
 }
+
+/** One selected source file in a bounded, tenant-owned launch-cohort reconciliation. */
+public sealed class StudentImportCohortFileRequestDto
+{
+    public string FileHash { get; set; } = string.Empty;
+    public string MappingHash { get; set; } = string.Empty;
+    public int TotalRows { get; set; }
+}
+
+public sealed class StudentImportCohortFileStatusDto
+{
+    public string FileHash { get; set; } = string.Empty;
+    public string MappingHash { get; set; } = string.Empty;
+    public int TotalRows { get; set; }
+    public int CommittedRows { get; set; }
+    public int NextOffset { get; set; }
+    public int MissingWindows { get; set; }
+    public bool IsComplete => CommittedRows == TotalRows;
+}
+
+public sealed class StudentImportCohortStatusDto
+{
+    public int ExpectedRows { get; set; }
+    public int CommittedRows { get; set; }
+    public int PendingRows => ExpectedRows - CommittedRows;
+    public bool IsComplete => ExpectedRows > 0 && PendingRows == 0;
+    public List<StudentImportCohortFileStatusDto> Files { get; set; } = new();
+}

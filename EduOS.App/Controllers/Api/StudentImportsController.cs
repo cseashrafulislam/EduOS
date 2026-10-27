@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using EduOS.App.Authorization;
+using EduOS.Core.DTOs.Students;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -122,6 +123,16 @@ public sealed class StudentImportsController : ControllerBase
         CancellationToken cancellationToken = default)
     {
         var result = await _execution.GetJobStatusAsync(fileHash, mappingHash, totalRows, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    /// <summary>Reconcile up to eight independently committed source files without learner PII.</summary>
+    [HttpPost("cohort-status")]
+    public async Task<IActionResult> CohortStatus(
+        [FromBody] List<StudentImportCohortFileRequestDto>? files,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _execution.GetCohortStatusAsync(files, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 

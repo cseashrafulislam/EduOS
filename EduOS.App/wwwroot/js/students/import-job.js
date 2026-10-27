@@ -27,7 +27,40 @@
             throw new Error('Import row count changed. Re-select and preview the original file.');
         return total;
     }
-    const api = { fingerprint, requestId, resumeRowCount };
+    function validateCohort(files) {
+        if (!Array.isArray(files) || files.length < 1 || files.length > 8)
+            throw new Error('Select between one and eight source files.');
+        const seen = new Set();
+        let rows = 0;
+        const normalized = files.map(file => {
+            if (!file || !/^[a-f0-9]{64}$/i.test(file.fileHash || '') ||
+                !/^[a-f0-9]{64}$/i.test(file.mappingHash || '') ||
+                !Number.isInteger(file.totalRows) || file.totalRows < 1 || file.totalRows > 5000)
+                throw new Error('Invalid source fingerprint or row count.');
+            const key = file.fileHash.toLowerCase() + ':' + file.mappingHash.toLowerCase();
+            if (seen.has(key)) throw new Error('This source file and mapping is already selected.');
+            seen.add(key);
+            rows += file.totalRows;
+            return { fileHash: file.fileHash.toLowerCase(),
+                mappingHash: file.mappingHash.toLowerCase(), totalRows: file.totalRows };
+        });
+        if (rows > 40000) throw new Error('Cohort is limited to 40,000 source rows.');
+        return normalized;
+    }
+    function cohortSummaryCsv(status) {
+        const lines = ['FileHash,MappingHash,ExpectedRows,CommittedRows,MissingWindows,Status'];
+        for (const file of status.files || []) {
+            if (!/^[a-f0-9]{64}$/.test(file.fileHash) ||
+                !/^[a-f0-9]{64}$/.test(file.mappingHash) ||
+                ![file.totalRows, file.committedRows, file.missingWindows].every(Number.isSafeInteger))
+                throw new Error('Invalid reconciliation response.');
+            lines.push([file.fileHash, file.mappingHash, file.totalRows,
+                file.committedRows, file.missingWindows,
+                file.isComplete ? 'Complete' : 'Pending'].join(','));
+        }
+        return '\uFEFF' + lines.join('\r\n');
+    }
+    const api = { fingerprint, requestId, resumeRowCount, validateCohort, cohortSummaryCsv };
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     else root.EduOSStudentImportJob = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -24,6 +24,15 @@
     const committedRows = document.getElementById('studentImportCommittedRows');
     const reload = document.getElementById('studentImportReload');
     const more = document.getElementById('studentImportMore');
+    const cohortAdd = document.getElementById('studentImportCohortAdd');
+    const cohortCheck = document.getElementById('studentImportCohortCheck');
+    const cohortExport = document.getElementById('studentImportCohortExport');
+    const cohortClear = document.getElementById('studentImportCohortClear');
+    const cohortSummary = document.getElementById('studentImportCohortSummary');
+    const cohortRows = document.getElementById('studentImportCohortRows');
+    const cohortKey = 'eduos.student-import.cohort.v1.' + tenant;
+    let cohortFiles = [];
+    let cohortStatus = null;
     let validated = null;
     let lastMapping = null;
     let importReference = null;
@@ -45,6 +54,7 @@
         errors = [];
         currentJob = null;
         currentFingerprint = null;
+        cohortAdd.disabled = true;
         jobSummary.textContent = '';
         jobExport.classList.add('d-none');
         validated = null;
@@ -57,6 +67,7 @@
     mapping.addEventListener('change', () => {
         currentJob = null;
         currentFingerprint = null;
+        cohortAdd.disabled = true;
         jobSummary.textContent = '';
         jobExport.classList.add('d-none');
         validated = null;
@@ -146,6 +157,7 @@
     function showJobStatus(fp, status) {
         currentFingerprint = fp;
         currentJob = status;
+        cohortAdd.disabled = false;
         jobSummary.textContent = 'Source-file reconciliation: ' + status.committedRows +
             ' / ' + status.totalRows + ' rows committed.';
         jobExport.classList.toggle('d-none', !(status.batches || []).length);
@@ -311,6 +323,85 @@
         } catch (error) { message(error.message, true); }
         finally { busy = false; jobExport.disabled = false; }
     });
+
+    function renderCohort(status = null) {
+        cohortStatus = status;
+        cohortRows.replaceChildren();
+        const files = status?.files || cohortFiles.map(file => ({
+            ...file, committedRows: null, missingWindows: null
+        }));
+        for (const file of files) {
+            const tr = document.createElement('tr');
+            for (const value of [file.fileHash.slice(0, 12) + '…',
+                file.totalRows, file.committedRows ?? '—', file.missingWindows ?? '—']) {
+                const td = document.createElement('td');
+                td.textContent = String(value);
+                tr.appendChild(td);
+            }
+            cohortRows.appendChild(tr);
+        }
+        cohortCheck.disabled = busy || cohortFiles.length === 0;
+        cohortExport.disabled = !status;
+        cohortSummary.textContent = status
+            ? 'Cohort: ' + status.committedRows + ' / ' + status.expectedRows +
+                ' rows committed; ' + status.pendingRows + ' pending.'
+            : cohortFiles.length + ' / 8 source files selected.';
+    }
+    function saveCohort() {
+        sessionStorage.setItem(cohortKey, JSON.stringify(cohortFiles));
+        renderCohort();
+    }
+    try {
+        const stored = JSON.parse(sessionStorage.getItem(cohortKey) || '[]');
+        cohortFiles = stored.length ? jobTools.validateCohort(stored) : [];
+    } catch { sessionStorage.removeItem(cohortKey); }
+    renderCohort();
+    cohortAdd.addEventListener('click', () => {
+        try {
+            if (!currentFingerprint || !currentJob)
+                throw new Error('Preview and reconcile a source file before adding it.');
+            cohortFiles = jobTools.validateCohort([...cohortFiles, {
+                ...currentFingerprint, totalRows: currentJob.totalRows
+            }]);
+            saveCohort();
+        } catch (error) { message(error.message, true); }
+    });
+    cohortClear.addEventListener('click', () => {
+        cohortFiles = [];
+        sessionStorage.removeItem(cohortKey);
+        renderCohort();
+    });
+    cohortCheck.addEventListener('click', async () => {
+        if (busy) return;
+        busy = true; cohortCheck.disabled = true;
+        try {
+            const files = jobTools.validateCohort(cohortFiles);
+            const token = form.querySelector('input[name="__RequestVerificationToken"]')?.value;
+            if (!token) throw new Error('Session verification token is missing. Refresh the page.');
+            const response = await fetch('/api/student-imports/cohort-status', {
+                method: 'POST', credentials: 'same-origin', cache: 'no-store',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json',
+                    'RequestVerificationToken': token },
+                body: JSON.stringify(files)
+            });
+            const body = await response.json().catch(() => null);
+            if (!response.ok || !body?.success)
+                throw new Error(body?.message || 'Cohort reconciliation failed.');
+            renderCohort(body.data);
+        } catch (error) { message(error.message, true); }
+        finally { busy = false; cohortCheck.disabled = cohortFiles.length === 0; }
+    });
+    cohortExport.addEventListener('click', () => {
+        try {
+            if (!cohortStatus) throw new Error('Reconcile selected files first.');
+            const csv = jobTools.cohortSummaryCsv(cohortStatus);
+            const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+            const link = document.createElement('a');
+            link.href = url; link.download = 'student-import-cohort-summary.csv'; link.click();
+            URL.revokeObjectURL(url);
+        } catch (error) { message(error.message, true); }
+    });
+
     download.addEventListener('click', async () => {
         if (busy) return;
         busy = true; download.disabled = true;

@@ -52,6 +52,24 @@
             </div>
         </div>
     </section>
+    <section id="studentImportCohort" class="card mt-3" aria-labelledby="studentImportCohortTitle">
+        <div class="card-body">
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                <h3 id="studentImportCohortTitle" class="h5 mb-0 me-auto">Multi-file reconciliation</h3>
+                <button id="studentImportCohortAdd" class="btn btn-outline-primary btn-sm" type="button" disabled>Add previewed file</button>
+                <button id="studentImportCohortCheck" class="btn btn-primary btn-sm" type="button" disabled>Reconcile selected files</button>
+                <button id="studentImportCohortExport" class="btn btn-outline-secondary btn-sm" type="button" disabled>Export summary CSV</button>
+                <button id="studentImportCohortClear" class="btn btn-outline-secondary btn-sm" type="button">Clear selection</button>
+            </div>
+            <p id="studentImportCohortSummary" role="status" aria-live="polite"></p>
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead><tr><th>File fingerprint</th><th>Expected</th><th>Committed</th><th>Missing windows</th></tr></thead>
+                    <tbody id="studentImportCohortRows"></tbody>
+                </table>
+            </div>
+        </div>
+    </section>
     <section id="studentImportCommitted" class="card mt-3 d-none" aria-labelledby="studentImportCommittedTitle">
         <div class="card-body">
             <h3 id="studentImportCommittedTitle" class="h5">Committed batch reconciliation</h3>

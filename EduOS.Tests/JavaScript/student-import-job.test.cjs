@@ -32,3 +32,27 @@ test('changed file or mapping cannot silently reuse a chunk request', async () =
         await requestId(remapped.fileHash, remapped.mappingHash, 0, webcrypto));
     await assert.rejects(() => requestId(a.fileHash, a.mappingHash, 1, webcrypto));
 });
+
+test('cohort validates eight bounded fingerprints and rejects duplicate or oversized manifests', () => {
+    const { validateCohort } = require('../../EduOS.App/wwwroot/js/students/import-job.js');
+    const one = { fileHash: 'a'.repeat(64), mappingHash: 'b'.repeat(64), totalRows: 5000 };
+    assert.deepEqual(validateCohort([one]), [one]);
+    assert.throws(() => validateCohort([one, one]), /already selected/);
+    assert.throws(() => validateCohort(Array(9).fill(one)), /between one and eight/);
+    assert.throws(() => validateCohort([{ ...one, fileHash: 'invalid' }]), /Invalid/);
+    assert.equal(validateCohort(Array.from({ length: 8 }, (_, i) =>
+        ({ ...one, fileHash: i.toString(16).repeat(64) }))).length, 8);
+});
+test('cohort summary export includes only bounded hashes and counts', () => {
+    const { cohortSummaryCsv } = require('../../EduOS.App/wwwroot/js/students/import-job.js');
+    const csv = cohortSummaryCsv({ files: [
+        { fileHash: 'a'.repeat(64), mappingHash: 'b'.repeat(64),
+            totalRows: 100, committedRows: 80, missingWindows: 1, isComplete: false }
+    ] });
+    assert.match(csv, /100,80,1,Pending/);
+    assert.doesNotMatch(csv, /student name/i);
+    assert.throws(() => cohortSummaryCsv({ files: [
+        { fileHash: '=cmd', mappingHash: 'b'.repeat(64),
+            totalRows: 1, committedRows: 1, missingWindows: 0 }
+    ] }), /Invalid/);
+});
