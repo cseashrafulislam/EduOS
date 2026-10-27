@@ -3,17 +3,19 @@
     const el = id => document.getElementById(id);
     if (!el('studentPortalTitle')) return;
     const select = el('studentPortalStudent'), tabs = el('studentPortalTabs');
-    let section = 'timetable', latestRequest = 0;
+    let section = 'timetable', latestRequest = 0, page = 1, paymentPage = 1;
+    const pageSize = 25, paged = new Set(['attendance','results','transport','homework','assignments']);
     const columns = {
         timetable: [['dayOfWeek','Day'],['startTime','Start'],['endTime','End'],['subjectName','Subject'],['teacherName','Teacher'],['roomNo','Room']],
-        attendance: [['date','Date'],['status','Status'],['inTime','In'],['outTime','Out'],['remarks','Remarks']],
-        results: [['examName','Exam'],['totalMark','Marks'],['totalFullMark','Full marks'],['percentage','Percent'],['grade','Grade'],['position','Position']],
-        transport: [['routeName','Route'],['vehicleNo','Vehicle'],['pickupPoint','Pickup'],['startDate','Start'],['monthlyFare','Monthly fare'],['isActive','Active']],
-        homework: [['subjectName','Subject'],['title','Title'],['assignedDate','Assigned'],['dueDate','Due'],['description','Description']],
-        assignments: [['courseTitle','Course'],['title','Assignment'],['totalMark','Full marks'],['dueDate','Due'],['description','Instructions']],
-        fees: [['invoiceNo','Invoice'],['billedAmount','Billed'],['paidAmount','Paid'],['dueAmount','Due'],['dueDate','Due date'],['status','Status']],
+        attendance: [['attendanceDate','Date'],['state','Status'],['checkInTime','In'],['checkOutTime','Out'],['remarks','Remarks']],
+        results: [['assessmentName','Assessment'],['obtainedMarks','Marks'],['totalMarks','Full marks'],['percentage','Percent'],['gradeLetter','Grade'],['meritPosition','Position'],['publishedAt','Published']],
+        fees: [['invoiceNumber','Invoice'],['invoiceDate','Issued'],['totalAmount','Billed'],['paidAmount','Paid'],['dueAmount','Due'],['dueDate','Due date'],['state','Status']],
+        transport: [['routeName','Route'],['vehicleNumber','Vehicle'],['pickupPoint','Pickup'],['startDate','Start'],['endDate','End'],['monthlyFare','Monthly fare'],['state','Status']],
+        homework: [['subjectName','Subject'],['title','Title'],['opensAt','Opens'],['dueAt','Due'],['instructions','Instructions']],
+        assignments: [['courseTitle','Course'],['title','Assignment'],['maxMarks','Full marks'],['dueAt','Due'],['instructions','Instructions']],
         documents: [['documentTypeCode','Type'],['title','Title'],['fileName','File'],['expiresAt','Expires']]
     };
+    const paymentColumns = [['receiptNumber','Receipt'],['paymentDate','Date'],['amount','Amount'],['paymentMethod','Method'],['state','Status']];
     function notify(message, kind = 'danger') {
         const box = el('studentPortalAlert'); box.className = 'alert alert-' + kind; box.textContent = message; box.focus();
     }
@@ -33,8 +35,8 @@
     }
     function display(value, key) {
         if (value === null || value === undefined) return '—';
-        if (['date', 'startDate', 'dueDate', 'assignedDate', 'expiresAt'].includes(key)) return String(value).slice(0,10);
-        if (['startTime', 'endTime', 'inTime', 'outTime'].includes(key)) return String(value).slice(0,5);
+        if (['attendanceDate','invoiceDate','paymentDate','startDate','endDate','opensAt','dueAt','publishedAt','expiresAt'].includes(key)) return String(value).slice(0,10);
+        if (['startTime','endTime','checkInTime','checkOutTime'].includes(key)) return String(value).slice(0,5);
         return value;
     }
     function render(items, mapping, noData = 'No records in this section.') {
@@ -75,6 +77,40 @@
         });
         document.dispatchEvent(new CustomEvent('portal:documents-loaded', { detail: { student } }));
     }
+    function queryPage(n) { return '?' + new URLSearchParams({ page: String(n), pageSize: String(pageSize) }); }
+    function showPaging(main, payments = false) {
+        el('studentPortalPagination').classList.toggle('d-none', !main);
+        el('studentPortalPaymentsPagination').classList.toggle('d-none', !payments);
+    }
+    function pageInfo(data, current, prefix) {
+        const total = Math.max(0, Number(data?.totalCount) || 0);
+        const size = Math.max(1, Number(data?.pageSize) || pageSize);
+        const last = Math.max(1, Math.ceil(total / size));
+        el(prefix + 'Previous').disabled = current <= 1;
+        el(prefix + 'Next').disabled = current >= last;
+        el(prefix + 'Page').textContent = 'Page ' + current + ' of ' + last + ' · ' + total + ' records';
+    }
+    function renderPayments(items) {
+        const extra = el('studentPortalExtra');
+        const heading = document.createElement('h4'); heading.className = 'h6'; heading.textContent = 'Payments';
+        const table = document.createElement('table'); table.className = 'table table-sm align-middle';
+        const head = document.createElement('thead'), body = document.createElement('tbody');
+        const tr = document.createElement('tr');
+        paymentColumns.forEach(([,title]) => {
+            const th = document.createElement('th'); th.scope = 'col'; th.textContent = title; tr.append(th);
+        });
+        head.append(tr);
+        if (!items.length) {
+            const row = document.createElement('tr'), td = cell('No payments recorded.');
+            td.colSpan = paymentColumns.length; row.append(td); body.append(row);
+        } else items.forEach(item => {
+            const row = document.createElement('tr');
+            paymentColumns.forEach(([key]) => row.append(cell(display(item[key], key))));
+            body.append(row);
+        });
+        table.append(head, body); extra.append(heading, table);
+    }
+    function resetPages() { page = 1; paymentPage = 1; }
     function localDate(value) {
         const d = new Date(value);
         return [d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'), String(d.getDate()).padStart(2,'0')].join('-');
@@ -86,7 +122,7 @@
             const opt = document.createElement('option'); opt.value = ''; opt.textContent = 'Select student'; select.append(opt);
             for (const student of linked || []) {
                 const item = document.createElement('option'); item.value = student.reference;
-                item.textContent = student.name + ' · ' + student.studentCode + (student.roll ? ' · Roll ' + student.roll : '');
+                item.textContent = student.name + ' · ' + student.studentCode + (student.rollNo ? ' · Roll ' + student.rollNo : '');
                 select.append(item);
             }
             if (linked?.length === 1) { select.value = linked[0].reference; loadCurrent(); }
@@ -95,62 +131,74 @@
         } catch (error) { notify(error.message); }
     }
     async function loadCurrent() {
-        const student = select.value;
-        const token = ++latestRequest;
-        clearAlert(); el('studentPortalExtra').replaceChildren(); el('studentPortalSummary').textContent = '';
+        const student = select.value, token = ++latestRequest, activeSection = section;
+        clearAlert(); showPaging(false);
+        el('studentPortalExtra').replaceChildren(); el('studentPortalSummary').textContent = '';
         el('studentPortalSectionTitle').textContent = section.charAt(0).toUpperCase() + section.slice(1);
         if (!student) { render([], columns[section], 'Choose a student to continue.'); return; }
         try {
-            let url = '/api/portal/students/' + encodeURIComponent(student) + '/' + section;
-            if (section === 'attendance') {
-                const from = el('studentPortalFrom').value, to = el('studentPortalTo').value;
-                if (!from || !to || from > to) throw new Error('Choose a valid attendance date range.');
-                url += '?' + new URLSearchParams({ fromDate: from, toDate: to });
+            const base = '/api/portal/students/' + encodeURIComponent(student) + '/';
+            if (activeSection === 'fees') {
+                const [ledger, invoices, payments] = await Promise.all([
+                    api(base + 'fees'), api(base + 'invoices' + queryPage(page)),
+                    api(base + 'payments' + queryPage(paymentPage))
+                ]);
+                if (token !== latestRequest) return;
+                render(invoices.items || [], columns.fees);
+                el('studentPortalSummary').textContent = 'Total billed ' + ledger.totalBilled +
+                    ' · Paid ' + ledger.totalPaid + ' · Due ' + ledger.totalDue;
+                renderPayments(payments.items || []);
+                showPaging(true, true);
+                pageInfo(invoices, page, 'studentPortal');
+                pageInfo(payments, paymentPage, 'studentPortalPayments');
+                return;
             }
+            let url = base + activeSection;
+            if (activeSection === 'attendance') {
+                const from = el('studentPortalFrom').value, to = el('studentPortalTo').value;
+                if (!from || !to || from > to || (Date.parse(to) - Date.parse(from)) / 86400000 > 366)
+                    throw new Error('Choose a valid attendance date range of at most 367 days.');
+                url += '?' + new URLSearchParams({ fromDate: from, toDate: to,
+                    page: String(page), pageSize: String(pageSize) });
+            } else if (paged.has(activeSection)) url += queryPage(page);
             const data = await api(url);
             if (token !== latestRequest) return;
-            if (section === 'fees') {
-                render(data?.invoices || [], columns.fees);
-                el('studentPortalSummary').textContent = 'Total billed ' + (data?.totalBilled ?? 0) +
-                    ' · Paid ' + (data?.totalPaid ?? 0) + ' · Due ' + (data?.totalDue ?? 0);
-                const extra = el('studentPortalExtra'), h = document.createElement('h4');
-                h.className = 'h6'; h.textContent = 'Payments'; extra.append(h);
-                const list = document.createElement('ul'); list.className = 'list-group';
-                (data?.payments || []).forEach(x => {
-                    const li = document.createElement('li'); li.className = 'list-group-item';
-                    li.textContent = (x.receiptNo || 'Receipt') + ' · ' + x.amount + ' · ' + String(x.paymentDate || '').slice(0,10);
-                    list.append(li);
-                });
-                if (!(data?.payments || []).length) {
-                    const li = document.createElement('li'); li.className = 'list-group-item text-muted'; li.textContent = 'No payments recorded.'; list.append(li);
-                }
-                extra.append(list);
-            } else if (section === 'documents') {
-                renderDocuments(data || [], student);
+            if (activeSection === 'documents') {
+                const rows = Array.isArray(data) ? data : [];
+                renderDocuments(rows, student);
                 el('studentPortalSummary').textContent =
-                    'Available non-sensitive documents: ' + (data?.length || 0) +
+                    'Available non-sensitive documents: ' + rows.length +
                     '. Verification-required files are handled by the institution.';
-            } else render(data || [], columns[section]);
+            } else if (paged.has(activeSection)) {
+                render(data.items || [], columns[activeSection]);
+                showPaging(true);
+                pageInfo(data, page, 'studentPortal');
+            } else render(Array.isArray(data) ? data : [], columns[activeSection]);
         } catch (error) {
             if (token !== latestRequest) return;
-            render([], columns[section], 'This section cannot be loaded.');
+            render([], columns[activeSection], 'This section cannot be loaded.');
             notify(error.message);
         }
     }
     select.addEventListener('change', () => {
-        loadCurrent();
+        resetPages(); loadCurrent();
         document.dispatchEvent(new CustomEvent('portal:student-selected', { detail: { student: select.value } }));
     });
     tabs.addEventListener('click', event => {
         const button = event.target.closest('button[data-portal-tab]');
         if (!button) return;
         section = button.dataset.portalTab;
+        resetPages();
         tabs.querySelectorAll('button[data-portal-tab]').forEach(b => { b.className = b === button ? 'btn btn-primary' : 'btn btn-outline-primary'; });
         loadCurrent();
     });
+    el('studentPortalPrevious').addEventListener('click', () => { if (page > 1) { page--; loadCurrent(); } });
+    el('studentPortalNext').addEventListener('click', () => { page++; loadCurrent(); });
+    el('studentPortalPaymentsPrevious').addEventListener('click', () => { if (paymentPage > 1) { paymentPage--; loadCurrent(); } });
+    el('studentPortalPaymentsNext').addEventListener('click', () => { paymentPage++; loadCurrent(); });
     el('studentPortalRefresh').addEventListener('click', loadCurrent);
-    el('studentPortalFrom').addEventListener('change', () => { if (section === 'attendance') loadCurrent(); });
-    el('studentPortalTo').addEventListener('change', () => { if (section === 'attendance') loadCurrent(); });
+    el('studentPortalFrom').addEventListener('change', () => { if (section === 'attendance') { resetPages(); loadCurrent(); } });
+    el('studentPortalTo').addEventListener('change', () => { if (section === 'attendance') { resetPages(); loadCurrent(); } });
     el('studentPortalTo').value = localDate(Date.now());
     el('studentPortalFrom').value = localDate(Date.now() - 30 * 86400000);
     loadStudents();

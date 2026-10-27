@@ -97,7 +97,17 @@
         <div class="table-responsive"><table class="table table-hover align-middle mb-0">
             <thead id="studentPortalHeaders"></thead><tbody id="studentPortalRows"><tr><td>Choose a student to load data.</td></tr></tbody>
         </table></div>
+        <nav id="studentPortalPagination" class="d-none d-flex align-items-center gap-2 mt-3" aria-label="Section pages">
+            <button id="studentPortalPrevious" type="button" class="btn btn-sm btn-outline-secondary" disabled>Previous</button>
+            <span id="studentPortalPage" class="small text-muted" aria-live="polite"></span>
+            <button id="studentPortalNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>Next</button>
+        </nav>
         <div id="studentPortalExtra" class="mt-3"></div>
+        <nav id="studentPortalPaymentsPagination" class="d-none d-flex align-items-center gap-2 mt-2" aria-label="Payment pages">
+            <button id="studentPortalPaymentsPrevious" type="button" class="btn btn-sm btn-outline-secondary" disabled>Previous payments</button>
+            <span id="studentPortalPaymentsPage" class="small text-muted" aria-live="polite"></span>
+            <button id="studentPortalPaymentsNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>Next payments</button>
+        </nav>
     </div></section>
 </section>
 @section Scripts {

@@ -184,6 +184,96 @@ public class SelfServicePortalServiceTests
         result.Data[0].TeacherName.Should().Be("Teacher");
     }
 
+
+    [Fact]
+    public async Task Portal_attendance_excludes_unfinalized_sessions_but_retains_historic_enrollment()
+    {
+        await using var context = CreateContext(out var accessor);
+        SetTenant(accessor, 10);
+        var student = Student(10, 99, "OWN");
+        context.Set<Student>().Add(student);
+        await context.SaveChangesAsync();
+        var date = DateOnly.FromDateTime(DateTime.UtcNow);
+        var enrollment = new StudentEnrollment
+        {
+            TenantId = 10, StudentId = student.Id, ClientRequestId = Guid.NewGuid(),
+            CampusId = 1, AcademicYearId = 1, AcademicProgramId = 1, AcademicLevelId = 1,
+            AcademicBatchId = 5, AcademicCurriculumId = 1, RollNo = "OLD-5",
+            EnrollmentDate = date.AddDays(-30), IsCurrent = false, State = EnrollmentState.Completed
+        };
+        context.Set<StudentEnrollment>().Add(enrollment);
+        await context.SaveChangesAsync();
+        var posted = new AttendanceSession
+        {
+            TenantId = 10, AcademicBatchId = 5, AttendanceDate = date,
+            ClientRequestId = Guid.NewGuid(), IsFinalized = true
+        };
+        var draft = new AttendanceSession
+        {
+            TenantId = 10, AcademicBatchId = 5, AttendanceDate = date,
+            ClientRequestId = Guid.NewGuid(), IsFinalized = false
+        };
+        context.Set<AttendanceSession>().AddRange(posted, draft);
+        await context.SaveChangesAsync();
+        context.Set<StudentAttendance>().AddRange(
+            new StudentAttendance { TenantId = 10, AttendanceSessionId = posted.Id,
+                StudentEnrollmentId = enrollment.Id, State = AttendanceState.Present },
+            new StudentAttendance { TenantId = 10, AttendanceSessionId = draft.Id,
+                StudentEnrollmentId = enrollment.Id, State = AttendanceState.Absent });
+        await context.SaveChangesAsync();
+        var result = await CreateService(context, new TestCurrentUser(10, 99, "Student"))
+            .GetAttendanceAsync(student.PublicId, date, date, 1, 25);
+        result.Success.Should().BeTrue();
+        result.Data!.TotalCount.Should().Be(1);
+        result.Data.Items.Should().ContainSingle().Which.State.Should().Be(AttendanceState.Present);
+    }
+
+    [Fact]
+    public async Task Portal_results_never_disclose_withheld_marks()
+    {
+        await using var context = CreateContext(out var accessor);
+        SetTenant(accessor, 10);
+        var student = Student(10, 99, "OWN");
+        context.Set<Student>().Add(student);
+        await context.SaveChangesAsync();
+        var date = DateOnly.FromDateTime(DateTime.UtcNow);
+        var enrollment = new StudentEnrollment
+        {
+            TenantId = 10, StudentId = student.Id, ClientRequestId = Guid.NewGuid(),
+            CampusId = 1, AcademicYearId = 1, AcademicProgramId = 1, AcademicLevelId = 1,
+            AcademicBatchId = 5, AcademicCurriculumId = 1, RollNo = "5",
+            EnrollmentDate = date, IsCurrent = true, State = EnrollmentState.Active
+        };
+        var assessment = new Assessment
+        {
+            TenantId = 10, CampusId = 1, AcademicYearId = 1,
+            Name = "Private exam", Code = "PRIVATE", StartDate = date, EndDate = date
+        };
+        context.Set<StudentEnrollment>().Add(enrollment);
+        context.Set<Assessment>().Add(assessment);
+        await context.SaveChangesAsync();
+        var publication = new ResultPublication
+        {
+            TenantId = 10, AssessmentId = assessment.Id, AcademicBatchId = 5,
+            State = ResultPublicationState.Published, VisibleToStudent = true,
+            VisibleToGuardian = true, PublishedAt = DateTime.UtcNow
+        };
+        context.Set<ResultPublication>().Add(publication);
+        await context.SaveChangesAsync();
+        context.Set<StudentResultSummary>().Add(new StudentResultSummary
+        {
+            TenantId = 10, AssessmentId = assessment.Id, ResultPublicationId = publication.Id,
+            StudentEnrollmentId = enrollment.Id, PublicationVersionNo = 1,
+            ObtainedMarks = 93, TotalMarks = 100, IsWithheld = true
+        });
+        await context.SaveChangesAsync();
+        var result = await CreateService(context, new TestCurrentUser(10, 99, "Student"))
+            .GetResultsAsync(student.PublicId, 1, 25);
+        result.Success.Should().BeTrue();
+        result.Data!.TotalCount.Should().Be(0);
+        result.Data.Items.Should().BeEmpty();
+    }
+
     private static EduOSDbContext CreateContext(out HttpContextAccessor accessor)
     {
         accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };

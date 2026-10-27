@@ -194,7 +194,7 @@ public sealed class SelfServicePortalService : ISelfServicePortalService
             where att.TenantId == tenant && session.TenantId == tenant &&
                 enrollments.Contains(att.StudentEnrollmentId) &&
                 session.AttendanceDate >= fromDate && session.AttendanceDate <= toDate &&
-                !att.IsDeleted && !session.IsDeleted
+                !att.IsDeleted && !session.IsDeleted && session.IsFinalized
             select new { att, session.AttendanceDate };
         var count = await query.CountAsync(ct);
         var skip = Skip(page, pageSize);
@@ -226,7 +226,7 @@ public sealed class SelfServicePortalService : ISelfServicePortalService
                 on summary.AssessmentId equals assessment.Id
             where summary.TenantId == tenant && publication.TenantId == tenant &&
                 assessment.TenantId == tenant && enrollments.Contains(summary.StudentEnrollmentId) &&
-                publication.State == ResultPublicationState.Published &&
+                publication.State == ResultPublicationState.Published && !summary.IsWithheld &&
                 (guardianView ? publication.VisibleToGuardian : publication.VisibleToStudent) &&
                 !publication.IsDeleted && !summary.IsDeleted && !assessment.IsDeleted
             select new { summary, publication.PublishedAt, AssessmentName = assessment.Name };
