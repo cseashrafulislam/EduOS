@@ -71,7 +71,8 @@ test('institution administration table columns use private versioned allowlists 
     const invitations = read('EduOS.App/Views/TenantUsers/Invitations.cshtml');
     assert.match(dto, /TablePreferenceDto/);
     assert.match(service, /ValidTables\(request\.TablePreferences\)/);
-    assert.match(service, /TablePreferences = request\.TablePreferences/);
+    assert.match(service, /TablePreferences = tables\.Select/);
+    assert.match(service, /request\.TablePreferences \?\? ToDto\(row\)\.TablePreferences/);
     assert.match(view, /User\.IsInRole\("TenantAdmin"\)/);
     assert.match(view, /data-table-columns/);
     assert.match(shell, /safeTablePreferences/);
