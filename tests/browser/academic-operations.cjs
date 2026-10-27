@@ -51,11 +51,15 @@ async function attendance(browser) {
         const request = route.request(), url = new URL(request.url());
         if (!url.pathname.startsWith('/api/'))
             return route.fulfill({ status: 200, contentType: 'text/html', body: attendanceHtml });
-        if (url.pathname === '/api/academic-setup/catalog')
-            return response(route, 200, { batches: [{
-                id: 10, academicYearId: 20, academicLevelId: 30, academicYearName: '2026',
-                academicLevelName: 'Grade 9', name: 'Section A', code: '9-A', isActive: true
-            }] });
+        if (url.pathname === '/api/student-attendance/batches') {
+            assert.equal(url.searchParams.get('page'), '1');
+            assert.equal(url.searchParams.get('pageSize'), '25');
+            return response(route, 200, { page: 1, pageSize: 25, totalCount: 1,
+                totalPages: 1, items: [{
+                    id: 10, academicYearName: '2026', academicLevelName: 'Grade 9',
+                    name: 'Section A', code: '9-A'
+                }] });
+        }
         if (url.pathname === '/api/student-attendance/roster')
             return response(route, 200, !isFinalized ? roster : {
                 ...roster, isFinalized: true, attendanceSessionId: 99,
@@ -108,11 +112,9 @@ async function attendance(browser) {
     });
     await page.goto('http://eduos.test/Attendance/Index');
     await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/attendance/index.js') });
-    await page.locator('#academicYearId option[value="20"]').waitFor({ state: 'attached' });
-    await page.locator('#academicYearId').selectOption('20');
-    await page.locator('#classId').selectOption('30');
-    await page.locator('#sectionId').selectOption('10');
     await page.locator('#attendanceDate').fill('2026-10-10');
+    await page.locator('#sectionId option[value="10"]').waitFor({ state: 'attached' });
+    await page.locator('#sectionId').selectOption('10');
     await page.locator('#attendanceFilters button[type="submit"]').click();
     await page.locator('tr[data-enrollment-reference]').first().waitFor();
     assert.match(await page.locator('#attendanceRows').innerText(), /Approved leave on this date/);
