@@ -21,7 +21,7 @@ These indexes make tenant/resource date-range probes and SQL Server key-range lo
 ## Exact dependent-service contract
 
 For any route-vehicle change (#50), driver change (#37) or rider period mutation (#51), Operations must:
-1. Require tenant/campus authorization, a nonempty ClientRequestId and expected aggregate RowVersion; never infer campus from a null legacy vehicle CampusId. New vehicles require an active authorized campus; legacy campus-null vehicles remain readable but cannot be newly assigned until explicitly reconciled.
+1. Require tenant/campus authorization, a nonempty ClientRequestId and expected aggregate RowVersion; never infer campus from a null legacy vehicle CampusId. New vehicles require an active authorized campus; legacy campus-null routes/vehicles must not be newly assigned until explicitly reconciled. **Known unresolved Operations gap:** `TransportService.AssignAsync` currently permits null `CampusId` to bypass its campus comparison for existing route–vehicle links; do not treat this policy as enforced on the rider-write path.
 2. Begin a short **SQL Server SERIALIZABLE** transaction; obtain resource guards in deterministic ascending (tenant, vehicle, driver, student) order. Check `IReservationCommandReceiptStore.ReplayAsync` **before** rejecting stale row versions; same actor/target/hash returns the stored original result, key reuse with changed inputs is 409.
 3. Query every non-deleted intersecting period for the same resource, not just `EndDate IS NULL` or `IsCurrent`. Inclusive overlap: `existing.From <= proposed.ToOrMax AND existing.ToOrMax >= proposed.From`. Recheck vehicle capacity and rider allocations under the same transaction.
 4. Save canonical entity and immutable audit, call `RecordAsync` for **successful** response, save the receipt and commit **once**. A unique-key/rowversion/deadlock conflict must not be treated as success; on deadlock retry only with a new DbContext and replay check.
@@ -32,7 +32,7 @@ For any route-vehicle change (#50), driver change (#37) or rider period mutation
 and
 `RecordAsync<T>(long tenantId, long actorId, string scope, Guid requestId, long targetId, string requestHash, ApiResponse<T> response, CancellationToken ct)`.
 
-Use distinct operation scopes (e.g. `transport.route-vehicle-change`, `transport.upcoming-driver-change`, `transport.rider-extend-upcoming`) and SHA-256 of a canonical full request including original row versions. This migration does **not** wire receipt replay into Operations commands; exact-state retries are not equivalent to durable request-key idempotency.
+Use distinct operation scopes (e.g. `transport.route-vehicle-change`, `transport.upcoming-driver-change`, `transport.rider-extend-upcoming`) and SHA-256 of a canonical full request including original row versions. **Current HEAD implementation:** `TransportService.RouteVehicleCreate.cs`, `TransportService.UpcomingRouteVehicleChange.cs`, and `TransportService.UpcomingDriverChange.cs` already call `ReplayAsync` and `RecordAsync` inside serializable transactions. Preserve that wiring; do **not** add another receipt store or duplicate replay logic. Other commands must be verified individually rather than assumed complete.
 
 ## SQL Server computed-column index legality (#36/#37)
 
@@ -52,7 +52,15 @@ proof of scheduled-driver service behavior or a change to historical data.
 
 ## Verification / remaining acceptance
 
-Platform test `TransportReservationWindowIndexTests` asserts EF model metadata and, when `EDUOS_SQL_AUTH_TEST_CONNECTION` is set, checks five SQL Server indexes after migration. Existing `SqlServerTransportIdentityIntegrationTests` covers real rowversion, normalized uniqueness, filtered current links and concurrent request-key uniqueness. Remaining: two-DbContext competing **service command** races for vehicle capacity/deactivation, overlapping route/driver scheduling, rider extension and durable request replay; Operations owns these command tests and integration. Finance owns paid-period billing and #45 transfer charges. Do not mark Issues #36/#37/#50/#51 fully closed from this persistence-only change.
+Platform test `TransportReservationWindowIndexTests` asserts EF model metadata and, when `EDUOS_SQL_AUTH_TEST_CONNECTION` is set, checks five SQL Server indexes after migration. Existing `SqlServerTransportIdentityIntegrationTests` covers real rowversion, normalized uniqueness, filtered current links and concurrent request-key uniqueness. Existing SQL Server tests now include competing vehicle/driver identity writes, same-row rowversion conflicts, rider booking versus vehicle capacity reduction, overlapping future route–vehicle creation, upcoming route–vehicle replacement versus rider booking, and competing upcoming driver changes with durable replay. **Still unverified:** all cross-aggregate deactivation/assignment races, the full finite-interval scheduling policy, and every rider cancellation/extension/transfer combination. Operations owns service-command coverage and HTTP 409 mapping. Finance owns paid-period billing and #45 transfer charges. Do not mark Issues #36/#37/#50/#51 fully closed from this persistence-only change.
+
+## Latest verified command integration (2026-10-27)
+
+At `Ashraful` HEAD `6e19b7dbf2e6fb80bdbc25381953a1fe17cd9ca2`, Operations already uses the shared durable receipt store in route–vehicle creation, upcoming route–vehicle change and upcoming driver change; SQL Server two-DbContext tests cover competing future driver changes (one winner, one HTTP 409 and winning request replay) and upcoming route–vehicle replacement racing a rider booking. [CI](https://github.com/cseashrafulislam/EduOS/actions/runs/40448313081) and [SQL Server Migration Smoke](https://github.com/cseashrafulislam/EduOS/actions/runs/40448313075) both passed on that commit. These checks do **not** prove full production readiness.
+
+**Campus-scope gap (#36):** `TransportService.GetRoutesAsync` and `GetVehiclesAsync` still expose null-campus legacy records to non-admin campus-scoped operators through an `allowed.Any()` fallback. `TransportService.AssignAsync` checks mismatch only for nonnull route/vehicle campuses, permitting new rider reservations through pre-existing historical links if campus is null. Operations must require explicit active, matching campus for new reservations and hide unassigned records from ordinary campus-scoped lists. Preserve TenantAdmin-only historical reconciliation; no automatic backfill or Platform migration is justified. [Issue #36](https://github.com/cseashrafulislam/EduOS/issues/36).
+
+**Scheduling contract (#37/#50):** the deployed unique filtered `IsCurrent` indexes prohibit multiple simultaneously-current rows even if their effective periods do not overlap. Do not change those indexes or claim general date-range exclusion without an agreed scheduling policy, additive migration and concurrency regressions.
 
 ## Concurrent SQL Server constraint regression (2026-10-27)
 
